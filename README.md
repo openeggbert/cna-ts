@@ -1,6 +1,6 @@
 # CNA-JS
 
-> **Status: In progress - ZATÍM NEFUNKČNÍ**
+> **Status: In progress - NOT YET FUNCTIONAL**
 
 
 CNA-JS exposes [CNA](https://github.com/openeggbert/cna) through JavaScript
