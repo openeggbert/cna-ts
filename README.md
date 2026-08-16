@@ -1,9 +1,9 @@
-# CNA-JS
+# CNA-TS
 
 > **Status: In progress - NOT YET FUNCTIONAL**
 
 
-CNA-JS exposes [CNA](https://github.com/openeggbert/cna) through JavaScript
+CNA-TS exposes [CNA](https://github.com/openeggbert/cna) through JavaScript
 objects and TypeScript declarations matching XNA 4.0 namespaces.
 
 ```text
@@ -24,7 +24,7 @@ CNA C++ Microsoft::Xna::Framework implementation
 first local values exist. Native execution waits for canonical CNA exports.
 
 ```javascript
-import { Microsoft } from "@openeggbert/cna";
+import { Microsoft } from "cna-ts";
 
 const position = new Microsoft.Xna.Framework.Vector2(100, 100);
 const color = Microsoft.Xna.Framework.Color.CornflowerBlue;
@@ -38,4 +38,4 @@ See [architecture](docs/architecture.md) and [plan](plan.md).
 
 ## License
 
-CNA-JS is licensed under the [Microsoft Public License](LICENSE), matching CNA.
+CNA-TS is licensed under the [Microsoft Public License](LICENSE), matching CNA.
