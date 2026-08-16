@@ -1,5 +1,8 @@
 # CNA-JS
 
+> **Status: In progress - ZATÍM NEFUNKČNÍ**
+
+
 CNA-JS exposes [CNA](https://github.com/openeggbert/cna) through JavaScript
 objects and TypeScript declarations matching XNA 4.0 namespaces.
 
