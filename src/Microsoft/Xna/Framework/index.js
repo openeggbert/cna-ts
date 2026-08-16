@@ -76,6 +76,10 @@ export class Game {
 
   UnloadContent() {}
 
+  get Content() { return null; }
+  get GraphicsDevice() { return null; }
+  set IsMouseVisible(value) {}
+
   Dispose() {
     this.#disposed = true;
   }

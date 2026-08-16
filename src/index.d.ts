@@ -44,6 +44,9 @@ export namespace Microsoft {
         protected Update(gameTime: GameTime): void | Promise<void>;
         protected Draw(gameTime: GameTime): void | Promise<void>;
         protected UnloadContent(): void | Promise<void>;
+        readonly Content: any;
+        readonly GraphicsDevice: any;
+        IsMouseVisible: boolean;
         Dispose(): void;
       }
 
