@@ -1,23 +1,19 @@
 # Architecture
 
 ```text
-Microsoft.Xna.Framework.{Graphics, Input, Content}
+Microsoft.Xna.Framework compatibility object/type tree
                          ↓
-CNA.Framework.{Graphics, Input, Content}
-                         ↓
-CNA.Interop
+src/internal WebAssembly/native adapter
                          ↓
 CNA stable WebAssembly/C ABI
                          ↓
-CNA C++ core
+CNA C++: Microsoft::Xna::Framework
 ```
 
-The package exports actual runtime objects named `Microsoft` and `CNA`, and the
-TypeScript declarations describe the same hierarchy. The compatibility tree
-may reuse constructors only where the CNA and XNA contracts are identical;
-otherwise it owns facade types and conversions.
+The package exports the runtime object `Microsoft` and matching TypeScript
+namespace declarations. Internal code owns WebAssembly memory, UTF-8, native
+errors, handles, callbacks, threading, ownership, batching, and shutdown.
 
-Only the interop adapter may access WebAssembly memory or native exports. Math
-stays in JS, native resources use explicit `Dispose`, input crosses as
-snapshots, and SpriteBatch/data traffic is batched. Sharp Runtime remains an
-internal C++ detail.
+There is no public `CNA.Framework` object because no `CNA::Framework` namespace
+exists in CNA C++. Future public `CNA` objects must mirror concrete native
+extensions rather than duplicate XNA types.

@@ -1,4 +1,3 @@
-import * as CnaFramework from "./CNA/Framework/index.js";
 import {
   bindingsAvailable,
   NativeUnavailableError,
@@ -6,12 +5,7 @@ import {
 import * as XnaFramework from "./Microsoft/Xna/Framework/index.js";
 
 export { NativeUnavailableError };
-
-/** CNA-native namespace tree. */
-export const CNA = Object.freeze({
-  Framework: CnaFramework,
-  Interop: Object.freeze({ bindingsAvailable }),
-});
+export { bindingsAvailable };
 
 /** XNA 4.0-compatible namespace tree. */
 export const Microsoft = Object.freeze({

@@ -1,23 +1,24 @@
 # CNA-JS
 
 CNA-JS exposes [CNA](https://github.com/openeggbert/cna) through JavaScript
-objects and TypeScript declarations matching CNA and XNA 4.0 namespaces.
+objects and TypeScript declarations matching XNA 4.0 namespaces.
 
 ```text
 JavaScript / TypeScript game
             ↓
-Microsoft.Xna.Framework compatibility tree
+Microsoft.Xna.Framework.{Graphics, Input, Content}
             ↓
-CNA.Framework tree
+src/internal
             ↓
-CNA.Interop → WebAssembly/C ABI → CNA C++
+CNA stable WebAssembly/C ABI
+            ↓
+CNA C++ Microsoft::Xna::Framework implementation
 ```
 
 ## Status
 
-**Early scaffold.** The corrected runtime namespace objects, source hierarchy,
-TypeScript declarations, and first local values are present. Native execution
-waits for CNA's canonical C ABI and WebAssembly exports.
+**Early scaffold.** The compatibility runtime object, type declarations, and
+first local values exist. Native execution waits for canonical CNA exports.
 
 ```javascript
 import { Microsoft } from "@openeggbert/cna";
@@ -26,8 +27,9 @@ const position = new Microsoft.Xna.Framework.Vector2(100, 100);
 const color = Microsoft.Xna.Framework.Color.CornflowerBlue;
 ```
 
-The parallel CNA-native tree is exported as `CNA.Framework`. Low-level loading
-and ABI status belong to `CNA.Interop`.
+Interop status and errors are package-root binding utilities backed by
+`src/internal`; there is deliberately no public `CNA.Framework` object. Future
+`CNA` objects must mirror real native `CNA::...` extensions.
 
 See [architecture](docs/architecture.md) and [plan](plan.md).
 

@@ -1,33 +1,30 @@
 # CNA-JS implementation plan
 
-**Status:** corrected namespace scaffold in place
+**Status:** XNA namespace scaffold in place
 
 **Date:** 2026-08-16
 
-## Phase 0 — namespace scaffold
+## Phase 0 — repository scaffold
 
-- [x] Establish runtime `CNA.Framework` and
-      `Microsoft.Xna.Framework` namespace objects.
-- [x] Mirror those trees in TypeScript declarations and source directories.
-- [x] Reserve matching `Graphics`, `Input`, and `Content` namespaces.
+- [x] Establish runtime and TypeScript `Microsoft.Xna.Framework` plus
+      `Graphics`, `Input`, and `Content` compatibility trees.
+- [x] Keep ABI implementation under `src/internal`.
 - [x] Add initial `Game`, `GameTime`, `Vector2`, and `Color` shapes.
+- [x] Remove the invalid invented public `CNA.Framework` object tree.
 
 ## Phase 1 — canonical WebAssembly ABI
 
-- [ ] Bind only exports derived from C headers owned by `openeggbert/cna`.
-- [ ] Add async loading, ABI-version checks, UTF-8, structured errors, opaque
-      handles, callbacks, browser threading, ownership, and shutdown.
+- [ ] Bind only exports derived from headers owned by `openeggbert/cna`.
+- [ ] Add async loading, version checks, UTF-8, errors, handles, callbacks,
+      browser threading, ownership, batching, and shutdown.
 
-## Phase 2 — first playable XNA-style loop
+## Phase 2 — playable compatibility slice
 
-- [ ] Add graphics device, texture, sprite batch, content, and keyboard types
-      under both public namespace trees.
-- [ ] Run a CNA-backed canvas game that clears, loads/draws a texture, reads
-      Escape, and shuts down cleanly.
+- [ ] Add graphics device, texture, sprite batch, content, and keyboard types.
+- [ ] Run a CNA-backed XNA-style browser game loop.
 
 ## Invariants
 
-1. Public object/type hierarchy follows CNA and `Microsoft.Xna.Framework`.
-2. CNA C++ remains the only engine implementation.
-3. Only stable CNA WebAssembly/C ABI exports cross into JavaScript.
-4. Sharp Runtime and C++ ABI details remain native implementation details.
+1. XNA types follow the `Microsoft.Xna.Framework` hierarchy.
+2. No public object/namespace is invented without a native counterpart.
+3. CNA C++ remains canonical and only its stable ABI crosses the boundary.

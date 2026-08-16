@@ -17,7 +17,7 @@
     "README.md"
   ],
   "scripts": {
-    "check": "node --check src/index.js && node --check src/CNA/Framework/index.js && node --check src/Microsoft/Xna/Framework/index.js && node --check src/internal/native.js",
+    "check": "node --check src/index.js && node --check src/Microsoft/Xna/Framework/index.js && node --check src/internal/native.js",
     "test": "node --test"
   },
   "engines": {
