@@ -1,0 +1,41 @@
+{
+  "name": "@openeggbert/cna",
+  "version": "0.0.0",
+  "description": "JavaScript and TypeScript binding for the native CNA game framework",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "types": "./src/index.d.ts",
+  "files": [
+    "src",
+    "LICENSE",
+    "NOTICE.md",
+    "README.md"
+  ],
+  "scripts": {
+    "check": "node --check src/index.js && node --check src/internal/native.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "cna",
+    "xna",
+    "game-framework",
+    "webassembly"
+  ],
+  "license": "Ms-PL",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openeggbert/cna-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/openeggbert/cna-js/issues"
+  },
+  "sideEffects": false
+}
