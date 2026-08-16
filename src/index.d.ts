@@ -1,46 +1,74 @@
-export const bindingsAvailable: boolean;
-
 export class NativeUnavailableError extends Error {}
 
-export class Vector2 {
-  constructor(x: number, y: number);
-  readonly x: number;
-  readonly y: number;
-  readonly lengthSquared: number;
-  add(other: Vector2): Vector2;
-  scale(scale: number): Vector2;
+export namespace CNA {
+  namespace Interop {
+    const bindingsAvailable: boolean;
+  }
+
+  namespace Framework {
+    class Vector2 {
+      constructor(X: number, Y: number);
+      readonly X: number;
+      readonly Y: number;
+      readonly LengthSquared: number;
+      Add(other: Vector2): Vector2;
+    }
+
+    class Color {
+      constructor(R: number, G: number, B: number, A?: number);
+      readonly R: number;
+      readonly G: number;
+      readonly B: number;
+      readonly A: number;
+      static readonly CornflowerBlue: Color;
+      static readonly White: Color;
+    }
+
+    interface GameTimeOptions {
+      TotalMilliseconds?: number;
+      ElapsedMilliseconds?: number;
+      IsRunningSlowly?: boolean;
+    }
+
+    class GameTime {
+      constructor(value?: GameTimeOptions);
+      readonly TotalMilliseconds: number;
+      readonly ElapsedMilliseconds: number;
+      readonly IsRunningSlowly: boolean;
+    }
+
+    class Game {
+      Run(): Promise<void>;
+      Exit(): void;
+      protected Initialize(): void | Promise<void>;
+      protected LoadContent(): void | Promise<void>;
+      protected Update(gameTime: GameTime): void | Promise<void>;
+      protected Draw(gameTime: GameTime): void | Promise<void>;
+      protected UnloadContent(): void | Promise<void>;
+      Dispose(): void;
+    }
+
+    namespace Graphics {}
+    namespace Input {}
+    namespace Content {}
+  }
 }
 
-export class Color {
-  constructor(red: number, green: number, blue: number, alpha?: number);
-  readonly red: number;
-  readonly green: number;
-  readonly blue: number;
-  readonly alpha: number;
-  static readonly CORNFLOWER_BLUE: Color;
-  static readonly WHITE: Color;
-}
+export namespace Microsoft {
+  namespace Xna {
+    namespace Framework {
+      type Vector2 = CNA.Framework.Vector2;
+      const Vector2: typeof CNA.Framework.Vector2;
+      type Color = CNA.Framework.Color;
+      const Color: typeof CNA.Framework.Color;
+      type GameTime = CNA.Framework.GameTime;
+      const GameTime: typeof CNA.Framework.GameTime;
+      type Game = CNA.Framework.Game;
+      const Game: typeof CNA.Framework.Game;
 
-export interface GameTimeOptions {
-  totalMilliseconds?: number;
-  elapsedMilliseconds?: number;
-  runningSlowly?: boolean;
-}
-
-export class GameTime {
-  constructor(value?: GameTimeOptions);
-  readonly totalMilliseconds: number;
-  readonly elapsedMilliseconds: number;
-  readonly runningSlowly: boolean;
-}
-
-export class Game {
-  run(): Promise<void>;
-  exit(): void;
-  protected initialize(): void | Promise<void>;
-  protected loadContent(): void | Promise<void>;
-  protected update(gameTime: GameTime): void | Promise<void>;
-  protected draw(gameTime: GameTime): void | Promise<void>;
-  protected unloadContent(): void | Promise<void>;
-  dispose(): void;
+      namespace Graphics {}
+      namespace Input {}
+      namespace Content {}
+    }
+  }
 }

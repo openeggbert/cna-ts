@@ -2,31 +2,33 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  bindingsAvailable,
-  Color,
-  Game,
+  CNA,
+  Microsoft,
   NativeUnavailableError,
-  Vector2,
 } from "../src/index.js";
 
 test("vector arithmetic stays in JavaScript", () => {
-  const vector = new Vector2(2, 3).add(new Vector2(4, -1)).scale(2);
-  assert.deepEqual(vector, new Vector2(12, 4));
-  assert.equal(new Vector2(3, 4).lengthSquared, 25);
+  const vector = new CNA.Framework.Vector2(2, 3)
+    .Add(new CNA.Framework.Vector2(4, -1));
+  assert.deepEqual(vector, new CNA.Framework.Vector2(6, 2));
+  assert.equal(new CNA.Framework.Vector2(3, 4).LengthSquared, 25);
 });
 
 test("known colors match XNA values", () => {
-  assert.deepEqual(Color.CORNFLOWER_BLUE, new Color(100, 149, 237, 255));
-  assert.throws(() => new Color(256, 0, 0), RangeError);
+  assert.deepEqual(
+    Microsoft.Xna.Framework.Color.CornflowerBlue,
+    new CNA.Framework.Color(100, 149, 237, 255),
+  );
+  assert.throws(() => new CNA.Framework.Color(256, 0, 0), RangeError);
 });
 
 test("native execution reports scaffold status", async () => {
-  assert.equal(bindingsAvailable, false);
-  await assert.rejects(new Game().run(), NativeUnavailableError);
+  assert.equal(CNA.Interop.bindingsAvailable, false);
+  await assert.rejects(new Microsoft.Xna.Framework.Game().Run(), NativeUnavailableError);
 });
 
 test("disposed games reject lifecycle control", () => {
-  const game = new Game();
-  game.dispose();
-  assert.throws(() => game.exit(), /already disposed/);
+  const game = new CNA.Framework.Game();
+  game.Dispose();
+  assert.throws(() => game.Exit(), /already disposed/);
 });

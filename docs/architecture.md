@@ -1,31 +1,23 @@
 # Architecture
 
 ```text
-JavaScript / TypeScript game
-            ↓
-@openeggbert/cna (public JS API + TypeScript declarations)
-            ↓
-private WebAssembly adapter and command buffers
-            ↓
-CNA stable C ABI exports
-            ↓
-CNA C++ core → Sharp Runtime, subsystems, web renderer
+Microsoft.Xna.Framework.{Graphics, Input, Content}
+                         ↓
+CNA.Framework.{Graphics, Input, Content}
+                         ↓
+CNA.Interop
+                         ↓
+CNA stable WebAssembly/C ABI
+                         ↓
+CNA C++ core
 ```
 
-One runtime implementation serves both JavaScript and TypeScript consumers;
-checked declarations provide the TypeScript surface. The first supported engine
-path is WebAssembly for browsers, with Node.js initially reusing that build. A
-native N-API path is deferred until a measured capability or performance need
-justifies its packaging cost.
+The package exports actual runtime objects named `Microsoft` and `CNA`, and the
+TypeScript declarations describe the same hierarchy. The compatibility tree
+may reuse constructors only where the CNA and XNA contracts are identical;
+otherwise it owns facade types and conversions.
 
-Math/value types stay in JavaScript. Native resources store private numeric
-handles and expose explicit, idempotent `dispose()`. Finalization is only a
-fallback. SpriteBatch calls accumulate into command buffers, input crosses as
-snapshots, and large data moves through typed-array/bulk ABI operations.
-
-The adapter must validate ABI versions, marshal UTF-8 explicitly, translate
-native results into errors or rejected promises, root callbacks, respect the
-browser main thread, and make shutdown deterministic.
-
-Sharp Runtime remains a private C++ dependency below the ABI and is never part
-of the JS object model or package requirements.
+Only the interop adapter may access WebAssembly memory or native exports. Math
+stays in JS, native resources use explicit `Dispose`, input crosses as
+snapshots, and SpriteBatch/data traffic is batched. Sharp Runtime remains an
+internal C++ detail.
