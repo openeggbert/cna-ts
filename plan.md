@@ -1,30 +1,180 @@
-# CNA-JS implementation plan
+# CNA-TS implementation plan
 
-**Status:** XNA namespace scaffold in place
+Status date: 2026-08-22
 
-**Date:** 2026-08-16
+Selected profile: XNA 4.0 Windows runtime
 
-## Phase 0 — repository scaffold
+Package: `cna-ts` 0.1.x before compatibility completion
 
-- [x] Establish runtime and TypeScript `Microsoft.Xna.Framework` plus
-      `Graphics`, `Input`, and `Content` compatibility trees.
-- [x] Keep ABI implementation under `src/internal`.
-- [x] Add initial `Game`, `GameTime`, `Vector2`, and `Color` shapes.
-- [x] Remove the invalid invented public `CNA.Framework` object tree.
+This is the normative roadmap. A checkbox means the named evidence exists; it never means a larger
+phase is complete. API completeness can only be claimed from a reproducible strict verifier run.
 
-## Phase 1 — canonical WebAssembly ABI
+## Current verified state
 
-- [ ] Bind only exports derived from headers owned by `openeggbert/cna`.
-- [ ] Add async loading, version checks, UTF-8, errors, handles, callbacks,
-      browser threading, ownership, batching, and shutdown.
+- [x] `src/` contains canonical TypeScript implementation only.
+- [x] TypeScript 5.9.2 generates ESM JavaScript, declarations, declaration maps, and source maps in
+  `dist/` under strict NodeNext settings.
+- [x] Root, `xna`, `extensions`, and `runtime` package exports resolve in compile probes.
+- [x] Node baseline is 20+; local verification currently uses checksum-verified Node 22.14.0.
+- [x] Initial pure implementations: `TimeSpan`, `GameTime`, mutable `Vector2`, and `Color`.
+- [x] `Game` reports unavailable native execution honestly and has disposal guards.
+- [ ] No WebAssembly or Node CNA backend is loaded.
+- [ ] The XNA structural difference count is not yet at zero.
 
-## Phase 2 — playable compatibility slice
+## Canonical JavaScript/TypeScript consolidation
 
-- [ ] Add graphics device, texture, sprite batch, content, and keyboard types.
-- [ ] Run a CNA-backed XNA-style browser game loop.
+- [x] One TypeScript implementation serves TypeScript and JavaScript.
+- [x] No handwritten source declaration aggregate remains.
+- [x] No checked-in generated JavaScript implementation remains.
+- [x] Legacy binding/template audit is recorded in `docs/cna-js-consolidation.md`.
+- [ ] Unified template generates fresh TypeScript and JavaScript consumers from one source.
 
-## Invariants
+## Compatibility definition and mapping
 
-1. XNA types follow the `Microsoft.Xna.Framework` hierarchy.
-2. No public object/namespace is invented without a native counterpart.
-3. CNA C++ remains canonical and only its stable ABI crosses the boundary.
+- [x] XNA 4.0 Windows runtime is the first named strict profile.
+- [x] `docs/xna-typescript-mapping.md` defines names, properties, fields, value aliasing, operators,
+  overloads, generics, events, `ref/out`, `TimeSpan`, enums, and lifecycle adaptation.
+- [x] Actual seven-assembly metadata measures 257 visible types and 2,964 declared visible members.
+- [ ] Every mapping rule is represented in machine-readable transformation logic.
+- [ ] Later profiles separately inventory GamerServices, Net, Avatar, Xbox/Phone, and Content
+  Pipeline assemblies.
+
+## Strict verifier baseline
+
+- [ ] Extract the neutral contract from checked reference-assembly hashes.
+- [ ] Transform CLR metadata to the expected TypeScript contract.
+- [ ] Read generated declarations with the TypeScript compiler API.
+- [ ] Compare types, inheritance/interfaces, members, overloads, parameters, generics, properties,
+  fields, events, nested types, and enum values.
+- [ ] Emit text and JSON diagnostics with the required categories.
+- [ ] Strict mode exits nonzero for all unexplained differences; report-only records the baseline.
+- [ ] Runtime-symbol verifier proves declarations correspond to JavaScript.
+- [ ] Internal/native leak gate is zero.
+- [x] Allowlist size is zero and blanket allowlisting is prohibited.
+
+## Definition of done
+
+The selected profile is complete only when mapped declaration differences, runtime-symbol
+differences, internal leaks, and unreviewed mapping differences are zero; differential behavior,
+lifecycle, native ownership, packed-package consumers, and every claimed platform all pass their
+reproducible gates. Until then documentation says “XNA 4.0 TypeScript/JavaScript API projection in
+progress.”
+
+## Package/module architecture
+
+- [x] ESM is the sole primary format; CommonJS is not built without evidence of a consumer need.
+- [x] `cna-ts` exports aliases and the `Microsoft` namespace object.
+- [x] `cna-ts/xna`, `/extensions`, and `/runtime` are explicit subpaths.
+- [x] `src/internal/**` is blocked by package `exports`.
+- [ ] Packed tarball installs and passes TS and plain-JS consumers in fresh directories.
+
+## Runtime/backend architecture
+
+- [x] Private backend contract distinguishes unavailable, WebAssembly, and Node/native kinds.
+- [x] Runtime status does not expose backend objects or handles.
+- [ ] Implement one real backend before expanding the abstraction.
+- [ ] ABI version, UTF-8 errors, callbacks, memory, arrays, shutdown, and canvas/window integration
+  have integration tests.
+
+## CNA C ABI status
+
+- [x] Current CNA exposes experimental C ABI 0.7.0, 59 public headers, and 2,861 unique exported
+  declarations. The old “waiting for canonical exports” claim was removed.
+- [x] The ABI covers version/error handling plus runtime, graphics, textures, SpriteBatch routes,
+  input, content, audio/XACT, media, storage, events, and resource handles.
+- [ ] Produce or obtain a consumable C-ABI WebAssembly ESM artifact.
+- [ ] Verify exact symbol subset used by CNA-TS rather than binding all 2,861 routes blindly.
+
+## Ownership and lifetime
+
+- [x] Architecture names owned, borrowed, parent-owned, and adopted states.
+- [x] Current `Game.Dispose()` is idempotent and use-after-dispose is tested.
+- [ ] Implement the native resource state machine, partial-construction rollback, child ordering,
+  borrowed wrappers, callback teardown, and stress tests.
+
+## Core/value API
+
+- [x] `TimeSpan`, `GameTime`, initial `Vector2`, and `Color` are managed and runtime-independent.
+- [ ] Complete `MathHelper`, Vector2/3/4, Matrix, Quaternion, Point, Rectangle, Plane, Ray,
+  bounding volumes, curves, and packed vectors in coherent groups.
+- [ ] Import neutral XNA differential fixtures including NaN, infinities, signed zero, rounding,
+  clamping, packing, and tolerances.
+- [ ] Add compile/type probes and mutation/snapshot regressions for every value group.
+
+## Game/device/window
+
+- [ ] Implement events/services/components and truthful lifecycle state transitions.
+- [ ] Implement GameWindow, GraphicsDeviceManager, GraphicsDevice, adapter, presentation parameters,
+  and Viewport over the selected backend.
+
+## Graphics
+
+- [ ] Implement resource base types and explicit disposal.
+- [ ] Implement Texture2D/raw image stream, states, buffers, vertex declarations, SpriteBatch,
+  effects, BasicEffect, models, and render targets in dependency order.
+
+## Input/touch
+
+- [ ] Implement keyboard, mouse, gamepad, and touch semantics over real ABI routes.
+
+## Content and models
+
+- [ ] Implement the class-token `Content.Load(Type, name)` mapping consistently.
+- [ ] Implement XNB header/reader table, caching, unload, built-in readers, shared resources, and
+  custom readers before claiming ContentManager functionality.
+- [ ] Keep raw PNG loading separate from XNB content loading.
+
+## Audio/XACT, media, storage, GamerServices
+
+- [ ] Implement the selected profile over real ABI routes with deterministic unsupported behavior
+  only where the platform genuinely cannot support a projected API.
+- [ ] Inventory non-selected GamerServices/Net profiles separately.
+
+## CNA extensions
+
+- [x] Separate extension subpath exists.
+- [ ] Renderer information and capabilities use verified backend data, never strict
+  `GraphicsDevice` properties or dynamic probing.
+
+## Template
+
+- [ ] Remove all stale `cna-js` identity and fictional imports/version claims.
+- [ ] Replace aspirational cube/mobile claims with the smallest truthful canary.
+- [ ] First functional slice: lifecycle, GameTime, device, raw Texture2D, SpriteBatch, keyboard,
+  resize, deterministic update/draw, and clean shutdown.
+- [ ] Add 3D/BasicEffect only after the 2D route works.
+- [ ] Generate TypeScript and ordinary JavaScript projects from one canonical source.
+
+## Browser/WASM
+
+- [x] CNA contains real Emscripten-aware renderer/runtime code.
+- [ ] No packaged C-ABI ESM loader/Wasm artifact was found in the inspected CNA worktree.
+- [ ] Local environment currently has no `emcc`; record exact toolchain/artifact recipe upstream.
+- [ ] Browser smoke verifies initialization, graphics/resources, 60 frames, shutdown, and zero
+  unhandled console errors; stability target is 600 frames.
+
+## Node, desktop, and mobile
+
+- [x] Node pure value/API tests are verified.
+- [ ] Node CNA runtime execution is not yet verified.
+- [ ] Electron is planned, not supported or build-verified.
+- [ ] Android and iOS are planned, not supported or build-verified.
+- [ ] Capacitor/Electron dependencies stay out of the template until they prove a real runtime path.
+
+## Packaging and CI gates
+
+- [ ] `npm ci`, build, type check, tests, verifier, runtime symbols, leak guard, and `npm pack` are CI
+  gates.
+- [ ] Install the exact tarball in independent TS and JS consumers with no sibling paths.
+- [ ] Generated artifacts are deterministic and package exports contain no internal subpath.
+- [x] Manual source `.d.ts` duplication = 0.
+- [x] Hand-maintained duplicate JavaScript implementation = 0.
+- [x] Legacy worktree changes during the initial audit = 0; recheck at session end.
+
+## Upstream CNA blockers
+
+- consumable C-ABI Emscripten module packaging and documented exported-symbol/loading contract;
+- a reproducible browser artifact recipe accessible to binding CI;
+- platform-specific renderer/window integration evidence for WebView/Electron claims.
+
+These are narrower than “CNA has no ABI”: the native C ABI exists and is broad.
