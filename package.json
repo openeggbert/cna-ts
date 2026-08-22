@@ -39,6 +39,7 @@
     "api:verify": "node tools/api-compat/verify.mjs --summary-only",
     "verify:runtime": "npm run build && node tools/api-compat/verify-runtime.mjs",
     "verify:leaks": "npm run build && node tools/api-compat/verify.mjs --leak-only --summary-only",
+    "verify:package": "npm run check && node tools/verify-package.mjs",
     "prepack": "npm run check && npm test"
   },
   "engines": {

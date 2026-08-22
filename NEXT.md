@@ -91,3 +91,8 @@ RUNTIME_DIFFERENCES=0
 The larger difference total versus the seven-type baseline is expected: a missing type is one
 diagnostic, while making it present exposes each still-missing member. The strict gate remains
 nonzero and therefore truthful.
+
+Package verification now creates the exact `cna-ts-0.1.0.tgz`, installs it without sibling paths
+into fresh JavaScript and TypeScript consumers, executes the JavaScript consumer, compiles the
+strict TypeScript consumer with `skipLibCheck=false`, checks all four public package entry points,
+and proves `cna-ts/internal/backend` is blocked by `exports`.

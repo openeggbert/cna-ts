@@ -68,7 +68,8 @@ progress.”
 - [x] `cna-ts` exports aliases and the `Microsoft` namespace object.
 - [x] `cna-ts/xna`, `/extensions`, and `/runtime` are explicit subpaths.
 - [x] `src/internal/**` is blocked by package `exports`.
-- [ ] Packed tarball installs and passes TS and plain-JS consumers in fresh directories.
+- [x] Packed tarball installs and passes strict TS and plain-JS consumers in fresh directories;
+  internal package subpaths are proven blocked.
 
 ## Runtime/backend architecture
 
@@ -169,7 +170,7 @@ progress.”
 
 - [ ] `npm ci`, build, type check, tests, verifier, runtime symbols, leak guard, and `npm pack` are CI
   gates.
-- [ ] Install the exact tarball in independent TS and JS consumers with no sibling paths.
+- [x] Install the exact tarball in independent TS and JS consumers with no sibling paths.
 - [ ] Generated artifacts are deterministic and package exports contain no internal subpath.
 - [x] Manual source `.d.ts` duplication = 0.
 - [x] Hand-maintained duplicate JavaScript implementation = 0.
