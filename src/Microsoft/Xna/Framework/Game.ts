@@ -1,8 +1,9 @@
 import { requireNative } from "../../../runtime/index.js";
+import type { IDisposable } from "./Contracts.js";
 import { GameTime } from "./GameTime.js";
 
 /** XNA game lifecycle shell. Native execution remains unavailable until a backend is loaded. */
-export class Game {
+export class Game implements IDisposable {
   #disposed = false;
   #isMouseVisible = false;
 
@@ -15,15 +16,19 @@ export class Game {
     this.#ensureActive();
   }
 
-  protected Initialize(): void | Promise<void> {}
+  protected Initialize(): void {}
 
-  protected LoadContent(): void | Promise<void> {}
+  protected LoadContent(): void {}
 
-  protected Update(_gameTime: GameTime): void | Promise<void> {}
+  protected Update(gameTime: GameTime): void {
+    void gameTime;
+  }
 
-  protected Draw(_gameTime: GameTime): void | Promise<void> {}
+  protected Draw(gameTime: GameTime): void {
+    void gameTime;
+  }
 
-  protected UnloadContent(): void | Promise<void> {}
+  protected UnloadContent(): void {}
 
   public get IsMouseVisible(): boolean {
     return this.#isMouseVisible;

@@ -32,9 +32,13 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node tools/clean.mjs && tsc -p tsconfig.json",
     "check": "npm run build && tsc -p tsconfig.types.json",
     "test": "npm run build && node --test",
+    "api:report": "node tools/api-compat/verify.mjs --report-only --summary-only",
+    "api:verify": "node tools/api-compat/verify.mjs --summary-only",
+    "verify:runtime": "npm run build && node tools/api-compat/verify-runtime.mjs",
+    "verify:leaks": "npm run build && node tools/api-compat/verify.mjs --leak-only --summary-only",
     "prepack": "npm run check && npm test"
   },
   "engines": {

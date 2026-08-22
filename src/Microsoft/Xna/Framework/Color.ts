@@ -6,9 +6,11 @@ function channel(value: number): number {
 }
 
 /** Mutable Microsoft.Xna.Framework.Color projection using XNA's AABBGGRR packing. */
-export class Color {
+export class Color implements IEquatable<Color> {
   #packedValue = 0;
 
+  public constructor(r: number, g: number, b: number);
+  public constructor(r: number, g: number, b: number, alpha: number);
   public constructor(r: number, g: number, b: number, alpha = 255) {
     this.R = r;
     this.G = g;
@@ -73,8 +75,10 @@ export class Color {
     return new Color(255, 255, 255, 255);
   }
 
-  public Equals(other: Color): boolean {
-    return this.PackedValue === other.PackedValue;
+  public Equals(other: Color): boolean;
+  public Equals(obj: unknown): boolean;
+  public Equals(obj: unknown): boolean {
+    return obj instanceof Color && this.PackedValue === obj.PackedValue;
   }
 
   public static Lerp(value1: Color, value2: Color, amount: number): Color {
@@ -87,3 +91,4 @@ export class Color {
     );
   }
 }
+import type { IEquatable } from "./Contracts.js";

@@ -43,8 +43,23 @@ git diff --check                     PASS
 
 ### Immediate next gates
 
-1. Land CLR extractor/profile and the TypeScript-AST verifier with a report-only baseline.
-2. Land runtime-symbol and internal-leak gates.
-3. Expand the coherent math/value group and differential fixtures.
-4. Convert the template to a packed-package canary without claiming a working native runtime.
-5. Define the smallest consumable CNA C-ABI Wasm artifact recipe with upstream CNA.
+The CLR extractor/profile, TypeScript-AST verifier, runtime-symbol verifier, and leak gate landed in
+the next thematic change. Its first report-only baseline is:
+
+```text
+REFERENCE_TYPES=257
+REFERENCE_MEMBERS=2964
+EXPECTED_MAPPED_TYPES=264
+TARGET_TYPES=7
+TOTAL_DIFFERENCES=443
+MISSING_TYPE=257
+MISSING_MEMBER=184
+INTERFACE_MISMATCH=1
+OVERLOAD_MISMATCH=1
+all other structural/signature/enum/mapping/leak categories=0
+ALLOWLIST_SIZE=0
+RUNTIME_DIFFERENCES=0
+```
+
+The strict verifier exits 1 as intended. Immediate next gates are the coherent math/value group,
+differential fixtures, packed consumers/template, and one real CNA backend artifact.

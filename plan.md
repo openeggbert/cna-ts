@@ -35,21 +35,21 @@ phase is complete. API completeness can only be claimed from a reproducible stri
 - [x] `docs/xna-typescript-mapping.md` defines names, properties, fields, value aliasing, operators,
   overloads, generics, events, `ref/out`, `TimeSpan`, enums, and lifecycle adaptation.
 - [x] Actual seven-assembly metadata measures 257 visible types and 2,964 declared visible members.
-- [ ] Every mapping rule is represented in machine-readable transformation logic.
+- [x] Current language rules are represented in `mapping-rules.json`; its allowlist is empty.
 - [ ] Later profiles separately inventory GamerServices, Net, Avatar, Xbox/Phone, and Content
   Pipeline assemblies.
 
 ## Strict verifier baseline
 
-- [ ] Extract the neutral contract from checked reference-assembly hashes.
-- [ ] Transform CLR metadata to the expected TypeScript contract.
-- [ ] Read generated declarations with the TypeScript compiler API.
-- [ ] Compare types, inheritance/interfaces, members, overloads, parameters, generics, properties,
-  fields, events, nested types, and enum values.
-- [ ] Emit text and JSON diagnostics with the required categories.
-- [ ] Strict mode exits nonzero for all unexplained differences; report-only records the baseline.
-- [ ] Runtime-symbol verifier proves declarations correspond to JavaScript.
-- [ ] Internal/native leak gate is zero.
+- [x] Extract the neutral contract only after all reference-assembly hashes match.
+- [x] Transform CLR metadata to the expected TypeScript contract.
+- [x] Read generated declarations with the TypeScript compiler API.
+- [x] Compare type identity, bases/interfaces, members, overloads, parameters, properties, fields,
+  events, nested identity, and enum values; generic-constraint depth still needs expansion.
+- [x] Emit text and JSON diagnostics with the required categories.
+- [x] Strict mode exits nonzero; report-only records 443 initial differences.
+- [x] Runtime-symbol verifier reports zero differences for all seven current target types.
+- [x] Strict internal/native leak gate reports zero.
 - [x] Allowlist size is zero and blanket allowlisting is prohibited.
 
 ## Definition of done

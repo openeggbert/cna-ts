@@ -1,7 +1,9 @@
+import type { IEquatable } from "./Contracts.js";
+
 const f32 = Math.fround;
 
 /** Mutable projection of the Microsoft.Xna.Framework.Vector2 CLR struct. */
-export class Vector2 {
+export class Vector2 implements IEquatable<Vector2> {
   public X: number;
   public Y: number;
 
@@ -42,8 +44,10 @@ export class Vector2 {
     this.Y = f32(this.Y * inverse);
   }
 
-  public Equals(other: Vector2): boolean {
-    return this.X === other.X && this.Y === other.Y;
+  public Equals(other: Vector2): boolean;
+  public Equals(obj: unknown): boolean;
+  public Equals(obj: unknown): boolean {
+    return obj instanceof Vector2 && this.X === obj.X && this.Y === obj.Y;
   }
 
   public static Add(value1: Vector2, value2: Vector2): Vector2 {

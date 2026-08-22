@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "methodCasing": "preserve",
+  "propertyStyle": "same-cased-accessor",
+  "mixedAccessorVisibility": "project-most-visible-accessor",
+  "mixedVisibilityOverloads": [
+    "Microsoft.Xna.Framework.Game.Dispose"
+  ],
+  "fieldStyle": "same-cased-field",
+  "structStyle": "mutable-class",
+  "timeSpan": "Microsoft.Xna.Framework.TimeSpan",
+  "gameRun": "Promise<void>",
+  "operatorMethods": {
+    "op_Addition": "Add",
+    "op_Subtraction": "Subtract",
+    "op_Multiply": "Multiply",
+    "op_Division": "Divide",
+    "op_UnaryNegation": "Negate",
+    "op_Equality": "Equals",
+    "op_Inequality": "Equals"
+  },
+  "refOut": {
+    "deduplicateWhenReturnOverloadExists": true,
+    "otherwise": "named-result-object"
+  },
+  "refOutMethods": {
+    "Microsoft.Xna.Framework.Graphics.GraphicsAdapter.QueryBackBufferFormat": {
+      "returnType": "Microsoft.Xna.Framework.Graphics.GraphicsFormatQueryResult"
+    },
+    "Microsoft.Xna.Framework.Graphics.GraphicsAdapter.QueryRenderTargetFormat": {
+      "returnType": "Microsoft.Xna.Framework.Graphics.GraphicsFormatQueryResult"
+    },
+    "Microsoft.Xna.Framework.Graphics.ModelBoneCollection.TryGetValue": {
+      "returnType": "Microsoft.Xna.Framework.TryResult<Microsoft.Xna.Framework.Graphics.ModelBone>"
+    },
+    "Microsoft.Xna.Framework.Graphics.ModelMeshCollection.TryGetValue": {
+      "returnType": "Microsoft.Xna.Framework.TryResult<Microsoft.Xna.Framework.Graphics.ModelMesh>"
+    },
+    "Microsoft.Xna.Framework.Input.Touch.TouchCollection.FindById": {
+      "returnType": "Microsoft.Xna.Framework.Input.Touch.TouchLocationResult"
+    },
+    "Microsoft.Xna.Framework.Input.Touch.TouchLocation.TryGetPreviousLocation": {
+      "returnType": "Microsoft.Xna.Framework.Input.Touch.TouchLocationResult"
+    },
+    "Microsoft.Xna.Framework.Matrix.Decompose": {
+      "returnType": "Microsoft.Xna.Framework.MatrixDecomposeResult"
+    }
+  },
+  "contentLoad": "Load<T>(assetType: XnaType<T>, assetName: string): T",
+  "events": "XnaEvent<TSender,TArgs>",
+  "genericTypeRenames": {
+    "Microsoft.Xna.Framework.Content.ContentTypeReader`1": "Microsoft.Xna.Framework.Content.ContentTypeReaderOfT",
+    "Microsoft.Xna.Framework.Graphics.PackedVector.IPackedVector`1": "Microsoft.Xna.Framework.Graphics.PackedVector.IPackedVectorOfT"
+  },
+  "syntheticTypes": [
+    {
+      "name": "Microsoft.Xna.Framework.TimeSpan",
+      "kind": "class"
+    },
+    {
+      "name": "Microsoft.Xna.Framework.IEquatable",
+      "kind": "interface",
+      "genericArity": 1
+    },
+    {
+      "name": "Microsoft.Xna.Framework.IDisposable",
+      "kind": "interface"
+    },
+    {
+      "name": "Microsoft.Xna.Framework.TryResult",
+      "kind": "interface",
+      "genericArity": 1
+    },
+    {
+      "name": "Microsoft.Xna.Framework.MatrixDecomposeResult",
+      "kind": "interface"
+    },
+    {
+      "name": "Microsoft.Xna.Framework.Graphics.GraphicsFormatQueryResult",
+      "kind": "interface"
+    },
+    {
+      "name": "Microsoft.Xna.Framework.Input.Touch.TouchLocationResult",
+      "kind": "interface"
+    }
+  ],
+  "frameworkTypeMappings": {
+    "System.Void": "void",
+    "System.Boolean": "boolean",
+    "System.Byte": "number",
+    "System.SByte": "number",
+    "System.Int16": "number",
+    "System.UInt16": "number",
+    "System.Int32": "number",
+    "System.UInt32": "number",
+    "System.Int64": "bigint",
+    "System.UInt64": "bigint",
+    "System.Single": "number",
+    "System.Double": "number",
+    "System.Char": "string",
+    "System.String": "string",
+    "System.Object": "unknown",
+    "System.TimeSpan": "Microsoft.Xna.Framework.TimeSpan",
+    "System.Type": "XnaType<unknown>"
+  },
+  "allowlist": []
+}

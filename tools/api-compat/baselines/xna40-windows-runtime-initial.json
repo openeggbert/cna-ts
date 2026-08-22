@@ -1,0 +1,30 @@
+{
+  "profile": "XNA 4.0 Windows runtime",
+  "measuredAt": "2026-08-22",
+  "referenceTypes": 257,
+  "referenceMembers": 2964,
+  "expectedMappedTypes": 264,
+  "targetTypes": 7,
+  "totalDifferences": 443,
+  "allowlistSize": 0,
+  "diagnosticCounts": {
+    "MISSING_TYPE": 257,
+    "UNEXPECTED_TYPE": 0,
+    "BASE_MISMATCH": 0,
+    "INTERFACE_MISMATCH": 1,
+    "MISSING_MEMBER": 184,
+    "UNEXPECTED_MEMBER": 0,
+    "PROPERTY_MISMATCH": 0,
+    "PARAMETER_MISMATCH": 0,
+    "RETURN_TYPE_MISMATCH": 0,
+    "OVERLOAD_MISMATCH": 1,
+    "GENERIC_MISMATCH": 0,
+    "ENUM_VALUE_MISMATCH": 0,
+    "EVENT_MAPPING_MISMATCH": 0,
+    "OPERATOR_MAPPING_MISMATCH": 0,
+    "LANGUAGE_MAPPING_MISMATCH": 0,
+    "INTERNAL_LEAK": 0
+  },
+  "runtimeSymbolDifferences": 0,
+  "strictLeakDifferences": 0
+}
