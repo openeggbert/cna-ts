@@ -185,7 +185,7 @@ progress.”
 - [ ] Preserve deterministic generated artifact hashes in CI.
 - [x] Manual source `.d.ts` duplication = 0.
 - [x] Hand-maintained duplicate JavaScript implementation = 0.
-- [x] Legacy worktree changes during the initial audit = 0; recheck at session end.
+- [x] Legacy worktree changes from start through end-of-session verification = 0.
 
 ## Upstream CNA blockers
 

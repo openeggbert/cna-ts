@@ -61,3 +61,7 @@ No unique useful implementation remains in either legacy repository. Once extern
 retention and npm-name policy are handled by the owner, both appear safe to archive or delete.
 Canonical JavaScript consumption comes from `cna-ts`; no compatibility shim or dependency on a
 legacy repository is required.
+
+End-of-session `git status --porcelain=v1 --untracked-files=all` was empty for both legacy
+worktrees. Their HEADs remained exactly `bcd6ee1effef38846af0883b6f93d3b137bb06cf` and
+`bc88cc766929bff1743405b47cf3d9f58e46e39a`; neither repository was modified or committed.

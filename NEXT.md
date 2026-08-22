@@ -167,3 +167,32 @@ resources still requiring release.
 
 The module remains unreachable through package `exports`. Its tests use synthetic handles and
 release callbacks only: they prove binding lifetime logic without claiming that CNA native code ran.
+
+## 2026-08-22: final measured gates
+
+The final source state passed strict TypeScript build/type checking and five Node test files. The
+neutral XNA behavior corpus passed all 26 observations and 27 assertions. The structural verifier
+intentionally exited 1 with the truthful incomplete baseline:
+
+```text
+REFERENCE_TYPES=257
+REFERENCE_MEMBERS=2964
+EXPECTED_MAPPED_TYPES=264
+TARGET_TYPES=23
+TOTAL_DIFFERENCES=450
+MISSING_TYPE=241
+MISSING_MEMBER=209
+all other diagnostic categories=0
+ALLOWLIST_SIZE=0
+RUNTIME_DIFFERENCES=0
+INTERNAL_LEAK=0
+```
+
+The exact `cna-ts-0.1.0.tgz` passed fresh plain-JavaScript and strict-TypeScript consumer tests,
+including the blocked internal subpath. Fresh generated template projects then reported TypeScript
+build PASS, JavaScript build PASS, JavaScript managed smoke PASS, and zero legacy/sibling
+references. No native/Wasm or browser frame smoke ran because the audited artifact remains absent.
+
+End-of-session checks found `cna-ts` and `cna-ts-template` clean and synchronized with their
+`origin/develop` branches. Both read-only legacy worktrees were still clean at their exact starting
+HEADs, so the measured legacy worktree change count is zero.
