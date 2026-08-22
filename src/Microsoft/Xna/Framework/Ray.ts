@@ -4,6 +4,7 @@ import { BoundingFrustum } from "./BoundingFrustum.js";
 import type { BoundingSphere } from "./BoundingSphere.js";
 import { Plane } from "./Plane.js";
 import { Vector3 } from "./Vector3.js";
+import { addHashes } from "../../../internal/value.js";
 
 const BOX_EPSILON = 1e-6;
 const PLANE_EPSILON = 1e-5;
@@ -22,6 +23,12 @@ export class Ray implements IEquatable<Ray> {
   public Equals(obj: unknown): boolean;
   public Equals(obj: unknown): boolean {
     return obj instanceof Ray && this.Position.Equals(obj.Position) && this.Direction.Equals(obj.Direction);
+  }
+
+  public GetHashCode(): number { return addHashes(this.Position.GetHashCode(), this.Direction.GetHashCode()); }
+
+  public ToString(): string {
+    return `{Position:${this.Position.ToString()} Direction:${this.Direction.ToString()}}`;
   }
 
   public Intersects(plane: Plane): number | null;

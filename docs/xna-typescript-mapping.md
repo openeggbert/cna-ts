@@ -42,8 +42,19 @@ member.
 
 `System.Boolean`, integral primitives, `Single`, and `Double` map to `boolean` or `number`.
 `Int64`/`UInt64` map to `bigint` when the full range is part of the contract. `System.String` maps to
-`string`, `System.Object` to `unknown`, and arrays to mutable or readonly arrays according to the
-member contract. `any` is not a general CLR-object mapping.
+`string`, `System.Object` to `unknown`, and `System.IntPtr` to `bigint`; an opaque native handle is
+never projected as that public integer. Arrays map to mutable or readonly arrays according to the
+member contract. `System.Exception` maps to `Error`, and `System.EventArgs` to the synthetic
+`EventArgs` value used by event contracts. `any` is not a general CLR-object mapping.
+
+`System.IComparable<T>` and `System.IEquatable<T>` use explicit structural interfaces in the
+projection. CLR `ICollection<T>`/`IList<T>` implementation heritage on XNA's named collection
+classes is erased: those classes are not JavaScript arrays, while every declared XNA collection
+member remains verified. A `Collection<T>` base is likewise erased, but its inherited public
+collection surface is projected and verified on the named class. A `Dictionary<K,V>` base maps to
+JavaScript `Map<K,V>`. Public `GetEnumerator()` results map to `IterableIterator<T>`; an
+`IEnumerable<T>` class also implements `Iterable<T>` and its required `[Symbol.iterator]()` is a
+machine-recognized JavaScript protocol adaptation rather than an unexpected XNA member.
 
 ## Properties and fields
 
@@ -114,8 +125,13 @@ undefined are not silently treated as equivalent.
 
 The browser-compatible lifecycle adaptation maps blocking `Game.Run(): void` to
 `Game.Run(): Promise<void>` so asynchronous backend initialization and shutdown are observable.
-This is recorded as `LANGUAGE_MAPPING_MISMATCH` until the verifier applies the specific rule.
-Lifecycle method names and order remain XNA-shaped.
+The verifier applies this one named rule. Lifecycle method names and order remain XNA-shaped.
+
+CLR finalizers are omitted because JavaScript garbage collection cannot expose deterministic
+`Finalize()` dispatch. The protected formatter-serialization constructor on exception types is
+also omitted; JavaScript errors use their ordinary constructor and optional `cause`. Where CLR
+declares a public `Dispose()` and protected `Dispose(bool)` overload on the same class, TypeScript
+projects the public overload because it cannot express overload-specific accessibility.
 
 ## Generics and content loading
 
@@ -123,7 +139,7 @@ Type parameters and constraints are kept in declarations where TypeScript can ex
 When erased runtime type information is needed, CNA-TS adds a class token consistently:
 
 ```ts
-interface XnaType<T> extends Function {
+interface XnaType<T> {
   readonly prototype: T;
 }
 
@@ -134,6 +150,12 @@ The mapped contract is `Load<T>(assetType: XnaType<T>, assetName: string): T`. E
 uses this convention. It does not pretend that JavaScript has CLR generic reflection. Raw PNG
 files use the mapped `Texture2D.FromStream`/raw-image route, not `Content.Load` unless they have
 actually been compiled to XNB.
+
+`System.Action<T>` maps to `XnaAction<T> = (value: T) => void`. The protected synchronous
+`System.IO.Stream` surface used by `ContentManager` maps to `Uint8Array`, the byte representation
+available consistently in Node and browsers. This does not claim an XNB decoder: managed
+`ContentManager` caching, root-directory state, type-token checks, unload, and disposal are
+implemented, while base XNB reading fails explicitly until a real content backend is loaded.
 
 ## Delegates and events
 
@@ -154,6 +176,9 @@ matching registration, consistent with multicast delegate subtraction. Dispatch 
 snapshot, so subscription changes during dispatch apply to the next dispatch. Native callback
 IDs and trampolines remain private.
 
+`System.IServiceProvider` maps to a structural `IServiceProvider` whose `GetService` accepts the
+same `XnaType` token used elsewhere. `System.Type` parameters therefore never become string names.
+
 ## `ref` and `out`
 
 No public holder class simulates CLR references. A return-value overload wins when XNA already has
@@ -171,6 +196,10 @@ interface MatrixDecomposeResult {
 `Try*` methods use `{ Success, Value }`. Other multi-output methods use same-cased parameter names
 as result properties. Every conversion is a mapping rule; an unmapped by-reference signature is a
 `LANGUAGE_MAPPING_MISMATCH` and fails the strict gate.
+
+A CLR `ref` parameter used only as input maps to an ordinary TypeScript value parameter. This is
+especially important for array transform overloads: JavaScript passes the array object directly,
+and the verifier deduplicates it only when the projected signature truly matches a value overload.
 
 ## `System.TimeSpan` and `GameTime`
 

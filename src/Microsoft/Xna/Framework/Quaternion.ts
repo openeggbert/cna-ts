@@ -1,6 +1,7 @@
 import type { IEquatable } from "./Contracts.js";
 import { Matrix } from "./Matrix.js";
 import { Vector3 } from "./Vector3.js";
+import { addHashes, floatHash, valueString } from "../../../internal/value.js";
 
 const f32 = Math.fround;
 
@@ -41,6 +42,14 @@ export class Quaternion implements IEquatable<Quaternion> {
   public Equals(obj: unknown): boolean;
   public Equals(obj: unknown): boolean {
     return obj instanceof Quaternion && this.X === obj.X && this.Y === obj.Y && this.Z === obj.Z && this.W === obj.W;
+  }
+
+  public GetHashCode(): number {
+    return addHashes(floatHash(this.X), floatHash(this.Y), floatHash(this.Z), floatHash(this.W));
+  }
+
+  public ToString(): string {
+    return `{X:${valueString(this.X)} Y:${valueString(this.Y)} Z:${valueString(this.Z)} W:${valueString(this.W)}}`;
   }
 
   public static Add(quaternion1: Quaternion, quaternion2: Quaternion): Quaternion {
@@ -159,17 +168,26 @@ export class Quaternion implements IEquatable<Quaternion> {
       );
     }
     if (matrix.M11 >= matrix.M22 && matrix.M11 >= matrix.M33) {
-      const s = Math.sqrt(1 + matrix.M11 - matrix.M22 - matrix.M33);
-      const inverse = 0.5 / s;
-      return new Quaternion(f32(s * 0.5), f32((matrix.M12 + matrix.M21) * inverse), f32((matrix.M13 + matrix.M31) * inverse), f32((matrix.M23 - matrix.M32) * inverse));
+      let rootValue = f32(1 + matrix.M11);
+      rootValue = f32(rootValue - matrix.M22);
+      rootValue = f32(rootValue - matrix.M33);
+      const s = f32(Math.sqrt(rootValue));
+      const inverse = f32(0.5 / s);
+      return new Quaternion(f32(s * 0.5), f32(f32(matrix.M12 + matrix.M21) * inverse), f32(f32(matrix.M13 + matrix.M31) * inverse), f32(f32(matrix.M23 - matrix.M32) * inverse));
     }
     if (matrix.M22 > matrix.M33) {
-      const s = Math.sqrt(1 + matrix.M22 - matrix.M11 - matrix.M33);
-      const inverse = 0.5 / s;
-      return new Quaternion(f32((matrix.M21 + matrix.M12) * inverse), f32(s * 0.5), f32((matrix.M32 + matrix.M23) * inverse), f32((matrix.M31 - matrix.M13) * inverse));
+      let rootValue = f32(1 + matrix.M22);
+      rootValue = f32(rootValue - matrix.M11);
+      rootValue = f32(rootValue - matrix.M33);
+      const s = f32(Math.sqrt(rootValue));
+      const inverse = f32(0.5 / s);
+      return new Quaternion(f32(f32(matrix.M21 + matrix.M12) * inverse), f32(s * 0.5), f32(f32(matrix.M32 + matrix.M23) * inverse), f32(f32(matrix.M31 - matrix.M13) * inverse));
     }
-    const s = Math.sqrt(1 + matrix.M33 - matrix.M11 - matrix.M22);
-    const inverse = 0.5 / s;
-    return new Quaternion(f32((matrix.M31 + matrix.M13) * inverse), f32((matrix.M32 + matrix.M23) * inverse), f32(s * 0.5), f32((matrix.M12 - matrix.M21) * inverse));
+    let rootValue = f32(1 + matrix.M33);
+    rootValue = f32(rootValue - matrix.M11);
+    rootValue = f32(rootValue - matrix.M22);
+    const s = f32(Math.sqrt(rootValue));
+    const inverse = f32(0.5 / s);
+    return new Quaternion(f32(f32(matrix.M31 + matrix.M13) * inverse), f32(f32(matrix.M32 + matrix.M23) * inverse), f32(s * 0.5), f32(f32(matrix.M12 - matrix.M21) * inverse));
   }
 }

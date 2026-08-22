@@ -196,3 +196,138 @@ references. No native/Wasm or browser frame smoke ran because the audited artifa
 End-of-session checks found `cna-ts` and `cna-ts-template` clean and synchronized with their
 `origin/develop` branches. Both read-only legacy worktrees were still clean at their exact starting
 HEADs, so the measured legacy worktree change count is zero.
+
+## 2026-08-22: coherent XNA implementation expansion
+
+This run began from the 23-target hard baseline above and moved from verifier infrastructure into
+coherent managed XNA implementation. The completed groups are:
+
+- the remaining mapped math/geometry members, including exact binary32 grouping, array transforms,
+  hashes/strings, frustum planes/corners/intersections, and XNA singular/NaN behavior;
+- `Curve`, `CurveKey`, `CurveKeyCollection`, `CurveLoopType`, `CurveContinuity`, and
+  `CurveTangent` as one behavior-tested group;
+- all 17 selected packed values with nearest-even packing, signed/unsigned normalization, half
+  saturation, packed storage width, equality, hash, and string contracts;
+- the complete selected input/touch value profile: enums/flags, keyboard/mouse snapshots,
+  gamepad buttons/D-pad/triggers/thumbsticks/state/capabilities, touch values/collection/enumerator,
+  and polling facades that fail explicitly through the unavailable backend;
+- typed events, component interfaces, `GameComponent`, `GameComponentCollection`, stable
+  update/draw ordering, `GameServiceContainer`, `LaunchParameters`, and the managed `Game` pipeline;
+- `GameWindow`, `ContentManager`/`ContentLoadException`, `Viewport`, graphics presentation enums,
+  `PresentationParameters`, and backend-created display-mode snapshots/collections.
+
+`ContentManager` implements root-directory, case-insensitive clean-name caching, class-token type
+checks, disposable tracking, unload, and disposal. Its base XNB read path remains explicitly
+unavailable. Raw PNG is still not treated as XNB content. `Game.GraphicsDevice` is intentionally the
+sole missing member on a present type: adding its 57-member resource-dependent class as a throwing
+shell would violate the coherent-group rule.
+
+### Shared neutral behavior corpus
+
+The neutral inputs came from the Ms-PL CNA-C# `MathBehaviorCorpus` and `InputBehaviorCorpus`.
+Expected observations were produced from the XNA 4.0 Windows reference source/IL and carried by the
+normalized sibling corpus; CNA-C# implementation code was not used as the specification. CNA-TS
+executes the cases independently and compares finite values/infinities/signed zero by binary32 bits,
+with NaN compared by classification.
+
+```text
+STARTING_OBSERVATIONS=26
+FINAL_OBSERVATIONS=106
+MATH_GEOMETRY_OBSERVATIONS=83
+INPUT_TOUCH_OBSERVATIONS=23
+FINAL_ASSERTIONS=107
+FAILURES=0
+```
+
+Covered groups are `MathHelper`, Vector2/3/4, Matrix, Quaternion, Color, Point, Rectangle, Plane,
+Ray, BoundingBox/Sphere/Frustum, curves, packed vectors, KeyboardState, MouseState, GamePad value
+semantics, and touch values/collections.
+
+### Strict API result
+
+The seven reference assemblies and their member total did not change. Expected mapped types rose
+from 264 to 271 only because the verifier now machine-models the necessary synthetic projections
+`IComparable`, `EventArgs`, `XnaEvent`, `XnaEventHandler`, `XnaType`, `IServiceProvider`, and
+`XnaAction`. No allowlist was introduced.
+
+```text
+                         BEFORE  AFTER
+REFERENCE_TYPES             257    257
+REFERENCE_MEMBERS          2964   2964
+EXPECTED_MAPPED_TYPES       264    271
+TARGET_TYPES                 23    104
+TOTAL_DIFFERENCES           450    168
+MISSING_TYPE                241    167
+MISSING_MEMBER              209      1
+
+UNEXPECTED_TYPE               0      0
+BASE_MISMATCH                 0      0
+INTERFACE_MISMATCH            0      0
+UNEXPECTED_MEMBER             0      0
+PROPERTY_MISMATCH             0      0
+PARAMETER_MISMATCH            0      0
+RETURN_TYPE_MISMATCH          0      0
+OVERLOAD_MISMATCH             0      0
+GENERIC_MISMATCH              0      0
+ENUM_VALUE_MISMATCH           0      0
+EVENT_MAPPING_MISMATCH        0      0
+OPERATOR_MAPPING_MISMATCH     0      0
+LANGUAGE_MAPPING_MISMATCH     0      0
+ALLOWLIST_SIZE                0      0
+RUNTIME_DIFFERENCES           0      0
+INTERNAL_LEAK                 0      0
+```
+
+Verifier changes were evidence-driven: input-only `ref` projection, CLR collection inheritance,
+events, `Content.Load` type tokens, the JavaScript iterable protocol, and erased abstract runtime
+slots are now modeled explicitly. Generic-constraint depth remains known future work; it was not
+weakened or used to suppress a current diagnostic.
+
+### Backend and platform status
+
+The private backend now defines typed executable operations for ABI/error access, Game lifecycle,
+graphics manager/device borrowing, clear/present, Texture2D/SpriteBatch creation and destruction,
+and input. An internal test backend executes the managed Game route
+`initialize -> create -> exit -> run -> one-frame -> destroy` and proves that the owned handle is
+released through `NativeResourceLifetime`; it is not a public test injection API.
+
+| Platform | Source/build evidence | Managed runtime | CNA runtime |
+| --- | --- | --- | --- |
+| Browser/WASM | CNA headers and Emscripten-aware source audited; generated Vite bundles pass | bundle only, no browser frame claim | blocked: no packaged C-ABI ESM/Wasm artifact and no local Emscripten toolchain |
+| Node managed | package, tests, differential corpus, and generated JS smoke pass | verified | unavailable by design |
+| Node CNA native | isolated unmodified HEADLESS C-API configure passed | n/a | blocked during build at renderer identity assertion `49 == 50`; no shared library |
+| Electron | no application build | not verified | planned |
+| Android | no application build | not verified | planned |
+| iOS | no application build | not verified | planned |
+
+No real CNA ABI function was executed in this run. The isolated native build used CNA revision
+`1bb2145d99ed572dd4eb15009c34e2e5f410fcf0`, ABI 0.7.0, and stopped in
+`modules/c-api/src/CnaCApiCoreExt.cpp:250` before producing `libcna_c_api.so`. Upstream CNA was not
+modified and no FFI dependency was added.
+
+### Final gates and package
+
+`npm run check`, all nine Node test files, `npm run test:differential`, `npm run api:report`,
+`npm run verify:runtime`, `npm run verify:leaks`, `npm run verify:package`, the 32-symbol CNA ABI
+audit, and `git diff --check` passed at the measured state. The report-only API command remains
+truthfully nonzero in content because 168 APIs are still absent, while the command itself succeeds
+as designed.
+
+The exact final package artifact is:
+
+```text
+NAME=cna-ts-0.1.0.tgz
+SHA256=096c4785f6978bff5b7c8479c96948b91c4287f93a9eca9627d0c8b77fe6a014
+FILES=320
+PACKED_JAVASCRIPT_CONSUMER=PASS
+PACKED_TYPESCRIPT_CONSUMER=PASS
+INTERNAL_EXPORT_BLOCK=PASS
+GENERATED_TYPESCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_MANAGED_SMOKE=PASS
+LEGACY_OR_SIBLING_REFERENCES=0
+```
+
+Both generated template forms installed that same tarball. The canary now exercises components,
+services, keyboard snapshots, and matrix/vector behavior while retaining its explicit statement
+that it is not yet a playable CNA game.

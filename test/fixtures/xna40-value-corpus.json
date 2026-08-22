@@ -1,171 +1,115 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "profile": "XNA 4.0 Windows runtime",
-  "provenance": "XNA reference observations shared by CNA-C# MathBehaviorCorpus",
+  "provenance": "Neutral inputs from CNA-C# MathBehaviorCorpus/InputBehaviorCorpus; expected results derived from XNA 4.0 Windows reference source and IL and normalized by the CNA-C# corpus",
+  "mathObservationCount": 83,
+  "inputObservationCount": 23,
   "cases": [
-    {
-      "id": "vector.normalize.zero",
-      "operation": "Vector.NormalizeZero",
-      "input": {},
-      "expected": [true, true, true, true, true, true, true, true, true]
-    },
-    {
-      "id": "vector.divide.scalar",
-      "operation": "Vector.DivideScalar",
-      "input": { "v2": [3, 7], "v3": [7, 3], "v4": [12345.67, 3], "matrix": [1, 3] },
-      "expected": ["3EDB6DB8", "40155556", "458099CA", "3EAAAAAB"]
-    },
-    {
-      "id": "quaternion.multiply.grouped",
-      "operation": "Quaternion.Multiply",
-      "input": {
-        "left": [45889.05859375, -42412.4453125, 96034.96875, -76386.84375],
-        "right": [-16375.435546875, 51428.1875, -69603.09375, -2207.3798828125]
-      },
-      "expected": ["CE47A05E", "CF03EDF7", "4FC9C4DD", "5011D115"]
-    },
-    {
-      "id": "quaternion.slerp",
-      "operation": "Quaternion.SlerpAxes",
-      "input": { "yaw": 0.7, "pitch": -0.4, "amount": 0.37 },
-      "expected": ["BD9A16EC", "3E60D7E7", "00000000", "3F79023D"]
-    },
-    {
-      "id": "quaternion.axis.large",
-      "operation": "Quaternion.AxisAngleY",
-      "input": { "angle": 123456.789 },
-      "expected": ["00000000", "3F30464F", "00000000", "BF39A48F"]
-    },
-    {
-      "id": "quaternion.from.matrix",
-      "operation": "Quaternion.FromRotationY",
-      "input": { "angle": 0.7 },
-      "expected": ["00000000", "3EAF904C", "00000000", "3F707ABB"]
-    },
-    {
-      "id": "matrix.inverse.product",
-      "operation": "Matrix.InverseProduct",
-      "input": { "scale": [2, 3, 4], "rotationY": 0.25, "translation": [5, 6, 7] },
-      "expected": [
-        "3F800000", "00000000", "B2000000", "00000000",
-        "00000000", "3F800000", "00000000", "00000000",
-        "33000000", "00000000", "3F800000", "00000000",
-        "34000000", "00000000", "00000000", "3F800000"
-      ]
-    },
-    {
-      "id": "matrix.inverse.singular",
-      "operation": "Matrix.InverseSingular",
-      "input": {},
-      "expected": [true, true, true, true]
-    },
-    {
-      "id": "color.pack.normalized",
-      "operation": "Color.FromVector4",
-      "input": [0.5, "NaN", "+Infinity", "-Infinity"],
-      "expected": "00FF0080"
-    },
-    {
-      "id": "color.lerp.midpoint",
-      "operation": "Color.Lerp",
-      "input": { "left": [0, 0, 0, 0], "right": [255, 255, 255, 255], "amount": 0.5 },
-      "expected": "7F7F7F7F"
-    },
-    {
-      "id": "color.transparent",
-      "operation": "Color.Transparent",
-      "input": {},
-      "expected": "00FFFFFF"
-    },
-    {
-      "id": "box.contains.edge",
-      "operation": "BoundingBox.ContainsPoint",
-      "input": { "min": [-1, -1, -1], "max": [1, 1, 1], "point": [1, 0, 0] },
-      "expected": 1
-    },
-    {
-      "id": "box.nan",
-      "operation": "BoundingBox.NaN",
-      "input": {},
-      "expected": [0, true]
-    },
-    {
-      "id": "sphere.contains.edge",
-      "operation": "BoundingSphere.ContainsPoint",
-      "input": { "center": [0, 0, 0], "radius": 1, "point": [1, 0, 0] },
-      "expected": 0
-    },
-    {
-      "id": "sphere.intersects.tangent",
-      "operation": "BoundingSphere.IntersectsSphere",
-      "input": { "left": [[0, 0, 0], 1], "right": [[2, 0, 0], 1] },
-      "expected": false
-    },
-    {
-      "id": "sphere.points",
-      "operation": "BoundingSphere.CreateFromPoints",
-      "input": [[-4, 1, 0], [6, -2, 3], [0, 8, -5], [2, 0, 9]],
-      "expected": ["3F800000", "40800000", "40000000", "4101FC10"]
-    },
-    {
-      "id": "ray.sphere",
-      "operation": "Ray.IntersectsSphere",
-      "input": { "position": [-5, 0.25, 0], "direction": [1, 0, 0], "sphere": [[0, 0, 0], 1] },
-      "expected": "40810421"
-    },
-    {
-      "id": "math.clamp.reversed",
-      "operation": "MathHelper.Clamp",
-      "input": [0, 2, 1],
-      "expected": "40000000"
-    },
-    {
-      "id": "math.wrap.large",
-      "operation": "MathHelper.WrapAngle",
-      "input": 123456.789,
-      "expected": "BFC2E06C"
-    },
-    {
-      "id": "math.splines",
-      "operation": "MathHelper.Splines",
-      "input": { "catmull": [-10, -10, -10, -7, 0.3], "hermite": [-10, -10, -10, -10, 1.1] },
-      "expected": ["C1218313", "C1351EBA"]
-    },
-    {
-      "id": "math.hermite.endpoint.nan",
-      "operation": "MathHelper.HermiteNaN",
-      "input": [1, "+Infinity", 2, 0, 0],
-      "expected": true
-    },
-    {
-      "id": "vector3.min.nan",
-      "operation": "Vector3.MinNaN",
-      "input": {},
-      "expected": ["40E00000", "NaN", "NaN"]
-    },
-    {
-      "id": "vector3.clamp.reversed",
-      "operation": "Vector3.ClampReversed",
-      "input": {},
-      "expected": ["40000000", "40000000", "40000000"]
-    },
-    {
-      "id": "plane.normalize.nearunit",
-      "operation": "Plane.Normalize",
-      "input": { "normal": [0.6, 0.79999995, 0], "d": 2 },
-      "expected": ["3F19999A", "3F4CCCCC", "00000000", "40000000"]
-    },
-    {
-      "id": "plane.box.coplanar",
-      "operation": "Plane.IntersectsBox",
-      "input": { "plane": [[0, 0, 0], 0], "box": [[-1, -1, -1], [1, 1, 1]] },
-      "expected": 2
-    },
-    {
-      "id": "negate.signedzero",
-      "operation": "Value.NegateSignedZero",
-      "input": {},
-      "expected": ["80000000", "80000000", "80000000"]
-    }
+    { "id": "v2.normalize.zero", "expected": "NaN,NaN" },
+    { "id": "v3.normalize.zero", "expected": "NaN,NaN,NaN" },
+    { "id": "v4.normalize.zero", "expected": "NaN,NaN,NaN,NaN" },
+    { "id": "vector.divide.scalar", "expected": "3EDB6DB8,40155556,458099CA,3EAAAAAB" },
+    { "id": "q.normalize.zero", "expected": "NaN,NaN,NaN,NaN" },
+    { "id": "q.inverse.zero", "expected": "NaN,NaN,NaN,NaN" },
+    { "id": "q.multiply", "expected": "BE3F1A81,3EAC1068,3D8B8437,3F6BAF93" },
+    { "id": "q.multiply.grouped", "expected": "CE47A05E,CF03EDF7,4FC9C4DD,5011D115" },
+    { "id": "q.concatenate", "expected": "BE3F1A81,3EAC1068,BD8B8437,3F6BAF93" },
+    { "id": "v3.qtransform", "expected": "4073BBE2,BF57A32E,40253083" },
+    { "id": "v2.transform", "expected": "40FD03FE,00000000" },
+    { "id": "v3.transform", "expected": "4102775D,00000000,40E74122" },
+    { "id": "v4.transform", "expected": "4102775D,00000000,40E74122,3F800000" },
+    { "id": "matrix.inverse.product", "expected": "3F800000,00000000,B2000000,00000000,00000000,3F800000,00000000,00000000,33000000,00000000,3F800000,00000000,34000000,00000000,00000000,3F800000" },
+    { "id": "matrix.inverse.singular", "expected": "NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN,NaN" },
+    { "id": "viewport.project", "expected": "43D42808,43AC9F3C,3F63AFF4" },
+    { "id": "viewport.unproject", "expected": "3E7FFE10,BEFFF906,3FA00111" },
+    { "id": "viewport.unproject.singular", "expected": "NaN,NaN,NaN" },
+    { "id": "color.pack", "expected": "00FF0080" },
+    { "id": "color.lerp", "expected": "7F7F7F7F" },
+    { "id": "color.nonpremultiplied.extreme", "expected": "FFFFFFFF" },
+    { "id": "plane.transform", "expected": "00000000,3F800000,00000000,C0E00000" },
+    { "id": "box.contains.edge", "expected": "1" },
+    { "id": "box.nan", "expected": "0,1" },
+    { "id": "sphere.contains.edge", "expected": "0" },
+    { "id": "sphere.points", "expected": "3F800000,40800000,40000000,4101FC10" },
+    { "id": "ray.sphere", "expected": "40810421" },
+    { "id": "v2.equals.nan", "expected": "0,0" },
+    { "id": "matrix.equals.nan", "expected": "0,0" },
+    { "id": "v3.hash", "expected": "-1077936128" },
+    { "id": "matrix.identity.hash", "expected": "-33554432" },
+    { "id": "integer.hash", "expected": "3,10" },
+    { "id": "sphere.negative", "expected": "ArgumentException" },
+    { "id": "math.clamp.reversed", "expected": "40000000" },
+    { "id": "math.wrap.large", "expected": "BFC2E06C" },
+    { "id": "math.splines", "expected": "C1218313,C1351EBA" },
+    { "id": "math.hermite.endpoint.nan", "expected": "1" },
+    { "id": "sphere.intersects.tangent", "expected": "0" },
+    { "id": "box.ray.nearparallel", "expected": "none" },
+    { "id": "ray.plane.nearparallel", "expected": "none" },
+    { "id": "ray.plane.overloads", "expected": "00000000,00000000" },
+    { "id": "v3.transform.negative.length", "expected": "none" },
+    { "id": "v3.transform.negative.index", "expected": "IndexOutOfRangeException" },
+    { "id": "v3.min.nan", "expected": "40E00000,NaN,NaN" },
+    { "id": "v3.clamp.reversed", "expected": "40000000,40000000,40000000" },
+    { "id": "q.slerp", "expected": "BD9A16EC,3E60D7E7,00000000,3F79023D" },
+    { "id": "q.axis.large", "expected": "00000000,3F30464F,00000000,BF39A48F" },
+    { "id": "q.from.matrix", "expected": "00000000,3EAF904C,00000000,3F707ABB" },
+    { "id": "matrix.rotation.large", "expected": "3D53E807,BF7FA83D" },
+    { "id": "matrix.perspective.infinity", "expected": "NaN,NaN" },
+    { "id": "matrix.fov.invalid", "expected": "ArgumentOutOfRangeException" },
+    { "id": "matrix.decompose.mirror", "expected": "1,40000000,40400000,C0800000,00000000,3F7E00AA,00000000,BDFF5579,40A00000,40C00000,40E00000" },
+    { "id": "matrix.billboard.axis", "expected": "BF800000,40000000,BF800000" },
+    { "id": "matrix.shadow.zero.nan", "expected": "1,1" },
+    { "id": "matrix.reflection.ref", "expected": "3F800000,40000000,BF800000,C0800000" },
+    { "id": "matrix.lookat.degenerate", "expected": "NaN,NaN,NaN,00000000,NaN,NaN,NaN,00000000,NaN,NaN,NaN,00000000,NaN,NaN,NaN,3F800000" },
+    { "id": "matrix.transform.infinity", "expected": "3F800000,7F800000,0" },
+    { "id": "negate.signedzero", "expected": "80000000,80000000,80000000" },
+    { "id": "matrix.tostring", "expected": "{ {M11:1 M12:0 M13:0 M14:0} {M21:0 M22:1 M23:0 M24:0} {M31:0 M32:0 M33:1 M34:0} {M41:0 M42:0 M43:0 M44:1} }" },
+    { "id": "plane.points.degenerate", "expected": "NaN,NaN,NaN,NaN" },
+    { "id": "plane.normalize.nearunit", "expected": "3F19999A,3F4CCCCC,00000000,40000000" },
+    { "id": "plane.box.coplanar", "expected": "2" },
+    { "id": "curve.key.hash", "expected": "4194305" },
+    { "id": "curve.key.compare", "expected": "1,1,NullReferenceException" },
+    { "id": "curve.collection.reposition", "expected": "40000000,40400000" },
+    { "id": "curve.collection.oob", "expected": "ArgumentOutOfRangeException,ArgumentOutOfRangeException" },
+    { "id": "curve.tangent.epsilon", "expected": "00000000,00000000" },
+    { "id": "curve.cycle.preboundary", "expected": "41A00000" },
+    { "id": "curve.step.nan", "expected": "41A00000" },
+    { "id": "packed.unorm.midpoint", "expected": "00,0000" },
+    { "id": "packed.unsigned.rounding", "expected": "04020200" },
+    { "id": "packed.snorm.rounding", "expected": "0000" },
+    { "id": "packed.snorm.minimum", "expected": "BF800000,BF800000" },
+    { "id": "packed.signed.rounding", "expected": "00020000" },
+    { "id": "packed.half.saturation", "expected": "7FFF,7FFF,47800000" },
+    { "id": "packed.tostring", "expected": "0A,000A,0000000A" },
+    { "id": "frustum.near", "expected": "80000000,80000000,3F800000,C0800000" },
+    { "id": "frustum.top", "expected": "00000000,3F6C835F,3EC3EF16,BFF4EADB" },
+    { "id": "frustum.corner0", "expected": "BF0D6289,3ED413CB,40800000" },
+    { "id": "frustum.corner6", "expected": "40B0BB28,C0848C5D,C09FFFF8" },
+    { "id": "frustum.contains", "expected": "1,0,1,1" },
+    { "id": "frustum.gjk", "expected": "1,0,1,0,0" },
+    { "id": "frustum.ray", "expected": "41800000" },
+    { "id": "keyboard.null.count", "expected": "0" },
+    { "id": "keyboard.pressed", "expected": "65,90" },
+    { "id": "keyboard.invalid", "expected": "0,0" },
+    { "id": "keyboard.hash", "expected": "67108866" },
+    { "id": "mouse.string", "expected": "{X:12 Y:-3 Buttons:Left Right XButton1 Wheel:120}" },
+    { "id": "mouse.hash", "expected": "-120" },
+    { "id": "thumbs.clamp", "expected": "3F800000,BF800000,3E800000,BF000000" },
+    { "id": "triggers.clamp", "expected": "00000000,3F800000" },
+    { "id": "gamepad.null", "expected": "none" },
+    { "id": "gamepad.virtual", "expected": "0,1,1,1,0,1" },
+    { "id": "gamepad.filtered", "expected": "1,0,0,0" },
+    { "id": "gamepad.string", "expected": "{IsConnected:True}" },
+    { "id": "buttons.string", "expected": "{Buttons:A Y Back}" },
+    { "id": "buttons.hash", "expected": "1" },
+    { "id": "dpad.string", "expected": "{DPad:Up Right}" },
+    { "id": "dpad.hash", "expected": "2147483647" },
+    { "id": "touch.previous.none", "expected": "0,-1,0" },
+    { "id": "touch.equals", "expected": "1,0" },
+    { "id": "touch.hash", "expected": "2139095045" },
+    { "id": "touch.string", "expected": "{Position:{X:1 Y:2}}" },
+    { "id": "touch.collection.clone", "expected": "5" },
+    { "id": "touch.collection.contains", "expected": "0" },
+    { "id": "touch.collection.oob", "expected": "ArgumentOutOfRangeException" }
   ]
 }

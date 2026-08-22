@@ -1,8 +1,13 @@
 import type { IEquatable } from "./Contracts.js";
+import type { BoundingBox } from "./BoundingBox.js";
+import type { BoundingFrustum } from "./BoundingFrustum.js";
+import type { BoundingSphere } from "./BoundingSphere.js";
 import { Matrix } from "./Matrix.js";
+import type { PlaneIntersectionType } from "./PlaneIntersectionType.js";
 import { Quaternion } from "./Quaternion.js";
 import { Vector3 } from "./Vector3.js";
 import { Vector4 } from "./Vector4.js";
+import { addHashes, floatHash, valueString } from "../../../internal/value.js";
 
 const f32 = Math.fround;
 
@@ -54,6 +59,17 @@ export class Plane implements IEquatable<Plane> {
   public Equals(obj: unknown): boolean;
   public Equals(obj: unknown): boolean {
     return obj instanceof Plane && this.Normal.Equals(obj.Normal) && this.D === obj.D;
+  }
+
+  public GetHashCode(): number { return addHashes(this.Normal.GetHashCode(), floatHash(this.D)); }
+
+  public ToString(): string { return `{Normal:${this.Normal.ToString()} D:${valueString(this.D)}}`; }
+
+  public Intersects(box: BoundingBox): PlaneIntersectionType;
+  public Intersects(frustum: BoundingFrustum): PlaneIntersectionType;
+  public Intersects(sphere: BoundingSphere): PlaneIntersectionType;
+  public Intersects(value: BoundingBox | BoundingFrustum | BoundingSphere): PlaneIntersectionType {
+    return value.Intersects(this) as PlaneIntersectionType;
   }
 
   public static Normalize(value: Plane): Plane {

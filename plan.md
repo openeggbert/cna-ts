@@ -16,10 +16,11 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   `dist/` under strict NodeNext settings.
 - [x] Root, `xna`, `extensions`, and `runtime` package exports resolve in compile probes.
 - [x] Node baseline is 20+; local verification currently uses checksum-verified Node 22.14.0.
-- [x] Runtime-independent foundation now has 23 measured target types: time, mutable vectors,
-  matrix/quaternion, color/packed-vector contracts, point/rectangle, planes/rays, and bounding
-  volumes; missing members remain explicitly measured.
-- [x] `Game` reports unavailable native execution honestly and has disposal guards.
+- [x] Runtime-independent implementation now has 104 measured target types across math/geometry,
+  curves, every selected packed vector, input/touch values, components/services, content lifetime,
+  GameWindow state, Viewport, and graphics presentation/display values.
+- [x] `Game` has a managed component pipeline and executable private lifecycle boundary while still
+  reporting unavailable native execution honestly.
 - [ ] No WebAssembly or Node CNA backend is loaded.
 - [ ] The XNA structural difference count is not yet at zero.
 
@@ -50,9 +51,26 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   events, nested identity, and enum values; generic-constraint depth still needs expansion.
 - [x] Emit text and JSON diagnostics with the required categories.
 - [x] Strict mode exits nonzero; report-only records 443 initial differences.
-- [x] Runtime-symbol verifier reports zero differences for all 23 current target types.
+- [x] Runtime-symbol verifier reports zero differences for all 104 current target types, including
+  abstract-member and JavaScript iterable-protocol handling.
 - [x] Strict internal/native leak gate reports zero.
 - [x] Allowlist size is zero and blanket allowlisting is prohibited.
+
+Current measured report:
+
+```text
+REFERENCE_TYPES=257
+REFERENCE_MEMBERS=2964
+EXPECTED_MAPPED_TYPES=271
+TARGET_TYPES=104
+TOTAL_DIFFERENCES=168
+MISSING_TYPE=167
+MISSING_MEMBER=1
+all other diagnostic categories=0
+ALLOWLIST_SIZE=0
+RUNTIME_DIFFERENCES=0
+INTERNAL_LEAK=0
+```
 
 ## Definition of done
 
@@ -73,8 +91,11 @@ progress.”
 
 ## Runtime/backend architecture
 
-- [x] Private backend contract distinguishes unavailable, WebAssembly, and Node/native kinds.
+- [x] Private backend contract distinguishes unavailable, WebAssembly, and Node/native kinds and
+  defines typed lifecycle, device, resource, and input operations.
 - [x] Runtime status does not expose backend objects or handles.
+- [x] Managed lifecycle tests execute the contract through an internal backend and the native
+  ownership state machine without exposing public injection.
 - [ ] Implement one real backend before expanding the abstraction.
 - [ ] ABI version, UTF-8 errors, callbacks, memory, arrays, shutdown, and canvas/window integration
   have integration tests.
@@ -90,11 +111,14 @@ progress.”
 - [ ] Produce or obtain a consumable C-ABI WebAssembly ESM artifact.
 - [x] Define the first exact symbol subset rather than binding all 2,861 routes blindly.
 - [ ] Narrow that subset further as the implemented backend records every actually imported route.
+- [x] An isolated unmodified HEADLESS native build was investigated and stopped at CNA's upstream
+  C-API renderer table assertion (49 identities versus 50); no library or adapter was fabricated.
 
 ## Ownership and lifetime
 
 - [x] Architecture names owned, borrowed, parent-owned, and adopted states.
-- [x] Current `Game.Dispose()` is idempotent and use-after-dispose is tested.
+- [x] `Game` native-handle release is idempotent through `NativeResourceLifetime`, and
+  use-after-dispose is tested.
 - [x] Implement the private native resource state machine, partial-construction rollback, reverse
   child ordering, borrowed invalidation, callback-first teardown, transfer/adoption, and aggregate
   cleanup errors; failed releases retain ownership for retry and block parent release.
@@ -105,33 +129,44 @@ progress.”
 - [x] Initial coherent math/geometry group is managed and runtime-independent, including
   `MathHelper`, Vector2/3/4, Matrix, Quaternion, Color, Point, Rectangle, Plane, Ray, and bounding
   volumes.
-- [ ] Complete `MathHelper`, Vector2/3/4, Matrix, Quaternion, Point, Rectangle, Plane, Ray,
-  bounding volumes, curves, and packed vectors in coherent groups.
+- [x] Complete the selected mapped surfaces for `MathHelper`, Vector2/3/4, Matrix, Quaternion,
+  Color, Point, Rectangle, Plane, Ray, bounding volumes/frustum, curves, and all 17 packed values.
 - [x] Import the first 26-observation neutral XNA differential JSON corpus, including NaN,
   infinities, signed zero, rounding, clamping, packing, matrix inversion, and geometry edges.
-- [ ] Expand the shared corpus across remaining values, curves, packed vectors, and later runtime
-  subsystems.
-- [ ] Add compile/type probes and mutation/snapshot regressions for every value group.
+- [x] Expand the shared neutral corpus to all currently available 106 observations: 83 math/value
+  and 23 input/touch, producing 107 passing TAP assertions and zero failures.
+- [x] Add compile/type probes and managed regressions for the completed value/input groups.
 
 ## Game/device/window
 
-- [ ] Implement events/services/components and truthful lifecycle state transitions.
-- [ ] Implement GameWindow, GraphicsDeviceManager, GraphicsDevice, adapter, presentation parameters,
-  and Viewport over the selected backend.
+- [x] Implement typed events, `GameServiceContainer`, `LaunchParameters`, component collection
+  mutation, stable update/draw ordering, initialization, filtering, and disposal behavior.
+- [x] Implement the complete mapped `GameWindow`, `PresentationParameters`, `Viewport`, display
+  mode snapshots/collections, graphics profile/formats, and explicit unavailable window access.
+- [ ] Implement `GraphicsDeviceManager`, `GraphicsDevice`, and `GraphicsAdapter` as one complete
+  native-backed group; `Game.GraphicsDevice` is the sole remaining member on a present type.
 
 ## Graphics
 
+- [x] Implement the runtime-independent presentation/display value foundation without fake adapter
+  descriptions or capabilities.
 - [ ] Implement resource base types and explicit disposal.
 - [ ] Implement Texture2D/raw image stream, states, buffers, vertex declarations, SpriteBatch,
   effects, BasicEffect, models, and render targets in dependency order.
 
 ## Input/touch
 
-- [ ] Implement keyboard, mouse, gamepad, and touch semantics over real ABI routes.
+- [x] Implement the complete selected keyboard, mouse, gamepad, and touch value/state declarations,
+  including enums, flags, filtering, dead-zone transforms, equality/hash/string behavior, and
+  collection semantics.
+- [x] Route polling APIs through the private backend and fail explicitly when unavailable.
+- [ ] Verify keyboard/mouse/gamepad/touch polling over real CNA ABI routes.
 
 ## Content and models
 
-- [ ] Implement the class-token `Content.Load(Type, name)` mapping consistently.
+- [x] Implement and machine-verify the class-token `Content.Load(Type, name)` mapping consistently.
+- [x] Implement `ContentManager` root/cache/type/disposable/unload state without claiming XNB
+  decoding; base reading fails explicitly when no backend exists.
 - [ ] Implement XNB header/reader table, caching, unload, built-in readers, shared resources, and
   custom readers before claiming ContentManager functionality.
 - [ ] Keep raw PNG loading separate from XNB content loading.
@@ -152,6 +187,8 @@ progress.”
 
 - [x] Remove stale `cna-js` identity, fictional APIs/version claims, and unused parallel asset.
 - [x] Replace aspirational cube/mobile claims with the smallest truthful managed/build canary.
+- [x] Expand the managed canary to exercise components, services, keyboard snapshots, and matrix
+  math without treating those as rendering or hardware polling evidence.
 - [ ] First functional slice: lifecycle, GameTime, device, raw Texture2D, SpriteBatch, keyboard,
   resize, deterministic update/draw, and clean shutdown.
 - [ ] Add 3D/BasicEffect only after the 2D route works.
@@ -170,7 +207,8 @@ progress.”
 
 ## Node, desktop, and mobile
 
-- [x] Node pure value/API tests are verified.
+- [x] Node managed values, components/services, content lifetime, and package consumers are
+  verified.
 - [ ] Node CNA runtime execution is not yet verified.
 - [ ] Electron is planned, not supported or build-verified.
 - [ ] Android and iOS are planned, not supported or build-verified.
@@ -182,6 +220,9 @@ progress.”
   gates.
 - [x] Install the exact tarball in independent TS and JS consumers with no sibling paths.
 - [x] Package exports contain no internal subpath and fresh consumers prove the guard.
+- [x] Final generated template TypeScript/JavaScript projects both install
+  `cna-ts-0.1.0.tgz` at SHA-256
+  `096c4785f6978bff5b7c8479c96948b91c4287f93a9eca9627d0c8b77fe6a014` and pass.
 - [ ] Preserve deterministic generated artifact hashes in CI.
 - [x] Manual source `.d.ts` duplication = 0.
 - [x] Hand-maintained duplicate JavaScript implementation = 0.
@@ -191,6 +232,8 @@ progress.”
 
 - consumable C-ABI Emscripten module packaging and documented exported-symbol/loading contract;
 - a reproducible browser artifact recipe accessible to binding CI;
+- repair of the C-API renderer identity table (currently 49 entries for 50 canonical renderers) so
+  the unmodified native shared target can compile;
 - platform-specific renderer/window integration evidence for WebView/Electron claims.
 
 These are narrower than “CNA has no ABI”: the native C ABI exists and is broad.

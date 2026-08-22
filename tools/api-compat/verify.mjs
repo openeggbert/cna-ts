@@ -138,10 +138,13 @@ function mapType(value, rules, genericNames = []) {
       "System.Collections.Generic.ICollection`1": "Array",
       "System.Collections.Generic.IList`1": "Array",
       "System.Collections.Generic.List`1": "Array",
+      "System.Collections.Generic.Dictionary`2": "Map",
       "System.Collections.ObjectModel.ReadOnlyCollection`1": "ReadonlyArray",
+      "System.Collections.Generic.IEnumerator`1": "IterableIterator",
       "System.Nullable`1": "Nullable",
       "System.EventHandler`1": "XnaEventHandler",
       "System.IEquatable`1": "Microsoft.Xna.Framework.IEquatable",
+      "System.IComparable`1": "Microsoft.Xna.Framework.IComparable",
     };
     const mappedBase =
       collectionMappings[generic.base] ?? rules.genericTypeRenames[generic.base] ?? stripArity(generic.base);
@@ -209,6 +212,15 @@ function transformReference(reference, rules) {
     );
     const members = [];
     for (const member of sourceType.members) {
+      const constructorIdentity = member.kind === "constructor"
+        ? `${stripArity(sourceType.name)}.${member.name}(${member.parameters.map((value) => value.type).join(",")})`
+        : null;
+      if (constructorIdentity && (rules.ignoredConstructors ?? []).includes(constructorIdentity)) {
+        continue;
+      }
+      if (member.kind === "method" && (rules.ignoredMethods ?? []).includes(member.name)) {
+        continue;
+      }
       if (sourceType.kind === "enum" && member.kind === "field" && member.name === "value__") {
         continue;
       }
@@ -232,7 +244,6 @@ function transformReference(reference, rules) {
         (member.kind === "method" || member.kind === "constructor") &&
         member.parameters.some((parameter) => parameter.type.endsWith("&"))
       ) {
-        const hasReturnOverload = ordinaryMethods.some((candidate) => candidate.name === member.name);
         const refRule = rules.refOutMethods[`${stripArity(sourceType.name)}.${member.name}`];
         if (refRule) {
           const mapped = mapCallable(member, rules, genericNames);
@@ -241,7 +252,25 @@ function transformReference(reference, rules) {
             (_parameter, index) => !member.parameters[index].type.endsWith("&"),
           );
           members.push(mapped);
-        } else if (!hasReturnOverload) {
+        } else if (!member.parameters.some((parameter) => parameter.out)) {
+          // A CLR ref input has ordinary value semantics at the TypeScript boundary. Keep the
+          // overload; unique-member normalization below removes it only when it is truly the
+          // same signature as an existing value overload.
+          members.push(mapCallable(member, rules, genericNames));
+        } else {
+          const mappedInputs = member.parameters
+            .filter((parameter) => !parameter.out)
+            .map((parameter) => mapType(parameter.type, rules, genericNames));
+          const mappedOutputs = member.parameters
+            .filter((parameter) => parameter.out)
+            .map((parameter) => mapType(parameter.type, rules, genericNames));
+          const hasEquivalentReturnOverload = mappedOutputs.length === 1 && ordinaryMethods.some((candidate) =>
+            candidate.name === member.name &&
+            mapType(candidate.returnType, rules, genericNames) === mappedOutputs[0] &&
+            JSON.stringify(candidate.parameters.map((parameter) => mapType(parameter.type, rules, genericNames))) ===
+              JSON.stringify(mappedInputs),
+          );
+          if (!hasEquivalentReturnOverload) {
           mappingDiagnostics.push(
             diagnostic(
               "LANGUAGE_MAPPING_MISMATCH",
@@ -250,7 +279,26 @@ function transformReference(reference, rules) {
               member.parameters.map((parameter) => parameter.type),
             ),
           );
+          }
         }
+        continue;
+      }
+      if (
+        rules.contentLoad &&
+        stripArity(sourceType.name) === "Microsoft.Xna.Framework.Content.ContentManager" &&
+        member.kind === "method" &&
+        member.name === "Load" &&
+        member.genericArity === 1
+      ) {
+        const mapped = mapCallable(member, rules, genericNames);
+        const genericName = member.genericParameters?.[0]?.name ?? "T";
+        mapped.parameters.unshift({
+          name: "assetType",
+          type: `Microsoft.Xna.Framework.XnaType<${genericName}>`,
+          optional: false,
+          rest: false,
+        });
+        members.push(mapped);
         continue;
       }
       if (member.kind === "method" || member.kind === "constructor") {
@@ -297,11 +345,58 @@ function transformReference(reference, rules) {
       } else if (member.kind === "field") {
         members.push({ ...member, type: mapType(member.type, rules, genericNames) });
       } else if (member.kind === "event") {
+        const eventDelegate = splitGeneric(member.type);
+        const eventArgs = eventDelegate?.base === "System.EventHandler`1"
+          ? mapType(eventDelegate.argumentsList[0], rules, genericNames)
+          : mapType(member.type, rules, genericNames);
         members.push({
-          ...member,
-          type: `XnaEvent<unknown,${mapType(member.type, rules, genericNames)}>`,
+          kind: "field",
+          name: member.name,
+          access: member.addAccess,
+          type: `Microsoft.Xna.Framework.XnaEvent<unknown,${eventArgs}>`,
+          static: member.static,
+          final: true,
+          constant: null,
         });
       }
+    }
+    const genericBase = splitGeneric(sourceType.baseType ?? "");
+    if (genericBase?.base === "System.Collections.ObjectModel.Collection`1") {
+      const itemType = mapType(genericBase.argumentsList[0], rules, genericNames);
+      const parameter = (name, type) => ({ name, type, optional: false, rest: false });
+      const method = (name, returnType, parameters) => ({
+        kind: "method",
+        name,
+        access: "public",
+        static: false,
+        abstract: false,
+        genericArity: 0,
+        genericParameters: [],
+        returnType,
+        parameters,
+      });
+      members.push(
+        {
+          kind: "property",
+          name: "Count",
+          type: "number",
+          static: false,
+          getterAccess: "public",
+          setterAccess: "none",
+          parameters: [],
+        },
+        method("Get", itemType, [parameter("index", "number")]),
+        method("Set", "void", [parameter("index", "number"), parameter("value", itemType)]),
+        method("Add", "void", [parameter("item", itemType)]),
+        method("Clear", "void", []),
+        method("Contains", "boolean", [parameter("item", itemType)]),
+        method("CopyTo", "void", [parameter("array", `${itemType}[]`), parameter("arrayIndex", "number")]),
+        method("GetEnumerator", `IterableIterator<${itemType}>`, []),
+        method("IndexOf", "number", [parameter("item", itemType)]),
+        method("Insert", "void", [parameter("index", "number"), parameter("item", itemType)]),
+        method("Remove", "boolean", [parameter("item", itemType)]),
+        method("RemoveAt", "void", [parameter("index", "number")]),
+      );
     }
     const uniqueMembers = new Map();
     for (const member of members) {
@@ -317,8 +412,19 @@ function transformReference(reference, rules) {
       sealed: sourceType.sealed,
       genericArity: sourceType.genericArity,
       genericParameters: sourceType.genericParameters ?? [],
-      baseType: ignoredBases.has(sourceType.baseType) ? null : mapType(sourceType.baseType, rules, genericNames),
-      interfaces: sourceType.interfaces.map((value) => mapType(value, rules, genericNames)).sort(),
+      baseType:
+        ignoredBases.has(sourceType.baseType) ||
+        (rules.erasedBaseTypes ?? []).some(
+          (identity) => sourceType.baseType === identity || sourceType.baseType?.startsWith(`${identity}[`),
+        )
+          ? null
+          : mapType(sourceType.baseType, rules, genericNames),
+      interfaces: sourceType.interfaces
+        .filter((value) => !(rules.erasedInterfaces ?? []).some(
+          (identity) => value === identity || value.startsWith(`${identity}[`),
+        ))
+        .map((value) => mapType(value, rules, genericNames))
+        .sort(),
       members: [...uniqueMembers.values()],
     });
   }
@@ -494,7 +600,7 @@ function compareMember(typeName, typeKind, key, expected, actual, diagnostics) {
   }
 }
 
-function compareTypes(expectedModel, targetModel, initialDiagnostics) {
+function compareTypes(expectedModel, targetModel, initialDiagnostics, rules) {
   const diagnostics = [...initialDiagnostics];
   const expected = new Map(expectedModel.types.map((value) => [value.name, value]));
   const actual = new Map(targetModel.types.map((value) => [value.name, value]));
@@ -546,6 +652,13 @@ function compareTypes(expectedModel, targetModel, initialDiagnostics) {
       }
     }
     for (const [key, actualGroup] of actualMembers) {
+      const iterableProtocolKey = `method:${rules.iterableProtocolMember}`;
+      if (
+        key === iterableProtocolKey &&
+        expectedType.interfaces.some((value) => value.startsWith("Iterable<"))
+      ) {
+        continue;
+      }
       if (!expectedMembers.has(key) && !pairedKeys.has(key)) {
         diagnostics.push(
           diagnostic("UNEXPECTED_MEMBER", `${name}.${key}`, undefined, actualGroup.map(memberSignature)),
@@ -640,7 +753,7 @@ function main() {
     diagnostics = compareTypes(expected, target, [
       ...transformed.mappingDiagnostics,
       ...leakDiagnostics(target),
-    ]);
+    ], rules);
   }
   const report = {
     summary: summary(reference, expected, target, diagnostics, rules),

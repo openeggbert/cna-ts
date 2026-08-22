@@ -6,6 +6,7 @@ import { Plane } from "./Plane.js";
 import { PlaneIntersectionType } from "./PlaneIntersectionType.js";
 import { Ray } from "./Ray.js";
 import { Vector3 } from "./Vector3.js";
+import { addHashes } from "../../../internal/value.js";
 
 /** Mutable Microsoft.Xna.Framework.BoundingBox projection. */
 export class BoundingBox implements IEquatable<BoundingBox> {
@@ -23,6 +24,10 @@ export class BoundingBox implements IEquatable<BoundingBox> {
   public Equals(obj: unknown): boolean {
     return obj instanceof BoundingBox && this.Min.Equals(obj.Min) && this.Max.Equals(obj.Max);
   }
+
+  public GetHashCode(): number { return addHashes(this.Min.GetHashCode(), this.Max.GetHashCode()); }
+
+  public ToString(): string { return `{Min:${this.Min.ToString()} Max:${this.Max.ToString()}}`; }
 
   public GetCorners(): Vector3[];
   public GetCorners(corners: Vector3[]): void;

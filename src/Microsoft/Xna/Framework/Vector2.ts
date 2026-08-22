@@ -2,6 +2,8 @@ import type { IEquatable } from "./Contracts.js";
 import { MathHelper } from "./MathHelper.js";
 import { Matrix } from "./Matrix.js";
 import { Quaternion } from "./Quaternion.js";
+import { addHashes, floatHash, transformQuaternionComponents, valueString } from "../../../internal/value.js";
+import { transformArray } from "../../../internal/exceptions.js";
 
 const f32 = Math.fround;
 
@@ -52,6 +54,10 @@ export class Vector2 implements IEquatable<Vector2> {
   public Equals(obj: unknown): boolean {
     return obj instanceof Vector2 && this.X === obj.X && this.Y === obj.Y;
   }
+
+  public GetHashCode(): number { return addHashes(floatHash(this.X), floatHash(this.Y)); }
+
+  public ToString(): string { return `{X:${valueString(this.X)} Y:${valueString(this.Y)}}`; }
 
   public static Add(value1: Vector2, value2: Vector2): Vector2 {
     return new Vector2(f32(value1.X + value2.X), f32(value1.Y + value2.Y));
@@ -156,21 +162,86 @@ export class Vector2 implements IEquatable<Vector2> {
 
   public static Transform(position: Vector2, matrix: Matrix): Vector2;
   public static Transform(value: Vector2, rotation: Quaternion): Vector2;
-  public static Transform(value: Vector2, transform: Matrix | Quaternion): Vector2 {
+  public static Transform(sourceArray: Vector2[], matrix: Matrix, destinationArray: Vector2[]): void;
+  public static Transform(sourceArray: Vector2[], rotation: Quaternion, destinationArray: Vector2[]): void;
+  public static Transform(sourceArray: Vector2[], sourceIndex: number, matrix: Matrix, destinationArray: Vector2[], destinationIndex: number, length: number): void;
+  public static Transform(sourceArray: Vector2[], sourceIndex: number, rotation: Quaternion, destinationArray: Vector2[], destinationIndex: number, length: number): void;
+  public static Transform(
+    value: Vector2 | Vector2[],
+    transformOrIndex: Matrix | Quaternion | number,
+    transformOrDestination?: Matrix | Quaternion | Vector2[],
+    destinationArray?: Vector2[],
+    destinationIndex?: number,
+    length?: number,
+  ): Vector2 | void {
+    if (Array.isArray(value)) {
+      const ranged = typeof transformOrIndex === "number";
+      const transform = (ranged ? transformOrDestination : transformOrIndex) as Matrix | Quaternion;
+      const destination = (ranged ? destinationArray : transformOrDestination) as Vector2[];
+      transformArray(
+        value,
+        ranged ? transformOrIndex : 0,
+        destination,
+        ranged ? destinationIndex ?? 0 : 0,
+        ranged ? length ?? 0 : value.length,
+        (item) => transform instanceof Matrix
+          ? Vector2.Transform(item, transform)
+          : Vector2.Transform(item, transform),
+      );
+      return;
+    }
+    const transform = transformOrIndex as Matrix | Quaternion;
     if (transform instanceof Matrix) {
+      let x = f32(value.X * transform.M11);
+      x = f32(x + f32(value.Y * transform.M21));
+      x = f32(x + transform.M41);
+      let y = f32(value.X * transform.M12);
+      y = f32(y + f32(value.Y * transform.M22));
+      y = f32(y + transform.M42);
       return new Vector2(
-        f32(f32(value.X * transform.M11) + f32(value.Y * transform.M21) + transform.M41),
-        f32(f32(value.X * transform.M12) + f32(value.Y * transform.M22) + transform.M42),
+        x,
+        y,
       );
     }
-    const matrix = Matrix.CreateFromQuaternion(transform);
-    return Vector2.Transform(value, matrix);
+    const [x, y] = transformQuaternionComponents(
+      value.X, value.Y, 0, transform.X, transform.Y, transform.Z, transform.W,
+    );
+    return new Vector2(x, y);
   }
 
-  public static TransformNormal(normal: Vector2, matrix: Matrix): Vector2 {
+  public static TransformNormal(normal: Vector2, matrix: Matrix): Vector2;
+  public static TransformNormal(sourceArray: Vector2[], matrix: Matrix, destinationArray: Vector2[]): void;
+  public static TransformNormal(sourceArray: Vector2[], sourceIndex: number, matrix: Matrix, destinationArray: Vector2[], destinationIndex: number, length: number): void;
+  public static TransformNormal(
+    normal: Vector2 | Vector2[],
+    matrixOrIndex: Matrix | number,
+    matrixOrDestination?: Matrix | Vector2[],
+    destinationArray?: Vector2[],
+    destinationIndex?: number,
+    length?: number,
+  ): Vector2 | void {
+    if (Array.isArray(normal)) {
+      const ranged = typeof matrixOrIndex === "number";
+      const matrix = (ranged ? matrixOrDestination : matrixOrIndex) as Matrix;
+      const destination = (ranged ? destinationArray : matrixOrDestination) as Vector2[];
+      transformArray(
+        normal,
+        ranged ? matrixOrIndex : 0,
+        destination,
+        ranged ? destinationIndex ?? 0 : 0,
+        ranged ? length ?? 0 : normal.length,
+        (item) => Vector2.TransformNormal(item, matrix),
+      );
+      return;
+    }
+    const matrix = matrixOrIndex as Matrix;
+    let x = f32(normal.X * matrix.M11);
+    x = f32(x + f32(normal.Y * matrix.M21));
+    let y = f32(normal.X * matrix.M12);
+    y = f32(y + f32(normal.Y * matrix.M22));
     return new Vector2(
-      f32(f32(normal.X * matrix.M11) + f32(normal.Y * matrix.M21)),
-      f32(f32(normal.X * matrix.M12) + f32(normal.Y * matrix.M22)),
+      x,
+      y,
     );
   }
 }

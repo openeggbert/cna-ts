@@ -39,6 +39,9 @@ export class Rectangle implements IEquatable<Rectangle> {
     return new Point(this.X + Math.trunc(this.Width / 2), this.Y + Math.trunc(this.Height / 2));
   }
 
+  public get Location(): Point { return new Point(this.X, this.Y); }
+  public set Location(value: Point) { this.X = Math.trunc(value.X); this.Y = Math.trunc(value.Y); }
+
   public get IsEmpty(): boolean {
     return this.X === 0 && this.Y === 0 && this.Width === 0 && this.Height === 0;
   }
@@ -94,6 +97,12 @@ export class Rectangle implements IEquatable<Rectangle> {
       this.Width === obj.Width &&
       this.Height === obj.Height
     );
+  }
+
+  public GetHashCode(): number { return (this.X + this.Y + this.Width + this.Height) | 0; }
+
+  public ToString(): string {
+    return `{X:${this.X} Y:${this.Y} Width:${this.Width} Height:${this.Height}}`;
   }
 
   public static Intersect(value1: Rectangle, value2: Rectangle): Rectangle {

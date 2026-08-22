@@ -5,8 +5,9 @@
 the package build emits the JavaScript used by both languages and the declarations used by
 TypeScript.
 
-> Status: foundation work in progress. Pure timing, vector/matrix/quaternion, color, geometry, and
-> bounding-volume behavior works.
+> Status: XNA projection work in progress. Pure timing, math/geometry, curves, packed vectors,
+> input/touch values, component/service infrastructure, content lifetime state, and graphics
+> presentation values work and are behavior-tested.
 > No CNA WebAssembly or Node backend is currently loaded by the package, so `Game.Run()` fails
 > explicitly instead of simulating native execution.
 
@@ -15,10 +16,11 @@ TypeScript.
 JavaScript consumers do not need TypeScript in their application:
 
 ```js
-import { Color, Game, Vector2 } from "cna-ts";
+import { Color, Game, Input, Vector2 } from "cna-ts";
 
 const position = new Vector2(100, 100);
 const clearColor = Color.CornflowerBlue;
+const keys = new Input.KeyboardState([Input.Keys.Space]);
 ```
 
 TypeScript consumers use the same imports and the same generated JavaScript:

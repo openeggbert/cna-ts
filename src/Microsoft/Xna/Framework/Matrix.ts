@@ -1,6 +1,11 @@
 import type { IEquatable } from "./Contracts.js";
+import { MathHelper } from "./MathHelper.js";
+import type { MatrixDecomposeResult } from "./MatrixDecomposeResult.js";
+import { Plane } from "./Plane.js";
 import { Quaternion } from "./Quaternion.js";
 import { Vector3 } from "./Vector3.js";
+import { addHashes, floatHash, valueString } from "../../../internal/value.js";
+import { ArgumentOutOfRangeException } from "../../../internal/exceptions.js";
 
 const f32 = Math.fround;
 
@@ -46,6 +51,70 @@ export class Matrix implements IEquatable<Matrix> {
   public Equals(obj: unknown): boolean;
   public Equals(obj: unknown): boolean {
     return obj instanceof Matrix && Matrix.values(this).every((value, index) => value === Matrix.values(obj)[index]);
+  }
+
+  public GetHashCode(): number { return addHashes(...Matrix.values(this).map(floatHash)); }
+
+  public ToString(): string {
+    const v = Matrix.values(this).map(valueString);
+    return `{ {M11:${v[0]} M12:${v[1]} M13:${v[2]} M14:${v[3]}} ` +
+      `{M21:${v[4]} M22:${v[5]} M23:${v[6]} M24:${v[7]}} ` +
+      `{M31:${v[8]} M32:${v[9]} M33:${v[10]} M34:${v[11]}} ` +
+      `{M41:${v[12]} M42:${v[13]} M43:${v[14]} M44:${v[15]}} }`;
+  }
+
+  public Decompose(): MatrixDecomposeResult {
+    const rows = [
+      new Vector3(this.M11, this.M12, this.M13),
+      new Vector3(this.M21, this.M22, this.M23),
+      new Vector3(this.M31, this.M32, this.M33),
+    ];
+    const scaleValues = rows.map((row) => row.Length());
+    const order = [0, 1, 2].sort((left, right) => scaleValues[right] - scaleValues[left]);
+    const canonical = [Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ];
+    const basis = rows.map((row) => new Vector3(row.X, row.Y, row.Z));
+
+    const first = order[0];
+    if (scaleValues[first] < 0.0001) basis[first] = canonical[first];
+    basis[first].Normalize();
+
+    const second = order[1];
+    if (scaleValues[second] < 0.0001) {
+      const absolute = [Math.abs(basis[first].X), Math.abs(basis[first].Y), Math.abs(basis[first].Z)];
+      const leastAligned = absolute[0] < absolute[1]
+        ? (absolute[0] < absolute[2] ? 0 : 2)
+        : (absolute[1] < absolute[2] ? 1 : 2);
+      basis[second] = Vector3.Cross(canonical[leastAligned], basis[first]);
+    }
+    basis[second].Normalize();
+
+    const third = order[2];
+    if (scaleValues[third] < 0.0001) basis[third] = Vector3.Cross(basis[first], basis[second]);
+    basis[third].Normalize();
+
+    const rotationMatrix = new Matrix(
+      basis[0].X, basis[0].Y, basis[0].Z, 0,
+      basis[1].X, basis[1].Y, basis[1].Z, 0,
+      basis[2].X, basis[2].Y, basis[2].Z, 0,
+      0, 0, 0, 1,
+    );
+    let determinant = rotationMatrix.Determinant();
+    if (determinant < 0) {
+      scaleValues[first] = f32(-scaleValues[first]);
+      basis[first] = Vector3.Negate(basis[first]);
+      if (first === 0) rotationMatrix.Right = basis[first];
+      else if (first === 1) rotationMatrix.Up = basis[first];
+      else rotationMatrix.Backward = basis[first];
+      determinant = f32(-determinant);
+    }
+    const error = f32(determinant - 1);
+    const success = !(f32(error * error) > 0.0001);
+    return {
+      Success: success,
+      Scale: new Vector3(scaleValues[0], scaleValues[1], scaleValues[2]),
+      Rotation: success ? Quaternion.CreateFromRotationMatrix(rotationMatrix) : Quaternion.Identity,
+      Translation: new Vector3(this.M41, this.M42, this.M43),
+    };
   }
 
   public Determinant(): number {
@@ -204,6 +273,73 @@ export class Matrix implements IEquatable<Matrix> {
   public static CreateFromYawPitchRoll(yaw: number, pitch: number, roll: number): Matrix {
     return Matrix.CreateFromQuaternion(Quaternion.CreateFromYawPitchRoll(yaw, pitch, roll));
   }
+
+  public static CreateFromAxisAngle(axis: Vector3, angle: number): Matrix {
+    angle = f32(angle);
+    const sine = f32(Math.sin(angle));
+    const cosine = f32(Math.cos(angle));
+    const x = axis.X, y = axis.Y, z = axis.Z;
+    const xx = f32(x * x), yy = f32(y * y), zz = f32(z * z);
+    const xy = f32(x * y), xz = f32(x * z), yz = f32(y * z);
+    return new Matrix(
+      f32(xx + f32(cosine * f32(1 - xx))), f32(f32(xy - f32(cosine * xy)) + f32(sine * z)), f32(f32(xz - f32(cosine * xz)) - f32(sine * y)), 0,
+      f32(f32(xy - f32(cosine * xy)) - f32(sine * z)), f32(yy + f32(cosine * f32(1 - yy))), f32(f32(yz - f32(cosine * yz)) + f32(sine * x)), 0,
+      f32(f32(xz - f32(cosine * xz)) + f32(sine * y)), f32(f32(yz - f32(cosine * yz)) - f32(sine * x)), f32(zz + f32(cosine * f32(1 - zz))), 0,
+      0, 0, 0, 1,
+    );
+  }
+
+  public static CreateBillboard(objectPosition: Vector3, cameraPosition: Vector3, cameraUpVector: Vector3, cameraForwardVector: Vector3 | null): Matrix {
+    let backward = Vector3.Subtract(objectPosition, cameraPosition);
+    const lengthSquared = backward.LengthSquared();
+    backward = lengthSquared < 0.0001
+      ? (cameraForwardVector == null ? Vector3.Forward : Vector3.Negate(cameraForwardVector))
+      : Vector3.Multiply(backward, f32(1 / Math.sqrt(lengthSquared)));
+    const right = Vector3.Normalize(Vector3.Cross(cameraUpVector, backward));
+    const up = Vector3.Cross(backward, right);
+    return new Matrix(
+      right.X, right.Y, right.Z, 0,
+      up.X, up.Y, up.Z, 0,
+      backward.X, backward.Y, backward.Z, 0,
+      objectPosition.X, objectPosition.Y, objectPosition.Z, 1,
+    );
+  }
+
+  public static CreateConstrainedBillboard(
+    objectPosition: Vector3,
+    cameraPosition: Vector3,
+    rotateAxis: Vector3,
+    cameraForwardVector: Vector3 | null,
+    objectForwardVector: Vector3 | null,
+  ): Matrix {
+    let faceDirection = Vector3.Subtract(objectPosition, cameraPosition);
+    const lengthSquared = faceDirection.LengthSquared();
+    faceDirection = lengthSquared < 0.0001
+      ? (cameraForwardVector == null ? Vector3.Forward : Vector3.Negate(cameraForwardVector))
+      : Vector3.Multiply(faceDirection, f32(1 / Math.sqrt(lengthSquared)));
+    const up = new Vector3(rotateAxis.X, rotateAxis.Y, rotateAxis.Z);
+    let forward: Vector3;
+    let right: Vector3;
+    if (Math.abs(Vector3.Dot(rotateAxis, faceDirection)) > 0.99825466) {
+      forward = objectForwardVector == null
+        ? (Math.abs(Vector3.Dot(rotateAxis, Vector3.Forward)) > 0.99825466 ? Vector3.Right : Vector3.Forward)
+        : new Vector3(objectForwardVector.X, objectForwardVector.Y, objectForwardVector.Z);
+      if (Math.abs(Vector3.Dot(rotateAxis, forward)) > 0.99825466) {
+        forward = Math.abs(Vector3.Dot(rotateAxis, Vector3.Forward)) > 0.99825466 ? Vector3.Right : Vector3.Forward;
+      }
+      right = Vector3.Normalize(Vector3.Cross(rotateAxis, forward));
+      forward = Vector3.Normalize(Vector3.Cross(right, rotateAxis));
+    } else {
+      right = Vector3.Normalize(Vector3.Cross(rotateAxis, faceDirection));
+      forward = Vector3.Normalize(Vector3.Cross(right, up));
+    }
+    return new Matrix(
+      right.X, right.Y, right.Z, 0,
+      up.X, up.Y, up.Z, 0,
+      forward.X, forward.Y, forward.Z, 0,
+      objectPosition.X, objectPosition.Y, objectPosition.Z, 1,
+    );
+  }
   public static CreateLookAt(cameraPosition: Vector3, cameraTarget: Vector3, cameraUpVector: Vector3): Matrix {
     const backward = Vector3.Normalize(Vector3.Subtract(cameraPosition, cameraTarget));
     const right = Vector3.Normalize(Vector3.Cross(cameraUpVector, backward));
@@ -216,15 +352,128 @@ export class Matrix implements IEquatable<Matrix> {
     );
   }
   public static CreatePerspectiveFieldOfView(fieldOfView: number, aspectRatio: number, nearPlaneDistance: number, farPlaneDistance: number): Matrix {
-    if (fieldOfView <= 0 || fieldOfView >= Math.PI) throw new RangeError("fieldOfView must be between 0 and Pi");
-    if (nearPlaneDistance <= 0) throw new RangeError("nearPlaneDistance must be positive");
-    if (farPlaneDistance <= 0) throw new RangeError("farPlaneDistance must be positive");
-    if (nearPlaneDistance >= farPlaneDistance) throw new RangeError("nearPlaneDistance must be less than farPlaneDistance");
-    const yScale = 1 / Math.tan(fieldOfView * 0.5), xScale = yScale / aspectRatio;
+    const fov = f32(fieldOfView);
+    const aspect = f32(aspectRatio);
+    const near = f32(nearPlaneDistance);
+    const far = f32(farPlaneDistance);
+    if (fov <= 0 || fov >= MathHelper.Pi) throw new ArgumentOutOfRangeException("fieldOfView must be between 0 and Pi");
+    if (near <= 0) throw new ArgumentOutOfRangeException("nearPlaneDistance must be positive");
+    if (far <= 0) throw new ArgumentOutOfRangeException("farPlaneDistance must be positive");
+    if (near >= far) throw new ArgumentOutOfRangeException("nearPlaneDistance must be less than farPlaneDistance");
+    const difference = f32(near - far);
+    const yScale = f32(1 / f32(Math.tan(f32(fov * 0.5))));
+    const xScale = f32(yScale / aspect);
     return new Matrix(
       xScale, 0, 0, 0, 0, yScale, 0, 0,
-      0, 0, farPlaneDistance / (nearPlaneDistance - farPlaneDistance), -1,
-      0, 0, nearPlaneDistance * farPlaneDistance / (nearPlaneDistance - farPlaneDistance), 0,
+      0, 0, f32(far / difference), -1,
+      0, 0, f32(f32(near * far) / difference), 0,
     );
+  }
+
+  public static CreatePerspective(width: number, height: number, nearPlaneDistance: number, farPlaneDistance: number): Matrix {
+    Matrix.validatePerspective(nearPlaneDistance, farPlaneDistance);
+    return new Matrix(
+      f32(f32(2 * nearPlaneDistance) / width), 0, 0, 0,
+      0, f32(f32(2 * nearPlaneDistance) / height), 0, 0,
+      0, 0, f32(farPlaneDistance / f32(nearPlaneDistance - farPlaneDistance)), -1,
+      0, 0, f32(f32(nearPlaneDistance * farPlaneDistance) / f32(nearPlaneDistance - farPlaneDistance)), 0,
+    );
+  }
+
+  public static CreatePerspectiveOffCenter(left: number, right: number, bottom: number, top: number, nearPlaneDistance: number, farPlaneDistance: number): Matrix {
+    Matrix.validatePerspective(nearPlaneDistance, farPlaneDistance);
+    return new Matrix(
+      f32(f32(2 * nearPlaneDistance) / f32(right - left)), 0, 0, 0,
+      0, f32(f32(2 * nearPlaneDistance) / f32(top - bottom)), 0, 0,
+      f32(f32(left + right) / f32(right - left)), f32(f32(top + bottom) / f32(top - bottom)),
+      f32(farPlaneDistance / f32(nearPlaneDistance - farPlaneDistance)), -1,
+      0, 0, f32(f32(nearPlaneDistance * farPlaneDistance) / f32(nearPlaneDistance - farPlaneDistance)), 0,
+    );
+  }
+
+  public static CreateOrthographic(width: number, height: number, zNearPlane: number, zFarPlane: number): Matrix {
+    return new Matrix(
+      f32(2 / width), 0, 0, 0,
+      0, f32(2 / height), 0, 0,
+      0, 0, f32(1 / f32(zNearPlane - zFarPlane)), 0,
+      0, 0, f32(zNearPlane / f32(zNearPlane - zFarPlane)), 1,
+    );
+  }
+
+  public static CreateOrthographicOffCenter(left: number, right: number, bottom: number, top: number, zNearPlane: number, zFarPlane: number): Matrix {
+    return new Matrix(
+      f32(2 / f32(right - left)), 0, 0, 0,
+      0, f32(2 / f32(top - bottom)), 0, 0,
+      0, 0, f32(1 / f32(zNearPlane - zFarPlane)), 0,
+      f32(f32(left + right) / f32(left - right)), f32(f32(top + bottom) / f32(bottom - top)),
+      f32(zNearPlane / f32(zNearPlane - zFarPlane)), 1,
+    );
+  }
+
+  public static CreateWorld(position: Vector3, forward: Vector3, up: Vector3): Matrix {
+    const backward = Vector3.Normalize(Vector3.Negate(forward));
+    const right = Vector3.Normalize(Vector3.Cross(up, backward));
+    const actualUp = Vector3.Cross(backward, right);
+    return new Matrix(
+      right.X, right.Y, right.Z, 0,
+      actualUp.X, actualUp.Y, actualUp.Z, 0,
+      backward.X, backward.Y, backward.Z, 0,
+      position.X, position.Y, position.Z, 1,
+    );
+  }
+
+  public static CreateShadow(lightDirection: Vector3, plane: Plane): Matrix {
+    const normalized = Plane.Normalize(new Plane(plane.Normal, plane.D));
+    const dot = Vector3.Dot(normalized.Normal, lightDirection);
+    const x = f32(-normalized.Normal.X), y = f32(-normalized.Normal.Y);
+    const z = f32(-normalized.Normal.Z), d = f32(-normalized.D);
+    return new Matrix(
+      f32(f32(x * lightDirection.X) + dot), f32(x * lightDirection.Y), f32(x * lightDirection.Z), 0,
+      f32(y * lightDirection.X), f32(f32(y * lightDirection.Y) + dot), f32(y * lightDirection.Z), 0,
+      f32(z * lightDirection.X), f32(z * lightDirection.Y), f32(f32(z * lightDirection.Z) + dot), 0,
+      f32(d * lightDirection.X), f32(d * lightDirection.Y), f32(d * lightDirection.Z), dot,
+    );
+  }
+
+  public static CreateReflection(value: Plane): Matrix {
+    const plane = Plane.Normalize(new Plane(value.Normal, value.D));
+    const x = plane.Normal.X, y = plane.Normal.Y, z = plane.Normal.Z;
+    const x2 = f32(-2 * x), y2 = f32(-2 * y), z2 = f32(-2 * z);
+    return new Matrix(
+      f32(f32(x2 * x) + 1), f32(y2 * x), f32(z2 * x), 0,
+      f32(x2 * y), f32(f32(y2 * y) + 1), f32(z2 * y), 0,
+      f32(x2 * z), f32(y2 * z), f32(f32(z2 * z) + 1), 0,
+      f32(x2 * plane.D), f32(y2 * plane.D), f32(z2 * plane.D), 1,
+    );
+  }
+
+  public static Transform(value: Matrix, rotation: Quaternion): Matrix {
+    const doubledX = f32(rotation.X + rotation.X);
+    const doubledY = f32(rotation.Y + rotation.Y);
+    const doubledZ = f32(rotation.Z + rotation.Z);
+    const wx = f32(rotation.W * doubledX), wy = f32(rotation.W * doubledY), wz = f32(rotation.W * doubledZ);
+    const xx = f32(rotation.X * doubledX), xy = f32(rotation.X * doubledY), xz = f32(rotation.X * doubledZ);
+    const yy = f32(rotation.Y * doubledY), yz = f32(rotation.Y * doubledZ), zz = f32(rotation.Z * doubledZ);
+    const r11 = f32(f32(1 - yy) - zz), r12 = f32(xy - wz), r13 = f32(xz + wy);
+    const r21 = f32(xy + wz), r22 = f32(f32(1 - xx) - zz), r23 = f32(yz - wx);
+    const r31 = f32(xz - wy), r32 = f32(yz + wx), r33 = f32(f32(1 - xx) - yy);
+    const row = (a: number, b: number, c: number): [number, number, number] => [
+      f32(f32(f32(a * r11) + f32(b * r12)) + f32(c * r13)),
+      f32(f32(f32(a * r21) + f32(b * r22)) + f32(c * r23)),
+      f32(f32(f32(a * r31) + f32(b * r32)) + f32(c * r33)),
+    ];
+    const a = row(value.M11, value.M12, value.M13);
+    const b = row(value.M21, value.M22, value.M23);
+    const c = row(value.M31, value.M32, value.M33);
+    const d = row(value.M41, value.M42, value.M43);
+    return new Matrix(
+      ...a, value.M14, ...b, value.M24, ...c, value.M34, ...d, value.M44,
+    );
+  }
+
+  private static validatePerspective(nearPlaneDistance: number, farPlaneDistance: number): void {
+    if (nearPlaneDistance <= 0) throw new ArgumentOutOfRangeException("nearPlaneDistance must be positive");
+    if (farPlaneDistance <= 0) throw new ArgumentOutOfRangeException("farPlaneDistance must be positive");
+    if (nearPlaneDistance >= farPlaneDistance) throw new ArgumentOutOfRangeException("nearPlaneDistance must be less than farPlaneDistance");
   }
 }

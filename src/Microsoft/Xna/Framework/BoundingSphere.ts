@@ -7,6 +7,8 @@ import { Plane } from "./Plane.js";
 import { PlaneIntersectionType } from "./PlaneIntersectionType.js";
 import { Ray } from "./Ray.js";
 import { Vector3 } from "./Vector3.js";
+import { addHashes, floatHash, valueString } from "../../../internal/value.js";
+import { ArgumentException } from "../../../internal/exceptions.js";
 
 /** Mutable Microsoft.Xna.Framework.BoundingSphere projection. */
 export class BoundingSphere implements IEquatable<BoundingSphere> {
@@ -14,7 +16,7 @@ export class BoundingSphere implements IEquatable<BoundingSphere> {
   public Radius: number;
 
   public constructor(center: Vector3, radius: number) {
-    if (radius < 0) throw new RangeError("radius must be greater than or equal to zero");
+    if (radius < 0) throw new ArgumentException("radius must be greater than or equal to zero");
     this.Center = new Vector3(center.X, center.Y, center.Z);
     this.Radius = Math.fround(radius);
   }
@@ -23,6 +25,12 @@ export class BoundingSphere implements IEquatable<BoundingSphere> {
   public Equals(obj: unknown): boolean;
   public Equals(obj: unknown): boolean {
     return obj instanceof BoundingSphere && this.Center.Equals(obj.Center) && this.Radius === obj.Radius;
+  }
+
+  public GetHashCode(): number { return addHashes(this.Center.GetHashCode(), floatHash(this.Radius)); }
+
+  public ToString(): string {
+    return `{Center:${this.Center.ToString()} Radius:${valueString(this.Radius)}}`;
   }
 
   public Contains(point: Vector3): ContainmentType;
@@ -86,6 +94,11 @@ export class BoundingSphere implements IEquatable<BoundingSphere> {
   public static CreateFromBoundingBox(box: BoundingBox): BoundingSphere {
     const center = Vector3.Multiply(Vector3.Add(box.Min, box.Max), 0.5);
     return new BoundingSphere(center, Vector3.Distance(center, box.Max));
+  }
+
+  public static CreateFromFrustum(frustum: BoundingFrustum): BoundingSphere {
+    if (frustum == null) throw new TypeError("frustum cannot be null");
+    return BoundingSphere.CreateFromPoints(frustum.GetCorners());
   }
 
   public static CreateFromPoints(points: Iterable<Vector3>): BoundingSphere {

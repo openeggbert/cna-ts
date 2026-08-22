@@ -3,8 +3,16 @@
   "methodCasing": "preserve",
   "propertyStyle": "same-cased-accessor",
   "mixedAccessorVisibility": "project-most-visible-accessor",
+  "ignoredMethods": [
+    "Finalize"
+  ],
   "mixedVisibilityOverloads": [
-    "Microsoft.Xna.Framework.Game.Dispose"
+    "Microsoft.Xna.Framework.Game.Dispose",
+    "Microsoft.Xna.Framework.GameComponent.Dispose",
+    "Microsoft.Xna.Framework.Content.ContentManager.Dispose"
+  ],
+  "ignoredConstructors": [
+    "Microsoft.Xna.Framework.Content.ContentLoadException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)"
   ],
   "fieldStyle": "same-cased-field",
   "structStyle": "mutable-class",
@@ -52,10 +60,20 @@
   },
   "contentLoad": "Load<T>(assetType: XnaType<T>, assetName: string): T",
   "events": "XnaEvent<TSender,TArgs>",
+  "iterableProtocolMember": "[Symbol.iterator]",
   "genericTypeRenames": {
+    "System.Action`1": "Microsoft.Xna.Framework.XnaAction",
     "Microsoft.Xna.Framework.Content.ContentTypeReader`1": "Microsoft.Xna.Framework.Content.ContentTypeReaderOfT",
     "Microsoft.Xna.Framework.Graphics.PackedVector.IPackedVector`1": "Microsoft.Xna.Framework.Graphics.PackedVector.IPackedVectorOfT"
   },
+  "erasedInterfaces": [
+    "System.Collections.Generic.ICollection`1",
+    "System.Collections.Generic.IList`1",
+    "System.Collections.Generic.IEnumerator`1"
+  ],
+  "erasedBaseTypes": [
+    "System.Collections.ObjectModel.Collection`1"
+  ],
   "syntheticTypes": [
     {
       "name": "Microsoft.Xna.Framework.TimeSpan",
@@ -63,6 +81,11 @@
     },
     {
       "name": "Microsoft.Xna.Framework.IEquatable",
+      "kind": "interface",
+      "genericArity": 1
+    },
+    {
+      "name": "Microsoft.Xna.Framework.IComparable",
       "kind": "interface",
       "genericArity": 1
     },
@@ -86,6 +109,34 @@
     {
       "name": "Microsoft.Xna.Framework.Input.Touch.TouchLocationResult",
       "kind": "interface"
+    },
+    {
+      "name": "Microsoft.Xna.Framework.EventArgs",
+      "kind": "class"
+    },
+    {
+      "name": "Microsoft.Xna.Framework.XnaEvent",
+      "kind": "interface",
+      "genericArity": 2
+    },
+    {
+      "name": "Microsoft.Xna.Framework.XnaAction",
+      "kind": "delegate",
+      "genericArity": 1
+    },
+    {
+      "name": "Microsoft.Xna.Framework.XnaEventHandler",
+      "kind": "delegate",
+      "genericArity": 2
+    },
+    {
+      "name": "Microsoft.Xna.Framework.XnaType",
+      "kind": "interface",
+      "genericArity": 1
+    },
+    {
+      "name": "Microsoft.Xna.Framework.IServiceProvider",
+      "kind": "interface"
     }
   ],
   "frameworkTypeMappings": {
@@ -104,8 +155,13 @@
     "System.Char": "string",
     "System.String": "string",
     "System.Object": "unknown",
+    "System.IntPtr": "bigint",
+    "System.IO.Stream": "Uint8Array",
+    "System.EventArgs": "Microsoft.Xna.Framework.EventArgs",
+    "System.Exception": "Error",
+    "System.IServiceProvider": "Microsoft.Xna.Framework.IServiceProvider",
     "System.TimeSpan": "Microsoft.Xna.Framework.TimeSpan",
-    "System.Type": "XnaType<unknown>"
+    "System.Type": "Microsoft.Xna.Framework.XnaType<unknown>"
   },
   "allowlist": []
 }

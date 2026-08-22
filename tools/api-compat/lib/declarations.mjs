@@ -195,13 +195,17 @@ function readMembers(root, checker, declaration, fullName, kind) {
         static: hasModifier(member, ts.SyntaxKind.StaticKeyword),
         getterAccess: "none",
         setterAccess: "none",
+        getterAbstract: false,
+        setterAbstract: false,
         parameters: [],
       };
       if (ts.isGetAccessorDeclaration(member)) {
         property.getterAccess = access(member);
+        property.getterAbstract = hasModifier(member, ts.SyntaxKind.AbstractKeyword);
         property.type = typeText(root, checker, member.type);
       } else {
         property.setterAccess = access(member);
+        property.setterAbstract = hasModifier(member, ts.SyntaxKind.AbstractKeyword);
         property.type = typeText(root, checker, member.parameters[0]?.type);
       }
       properties.set(key, property);

@@ -4,6 +4,8 @@ import { Matrix } from "./Matrix.js";
 import { Quaternion } from "./Quaternion.js";
 import { Vector2 } from "./Vector2.js";
 import { Vector3 } from "./Vector3.js";
+import { addHashes, floatHash, transformQuaternionComponents, valueString } from "../../../internal/value.js";
+import { transformArray } from "../../../internal/exceptions.js";
 
 const f32 = Math.fround;
 
@@ -50,6 +52,14 @@ export class Vector4 implements IEquatable<Vector4> {
   public Equals(obj: unknown): boolean;
   public Equals(obj: unknown): boolean {
     return obj instanceof Vector4 && this.X === obj.X && this.Y === obj.Y && this.Z === obj.Z && this.W === obj.W;
+  }
+
+  public GetHashCode(): number {
+    return addHashes(floatHash(this.X), floatHash(this.Y), floatHash(this.Z), floatHash(this.W));
+  }
+
+  public ToString(): string {
+    return `{X:${valueString(this.X)} Y:${valueString(this.Y)} Z:${valueString(this.Z)} W:${valueString(this.W)}}`;
   }
 
   public static Add(value1: Vector4, value2: Vector4): Vector4 {
@@ -106,24 +116,91 @@ export class Vector4 implements IEquatable<Vector4> {
     );
   }
 
+  public static Barycentric(value1: Vector4, value2: Vector4, value3: Vector4, amount1: number, amount2: number): Vector4 {
+    return new Vector4(
+      MathHelper.Barycentric(value1.X, value2.X, value3.X, amount1, amount2),
+      MathHelper.Barycentric(value1.Y, value2.Y, value3.Y, amount1, amount2),
+      MathHelper.Barycentric(value1.Z, value2.Z, value3.Z, amount1, amount2),
+      MathHelper.Barycentric(value1.W, value2.W, value3.W, amount1, amount2),
+    );
+  }
+
+  public static CatmullRom(value1: Vector4, value2: Vector4, value3: Vector4, value4: Vector4, amount: number): Vector4 {
+    return new Vector4(
+      MathHelper.CatmullRom(value1.X, value2.X, value3.X, value4.X, amount),
+      MathHelper.CatmullRom(value1.Y, value2.Y, value3.Y, value4.Y, amount),
+      MathHelper.CatmullRom(value1.Z, value2.Z, value3.Z, value4.Z, amount),
+      MathHelper.CatmullRom(value1.W, value2.W, value3.W, value4.W, amount),
+    );
+  }
+
+  public static Hermite(value1: Vector4, tangent1: Vector4, value2: Vector4, tangent2: Vector4, amount: number): Vector4 {
+    return new Vector4(
+      MathHelper.Hermite(value1.X, tangent1.X, value2.X, tangent2.X, amount),
+      MathHelper.Hermite(value1.Y, tangent1.Y, value2.Y, tangent2.Y, amount),
+      MathHelper.Hermite(value1.Z, tangent1.Z, value2.Z, tangent2.Z, amount),
+      MathHelper.Hermite(value1.W, tangent1.W, value2.W, tangent2.W, amount),
+    );
+  }
+
   public static Transform(position: Vector2, matrix: Matrix): Vector4;
   public static Transform(value: Vector2, rotation: Quaternion): Vector4;
   public static Transform(position: Vector3, matrix: Matrix): Vector4;
   public static Transform(value: Vector3, rotation: Quaternion): Vector4;
   public static Transform(vector: Vector4, matrix: Matrix): Vector4;
   public static Transform(value: Vector4, rotation: Quaternion): Vector4;
-  public static Transform(value: Vector2 | Vector3 | Vector4, transform: Matrix | Quaternion): Vector4 {
+  public static Transform(sourceArray: Vector4[], matrix: Matrix, destinationArray: Vector4[]): void;
+  public static Transform(sourceArray: Vector4[], rotation: Quaternion, destinationArray: Vector4[]): void;
+  public static Transform(sourceArray: Vector4[], sourceIndex: number, matrix: Matrix, destinationArray: Vector4[], destinationIndex: number, length: number): void;
+  public static Transform(sourceArray: Vector4[], sourceIndex: number, rotation: Quaternion, destinationArray: Vector4[], destinationIndex: number, length: number): void;
+  public static Transform(
+    value: Vector2 | Vector3 | Vector4 | Vector4[],
+    transformOrIndex: Matrix | Quaternion | number,
+    transformOrDestination?: Matrix | Quaternion | Vector4[],
+    destinationArray?: Vector4[],
+    destinationIndex?: number,
+    length?: number,
+  ): Vector4 | void {
+    if (Array.isArray(value)) {
+      const ranged = typeof transformOrIndex === "number";
+      const transform = (ranged ? transformOrDestination : transformOrIndex) as Matrix | Quaternion;
+      const destination = (ranged ? destinationArray : transformOrDestination) as Vector4[];
+      transformArray(
+        value,
+        ranged ? transformOrIndex : 0,
+        destination,
+        ranged ? destinationIndex ?? 0 : 0,
+        ranged ? length ?? 0 : value.length,
+        (item) => transform instanceof Matrix
+          ? Vector4.Transform(item, transform)
+          : Vector4.Transform(item, transform),
+      );
+      return;
+    }
+    const transform = transformOrIndex as Matrix | Quaternion;
     const vector = value instanceof Vector4
       ? value
       : value instanceof Vector3
         ? new Vector4(value, 1)
         : new Vector4(value, 0, 1);
-    const matrix = transform instanceof Matrix ? transform : Matrix.CreateFromQuaternion(transform);
+    if (transform instanceof Quaternion) {
+      const [x, y, z] = transformQuaternionComponents(
+        vector.X, vector.Y, vector.Z, transform.X, transform.Y, transform.Z, transform.W,
+      );
+      return new Vector4(x, y, z, vector.W);
+    }
+    const matrix = transform;
+    const component = (m1: number, m2: number, m3: number, m4: number): number => {
+      let result = f32(vector.X * m1);
+      result = f32(result + f32(vector.Y * m2));
+      result = f32(result + f32(vector.Z * m3));
+      return f32(result + f32(vector.W * m4));
+    };
     return new Vector4(
-      f32(f32(vector.X * matrix.M11) + f32(vector.Y * matrix.M21) + f32(vector.Z * matrix.M31) + f32(vector.W * matrix.M41)),
-      f32(f32(vector.X * matrix.M12) + f32(vector.Y * matrix.M22) + f32(vector.Z * matrix.M32) + f32(vector.W * matrix.M42)),
-      f32(f32(vector.X * matrix.M13) + f32(vector.Y * matrix.M23) + f32(vector.Z * matrix.M33) + f32(vector.W * matrix.M43)),
-      f32(f32(vector.X * matrix.M14) + f32(vector.Y * matrix.M24) + f32(vector.Z * matrix.M34) + f32(vector.W * matrix.M44)),
+      component(matrix.M11, matrix.M21, matrix.M31, matrix.M41),
+      component(matrix.M12, matrix.M22, matrix.M32, matrix.M42),
+      component(matrix.M13, matrix.M23, matrix.M33, matrix.M43),
+      component(matrix.M14, matrix.M24, matrix.M34, matrix.M44),
     );
   }
 }

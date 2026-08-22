@@ -3,6 +3,8 @@ import { MathHelper } from "./MathHelper.js";
 import { Matrix } from "./Matrix.js";
 import { Quaternion } from "./Quaternion.js";
 import { Vector2 } from "./Vector2.js";
+import { addHashes, floatHash, transformQuaternionComponents, valueString } from "../../../internal/value.js";
+import { transformArray } from "../../../internal/exceptions.js";
 
 const f32 = Math.fround;
 
@@ -60,6 +62,14 @@ export class Vector3 implements IEquatable<Vector3> {
   public Equals(obj: unknown): boolean;
   public Equals(obj: unknown): boolean {
     return obj instanceof Vector3 && this.X === obj.X && this.Y === obj.Y && this.Z === obj.Z;
+  }
+
+  public GetHashCode(): number {
+    return addHashes(floatHash(this.X), floatHash(this.Y), floatHash(this.Z));
+  }
+
+  public ToString(): string {
+    return `{X:${valueString(this.X)} Y:${valueString(this.Y)} Z:${valueString(this.Z)}}`;
   }
 
   public static Add(value1: Vector3, value2: Vector3): Vector3 {
@@ -179,20 +189,89 @@ export class Vector3 implements IEquatable<Vector3> {
 
   public static Transform(position: Vector3, matrix: Matrix): Vector3;
   public static Transform(value: Vector3, rotation: Quaternion): Vector3;
-  public static Transform(value: Vector3, transform: Matrix | Quaternion): Vector3 {
-    const matrix = transform instanceof Matrix ? transform : Matrix.CreateFromQuaternion(transform);
+  public static Transform(sourceArray: Vector3[], matrix: Matrix, destinationArray: Vector3[]): void;
+  public static Transform(sourceArray: Vector3[], rotation: Quaternion, destinationArray: Vector3[]): void;
+  public static Transform(sourceArray: Vector3[], sourceIndex: number, matrix: Matrix, destinationArray: Vector3[], destinationIndex: number, length: number): void;
+  public static Transform(sourceArray: Vector3[], sourceIndex: number, rotation: Quaternion, destinationArray: Vector3[], destinationIndex: number, length: number): void;
+  public static Transform(
+    value: Vector3 | Vector3[],
+    transformOrIndex: Matrix | Quaternion | number,
+    transformOrDestination?: Matrix | Quaternion | Vector3[],
+    destinationArray?: Vector3[],
+    destinationIndex?: number,
+    length?: number,
+  ): Vector3 | void {
+    if (Array.isArray(value)) {
+      const ranged = typeof transformOrIndex === "number";
+      const transform = (ranged ? transformOrDestination : transformOrIndex) as Matrix | Quaternion;
+      const destination = (ranged ? destinationArray : transformOrDestination) as Vector3[];
+      transformArray(
+        value,
+        ranged ? transformOrIndex : 0,
+        destination,
+        ranged ? destinationIndex ?? 0 : 0,
+        ranged ? length ?? 0 : value.length,
+        (item) => transform instanceof Matrix
+          ? Vector3.Transform(item, transform)
+          : Vector3.Transform(item, transform),
+      );
+      return;
+    }
+    const transform = transformOrIndex as Matrix | Quaternion;
+    if (transform instanceof Quaternion) {
+      return new Vector3(...transformQuaternionComponents(
+        value.X, value.Y, value.Z, transform.X, transform.Y, transform.Z, transform.W,
+      ));
+    }
+    const matrix = transform;
+    const component = (a: number, b: number, c: number, m1: number, m2: number, m3: number, translation: number): number => {
+      let result = f32(a * m1);
+      result = f32(result + f32(b * m2));
+      result = f32(result + f32(c * m3));
+      return f32(result + translation);
+    };
     return new Vector3(
-      f32(f32(value.X * matrix.M11) + f32(value.Y * matrix.M21) + f32(value.Z * matrix.M31) + matrix.M41),
-      f32(f32(value.X * matrix.M12) + f32(value.Y * matrix.M22) + f32(value.Z * matrix.M32) + matrix.M42),
-      f32(f32(value.X * matrix.M13) + f32(value.Y * matrix.M23) + f32(value.Z * matrix.M33) + matrix.M43),
+      component(value.X, value.Y, value.Z, matrix.M11, matrix.M21, matrix.M31, matrix.M41),
+      component(value.X, value.Y, value.Z, matrix.M12, matrix.M22, matrix.M32, matrix.M42),
+      component(value.X, value.Y, value.Z, matrix.M13, matrix.M23, matrix.M33, matrix.M43),
     );
   }
 
-  public static TransformNormal(normal: Vector3, matrix: Matrix): Vector3 {
+  public static TransformNormal(normal: Vector3, matrix: Matrix): Vector3;
+  public static TransformNormal(sourceArray: Vector3[], matrix: Matrix, destinationArray: Vector3[]): void;
+  public static TransformNormal(sourceArray: Vector3[], sourceIndex: number, matrix: Matrix, destinationArray: Vector3[], destinationIndex: number, length: number): void;
+  public static TransformNormal(
+    normal: Vector3 | Vector3[],
+    matrixOrIndex: Matrix | number,
+    matrixOrDestination?: Matrix | Vector3[],
+    destinationArray?: Vector3[],
+    destinationIndex?: number,
+    length?: number,
+  ): Vector3 | void {
+    if (Array.isArray(normal)) {
+      const ranged = typeof matrixOrIndex === "number";
+      const matrix = (ranged ? matrixOrDestination : matrixOrIndex) as Matrix;
+      const destination = (ranged ? destinationArray : matrixOrDestination) as Vector3[];
+      transformArray(
+        normal,
+        ranged ? matrixOrIndex : 0,
+        destination,
+        ranged ? destinationIndex ?? 0 : 0,
+        ranged ? length ?? 0 : normal.length,
+        (item) => Vector3.TransformNormal(item, matrix),
+      );
+      return;
+    }
+    const matrix = matrixOrIndex as Matrix;
+    const component = (a: number, b: number, c: number, m1: number, m2: number, m3: number): number => {
+      let result = f32(a * m1);
+      result = f32(result + f32(b * m2));
+      return f32(result + f32(c * m3));
+    };
     return new Vector3(
-      f32(f32(normal.X * matrix.M11) + f32(normal.Y * matrix.M21) + f32(normal.Z * matrix.M31)),
-      f32(f32(normal.X * matrix.M12) + f32(normal.Y * matrix.M22) + f32(normal.Z * matrix.M32)),
-      f32(f32(normal.X * matrix.M13) + f32(normal.Y * matrix.M23) + f32(normal.Z * matrix.M33)),
+      component(normal.X, normal.Y, normal.Z, matrix.M11, matrix.M21, matrix.M31),
+      component(normal.X, normal.Y, normal.Z, matrix.M12, matrix.M22, matrix.M32),
+      component(normal.X, normal.Y, normal.Z, matrix.M13, matrix.M23, matrix.M33),
     );
   }
 }

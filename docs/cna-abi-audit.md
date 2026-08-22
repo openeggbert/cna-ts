@@ -82,9 +82,36 @@ The `cna_c_api` CMake target also applies ELF version-script options under `UNIX
 An Emscripten configure/link must be executed to determine whether that guard and the shared-library
 target produce the intended modular ESM output; this audit does not guess from CMake conditionals.
 
+## Opportunistic native Node investigation
+
+The existing CNA `cmake-build-debug` tree was not usable as a Node source because it was configured
+with `CNA_BUILD_C_API=OFF` and contains no `libcna_c_api.so`. A separate build directory under
+`/tmp` configured the unmodified, read-only CNA revision successfully with:
+
+```text
+CMAKE_BUILD_TYPE=Release
+CNA_BUILD_C_API=ON
+CNA_C_API_BUILD_STATIC=OFF
+CNA_GRAPHICS_RENDERER=HEADLESS
+CNA_BUILD_TESTS=OFF
+CNA_BUILD_EXAMPLES=OFF
+CNA_DEVICES=OFF
+CNA_USE_CCACHE=OFF
+```
+
+The build progressed into the C API target but stopped at
+`modules/c-api/src/CnaCApiCoreExt.cpp:250`. Its compile-time renderer identity guard compared 49 C
+identities with 50 canonical renderer entries and failed with “A renderer was added to
+`CNA::GraphicsRendererType` without a C identity.” No shared library was produced. Because the
+task forbids modifying upstream CNA and the failure is in upstream source rather than adapter
+tooling, CNA-TS did not patch around it, add an FFI dependency, or construct a Node adapter.
+
 ## Selected backend status
 
 No native backend is selected yet. Browser WebAssembly remains the strategic first candidate, and
 the same WebAssembly ABI could be reused under Node if the produced module is host-neutral enough.
-No CNA ABI route is currently called by shipped CNA-TS JavaScript. Node is verified only for pure
-managed/value behavior, package loading, and consumer tests.
+The private backend contract now has typed executable operations for initialization/error state,
+game lifecycle, device borrowing, clear/present, Texture2D/SpriteBatch ownership, and input. The
+managed Game route and its ownership release order are exercised with an internal test backend,
+but no real CNA ABI function was executed. Node is verified only for managed/value behavior,
+package loading, and consumer tests.

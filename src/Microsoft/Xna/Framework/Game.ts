@@ -1,51 +1,323 @@
-import { requireNative } from "../../../runtime/index.js";
-import type { IDisposable } from "./Contracts.js";
+import type { CnaBackend } from "../../../internal/backend.js";
+import { getBackend } from "../../../internal/backend.js";
+import { EventDispatcher } from "../../../internal/events.js";
+import {
+  ArgumentNullException,
+  InvalidOperationException,
+} from "../../../internal/exceptions.js";
+import { NativeUnavailableError } from "../../../internal/native-error.js";
+import { NativeResourceLifetime } from "../../../internal/ownership.js";
+import type {
+  IDisposable,
+  XnaEvent,
+  XnaEventHandler,
+} from "./Contracts.js";
+import { ContentManager } from "./Content/ContentManager.js";
+import { EventArgs } from "./EventArgs.js";
+import { GameComponentCollection } from "./GameComponentCollection.js";
+import type { GameComponentCollectionEventArgs } from "./GameComponentCollectionEventArgs.js";
+import { GameServiceContainer } from "./GameServiceContainer.js";
 import { GameTime } from "./GameTime.js";
+import type { GameWindow } from "./GameWindow.js";
+import type { IDrawable } from "./IDrawable.js";
+import type { IGameComponent } from "./IGameComponent.js";
+import type { IUpdateable } from "./IUpdateable.js";
+import { LaunchParameters } from "./LaunchParameters.js";
+import { TimeSpan } from "./TimeSpan.js";
 
-/** XNA game lifecycle shell. Native execution remains unavailable until a backend is loaded. */
+function hasEvent(value: unknown): value is XnaEvent<unknown, EventArgs> {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as { Add?: unknown; Remove?: unknown };
+  return typeof candidate.Add === "function" && typeof candidate.Remove === "function";
+}
+
+function isUpdateable(value: IGameComponent): value is IGameComponent & IUpdateable {
+  const candidate = value as IGameComponent & Partial<IUpdateable>;
+  return typeof candidate.Update === "function" &&
+    typeof candidate.Enabled === "boolean" &&
+    typeof candidate.UpdateOrder === "number" &&
+    hasEvent(candidate.EnabledChanged) &&
+    hasEvent(candidate.UpdateOrderChanged);
+}
+
+function isDrawable(value: IGameComponent): value is IGameComponent & IDrawable {
+  const candidate = value as IGameComponent & Partial<IDrawable>;
+  return typeof candidate.Draw === "function" &&
+    typeof candidate.Visible === "boolean" &&
+    typeof candidate.DrawOrder === "number" &&
+    hasEvent(candidate.VisibleChanged) &&
+    hasEvent(candidate.DrawOrderChanged);
+}
+
+function isDisposable(value: IGameComponent): value is IGameComponent & IDisposable {
+  return typeof (value as IGameComponent & Partial<IDisposable>).Dispose === "function";
+}
+
+/** Managed XNA lifecycle and component pipeline with an explicit CNA execution boundary. */
 export class Game implements IDisposable {
-  #disposed = false;
+  readonly #components = new GameComponentCollection();
+  readonly #services = new GameServiceContainer();
+  readonly #launchParameters = new LaunchParameters();
+  #content = new ContentManager(this.#services);
+  readonly #updateables: IUpdateable[] = [];
+  readonly #drawables: IDrawable[] = [];
+  readonly #notYetInitialized: IGameComponent[] = [];
+  readonly #updateOrderHandlers = new Map<IUpdateable, XnaEventHandler<unknown, EventArgs>>();
+  readonly #drawOrderHandlers = new Map<IDrawable, XnaEventHandler<unknown, EventArgs>>();
+  readonly #activated = new EventDispatcher<unknown, EventArgs>();
+  readonly #deactivated = new EventDispatcher<unknown, EventArgs>();
+  readonly #disposedEvent = new EventDispatcher<unknown, EventArgs>();
+  readonly #exiting = new EventDispatcher<unknown, EventArgs>();
+  #inactiveSleepTime = TimeSpan.FromMilliseconds(20);
+  #targetElapsedTime = TimeSpan.FromTicks(166_667n);
+  #isFixedTimeStep = true;
   #isMouseVisible = false;
+  #isActive = false;
+  #inRun = false;
+  #initialized = false;
+  #exitRequested = false;
+  #exitingRaised = false;
+  #suppressDraw = false;
+  #disposed = false;
+  #gameLifetime: NativeResourceLifetime | null = null;
+  #nativeBackend: CnaBackend | null = null;
+
+  public readonly Activated: XnaEvent<unknown, EventArgs> = this.#activated;
+  public readonly Deactivated: XnaEvent<unknown, EventArgs> = this.#deactivated;
+  public readonly Disposed: XnaEvent<unknown, EventArgs> = this.#disposedEvent;
+  public readonly Exiting: XnaEvent<unknown, EventArgs> = this.#exiting;
+
+  public constructor() {
+    this.#components.ComponentAdded.Add((_sender, args) => this.#componentAdded(args));
+    this.#components.ComponentRemoved.Add((_sender, args) => this.#componentRemoved(args));
+  }
+
+  public get Components(): GameComponentCollection { return this.#components; }
+  public get Services(): GameServiceContainer { return this.#services; }
+  public get LaunchParameters(): LaunchParameters { return this.#launchParameters; }
+  public get Content(): ContentManager { return this.#content; }
+  public set Content(value: ContentManager) {
+    if (value == null) throw new ArgumentNullException("value");
+    this.#content = value;
+  }
+  public get Window(): GameWindow {
+    throw new NativeUnavailableError("Game.Window requires a loaded CNA platform backend");
+  }
+
+  public get InactiveSleepTime(): TimeSpan { return this.#inactiveSleepTime; }
+  public set InactiveSleepTime(value: TimeSpan) {
+    if (value.Ticks < 0n) throw new RangeError("InactiveSleepTime cannot be negative");
+    this.#inactiveSleepTime = TimeSpan.FromTicks(value.Ticks);
+  }
+
+  public get IsActive(): boolean { return this.#isActive; }
+
+  public get IsFixedTimeStep(): boolean { return this.#isFixedTimeStep; }
+  public set IsFixedTimeStep(value: boolean) { this.#isFixedTimeStep = Boolean(value); }
+
+  public get IsMouseVisible(): boolean { return this.#isMouseVisible; }
+  public set IsMouseVisible(value: boolean) { this.#isMouseVisible = Boolean(value); }
+
+  public get TargetElapsedTime(): TimeSpan { return this.#targetElapsedTime; }
+  public set TargetElapsedTime(value: TimeSpan) {
+    if (value.Ticks <= 0n) throw new RangeError("TargetElapsedTime must be positive");
+    this.#targetElapsedTime = TimeSpan.FromTicks(value.Ticks);
+  }
 
   public async Run(): Promise<void> {
-    this.#ensureActive();
-    requireNative();
+    this.#ensureUsable();
+    if (this.#inRun) throw new InvalidOperationException("Game is already running");
+    const backend = getBackend();
+    await backend.initialize();
+    const lifetime = this.#ensureNativeGame(backend);
+    if (!this.#initialized) {
+      this.Initialize();
+      this.#initialized = true;
+    }
+    this.#inRun = true;
+    let began = false;
+    try {
+      this.BeginRun();
+      began = true;
+      this.Update(new GameTime(TimeSpan.Zero, TimeSpan.Zero, false));
+      if (this.#exitRequested) backend.exitGame(lifetime.Handle);
+      await backend.runGame(lifetime.Handle);
+      this.#raiseExiting();
+    } finally {
+      if (began) this.EndRun();
+      this.#inRun = false;
+    }
   }
+
+  public RunOneFrame(): void {
+    this.#ensureUsable();
+    const backend = this.#nativeBackend ?? getBackend();
+    const lifetime = this.#ensureNativeGame(backend);
+    backend.runGameOneFrame(lifetime.Handle);
+  }
+
+  public Tick(): void { this.RunOneFrame(); }
 
   public Exit(): void {
-    this.#ensureActive();
+    this.#ensureUsable();
+    this.#exitRequested = true;
+    if (this.#gameLifetime?.State === "active" && this.#nativeBackend) {
+      this.#nativeBackend.exitGame(this.#gameLifetime.Handle);
+    }
   }
 
-  protected Initialize(): void {}
+  public ResetElapsedTime(): void { this.#ensureUsable(); }
+
+  public SuppressDraw(): void {
+    this.#ensureUsable();
+    this.#suppressDraw = true;
+  }
+
+  protected BeginDraw(): boolean { return true; }
+  protected BeginRun(): void {}
+  protected EndDraw(): void {}
+  protected EndRun(): void {}
+
+  protected Initialize(): void {
+    while (this.#notYetInitialized.length > 0) {
+      this.#notYetInitialized.shift()?.Initialize();
+    }
+  }
 
   protected LoadContent(): void {}
 
   protected Update(gameTime: GameTime): void {
-    void gameTime;
+    for (const updateable of [...this.#updateables]) {
+      if (updateable.Enabled) updateable.Update(gameTime);
+    }
   }
 
   protected Draw(gameTime: GameTime): void {
-    void gameTime;
+    if (this.#suppressDraw) {
+      this.#suppressDraw = false;
+      return;
+    }
+    for (const drawable of [...this.#drawables]) {
+      if (drawable.Visible) drawable.Draw(gameTime);
+    }
   }
 
   protected UnloadContent(): void {}
 
-  public get IsMouseVisible(): boolean {
-    return this.#isMouseVisible;
+  protected OnActivated(sender: unknown, args: EventArgs): void {
+    void sender;
+    this.#activated.Dispatch(this, args);
   }
 
-  public set IsMouseVisible(value: boolean) {
-    this.#ensureActive();
-    this.#isMouseVisible = value;
+  protected OnDeactivated(sender: unknown, args: EventArgs): void {
+    void sender;
+    this.#deactivated.Dispatch(this, args);
+  }
+
+  protected OnExiting(sender: unknown, args: EventArgs): void {
+    void sender;
+    this.#exiting.Dispatch(null, args);
+  }
+
+  protected ShowMissingRequirementMessage(exception: Error): boolean {
+    void exception;
+    return false;
   }
 
   public Dispose(): void {
+    const snapshot = new Array<IGameComponent>(this.#components.Count);
+    this.#components.CopyTo(snapshot, 0);
+    for (const component of snapshot) {
+      if (isDisposable(component)) component.Dispose();
+    }
+    this.#gameLifetime?.Dispose();
+    this.#gameLifetime = null;
+    this.#nativeBackend = null;
     this.#disposed = true;
+    this.#disposedEvent.Dispatch(this, EventArgs.Empty);
   }
 
-  #ensureActive(): void {
-    if (this.#disposed) {
-      throw new Error("Game is already disposed");
+  #componentAdded(args: GameComponentCollectionEventArgs): void {
+    const component = args.GameComponent;
+    if (this.#inRun) component.Initialize();
+    else this.#notYetInitialized.push(component);
+
+    if (isUpdateable(component)) {
+      this.#insertUpdateable(component);
+      const handler: XnaEventHandler<unknown, EventArgs> = () => {
+        const index = this.#updateables.indexOf(component);
+        if (index >= 0) this.#updateables.splice(index, 1);
+        this.#insertUpdateable(component);
+      };
+      this.#updateOrderHandlers.set(component, handler);
+      component.UpdateOrderChanged.Add(handler);
     }
+    if (isDrawable(component)) {
+      this.#insertDrawable(component);
+      const handler: XnaEventHandler<unknown, EventArgs> = () => {
+        const index = this.#drawables.indexOf(component);
+        if (index >= 0) this.#drawables.splice(index, 1);
+        this.#insertDrawable(component);
+      };
+      this.#drawOrderHandlers.set(component, handler);
+      component.DrawOrderChanged.Add(handler);
+    }
+  }
+
+  #componentRemoved(args: GameComponentCollectionEventArgs): void {
+    const component = args.GameComponent;
+    if (!this.#inRun) {
+      const pending = this.#notYetInitialized.indexOf(component);
+      if (pending >= 0) this.#notYetInitialized.splice(pending, 1);
+    }
+    if (isUpdateable(component)) {
+      const index = this.#updateables.indexOf(component);
+      if (index >= 0) this.#updateables.splice(index, 1);
+      const handler = this.#updateOrderHandlers.get(component);
+      if (handler) component.UpdateOrderChanged.Remove(handler);
+      this.#updateOrderHandlers.delete(component);
+    }
+    if (isDrawable(component)) {
+      const index = this.#drawables.indexOf(component);
+      if (index >= 0) this.#drawables.splice(index, 1);
+      const handler = this.#drawOrderHandlers.get(component);
+      if (handler) component.DrawOrderChanged.Remove(handler);
+      this.#drawOrderHandlers.delete(component);
+    }
+  }
+
+  #insertUpdateable(component: IUpdateable): void {
+    let index = 0;
+    while (index < this.#updateables.length && this.#updateables[index].UpdateOrder <= component.UpdateOrder) index += 1;
+    this.#updateables.splice(index, 0, component);
+  }
+
+  #insertDrawable(component: IDrawable): void {
+    let index = 0;
+    while (index < this.#drawables.length && this.#drawables[index].DrawOrder <= component.DrawOrder) index += 1;
+    this.#drawables.splice(index, 0, component);
+  }
+
+  #ensureNativeGame(backend: CnaBackend): NativeResourceLifetime {
+    if (this.#gameLifetime?.State === "active") return this.#gameLifetime;
+    const handle = backend.createGame();
+    this.#nativeBackend = backend;
+    this.#gameLifetime = new NativeResourceLifetime({
+      Handle: handle,
+      Ownership: "owned",
+      Release: (value) => backend.destroyGame(value),
+      Label: "Game",
+    });
+    return this.#gameLifetime;
+  }
+
+  #raiseExiting(): void {
+    if (this.#exitingRaised) return;
+    this.#exitingRaised = true;
+    this.OnExiting(this, EventArgs.Empty);
+  }
+
+  #ensureUsable(): void {
+    if (this.#disposed) throw new InvalidOperationException("Game is already disposed");
   }
 }

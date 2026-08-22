@@ -19,4 +19,8 @@ export class Point implements IEquatable<Point> {
   public Equals(obj: unknown): boolean {
     return obj instanceof Point && this.X === obj.X && this.Y === obj.Y;
   }
+
+  public GetHashCode(): number { return (this.X + this.Y) | 0; }
+
+  public ToString(): string { return `{X:${this.X} Y:${this.Y}}`; }
 }

@@ -37,15 +37,26 @@ is no handwritten aggregate declaration and no checked-in JavaScript implementat
 
 ## Runtime boundary
 
-Pure values and math stay in TypeScript. Native resources will cross only an internal backend
-interface and will use CNA's versioned C ABI, never the CNA C++ ABI. The public XNA surface must not
+Pure values and math stay in TypeScript. Native resources cross only an internal backend interface
+and use CNA's versioned C ABI, never the CNA C++ ABI. The public XNA surface must not
 contain raw pointers, numeric native handles, memory offsets, callback IDs, or backend classes.
+
+The backend interface is executable rather than status-only: it defines initialization and error
+access, Game create/run-one-frame/run/exit/destroy, graphics-manager/device borrowing,
+clear/present, Texture2D and SpriteBatch creation/destruction, and keyboard/mouse/gamepad/touch
+operations. The unavailable backend implements the same contract and fails explicitly. Managed
+tests install an internal backend to prove lifecycle call order and `NativeResourceLifetime`
+release behavior without exposing it as public injection API or claiming native execution.
 
 The inspected CNA revision publishes experimental C ABI version 0.7.0 through 59 public C headers
 and 2,861 unique `CNA_C_API` declarations. CNA has real Emscripten-aware engine and renderer code,
 but the inspected worktree has no packaged CNA C-ABI ESM loader/Wasm artifact and the local
 environment has no `emcc` toolchain. Consequently the current package reports the backend as
 unavailable. This is a binding/toolchain integration gap, not absence of a CNA C ABI.
+
+An isolated native HEADLESS build of the unmodified CNA revision also failed inside the upstream C
+API renderer identity guard (49 mapped identities versus 50 canonical renderer entries), before a
+shared library was produced. CNA-TS therefore has no Node FFI adapter and no real CNA route has run.
 
 The reproducible evidence, 32-symbol first-slice inventory, and required upstream artifact contract
 are recorded in [`cna-abi-audit.md`](cna-abi-audit.md). The audit accepts an explicit CNA checkout

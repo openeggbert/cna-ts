@@ -49,6 +49,10 @@ function hasOwnOrInherited(value, name) {
   return false;
 }
 
+function runtimeMemberName(name) {
+  return name === "[Symbol.iterator]" ? Symbol.iterator : name;
+}
+
 function verifyType(type, runtime, rootModule, diagnostics) {
   if (type.kind === "interface" || type.kind === "delegate") return;
   if (runtime == null) {
@@ -86,7 +90,8 @@ function verifyType(type, runtime, rootModule, diagnostics) {
       continue;
     }
     if (member.kind === "method") {
-      if (typeof owner?.[member.name] !== "function") {
+      if (member.abstract) continue;
+      if (typeof owner?.[runtimeMemberName(member.name)] !== "function") {
         diagnostics.push(diagnostic("RUNTIME_MISSING_METHOD", `${type.name}.${member.name}`));
       }
       continue;
@@ -95,16 +100,28 @@ function verifyType(type, runtime, rootModule, diagnostics) {
       let current = owner;
       let descriptor;
       while (current && !descriptor) {
-        descriptor = Object.getOwnPropertyDescriptor(current, member.name);
+        descriptor = Object.getOwnPropertyDescriptor(current, runtimeMemberName(member.name));
         current = Object.getPrototypeOf(current);
       }
       if (!descriptor) {
-        diagnostics.push(diagnostic("RUNTIME_MISSING_ACCESSOR", `${type.name}.${member.name}`));
+        const needsConcreteGetter = member.getterAccess !== "none" && !member.getterAbstract;
+        const needsConcreteSetter = member.setterAccess !== "none" && !member.setterAbstract;
+        if (needsConcreteGetter || needsConcreteSetter) {
+          diagnostics.push(diagnostic("RUNTIME_MISSING_ACCESSOR", `${type.name}.${member.name}`));
+        }
       } else {
-        if (member.getterAccess !== "none" && typeof descriptor.get !== "function") {
+        if (
+          member.getterAccess !== "none" &&
+          !member.getterAbstract &&
+          typeof descriptor.get !== "function"
+        ) {
           diagnostics.push(diagnostic("RUNTIME_MISSING_GETTER", `${type.name}.${member.name}`));
         }
-        if (member.setterAccess !== "none" && typeof descriptor.set !== "function") {
+        if (
+          member.setterAccess !== "none" &&
+          !member.setterAbstract &&
+          typeof descriptor.set !== "function"
+        ) {
           diagnostics.push(diagnostic("RUNTIME_MISSING_SETTER", `${type.name}.${member.name}`));
         }
       }

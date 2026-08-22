@@ -119,7 +119,14 @@ export class BoundingFrustum implements IEquatable<BoundingFrustum> {
     return obj instanceof BoundingFrustum && this.#matrix.Equals(obj.#matrix);
   }
 
+  public GetHashCode(): number { return this.#matrix.GetHashCode(); }
+
+  public ToString(): string {
+    return `{Near:${this.Near.ToString()} Far:${this.Far.ToString()} Left:${this.Left.ToString()} Right:${this.Right.ToString()} Top:${this.Top.ToString()} Bottom:${this.Bottom.ToString()}}`;
+  }
+
   #recalculate(): void {
+    const f32 = Math.fround;
     const m = this.#matrix;
     this.#planes = [
       new Plane(-m.M13, -m.M23, -m.M33, -m.M43),
@@ -129,24 +136,36 @@ export class BoundingFrustum implements IEquatable<BoundingFrustum> {
       new Plane(m.M12 - m.M14, m.M22 - m.M24, m.M32 - m.M34, m.M42 - m.M44),
       new Plane(-m.M14 - m.M12, -m.M24 - m.M22, -m.M34 - m.M32, -m.M44 - m.M42),
     ];
-    for (const plane of this.#planes) plane.Normalize();
-    const intersection = (a: Plane, b: Plane, c: Plane): Vector3 => {
-      const crossBC = Vector3.Cross(b.Normal, c.Normal);
-      const denominator = -Vector3.Dot(a.Normal, crossBC);
-      return Vector3.Divide(
-        Vector3.Add(
-          Vector3.Add(Vector3.Multiply(crossBC, a.D), Vector3.Multiply(Vector3.Cross(c.Normal, a.Normal), b.D)),
-          Vector3.Multiply(Vector3.Cross(a.Normal, b.Normal), c.D),
-        ),
-        denominator,
+    for (const plane of this.#planes) {
+      const length = plane.Normal.Length();
+      plane.Normal = Vector3.Divide(plane.Normal, length);
+      plane.D = f32(plane.D / length);
+    }
+    const intersectionLine = (first: Plane, second: Plane): Ray => {
+      const direction = Vector3.Cross(first.Normal, second.Normal);
+      const lengthSquared = direction.LengthSquared();
+      const weightedNormals = Vector3.Add(
+        Vector3.Multiply(second.Normal, f32(-first.D)),
+        Vector3.Multiply(first.Normal, second.D),
       );
+      const position = Vector3.Divide(Vector3.Cross(weightedNormals, direction), lengthSquared);
+      return new Ray(position, direction);
+    };
+    const intersection = (plane: Plane, ray: Ray): Vector3 => {
+      const numerator = f32(f32(-plane.D) - Vector3.Dot(plane.Normal, ray.Position));
+      const distance = f32(numerator / Vector3.Dot(plane.Normal, ray.Direction));
+      return Vector3.Add(ray.Position, Vector3.Multiply(ray.Direction, distance));
     };
     const [near, far, left, right, top, bottom] = this.#planes;
+    const nearLeft = intersectionLine(near, left);
+    const rightNear = intersectionLine(right, near);
+    const leftFar = intersectionLine(left, far);
+    const farRight = intersectionLine(far, right);
     this.#corners = [
-      intersection(near, left, top), intersection(near, right, top),
-      intersection(near, right, bottom), intersection(near, left, bottom),
-      intersection(far, left, top), intersection(far, right, top),
-      intersection(far, right, bottom), intersection(far, left, bottom),
+      intersection(top, nearLeft), intersection(top, rightNear),
+      intersection(bottom, rightNear), intersection(bottom, nearLeft),
+      intersection(top, leftFar), intersection(top, farRight),
+      intersection(bottom, farRight), intersection(bottom, leftFar),
     ];
   }
 }
