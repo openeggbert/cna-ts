@@ -95,8 +95,10 @@ progress.”
 
 - [x] Architecture names owned, borrowed, parent-owned, and adopted states.
 - [x] Current `Game.Dispose()` is idempotent and use-after-dispose is tested.
-- [ ] Implement the native resource state machine, partial-construction rollback, child ordering,
-  borrowed wrappers, callback teardown, and stress tests.
+- [x] Implement the private native resource state machine, partial-construction rollback, reverse
+  child ordering, borrowed invalidation, callback-first teardown, transfer/adoption, and aggregate
+  cleanup errors; failed releases retain ownership for retry and block parent release.
+- [ ] Connect the state machine to a real backend and add repeated resource/shutdown stress tests.
 
 ## Core/value API
 

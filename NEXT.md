@@ -154,3 +154,16 @@ The same audit reports zero tracked `.wasm` files, zero C-API ESM loaders, and n
 `emcmake`. `docs/cna-abi-audit.md` therefore records the exact Emscripten artifact/loader contract
 needed next. No unavailable backend was replaced with a fake implementation, and no CNA ABI route
 is claimed as executed yet.
+
+## 2026-08-22: backend-independent native ownership state machine
+
+`src/internal/ownership.ts` now models opaque handles as private bigint values with explicit
+owned, borrowed, parent-owned, and adopted states. Disposal is idempotent; callback registrations
+tear down before reverse-ordered children and the parent release; borrowed wrappers never release;
+transfer invalidates the source wrapper; and partial construction rolls back in reverse order.
+Sibling cleanup continues when an individual release fails, but parent release is blocked until
+the failed child succeeds on retry. Failed partial-construction rollback likewise retains only the
+resources still requiring release.
+
+The module remains unreachable through package `exports`. Its tests use synthetic handles and
+release callbacks only: they prove binding lifetime logic without claiming that CNA native code ran.

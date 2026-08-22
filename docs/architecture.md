@@ -55,5 +55,9 @@ path and is not part of normal build, package installation, or runtime.
 
 Native-backed resources will carry one private state: owned, borrowed, parent-owned, or adopted.
 `Dispose()` is the primary lifetime contract and must be idempotent. Finalization may only be a
-safety net. Shutdown tears down callbacks before parents and owned children; borrowed wrappers
-never destroy their referent.
+safety net. The internal lifetime state machine tears down callback registrations first, children
+in reverse creation order, and then the owned parent handle. Borrowed and parent-owned wrappers are
+invalidated without destroying their referent. Partial construction rolls already-acquired
+resources back in reverse order, while transfer invalidates the old wrapper and requires immediate
+adoption by another owner. A failed release retains its opaque handle in an unusable, retryable
+internal state; a parent is not released while any child remains live.
