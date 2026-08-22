@@ -12,7 +12,7 @@ class UnavailableBackend implements CnaBackend {
   public readonly IsAvailable = false;
   public readonly AbiVersion = null;
   public readonly Detail =
-    "CNA publishes a stable C ABI, but this package has no loaded WebAssembly or Node backend";
+    "CNA publishes experimental C ABI 0.7.0 headers, but this package has no loaded WebAssembly or Node backend artifact";
 }
 
 let activeBackend: CnaBackend = new UnavailableBackend();

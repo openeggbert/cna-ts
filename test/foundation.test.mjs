@@ -52,7 +52,10 @@ test("TimeSpan and GameTime retain tick precision", () => {
 
 test("native execution truthfully reports the absent backend", async () => {
   assert.equal(bindingsAvailable, false);
-  assert.deepEqual(GetRuntimeStatus().Backend, "unavailable");
+  const status = GetRuntimeStatus();
+  assert.deepEqual(status.Backend, "unavailable");
+  assert.match(status.Detail, /experimental C ABI 0\.7\.0/);
+  assert.match(status.Detail, /no loaded WebAssembly or Node backend artifact/);
   await assert.rejects(new Game().Run(), NativeUnavailableError);
 });
 

@@ -38,7 +38,7 @@ is no handwritten aggregate declaration and no checked-in JavaScript implementat
 ## Runtime boundary
 
 Pure values and math stay in TypeScript. Native resources will cross only an internal backend
-interface and will use the stable CNA C ABI, never the CNA C++ ABI. The public XNA surface must not
+interface and will use CNA's versioned C ABI, never the CNA C++ ABI. The public XNA surface must not
 contain raw pointers, numeric native handles, memory offsets, callback IDs, or backend classes.
 
 The inspected CNA revision publishes experimental C ABI version 0.7.0 through 59 public C headers
@@ -53,7 +53,7 @@ path and is not part of normal build, package installation, or runtime.
 
 ## Ownership
 
-Native-backed resources will carry one private state: owned, borrowed, parent-owned, or adopted.
+Native-backed resources carry one private state: owned, borrowed, parent-owned, or adopted.
 `Dispose()` is the primary lifetime contract and must be idempotent. Finalization may only be a
 safety net. The internal lifetime state machine tears down callback registrations first, children
 in reverse creation order, and then the owned parent handle. Borrowed and parent-owned wrappers are

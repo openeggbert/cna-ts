@@ -29,7 +29,7 @@ Intentionally discarded:
 
 - the `cna-js` package identity and repository-specific metadata;
 - hand-maintained JavaScript implementation ownership;
-- the stale claim that CNA lacks a stable C ABI.
+- the stale claim that CNA lacks a published C ABI.
 
 ## Template findings
 
