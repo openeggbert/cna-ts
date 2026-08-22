@@ -1,24 +1,41 @@
 {
   "name": "cna-ts",
-  "version": "0.0.0",
-  "description": "TypeScript and JavaScript binding for the native CNA game framework",
+  "version": "0.1.0",
+  "description": "Canonical TypeScript and JavaScript binding for CNA with an XNA 4.0 API projection",
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.d.ts",
-      "import": "./src/index.js"
-    }
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./xna": {
+      "types": "./dist/xna.d.ts",
+      "import": "./dist/xna.js"
+    },
+    "./extensions": {
+      "types": "./dist/extensions/index.d.ts",
+      "import": "./dist/extensions/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    },
+    "./package.json": "./package.json"
   },
-  "types": "./src/index.d.ts",
   "files": [
-    "src",
+    "dist",
+    "docs",
     "LICENSE",
     "NOTICE.md",
     "README.md"
   ],
   "scripts": {
-    "check": "node --check src/index.js && node --check src/Microsoft/Xna/Framework/index.js && node --check src/internal/native.js",
-    "test": "node --test"
+    "build": "tsc -p tsconfig.json",
+    "check": "npm run build && tsc -p tsconfig.types.json",
+    "test": "npm run build && node --test",
+    "prepack": "npm run check && npm test"
   },
   "engines": {
     "node": ">=20"
@@ -37,5 +54,8 @@
   "bugs": {
     "url": "https://github.com/openeggbert/cna-ts/issues"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "devDependencies": {
+    "typescript": "5.9.2"
+  }
 }
