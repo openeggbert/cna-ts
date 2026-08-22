@@ -40,8 +40,20 @@ test, graphics implementation, configuration, or documentation was found.
 
 The visual/game idea may be reintroduced only after the corresponding real CNA APIs work. The old
 parallel JavaScript source, preview `cna-js` dependency, decorative Electron/Capacitor setup, and
-three-frame pseudo-smoke are intentionally not migration requirements. JavaScript projects will
-instead be derived from the canonical TypeScript template source.
+three-frame pseudo-smoke were intentionally discarded. The identical unused PNG was removed from
+the canonical template until a legitimate raw-image API exists.
+
+Migrated into `cna-ts-template`:
+
+- the portable `Game`/`GameTime` demo idea, reduced to a deterministic managed canary using only
+  real PascalCase projection members;
+- a browser status view that distinguishes Web bundle success from CNA runtime availability;
+- one canonical TypeScript source and a generator that derives ordinary JavaScript;
+- exact `cna-ts` 0.1.0 package identity and packed-tarball verification;
+- fresh TypeScript and JavaScript production builds plus a JavaScript managed smoke run.
+
+No renderer/capability properties were added to strict XNA types. Electron and mobile are recorded
+as planned and have no decorative dependencies.
 
 ## Deletion assessment
 

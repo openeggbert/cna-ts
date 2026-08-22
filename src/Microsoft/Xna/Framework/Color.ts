@@ -4,10 +4,24 @@ import { Vector3 } from "./Vector3.js";
 import { Vector4 } from "./Vector4.js";
 
 function channel(value: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
+  if (Number.isNaN(value) || value <= 0) return 0;
+  if (value >= 255) return 255;
   return Math.min(255, Math.max(0, Math.trunc(value)));
+}
+
+function roundToEven(value: number): number {
+  const lower = Math.floor(value);
+  const fraction = value - lower;
+  if (fraction < 0.5) return lower;
+  if (fraction > 0.5) return lower + 1;
+  return lower % 2 === 0 ? lower : lower + 1;
+}
+
+function normalizedChannel(value: number): number {
+  const scaled = Math.fround(Math.fround(value) * 255);
+  if (Number.isNaN(scaled) || scaled <= 0) return 0;
+  if (scaled >= 255) return 255;
+  return roundToEven(scaled);
 }
 
 /** Mutable Microsoft.Xna.Framework.Color projection using XNA's AABBGGRR packing. */
@@ -20,14 +34,14 @@ export class Color implements IEquatable<Color>, IPackedVectorOfT<number> {
   public constructor(r: number, g: number, b: number, a: number);
   public constructor(rOrColor: number | Vector3 | Vector4, g?: number, b?: number, alpha = 255) {
     if (rOrColor instanceof Vector4) {
-      this.R = rOrColor.X * 255;
-      this.G = rOrColor.Y * 255;
-      this.B = rOrColor.Z * 255;
-      this.A = rOrColor.W * 255;
+      this.R = normalizedChannel(rOrColor.X);
+      this.G = normalizedChannel(rOrColor.Y);
+      this.B = normalizedChannel(rOrColor.Z);
+      this.A = normalizedChannel(rOrColor.W);
     } else if (rOrColor instanceof Vector3) {
-      this.R = rOrColor.X * 255;
-      this.G = rOrColor.Y * 255;
-      this.B = rOrColor.Z * 255;
+      this.R = normalizedChannel(rOrColor.X);
+      this.G = normalizedChannel(rOrColor.Y);
+      this.B = normalizedChannel(rOrColor.Z);
       this.A = 255;
     } else {
       this.R = rOrColor;
@@ -79,7 +93,7 @@ export class Color implements IEquatable<Color>, IPackedVectorOfT<number> {
   }
 
   public static get Transparent(): Color {
-    return new Color(0, 0, 0, 0);
+    return new Color(255, 255, 255, 0);
   }
 
   public static get Black(): Color {
@@ -101,12 +115,15 @@ export class Color implements IEquatable<Color>, IPackedVectorOfT<number> {
   }
 
   public static Lerp(value1: Color, value2: Color, amount: number): Color {
-    const t = Math.min(1, Math.max(0, amount));
+    const scaled = Math.fround(Math.fround(amount) * 65_536);
+    const fraction = Number.isNaN(scaled) || scaled <= 0
+      ? 0
+      : scaled >= 65_536 ? 65_536 : Math.trunc(scaled);
     return new Color(
-      value1.R + (value2.R - value1.R) * t,
-      value1.G + (value2.G - value1.G) * t,
-      value1.B + (value2.B - value1.B) * t,
-      value1.A + (value2.A - value1.A) * t,
+      value1.R + (((value2.R - value1.R) * fraction) >> 16),
+      value1.G + (((value2.G - value1.G) * fraction) >> 16),
+      value1.B + (((value2.B - value1.B) * fraction) >> 16),
+      value1.A + (((value2.A - value1.A) * fraction) >> 16),
     );
   }
 
@@ -119,22 +136,37 @@ export class Color implements IEquatable<Color>, IPackedVectorOfT<number> {
   }
 
   public PackFromVector4(vector: Vector4): void {
-    this.R = vector.X * 255;
-    this.G = vector.Y * 255;
-    this.B = vector.Z * 255;
-    this.A = vector.W * 255;
+    this.R = normalizedChannel(vector.X);
+    this.G = normalizedChannel(vector.Y);
+    this.B = normalizedChannel(vector.Z);
+    this.A = normalizedChannel(vector.W);
   }
 
   public static Multiply(value: Color, scale: number): Color {
-    return new Color(value.R * scale, value.G * scale, value.B * scale, value.A * scale);
+    const scaled = Math.fround(Math.fround(scale) * 65_536);
+    const fixedScale = Number.isNaN(scaled) || scaled <= 0
+      ? 0
+      : scaled >= 16_777_215 ? 16_777_215 : Math.trunc(scaled);
+    return new Color(
+      Math.min(255, Math.trunc((value.R * fixedScale) / 65_536)),
+      Math.min(255, Math.trunc((value.G * fixedScale) / 65_536)),
+      Math.min(255, Math.trunc((value.B * fixedScale) / 65_536)),
+      Math.min(255, Math.trunc((value.A * fixedScale) / 65_536)),
+    );
   }
 
   public static FromNonPremultiplied(vector: Vector4): Color;
   public static FromNonPremultiplied(r: number, g: number, b: number, a: number): Color;
   public static FromNonPremultiplied(vectorOrX: Vector4 | number, y?: number, z?: number, alpha?: number): Color {
-    const value = vectorOrX instanceof Vector4
-      ? new Color(vectorOrX)
-      : new Color(vectorOrX, y ?? 0, z ?? 0, alpha ?? 0);
+    if (vectorOrX instanceof Vector4) {
+      return new Color(new Vector4(
+        Math.fround(vectorOrX.X * vectorOrX.W),
+        Math.fround(vectorOrX.Y * vectorOrX.W),
+        Math.fround(vectorOrX.Z * vectorOrX.W),
+        vectorOrX.W,
+      ));
+    }
+    const value = new Color(vectorOrX, y ?? 0, z ?? 0, alpha ?? 0);
     return new Color(
       Math.trunc((value.R * value.A) / 255),
       Math.trunc((value.G * value.A) / 255),

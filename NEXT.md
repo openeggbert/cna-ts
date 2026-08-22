@@ -96,3 +96,48 @@ Package verification now creates the exact `cna-ts-0.1.0.tgz`, installs it witho
 into fresh JavaScript and TypeScript consumers, executes the JavaScript consumer, compiles the
 strict TypeScript consumer with `skipLibCheck=false`, checks all four public package entry points,
 and proves `cna-ts/internal/backend` is blocked by `exports`.
+
+## 2026-08-22: canonical template consolidation
+
+`cna-ts-template` commit `d66690a` removes the stale `@openeggbert/cna-js` import, preview package
+version, CommonJS/ESM conflict, fake renderer capability probing, three-frame pseudo-smoke, and
+decorative Electron/Capacitor dependencies and claims. The identical unused PNG was deleted rather
+than misrepresented as XNB content.
+
+The template pins `cna-ts` 0.1.0, TypeScript 5.9.2, and Vite 8.2.2 (whose published Node engine is
+`^20.19.0 || >=22.12.0`). Its maintained source is TypeScript. `tools/create-project.mjs` emits
+either that source or ordinary transpiled JavaScript; the latter has no TypeScript source or
+TypeScript dependency. Verification against the exact packed artifact reported:
+
+```text
+GENERATED_TYPESCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_MANAGED_SMOKE=PASS
+LEGACY_OR_SIBLING_REFERENCES=0
+```
+
+The canary reports browser bundling separately from native runtime availability. Browser CNA,
+Electron, Android, and iOS remain unverified; the exact blocker is still the absent packaged CNA
+C-ABI ESM/Wasm artifact.
+
+## 2026-08-22: first XNA differential corpus
+
+A neutral 26-observation JSON corpus now carries XNA 4.0 Windows runtime expected results into
+CNA-TS. Finite floats, infinities, and signed zero compare binary32 bits; NaN compares
+classification because JavaScript cannot guarantee CLR NaN payload/sign preservation.
+
+The new gate exposed and fixed behavior that tolerance-only tests missed:
+
+- XNA float operation grouping for quaternion multiply/slerp/conversion and math splines;
+- fixed-adjugate `Matrix.Invert`, including NaNs rather than an exception for singular matrices;
+- `MathHelper.WrapAngle` IEEE remainder and Hermite's infinity-at-endpoint behavior;
+- `Color` UNorm round-to-even, midpoint interpolation, packed infinity/NaN handling, and XNA's
+  white-with-zero-alpha `Transparent`;
+- NaN-aware box comparisons, strict tangent sphere intersection, boundary containment, negative
+  radius validation, Ritter-style `CreateFromPoints`, ray epsilon behavior, and near-unit planes.
+
+```text
+XNA_DIFFERENTIAL_OBSERVATIONS=26
+XNA_DIFFERENTIAL_ASSERTIONS=27
+XNA_DIFFERENTIAL_FAILURES=0
+```

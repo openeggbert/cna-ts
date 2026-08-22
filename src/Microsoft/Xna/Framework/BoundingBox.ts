@@ -44,9 +44,11 @@ export class BoundingBox implements IEquatable<BoundingBox> {
   public Contains(frustum: BoundingFrustum): ContainmentType;
   public Contains(value: Vector3 | BoundingBox | BoundingSphere | BoundingFrustum): ContainmentType {
     if (value instanceof Vector3) {
-      return value.X < this.Min.X || value.X > this.Max.X || value.Y < this.Min.Y || value.Y > this.Max.Y || value.Z < this.Min.Z || value.Z > this.Max.Z
-        ? ContainmentType.Disjoint
-        : ContainmentType.Contains;
+      return this.Min.X <= value.X && value.X <= this.Max.X &&
+        this.Min.Y <= value.Y && value.Y <= this.Max.Y &&
+        this.Min.Z <= value.Z && value.Z <= this.Max.Z
+        ? ContainmentType.Contains
+        : ContainmentType.Disjoint;
     }
     if (value instanceof BoundingBox) {
       if (!this.Intersects(value)) return ContainmentType.Disjoint;
@@ -96,9 +98,9 @@ export class BoundingBox implements IEquatable<BoundingBox> {
       return Vector3.DistanceSquared(value.Center, closest) <= value.Radius * value.Radius;
     }
     if (value instanceof BoundingFrustum) return value.Intersects(this);
-    return this.Min.X <= value.Max.X && this.Max.X >= value.Min.X &&
-      this.Min.Y <= value.Max.Y && this.Max.Y >= value.Min.Y &&
-      this.Min.Z <= value.Max.Z && this.Max.Z >= value.Min.Z;
+    return !(this.Max.X < value.Min.X || this.Min.X > value.Max.X ||
+      this.Max.Y < value.Min.Y || this.Min.Y > value.Max.Y ||
+      this.Max.Z < value.Min.Z || this.Min.Z > value.Max.Z);
   }
 
   public static CreateFromPoints(points: Iterable<Vector3>): BoundingBox {

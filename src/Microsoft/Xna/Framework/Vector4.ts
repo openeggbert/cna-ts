@@ -82,10 +82,10 @@ export class Vector4 implements IEquatable<Vector4> {
     const result = new Vector4(vector.X, vector.Y, vector.Z, vector.W); result.Normalize(); return result;
   }
   public static Min(value1: Vector4, value2: Vector4): Vector4 {
-    return new Vector4(Math.min(value1.X, value2.X), Math.min(value1.Y, value2.Y), Math.min(value1.Z, value2.Z), Math.min(value1.W, value2.W));
+    return new Vector4(MathHelper.Min(value1.X, value2.X), MathHelper.Min(value1.Y, value2.Y), MathHelper.Min(value1.Z, value2.Z), MathHelper.Min(value1.W, value2.W));
   }
   public static Max(value1: Vector4, value2: Vector4): Vector4 {
-    return new Vector4(Math.max(value1.X, value2.X), Math.max(value1.Y, value2.Y), Math.max(value1.Z, value2.Z), Math.max(value1.W, value2.W));
+    return new Vector4(MathHelper.Max(value1.X, value2.X), MathHelper.Max(value1.Y, value2.Y), MathHelper.Max(value1.Z, value2.Z), MathHelper.Max(value1.W, value2.W));
   }
   public static Clamp(value1: Vector4, min: Vector4, max: Vector4): Vector4 {
     return new Vector4(

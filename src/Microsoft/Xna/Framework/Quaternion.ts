@@ -25,7 +25,9 @@ export class Quaternion implements IEquatable<Quaternion> {
 
   public Length(): number { return f32(Math.sqrt(this.LengthSquared())); }
   public LengthSquared(): number {
-    return f32(f32(this.X * this.X) + f32(this.Y * this.Y) + f32(this.Z * this.Z) + f32(this.W * this.W));
+    let result = f32(f32(this.X * this.X) + f32(this.Y * this.Y));
+    result = f32(result + f32(this.Z * this.Z));
+    return f32(result + f32(this.W * this.W));
   }
   public Normalize(): void {
     const inverse = f32(1 / Math.sqrt(this.LengthSquared()));
@@ -60,18 +62,24 @@ export class Quaternion implements IEquatable<Quaternion> {
     }
     const x = quaternion1.X, y = quaternion1.Y, z = quaternion1.Z, w = quaternion1.W;
     const x2 = quaternion2.X, y2 = quaternion2.Y, z2 = quaternion2.Z, w2 = quaternion2.W;
+    const crossX = f32(f32(y * z2) - f32(z * y2));
+    const crossY = f32(f32(z * x2) - f32(x * z2));
+    const crossZ = f32(f32(x * y2) - f32(y * x2));
+    const dot = f32(f32(f32(x * x2) + f32(y * y2)) + f32(z * z2));
     return new Quaternion(
-      f32(f32(x * w2) + f32(x2 * w) + f32(y * z2) - f32(z * y2)),
-      f32(f32(y * w2) + f32(y2 * w) + f32(z * x2) - f32(x * z2)),
-      f32(f32(z * w2) + f32(z2 * w) + f32(x * y2) - f32(y * x2)),
-      f32(f32(w * w2) - f32(x * x2) - f32(y * y2) - f32(z * z2)),
+      f32(f32(f32(x * w2) + f32(x2 * w)) + crossX),
+      f32(f32(f32(y * w2) + f32(y2 * w)) + crossY),
+      f32(f32(f32(z * w2) + f32(z2 * w)) + crossZ),
+      f32(f32(w * w2) - dot),
     );
   }
   public static Divide(quaternion1: Quaternion, quaternion2: Quaternion): Quaternion {
     return Quaternion.Multiply(quaternion1, Quaternion.Inverse(quaternion2));
   }
   public static Dot(quaternion1: Quaternion, quaternion2: Quaternion): number {
-    return f32(f32(quaternion1.X * quaternion2.X) + f32(quaternion1.Y * quaternion2.Y) + f32(quaternion1.Z * quaternion2.Z) + f32(quaternion1.W * quaternion2.W));
+    let result = f32(f32(quaternion1.X * quaternion2.X) + f32(quaternion1.Y * quaternion2.Y));
+    result = f32(result + f32(quaternion1.Z * quaternion2.Z));
+    return f32(result + f32(quaternion1.W * quaternion2.W));
   }
   public static Normalize(quaternion: Quaternion): Quaternion {
     const result = new Quaternion(quaternion.X, quaternion.Y, quaternion.Z, quaternion.W); result.Normalize(); return result;
@@ -99,30 +107,32 @@ export class Quaternion implements IEquatable<Quaternion> {
     ));
   }
   public static Slerp(quaternion1: Quaternion, quaternion2: Quaternion, amount: number): Quaternion {
+    amount = f32(amount);
     let dot = Quaternion.Dot(quaternion1, quaternion2);
     let sign = 1;
     if (dot < 0) { dot = -dot; sign = -1; }
     let inverseWeight;
     let weight;
     if (dot > 0.999999) {
-      inverseWeight = 1 - amount;
-      weight = amount * sign;
+      inverseWeight = f32(1 - amount);
+      weight = f32(amount * sign);
     } else {
-      const angle = Math.acos(dot);
-      const inverseSin = 1 / Math.sin(angle);
-      inverseWeight = Math.sin((1 - amount) * angle) * inverseSin;
-      weight = Math.sin(amount * angle) * inverseSin * sign;
+      const angle = f32(Math.acos(dot));
+      const inverseSin = f32(1 / Math.sin(angle));
+      inverseWeight = f32(f32(Math.sin(f32(f32(1 - amount) * angle))) * inverseSin);
+      weight = f32(f32(Math.sin(f32(amount * angle))) * inverseSin * sign);
     }
     return new Quaternion(
-      f32(inverseWeight * quaternion1.X + weight * quaternion2.X),
-      f32(inverseWeight * quaternion1.Y + weight * quaternion2.Y),
-      f32(inverseWeight * quaternion1.Z + weight * quaternion2.Z),
-      f32(inverseWeight * quaternion1.W + weight * quaternion2.W),
+      f32(f32(inverseWeight * quaternion1.X) + f32(weight * quaternion2.X)),
+      f32(f32(inverseWeight * quaternion1.Y) + f32(weight * quaternion2.Y)),
+      f32(f32(inverseWeight * quaternion1.Z) + f32(weight * quaternion2.Z)),
+      f32(f32(inverseWeight * quaternion1.W) + f32(weight * quaternion2.W)),
     );
   }
   public static CreateFromAxisAngle(axis: Vector3, angle: number): Quaternion {
-    const half = angle * 0.5;
-    const sine = Math.sin(half);
+    angle = f32(angle);
+    const half = f32(angle * 0.5);
+    const sine = f32(Math.sin(half));
     return new Quaternion(f32(axis.X * sine), f32(axis.Y * sine), f32(axis.Z * sine), f32(Math.cos(half)));
   }
   public static CreateFromYawPitchRoll(yaw: number, pitch: number, roll: number): Quaternion {
@@ -137,14 +147,14 @@ export class Quaternion implements IEquatable<Quaternion> {
     );
   }
   public static CreateFromRotationMatrix(matrix: Matrix): Quaternion {
-    const trace = matrix.M11 + matrix.M22 + matrix.M33;
+    const trace = f32(f32(matrix.M11 + matrix.M22) + matrix.M33);
     if (trace > 0) {
-      const s = Math.sqrt(trace + 1);
-      const inverse = 0.5 / s;
+      const s = f32(Math.sqrt(f32(trace + 1)));
+      const inverse = f32(0.5 / s);
       return new Quaternion(
-        f32((matrix.M23 - matrix.M32) * inverse),
-        f32((matrix.M31 - matrix.M13) * inverse),
-        f32((matrix.M12 - matrix.M21) * inverse),
+        f32(f32(matrix.M23 - matrix.M32) * inverse),
+        f32(f32(matrix.M31 - matrix.M13) * inverse),
+        f32(f32(matrix.M12 - matrix.M21) * inverse),
         f32(s * 0.5),
       );
     }

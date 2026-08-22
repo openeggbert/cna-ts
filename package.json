@@ -35,6 +35,7 @@
     "build": "node tools/clean.mjs && tsc -p tsconfig.json",
     "check": "npm run build && tsc -p tsconfig.types.json",
     "test": "npm run build && node --test",
+    "test:differential": "npm run build && node test/differential-xna.test.mjs",
     "api:report": "node tools/api-compat/verify.mjs --report-only --summary-only",
     "api:verify": "node tools/api-compat/verify.mjs --summary-only",
     "verify:runtime": "npm run build && node tools/api-compat/verify-runtime.mjs",

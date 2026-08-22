@@ -10,6 +10,10 @@
   "structStyle": "mutable-class",
   "timeSpan": "Microsoft.Xna.Framework.TimeSpan",
   "gameRun": "Promise<void>",
+  "numericOverloadCollisions": {
+    "Microsoft.Xna.Framework.Color..ctor(number,number,number)": "integral-channels; normalized values use the Vector3 overload",
+    "Microsoft.Xna.Framework.Color..ctor(number,number,number,number)": "integral-channels; normalized values use the Vector4 overload"
+  },
   "operatorMethods": {
     "op_Addition": "Add",
     "op_Subtraction": "Subtract",

@@ -29,7 +29,7 @@ phase is complete. API completeness can only be claimed from a reproducible stri
 - [x] No handwritten source declaration aggregate remains.
 - [x] No checked-in generated JavaScript implementation remains.
 - [x] Legacy binding/template audit is recorded in `docs/cna-js-consolidation.md`.
-- [ ] Unified template generates fresh TypeScript and JavaScript consumers from one source.
+- [x] Unified template generates fresh TypeScript and JavaScript consumers from one source.
 
 ## Compatibility definition and mapping
 
@@ -102,8 +102,10 @@ progress.”
   volumes.
 - [ ] Complete `MathHelper`, Vector2/3/4, Matrix, Quaternion, Point, Rectangle, Plane, Ray,
   bounding volumes, curves, and packed vectors in coherent groups.
-- [ ] Import neutral XNA differential fixtures including NaN, infinities, signed zero, rounding,
-  clamping, packing, and tolerances.
+- [x] Import the first 26-observation neutral XNA differential JSON corpus, including NaN,
+  infinities, signed zero, rounding, clamping, packing, matrix inversion, and geometry edges.
+- [ ] Expand the shared corpus across remaining values, curves, packed vectors, and later runtime
+  subsystems.
 - [ ] Add compile/type probes and mutation/snapshot regressions for every value group.
 
 ## Game/device/window
@@ -143,12 +145,13 @@ progress.”
 
 ## Template
 
-- [ ] Remove all stale `cna-js` identity and fictional imports/version claims.
-- [ ] Replace aspirational cube/mobile claims with the smallest truthful canary.
+- [x] Remove stale `cna-js` identity, fictional APIs/version claims, and unused parallel asset.
+- [x] Replace aspirational cube/mobile claims with the smallest truthful managed/build canary.
 - [ ] First functional slice: lifecycle, GameTime, device, raw Texture2D, SpriteBatch, keyboard,
   resize, deterministic update/draw, and clean shutdown.
 - [ ] Add 3D/BasicEffect only after the 2D route works.
-- [ ] Generate TypeScript and ordinary JavaScript projects from one canonical source.
+- [x] Generate TypeScript and ordinary JavaScript projects from one canonical source; both install
+  the packed artifact and build, and JavaScript runs a managed smoke without TypeScript.
 
 ## Browser/WASM
 
@@ -171,7 +174,8 @@ progress.”
 - [ ] `npm ci`, build, type check, tests, verifier, runtime symbols, leak guard, and `npm pack` are CI
   gates.
 - [x] Install the exact tarball in independent TS and JS consumers with no sibling paths.
-- [ ] Generated artifacts are deterministic and package exports contain no internal subpath.
+- [x] Package exports contain no internal subpath and fresh consumers prove the guard.
+- [ ] Preserve deterministic generated artifact hashes in CI.
 - [x] Manual source `.d.ts` duplication = 0.
 - [x] Hand-maintained duplicate JavaScript implementation = 0.
 - [x] Legacy worktree changes during the initial audit = 0; recheck at session end.

@@ -5,7 +5,8 @@
 the package build emits the JavaScript used by both languages and the declarations used by
 TypeScript.
 
-> Status: foundation work in progress. Pure timing, color, and initial vector behavior works.
+> Status: foundation work in progress. Pure timing, vector/matrix/quaternion, color, geometry, and
+> bounding-volume behavior works.
 > No CNA WebAssembly or Node backend is currently loaded by the package, so `Game.Run()` fails
 > explicitly instead of simulating native execution.
 
@@ -47,11 +48,17 @@ and pins TypeScript 5.9.2.
 npm ci
 npm run check
 npm test
-npm pack
+npm run verify:runtime
+npm run verify:leaks
+npm run verify:package
 ```
 
 Generated `.js`, `.d.ts`, declaration maps, and source maps are written only to `dist/`. The
 legacy `cna-js` package is not a dependency and is being retired.
+
+The sibling `cna-ts-template` is the single maintained project template. Its canonical TypeScript
+source generates both strict TypeScript and ordinary JavaScript projects; both are verified against
+the exact packed `cna-ts` artifact.
 
 See the [architecture](docs/architecture.md), [measured roadmap](plan.md), and
 [CNA-JS consolidation assessment](docs/cna-js-consolidation.md).

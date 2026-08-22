@@ -72,13 +72,17 @@ test("Color vector overloads clamp and round through XNA channels", () => {
   const fromVector = new Color(new Vector4(1.2, -0.5, 0.5, 1));
   assert.deepEqual(
     { R: fromVector.R, G: fromVector.G, B: fromVector.B, A: fromVector.A },
-    { R: 255, G: 0, B: 127, A: 255 },
+    { R: 255, G: 0, B: 128, A: 255 },
   );
-  vectorApproximately(fromVector.ToVector4(), { X: 1, Y: 0, Z: 127 / 255, W: 1 });
+  vectorApproximately(fromVector.ToVector4(), { X: 1, Y: 0, Z: 128 / 255, W: 1 });
   fromVector.PackFromVector4(new Vector4(0, 1, 0.5, 0.25));
   assert.deepEqual(
     { R: fromVector.R, G: fromVector.G, B: fromVector.B, A: fromVector.A },
-    { R: 0, G: 255, B: 127, A: 63 },
+    { R: 0, G: 255, B: 128, A: 64 },
+  );
+  assert.deepEqual(
+    { R: Color.Transparent.R, G: Color.Transparent.G, B: Color.Transparent.B, A: Color.Transparent.A },
+    { R: 255, G: 255, B: 255, A: 0 },
   );
   assert.deepEqual(Color.Multiply(new Color(100, 50, 10, 200), 0.5).PackedValue, new Color(50, 25, 5, 100).PackedValue);
 });

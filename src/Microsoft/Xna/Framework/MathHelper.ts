@@ -17,17 +17,15 @@ export class MathHelper {
   }
 
   public static CatmullRom(value1: number, value2: number, value3: number, value4: number, amount: number): number {
+    amount = f32(amount);
     const amountSquared = f32(amount * amount);
-    const amountCubed = f32(amountSquared * amount);
-    return f32(
-      0.5 *
-        f32(
-          f32(2 * value2) +
-            f32(f32(value3 - value1) * amount) +
-            f32(f32(f32(2 * value1) - f32(5 * value2) + f32(4 * value3) - value4) * amountSquared) +
-            f32(f32(f32(3 * value2) - value1 - f32(3 * value3) + value4) * amountCubed),
-        ),
-    );
+    const amountCubed = f32(amount * amountSquared);
+    const first = f32(2 * value2);
+    const second = f32(f32(-value1 + value3) * amount);
+    const thirdCoefficient = f32(f32(f32(f32(2 * value1) - f32(5 * value2)) + f32(4 * value3)) - value4);
+    const fourthCoefficient = f32(f32(f32(f32(-value1 + f32(3 * value2)) - f32(3 * value3)) + value4));
+    const sum = f32(f32(f32(first + second) + f32(thirdCoefficient * amountSquared)) + f32(fourthCoefficient * amountCubed));
+    return f32(0.5 * sum);
   }
 
   public static Clamp(value: number, min: number, max: number): number {
@@ -41,16 +39,17 @@ export class MathHelper {
   }
 
   public static Hermite(value1: number, tangent1: number, value2: number, tangent2: number, amount: number): number {
-    if (amount === 0) return value1;
-    if (amount === 1) return value2;
+    amount = f32(amount);
     const squared = f32(amount * amount);
-    const cubed = f32(squared * amount);
-    return f32(
-      f32(f32(f32(2 * cubed) - f32(3 * squared) + 1) * value1) +
-        f32(f32(f32(cubed - f32(2 * squared)) + amount) * tangent1) +
-        f32(f32(f32(-2 * cubed) + f32(3 * squared)) * value2) +
-        f32(f32(cubed - squared) * tangent2),
-    );
+    const cubed = f32(amount * squared);
+    const value1Basis = f32(f32(f32(2 * cubed) - f32(3 * squared)) + 1);
+    const value2Basis = f32(f32(-2 * cubed) + f32(3 * squared));
+    const tangent1Basis = f32(f32(cubed - f32(2 * squared)) + amount);
+    const tangent2Basis = f32(cubed - squared);
+    let result = f32(value1 * value1Basis);
+    result = f32(result + f32(value2 * value2Basis));
+    result = f32(result + f32(tangent1 * tangent1Basis));
+    return f32(result + f32(tangent2 * tangent2Basis));
   }
 
   public static Lerp(value1: number, value2: number, amount: number): number {
@@ -79,8 +78,12 @@ export class MathHelper {
   }
 
   public static WrapAngle(angle: number): number {
-    if (angle > -MathHelper.Pi && angle <= MathHelper.Pi) return angle;
-    angle = f32(angle % MathHelper.TwoPi);
+    angle = f32(angle);
+    const quotient = angle / MathHelper.TwoPi;
+    const lower = Math.floor(quotient);
+    const fraction = quotient - lower;
+    const nearest = fraction < 0.5 ? lower : fraction > 0.5 ? lower + 1 : lower % 2 === 0 ? lower : lower + 1;
+    angle = f32(angle - nearest * MathHelper.TwoPi);
     if (angle <= -MathHelper.Pi) return f32(angle + MathHelper.TwoPi);
     if (angle > MathHelper.Pi) return f32(angle - MathHelper.TwoPi);
     return angle;

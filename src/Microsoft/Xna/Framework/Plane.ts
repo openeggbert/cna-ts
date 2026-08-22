@@ -30,9 +30,12 @@ export class Plane implements IEquatable<Plane> {
   }
 
   public Normalize(): void {
-    const inverse = f32(1 / this.Normal.Length());
-    this.Normal = Vector3.Multiply(this.Normal, inverse);
-    this.D = f32(this.D * inverse);
+    const lengthSquared = f32(f32(this.Normal.X * this.Normal.X) + f32(this.Normal.Y * this.Normal.Y) + f32(this.Normal.Z * this.Normal.Z));
+    if (!(Math.abs(lengthSquared - 1) < 1.1920929e-7)) {
+      const inverse = f32(1 / Math.sqrt(lengthSquared));
+      this.Normal = Vector3.Multiply(this.Normal, inverse);
+      this.D = f32(this.D * inverse);
+    }
   }
 
   public Dot(value: Vector4): number {

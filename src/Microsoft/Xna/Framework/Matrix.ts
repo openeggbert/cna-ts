@@ -80,10 +80,10 @@ export class Matrix implements IEquatable<Matrix> {
     const a = Matrix.values(matrix1), b = Matrix.values(matrix2), result = new Array<number>(16);
     for (let row = 0; row < 4; row += 1) {
       for (let column = 0; column < 4; column += 1) {
-        result[row * 4 + column] = f32(
-          f32(a[row * 4] * b[column]) + f32(a[row * 4 + 1] * b[4 + column]) +
-          f32(a[row * 4 + 2] * b[8 + column]) + f32(a[row * 4 + 3] * b[12 + column]),
-        );
+        let value = f32(a[row * 4] * b[column]);
+        value = f32(value + f32(a[row * 4 + 1] * b[4 + column]));
+        value = f32(value + f32(a[row * 4 + 2] * b[8 + column]));
+        result[row * 4 + column] = f32(value + f32(a[row * 4 + 3] * b[12 + column]));
       }
     }
     return Matrix.fromValues(result);
@@ -108,23 +108,54 @@ export class Matrix implements IEquatable<Matrix> {
     );
   }
   public static Invert(matrix: Matrix): Matrix {
-    const rows = [0, 1, 2, 3].map((row) => [
-      ...Matrix.values(matrix).slice(row * 4, row * 4 + 4),
-      ...[0, 1, 2, 3].map((column) => (column === row ? 1 : 0)),
-    ]);
-    for (let column = 0; column < 4; column += 1) {
-      let pivot = column;
-      for (let row = column + 1; row < 4; row += 1) if (Math.abs(rows[row][column]) > Math.abs(rows[pivot][column])) pivot = row;
-      [rows[column], rows[pivot]] = [rows[pivot], rows[column]];
-      const divisor = rows[column][column];
-      for (let item = 0; item < 8; item += 1) rows[column][item] /= divisor;
-      for (let row = 0; row < 4; row += 1) {
-        if (row === column) continue;
-        const factor = rows[row][column];
-        for (let item = 0; item < 8; item += 1) rows[row][item] -= factor * rows[column][item];
-      }
-    }
-    return Matrix.fromValues(rows.flatMap((row) => row.slice(4)).map(f32));
+    const difference = (a: number, b: number, c: number, d: number): number => f32(f32(a * b) - f32(c * d));
+    const sum3 = (a: number, b: number, c: number): number => f32(f32(a + b) + c);
+    const n1 = matrix.M11, n2 = matrix.M12, n3 = matrix.M13, n4 = matrix.M14;
+    const n5 = matrix.M21, n6 = matrix.M22, n7 = matrix.M23, n8 = matrix.M24;
+    const n9 = matrix.M31, n10 = matrix.M32, n11 = matrix.M33, n12 = matrix.M34;
+    const n13 = matrix.M41, n14 = matrix.M42, n15 = matrix.M43, n16 = matrix.M44;
+    const n17 = difference(n11, n16, n12, n15);
+    const n18 = difference(n10, n16, n12, n14);
+    const n19 = difference(n10, n15, n11, n14);
+    const n20 = difference(n9, n16, n12, n13);
+    const n21 = difference(n9, n15, n11, n13);
+    const n22 = difference(n9, n14, n10, n13);
+    const n23 = sum3(f32(n6 * n17), f32(-n7 * n18), f32(n8 * n19));
+    const n24 = f32(-sum3(f32(n5 * n17), f32(-n7 * n20), f32(n8 * n21)));
+    const n25 = sum3(f32(n5 * n18), f32(-n6 * n20), f32(n8 * n22));
+    const n26 = f32(-sum3(f32(n5 * n19), f32(-n6 * n21), f32(n7 * n22)));
+    const determinant = f32(f32(f32(f32(n1 * n23) + f32(n2 * n24)) + f32(n3 * n25)) + f32(n4 * n26));
+    const n27 = f32(1 / determinant);
+    const result = new Array<number>(16);
+    result[0] = f32(n23 * n27);
+    result[4] = f32(n24 * n27);
+    result[8] = f32(n25 * n27);
+    result[12] = f32(n26 * n27);
+    result[1] = f32(-sum3(f32(n2 * n17), f32(-n3 * n18), f32(n4 * n19)) * n27);
+    result[5] = f32(sum3(f32(n1 * n17), f32(-n3 * n20), f32(n4 * n21)) * n27);
+    result[9] = f32(-sum3(f32(n1 * n18), f32(-n2 * n20), f32(n4 * n22)) * n27);
+    result[13] = f32(sum3(f32(n1 * n19), f32(-n2 * n21), f32(n3 * n22)) * n27);
+    const n28 = difference(n7, n16, n8, n15);
+    const n29 = difference(n6, n16, n8, n14);
+    const n30 = difference(n6, n15, n7, n14);
+    const n31 = difference(n5, n16, n8, n13);
+    const n32 = difference(n5, n15, n7, n13);
+    const n33 = difference(n5, n14, n6, n13);
+    result[2] = f32(sum3(f32(n2 * n28), f32(-n3 * n29), f32(n4 * n30)) * n27);
+    result[6] = f32(-sum3(f32(n1 * n28), f32(-n3 * n31), f32(n4 * n32)) * n27);
+    result[10] = f32(sum3(f32(n1 * n29), f32(-n2 * n31), f32(n4 * n33)) * n27);
+    result[14] = f32(-sum3(f32(n1 * n30), f32(-n2 * n32), f32(n3 * n33)) * n27);
+    const n34 = difference(n7, n12, n8, n11);
+    const n35 = difference(n6, n12, n8, n10);
+    const n36 = difference(n6, n11, n7, n10);
+    const n37 = difference(n5, n12, n8, n9);
+    const n38 = difference(n5, n11, n7, n9);
+    const n39 = difference(n5, n10, n6, n9);
+    result[3] = f32(-sum3(f32(n2 * n34), f32(-n3 * n35), f32(n4 * n36)) * n27);
+    result[7] = f32(sum3(f32(n1 * n34), f32(-n3 * n37), f32(n4 * n38)) * n27);
+    result[11] = f32(-sum3(f32(n1 * n35), f32(-n2 * n37), f32(n4 * n39)) * n27);
+    result[15] = f32(sum3(f32(n1 * n36), f32(-n2 * n38), f32(n3 * n39)) * n27);
+    return Matrix.fromValues(result);
   }
 
   public static CreateTranslation(position: Vector3): Matrix;
@@ -145,14 +176,17 @@ export class Matrix implements IEquatable<Matrix> {
     return new Matrix(xScale, 0, 0, 0, 0, yScale, 0, 0, 0, 0, zScale, 0, 0, 0, 0, 1);
   }
   public static CreateRotationX(radians: number): Matrix {
+    radians = f32(radians);
     const cosine = f32(Math.cos(radians)), sine = f32(Math.sin(radians));
     return new Matrix(1, 0, 0, 0, 0, cosine, sine, 0, 0, -sine, cosine, 0, 0, 0, 0, 1);
   }
   public static CreateRotationY(radians: number): Matrix {
+    radians = f32(radians);
     const cosine = f32(Math.cos(radians)), sine = f32(Math.sin(radians));
     return new Matrix(cosine, 0, -sine, 0, 0, 1, 0, 0, sine, 0, cosine, 0, 0, 0, 0, 1);
   }
   public static CreateRotationZ(radians: number): Matrix {
+    radians = f32(radians);
     const cosine = f32(Math.cos(radians)), sine = f32(Math.sin(radians));
     return new Matrix(cosine, sine, 0, 0, -sine, cosine, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
   }

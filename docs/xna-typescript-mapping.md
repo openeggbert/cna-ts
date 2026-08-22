@@ -74,6 +74,16 @@ math operations use `Math.fround` at result boundaries. Direct writes to mutable
 cannot force the JavaScript engine to store an IEEE-754 binary32 value; the next XNA operation or
 native snapshot normalizes it.
 
+CLR numeric overloads can collapse to the same TypeScript signature. The important current case is
+`Color`: `new Color(r, g, b[, a])` means integral 0–255 channels, while normalized 0–1 inputs use
+the XNA `Vector3`/`Vector4` constructor or `PackFromVector4`. This deterministic dispatch rule is
+recorded in `mapping-rules.json` and behavior-tested; runtime JavaScript cannot distinguish a CLR
+`int` from a CLR `float` when both arrive as `number`.
+
+Finite binary32 results, infinities, and signed zero are compared bit-for-bit. JavaScript does not
+promise preservation of a CLR NaN payload or sign through arithmetic, so NaN observations compare
+classification while still detecting finite/NaN divergence.
+
 ## Operators
 
 JavaScript cannot project arbitrary CLR operators. Operator metadata maps to the existing XNA

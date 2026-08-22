@@ -51,7 +51,10 @@ test("bounding boxes and spheres snapshot inputs and classify containment", () =
   const sphere = BoundingSphere.CreateFromBoundingBox(box);
   approximately(sphere.Radius, Math.sqrt(3));
   assert.equal(sphere.Contains(box), ContainmentType.Intersects);
+  assert.equal(sphere.Contains(new Vector3(sphere.Radius, 0, 0)), ContainmentType.Disjoint);
   assert.equal(new Ray(Vector3.Zero, Vector3.UnitX).Intersects(sphere), 0);
+  assert.equal(new BoundingSphere(Vector3.Zero, 1).Intersects(new BoundingSphere(new Vector3(2, 0, 0), 1)), false);
+  assert.throws(() => new BoundingSphere(Vector3.Zero, -1), RangeError);
 });
 
 test("bounding point factories reject empty input and snapshot results", () => {

@@ -5,7 +5,8 @@ import type { BoundingSphere } from "./BoundingSphere.js";
 import { Plane } from "./Plane.js";
 import { Vector3 } from "./Vector3.js";
 
-const EPSILON = 1e-5;
+const BOX_EPSILON = 1e-6;
+const PLANE_EPSILON = 1e-5;
 
 /** Mutable Microsoft.Xna.Framework.Ray projection. */
 export class Ray implements IEquatable<Ray> {
@@ -30,10 +31,10 @@ export class Ray implements IEquatable<Ray> {
   public Intersects(value: Plane | BoundingBox | BoundingSphere | BoundingFrustum): number | null {
     if (value instanceof Plane) {
       const denominator = Vector3.Dot(value.Normal, this.Direction);
-      if (Math.abs(denominator) < EPSILON) return null;
+      if (Math.abs(denominator) < PLANE_EPSILON) return null;
       let distance = (-value.D - Vector3.Dot(value.Normal, this.Position)) / denominator;
       if (distance < 0) {
-        if (distance < -EPSILON) return null;
+        if (distance < -PLANE_EPSILON) return null;
         distance = 0;
       }
       return Math.fround(distance);
@@ -45,7 +46,7 @@ export class Ray implements IEquatable<Ray> {
       for (const axis of ["X", "Y", "Z"] as const) {
         const direction = this.Direction[axis];
         const position = this.Position[axis];
-        if (Math.abs(direction) < EPSILON) {
+        if (Math.abs(direction) < BOX_EPSILON) {
           if (position < value.Min[axis] || position > value.Max[axis]) return null;
         } else {
           const inverse = 1 / direction;
@@ -59,15 +60,16 @@ export class Ray implements IEquatable<Ray> {
       }
       return Math.fround(minimum);
     }
-    const difference = Vector3.Subtract(value.Center, this.Position);
-    const projection = Vector3.Dot(difference, this.Direction);
-    const distanceSquared = difference.LengthSquared() - projection * projection;
+    const x = Math.fround(value.Center.X - this.Position.X);
+    const y = Math.fround(value.Center.Y - this.Position.Y);
+    const z = Math.fround(value.Center.Z - this.Position.Z);
+    const distanceSquared = Math.fround(Math.fround(x * x) + Math.fround(y * y) + Math.fround(z * z));
     const radiusSquared = value.Radius * value.Radius;
-    if (distanceSquared > radiusSquared) return null;
-    const offset = Math.sqrt(radiusSquared - distanceSquared);
-    const distance = projection - offset;
-    if (distance >= 0) return Math.fround(distance);
-    const exit = projection + offset;
-    return exit >= 0 ? 0 : null;
+    if (distanceSquared <= radiusSquared) return 0;
+    const projection = Math.fround(Math.fround(x * this.Direction.X) + Math.fround(y * this.Direction.Y) + Math.fround(z * this.Direction.Z));
+    if (projection < 0) return null;
+    const closestDistanceSquared = Math.fround(distanceSquared - Math.fround(projection * projection));
+    if (closestDistanceSquared > radiusSquared) return null;
+    return Math.fround(projection - Math.sqrt(radiusSquared - closestDistanceSquared));
   }
 }

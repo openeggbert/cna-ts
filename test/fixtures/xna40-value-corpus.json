@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "profile": "XNA 4.0 Windows runtime",
+  "provenance": "XNA reference observations shared by CNA-C# MathBehaviorCorpus",
+  "cases": [
+    {
+      "id": "vector.normalize.zero",
+      "operation": "Vector.NormalizeZero",
+      "input": {},
+      "expected": [true, true, true, true, true, true, true, true, true]
+    },
+    {
+      "id": "vector.divide.scalar",
+      "operation": "Vector.DivideScalar",
+      "input": { "v2": [3, 7], "v3": [7, 3], "v4": [12345.67, 3], "matrix": [1, 3] },
+      "expected": ["3EDB6DB8", "40155556", "458099CA", "3EAAAAAB"]
+    },
+    {
+      "id": "quaternion.multiply.grouped",
+      "operation": "Quaternion.Multiply",
+      "input": {
+        "left": [45889.05859375, -42412.4453125, 96034.96875, -76386.84375],
+        "right": [-16375.435546875, 51428.1875, -69603.09375, -2207.3798828125]
+      },
+      "expected": ["CE47A05E", "CF03EDF7", "4FC9C4DD", "5011D115"]
+    },
+    {
+      "id": "quaternion.slerp",
+      "operation": "Quaternion.SlerpAxes",
+      "input": { "yaw": 0.7, "pitch": -0.4, "amount": 0.37 },
+      "expected": ["BD9A16EC", "3E60D7E7", "00000000", "3F79023D"]
+    },
+    {
+      "id": "quaternion.axis.large",
+      "operation": "Quaternion.AxisAngleY",
+      "input": { "angle": 123456.789 },
+      "expected": ["00000000", "3F30464F", "00000000", "BF39A48F"]
+    },
+    {
+      "id": "quaternion.from.matrix",
+      "operation": "Quaternion.FromRotationY",
+      "input": { "angle": 0.7 },
+      "expected": ["00000000", "3EAF904C", "00000000", "3F707ABB"]
+    },
+    {
+      "id": "matrix.inverse.product",
+      "operation": "Matrix.InverseProduct",
+      "input": { "scale": [2, 3, 4], "rotationY": 0.25, "translation": [5, 6, 7] },
+      "expected": [
+        "3F800000", "00000000", "B2000000", "00000000",
+        "00000000", "3F800000", "00000000", "00000000",
+        "33000000", "00000000", "3F800000", "00000000",
+        "34000000", "00000000", "00000000", "3F800000"
+      ]
+    },
+    {
+      "id": "matrix.inverse.singular",
+      "operation": "Matrix.InverseSingular",
+      "input": {},
+      "expected": [true, true, true, true]
+    },
+    {
+      "id": "color.pack.normalized",
+      "operation": "Color.FromVector4",
+      "input": [0.5, "NaN", "+Infinity", "-Infinity"],
+      "expected": "00FF0080"
+    },
+    {
+      "id": "color.lerp.midpoint",
+      "operation": "Color.Lerp",
+      "input": { "left": [0, 0, 0, 0], "right": [255, 255, 255, 255], "amount": 0.5 },
+      "expected": "7F7F7F7F"
+    },
+    {
+      "id": "color.transparent",
+      "operation": "Color.Transparent",
+      "input": {},
+      "expected": "00FFFFFF"
+    },
+    {
+      "id": "box.contains.edge",
+      "operation": "BoundingBox.ContainsPoint",
+      "input": { "min": [-1, -1, -1], "max": [1, 1, 1], "point": [1, 0, 0] },
+      "expected": 1
+    },
+    {
+      "id": "box.nan",
+      "operation": "BoundingBox.NaN",
+      "input": {},
+      "expected": [0, true]
+    },
+    {
+      "id": "sphere.contains.edge",
+      "operation": "BoundingSphere.ContainsPoint",
+      "input": { "center": [0, 0, 0], "radius": 1, "point": [1, 0, 0] },
+      "expected": 0
+    },
+    {
+      "id": "sphere.intersects.tangent",
+      "operation": "BoundingSphere.IntersectsSphere",
+      "input": { "left": [[0, 0, 0], 1], "right": [[2, 0, 0], 1] },
+      "expected": false
+    },
+    {
+      "id": "sphere.points",
+      "operation": "BoundingSphere.CreateFromPoints",
+      "input": [[-4, 1, 0], [6, -2, 3], [0, 8, -5], [2, 0, 9]],
+      "expected": ["3F800000", "40800000", "40000000", "4101FC10"]
+    },
+    {
+      "id": "ray.sphere",
+      "operation": "Ray.IntersectsSphere",
+      "input": { "position": [-5, 0.25, 0], "direction": [1, 0, 0], "sphere": [[0, 0, 0], 1] },
+      "expected": "40810421"
+    },
+    {
+      "id": "math.clamp.reversed",
+      "operation": "MathHelper.Clamp",
+      "input": [0, 2, 1],
+      "expected": "40000000"
+    },
+    {
+      "id": "math.wrap.large",
+      "operation": "MathHelper.WrapAngle",
+      "input": 123456.789,
+      "expected": "BFC2E06C"
+    },
+    {
+      "id": "math.splines",
+      "operation": "MathHelper.Splines",
+      "input": { "catmull": [-10, -10, -10, -7, 0.3], "hermite": [-10, -10, -10, -10, 1.1] },
+      "expected": ["C1218313", "C1351EBA"]
+    },
+    {
+      "id": "math.hermite.endpoint.nan",
+      "operation": "MathHelper.HermiteNaN",
+      "input": [1, "+Infinity", 2, 0, 0],
+      "expected": true
+    },
+    {
+      "id": "vector3.min.nan",
+      "operation": "Vector3.MinNaN",
+      "input": {},
+      "expected": ["40E00000", "NaN", "NaN"]
+    },
+    {
+      "id": "vector3.clamp.reversed",
+      "operation": "Vector3.ClampReversed",
+      "input": {},
+      "expected": ["40000000", "40000000", "40000000"]
+    },
+    {
+      "id": "plane.normalize.nearunit",
+      "operation": "Plane.Normalize",
+      "input": { "normal": [0.6, 0.79999995, 0], "d": 2 },
+      "expected": ["3F19999A", "3F4CCCCC", "00000000", "40000000"]
+    },
+    {
+      "id": "plane.box.coplanar",
+      "operation": "Plane.IntersectsBox",
+      "input": { "plane": [[0, 0, 0], 0], "box": [[-1, -1, -1], [1, 1, 1]] },
+      "expected": 2
+    },
+    {
+      "id": "negate.signedzero",
+      "operation": "Value.NegateSignedZero",
+      "input": {},
+      "expected": ["80000000", "80000000", "80000000"]
+    }
+  ]
+}

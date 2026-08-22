@@ -107,11 +107,11 @@ export class Vector2 implements IEquatable<Vector2> {
   }
 
   public static Min(value1: Vector2, value2: Vector2): Vector2 {
-    return new Vector2(Math.min(value1.X, value2.X), Math.min(value1.Y, value2.Y));
+    return new Vector2(MathHelper.Min(value1.X, value2.X), MathHelper.Min(value1.Y, value2.Y));
   }
 
   public static Max(value1: Vector2, value2: Vector2): Vector2 {
-    return new Vector2(Math.max(value1.X, value2.X), Math.max(value1.Y, value2.Y));
+    return new Vector2(MathHelper.Max(value1.X, value2.X), MathHelper.Max(value1.Y, value2.Y));
   }
 
   public static Clamp(value1: Vector2, min: Vector2, max: Vector2): Vector2 {

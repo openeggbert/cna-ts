@@ -14,6 +14,7 @@ export class BoundingSphere implements IEquatable<BoundingSphere> {
   public Radius: number;
 
   public constructor(center: Vector3, radius: number) {
+    if (radius < 0) throw new RangeError("radius must be greater than or equal to zero");
     this.Center = new Vector3(center.X, center.Y, center.Z);
     this.Radius = Math.fround(radius);
   }
@@ -32,9 +33,7 @@ export class BoundingSphere implements IEquatable<BoundingSphere> {
     if (value instanceof Vector3) {
       const distanceSquared = Vector3.DistanceSquared(value, this.Center);
       const radiusSquared = this.Radius * this.Radius;
-      if (distanceSquared > radiusSquared) return ContainmentType.Disjoint;
-      if (distanceSquared < radiusSquared) return ContainmentType.Contains;
-      return ContainmentType.Intersects;
+      return distanceSquared < radiusSquared ? ContainmentType.Contains : ContainmentType.Disjoint;
     }
     if (value instanceof BoundingSphere) {
       const distance = Vector3.Distance(this.Center, value.Center);
@@ -49,7 +48,8 @@ export class BoundingSphere implements IEquatable<BoundingSphere> {
         : ContainmentType.Intersects;
     }
     if (!this.Intersects(value)) return ContainmentType.Disjoint;
-    return value.GetCorners().every((corner) => this.Contains(corner) === ContainmentType.Contains)
+    const radiusSquared = this.Radius * this.Radius;
+    return value.GetCorners().every((corner) => Vector3.DistanceSquared(this.Center, corner) <= radiusSquared)
       ? ContainmentType.Contains
       : ContainmentType.Intersects;
   }
@@ -70,7 +70,7 @@ export class BoundingSphere implements IEquatable<BoundingSphere> {
     if (value instanceof BoundingBox) return value.Intersects(this) as boolean;
     if (value instanceof BoundingFrustum) return value.Intersects(this);
     const radii = this.Radius + value.Radius;
-    return Vector3.DistanceSquared(this.Center, value.Center) <= radii * radii;
+    return Vector3.DistanceSquared(this.Center, value.Center) < radii * radii;
   }
 
   public Transform(matrix: Matrix): BoundingSphere {
@@ -91,9 +91,33 @@ export class BoundingSphere implements IEquatable<BoundingSphere> {
   public static CreateFromPoints(points: Iterable<Vector3>): BoundingSphere {
     const values = [...points].map((point) => new Vector3(point.X, point.Y, point.Z));
     if (values.length === 0) throw new RangeError("points must contain at least one value");
-    const box = BoundingBox.CreateFromPoints(values);
-    const center = Vector3.Multiply(Vector3.Add(box.Min, box.Max), 0.5);
-    return new BoundingSphere(center, Math.max(...values.map((point) => Vector3.Distance(center, point))));
+    let minX = values[0], maxX = values[0], minY = values[0], maxY = values[0], minZ = values[0], maxZ = values[0];
+    for (const point of values) {
+      if (point.X < minX.X) minX = point;
+      if (point.X > maxX.X) maxX = point;
+      if (point.Y < minY.Y) minY = point;
+      if (point.Y > maxY.Y) maxY = point;
+      if (point.Z < minZ.Z) minZ = point;
+      if (point.Z > maxZ.Z) maxZ = point;
+    }
+    const distanceX = Vector3.Distance(maxX, minX);
+    const distanceY = Vector3.Distance(maxY, minY);
+    const distanceZ = Vector3.Distance(maxZ, minZ);
+    let first: Vector3;
+    let second: Vector3;
+    if (distanceX > distanceY) [first, second] = distanceX > distanceZ ? [maxX, minX] : [maxZ, minZ];
+    else [first, second] = distanceY > distanceZ ? [maxY, minY] : [maxZ, minZ];
+    let center = Vector3.Lerp(first, second, 0.5);
+    let radius = Math.fround(Vector3.Distance(first, second) * 0.5);
+    for (const point of values) {
+      const offset = Vector3.Subtract(point, center);
+      const distance = offset.Length();
+      if (distance > radius) {
+        radius = Math.fround(Math.fround(radius + distance) * 0.5);
+        center = Vector3.Add(center, Vector3.Multiply(offset, Math.fround(1 - Math.fround(radius / distance))));
+      }
+    }
+    return new BoundingSphere(center, radius);
   }
 
   public static CreateMerged(original: BoundingSphere, additional: BoundingSphere): BoundingSphere {
