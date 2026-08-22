@@ -146,7 +146,7 @@ function mapType(value, rules, genericNames = []) {
     const mappedBase =
       collectionMappings[generic.base] ?? rules.genericTypeRenames[generic.base] ?? stripArity(generic.base);
     const argumentsText = generic.argumentsList.map((argument) => mapType(argument, rules, genericNames));
-    if (mappedBase === "Nullable") return `${argumentsText[0]}|null`;
+    if (mappedBase === "Nullable") return [argumentsText[0], "null"].sort().join("|");
     return `${mappedBase}<${argumentsText.join(",")}>`;
   }
   if (value === "System.IDisposable") return "Microsoft.Xna.Framework.IDisposable";
@@ -209,6 +209,9 @@ function transformReference(reference, rules) {
     );
     const members = [];
     for (const member of sourceType.members) {
+      if (sourceType.kind === "enum" && member.kind === "field" && member.name === "value__") {
+        continue;
+      }
       if (
         member.kind === "method" &&
         member.access === "protected" &&
@@ -334,6 +337,34 @@ function transformReference(reference, rules) {
       synthetic: true,
     });
   }
+  // CLR permits explicit interface implementations that are not public class
+  // members. TypeScript uses structural interfaces, so projected classes must
+  // expose the inherited interface contract as ordinary public members.
+  const byName = new Map(types.map((value) => [value.name, value]));
+  const interfaceMembers = (name, visited = new Set()) => {
+    const identity = name.replace(/<.*>$/, "");
+    if (visited.has(identity)) return [];
+    visited.add(identity);
+    const contract = byName.get(identity);
+    if (!contract || contract.kind !== "interface") return [];
+    return [
+      ...(contract.members ?? []),
+      ...contract.interfaces.flatMap((value) => interfaceMembers(value, visited)),
+    ];
+  };
+  for (const type of types) {
+    if (type.kind !== "class" || type.members == null) continue;
+    const structural = type.interfaces.flatMap((value) => interfaceMembers(value));
+    const keys = new Set(type.members.map(memberKey));
+    for (const member of structural) {
+      const projected = { ...member, access: "public", abstract: false };
+      const key = memberKey(projected);
+      if (!keys.has(key)) {
+        type.members.push(projected);
+        keys.add(key);
+      }
+    }
+  }
   types.sort((left, right) => left.name.localeCompare(right.name));
   return { types, mappingDiagnostics };
 }
@@ -417,7 +448,7 @@ function compareCallables(typeName, key, expected, actual, diagnostics) {
   }
 }
 
-function compareMember(typeName, key, expected, actual, diagnostics) {
+function compareMember(typeName, typeKind, key, expected, actual, diagnostics) {
   const left = expected[0];
   const right = actual[0];
   if (left.kind === "event" || right.kind === "event") {
@@ -456,7 +487,7 @@ function compareMember(typeName, key, expected, actual, diagnostics) {
       ),
     );
   }
-  if (left.constant !== right.constant && left.constant != null) {
+  if (typeKind === "enum" && left.constant !== right.constant && left.constant != null) {
     diagnostics.push(
       diagnostic("ENUM_VALUE_MISMATCH", `${typeName}.${key}`, left.constant, right.constant),
     );
@@ -511,7 +542,7 @@ function compareTypes(expectedModel, targetModel, initialDiagnostics) {
       if (key.startsWith("method:") || key.startsWith("constructor:")) {
         compareCallables(name, key, expectedGroup, actualGroup, diagnostics);
       } else {
-        compareMember(name, key, expectedGroup, actualGroup, diagnostics);
+        compareMember(name, expectedType.kind, key, expectedGroup, actualGroup, diagnostics);
       }
     }
     for (const [key, actualGroup] of actualMembers) {

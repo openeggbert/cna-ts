@@ -51,6 +51,9 @@ function resolveTypeName(root, checker, node) {
     location = location.right;
   }
   let symbol = checker.getSymbolAtLocation(location);
+  if (symbol && (symbol.flags & ts.SymbolFlags.TypeParameter) !== 0) {
+    return node.getText();
+  }
   if (symbol && (symbol.flags & ts.SymbolFlags.Alias) !== 0) {
     symbol = checker.getAliasedSymbol(symbol);
   }
@@ -168,11 +171,16 @@ function readMembers(root, checker, declaration, fullName, kind) {
     } else if (ts.isMethodDeclaration(member) || ts.isMethodSignature(member)) {
       result.push(callable(root, checker, "method", member.name.getText(), member));
     } else if (ts.isPropertyDeclaration(member) || ts.isPropertySignature(member)) {
+      let propertyType = member.type
+        ? typeText(root, checker, member.type)
+        : checker.typeToString(checker.getTypeAtLocation(member));
+      if (/^-?\d+(?:\.\d+)?$/.test(propertyType)) propertyType = "number";
+      if (propertyType === "true" || propertyType === "false") propertyType = "boolean";
       result.push({
         kind: "field",
         name: member.name.getText(),
         access: access(member),
-        type: typeText(root, checker, member.type),
+        type: propertyType,
         static: hasModifier(member, ts.SyntaxKind.StaticKeyword),
         final: hasModifier(member, ts.SyntaxKind.ReadonlyKeyword),
         constant: null,

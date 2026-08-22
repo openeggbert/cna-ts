@@ -1,3 +1,8 @@
+import type { IEquatable } from "./Contracts.js";
+import type { IPackedVectorOfT } from "./Graphics/PackedVector/IPackedVectorOfT.js";
+import { Vector3 } from "./Vector3.js";
+import { Vector4 } from "./Vector4.js";
+
 function channel(value: number): number {
   if (!Number.isFinite(value)) {
     return 0;
@@ -6,16 +11,30 @@ function channel(value: number): number {
 }
 
 /** Mutable Microsoft.Xna.Framework.Color projection using XNA's AABBGGRR packing. */
-export class Color implements IEquatable<Color> {
+export class Color implements IEquatable<Color>, IPackedVectorOfT<number> {
   #packedValue = 0;
 
+  public constructor(vector: Vector3);
+  public constructor(vector: Vector4);
   public constructor(r: number, g: number, b: number);
-  public constructor(r: number, g: number, b: number, alpha: number);
-  public constructor(r: number, g: number, b: number, alpha = 255) {
-    this.R = r;
-    this.G = g;
-    this.B = b;
-    this.A = alpha;
+  public constructor(r: number, g: number, b: number, a: number);
+  public constructor(rOrColor: number | Vector3 | Vector4, g?: number, b?: number, alpha = 255) {
+    if (rOrColor instanceof Vector4) {
+      this.R = rOrColor.X * 255;
+      this.G = rOrColor.Y * 255;
+      this.B = rOrColor.Z * 255;
+      this.A = rOrColor.W * 255;
+    } else if (rOrColor instanceof Vector3) {
+      this.R = rOrColor.X * 255;
+      this.G = rOrColor.Y * 255;
+      this.B = rOrColor.Z * 255;
+      this.A = 255;
+    } else {
+      this.R = rOrColor;
+      this.G = g ?? 0;
+      this.B = b ?? 0;
+      this.A = alpha;
+    }
   }
 
   public get R(): number {
@@ -90,5 +109,37 @@ export class Color implements IEquatable<Color> {
       value1.A + (value2.A - value1.A) * t,
     );
   }
+
+  public ToVector3(): Vector3 {
+    return new Vector3(this.R / 255, this.G / 255, this.B / 255);
+  }
+
+  public ToVector4(): Vector4 {
+    return new Vector4(this.R / 255, this.G / 255, this.B / 255, this.A / 255);
+  }
+
+  public PackFromVector4(vector: Vector4): void {
+    this.R = vector.X * 255;
+    this.G = vector.Y * 255;
+    this.B = vector.Z * 255;
+    this.A = vector.W * 255;
+  }
+
+  public static Multiply(value: Color, scale: number): Color {
+    return new Color(value.R * scale, value.G * scale, value.B * scale, value.A * scale);
+  }
+
+  public static FromNonPremultiplied(vector: Vector4): Color;
+  public static FromNonPremultiplied(r: number, g: number, b: number, a: number): Color;
+  public static FromNonPremultiplied(vectorOrX: Vector4 | number, y?: number, z?: number, alpha?: number): Color {
+    const value = vectorOrX instanceof Vector4
+      ? new Color(vectorOrX)
+      : new Color(vectorOrX, y ?? 0, z ?? 0, alpha ?? 0);
+    return new Color(
+      Math.trunc((value.R * value.A) / 255),
+      Math.trunc((value.G * value.A) / 255),
+      Math.trunc((value.B * value.A) / 255),
+      value.A,
+    );
+  }
 }
-import type { IEquatable } from "./Contracts.js";

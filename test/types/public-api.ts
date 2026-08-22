@@ -1,10 +1,22 @@
 import {
+  BoundingBox,
+  BoundingFrustum,
+  BoundingSphere,
   Color,
   Game,
   GameTime,
+  MathHelper,
+  Matrix,
   Microsoft,
+  Plane,
+  Point,
+  Quaternion,
+  Ray,
+  Rectangle,
   TimeSpan,
   Vector2,
+  Vector3,
+  Vector4,
 } from "cna-ts";
 import { GetRendererInfo } from "cna-ts/extensions";
 import { GetRuntimeStatus } from "cna-ts/runtime";
@@ -23,3 +35,13 @@ void time;
 void game;
 void GetRuntimeStatus;
 void GetRendererInfo;
+void new BoundingBox(Vector3.Zero, Vector3.One);
+void new BoundingSphere(Vector3.Zero, 1);
+void new BoundingFrustum(Matrix.Identity);
+void new Plane(Vector3.Up, 0);
+void new Point(1, 2);
+void Quaternion.Identity;
+void new Ray(Vector3.Zero, Vector3.Forward);
+void new Rectangle(0, 0, 10, 10);
+void new Vector4(new Vector3(1), 1);
+void MathHelper.Pi;

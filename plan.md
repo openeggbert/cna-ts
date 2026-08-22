@@ -16,7 +16,9 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   `dist/` under strict NodeNext settings.
 - [x] Root, `xna`, `extensions`, and `runtime` package exports resolve in compile probes.
 - [x] Node baseline is 20+; local verification currently uses checksum-verified Node 22.14.0.
-- [x] Initial pure implementations: `TimeSpan`, `GameTime`, mutable `Vector2`, and `Color`.
+- [x] Runtime-independent foundation now has 23 measured target types: time, mutable vectors,
+  matrix/quaternion, color/packed-vector contracts, point/rectangle, planes/rays, and bounding
+  volumes; missing members remain explicitly measured.
 - [x] `Game` reports unavailable native execution honestly and has disposal guards.
 - [ ] No WebAssembly or Node CNA backend is loaded.
 - [ ] The XNA structural difference count is not yet at zero.
@@ -48,7 +50,7 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   events, nested identity, and enum values; generic-constraint depth still needs expansion.
 - [x] Emit text and JSON diagnostics with the required categories.
 - [x] Strict mode exits nonzero; report-only records 443 initial differences.
-- [x] Runtime-symbol verifier reports zero differences for all seven current target types.
+- [x] Runtime-symbol verifier reports zero differences for all 23 current target types.
 - [x] Strict internal/native leak gate reports zero.
 - [x] Allowlist size is zero and blanket allowlisting is prohibited.
 
@@ -94,7 +96,9 @@ progress.”
 
 ## Core/value API
 
-- [x] `TimeSpan`, `GameTime`, initial `Vector2`, and `Color` are managed and runtime-independent.
+- [x] Initial coherent math/geometry group is managed and runtime-independent, including
+  `MathHelper`, Vector2/3/4, Matrix, Quaternion, Color, Point, Rectangle, Plane, Ray, and bounding
+  volumes.
 - [ ] Complete `MathHelper`, Vector2/3/4, Matrix, Quaternion, Point, Rectangle, Plane, Ray,
   bounding volumes, curves, and packed vectors in coherent groups.
 - [ ] Import neutral XNA differential fixtures including NaN, infinities, signed zero, rounding,

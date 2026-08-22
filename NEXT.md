@@ -63,3 +63,31 @@ RUNTIME_DIFFERENCES=0
 
 The strict verifier exits 1 as intended. Immediate next gates are the coherent math/value group,
 differential fixtures, packed consumers/template, and one real CNA backend artifact.
+
+## 2026-08-22: first coherent value/geometry group
+
+The runtime-independent foundation now includes mutable Vector2/3/4, Matrix, Quaternion,
+MathHelper, Color packed-vector behavior, Point, Rectangle, Plane, Ray, BoundingBox,
+BoundingSphere, and BoundingFrustum. Constructors snapshot struct-like inputs at API boundaries;
+array and allocating corner overloads are both exercised.
+
+The verifier learned TypeScript generic type parameters, inferred field types, enum literal values,
+and the public structural-interface projection required when CLR uses an explicit interface
+implementation. No per-member exception was added. The measured post-foundation baseline is:
+
+```text
+REFERENCE_TYPES=257
+REFERENCE_MEMBERS=2964
+EXPECTED_MAPPED_TYPES=264
+TARGET_TYPES=23
+TOTAL_DIFFERENCES=450
+MISSING_TYPE=241
+MISSING_MEMBER=209
+all other structural/signature/enum/mapping/leak categories=0
+ALLOWLIST_SIZE=0
+RUNTIME_DIFFERENCES=0
+```
+
+The larger difference total versus the seven-type baseline is expected: a missing type is one
+diagnostic, while making it present exposes each still-missing member. The strict gate remains
+nonzero and therefore truthful.
