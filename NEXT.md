@@ -141,3 +141,16 @@ XNA_DIFFERENTIAL_OBSERVATIONS=26
 XNA_DIFFERENTIAL_ASSERTIONS=27
 XNA_DIFFERENTIAL_FAILURES=0
 ```
+
+## 2026-08-22: reproducible CNA C ABI audit
+
+`tools/audit-cna-abi.mjs` now verifies an explicit read-only CNA checkout instead of preserving the
+old claim that canonical exports do not exist. At CNA revision
+`1bb2145d99ed572dd4eb15009c34e2e5f410fcf0`, it reports ABI 0.7.0, 59 public headers, 2,861 unique
+functions, and zero missing symbols from the 32-route first executable slice spanning version/error,
+lifecycle, graphics, Texture2D, SpriteBatch, input, content, and audio.
+
+The same audit reports zero tracked `.wasm` files, zero C-API ESM loaders, and no local `emcc` or
+`emcmake`. `docs/cna-abi-audit.md` therefore records the exact Emscripten artifact/loader contract
+needed next. No unavailable backend was replaced with a fake implementation, and no CNA ABI route
+is claimed as executed yet.

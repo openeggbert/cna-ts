@@ -85,8 +85,11 @@ progress.”
   declarations. The old “waiting for canonical exports” claim was removed.
 - [x] The ABI covers version/error handling plus runtime, graphics, textures, SpriteBatch routes,
   input, content, audio/XACT, media, storage, events, and resource handles.
+- [x] A reproducible read-only audit verifies ABI version/header/function counts and all 32 exact
+  first-slice sentinel symbols; it separately reports tracked C-ABI Wasm/ESM artifacts.
 - [ ] Produce or obtain a consumable C-ABI WebAssembly ESM artifact.
-- [ ] Verify exact symbol subset used by CNA-TS rather than binding all 2,861 routes blindly.
+- [x] Define the first exact symbol subset rather than binding all 2,861 routes blindly.
+- [ ] Narrow that subset further as the implemented backend records every actually imported route.
 
 ## Ownership and lifetime
 
@@ -158,6 +161,8 @@ progress.”
 - [x] CNA contains real Emscripten-aware renderer/runtime code.
 - [ ] No packaged C-ABI ESM loader/Wasm artifact was found in the inspected CNA worktree.
 - [ ] Local environment currently has no `emcc`; record exact toolchain/artifact recipe upstream.
+- [x] Record the required module factory, memory/UTF-8, callback, canvas, shutdown, ABI provenance,
+  and CI artifact contract in `docs/cna-abi-audit.md`.
 - [ ] Browser smoke verifies initialization, graphics/resources, 60 frames, shutdown, and zero
   unhandled console errors; stability target is 600 frames.
 

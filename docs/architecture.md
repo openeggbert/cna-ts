@@ -47,6 +47,10 @@ but the inspected worktree has no packaged CNA C-ABI ESM loader/Wasm artifact an
 environment has no `emcc` toolchain. Consequently the current package reports the backend as
 unavailable. This is a binding/toolchain integration gap, not absence of a CNA C ABI.
 
+The reproducible evidence, 32-symbol first-slice inventory, and required upstream artifact contract
+are recorded in [`cna-abi-audit.md`](cna-abi-audit.md). The audit accepts an explicit CNA checkout
+path and is not part of normal build, package installation, or runtime.
+
 ## Ownership
 
 Native-backed resources will carry one private state: owned, borrowed, parent-owned, or adopted.

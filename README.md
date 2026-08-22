@@ -53,6 +53,13 @@ npm run verify:leaks
 npm run verify:package
 ```
 
+When a CNA source checkout is available, its native contract can be audited without becoming a
+package dependency:
+
+```bash
+npm run audit:cna-abi -- --cna-root /path/to/cna
+```
+
 Generated `.js`, `.d.ts`, declaration maps, and source maps are written only to `dist/`. The
 legacy `cna-js` package is not a dependency and is being retired.
 
@@ -60,7 +67,8 @@ The sibling `cna-ts-template` is the single maintained project template. Its can
 source generates both strict TypeScript and ordinary JavaScript projects; both are verified against
 the exact packed `cna-ts` artifact.
 
-See the [architecture](docs/architecture.md), [measured roadmap](plan.md), and
+See the [architecture](docs/architecture.md), [C ABI audit](docs/cna-abi-audit.md),
+[measured roadmap](plan.md), and
 [CNA-JS consolidation assessment](docs/cna-js-consolidation.md).
 
 ## License
