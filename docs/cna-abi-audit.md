@@ -1,224 +1,185 @@
-# CNA C ABI audit
+# CNA C ABI 0.7 audit and Effect reconciliation
 
 Audit date: 2026-08-23
 
-This is a read-only binding-side audit. Current CNA HEAD
-`1bb2145d99ed572dd4eb15009c34e2e5f410fcf0` is the upstream-build/blocker reference. The exact
-machine-readable import/signature report uses qualified ABI-0.7 artifact source revision
-`a09196a6477f69a7a57c8364f990658d31531a5b`. CNA itself remains the authority. Reproduce the
-header and artifact inventory from either explicit CNA checkout with:
+This audit treated CNA and the other bindings as read-only evidence. CNA was not modified. Canonical declarations were checked
+at current CNA HEAD `1bb2145d99ed572dd4eb15009c34e2e5f410fcf0` and at the exact source revision
+of the qualified library, `a09196a6477f69a7a57c8364f990658d31531a5b`. Their public
+`modules/c-api/include/CNA/C/effects.h` files are byte-identical for the routes below.
 
-```bash
-npm run audit:cna-abi -- --cna-root /path/to/cna
-```
-
-The audit is a development command, not a build or runtime dependency on a sibling checkout.
-
-## Measured native contract
-
-The inspected tree declares experimental C ABI **0.7.0** in 59 public headers. A comment-stripped
-declaration scan finds 2,861 unique `CNA_C_API` function names. The ABI uses fixed-width result
-codes, UTF-8 string views/caller-owned buffers, versioned structures, and opaque generation-checked
-`uint64_t` handles; zero is the invalid handle.
-
-The broad 32-symbol sentinel set remains an audit of cross-subsystem availability. The implemented
-Node adapter separately resolves exactly 280 symbols; `tools/audit-cna-abi.mjs` extracts those
-names from the adapter source and confirms that the selected headers declare every one. It also
-generates a C translation unit that assigns every declared CNA function to the bridge's exact
-function-pointer typedef and compiles it with warnings as errors. All 280 signatures pass, covering
-pointer depth, fixed-width integer signedness, `CNA_Bool`, structures, and callback typedef ABI.
-The machine-readable result is [`cna-abi-report.json`](cna-abi-report.json).
-
-| Group | Required routes | Evidence |
-| --- | ---: | --- |
-| version/errors | 4 | ABI version plus structured/UTF-8 last-error access |
-| lifecycle | 5 | create, one-frame run, loop run, exit request, destroy |
-| graphics device | 4 | manager creation/device borrow, clear, present |
-| Texture2D | 4 | encoded-memory create, data set/get, destroy |
-| SpriteBatch | 5 | create, begin, batched submit, end, destroy |
-| input | 3 | keyboard snapshot/query and mouse snapshot |
-| content | 4 | manager create/load/unload/destroy |
-| audio | 3 | capabilities, PCM sound creation, destroy |
-
-All 32 sentinel symbols are present. Important lifetime evidence is explicit in the headers:
-
-- the game, device manager, Texture2D, SpriteBatch, content manager, sound/XACT, media/video, and
-  storage resources have owned handles and explicit release routes;
-- the graphics device returned during lifecycle work is borrowed/callback-scoped;
-- SpriteBatch and Texture2D children must be destroyed before their game;
-- successful destruction invalidates a handle and a second destroy reports invalid handle;
-- game creation copies a versioned callback table, and subscription APIs return separately owned
-  registration handles.
-
-These contracts justify the binding's internal `owned`, `borrowed`, `parent-owned`, and
-`adopted/transferred` states. They do not justify exposing the numeric handle publicly.
-
-The adapter grew from 219 to 280 symbols only for dependency-complete implemented routes:
-
-| Exact adapter group | Symbols | Change |
-| --- | ---: | ---: |
-| ABI/error | 3 | 0 |
-| game/framework lifecycle | 7 | 0 |
-| manager/device/renderer information | 22 | 0 |
-| Texture2D | 8 | 0 |
-| GraphicsDevice status/state/binding/draw | 18 | +18 |
-| SpriteBatch | 7 | +2 |
-| vertex declaration/buffer and index buffer | 15 | +5 |
-| Texture3D/TextureCube | 10 | +10 |
-| render targets | 5 | +5 |
-| OcclusionQuery | 6 | +6 |
-| title storage | 1 | +1 |
-| GameWindow/event registration | 14 | +14 |
-| keyboard/mouse/gamepad/touch | 14 | 0 |
-| Audio/SoundEffect/dynamic/microphone | 43 | 0 |
-| XACT engine/category/bank/cue | 46 | 0 |
-| Media source/song/player | 23 | 0 |
-| VideoPlayer controls | 11 | 0 |
-| Storage device/container/stream | 27 | 0 |
-| **Total** | **280** | **+61** |
-
-## Browser artifact finding
-
-CNA's build is genuinely Emscripten-aware: the root build selects WebAssembly exception handling,
-and renderer selection defaults to WebGL 2 under Emscripten. The C API is a real CMake shared-library
-target named `cna_c_api`/`CNA::CApi`, linked to canonical CNA modules.
-
-However, the inspected tracked tree contains:
-
-```text
-TRACKED_WASM_ARTIFACTS=0
-TRACKED_C_API_ESM_LOADERS=0
-EMCC_AVAILABLE=0
-EMCMAKE_AVAILABLE=0
-```
-
-Therefore this run cannot build, load, or browser-test a C-ABI WebAssembly backend. Existing CNA
-browser test scripts exercise engine renderer work, but they are not a packaged CNA C-ABI module
-that an npm binding can import. CNA-TS consequently keeps its browser backend unavailable and does
-not claim Web support.
-
-## Required upstream/artifact contract
-
-The next real backend needs a reproducible CNA build that publishes:
-
-- an asynchronous ESM module factory and its matching `.wasm` file;
-- the audited ABI 0.7 version/error/lifecycle symbols and the exact feature subset used;
-- stable Emscripten memory access for POD structures, arrays, UTF-8 buffers, and 64-bit handles;
-- callback registration/trampolines and deterministic teardown;
-- canvas/window selection before game/graphics initialization;
-- a documented shutdown sequence and error behavior;
-- a CI command that rebuilds the artifact and records the CNA revision/ABI version.
-
-The `cna_c_api` CMake target also applies ELF version-script options under `UNIX AND NOT APPLE`.
-An Emscripten configure/link must be executed to determine whether that guard and the shared-library
-target produce the intended modular ESM output; this audit does not guess from CMake conditionals.
-
-## Native Node evidence
-
-The attempt to build current CNA HEAD was rechecked on 2026-08-23 at exact revision
-`1bb2145d99ed572dd4eb15009c34e2e5f410fcf0`. A separate `/tmp`
-directory configured the unmodified, read-only revision with:
-
-```text
-CMAKE_BUILD_TYPE=Release
-CNA_BUILD_C_API=ON
-CNA_C_API_BUILD_STATIC=OFF
-CNA_GRAPHICS_RENDERER=HEADLESS
-CNA_BUILD_TESTS=OFF
-CNA_BUILD_EXAMPLES=OFF
-CNA_DEVICES=OFF
-CNA_USE_CCACHE=OFF
-```
-
-That build progressed into the C API target but stopped at
-`modules/c-api/src/CnaCApiCoreExt.cpp:250`. Its compile-time renderer identity guard compared 49 C
-identities with 50 canonical renderer entries and failed with “A renderer was added to
-`CNA::GraphicsRendererType` without a C identity.” No shared library was produced, and CNA-TS did
-not patch upstream.
-
-Before attempting another build, this run searched for compatible artifacts already produced by
-the sibling Java/Rust verification. It selected:
+Qualified artifact:
 
 ```text
 PATH=/tmp/cna-java-native-working-070/modules/c-api/libcna_c_api.so
 SOURCE_COMMIT=a09196a6477f69a7a57c8364f990658d31531a5b
 BUILD=Linux x86-64, HEADLESS renderer/platform, NULL audio
 SHA256=42e099146bf3b470f82fd963a516f8bdd7ff0406da8c37dd53747699117db086
-REPORTED_ABI=0.7.0 (encoded 0x00000700)
+REPORTED_ABI=0.7.0 (0x00000700)
 EXPORTED_CNA_SYMBOLS=2861
 ```
 
-This path is test evidence only and is not embedded in source, package metadata, or generated
-projects. All dynamic dependencies resolved locally. The small C Node-API adapter loads a path
-supplied by the caller, rejects any ABI other than exact 0.7.0, imports 280 named symbols, and
-carries 64-bit handles as bigint. Game lifecycle callbacks are synchronous on the attached Node
-thread and contain/rethrow JavaScript exceptions after the native call returns. No native
-audio/media callback subscription is imported: dynamic buffer delivery and media updates use the
-single Game/FrameworkDispatcher managed pump, so JavaScript is never invoked from an arbitrary
-foreign audio thread. The bridge adds no generic FFI dependency and no finalizer-based ownership.
+Reproduce the header, compiler-signature and artifact-export checks with:
 
-The native integration command exposes seven scenario groups (one isolated Node TAP top-level) and
-completed seven real CNA game lifetimes. It covers ABI/symbol validation; typed Audio/XACT,
-Media/Video, and Storage routes; 60 real draw frames; 600 real draw frames; live-child parent
-shutdown; repeated creation/destruction; and renderer identity/capabilities.
-Each full lifecycle exercises Texture2D Color transfer and region readback, PNG `FromStream` and
-PNG encoding, public SpriteBatch Begin/Draw/End, synthetic LZX SpriteFont XNB plus DrawString, and a
-synthetic LZX Model XNB whose relative external reference resolves to a separately compressed
-Texture2D. The model creates and reads back real vertex/index buffers; cache identity and content
-disposal are checked before game shutdown. The graphics scenario additionally verifies copied
-Blend/DepthStencil/Rasterizer/Sampler state, texture/buffer/render-target binding and stable facade
-identity, DynamicVertexBuffer Discard plus DynamicIndexBuffer NoOverwrite round trips,
-RenderTarget2D and RenderTargetCube metadata plus 2D/cube-face bind/unbind, OcclusionQuery
-Begin/End/reuse, advanced non-effect
-SpriteBatch Begin, GameWindow state/registrations, and title-storage reads. All five typed draw
-families reach CNA; HEADLESS reports result 12 because no effect has been applied, so no pixel or
-GPU-output claim is made. Texture3D and TextureCube creation both return the documented
-`CNA_RESULT_NOT_SUPPORTED` on this artifact. The subsystem scenario additionally exercises PCM SoundEffect and
-instance state, dynamic buffer queue transitions, one-listener Apply3D plus explicit multi-listener
-rejection, empty microphone enumeration, generated-silent-WAV MediaPlayer controls and
-visualization, VideoPlayer control state, and Storage selector/container CRUD in an isolated XDG
-directory. Invalid XACT settings construction is verified with a structured CNA result; no legal
-XGS/XSB/XWB fixture was available. Renderer data reports `HEADLESS` from CNA; its actual capability bits
-report custom effects available and compiled effects unavailable. CNA-TS has not imported the
-custom-effect execution routes, so the capability bit is evidence about CNA, not a binding claim.
+```bash
+CNA_SOURCE_PATH=/path/to/cna \
+CNA_NATIVE_LIBRARY=/path/to/libcna_c_api.so \
+npm run audit:cna-abi
+```
 
-One negative qualification deliberately attempted `cna_render_target_destroy` while the target
-was still bound. Contrary to the header's documented invalid-state result, the qualified artifact
-let `System::InvalidOperationException("Disposing target that is still bound")` escape and aborted
-with `SIGABRT`. CNA-TS now rejects bound target disposal before native dispatch and restores the
-backbuffer during device shutdown. This is a recorded upstream defect, not a passing native route;
-the final native suite has zero crashes. No ASan/LSan build was available, so the ownership evidence
-is deterministic handle/lifecycle stress rather than an allocator-level leak-freedom claim.
+## Result
 
-## Selected backend status
+The old `EffectPass.Apply = UPSTREAM_CNA_BLOCKED` classification was stale. ABI 0.7 declares
+`cna_effect_pass_apply(CNA_EffectPassHandle pass)`, and the qualified library exports it. The old
+CNA-TS facade could not safely invoke the route because its reflection graph was synthetic and held
+no native pass identity. That missing identity projection was a CNA-TS implementation gap, not an
+upstream ABI gap.
 
-The package defaults to the unavailable backend. `LoadNodeNativeBackend` is an explicit opt-in that
-accepts the compiled adapter and CNA library paths; no platform artifact is selected implicitly.
-Node CNA execution is verified only for Linux x86-64 HEADLESS with the compatible artifact above.
-Windowed/GPU renderers, Windows, macOS, Electron, mobile, and browser runtime remain unverified.
+CNA-TS now creates owned native Effects, projects owned technique/pass view handles behind the
+public facades, retains the parent Effect, destroys views before the Effect, and invalidates all
+views when the parent is disposed. The pass facade owns only its view handle; it never destroys its
+parent Effect. Apply after parent disposal fails before native dispatch.
 
-The imported slice supports ABI/errors, game lifecycle and frame hooks, FrameworkDispatcher,
-GraphicsDeviceManager configuration/lifecycle, callback-scoped GraphicsDevice borrowing,
-clear/present, renderer information, copied graphics state and binding, typed bound/user/instanced
-draw dispatch, static/dynamic buffers, Texture2D/3D/Cube, render targets, OcclusionQuery,
-SpriteBatch state/transform Begin, title storage, GameWindow state and removable registrations, and
-the already modeled input/audio/media/storage routes. Effect execution, arbitrary custom JavaScript
-vertex layouts, video asset/frame-texture routes, and standalone owned GraphicsDevice construction
-remain explicit blockers or language limitations rather than simulations. Authored XACT
-success remains asset-pending, and HEADLESS exposes no microphone device.
+| Question | Evidence-backed answer |
+| --- | --- |
+| ABI 0.7 contains `cna_effect_pass_apply` | Yes; exact prototype is one pass handle, not `(device, pass)` |
+| Qualified artifact exports it | Yes; `nm -D --defined-only` and the audit find it |
+| CNA-TS can bind/invoke it safely | Yes; compiler-verified import plus hidden owned view lifetime |
+| Existing pre-run TS pass facade had native identity | No; it was synthetic. This was `UNIMPLEMENTED_CNA_TS` until fixed in this run |
+| Effects can have executable native ownership | Yes through all five stock constructors; compiled creation is renderer-dependent |
+| HEADLESS supports compiled effects | No; capability is false and legal conformance FXB returns result 6 |
+| Built-in stock effects are constructible/executable | Yes; all five construct and apply successfully on HEADLESS |
+| `Model.Draw` has an executable effect | Yes for the qualified BasicEffect Model XNB path |
+| SpriteBatch Effect Begin has an executable effect | Yes; the real BasicEffect handle succeeds and is leased through End |
 
-## Actionable missing C API routes
+## Exact ABI matrix
 
-These are binding-side requirements, not patches applied to CNA:
+`HEADER` and `LIB` refer to ABI-0.7 `effects.h` and the qualified artifact. “Rust: yes” means an
+exact `cna-sys` declaration exists; it is not inferred from a similarly named high-level method.
+All calls are synchronous on the attached game/callback thread. Device handles are callback-scoped
+borrows. Returned Effect and reflection-view handles are owned and must be destroyed explicitly.
 
-| Affected XNA API | Required CNA operation and ownership | Callback/thread requirement | Minimal prospective ABI shape | Current CNA-TS behavior |
+| Symbol | HEADER | LIB | Exact prototype | Ownership | TS import | Rust import |
+| --- | --- | --- | --- | --- | --- | --- |
+| `cna_effect_create_empty` | yes | yes | `(CNA_Handle device, CNA_EffectHandle* out)` | borrowed device; owned Effect out | yes | yes |
+| `cna_effect_create_compiled` | yes | yes | `(CNA_Handle device, const uint8_t* bytes, uint64_t count, CNA_EffectHandle* out)` | bytes copied; owned Effect on success; invalid out on failure | yes | yes |
+| `cna_effect_clone` | yes | yes | `(CNA_EffectHandle source, CNA_EffectHandle* out)` | borrowed source; owned clone out | yes | yes |
+| `cna_effect_destroy` | yes | yes | `(CNA_EffectHandle effect)` | consumes owned Effect handle | yes | yes |
+| `cna_effect_apply` | yes | yes | `(CNA_EffectHandle effect)` | borrowed live Effect for the call | yes | yes |
+| `cna_effect_get_parameters` | yes | yes | `(CNA_EffectHandle effect, CNA_EffectParameterCollectionHandle* out)` | owned collection view retaining Effect | no (not needed by qualified stock graph) | yes |
+| `cna_effect_get_techniques` | yes | yes | `(CNA_EffectHandle effect, CNA_EffectTechniqueCollectionHandle* out)` | owned collection view retaining Effect | yes | yes |
+| `cna_effect_get_current_technique` | yes | yes | `(CNA_EffectHandle effect, CNA_EffectTechniqueHandle* out)` | owned technique view retaining Effect | yes | yes |
+| `cna_effect_set_current_technique` | yes | yes | `(CNA_EffectHandle effect, CNA_EffectTechniqueHandle technique)` | both borrowed for call; same Effect identity required | yes | yes |
+| technique collection count/get-at/destroy | yes | yes | `(collection, uint64_t* out)` / `(collection, uint64_t index, CNA_EffectTechniqueHandle* out)` / `(collection)` | owned collection and owned stable element views | yes | yes |
+| technique name size/copy | yes | yes | `(technique, uint64_t* out)` / `(technique, char* dst, uint64_t cap, uint64_t* out)` | caller-owned UTF-8 buffer | yes | yes |
+| `cna_effect_technique_get_index_ext` | yes | yes | `(CNA_EffectTechniqueHandle technique, uint32_t* out)` | borrowed technique | yes | yes |
+| `cna_effect_technique_get_passes` | yes | yes | `(CNA_EffectTechniqueHandle technique, CNA_EffectPassCollectionHandle* out)` | owned collection view retaining technique/Effect | yes | yes |
+| `cna_effect_technique_destroy` | yes | yes | `(CNA_EffectTechniqueHandle technique)` | consumes technique view, never parent Effect | yes | yes |
+| pass collection count/get-at/destroy | yes | yes | `(collection, uint64_t* out)` / `(collection, uint64_t index, CNA_EffectPassHandle* out)` / `(collection)` | owned collection and owned stable pass views | yes | yes |
+| pass name size/copy | yes | yes | `(pass, uint64_t* out)` / `(pass, char* dst, uint64_t cap, uint64_t* out)` | caller-owned UTF-8 buffer | yes | yes |
+| `cna_effect_pass_get_annotations` | yes | yes | `(CNA_EffectPassHandle pass, CNA_EffectAnnotationCollectionHandle* out)` | owned annotation collection view | no | yes |
+| `cna_effect_pass_apply` | yes | yes | `(CNA_EffectPassHandle pass)` | borrowed live pass; ownerless pass is documented successful no-op | yes | yes |
+| `cna_effect_pass_destroy` | yes | yes | `(CNA_EffectPassHandle pass)` | consumes pass view, never parent Effect | yes | yes |
+| `cna_effect_parameter_get_info` | yes | yes | `(CNA_EffectParameterHandle parameter, CNA_EffectParameterInfo* out)` | borrowed parameter; caller-owned versioned struct | no | yes |
+| parameter elements/structure-members/annotations getters | yes | yes | `(CNA_EffectParameterHandle parameter, <collection-handle>* out)` | owned nested collection views | no | yes |
+| parameter tagged scalar/array get | yes | yes | `(parameter, CNA_EffectValueType, void* out)` / `(parameter, type, uint64_t requested, void* dst, uint64_t cap, uint64_t* out)` | tagged caller-owned output storage | no | yes |
+| parameter tagged scalar/array set | yes | yes | `(parameter, CNA_EffectValueType, const void* value)` / `(parameter, type, const void* values, uint64_t count)` | input copied synchronously | no | yes |
+| parameter texture get/set | yes | yes | `(parameter, CNA_EffectTextureType, CNA_Handle* out)` / `(parameter, texture_type, CNA_Handle texture)` | getter returns retained handle; setter retains texture until cleared/destroyed | no | yes |
+| parameter collection count/get-at/destroy | yes | yes | `(collection, uint64_t* out)` / `(collection, uint64_t index, CNA_EffectParameterHandle* out)` / `(collection)` | owned collection and owned stable element views | no | yes |
+| annotation reflection (`get_info`, names, values, collection count/get/destroy) | yes | yes | exact typed functions in `effects.h` | owned annotation/collection views; caller-owned outputs | no | yes |
+
+The parameter/annotation routes are real ABI surface and were audited even though CNA-TS did not
+add speculative imports for them. The qualified stock Effects are native stock classes constructed
+from the empty Effect base and report no compiled parameter graph; their public XNA stock state is
+synchronized through typed stock interfaces. Compiled Effect creation fails with result 6 on this
+renderer before a compiled reflection graph exists. Omitting those unused routes therefore does not
+hide a qualified-runtime gap or justify claiming compiled execution.
+
+## Stock-effect matrix
+
+There is no separate stock “apply” symbol. Each stock constructor creates an owned
+`CNA_EffectHandle`; state uses its exact typed interface setters, and execution uses
+`cna_effect_apply` or an effect-owned `cna_effect_pass_apply` view.
+
+| Strict API | Managed state | Native create route | Native apply route | HEADLESS status |
 | --- | --- | --- | --- | --- |
-| `EffectPass.Apply` and stock effects | Create/destroy compiled-effect ownership and apply a borrowed pass to the callback-scoped device | synchronous on the game thread | owned effect handle, borrowed pass identity, `cna_effect_pass_apply(device, pass)` with structured error | managed reflection/state works; apply fails explicitly |
-| `Model.Draw` | Apply XNA-compatible compiled/stock effect passes before the now-available indexed draw | synchronous on the draw callback thread | executable effect/pass ownership and apply route | model graph/resources and raw indexed dispatch work; rendering remains blocked at `EffectPass.Apply` |
-| `VideoPlayer.GetTexture` | Either copy a decoded frame into a caller-owned texture or issue an explicit borrowed lease with generation validation | frame production may be asynchronous; delivery must be polled or marshalled to the game thread, never call JS from a decoder thread | preferred copy route, or acquire/release lease handles with documented invalidation | player controls work; frame texture fails explicitly |
-| Direct `GraphicsDevice` construction | Create a standalone owned device distinct from the game callback borrow | synchronous owner thread with explicit shutdown | owned device handle and standalone create/destroy contract | device status works; direct constructor fails explicitly because ABI 0.7 has only game-owned borrowing |
-| Dynamic-buffer/render-target `ContentLost` events | Surface real loss/recreation notifications with removable registrations | game thread, removable before resource/game destruction | per-resource loss callback registration and unsubscribe handle | creation, transfer and loss queries work; events are never fabricated |
-| Bound render-target destroy | Return the documented invalid-state result through the exception barrier | synchronous game thread | existing `cna_render_target_destroy` contract, fixed to contain the canonical exception | CNA-TS preflights and rejects the call; the qualified artifact otherwise aborts with `Disposing target that is still bound` |
+| `BasicEffect` | matrices, fog, material, texture, vertex color, lighting and 3 lights | `cna_basic_effect_create(device, out)` | generic Effect/pass apply | construct + apply success |
+| `AlphaTestEffect` | matrices, fog, diffuse/alpha, texture, vertex color, compare/reference alpha | `cna_alpha_test_effect_create(device, out)` | generic Effect/pass apply | construct + apply success |
+| `DualTextureEffect` | matrices, fog, diffuse/alpha, two textures, vertex color | `cna_dual_texture_effect_create(device, out)` | generic Effect/pass apply | construct + apply success |
+| `EnvironmentMapEffect` | matrices, fog, material, 2D/cube textures, environment terms, lighting and 3 lights | `cna_environment_map_effect_create(device, out)` | generic Effect/pass apply | construct + apply success |
+| `SkinnedEffect` | matrices, fog, material, texture, bones/weights, lighting and 3 lights | `cna_skinned_effect_create(device, out)` | generic Effect/pass apply | construct + apply success |
 
-No allocator-level or sanitizer-backed leak claim is made. This run verifies deterministic managed
-and native ownership behavior, but the selected library was not built under ASan/LSan.
+Texture setters retain native textures. CNA-TS listens for texture disposal and clears the stock
+slot before native texture destruction. Content teardown also unwinds recorded XNB disposables in
+reverse construction order so effects release dependencies before textures/buffers.
+
+## Compiled Effect result
+
+`cna_effect_create_compiled` accepts copied XNA/FNA Direct3D 9 Effect Framework `.fxb` bytes or the
+same XNB payload. It does not accept MGFX, shader source, GLSL, SPIR-V or Metal source. The exact
+qualified artifact exports the route but reports the compiled-effects capability false. Three
+calls with CNA's legal `CnaConformanceEffect.fxb` each returned structured result 6 and left no
+owned output to dispose.
+
+```text
+compiled Effect binding route = VERIFIED_NATIVE
+compiled Effect execution on HEADLESS = EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND
+```
+
+No successful shader execution or visible renderer output is claimed.
+
+## Model and SpriteBatch
+
+`Model.Draw` now follows the existing graph: mesh part buffer/index binding, BasicEffect matrix
+updates, current technique/pass, `EffectPass.Apply`, then `DrawIndexedPrimitives`. The qualified
+synthetic Model XNB succeeds on HEADLESS. No native Model renderer was added.
+
+Effect-bearing `SpriteBatch.Begin` supplies the real Effect handle to
+`cna_sprite_batch_begin_with_effect`. It checks same-device ownership and disposed state,
+synchronizes stock state, leases the Effect until successful End, preserves null/default behavior,
+and releases the lease if native Begin fails. Explicit disposal during an active interval is
+rejected so CNA's SpriteBatch never holds a dangling Effect pointer.
+
+## ABI/import result
+
+The Node adapter changed from 280 to 360 imports: exactly 80 Effect ownership, reflection,
+stock-construction and typed stock-state routes. The audit independently confirms:
+
+```text
+ABI_VERSION=0.7.0
+NODE_BRIDGE_IMPORTED_SYMBOLS=360
+MISSING_NODE_BRIDGE_SYMBOLS=0
+NODE_BRIDGE_SIGNATURES_VERIFIED=360
+NODE_BRIDGE_SIGNATURE_MISMATCHES=0
+QUALIFIED_LIBRARY_EXPORTED_FUNCTIONS=2861
+MISSING_QUALIFIED_LIBRARY_IMPORTS=0
+```
+
+The generated compiler translation unit assigns every canonical function address to the bridge's
+declared function-pointer type under `-Wall -Wextra -Werror`. This verifies pointer depth,
+fixed-width signedness, POD-by-value layout, `CNA_Bool`, and callback/structure ABI. ABI 0.8 is not
+accepted; runtime loading still requires encoded ABI `0x00000700`.
+
+## CNA-Rust/CNA-TS consistency
+
+CNA-Rust was not wrong about route presence. It imported the real Effect ABI earlier and used two
+different construction paths:
+
+- synthetic empty Effects can contain ownerless passes, whose native Apply is a documented
+  successful no-op; this proves dispatch but not shader execution;
+- native stock constructors produce effect-owned passes, and Rust's stock/pass stress proves real
+  effect-owned pass activation.
+
+CNA-TS previously had only a managed synthetic reflection graph and no native Effect, technique or
+pass handle. Its documentation then incorrectly promoted that binding gap to
+`UPSTREAM_CNA_BLOCKED`. Rust verified route dispatch with stronger native identity, while TS
+required (but had not implemented) the ownership projection. After this run both bindings agree:
+the pass/stock routes are real, compiled creation is real, and compiled execution is unavailable
+only on the qualified HEADLESS renderer.
+
+## Remaining unrelated ABI boundaries
+
+The Effect reconciliation does not change the existing blockers for transient
+`VideoPlayer.GetTexture`, standalone owned `GraphicsDevice` construction, browser/Wasm artifact
+packaging, or buffer/render-target loss callbacks. No allocator-level ASan/LSan claim is made; the
+evidence is deterministic handle teardown, repeated construction failure rollback, native stress,
+and 60/600-frame qualification.

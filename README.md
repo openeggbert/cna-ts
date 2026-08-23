@@ -59,22 +59,24 @@ await LoadNodeNativeBackend({
 });
 ```
 
-The adapter enforces exact ABI 0.7.0 and uses exactly 280 audited symbols: the previous 219-route
-slice plus 61 dependency-complete graphics state/draw/resource, title-storage, and window symbols.
+The adapter enforces exact ABI 0.7.0 and uses exactly 360 audited symbols: the previous 280-route
+slice plus 80 dependency-complete Effect ownership/reflection and stock-effect symbols.
 Current native evidence
 covers game lifecycle, graphics manager/device borrowing, clear/present, Texture2D Color
 upload/readback/regions/mips, PNG `FromStream` and encoding, public SpriteBatch drawing,
 SpriteFont XNB/DrawString, model XNB resource construction, static/dynamic vertex/index buffers,
-state/texture/buffer/render-target binding, RenderTarget2D/RenderTargetCube, advanced non-effect SpriteBatch Begin,
+state/texture/buffer/render-target binding, RenderTarget2D/RenderTargetCube, advanced and
+Effect-bearing SpriteBatch Begin,
 OcclusionQuery lifecycle, title-storage reads, stable GameWindow state and event registrations, renderer
 capabilities, keyboard/mouse/gamepad/touch polling, PCM SoundEffect and dynamic buffers,
 MediaPlayer with a generated silent WAV, VideoPlayer control state, and isolated Storage CRUD.
 HEADLESS reports no microphones. No redistributable XACT or video fixture was available, and CNA's
 player-owned video frame texture cannot yet be projected safely, so authored-bank playback and
-video decode/`GetTexture` remain explicit boundaries. This HEADLESS artifact reports custom effects
-but not compiled effects. Raw indexed and user draw dispatch reaches CNA but returns the backend's
-no-applied-effect result, so `EffectPass.Apply` and model rendering remain blocked specifically at
-effect execution. Texture3D/Cube creation is also explicitly unsupported by this artifact even
+video decode/`GetTexture` remain explicit boundaries. This HEADLESS artifact constructs and applies
+all five stock effects, executes effect-owned `EffectPass.Apply`, `Model.Draw`, and Effect-bearing
+SpriteBatch Begin. The compiled-Effect creation route is bound, but legal FXB input returns the
+backend's documented result 6 because this renderer reports no compiled-effects capability; no
+compiled shader or visible-output claim is made. Texture3D/Cube creation is also explicitly unsupported by this artifact even
 though its exact ABI binding and Color codecs are implemented. Linux HEADLESS evidence is not a Windows, visible-GPU,
 Electron, browser, or mobile support claim.
 

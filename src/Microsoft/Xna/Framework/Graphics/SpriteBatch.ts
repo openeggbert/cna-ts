@@ -13,7 +13,12 @@ import { Rectangle } from "../Rectangle.js";
 import { Vector2 } from "../Vector2.js";
 import { bindBlendStateForInternalUse, BlendState } from "./BlendState.js";
 import { bindDepthStencilStateForInternalUse, DepthStencilState } from "./DepthStencilState.js";
-import type { Effect } from "./Effect.js";
+import {
+  type Effect,
+  leaseEffectForInternalUse,
+  prepareEffectForInternalUse,
+  resolveEffectHandleForInternalUse,
+} from "./Effect.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
 import {
   blendStateSnapshotForInternalUse,
@@ -55,6 +60,8 @@ type SpriteBatchState = {
   readonly Commands: SpriteBatchCommand[];
   readonly ReferencedTextures: Set<Texture2D>;
   readonly GlyphPlacements: SpriteFontGlyphPlacement[];
+  ReferencedEffect: Effect | null;
+  ReleaseEffectLease: (() => void) | null;
   Begun: boolean;
 };
 
@@ -86,6 +93,8 @@ export class SpriteBatch extends GraphicsResource {
       Commands: [],
       ReferencedTextures: new Set<Texture2D>(),
       GlyphPlacements: [],
+      ReferencedEffect: null,
+      ReleaseEffectLease: null,
       Begun: false,
     });
     attachGraphicsResourceForInternalUse(
@@ -100,6 +109,9 @@ export class SpriteBatch extends GraphicsResource {
         if (state) {
           state.Commands.length = 0;
           state.ReferencedTextures.clear();
+          state.ReleaseEffectLease?.();
+          state.ReleaseEffectLease = null;
+          state.ReferencedEffect = null;
           state.Begun = false;
         }
         lifetime.Dispose();
@@ -140,14 +152,9 @@ export class SpriteBatch extends GraphicsResource {
     if (!Number.isInteger(sortMode) || sortMode < SpriteSortMode.Deferred || sortMode > SpriteSortMode.FrontToBack) {
       throw new ArgumentOutOfRangeException("sortMode");
     }
-    if (effect != null) {
-      throw new NativeUnavailableError(
-        "Effect-bearing SpriteBatch.Begin requires a CNA-backed Effect execution projection",
-      );
-    }
     const backend = graphicsDeviceBackendForInternalUse(state.Device);
     const explicit = blendState != null || samplerState != null || depthStencilState != null ||
-      rasterizerState != null || transformMatrix != null;
+      rasterizerState != null || effect != null || transformMatrix != null;
     if (explicit) {
       const graphics = backend.Graphics;
       if (!graphics) {
@@ -161,20 +168,48 @@ export class SpriteBatch extends GraphicsResource {
       for (const value of [blend, sampler, depth, rasterizer]) {
         assertGraphicsResourceCompatibleForInternalUse(value, state.Device);
       }
-      graphics.beginSpriteBatchWithStates(
-        state.Lifetime.Handle,
-        sortMode,
-        blendStateSnapshotForInternalUse(blend),
-        samplerStateSnapshotForInternalUse(sampler),
-        depthStencilStateSnapshotForInternalUse(depth),
-        rasterizerStateSnapshotForInternalUse(rasterizer),
-        matrix,
-      );
+      let releaseEffectLease: (() => void) | null = null;
+      try {
+        if (effect != null) {
+          assertGraphicsResourceCompatibleForInternalUse(effect, state.Device);
+          const effects = backend.Effects;
+          if (effects == null) {
+            throw new NativeUnavailableError("Effect-bearing SpriteBatch.Begin requires CNA Effect routes");
+          }
+          prepareEffectForInternalUse(effect);
+          releaseEffectLease = leaseEffectForInternalUse(effect);
+          effects.beginSpriteBatchWithEffect(
+            state.Lifetime.Handle,
+            sortMode,
+            blendStateSnapshotForInternalUse(blend),
+            samplerStateSnapshotForInternalUse(sampler),
+            depthStencilStateSnapshotForInternalUse(depth),
+            rasterizerStateSnapshotForInternalUse(rasterizer),
+            resolveEffectHandleForInternalUse(effect),
+            matrix,
+          );
+        } else {
+          graphics.beginSpriteBatchWithStates(
+            state.Lifetime.Handle,
+            sortMode,
+            blendStateSnapshotForInternalUse(blend),
+            samplerStateSnapshotForInternalUse(sampler),
+            depthStencilStateSnapshotForInternalUse(depth),
+            rasterizerStateSnapshotForInternalUse(rasterizer),
+            matrix,
+          );
+        }
+      } catch (error) {
+        releaseEffectLease?.();
+        throw error;
+      }
       bindBlendStateForInternalUse(blend, state.Device);
       bindSamplerStateForInternalUse(sampler, state.Device);
       bindDepthStencilStateForInternalUse(depth, state.Device);
       bindRasterizerStateForInternalUse(rasterizer, state.Device);
       recordSpriteBatchStatesForInternalUse(state.Device, blend, depth, rasterizer);
+      state.ReferencedEffect = effect ?? null;
+      state.ReleaseEffectLease = releaseEffectLease;
     } else {
       backend.beginSpriteBatch(state.Lifetime.Handle, sortMode);
       recordSpriteBatchStatesForInternalUse(
@@ -328,6 +363,9 @@ export class SpriteBatch extends GraphicsResource {
     }
     backend.endSpriteBatch(state.Lifetime.Handle);
     state.Begun = false;
+    state.ReleaseEffectLease?.();
+    state.ReleaseEffectLease = null;
+    state.ReferencedEffect = null;
   }
 
 }

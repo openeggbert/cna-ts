@@ -125,8 +125,8 @@ Electron, or mobile support.
   first-slice sentinel symbols; it separately reports tracked C-ABI Wasm/ESM artifacts.
 - [ ] Produce or obtain a consumable C-ABI WebAssembly ESM artifact.
 - [x] Define the first exact symbol subset rather than binding all 2,861 routes blindly.
-- [x] The audit extracts and verifies the adapter's exact 280 imported symbols separately from the
-  broader 32-symbol cross-subsystem sentinel list.
+- [x] The audit extracts and verifies the adapter's exact 360 imported symbols separately from the
+  broader 46-symbol cross-subsystem sentinel list and checks the qualified library exports each.
 - [x] An isolated unmodified HEADLESS native build was investigated and stopped at CNA's upstream
   C-API renderer table assertion (49 identities versus 50); no library or adapter was fabricated.
 
@@ -190,8 +190,9 @@ Electron, or mobile support.
   dispatch is verified without claiming GPU output.
 - [x] Import state/scalar/sampler/texture/buffer/render-target binding, dynamic-buffer,
   render-target, volume-texture, query and advanced SpriteBatch routes supported by ABI 0.7.
-- [ ] EffectPass.Apply, compiled/stock-effect execution and Model.Draw remain CNA-blocked even
-  though raw indexed draw dispatch is now present.
+- [x] Reconcile Effect against canonical ABI 0.7: project owned native technique/pass identities,
+  execute all five stock effects, route Model.Draw and Effect-bearing SpriteBatch Begin, and keep
+  compiled execution separately backend-unavailable on HEADLESS after real route dispatch.
 
 ## Input/touch
 
@@ -240,11 +241,11 @@ Electron, or mobile support.
 
 - [x] Keep runtime capability claims independent of the strict structural verifier.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
-- [x] Rebaseline 69 operation families: 19 verified managed, 24 verified native, eight upstream-CNA
+- [x] Rebaseline 72 operation families: 19 verified managed, 30 verified native, five upstream-CNA
   blocked, three fixture pending, four hardware pending, three platform pending, zero CNA-TS gaps,
   three language-mapping limitations, four explicitly unavailable on the qualified backend, and
   one not applicable to HEADLESS Linux.
-- [x] Audit all 63 `NativeUnavailableError` and six `NotSupportedException` construction sites in 25
+- [x] Audit all 63 `NativeUnavailableError` and six `NotSupportedException` construction sites in 23
   selected-framework source files into those operation-family boundaries.
 
 ## Template
@@ -257,9 +258,8 @@ Electron, or mobile support.
   `FromStream`, public SpriteBatch drawing, moving state, input polling, and deterministic cleanup.
 - [x] Verify the template at 60 and 600 real SpriteBatch draw frames against the final package.
 - [ ] Implement native window/resize and a packaged windowed renderer before making windowed claims.
-- [x] Add managed BasicEffect state after the 2D route; keep BasicEffect execution/3D blocked by
-  the missing XNA-compatible effect/pass execution route. Raw indexed drawing is now imported and
-  verified to dispatch, independently of that remaining effect boundary.
+- [x] Keep the template as a 2D-only canary. The library now has native stock Effects, but no cube,
+  Model, shader asset, or 3D/effect demo was added to the template.
 - [x] Generate TypeScript and ordinary JavaScript projects from one canonical source; both install
   the packed artifact and build, and JavaScript runs a managed smoke without TypeScript.
 
@@ -308,8 +308,8 @@ Electron, or mobile support.
   paths for verification;
 - standalone owned GraphicsDevice construction (ABI 0.7 exposes only the game-owned borrowed
   device);
-- executable EffectPass/compiled-or-stock-effect semantics required by effect-bearing
-  SpriteBatch.Begin and Model.Draw;
+- compiled Effect execution on the qualified HEADLESS renderer (the ABI route exists and is bound;
+  all five stock effects, EffectPass.Apply, Model.Draw and SpriteBatch Effect Begin are verified);
 - actual dynamic-buffer/render-target loss callbacks (queries exist, loss events do not);
 - fix the documented bound-render-target destroy path so it returns invalid state instead of
   aborting the process;

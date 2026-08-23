@@ -8,14 +8,14 @@
     "root": "src/Microsoft/Xna/Framework",
     "nativeUnavailableErrorSites": 63,
     "notSupportedExceptionSites": 6,
-    "filesWithExplicitFailureSites": 25,
+    "filesWithExplicitFailureSites": 23,
     "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family."
   },
   "counts": {
     "VERIFIED_MANAGED": 19,
-    "VERIFIED_NATIVE": 24,
+    "VERIFIED_NATIVE": 30,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 4,
-    "UPSTREAM_CNA_BLOCKED": 8,
+    "UPSTREAM_CNA_BLOCKED": 5,
     "FIXTURE_PENDING": 3,
     "HARDWARE_PENDING": 4,
     "PLATFORM_PENDING": 3,
@@ -151,28 +151,10 @@
       "evidence": "creation, transfer and IsContentLost queries are implemented, but ABI 0.7 exposes no loss/recreation callback and CNA currently reports no loss"
     },
     {
-      "operation": "EffectPass.Apply and XNA compiled/stock-effect execution",
-      "category": "UPSTREAM_CNA_BLOCKED",
-      "owner": "CNA C ABI",
-      "evidence": "no audited C ABI route with XNA compiled-effect semantics and ownership"
-    },
-    {
-      "operation": "Model.Draw faithful effect/pass pipeline",
-      "category": "UPSTREAM_CNA_BLOCKED",
-      "owner": "CNA C ABI",
-      "evidence": "raw indexed draw dispatch is now implemented; Model.Draw remains blocked specifically by XNA-compatible EffectPass.Apply and compiled/stock-effect execution"
-    },
-    {
       "operation": "RenderTarget ContentLost event signaling",
       "category": "UPSTREAM_CNA_BLOCKED",
       "owner": "CNA C ABI",
       "evidence": "construction, metadata and binding are implemented, but ABI 0.7 exposes no target loss/recreation callback"
-    },
-    {
-      "operation": "SpriteBatch Effect-bearing Begin",
-      "category": "UPSTREAM_CNA_BLOCKED",
-      "owner": "CNA C ABI effect projection",
-      "evidence": "the CNA route requires an owned executable Effect handle, while selected EffectPass.Apply and compiled/stock-effect execution remain unavailable"
     },
     {
       "operation": "VideoPlayer.GetTexture transient frame projection",
@@ -193,10 +175,10 @@
       "evidence": "graphics-foundation unit suite verifies snapshots, defaults and disposal"
     },
     {
-      "operation": "Content cache, failure cleanup, Unload and Dispose",
+      "operation": "Content cache, failure cleanup, dependency-ordered Unload and Dispose",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "content and content-xnb lifecycle tests including failed nested construction"
+      "evidence": "content and content-xnb lifecycle tests including failed nested construction and native Effect-to-texture retention"
     },
     {
       "operation": "ContentManager LZX-compressed XNB framing and decompression",
@@ -295,10 +277,28 @@
       "evidence": "managed native-shaped backend verifies boxes, faces and exact packed Color round trips; all ABI signatures are compiler-audited and the qualified HEADLESS artifact returns documented NOT_SUPPORTED at creation"
     },
     {
+      "operation": "BasicEffect, AlphaTestEffect, DualTextureEffect, EnvironmentMapEffect and SkinnedEffect native construction",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "all five distinct ABI-0.7 constructors return owned effects with real technique/pass views under qualified HEADLESS integration"
+    },
+    {
+      "operation": "BasicEffect, AlphaTestEffect, DualTextureEffect, EnvironmentMapEffect and SkinnedEffect native state/apply execution",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified HEADLESS integration synchronizes dependency-complete stock state, applies every stock effect and verifies clone, texture retention and deterministic disposal"
+    },
+    {
       "operation": "CNA renderer identity and capability query extension",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
       "evidence": "qualified artifact reports HEADLESS/custom-effects/compiled-effects capability bits"
+    },
+    {
+      "operation": "Compiled Effect creation binding route",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "exact byte payload reaches cna_effect_create_compiled with compiler-verified ABI; three legal conformance-FXB attempts deterministically return the qualified HEADLESS result 6 with invalid output and no shader-execution claim"
     },
     {
       "operation": "DynamicSoundEffectInstance submit, pending buffers and managed refill pump",
@@ -311,6 +311,12 @@
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
       "evidence": "qualified integration covers Discard/NoOverwrite, built-in vertex and 16-bit index round trips, double disposal and parent shutdown"
+    },
+    {
+      "operation": "Effect and EffectPass ABI-0.7 apply dispatch with native technique/pass reflection identity",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified integration executes cna_effect_apply and cna_effect_pass_apply on effect-owned stock passes; managed/native ownership tests retain the parent, destroy owned views, reject disposed parents and expose no raw handles"
     },
     {
       "operation": "FrameworkDispatcher.Update canonical native pump",
@@ -334,7 +340,7 @@
       "operation": "GraphicsDevice bound, indexed, instanced and four-codec user draw dispatch",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "280-symbol bridge dispatch and argument layouts are signature-audited; qualified HEADLESS calls reach CNA and report pipeline-unavailable result 12 without any output claim"
+      "evidence": "360-symbol bridge dispatch and argument layouts are signature-audited; qualified HEADLESS calls reach CNA; no visible-output claim"
     },
     {
       "operation": "GraphicsDevice copied state, scalar state, sampler/texture, buffer and render-target binding routes",
@@ -373,6 +379,12 @@
       "evidence": "generated legal silent WAV under qualified NULL-audio integration"
     },
     {
+      "operation": "Model.Draw effect/pass/indexed-draw pipeline",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified HEADLESS Model XNB executes buffer/index binding, BasicEffect matrices, real EffectPass.Apply and DrawIndexedPrimitives without a special native model renderer"
+    },
+    {
       "operation": "OcclusionQuery construction, ordering, reuse, completion/result dispatch and disposal",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
@@ -395,6 +407,12 @@
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
       "evidence": "qualified native integration and template 60/600 frames"
+    },
+    {
+      "operation": "SpriteBatch Effect-bearing Begin",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified HEADLESS integration executes cna_sprite_batch_begin_with_effect with a real BasicEffect; managed lifetime lease, device checks, null behavior, disposal guard and native-failure rollback are covered"
     },
     {
       "operation": "SpriteBatch explicit render-state and transform Begin",

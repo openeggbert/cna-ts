@@ -349,6 +349,80 @@ export interface CnaGraphicsBackend {
   destroyOcclusionQuery(query: NativeHandle): void;
 }
 
+export interface NativeEffectPassSnapshot {
+  readonly Handle: NativeHandle;
+  readonly Name: string;
+}
+
+export interface NativeEffectTechniqueSnapshot {
+  readonly Handle: NativeHandle;
+  readonly Name: string;
+  readonly Passes: readonly NativeEffectPassSnapshot[];
+}
+
+export interface NativeEffectReflectionSnapshot {
+  readonly CurrentTechnique: number;
+  readonly Techniques: readonly NativeEffectTechniqueSnapshot[];
+}
+
+export interface StockEffectSnapshot {
+  readonly World: readonly number[];
+  readonly View: readonly number[];
+  readonly Projection: readonly number[];
+  readonly FogColor: readonly number[];
+  readonly FogEnabled: boolean;
+  readonly FogStart: number;
+  readonly FogEnd: number;
+  readonly Alpha: number;
+  readonly DiffuseColor: readonly number[];
+  readonly EmissiveColor: readonly number[];
+  readonly SpecularColor: readonly number[];
+  readonly SpecularPower: number;
+  readonly AmbientLightColor: readonly number[];
+  readonly LightingEnabled: boolean;
+  readonly PreferPerPixelLighting: boolean;
+  readonly VertexColorEnabled: boolean;
+  readonly TextureEnabled: boolean;
+  readonly Texture: NativeHandle;
+  readonly Texture2: NativeHandle;
+  readonly EnvironmentMap: NativeHandle;
+  readonly EnvironmentMapAmount: number;
+  readonly EnvironmentMapSpecular: readonly number[];
+  readonly FresnelFactor: number;
+  readonly AlphaFunction: number;
+  readonly ReferenceAlpha: number;
+  readonly WeightsPerVertex: number;
+  readonly BoneTransforms: readonly (readonly number[])[];
+  readonly Lights: readonly {
+    readonly Direction: readonly number[];
+    readonly DiffuseColor: readonly number[];
+    readonly SpecularColor: readonly number[];
+    readonly Enabled: boolean;
+  }[];
+}
+
+/** Optional dependency-complete ABI-0.7 Effect ownership and execution slice. */
+export interface CnaEffectBackend {
+  createEffectEmpty(device: NativeHandle): NativeHandle;
+  createEffectCompiled(device: NativeHandle, bytes: Uint8Array): NativeHandle;
+  cloneEffect(effect: NativeHandle): NativeHandle;
+  createStockEffect(device: NativeHandle, kind: number): NativeHandle;
+  getEffectReflection(effect: NativeHandle): NativeEffectReflectionSnapshot;
+  setEffectCurrentTechnique(effect: NativeHandle, technique: NativeHandle): void;
+  applyEffect(effect: NativeHandle): void;
+  applyEffectPass(pass: NativeHandle): void;
+  syncStockEffect(effect: NativeHandle, kind: number, snapshot: StockEffectSnapshot): void;
+  destroyEffectTechnique(technique: NativeHandle): void;
+  destroyEffectPass(pass: NativeHandle): void;
+  destroyEffect(effect: NativeHandle): void;
+  beginSpriteBatchWithEffect(
+    spriteBatch: NativeHandle, sortMode: number, blend: BlendStateSnapshot,
+    sampler: SamplerStateSnapshot, depth: DepthStencilStateSnapshot,
+    rasterizer: RasterizerStateSnapshot, effect: NativeHandle,
+    transform: readonly number[] | null,
+  ): void;
+}
+
 export interface AudioVectorSnapshot {
   readonly X: number;
   readonly Y: number;
@@ -600,6 +674,7 @@ export interface CnaBackend {
   readonly Video?: CnaVideoBackend;
   readonly Storage?: CnaStorageBackend;
   readonly Graphics?: CnaGraphicsBackend;
+  readonly Effects?: CnaEffectBackend;
   readonly Window?: CnaGameWindowBackend;
   openTitleStream?(name: string): Uint8Array;
 

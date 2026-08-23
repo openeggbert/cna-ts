@@ -6,6 +6,7 @@ import type {
   CnaVideoBackend,
   CnaStorageBackend,
   CnaGraphicsBackend,
+  CnaEffectBackend,
   CnaGameWindowBackend,
   BackendRendererInfo,
   CnaGameCallbacks,
@@ -35,6 +36,8 @@ import type {
   RenderTargetInfo,
   RenderTargetBindingSnapshot,
   GameWindowBoundsSnapshot,
+  NativeEffectReflectionSnapshot,
+  StockEffectSnapshot,
 } from "./backend.js";
 import { NativeUnavailableError } from "./native-error.js";
 import type { NativeHandle, NativeResourceLifetime } from "./ownership.js";
@@ -210,6 +213,24 @@ interface NativeBridge {
     spriteBatch: bigint, sortMode: number, blend: BlendStateSnapshot,
     sampler: SamplerStateSnapshot, depth: DepthStencilStateSnapshot,
     rasterizer: RasterizerStateSnapshot, transform: readonly number[] | null,
+  ): void;
+  createEffectEmpty(device: bigint): bigint;
+  createEffectCompiled(device: bigint, bytes: Uint8Array): bigint;
+  cloneEffect(effect: bigint): bigint;
+  createStockEffect(device: bigint, kind: number): bigint;
+  getEffectReflection(effect: bigint): NativeEffectReflectionSnapshot;
+  setEffectCurrentTechnique(effect: bigint, technique: bigint): void;
+  applyEffect(effect: bigint): void;
+  applyEffectPass(pass: bigint): void;
+  syncStockEffect(effect: bigint, kind: number, snapshot: StockEffectSnapshot): void;
+  destroyEffectTechnique(technique: bigint): void;
+  destroyEffectPass(pass: bigint): void;
+  destroyEffect(effect: bigint): void;
+  beginSpriteBatchWithEffect(
+    spriteBatch: bigint, sortMode: number, blend: BlendStateSnapshot,
+    sampler: SamplerStateSnapshot, depth: DepthStencilStateSnapshot,
+    rasterizer: RasterizerStateSnapshot, effect: bigint,
+    transform: readonly number[] | null,
   ): void;
   setVertexBufferData(
     buffer: bigint, vertexType: number, options: number, startIndex: number,
@@ -435,7 +456,7 @@ interface NativeBridge {
   openStorageFile(container: bigint, path: string, mode: number, access: number, share: number): Uint8Array;
 }
 
-export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaGameWindowBackend {
+export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
   public readonly AbiVersion = "0.7.0";
@@ -448,6 +469,7 @@ export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaGam
   public readonly Video: CnaVideoBackend = this;
   public readonly Storage: CnaStorageBackend = this;
   public readonly Graphics: CnaGraphicsBackend = this;
+  public readonly Effects: CnaEffectBackend = this;
   public readonly Window: CnaGameWindowBackend = this;
   readonly #bridge: NativeBridge;
   #activeGame: NativeHandle | null = null;
@@ -758,6 +780,44 @@ export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaGam
   ): void {
     this.#bridge.beginSpriteBatchWithStates(
       spriteBatch, sortMode, blend, sampler, depth, rasterizer, transform,
+    );
+  }
+  public createEffectEmpty(device: NativeHandle): NativeHandle {
+    return this.#bridge.createEffectEmpty(device);
+  }
+  public createEffectCompiled(device: NativeHandle, bytes: Uint8Array): NativeHandle {
+    return this.#bridge.createEffectCompiled(device, bytes);
+  }
+  public cloneEffect(effect: NativeHandle): NativeHandle {
+    return this.#bridge.cloneEffect(effect);
+  }
+  public createStockEffect(device: NativeHandle, kind: number): NativeHandle {
+    return this.#bridge.createStockEffect(device, kind);
+  }
+  public getEffectReflection(effect: NativeHandle): NativeEffectReflectionSnapshot {
+    return this.#bridge.getEffectReflection(effect);
+  }
+  public setEffectCurrentTechnique(effect: NativeHandle, technique: NativeHandle): void {
+    this.#bridge.setEffectCurrentTechnique(effect, technique);
+  }
+  public applyEffect(effect: NativeHandle): void { this.#bridge.applyEffect(effect); }
+  public applyEffectPass(pass: NativeHandle): void { this.#bridge.applyEffectPass(pass); }
+  public syncStockEffect(
+    effect: NativeHandle, kind: number, snapshot: StockEffectSnapshot,
+  ): void { this.#bridge.syncStockEffect(effect, kind, snapshot); }
+  public destroyEffectTechnique(technique: NativeHandle): void {
+    this.#bridge.destroyEffectTechnique(technique);
+  }
+  public destroyEffectPass(pass: NativeHandle): void { this.#bridge.destroyEffectPass(pass); }
+  public destroyEffect(effect: NativeHandle): void { this.#bridge.destroyEffect(effect); }
+  public beginSpriteBatchWithEffect(
+    spriteBatch: NativeHandle, sortMode: number, blend: BlendStateSnapshot,
+    sampler: SamplerStateSnapshot, depth: DepthStencilStateSnapshot,
+    rasterizer: RasterizerStateSnapshot, effect: NativeHandle,
+    transform: readonly number[] | null,
+  ): void {
+    this.#bridge.beginSpriteBatchWithEffect(
+      spriteBatch, sortMode, blend, sampler, depth, rasterizer, effect, transform,
     );
   }
   public setVertexBufferData(

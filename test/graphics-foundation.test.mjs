@@ -223,6 +223,96 @@ function graphicsRuntimeBackend(calls) {
   return backend;
 }
 
+function effectRuntimeBackend(calls) {
+  const backend = graphicsRuntimeBackend(calls);
+  let next = 50_000n;
+  Object.assign(backend, {
+    createEffectEmpty() { const handle = next++; calls.push(["effectCreateEmpty", handle]); return handle; },
+    createEffectCompiled(_device, bytes) {
+      assert.ok(bytes instanceof Uint8Array);
+      const handle = next++;
+      calls.push(["effectCreateCompiled", handle, [...bytes]]);
+      return handle;
+    },
+    cloneEffect(source) { const handle = next++; calls.push(["effectClone", source, handle]); return handle; },
+    createStockEffect(_device, kind) {
+      const handle = next++;
+      calls.push(["stockCreate", kind, handle]);
+      return handle;
+    },
+    getEffectReflection(effect) {
+      if (backend.failReflection) {
+        backend.failReflection = false;
+        throw new Error("injected reflection failure");
+      }
+      return {
+        CurrentTechnique: 0,
+        Techniques: [{ Handle: next++, Name: "Default", Passes: [{ Handle: next++, Name: "P0" }] }],
+      };
+    },
+    setEffectCurrentTechnique(effect, technique) { calls.push(["effectTechnique", effect, technique]); },
+    applyEffect(effect) { calls.push(["effectApply", effect]); },
+    applyEffectPass(pass) { calls.push(["effectPassApply", pass]); },
+    syncStockEffect(effect, kind, snapshot) {
+      calls.push(["stockSync", effect, kind, snapshot.World.length, snapshot.Lights.length]);
+    },
+    destroyEffectTechnique(technique) { calls.push(["effectTechniqueDestroy", technique]); },
+    destroyEffectPass(pass) { calls.push(["effectPassDestroy", pass]); },
+    destroyEffect(effect) { calls.push(["effectDestroy", effect]); },
+    beginSpriteBatchWithEffect(...args) { calls.push(["spriteEffectBegin", ...args]); },
+  });
+  backend.Effects = backend;
+  return backend;
+}
+
+test("native Effect views retain ownership, apply exact routes, and roll back construction", (t) => {
+  const previous = getBackend();
+  t.after(() => setBackendForInternalUse(previous));
+  const calls = [];
+  const backend = effectRuntimeBackend(calls);
+  setBackendForInternalUse(backend);
+  const game = new Game();
+  const manager = new GraphicsDeviceManager(game);
+  manager.CreateDevice();
+  const device = manager.GraphicsDevice;
+
+  const effect = new Graphics.BasicEffect(device);
+  const pass = effect.CurrentTechnique.Passes.Get(0);
+  assert.equal("Handle" in effect, false);
+  assert.equal("Handle" in pass, false);
+  pass.Apply();
+  effect.OnApply();
+  assert.ok(calls.some((value) => value[0] === "stockSync"));
+  assert.ok(calls.some((value) => value[0] === "effectPassApply"));
+  assert.ok(calls.some((value) => value[0] === "effectApply"));
+
+  const batch = new Graphics.SpriteBatch(device);
+  batch.Begin(
+    Graphics.SpriteSortMode.Deferred,
+    Graphics.BlendState.AlphaBlend,
+    Graphics.SamplerState.LinearClamp,
+    Graphics.DepthStencilState.None,
+    Graphics.RasterizerState.CullCounterClockwise,
+    effect,
+  );
+  assert.throws(() => effect.Dispose(), { name: "InvalidOperationException" });
+  batch.End();
+  assert.ok(calls.some((value) => value[0] === "spriteEffectBegin"));
+  batch.Dispose();
+
+  backend.failReflection = true;
+  assert.throws(() => new Graphics.Effect(device, [1, 2, 3]), /injected reflection failure/);
+  assert.ok(calls.some((value) => value[0] === "effectCreateCompiled"));
+  const destroyedAfterRollback = calls.filter((value) => value[0] === "effectDestroy").length;
+  assert.equal(destroyedAfterRollback, 1);
+
+  effect.Dispose();
+  assert.throws(() => pass.Apply(), { name: "ObjectDisposedException" });
+  assert.ok(calls.some((value) => value[0] === "effectPassDestroy"));
+  assert.ok(calls.some((value) => value[0] === "effectTechniqueDestroy"));
+  game.Dispose();
+});
+
 test("graphics states expose XNA enum values, defaults, presets, and binding immutability", () => {
   assert.deepEqual(
     [Graphics.Blend.One, Graphics.Blend.Zero, Graphics.Blend.SourceAlphaSaturation],
@@ -787,7 +877,7 @@ test("Model graph preserves parent, collection, part, effect, and transform iden
   enumerator.Dispose();
   assert.throws(
     () => model.Draw(Matrix.Identity, Matrix.Identity, Matrix.Identity),
-    NativeUnavailableError,
+    { name: "InvalidOperationException", message: /without vertex or index data/ },
   );
   assert.deepEqual(secondEffect.World.Translation, new Vector3(2, 3, 4));
 

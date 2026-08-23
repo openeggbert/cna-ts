@@ -6,18 +6,29 @@ import {
   ObjectDisposedException,
 } from "../../../../internal/exceptions.js";
 import { NativeUnavailableError } from "../../../../internal/native-error.js";
-import { NativeResourceLifetime } from "../../../../internal/ownership.js";
+import type {
+  CnaEffectBackend,
+  NativeEffectReflectionSnapshot,
+  NativeEffectTechniqueSnapshot,
+  StockEffectSnapshot,
+} from "../../../../internal/backend.js";
+import { NativeResourceLifetime, type NativeHandle } from "../../../../internal/ownership.js";
 import { Matrix } from "../Matrix.js";
 import { Quaternion } from "../Quaternion.js";
 import { Vector2 } from "../Vector2.js";
 import { Vector3 } from "../Vector3.js";
 import { Vector4 } from "../Vector4.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
-import { graphicsDeviceParentLifetimeForInternalUse } from "./GraphicsDevice.js";
+import {
+  graphicsDeviceBackendForInternalUse,
+  graphicsDeviceParentLifetimeForInternalUse,
+  resolveGraphicsDeviceHandleForInternalUse,
+} from "./GraphicsDevice.js";
 import {
   assertGraphicsResourceActiveForInternalUse,
   attachGraphicsResourceForInternalUse,
   GraphicsResource,
+  guardGraphicsResourceDisposeForInternalUse,
   setGraphicsResourceLifetimeForInternalUse,
 } from "./GraphicsResource.js";
 import { Texture } from "./Texture.js";
@@ -50,7 +61,18 @@ type EffectValue =
   boolean | number | string | Matrix | Quaternion | Vector2 | Vector3 | Vector4 | Texture |
   boolean[] | number[] | Matrix[] | Quaternion[] | Vector2[] | Vector3[] | Vector4[];
 
-type EffectOwner = { Disposed: boolean; readonly Device: GraphicsDevice };
+type NativeEffectState = {
+  readonly Backend: CnaEffectBackend;
+  readonly Lifetime: NativeResourceLifetime;
+  BeforeApply: (() => void) | null;
+  LeaseCount: number;
+};
+
+type EffectOwner = {
+  Disposed: boolean;
+  readonly Device: GraphicsDevice;
+  Native: NativeEffectState | null;
+};
 
 function active(owner: EffectOwner): void {
   if (owner.Disposed || owner.Device.IsDisposed) throw new ObjectDisposedException("Effect");
@@ -287,8 +309,10 @@ type EffectPassDescription = {
 }
 type PassState = {
   readonly Owner: EffectOwner;
+  readonly Effect: Effect | null;
   readonly Name: string;
   readonly Annotations: EffectAnnotationCollection;
+  readonly NativeLifetime: NativeResourceLifetime | null;
 };
 const passStates = new WeakMap<EffectPass, PassState>();
 
@@ -296,7 +320,13 @@ export class EffectPass {
   public get Annotations(): EffectAnnotationCollection { return passState(this).Annotations; }
   public get Name(): string { return passState(this).Name; }
   public Apply(): void {
-    passState(this);
+    const state = passState(this);
+    const native = state.Owner.Native;
+    if (native != null && state.NativeLifetime != null) {
+      native.BeforeApply?.();
+      native.Backend.applyEffectPass(state.NativeLifetime.Handle);
+      return;
+    }
     throw new NativeUnavailableError("EffectPass.Apply requires the compiled CNA effect execution route");
   }
 }
@@ -336,6 +366,7 @@ type TechniqueState = {
   readonly Name: string;
   readonly Annotations: EffectAnnotationCollection;
   readonly Passes: EffectPassCollection;
+  readonly NativeLifetime: NativeResourceLifetime | null;
 };
 const techniqueStates = new WeakMap<EffectTechnique, TechniqueState>();
 
@@ -382,10 +413,11 @@ type EffectState = {
   readonly Parameters: EffectParameterCollection;
   readonly Techniques: EffectTechniqueCollection;
   readonly Description: EffectDescription;
+  readonly Native: NativeEffectState | null;
   CurrentTechnique: EffectTechnique;
 };
 const effectStates = new WeakMap<Effect, EffectState>();
-const managedStockCodes = new WeakSet<number[]>();
+const managedStockCodes = new WeakMap<number[], number>();
 
 export class Effect extends GraphicsResource {
   public constructor(cloneSource: Effect);
@@ -399,26 +431,45 @@ export class Effect extends GraphicsResource {
     if (graphicsDeviceOrClone == null) throw new ArgumentNullException("graphicsDevice");
     if (graphicsDeviceOrClone instanceof Effect) {
       const source = effectState(graphicsDeviceOrClone);
-      initializeEffect(this, source.Device, snapshotEffectDescription(source));
+      if (source.Native != null) {
+        const handle = source.Native.Backend.cloneEffect(source.Native.Lifetime.Handle);
+        initializeReflectedNativeEffect(this, source.Device, source.Native.Backend, handle);
+      } else {
+        initializeEffect(this, source.Device, snapshotEffectDescription(source));
+      }
       return;
     }
     if (adoptedDescription !== undefined) {
       initializeEffect(this, graphicsDeviceOrClone, adoptedDescription);
       return;
     }
-    if (effectCode !== undefined && managedStockCodes.has(effectCode)) {
-      initializeEffect(this, graphicsDeviceOrClone, {
-        Techniques: [{ Name: "Default", Passes: [{ Name: "P0" }] }],
-      });
+    const stockKind = effectCode === undefined ? undefined : managedStockCodes.get(effectCode);
+    if (stockKind !== undefined) {
+      const backend = graphicsDeviceBackendForInternalUse(graphicsDeviceOrClone).Effects;
+      if (backend == null) {
+        initializeEffect(this, graphicsDeviceOrClone, {
+          Techniques: [{ Name: "Default", Passes: [{ Name: "P0" }] }],
+        });
+      } else {
+        const handle = backend.createStockEffect(
+          resolveGraphicsDeviceHandleForInternalUse(graphicsDeviceOrClone), stockKind,
+        );
+        initializeReflectedNativeEffect(this, graphicsDeviceOrClone, backend, handle);
+      }
       return;
     }
     if (effectCode == null) throw new ArgumentNullException("effectCode");
     if (!Array.isArray(effectCode) || !effectCode.every((value) => Number.isInteger(value) && value >= 0 && value <= 255)) {
       throw new ArgumentException("effectCode must contain bytes");
     }
-    throw new NativeUnavailableError(
-      "Compiled Effect construction requires the CNA effect compiler/reflection bridge, which is not imported by this slice",
+    const backend = graphicsDeviceBackendForInternalUse(graphicsDeviceOrClone).Effects;
+    if (backend == null) {
+      throw new NativeUnavailableError("Compiled Effect construction requires the CNA Effect backend");
+    }
+    const handle = backend.createEffectCompiled(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDeviceOrClone), Uint8Array.from(effectCode),
     );
+    initializeReflectedNativeEffect(this, graphicsDeviceOrClone, backend, handle);
   }
 
   public get CurrentTechnique(): EffectTechnique { return effectState(this).CurrentTechnique; }
@@ -428,13 +479,25 @@ export class Effect extends GraphicsResource {
     if (![...state.Techniques].includes(value)) {
       throw new InvalidOperationException("The technique belongs to a different Effect");
     }
+    if (state.Native != null) {
+      const technique = techniqueState(value).NativeLifetime;
+      if (technique == null) throw new InvalidOperationException("The technique has no native identity");
+      state.Native.Backend.setEffectCurrentTechnique(
+        state.Native.Lifetime.Handle, technique.Handle,
+      );
+    }
     state.CurrentTechnique = value;
   }
   public get Parameters(): EffectParameterCollection { return effectState(this).Parameters; }
   public get Techniques(): EffectTechniqueCollection { return effectState(this).Techniques; }
   public Clone(): Effect { return new Effect(this); }
   protected OnApply(): void {
-    effectState(this);
+    const state = effectState(this);
+    if (state.Native != null) {
+      state.Native.BeforeApply?.();
+      state.Native.Backend.applyEffect(state.Native.Lifetime.Handle);
+      return;
+    }
     throw new NativeUnavailableError("Effect execution requires the CNA effect apply route");
   }
 }
@@ -455,10 +518,47 @@ export function createEffectForInternalUse(
   return new (Effect as unknown as InternalEffectConstructor)(graphicsDevice, [], description);
 }
 
-export function createManagedStockEffectCodeForInternalUse(): number[] {
+export function createManagedStockEffectCodeForInternalUse(kind = 0): number[] {
   const code: number[] = [];
-  managedStockCodes.add(code);
+  managedStockCodes.set(code, kind);
   return code;
+}
+
+export function configureStockEffectForInternalUse(
+  effect: Effect,
+  kind: number,
+  snapshot: () => StockEffectSnapshot,
+): void {
+  const state = effectState(effect);
+  const native = state.Native;
+  if (native == null) return;
+  native.BeforeApply = () => native.Backend.syncStockEffect(
+    native.Lifetime.Handle, kind, snapshot(),
+  );
+}
+
+export function prepareEffectForInternalUse(effect: Effect): void {
+  const state = effectState(effect);
+  if (state.Native == null) return;
+  state.Native.BeforeApply?.();
+}
+
+export function resolveEffectHandleForInternalUse(effect: Effect): NativeHandle {
+  const native = effectState(effect).Native;
+  if (native == null) throw new NativeUnavailableError("Effect has no native handle");
+  return native.Lifetime.Handle;
+}
+
+export function leaseEffectForInternalUse(effect: Effect): () => void {
+  const native = effectState(effect).Native;
+  if (native == null) throw new NativeUnavailableError("Effect has no executable native ownership");
+  native.LeaseCount += 1;
+  let activeLease = true;
+  return () => {
+    if (!activeLease) return;
+    activeLease = false;
+    native.LeaseCount -= 1;
+  };
 }
 
 function effectState(effect: Effect): EffectState {
@@ -472,7 +572,7 @@ function effectState(effect: Effect): EffectState {
 function initializeEffect(effect: Effect, device: GraphicsDevice, description: EffectDescription): void {
   if (device == null) throw new ArgumentNullException("graphicsDevice");
   if (description.Techniques.length === 0) throw new ArgumentException("An Effect requires a technique");
-  const owner: EffectOwner = { Device: device, Disposed: false };
+  const owner: EffectOwner = { Device: device, Disposed: false, Native: null };
   const parameters = createParameters(owner, device, description.Parameters ?? []);
   const techniques = description.Techniques.map((item) => createTechnique(owner, item));
   const techniqueCollection = createCollection<EffectTechniqueCollection, EffectTechnique>(
@@ -486,6 +586,7 @@ function initializeEffect(effect: Effect, device: GraphicsDevice, description: E
     Owner: owner,
     Device: device,
     Description: cloneDescription(description),
+    Native: null,
     Parameters: parameters,
     Techniques: techniqueCollection,
     CurrentTechnique: techniques[current],
@@ -505,6 +606,96 @@ function initializeEffect(effect: Effect, device: GraphicsDevice, description: E
     () => lifetime.Dispose(),
     () => lifetime.State === "active",
   );
+}
+
+function initializeReflectedNativeEffect(
+  effect: Effect,
+  device: GraphicsDevice,
+  backend: CnaEffectBackend,
+  handle: NativeHandle,
+): void {
+  let reflection: NativeEffectReflectionSnapshot;
+  try {
+    reflection = backend.getEffectReflection(handle);
+  } catch (error) {
+    try {
+      backend.destroyEffect(handle);
+    } catch (rollbackError) {
+      throw new AggregateError([error, rollbackError], "native Effect reflection rollback failed");
+    }
+    throw error;
+  }
+  const owner: EffectOwner = { Device: device, Disposed: false, Native: null };
+  const lifetime = new NativeResourceLifetime({
+    Handle: handle,
+    Ownership: "owned",
+    Parent: graphicsDeviceParentLifetimeForInternalUse(device),
+    Release: (value) => {
+      try {
+        backend.destroyEffect(value);
+      } finally {
+        owner.Disposed = true;
+      }
+    },
+    Label: "CNA Effect",
+  });
+  const native: NativeEffectState = {
+    Backend: backend, Lifetime: lifetime, BeforeApply: null, LeaseCount: 0,
+  };
+  owner.Native = native;
+  try {
+    if (reflection.Techniques.length === 0) {
+      throw new InvalidOperationException("CNA Effect reflection returned no techniques");
+    }
+    const description: EffectDescription = {
+      CurrentTechnique: reflection.CurrentTechnique,
+      Parameters: [],
+      Techniques: reflection.Techniques.map((technique) => ({
+        Name: technique.Name,
+        Passes: technique.Passes.map((pass) => ({ Name: pass.Name })),
+      })),
+    };
+    const parameters = createParameters(owner, device, []);
+    const techniques = reflection.Techniques.map((item, index) =>
+      createTechnique(owner, description.Techniques[index], effect, backend, lifetime, item));
+    if (
+      !Number.isInteger(reflection.CurrentTechnique) || reflection.CurrentTechnique < 0 ||
+      reflection.CurrentTechnique >= techniques.length
+    ) {
+      throw new InvalidOperationException("CNA Effect reflection returned an invalid current technique");
+    }
+    const techniqueCollection = createCollection<EffectTechniqueCollection, EffectTechnique>(
+      EffectTechniqueCollection, owner, techniques,
+    );
+    const state: EffectState = {
+      Owner: owner,
+      Device: device,
+      Description: description,
+      Native: native,
+      Parameters: parameters,
+      Techniques: techniqueCollection,
+      CurrentTechnique: techniques[reflection.CurrentTechnique],
+    };
+    effectStates.set(effect, state);
+    attachGraphicsResourceForInternalUse(effect, device);
+    setGraphicsResourceLifetimeForInternalUse(
+      effect,
+      () => lifetime.Dispose(),
+      () => lifetime.State === "active",
+    );
+    guardGraphicsResourceDisposeForInternalUse(effect, () => {
+      if (native.LeaseCount !== 0) {
+        throw new InvalidOperationException("Effect cannot be disposed during an active SpriteBatch interval");
+      }
+    });
+  } catch (error) {
+    try {
+      lifetime.Dispose();
+    } catch (rollbackError) {
+      throw new AggregateError([error, rollbackError], "native Effect construction rollback failed");
+    }
+    throw error;
+  }
 }
 
 function createAnnotations(
@@ -544,14 +735,42 @@ function createParameters(
   );
 }
 
-function createTechnique(owner: EffectOwner, description: EffectTechniqueDescription): EffectTechnique {
+function createTechnique(
+  owner: EffectOwner,
+  description: EffectTechniqueDescription,
+  effect: Effect | null = null,
+  backend: CnaEffectBackend | null = null,
+  parent: NativeResourceLifetime | null = null,
+  nativeDescription: NativeEffectTechniqueSnapshot | null = null,
+): EffectTechnique {
   const technique = new EffectTechnique();
-  const passes = description.Passes.map((value) => {
+  const nativeLifetime = nativeDescription == null || backend == null || parent == null
+    ? null
+    : new NativeResourceLifetime({
+      Handle: nativeDescription.Handle,
+      Ownership: "owned",
+      Parent: parent,
+      Release: (handle) => backend.destroyEffectTechnique(handle),
+      Label: "CNA EffectTechnique view",
+    });
+  const passes = description.Passes.map((value, index) => {
     const pass = new EffectPass();
+    const nativePass = nativeDescription?.Passes[index];
+    const passLifetime = nativePass == null || backend == null || parent == null
+      ? null
+      : new NativeResourceLifetime({
+        Handle: nativePass.Handle,
+        Ownership: "owned",
+        Parent: parent,
+        Release: (handle) => backend.destroyEffectPass(handle),
+        Label: "CNA EffectPass view",
+      });
     passStates.set(pass, {
       Owner: owner,
+      Effect: effect,
       Name: value.Name,
       Annotations: createAnnotations(owner, value.Annotations ?? []),
+      NativeLifetime: passLifetime,
     });
     return pass;
   });
@@ -560,6 +779,7 @@ function createTechnique(owner: EffectOwner, description: EffectTechniqueDescrip
     Name: description.Name,
     Annotations: createAnnotations(owner, description.Annotations ?? []),
     Passes: createCollection<EffectPassCollection, EffectPass>(EffectPassCollection, owner, passes),
+    NativeLifetime: nativeLifetime,
   });
   return technique;
 }

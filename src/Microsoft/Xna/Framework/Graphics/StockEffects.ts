@@ -4,11 +4,12 @@ import {
   ArgumentOutOfRangeException,
   ObjectDisposedException,
 } from "../../../../internal/exceptions.js";
-import { NativeUnavailableError } from "../../../../internal/native-error.js";
+import type { StockEffectSnapshot } from "../../../../internal/backend.js";
 import { Matrix } from "../Matrix.js";
 import { Vector3 } from "../Vector3.js";
 import {
   createManagedStockEffectCodeForInternalUse,
+  configureStockEffectForInternalUse,
   Effect,
   type EffectParameter,
 } from "./Effect.js";
@@ -16,6 +17,8 @@ import type { GraphicsDevice } from "./GraphicsDevice.js";
 import { CompareFunction } from "./StateEnums.js";
 import type { Texture2D } from "./Texture2D.js";
 import type { TextureCube } from "./TextureCube.js";
+import { resolveTextureHandleForInternalUse, type Texture } from "./Texture.js";
+import { prepareEffectForInternalUse } from "./Effect.js";
 
 export interface IEffectFog {
   get FogColor(): Vector3;
@@ -146,6 +149,7 @@ type StockState = {
   WeightsPerVertex: number;
   BoneTransforms: Matrix[];
   readonly Lights: readonly [DirectionalLight, DirectionalLight, DirectionalLight];
+  readonly TextureDependencies: Map<Texture, () => void>;
 };
 const stockStates = new WeakMap<Effect, StockState>();
 
@@ -161,6 +165,7 @@ function newStockState(owner: Effect): StockState {
     FresnelFactor: 1, AlphaFunction: CompareFunction.Greater, ReferenceAlpha: 0,
     WeightsPerVertex: 4, BoneTransforms: [Matrix.Identity],
     Lights: [createLight(owner), createLight(owner), createLight(owner)],
+    TextureDependencies: new Map<Texture, () => void>(),
   };
 }
 
@@ -186,7 +191,40 @@ function cloneStockState(owner: Effect, source: StockState): StockState {
 }
 
 function initializeStock(effect: Effect, source?: Effect): void {
-  stockStates.set(effect, source ? cloneStockState(effect, stock(source)) : newStockState(effect));
+  const state = source ? cloneStockState(effect, stock(source)) : newStockState(effect);
+  stockStates.set(effect, state);
+  for (const texture of [state.Texture, state.Texture2, state.EnvironmentMap]) {
+    if (texture != null) registerTextureDependency(effect, texture);
+  }
+  effect.Disposing.Add(() => {
+    for (const [texture, handler] of state.TextureDependencies) texture.Disposing.Remove(handler);
+    state.TextureDependencies.clear();
+  });
+}
+
+function registerTextureDependency(effect: Effect, texture: Texture): void {
+  const state = stock(effect);
+  if (state.TextureDependencies.has(texture)) return;
+  const handler = () => {
+    if (state.Texture === texture) state.Texture = null;
+    if (state.Texture2 === texture) state.Texture2 = null;
+    if (state.EnvironmentMap === texture) state.EnvironmentMap = null;
+    if (!effect.IsDisposed) prepareEffectForInternalUse(effect);
+  };
+  state.TextureDependencies.set(texture, handler);
+  texture.Disposing.Add(handler);
+}
+
+function assignTexture<T extends Texture>(
+  effect: Effect,
+  key: "Texture" | "Texture2" | "EnvironmentMap",
+  value: T | null,
+): void {
+  const state = stock(effect);
+  if (key === "EnvironmentMap") state.EnvironmentMap = value as TextureCube | null;
+  else if (key === "Texture2") state.Texture2 = value as Texture2D | null;
+  else state.Texture = value as Texture2D | null;
+  if (value != null) registerTextureDependency(effect, value);
 }
 
 function stock(effect: Effect): StockState {
@@ -229,16 +267,68 @@ function validateTexture(effect: Effect, value: Texture2D | null): Texture2D | n
   }
   return value;
 }
-function applyUnavailable(): never {
-  throw new NativeUnavailableError("Stock effect execution requires CNA stock-effect and apply routes");
+function matrixSnapshot(value: Matrix): readonly number[] {
+  return [
+    value.M11, value.M12, value.M13, value.M14,
+    value.M21, value.M22, value.M23, value.M24,
+    value.M31, value.M32, value.M33, value.M34,
+    value.M41, value.M42, value.M43, value.M44,
+  ];
+}
+
+function vectorSnapshot(value: Vector3): readonly number[] { return [value.X, value.Y, value.Z]; }
+
+function stockSnapshot(effect: Effect): StockEffectSnapshot {
+  const state = stock(effect);
+  return {
+    World: matrixSnapshot(state.World),
+    View: matrixSnapshot(state.View),
+    Projection: matrixSnapshot(state.Projection),
+    FogColor: vectorSnapshot(state.FogColor),
+    FogEnabled: state.FogEnabled,
+    FogStart: state.FogStart,
+    FogEnd: state.FogEnd,
+    Alpha: state.Alpha,
+    DiffuseColor: vectorSnapshot(state.DiffuseColor),
+    EmissiveColor: vectorSnapshot(state.EmissiveColor),
+    SpecularColor: vectorSnapshot(state.SpecularColor),
+    SpecularPower: state.SpecularPower,
+    AmbientLightColor: vectorSnapshot(state.AmbientLightColor),
+    LightingEnabled: state.LightingEnabled,
+    PreferPerPixelLighting: state.PreferPerPixelLighting,
+    VertexColorEnabled: state.VertexColorEnabled,
+    TextureEnabled: state.TextureEnabled,
+    Texture: state.Texture == null ? 0n : resolveTextureHandleForInternalUse(state.Texture),
+    Texture2: state.Texture2 == null ? 0n : resolveTextureHandleForInternalUse(state.Texture2),
+    EnvironmentMap: state.EnvironmentMap == null
+      ? 0n : resolveTextureHandleForInternalUse(state.EnvironmentMap),
+    EnvironmentMapAmount: state.EnvironmentMapAmount,
+    EnvironmentMapSpecular: vectorSnapshot(state.EnvironmentMapSpecular),
+    FresnelFactor: state.FresnelFactor,
+    AlphaFunction: state.AlphaFunction,
+    ReferenceAlpha: state.ReferenceAlpha,
+    WeightsPerVertex: state.WeightsPerVertex,
+    BoneTransforms: state.BoneTransforms.map(matrixSnapshot),
+    Lights: state.Lights.map((light) => ({
+      Direction: vectorSnapshot(light.Direction),
+      DiffuseColor: vectorSnapshot(light.DiffuseColor),
+      SpecularColor: vectorSnapshot(light.SpecularColor),
+      Enabled: light.Enabled,
+    })),
+  };
 }
 
 function constructStock<T extends Effect>(
   target: T,
   sourceOrDevice: T | GraphicsDevice,
+  kind: number,
 ): void {
   initializeStockBase(target, sourceOrDevice);
   initializeStock(target, sourceOrDevice instanceof Effect ? sourceOrDevice : undefined);
+  if (!(sourceOrDevice instanceof Effect) && (kind === 3 || kind === 4)) {
+    stock(target).LightingEnabled = true;
+  }
+  configureStockEffectForInternalUse(target, kind, () => stockSnapshot(target));
 }
 
 function defaultLighting(effect: Effect): void {
@@ -262,12 +352,12 @@ export class BasicEffect extends Effect implements IEffectFog, IEffectLights, IE
   public constructor(sourceOrDevice: BasicEffect | GraphicsDevice) {
     super(
       sourceOrDevice as GraphicsDevice,
-      sourceOrDevice instanceof Effect ? [] : createManagedStockEffectCodeForInternalUse(),
+      sourceOrDevice instanceof Effect ? [] : createManagedStockEffectCodeForInternalUse(0),
     );
-    constructStock(this, sourceOrDevice);
+    constructStock(this, sourceOrDevice, 0);
   }
   public override Clone(): Effect { return new BasicEffect(this); }
-  protected override OnApply(): void { applyUnavailable(); }
+  protected override OnApply(): void { super.OnApply(); }
   public get Alpha(): number { return stock(this).Alpha; }
   public set Alpha(value: number) { stock(this).Alpha = finite(value, "value"); }
   public get AmbientLightColor(): Vector3 { return copyVector3(stock(this).AmbientLightColor); }
@@ -298,7 +388,9 @@ export class BasicEffect extends Effect implements IEffectFog, IEffectLights, IE
   public get SpecularPower(): number { return stock(this).SpecularPower; }
   public set SpecularPower(value: number) { stock(this).SpecularPower = finite(value, "value"); }
   public get Texture(): Texture2D { return stock(this).Texture as Texture2D; }
-  public set Texture(value: Texture2D) { stock(this).Texture = validateTexture(this, value ?? null); }
+  public set Texture(value: Texture2D) {
+    assignTexture(this, "Texture", validateTexture(this, value ?? null));
+  }
   public get TextureEnabled(): boolean { return stock(this).TextureEnabled; }
   public set TextureEnabled(value: boolean) { stock(this).TextureEnabled = Boolean(value); }
   public get VertexColorEnabled(): boolean { return stock(this).VertexColorEnabled; }
@@ -316,12 +408,12 @@ export class AlphaTestEffect extends Effect implements IEffectFog, IEffectMatric
   public constructor(sourceOrDevice: AlphaTestEffect | GraphicsDevice) {
     super(
       sourceOrDevice as GraphicsDevice,
-      sourceOrDevice instanceof Effect ? [] : createManagedStockEffectCodeForInternalUse(),
+      sourceOrDevice instanceof Effect ? [] : createManagedStockEffectCodeForInternalUse(1),
     );
-    constructStock(this, sourceOrDevice);
+    constructStock(this, sourceOrDevice, 1);
   }
   public override Clone(): Effect { return new AlphaTestEffect(this); }
-  protected override OnApply(): void { applyUnavailable(); }
+  protected override OnApply(): void { super.OnApply(); }
   public get Alpha(): number { return stock(this).Alpha; }
   public set Alpha(value: number) { stock(this).Alpha = finite(value, "value"); }
   public get AlphaFunction(): CompareFunction { return stock(this).AlphaFunction; }
@@ -349,7 +441,9 @@ export class AlphaTestEffect extends Effect implements IEffectFog, IEffectMatric
     stock(this).ReferenceAlpha = value;
   }
   public get Texture(): Texture2D { return stock(this).Texture as Texture2D; }
-  public set Texture(value: Texture2D) { stock(this).Texture = validateTexture(this, value ?? null); }
+  public set Texture(value: Texture2D) {
+    assignTexture(this, "Texture", validateTexture(this, value ?? null));
+  }
   public get VertexColorEnabled(): boolean { return stock(this).VertexColorEnabled; }
   public set VertexColorEnabled(value: boolean) { stock(this).VertexColorEnabled = Boolean(value); }
   public get View(): Matrix { return copyMatrix(stock(this).View); }
@@ -364,12 +458,12 @@ export class DualTextureEffect extends Effect implements IEffectFog, IEffectMatr
   public constructor(sourceOrDevice: DualTextureEffect | GraphicsDevice) {
     super(
       sourceOrDevice as GraphicsDevice,
-      sourceOrDevice instanceof Effect ? [] : createManagedStockEffectCodeForInternalUse(),
+      sourceOrDevice instanceof Effect ? [] : createManagedStockEffectCodeForInternalUse(2),
     );
-    constructStock(this, sourceOrDevice);
+    constructStock(this, sourceOrDevice, 2);
   }
   public override Clone(): Effect { return new DualTextureEffect(this); }
-  protected override OnApply(): void { applyUnavailable(); }
+  protected override OnApply(): void { super.OnApply(); }
   public get Alpha(): number { return stock(this).Alpha; }
   public set Alpha(value: number) { stock(this).Alpha = finite(value, "value"); }
   public get DiffuseColor(): Vector3 { return copyVector3(stock(this).DiffuseColor); }
@@ -385,9 +479,13 @@ export class DualTextureEffect extends Effect implements IEffectFog, IEffectMatr
   public get Projection(): Matrix { return copyMatrix(stock(this).Projection); }
   public set Projection(value: Matrix) { stock(this).Projection = copyMatrix(value); }
   public get Texture(): Texture2D { return stock(this).Texture as Texture2D; }
-  public set Texture(value: Texture2D) { stock(this).Texture = validateTexture(this, value ?? null); }
+  public set Texture(value: Texture2D) {
+    assignTexture(this, "Texture", validateTexture(this, value ?? null));
+  }
   public get Texture2(): Texture2D { return stock(this).Texture2 as Texture2D; }
-  public set Texture2(value: Texture2D) { stock(this).Texture2 = validateTexture(this, value ?? null); }
+  public set Texture2(value: Texture2D) {
+    assignTexture(this, "Texture2", validateTexture(this, value ?? null));
+  }
   public get VertexColorEnabled(): boolean { return stock(this).VertexColorEnabled; }
   public set VertexColorEnabled(value: boolean) { stock(this).VertexColorEnabled = Boolean(value); }
   public get View(): Matrix { return copyMatrix(stock(this).View); }
@@ -402,12 +500,12 @@ export class EnvironmentMapEffect extends Effect implements IEffectFog, IEffectL
   public constructor(sourceOrDevice: EnvironmentMapEffect | GraphicsDevice) {
     super(
       sourceOrDevice as GraphicsDevice,
-      sourceOrDevice instanceof Effect ? [] : createManagedStockEffectCodeForInternalUse(),
+      sourceOrDevice instanceof Effect ? [] : createManagedStockEffectCodeForInternalUse(3),
     );
-    constructStock(this, sourceOrDevice);
+    constructStock(this, sourceOrDevice, 3);
   }
   public override Clone(): Effect { return new EnvironmentMapEffect(this); }
-  protected override OnApply(): void { applyUnavailable(); }
+  protected override OnApply(): void { super.OnApply(); }
   public get Alpha(): number { return stock(this).Alpha; }
   public set Alpha(value: number) { stock(this).Alpha = finite(value, "value"); }
   public get AmbientLightColor(): Vector3 { return copyVector3(stock(this).AmbientLightColor); }
@@ -424,7 +522,7 @@ export class EnvironmentMapEffect extends Effect implements IEffectFog, IEffectL
     if (value != null && value.GraphicsDevice !== this.GraphicsDevice) {
       throw new ArgumentException("The texture belongs to a different GraphicsDevice");
     }
-    stock(this).EnvironmentMap = value ?? null;
+    assignTexture(this, "EnvironmentMap", value ?? null);
   }
   public get EnvironmentMapAmount(): number { return stock(this).EnvironmentMapAmount; }
   public set EnvironmentMapAmount(value: number) { stock(this).EnvironmentMapAmount = finite(value, "value"); }
@@ -447,7 +545,9 @@ export class EnvironmentMapEffect extends Effect implements IEffectFog, IEffectL
   public get Projection(): Matrix { return copyMatrix(stock(this).Projection); }
   public set Projection(value: Matrix) { stock(this).Projection = copyMatrix(value); }
   public get Texture(): Texture2D { return stock(this).Texture as Texture2D; }
-  public set Texture(value: Texture2D) { stock(this).Texture = validateTexture(this, value ?? null); }
+  public set Texture(value: Texture2D) {
+    assignTexture(this, "Texture", validateTexture(this, value ?? null));
+  }
   public get View(): Matrix { return copyMatrix(stock(this).View); }
   public set View(value: Matrix) { stock(this).View = copyMatrix(value); }
   public get World(): Matrix { return copyMatrix(stock(this).World); }
@@ -462,12 +562,12 @@ export class SkinnedEffect extends Effect implements IEffectFog, IEffectLights, 
   public constructor(sourceOrDevice: SkinnedEffect | GraphicsDevice) {
     super(
       sourceOrDevice as GraphicsDevice,
-      sourceOrDevice instanceof Effect ? [] : createManagedStockEffectCodeForInternalUse(),
+      sourceOrDevice instanceof Effect ? [] : createManagedStockEffectCodeForInternalUse(4),
     );
-    constructStock(this, sourceOrDevice);
+    constructStock(this, sourceOrDevice, 4);
   }
   public override Clone(): Effect { return new SkinnedEffect(this); }
-  protected override OnApply(): void { applyUnavailable(); }
+  protected override OnApply(): void { super.OnApply(); }
   public get Alpha(): number { return stock(this).Alpha; }
   public set Alpha(value: number) { stock(this).Alpha = finite(value, "value"); }
   public get AmbientLightColor(): Vector3 { return copyVector3(stock(this).AmbientLightColor); }
@@ -498,7 +598,9 @@ export class SkinnedEffect extends Effect implements IEffectFog, IEffectLights, 
   public get SpecularPower(): number { return stock(this).SpecularPower; }
   public set SpecularPower(value: number) { stock(this).SpecularPower = finite(value, "value"); }
   public get Texture(): Texture2D { return stock(this).Texture as Texture2D; }
-  public set Texture(value: Texture2D) { stock(this).Texture = validateTexture(this, value ?? null); }
+  public set Texture(value: Texture2D) {
+    assignTexture(this, "Texture", validateTexture(this, value ?? null));
+  }
   public get View(): Matrix { return copyMatrix(stock(this).View); }
   public set View(value: Matrix) { stock(this).View = copyMatrix(value); }
   public get WeightsPerVertex(): number { return stock(this).WeightsPerVertex; }

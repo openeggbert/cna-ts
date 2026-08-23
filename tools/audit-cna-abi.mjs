@@ -38,6 +38,22 @@ const REQUIRED_SYMBOL_GROUPS = {
     "cna_sprite_batch_submit_many",
     "cna_sprite_batch_end",
     "cna_sprite_batch_destroy",
+    "cna_sprite_batch_begin_with_effect",
+  ],
+  effects: [
+    "cna_effect_create_empty",
+    "cna_effect_create_compiled",
+    "cna_effect_clone",
+    "cna_effect_apply",
+    "cna_effect_pass_apply",
+    "cna_effect_get_parameters",
+    "cna_effect_get_techniques",
+    "cna_effect_get_current_technique",
+    "cna_basic_effect_create",
+    "cna_alpha_test_effect_create",
+    "cna_dual_texture_effect_create",
+    "cna_environment_map_effect_create",
+    "cna_skinned_effect_create",
   ],
   input: [
     "cna_keyboard_get_state",
@@ -65,6 +81,9 @@ function parseArgs(values) {
     format: "text",
     output: null,
     requireWasm: false,
+    nativeLibrary: process.env.CNA_NATIVE_LIBRARY
+      ? path.resolve(process.env.CNA_NATIVE_LIBRARY)
+      : null,
   };
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
@@ -72,6 +91,7 @@ function parseArgs(values) {
     else if (value === "--format") result.format = values[++index];
     else if (value === "--output") result.output = path.resolve(values[++index]);
     else if (value === "--require-wasm") result.requireWasm = true;
+    else if (value === "--native-library") result.nativeLibrary = path.resolve(values[++index]);
     else throw new Error(`unknown argument: ${value}`);
   }
   if (!result.cnaRoot) {
@@ -169,6 +189,9 @@ function formatText(report) {
     `MISSING_NODE_BRIDGE_SYMBOLS=${report.missingNodeBridgeSymbols.length}`,
     `NODE_BRIDGE_SIGNATURES_VERIFIED=${report.nodeBridgeSignaturesVerified}`,
     `NODE_BRIDGE_SIGNATURE_MISMATCHES=${report.nodeBridgeSignatureMismatches}`,
+    `QUALIFIED_LIBRARY=${report.qualifiedLibrary ?? "NOT_PROVIDED"}`,
+    `QUALIFIED_LIBRARY_EXPORTED_FUNCTIONS=${report.qualifiedLibraryExportedFunctions ?? 0}`,
+    `MISSING_QUALIFIED_LIBRARY_IMPORTS=${report.missingQualifiedLibraryImports.length}`,
     `TRACKED_WASM_ARTIFACTS=${report.trackedWasmArtifacts.length}`,
     `TRACKED_C_API_ESM_LOADERS=${report.trackedCApiEsmLoaders.length}`,
     `EMCC_AVAILABLE=${report.emccAvailable ? 1 : 0}`,
@@ -214,6 +237,23 @@ function main() {
   const missingNodeBridgeSymbols = nodeBridgeImportedSymbols.filter(
     (symbol) => !exportedSymbols.has(symbol),
   );
+  let qualifiedLibraryExports = null;
+  if (args.nativeLibrary) {
+    if (!fs.statSync(args.nativeLibrary, { throwIfNoEntry: false })?.isFile()) {
+      throw new Error(`qualified CNA library not found: ${args.nativeLibrary}`);
+    }
+    const symbols = spawnSync("nm", ["-D", "--defined-only", args.nativeLibrary], { encoding: "utf8" });
+    if (symbols.error) throw symbols.error;
+    if (symbols.status !== 0) {
+      throw new Error(`nm failed for ${args.nativeLibrary}: ${symbols.stderr.trim()}`);
+    }
+    qualifiedLibraryExports = new Set(
+      [...symbols.stdout.matchAll(/\b(cna_[A-Za-z0-9_]+)\b/g)].map((match) => match[1]),
+    );
+  }
+  const missingQualifiedLibraryImports = qualifiedLibraryExports == null
+    ? []
+    : nodeBridgeImportedSymbols.filter((symbol) => !qualifiedLibraryExports.has(symbol));
   const verifiedSignatures = verifyNodeBridgeSignatures(args.cnaRoot, bridgeSource);
   if (verifiedSignatures.length !== nodeBridgeImportedSymbols.length) {
     throw new Error(
@@ -239,6 +279,9 @@ function main() {
     missingNodeBridgeSymbols,
     nodeBridgeSignaturesVerified: verifiedSignatures.length,
     nodeBridgeSignatureMismatches: 0,
+    qualifiedLibrary: args.nativeLibrary,
+    qualifiedLibraryExportedFunctions: qualifiedLibraryExports?.size ?? null,
+    missingQualifiedLibraryImports,
     symbolGroups: REQUIRED_SYMBOL_GROUPS,
     trackedWasmArtifacts,
     trackedCApiEsmLoaders,
@@ -256,7 +299,7 @@ function main() {
   else process.stdout.write(output);
 
   if (
-    missing.length > 0 || missingNodeBridgeSymbols.length > 0 ||
+    missing.length > 0 || missingNodeBridgeSymbols.length > 0 || missingQualifiedLibraryImports.length > 0 ||
     (args.requireWasm && report.browserArtifactStatus === "MISSING")
   ) {
     process.exitCode = 1;

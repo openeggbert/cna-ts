@@ -209,6 +209,25 @@ typedef CNA_Result (*HandleRectangleOutFn)(CNA_Handle, CNA_Rectangle*);
 typedef CNA_Result (*GameWindowEndFn)(CNA_Handle, CNA_StringView, int32_t, int32_t);
 typedef CNA_Result (*GameWindowSubscribeFn)(
   CNA_Handle, CNA_GameWindowEvent, CNA_GameEventCallback, void*, CNA_Handle*);
+typedef CNA_Result (*EffectCreateFn)(CNA_Handle, CNA_EffectHandle*);
+typedef CNA_Result (*EffectCreateCompiledFn)(
+  CNA_Handle, const uint8_t*, uint64_t, CNA_EffectHandle*);
+typedef CNA_Result (*EffectCloneFn)(CNA_EffectHandle, CNA_EffectHandle*);
+typedef CNA_Result (*EffectHandleFn)(CNA_EffectHandle);
+typedef CNA_Result (*EffectGetHandleFn)(CNA_EffectHandle, CNA_Handle*);
+typedef CNA_Result (*EffectSetHandleFn)(CNA_EffectHandle, CNA_Handle);
+typedef CNA_Result (*HandleIndexHandleOutFn)(CNA_Handle, uint64_t, CNA_Handle*);
+typedef CNA_Result (*EffectMatrixFn)(CNA_EffectHandle, CNA_Matrix);
+typedef CNA_Result (*EffectVector3Fn)(CNA_EffectHandle, CNA_Vector3);
+typedef CNA_Result (*EffectFloatFn)(CNA_EffectHandle, float);
+typedef CNA_Result (*EffectBoolFn)(CNA_EffectHandle, CNA_Bool);
+typedef CNA_Result (*EffectU32Fn)(CNA_EffectHandle, uint32_t);
+typedef CNA_Result (*EffectI32Fn)(CNA_EffectHandle, int32_t);
+typedef CNA_Result (*EffectIndexHandleFn)(CNA_EffectHandle, uint32_t, CNA_Handle);
+typedef CNA_Result (*EffectLightOutFn)(CNA_EffectHandle, uint32_t, CNA_DirectionalLightHandle*);
+typedef CNA_Result (*LightVector3Fn)(CNA_DirectionalLightHandle, CNA_Vector3);
+typedef CNA_Result (*LightBoolFn)(CNA_DirectionalLightHandle, CNA_Bool);
+typedef CNA_Result (*EffectMatricesFn)(CNA_EffectHandle, const CNA_Matrix*, uint64_t);
 
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
@@ -312,6 +331,86 @@ typedef struct Api {
   BoolGetFn occlusion_get_complete;
   HandleI32OutFn occlusion_get_pixel_count;
   GameHandleFn occlusion_destroy;
+  EffectCreateFn effect_create_empty;
+  EffectCreateCompiledFn effect_create_compiled;
+  EffectCloneFn effect_clone;
+  EffectHandleFn effect_destroy;
+  EffectHandleFn effect_apply;
+  EffectGetHandleFn effect_get_techniques;
+  EffectGetHandleFn effect_get_current_technique;
+  EffectSetHandleFn effect_set_current_technique;
+  GameHandleFn effect_technique_collection_destroy;
+  HandleU64OutFn effect_technique_collection_get_count;
+  HandleIndexHandleOutFn effect_technique_collection_get_at;
+  GameHandleFn effect_technique_destroy;
+  HandleU64OutFn effect_technique_get_name_size;
+  HandleCopyStringFn effect_technique_copy_name;
+  GameU32OutFn effect_technique_get_index;
+  HandleHandleOutFn effect_technique_get_passes;
+  GameHandleFn effect_pass_collection_destroy;
+  HandleU64OutFn effect_pass_collection_get_count;
+  HandleIndexHandleOutFn effect_pass_collection_get_at;
+  GameHandleFn effect_pass_destroy;
+  HandleU64OutFn effect_pass_get_name_size;
+  HandleCopyStringFn effect_pass_copy_name;
+  GameHandleFn effect_pass_apply;
+  EffectCreateFn basic_effect_create;
+  EffectCreateFn alpha_test_effect_create;
+  EffectCreateFn dual_texture_effect_create;
+  EffectCreateFn environment_map_effect_create;
+  EffectCreateFn skinned_effect_create;
+  EffectMatrixFn effect_set_world;
+  EffectMatrixFn effect_set_view;
+  EffectMatrixFn effect_set_projection;
+  EffectVector3Fn effect_set_fog_color;
+  EffectBoolFn effect_set_fog_enabled;
+  EffectFloatFn effect_set_fog_start;
+  EffectFloatFn effect_set_fog_end;
+  EffectVector3Fn effect_set_ambient_color;
+  EffectBoolFn effect_set_lighting_enabled;
+  EffectLightOutFn effect_get_directional_light;
+  GameHandleFn directional_light_destroy;
+  LightVector3Fn directional_light_set_diffuse_color;
+  LightVector3Fn directional_light_set_direction;
+  LightVector3Fn directional_light_set_specular_color;
+  LightBoolFn directional_light_set_enabled;
+  EffectBoolFn basic_effect_set_vertex_color_enabled;
+  EffectBoolFn basic_effect_set_prefer_per_pixel_lighting;
+  EffectVector3Fn basic_effect_set_diffuse_color;
+  EffectVector3Fn basic_effect_set_emissive_color;
+  EffectVector3Fn basic_effect_set_specular_color;
+  EffectFloatFn basic_effect_set_specular_power;
+  EffectFloatFn basic_effect_set_alpha;
+  EffectBoolFn basic_effect_set_texture_enabled;
+  EffectSetHandleFn basic_effect_set_texture;
+  EffectVector3Fn alpha_test_effect_set_diffuse_color;
+  EffectFloatFn alpha_test_effect_set_alpha;
+  EffectSetHandleFn alpha_test_effect_set_texture;
+  EffectBoolFn alpha_test_effect_set_vertex_color_enabled;
+  EffectU32Fn alpha_test_effect_set_alpha_function;
+  EffectI32Fn alpha_test_effect_set_reference_alpha;
+  EffectVector3Fn dual_texture_effect_set_diffuse_color;
+  EffectFloatFn dual_texture_effect_set_alpha;
+  EffectIndexHandleFn dual_texture_effect_set_texture;
+  EffectBoolFn dual_texture_effect_set_vertex_color_enabled;
+  EffectVector3Fn environment_map_effect_set_diffuse_color;
+  EffectVector3Fn environment_map_effect_set_emissive_color;
+  EffectFloatFn environment_map_effect_set_alpha;
+  EffectSetHandleFn environment_map_effect_set_texture;
+  EffectSetHandleFn environment_map_effect_set_environment_map;
+  EffectFloatFn environment_map_effect_set_amount;
+  EffectVector3Fn environment_map_effect_set_specular;
+  EffectFloatFn environment_map_effect_set_fresnel_factor;
+  EffectVector3Fn skinned_effect_set_diffuse_color;
+  EffectVector3Fn skinned_effect_set_emissive_color;
+  EffectVector3Fn skinned_effect_set_specular_color;
+  EffectFloatFn skinned_effect_set_specular_power;
+  EffectFloatFn skinned_effect_set_alpha;
+  EffectBoolFn skinned_effect_set_prefer_per_pixel_lighting;
+  EffectSetHandleFn skinned_effect_set_texture;
+  EffectI32Fn skinned_effect_set_weights_per_vertex;
+  EffectMatricesFn skinned_effect_set_bone_transforms;
+  EffectBoolFn skinned_effect_set_vertex_color_enabled;
   KeyboardGetStateFn keyboard_get_state;
   MouseGetStateFn mouse_get_state;
   MouseSetPositionFn mouse_set_position;
@@ -855,6 +954,86 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(occlusion_get_complete, BoolGetFn, "cna_occlusion_query_get_is_complete");
   LOAD_REQUIRED(occlusion_get_pixel_count, HandleI32OutFn, "cna_occlusion_query_get_pixel_count");
   LOAD_REQUIRED(occlusion_destroy, GameHandleFn, "cna_occlusion_query_destroy");
+  LOAD_REQUIRED(effect_create_empty, EffectCreateFn, "cna_effect_create_empty");
+  LOAD_REQUIRED(effect_create_compiled, EffectCreateCompiledFn, "cna_effect_create_compiled");
+  LOAD_REQUIRED(effect_clone, EffectCloneFn, "cna_effect_clone");
+  LOAD_REQUIRED(effect_destroy, EffectHandleFn, "cna_effect_destroy");
+  LOAD_REQUIRED(effect_apply, EffectHandleFn, "cna_effect_apply");
+  LOAD_REQUIRED(effect_get_techniques, EffectGetHandleFn, "cna_effect_get_techniques");
+  LOAD_REQUIRED(effect_get_current_technique, EffectGetHandleFn, "cna_effect_get_current_technique");
+  LOAD_REQUIRED(effect_set_current_technique, EffectSetHandleFn, "cna_effect_set_current_technique");
+  LOAD_REQUIRED(effect_technique_collection_destroy, GameHandleFn, "cna_effect_technique_collection_destroy");
+  LOAD_REQUIRED(effect_technique_collection_get_count, HandleU64OutFn, "cna_effect_technique_collection_get_count");
+  LOAD_REQUIRED(effect_technique_collection_get_at, HandleIndexHandleOutFn, "cna_effect_technique_collection_get_at");
+  LOAD_REQUIRED(effect_technique_destroy, GameHandleFn, "cna_effect_technique_destroy");
+  LOAD_REQUIRED(effect_technique_get_name_size, HandleU64OutFn, "cna_effect_technique_get_name_byte_count");
+  LOAD_REQUIRED(effect_technique_copy_name, HandleCopyStringFn, "cna_effect_technique_copy_name");
+  LOAD_REQUIRED(effect_technique_get_index, GameU32OutFn, "cna_effect_technique_get_index_ext");
+  LOAD_REQUIRED(effect_technique_get_passes, HandleHandleOutFn, "cna_effect_technique_get_passes");
+  LOAD_REQUIRED(effect_pass_collection_destroy, GameHandleFn, "cna_effect_pass_collection_destroy");
+  LOAD_REQUIRED(effect_pass_collection_get_count, HandleU64OutFn, "cna_effect_pass_collection_get_count");
+  LOAD_REQUIRED(effect_pass_collection_get_at, HandleIndexHandleOutFn, "cna_effect_pass_collection_get_at");
+  LOAD_REQUIRED(effect_pass_destroy, GameHandleFn, "cna_effect_pass_destroy");
+  LOAD_REQUIRED(effect_pass_get_name_size, HandleU64OutFn, "cna_effect_pass_get_name_byte_count");
+  LOAD_REQUIRED(effect_pass_copy_name, HandleCopyStringFn, "cna_effect_pass_copy_name");
+  LOAD_REQUIRED(effect_pass_apply, GameHandleFn, "cna_effect_pass_apply");
+  LOAD_REQUIRED(basic_effect_create, EffectCreateFn, "cna_basic_effect_create");
+  LOAD_REQUIRED(alpha_test_effect_create, EffectCreateFn, "cna_alpha_test_effect_create");
+  LOAD_REQUIRED(dual_texture_effect_create, EffectCreateFn, "cna_dual_texture_effect_create");
+  LOAD_REQUIRED(environment_map_effect_create, EffectCreateFn, "cna_environment_map_effect_create");
+  LOAD_REQUIRED(skinned_effect_create, EffectCreateFn, "cna_skinned_effect_create");
+  LOAD_REQUIRED(effect_set_world, EffectMatrixFn, "cna_effect_matrices_set_world");
+  LOAD_REQUIRED(effect_set_view, EffectMatrixFn, "cna_effect_matrices_set_view");
+  LOAD_REQUIRED(effect_set_projection, EffectMatrixFn, "cna_effect_matrices_set_projection");
+  LOAD_REQUIRED(effect_set_fog_color, EffectVector3Fn, "cna_effect_fog_set_color");
+  LOAD_REQUIRED(effect_set_fog_enabled, EffectBoolFn, "cna_effect_fog_set_enabled");
+  LOAD_REQUIRED(effect_set_fog_start, EffectFloatFn, "cna_effect_fog_set_start");
+  LOAD_REQUIRED(effect_set_fog_end, EffectFloatFn, "cna_effect_fog_set_end");
+  LOAD_REQUIRED(effect_set_ambient_color, EffectVector3Fn, "cna_effect_lights_set_ambient_color");
+  LOAD_REQUIRED(effect_set_lighting_enabled, EffectBoolFn, "cna_effect_lights_set_enabled");
+  LOAD_REQUIRED(effect_get_directional_light, EffectLightOutFn, "cna_effect_lights_get_directional_light");
+  LOAD_REQUIRED(directional_light_destroy, GameHandleFn, "cna_directional_light_destroy");
+  LOAD_REQUIRED(directional_light_set_diffuse_color, LightVector3Fn, "cna_directional_light_set_diffuse_color");
+  LOAD_REQUIRED(directional_light_set_direction, LightVector3Fn, "cna_directional_light_set_direction");
+  LOAD_REQUIRED(directional_light_set_specular_color, LightVector3Fn, "cna_directional_light_set_specular_color");
+  LOAD_REQUIRED(directional_light_set_enabled, LightBoolFn, "cna_directional_light_set_enabled");
+  LOAD_REQUIRED(basic_effect_set_vertex_color_enabled, EffectBoolFn, "cna_basic_effect_set_vertex_color_enabled");
+  LOAD_REQUIRED(basic_effect_set_prefer_per_pixel_lighting, EffectBoolFn, "cna_basic_effect_set_prefer_per_pixel_lighting");
+  LOAD_REQUIRED(basic_effect_set_diffuse_color, EffectVector3Fn, "cna_basic_effect_set_diffuse_color");
+  LOAD_REQUIRED(basic_effect_set_emissive_color, EffectVector3Fn, "cna_basic_effect_set_emissive_color");
+  LOAD_REQUIRED(basic_effect_set_specular_color, EffectVector3Fn, "cna_basic_effect_set_specular_color");
+  LOAD_REQUIRED(basic_effect_set_specular_power, EffectFloatFn, "cna_basic_effect_set_specular_power");
+  LOAD_REQUIRED(basic_effect_set_alpha, EffectFloatFn, "cna_basic_effect_set_alpha");
+  LOAD_REQUIRED(basic_effect_set_texture_enabled, EffectBoolFn, "cna_basic_effect_set_texture_enabled");
+  LOAD_REQUIRED(basic_effect_set_texture, EffectSetHandleFn, "cna_basic_effect_set_texture");
+  LOAD_REQUIRED(alpha_test_effect_set_diffuse_color, EffectVector3Fn, "cna_alpha_test_effect_set_diffuse_color");
+  LOAD_REQUIRED(alpha_test_effect_set_alpha, EffectFloatFn, "cna_alpha_test_effect_set_alpha");
+  LOAD_REQUIRED(alpha_test_effect_set_texture, EffectSetHandleFn, "cna_alpha_test_effect_set_texture");
+  LOAD_REQUIRED(alpha_test_effect_set_vertex_color_enabled, EffectBoolFn, "cna_alpha_test_effect_set_vertex_color_enabled");
+  LOAD_REQUIRED(alpha_test_effect_set_alpha_function, EffectU32Fn, "cna_alpha_test_effect_set_alpha_function");
+  LOAD_REQUIRED(alpha_test_effect_set_reference_alpha, EffectI32Fn, "cna_alpha_test_effect_set_reference_alpha");
+  LOAD_REQUIRED(dual_texture_effect_set_diffuse_color, EffectVector3Fn, "cna_dual_texture_effect_set_diffuse_color");
+  LOAD_REQUIRED(dual_texture_effect_set_alpha, EffectFloatFn, "cna_dual_texture_effect_set_alpha");
+  LOAD_REQUIRED(dual_texture_effect_set_texture, EffectIndexHandleFn, "cna_dual_texture_effect_set_texture");
+  LOAD_REQUIRED(dual_texture_effect_set_vertex_color_enabled, EffectBoolFn, "cna_dual_texture_effect_set_vertex_color_enabled");
+  LOAD_REQUIRED(environment_map_effect_set_diffuse_color, EffectVector3Fn, "cna_environment_map_effect_set_diffuse_color");
+  LOAD_REQUIRED(environment_map_effect_set_emissive_color, EffectVector3Fn, "cna_environment_map_effect_set_emissive_color");
+  LOAD_REQUIRED(environment_map_effect_set_alpha, EffectFloatFn, "cna_environment_map_effect_set_alpha");
+  LOAD_REQUIRED(environment_map_effect_set_texture, EffectSetHandleFn, "cna_environment_map_effect_set_texture");
+  LOAD_REQUIRED(environment_map_effect_set_environment_map, EffectSetHandleFn, "cna_environment_map_effect_set_environment_map");
+  LOAD_REQUIRED(environment_map_effect_set_amount, EffectFloatFn, "cna_environment_map_effect_set_amount");
+  LOAD_REQUIRED(environment_map_effect_set_specular, EffectVector3Fn, "cna_environment_map_effect_set_specular");
+  LOAD_REQUIRED(environment_map_effect_set_fresnel_factor, EffectFloatFn, "cna_environment_map_effect_set_fresnel_factor");
+  LOAD_REQUIRED(skinned_effect_set_diffuse_color, EffectVector3Fn, "cna_skinned_effect_set_diffuse_color");
+  LOAD_REQUIRED(skinned_effect_set_emissive_color, EffectVector3Fn, "cna_skinned_effect_set_emissive_color");
+  LOAD_REQUIRED(skinned_effect_set_specular_color, EffectVector3Fn, "cna_skinned_effect_set_specular_color");
+  LOAD_REQUIRED(skinned_effect_set_specular_power, EffectFloatFn, "cna_skinned_effect_set_specular_power");
+  LOAD_REQUIRED(skinned_effect_set_alpha, EffectFloatFn, "cna_skinned_effect_set_alpha");
+  LOAD_REQUIRED(skinned_effect_set_prefer_per_pixel_lighting, EffectBoolFn, "cna_skinned_effect_set_prefer_per_pixel_lighting");
+  LOAD_REQUIRED(skinned_effect_set_texture, EffectSetHandleFn, "cna_skinned_effect_set_texture");
+  LOAD_REQUIRED(skinned_effect_set_weights_per_vertex, EffectI32Fn, "cna_skinned_effect_set_weights_per_vertex");
+  LOAD_REQUIRED(skinned_effect_set_bone_transforms, EffectMatricesFn, "cna_skinned_effect_set_bone_transforms");
+  LOAD_REQUIRED(skinned_effect_set_vertex_color_enabled, EffectBoolFn, "cna_skinned_effect_set_vertex_color_enabled");
   LOAD_REQUIRED(title_container_read, TitleContainerReadFn, "cna_title_container_read_ext");
   LOAD_REQUIRED(window_get_allow_resizing, BoolGetFn, "cna_game_window_get_allow_user_resizing");
   LOAD_REQUIRED(window_set_allow_resizing, HandleBoolFn, "cna_game_window_set_allow_user_resizing");
@@ -2267,6 +2446,563 @@ static int read_matrix_array(napi_env env, napi_value value, CNA_Matrix* out, in
   *has_matrix = 1;
   return 1;
 }
+
+static int copy_effect_name(
+  napi_env env,
+  CNA_Handle handle,
+  HandleU64OutFn size_function,
+  HandleCopyStringFn copy_function,
+  const char* operation,
+  napi_value* out
+) {
+  uint64_t length = 0, copied = 0;
+  CNA_Result result = size_function(handle, &length);
+  if (result != CNA_RESULT_SUCCESS) {
+    throw_result(env, operation, result);
+    return 0;
+  }
+  if (length > SIZE_MAX) {
+    throw_message(env, "effect reflection name exceeds host address space");
+    return 0;
+  }
+  char* value = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !value) {
+    throw_message(env, "effect reflection name allocation failed");
+    return 0;
+  }
+  result = copy_function(handle, value, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(value);
+    throw_result(env, operation, result);
+    return 0;
+  }
+  const napi_status status = napi_create_string_utf8(env, value ? value : "", (size_t) length, out);
+  free(value);
+  if (status != napi_ok) {
+    throw_napi(env, operation);
+    return 0;
+  }
+  return 1;
+}
+
+typedef struct EffectReflectionHandle {
+  CNA_Handle handle;
+  CNA_Bool is_pass;
+} EffectReflectionHandle;
+
+static int remember_effect_reflection_handle(
+  EffectReflectionHandle** handles,
+  size_t* count,
+  CNA_Handle handle,
+  CNA_Bool is_pass
+) {
+  if (*count == SIZE_MAX / sizeof(EffectReflectionHandle)) return 0;
+  EffectReflectionHandle* resized = (EffectReflectionHandle*) realloc(
+    *handles, (*count + 1) * sizeof(EffectReflectionHandle));
+  if (!resized) return 0;
+  *handles = resized;
+  resized[*count] = (EffectReflectionHandle){handle, is_pass};
+  *count += 1;
+  return 1;
+}
+
+static void release_effect_reflection_handles(
+  EffectReflectionHandle* handles,
+  size_t count
+) {
+  for (size_t index = count; index > 0; index -= 1) {
+    const EffectReflectionHandle item = handles[index - 1];
+    if (item.handle == CNA_INVALID_HANDLE) continue;
+    if (item.is_pass == CNA_TRUE) (void) g_api.effect_pass_destroy(item.handle);
+    else (void) g_api.effect_technique_destroy(item.handle);
+  }
+  free(handles);
+}
+
+static napi_value create_effect_empty(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  CNA_Handle device = 0, effect = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &device)) return NULL;
+  CNA_Result result = g_api.effect_create_empty(device, &effect);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_effect_create_empty", result);
+  return make_handle(env, effect);
+}
+
+static napi_value create_effect_compiled(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle device = 0, effect = 0;
+  const uint8_t* bytes = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &device) ||
+      !read_byte_view(env, args[1], &bytes, &length)) return NULL;
+  if (length == 0) return throw_message(env, "compiled effect payload must not be empty");
+  CNA_Result result = g_api.effect_create_compiled(device, bytes, length, &effect);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_effect_create_compiled", result);
+  return make_handle(env, effect);
+}
+
+static napi_value clone_effect(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  CNA_Handle source = 0, effect = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &source)) return NULL;
+  CNA_Result result = g_api.effect_clone(source, &effect);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_effect_clone", result);
+  return make_handle(env, effect);
+}
+
+static napi_value create_stock_effect(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle device = 0, effect = 0;
+  uint32_t kind = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &kind) != napi_ok) return NULL;
+  EffectCreateFn creator = NULL;
+  const char* operation = NULL;
+  switch (kind) {
+    case 0: creator = g_api.basic_effect_create; operation = "cna_basic_effect_create"; break;
+    case 1: creator = g_api.alpha_test_effect_create; operation = "cna_alpha_test_effect_create"; break;
+    case 2: creator = g_api.dual_texture_effect_create; operation = "cna_dual_texture_effect_create"; break;
+    case 3: creator = g_api.environment_map_effect_create; operation = "cna_environment_map_effect_create"; break;
+    case 4: creator = g_api.skinned_effect_create; operation = "cna_skinned_effect_create"; break;
+    default: return throw_message(env, "unknown stock effect kind");
+  }
+  CNA_Result result = creator(device, &effect);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return make_handle(env, effect);
+}
+
+static napi_value get_effect_reflection(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  CNA_Handle effect = 0, collection = 0, current = 0;
+  EffectReflectionHandle* owned = NULL;
+  size_t owned_count = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &effect)) return NULL;
+  CNA_Result result = g_api.effect_get_techniques(effect, &collection);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_effect_get_techniques", result);
+  result = g_api.effect_get_current_technique(effect, &current);
+  if (result != CNA_RESULT_SUCCESS) {
+    (void) g_api.effect_technique_collection_destroy(collection);
+    return throw_result(env, "cna_effect_get_current_technique", result);
+  }
+  uint32_t current_index = 0;
+  result = g_api.effect_technique_get_index(current, &current_index);
+  CNA_Result current_destroy_result = g_api.effect_technique_destroy(current);
+  if (result == CNA_RESULT_SUCCESS) result = current_destroy_result;
+  if (result != CNA_RESULT_SUCCESS) {
+    (void) g_api.effect_technique_collection_destroy(collection);
+    return throw_result(env, "CNA current effect technique reflection", result);
+  }
+  uint64_t technique_count = 0;
+  result = g_api.effect_technique_collection_get_count(collection, &technique_count);
+  if (result != CNA_RESULT_SUCCESS || technique_count > UINT32_MAX) {
+    (void) g_api.effect_technique_collection_destroy(collection);
+    if (result != CNA_RESULT_SUCCESS) {
+      return throw_result(env, "cna_effect_technique_collection_get_count", result);
+    }
+    return throw_message(env, "effect technique count exceeds Node array limits");
+  }
+  napi_value output, techniques, current_value;
+  napi_status status = napi_create_object(env, &output);
+  if (status == napi_ok) status = napi_create_array_with_length(env, (size_t) technique_count, &techniques);
+  for (uint64_t technique_index = 0; status == napi_ok && technique_index < technique_count; technique_index += 1) {
+    CNA_Handle technique = 0, passes_collection = 0;
+    result = g_api.effect_technique_collection_get_at(collection, technique_index, &technique);
+    if (result != CNA_RESULT_SUCCESS) break;
+    if (!remember_effect_reflection_handle(&owned, &owned_count, technique, CNA_FALSE)) {
+      (void) g_api.effect_technique_destroy(technique);
+      result = CNA_RESULT_OUT_OF_MEMORY;
+      break;
+    }
+    napi_value technique_object, technique_handle, technique_name, passes;
+    status = napi_create_object(env, &technique_object);
+    if (status == napi_ok) status = napi_create_bigint_uint64(env, technique, &technique_handle);
+    if (status == napi_ok && !copy_effect_name(
+        env, technique, g_api.effect_technique_get_name_size,
+        g_api.effect_technique_copy_name, "CNA effect technique name", &technique_name)) {
+      status = napi_pending_exception;
+    }
+    if (status != napi_ok) break;
+    result = g_api.effect_technique_get_passes(technique, &passes_collection);
+    if (result != CNA_RESULT_SUCCESS) break;
+    uint64_t pass_count = 0;
+    result = g_api.effect_pass_collection_get_count(passes_collection, &pass_count);
+    if (result != CNA_RESULT_SUCCESS || pass_count > UINT32_MAX) {
+      (void) g_api.effect_pass_collection_destroy(passes_collection);
+      if (result == CNA_RESULT_SUCCESS) result = CNA_RESULT_OVERFLOW;
+      break;
+    }
+    status = napi_create_array_with_length(env, (size_t) pass_count, &passes);
+    for (uint64_t pass_index = 0; status == napi_ok && pass_index < pass_count; pass_index += 1) {
+      CNA_Handle pass = 0;
+      result = g_api.effect_pass_collection_get_at(passes_collection, pass_index, &pass);
+      if (result != CNA_RESULT_SUCCESS) break;
+      if (!remember_effect_reflection_handle(&owned, &owned_count, pass, CNA_TRUE)) {
+        (void) g_api.effect_pass_destroy(pass);
+        result = CNA_RESULT_OUT_OF_MEMORY;
+        break;
+      }
+      napi_value pass_object, pass_handle, pass_name;
+      status = napi_create_object(env, &pass_object);
+      if (status == napi_ok) status = napi_create_bigint_uint64(env, pass, &pass_handle);
+      if (status == napi_ok && !copy_effect_name(
+          env, pass, g_api.effect_pass_get_name_size,
+          g_api.effect_pass_copy_name, "CNA effect pass name", &pass_name)) {
+        status = napi_pending_exception;
+      }
+      if (status == napi_ok) status = napi_set_named_property(env, pass_object, "Handle", pass_handle);
+      if (status == napi_ok) status = napi_set_named_property(env, pass_object, "Name", pass_name);
+      if (status == napi_ok) status = napi_set_element(env, passes, (uint32_t) pass_index, pass_object);
+    }
+    const CNA_Result passes_destroy_result = g_api.effect_pass_collection_destroy(passes_collection);
+    if (result == CNA_RESULT_SUCCESS) result = passes_destroy_result;
+    if (result != CNA_RESULT_SUCCESS || status != napi_ok) break;
+    status = napi_set_named_property(env, technique_object, "Handle", technique_handle);
+    if (status == napi_ok) status = napi_set_named_property(env, technique_object, "Name", technique_name);
+    if (status == napi_ok) status = napi_set_named_property(env, technique_object, "Passes", passes);
+    if (status == napi_ok) status = napi_set_element(
+      env, techniques, (uint32_t) technique_index, technique_object);
+  }
+  const CNA_Result collection_destroy_result = g_api.effect_technique_collection_destroy(collection);
+  if (result == CNA_RESULT_SUCCESS) result = collection_destroy_result;
+  if (status == napi_ok) status = napi_create_uint32(env, current_index, &current_value);
+  if (status == napi_ok) status = napi_set_named_property(env, output, "CurrentTechnique", current_value);
+  if (status == napi_ok) status = napi_set_named_property(env, output, "Techniques", techniques);
+  if (result != CNA_RESULT_SUCCESS || status != napi_ok) {
+    release_effect_reflection_handles(owned, owned_count);
+    if (result != CNA_RESULT_SUCCESS) return throw_result(env, "CNA effect reflection", result);
+    return throw_napi(env, "CNA effect reflection object");
+  }
+  free(owned);
+  return output;
+}
+
+static napi_value set_effect_current_technique(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle effect = 0, technique = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &effect) ||
+      !read_handle(env, args[1], &technique)) return NULL;
+  CNA_Result result = g_api.effect_set_current_technique(effect, technique);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_effect_set_current_technique", result);
+  return undefined_result(env, "effect current technique result");
+}
+
+static napi_value call_effect_handle(
+  napi_env env, napi_callback_info info, GameHandleFn function, const char* operation
+) {
+  return call_game_handle(env, info, function, operation);
+}
+
+#define EFFECT_HANDLE_METHOD(name, field, operation) \
+  static napi_value name(napi_env env, napi_callback_info info) { \
+    return call_effect_handle(env, info, g_api.field, operation); \
+  }
+
+EFFECT_HANDLE_METHOD(destroy_effect, effect_destroy, "cna_effect_destroy")
+EFFECT_HANDLE_METHOD(apply_effect, effect_apply, "cna_effect_apply")
+EFFECT_HANDLE_METHOD(destroy_effect_technique, effect_technique_destroy, "cna_effect_technique_destroy")
+EFFECT_HANDLE_METHOD(destroy_effect_pass, effect_pass_destroy, "cna_effect_pass_destroy")
+EFFECT_HANDLE_METHOD(apply_effect_pass, effect_pass_apply, "cna_effect_pass_apply")
+
+static napi_value begin_sprite_batch_with_effect(napi_env env, napi_callback_info info) {
+  napi_value args[8];
+  CNA_Handle batch = 0, effect = 0;
+  uint32_t sort_mode = 0;
+  CNA_BlendState blend;
+  CNA_SamplerState sampler;
+  CNA_DepthStencilState depth;
+  CNA_RasterizerState rasterizer;
+  CNA_Matrix transform;
+  int has_transform = 0;
+  if (!require_loaded(env) || !get_args(env, info, 8, args) ||
+      !read_handle(env, args[0], &batch) ||
+      napi_get_value_uint32(env, args[1], &sort_mode) != napi_ok ||
+      !read_blend_state(env, args[2], &blend) ||
+      !read_sampler_state(env, args[3], &sampler) ||
+      !read_depth_stencil_state(env, args[4], &depth) ||
+      !read_rasterizer_state(env, args[5], &rasterizer) ||
+      !read_handle(env, args[6], &effect) ||
+      !read_matrix_array(env, args[7], &transform, &has_transform)) return NULL;
+  CNA_Result result = g_api.sprite_batch_begin_effect(
+    batch, sort_mode, &blend, &sampler, &depth, &rasterizer,
+    effect, has_transform ? &transform : NULL);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_sprite_batch_begin_with_effect", result);
+  }
+  return undefined_result(env, "effect-bearing SpriteBatch begin result");
+}
+
+static int get_named_matrix(napi_env env, napi_value object, const char* name, CNA_Matrix* out) {
+  napi_value value;
+  int has_matrix = 0;
+  if (!get_named_value(env, object, name, &value) ||
+      !read_matrix_array(env, value, out, &has_matrix)) return 0;
+  if (!has_matrix) {
+    throw_message(env, "stock effect matrix must not be null");
+    return 0;
+  }
+  return 1;
+}
+
+static int read_effect_vector3(napi_env env, napi_value value, CNA_Vector3* out) {
+  bool is_array = false;
+  uint32_t length = 0;
+  if (napi_is_array(env, value, &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, value, &length) != napi_ok || length != 3) {
+    throw_message(env, "stock effect Vector3 must be a three-number array");
+    return 0;
+  }
+  float* fields[] = {&out->x, &out->y, &out->z};
+  for (uint32_t index = 0; index < 3; index += 1) {
+    napi_value item;
+    double number = 0;
+    if (napi_get_element(env, value, index, &item) != napi_ok ||
+        napi_get_value_double(env, item, &number) != napi_ok) {
+      throw_message(env, "stock effect Vector3 contains a non-number");
+      return 0;
+    }
+    *fields[index] = (float) number;
+  }
+  return 1;
+}
+
+static int get_named_effect_vector3(
+  napi_env env, napi_value object, const char* name, CNA_Vector3* out
+) {
+  napi_value value;
+  return get_named_value(env, object, name, &value) && read_effect_vector3(env, value, out);
+}
+
+static int get_named_handle_allow_zero(
+  napi_env env, napi_value object, const char* name, CNA_Handle* out
+) {
+  napi_value value;
+  return get_named_value(env, object, name, &value) && read_handle_allow_zero(env, value, out);
+}
+
+static napi_value stock_effect_call_failed(
+  napi_env env, const char* operation, CNA_Result result
+) {
+  return throw_result(env, operation, result);
+}
+
+#define STOCK_CALL(expression, operation) do { \
+  result = (expression); \
+  if (result != CNA_RESULT_SUCCESS) return stock_effect_call_failed(env, operation, result); \
+} while (0)
+
+static CNA_Result sync_directional_light(
+  napi_env env,
+  CNA_EffectHandle effect,
+  uint32_t index,
+  napi_value snapshot
+) {
+  CNA_Vector3 direction, diffuse, specular;
+  CNA_Bool enabled = CNA_FALSE;
+  if (!get_named_effect_vector3(env, snapshot, "Direction", &direction) ||
+      !get_named_effect_vector3(env, snapshot, "DiffuseColor", &diffuse) ||
+      !get_named_effect_vector3(env, snapshot, "SpecularColor", &specular) ||
+      !get_named_bool(env, snapshot, "Enabled", &enabled)) return CNA_RESULT_CALLBACK;
+  CNA_DirectionalLightHandle light = CNA_INVALID_HANDLE;
+  CNA_Result result = g_api.effect_get_directional_light(effect, index, &light);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.directional_light_set_direction(light, direction);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.directional_light_set_diffuse_color(light, diffuse);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.directional_light_set_specular_color(light, specular);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.directional_light_set_enabled(light, enabled);
+  if (light != CNA_INVALID_HANDLE) {
+    CNA_Result destroy_result = g_api.directional_light_destroy(light);
+    if (result == CNA_RESULT_SUCCESS) result = destroy_result;
+  }
+  return result;
+}
+
+static napi_value sync_stock_effect(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_EffectHandle effect = CNA_INVALID_HANDLE;
+  uint32_t kind = 0;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &effect) ||
+      napi_get_value_uint32(env, args[1], &kind) != napi_ok || kind > 4) return NULL;
+  napi_value snapshot = args[2];
+  CNA_Matrix world, view, projection;
+  CNA_Vector3 fog_color;
+  CNA_Bool fog_enabled = CNA_FALSE;
+  double fog_start = 0, fog_end = 0;
+  if (!get_named_matrix(env, snapshot, "World", &world) ||
+      !get_named_matrix(env, snapshot, "View", &view) ||
+      !get_named_matrix(env, snapshot, "Projection", &projection) ||
+      !get_named_effect_vector3(env, snapshot, "FogColor", &fog_color) ||
+      !get_named_bool(env, snapshot, "FogEnabled", &fog_enabled) ||
+      !get_named_double(env, snapshot, "FogStart", &fog_start) ||
+      !get_named_double(env, snapshot, "FogEnd", &fog_end)) return NULL;
+  CNA_Result result = CNA_RESULT_SUCCESS;
+  STOCK_CALL(g_api.effect_set_world(effect, world), "cna_effect_matrices_set_world");
+  STOCK_CALL(g_api.effect_set_view(effect, view), "cna_effect_matrices_set_view");
+  STOCK_CALL(g_api.effect_set_projection(effect, projection), "cna_effect_matrices_set_projection");
+  STOCK_CALL(g_api.effect_set_fog_color(effect, fog_color), "cna_effect_fog_set_color");
+  STOCK_CALL(g_api.effect_set_fog_enabled(effect, fog_enabled), "cna_effect_fog_set_enabled");
+  STOCK_CALL(g_api.effect_set_fog_start(effect, (float) fog_start), "cna_effect_fog_set_start");
+  STOCK_CALL(g_api.effect_set_fog_end(effect, (float) fog_end), "cna_effect_fog_set_end");
+
+  if (kind == 0 || kind == 3 || kind == 4) {
+    CNA_Vector3 ambient;
+    CNA_Bool lighting_enabled = CNA_FALSE;
+    napi_value lights;
+    bool is_array = false;
+    uint32_t light_count = 0;
+    if (!get_named_effect_vector3(env, snapshot, "AmbientLightColor", &ambient) ||
+        !get_named_bool(env, snapshot, "LightingEnabled", &lighting_enabled) ||
+        !get_named_value(env, snapshot, "Lights", &lights) ||
+        napi_is_array(env, lights, &is_array) != napi_ok || !is_array ||
+        napi_get_array_length(env, lights, &light_count) != napi_ok || light_count != 3) {
+      return throw_message(env, "stock effect requires exactly three directional lights");
+    }
+    STOCK_CALL(g_api.effect_set_ambient_color(effect, ambient), "cna_effect_lights_set_ambient_color");
+    STOCK_CALL(g_api.effect_set_lighting_enabled(effect, lighting_enabled), "cna_effect_lights_set_enabled");
+    for (uint32_t index = 0; index < 3; index += 1) {
+      napi_value light;
+      if (napi_get_element(env, lights, index, &light) != napi_ok) {
+        return throw_napi(env, "stock effect directional-light snapshot");
+      }
+      result = sync_directional_light(env, effect, index, light);
+      if (result != CNA_RESULT_SUCCESS) {
+        if (result == CNA_RESULT_CALLBACK) return NULL;
+        return throw_result(env, "CNA directional-light synchronization", result);
+      }
+    }
+  }
+
+  CNA_Vector3 diffuse, emissive, specular;
+  CNA_Bool vertex_color = CNA_FALSE, prefer_per_pixel = CNA_FALSE, texture_enabled = CNA_FALSE;
+  CNA_Handle texture = CNA_INVALID_HANDLE, texture2 = CNA_INVALID_HANDLE, environment_map = CNA_INVALID_HANDLE;
+  double alpha = 0, specular_power = 0;
+  switch (kind) {
+    case 0:
+      if (!get_named_effect_vector3(env, snapshot, "DiffuseColor", &diffuse) ||
+          !get_named_effect_vector3(env, snapshot, "EmissiveColor", &emissive) ||
+          !get_named_effect_vector3(env, snapshot, "SpecularColor", &specular) ||
+          !get_named_double(env, snapshot, "SpecularPower", &specular_power) ||
+          !get_named_double(env, snapshot, "Alpha", &alpha) ||
+          !get_named_bool(env, snapshot, "VertexColorEnabled", &vertex_color) ||
+          !get_named_bool(env, snapshot, "PreferPerPixelLighting", &prefer_per_pixel) ||
+          !get_named_bool(env, snapshot, "TextureEnabled", &texture_enabled) ||
+          !get_named_handle_allow_zero(env, snapshot, "Texture", &texture)) return NULL;
+      STOCK_CALL(g_api.basic_effect_set_diffuse_color(effect, diffuse), "cna_basic_effect_set_diffuse_color");
+      STOCK_CALL(g_api.basic_effect_set_emissive_color(effect, emissive), "cna_basic_effect_set_emissive_color");
+      STOCK_CALL(g_api.basic_effect_set_specular_color(effect, specular), "cna_basic_effect_set_specular_color");
+      STOCK_CALL(g_api.basic_effect_set_specular_power(effect, (float) specular_power), "cna_basic_effect_set_specular_power");
+      STOCK_CALL(g_api.basic_effect_set_alpha(effect, (float) alpha), "cna_basic_effect_set_alpha");
+      STOCK_CALL(g_api.basic_effect_set_vertex_color_enabled(effect, vertex_color), "cna_basic_effect_set_vertex_color_enabled");
+      STOCK_CALL(g_api.basic_effect_set_prefer_per_pixel_lighting(effect, prefer_per_pixel), "cna_basic_effect_set_prefer_per_pixel_lighting");
+      STOCK_CALL(g_api.basic_effect_set_texture_enabled(effect, texture_enabled), "cna_basic_effect_set_texture_enabled");
+      STOCK_CALL(g_api.basic_effect_set_texture(effect, texture), "cna_basic_effect_set_texture");
+      break;
+    case 1: {
+      uint32_t alpha_function = 0;
+      int32_t reference_alpha = 0;
+      if (!get_named_effect_vector3(env, snapshot, "DiffuseColor", &diffuse) ||
+          !get_named_double(env, snapshot, "Alpha", &alpha) ||
+          !get_named_handle_allow_zero(env, snapshot, "Texture", &texture) ||
+          !get_named_bool(env, snapshot, "VertexColorEnabled", &vertex_color) ||
+          !get_named_u32(env, snapshot, "AlphaFunction", &alpha_function) ||
+          !get_named_i32(env, snapshot, "ReferenceAlpha", &reference_alpha)) return NULL;
+      STOCK_CALL(g_api.alpha_test_effect_set_diffuse_color(effect, diffuse), "cna_alpha_test_effect_set_diffuse_color");
+      STOCK_CALL(g_api.alpha_test_effect_set_alpha(effect, (float) alpha), "cna_alpha_test_effect_set_alpha");
+      STOCK_CALL(g_api.alpha_test_effect_set_texture(effect, texture), "cna_alpha_test_effect_set_texture");
+      STOCK_CALL(g_api.alpha_test_effect_set_vertex_color_enabled(effect, vertex_color), "cna_alpha_test_effect_set_vertex_color_enabled");
+      STOCK_CALL(g_api.alpha_test_effect_set_alpha_function(effect, alpha_function), "cna_alpha_test_effect_set_alpha_function");
+      STOCK_CALL(g_api.alpha_test_effect_set_reference_alpha(effect, reference_alpha), "cna_alpha_test_effect_set_reference_alpha");
+      break;
+    }
+    case 2:
+      if (!get_named_effect_vector3(env, snapshot, "DiffuseColor", &diffuse) ||
+          !get_named_double(env, snapshot, "Alpha", &alpha) ||
+          !get_named_handle_allow_zero(env, snapshot, "Texture", &texture) ||
+          !get_named_handle_allow_zero(env, snapshot, "Texture2", &texture2) ||
+          !get_named_bool(env, snapshot, "VertexColorEnabled", &vertex_color)) return NULL;
+      STOCK_CALL(g_api.dual_texture_effect_set_diffuse_color(effect, diffuse), "cna_dual_texture_effect_set_diffuse_color");
+      STOCK_CALL(g_api.dual_texture_effect_set_alpha(effect, (float) alpha), "cna_dual_texture_effect_set_alpha");
+      STOCK_CALL(g_api.dual_texture_effect_set_texture(effect, 0, texture), "cna_dual_texture_effect_set_texture[0]");
+      STOCK_CALL(g_api.dual_texture_effect_set_texture(effect, 1, texture2), "cna_dual_texture_effect_set_texture[1]");
+      STOCK_CALL(g_api.dual_texture_effect_set_vertex_color_enabled(effect, vertex_color), "cna_dual_texture_effect_set_vertex_color_enabled");
+      break;
+    case 3: {
+      CNA_Vector3 environment_specular;
+      double amount = 0, fresnel = 0;
+      if (!get_named_effect_vector3(env, snapshot, "DiffuseColor", &diffuse) ||
+          !get_named_effect_vector3(env, snapshot, "EmissiveColor", &emissive) ||
+          !get_named_double(env, snapshot, "Alpha", &alpha) ||
+          !get_named_handle_allow_zero(env, snapshot, "Texture", &texture) ||
+          !get_named_handle_allow_zero(env, snapshot, "EnvironmentMap", &environment_map) ||
+          !get_named_double(env, snapshot, "EnvironmentMapAmount", &amount) ||
+          !get_named_effect_vector3(env, snapshot, "EnvironmentMapSpecular", &environment_specular) ||
+          !get_named_double(env, snapshot, "FresnelFactor", &fresnel)) return NULL;
+      STOCK_CALL(g_api.environment_map_effect_set_diffuse_color(effect, diffuse), "cna_environment_map_effect_set_diffuse_color");
+      STOCK_CALL(g_api.environment_map_effect_set_emissive_color(effect, emissive), "cna_environment_map_effect_set_emissive_color");
+      STOCK_CALL(g_api.environment_map_effect_set_alpha(effect, (float) alpha), "cna_environment_map_effect_set_alpha");
+      STOCK_CALL(g_api.environment_map_effect_set_texture(effect, texture), "cna_environment_map_effect_set_texture");
+      STOCK_CALL(g_api.environment_map_effect_set_environment_map(effect, environment_map), "cna_environment_map_effect_set_environment_map");
+      STOCK_CALL(g_api.environment_map_effect_set_amount(effect, (float) amount), "cna_environment_map_effect_set_amount");
+      STOCK_CALL(g_api.environment_map_effect_set_specular(effect, environment_specular), "cna_environment_map_effect_set_specular");
+      STOCK_CALL(g_api.environment_map_effect_set_fresnel_factor(effect, (float) fresnel), "cna_environment_map_effect_set_fresnel_factor");
+      break;
+    }
+    case 4: {
+      int32_t weights = 0;
+      napi_value bones;
+      bool is_array = false;
+      uint32_t bone_count = 0;
+      if (!get_named_effect_vector3(env, snapshot, "DiffuseColor", &diffuse) ||
+          !get_named_effect_vector3(env, snapshot, "EmissiveColor", &emissive) ||
+          !get_named_effect_vector3(env, snapshot, "SpecularColor", &specular) ||
+          !get_named_double(env, snapshot, "SpecularPower", &specular_power) ||
+          !get_named_double(env, snapshot, "Alpha", &alpha) ||
+          !get_named_bool(env, snapshot, "PreferPerPixelLighting", &prefer_per_pixel) ||
+          !get_named_handle_allow_zero(env, snapshot, "Texture", &texture) ||
+          !get_named_i32(env, snapshot, "WeightsPerVertex", &weights) ||
+          !get_named_bool(env, snapshot, "VertexColorEnabled", &vertex_color) ||
+          !get_named_value(env, snapshot, "BoneTransforms", &bones) ||
+          napi_is_array(env, bones, &is_array) != napi_ok || !is_array ||
+          napi_get_array_length(env, bones, &bone_count) != napi_ok || bone_count < 1 || bone_count > 72) {
+        return throw_message(env, "SkinnedEffect requires one through 72 bone transforms");
+      }
+      STOCK_CALL(g_api.skinned_effect_set_diffuse_color(effect, diffuse), "cna_skinned_effect_set_diffuse_color");
+      STOCK_CALL(g_api.skinned_effect_set_emissive_color(effect, emissive), "cna_skinned_effect_set_emissive_color");
+      STOCK_CALL(g_api.skinned_effect_set_specular_color(effect, specular), "cna_skinned_effect_set_specular_color");
+      STOCK_CALL(g_api.skinned_effect_set_specular_power(effect, (float) specular_power), "cna_skinned_effect_set_specular_power");
+      STOCK_CALL(g_api.skinned_effect_set_alpha(effect, (float) alpha), "cna_skinned_effect_set_alpha");
+      STOCK_CALL(g_api.skinned_effect_set_prefer_per_pixel_lighting(effect, prefer_per_pixel), "cna_skinned_effect_set_prefer_per_pixel_lighting");
+      STOCK_CALL(g_api.skinned_effect_set_texture(effect, texture), "cna_skinned_effect_set_texture");
+      STOCK_CALL(g_api.skinned_effect_set_weights_per_vertex(effect, weights), "cna_skinned_effect_set_weights_per_vertex");
+      CNA_Matrix* transforms = (CNA_Matrix*) calloc(bone_count, sizeof(CNA_Matrix));
+      if (!transforms) return throw_message(env, "SkinnedEffect bone allocation failed");
+      for (uint32_t index = 0; index < bone_count; index += 1) {
+        napi_value item;
+        int has_matrix = 0;
+        if (napi_get_element(env, bones, index, &item) != napi_ok ||
+            !read_matrix_array(env, item, &transforms[index], &has_matrix) || !has_matrix) {
+          free(transforms);
+          return NULL;
+        }
+      }
+      result = g_api.skinned_effect_set_bone_transforms(effect, transforms, bone_count);
+      free(transforms);
+      if (result != CNA_RESULT_SUCCESS) {
+        return stock_effect_call_failed(env, "cna_skinned_effect_set_bone_transforms", result);
+      }
+      STOCK_CALL(g_api.skinned_effect_set_vertex_color_enabled(effect, vertex_color), "cna_skinned_effect_set_vertex_color_enabled");
+      break;
+    }
+  }
+  return undefined_result(env, "stock effect synchronization result");
+}
+
+#undef STOCK_CALL
 
 static napi_value begin_sprite_batch_with_states(napi_env env, napi_callback_info info) {
   napi_value args[7];
@@ -5266,6 +6002,19 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getOcclusionQueryIsComplete", NULL, get_occlusion_query_is_complete, NULL, NULL, NULL, napi_default, NULL },
     { "getOcclusionQueryPixelCount", NULL, get_occlusion_query_pixel_count, NULL, NULL, NULL, napi_default, NULL },
     { "destroyOcclusionQuery", NULL, destroy_occlusion_query, NULL, NULL, NULL, napi_default, NULL },
+    { "createEffectEmpty", NULL, create_effect_empty, NULL, NULL, NULL, napi_default, NULL },
+    { "createEffectCompiled", NULL, create_effect_compiled, NULL, NULL, NULL, napi_default, NULL },
+    { "cloneEffect", NULL, clone_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "createStockEffect", NULL, create_stock_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectReflection", NULL, get_effect_reflection, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectCurrentTechnique", NULL, set_effect_current_technique, NULL, NULL, NULL, napi_default, NULL },
+    { "applyEffect", NULL, apply_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "applyEffectPass", NULL, apply_effect_pass, NULL, NULL, NULL, napi_default, NULL },
+    { "syncStockEffect", NULL, sync_stock_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyEffectTechnique", NULL, destroy_effect_technique, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyEffectPass", NULL, destroy_effect_pass, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyEffect", NULL, destroy_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "beginSpriteBatchWithEffect", NULL, begin_sprite_batch_with_effect, NULL, NULL, NULL, napi_default, NULL },
     { "openTitleStream", NULL, open_title_stream, NULL, NULL, NULL, napi_default, NULL },
     { "getGameWindowAllowUserResizing", NULL, get_window_allow_resizing, NULL, NULL, NULL, napi_default, NULL },
     { "setGameWindowAllowUserResizing", NULL, set_window_allow_resizing, NULL, NULL, NULL, napi_default, NULL },

@@ -4,7 +4,6 @@ import {
   ArgumentOutOfRangeException,
   InvalidOperationException,
 } from "../../../../internal/exceptions.js";
-import { NativeUnavailableError } from "../../../../internal/native-error.js";
 import { BoundingSphere } from "../BoundingSphere.js";
 import type { TryResult } from "../Contracts.js";
 import { Matrix } from "../Matrix.js";
@@ -13,6 +12,7 @@ import type { Effect } from "./Effect.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
 import type { IndexBuffer } from "./IndexBuffer.js";
 import type { VertexBuffer } from "./VertexBuffer.js";
+import { PrimitiveType } from "./VertexEnums.js";
 import {
   createEnumerator as createBoneEnumerator,
   Enumerator as BoneEnumerator,
@@ -257,11 +257,27 @@ export class ModelMesh {
       if (effect == null) {
         throw new InvalidOperationException(`Model mesh '${state.Name}' contains a part with no effect`);
       }
+      const vertexBuffer = part.VertexBuffer;
+      const indexBuffer = part.IndexBuffer;
+      if (vertexBuffer == null || indexBuffer == null) {
+        throw new InvalidOperationException(
+          `Model mesh '${state.Name}' contains a part without vertex or index data`,
+        );
+      }
+      state.Device.SetVertexBuffer(vertexBuffer, part.VertexOffset);
+      state.Device.Indices = indexBuffer;
       const passes = effect.CurrentTechnique.Passes;
-      for (let index = 0; index < passes.Count; index += 1) passes.Get(index).Apply();
-      throw new NativeUnavailableError(
-        "ModelMesh.Draw requires CNA vertex/index binding and indexed-draw routes",
-      );
+      for (let index = 0; index < passes.Count; index += 1) {
+        passes.Get(index).Apply();
+        state.Device.DrawIndexedPrimitives(
+          PrimitiveType.TriangleList,
+          0,
+          0,
+          part.NumVertices,
+          part.StartIndex,
+          part.PrimitiveCount,
+        );
+      }
     }
   }
 }

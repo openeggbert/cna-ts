@@ -126,7 +126,9 @@ export class ContentManager implements IDisposable {
   public Unload(): void {
     this.#ensureUsable();
     try {
-      for (const asset of this.#disposableAssets) asset.Dispose();
+      // XNB objects are recorded in dependency-first construction order. Release in reverse so
+      // effects and other owners drop retained native dependencies before textures/buffers.
+      for (const asset of [...this.#disposableAssets].reverse()) asset.Dispose();
     } finally {
       this.#loadedAssets.clear();
       this.#disposableAssets.length = 0;

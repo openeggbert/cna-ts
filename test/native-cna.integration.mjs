@@ -20,6 +20,7 @@ import {
   Rectangle,
   Storage,
   TitleContainer,
+  Matrix,
   Vector2,
   Vector3,
 } from "../dist/index.js";
@@ -177,6 +178,48 @@ class NativeProbeGame extends Game {
     this.loadedModelVertexBuffer = loadedPart.VertexBuffer;
     this.loadedModelIndexBuffer = loadedPart.IndexBuffer;
     this.loadedModelEffect = loadedPart.Effect;
+    this.stockEffects = [
+      new Graphics.BasicEffect(this.GraphicsDevice),
+      new Graphics.AlphaTestEffect(this.GraphicsDevice),
+      new Graphics.DualTextureEffect(this.GraphicsDevice),
+      new Graphics.EnvironmentMapEffect(this.GraphicsDevice),
+      new Graphics.SkinnedEffect(this.GraphicsDevice),
+    ];
+    for (const effect of this.stockEffects) {
+      assert.ok(effect.Techniques.Count > 0);
+      assert.ok(effect.CurrentTechnique.Passes.Count > 0);
+      effect.CurrentTechnique.Passes.Get(0).Apply();
+      effect.OnApply();
+    }
+    this.graphicsRouteEvidence["stock effect construction"] = "SUCCESS";
+    this.graphicsRouteEvidence["stock effect execution"] = "SUCCESS";
+    const clonedStock = this.stockEffects[0].Clone();
+    clonedStock.CurrentTechnique.Passes.Get(0).Apply();
+    clonedStock.Dispose();
+    const disposedEffect = new Graphics.BasicEffect(this.GraphicsDevice);
+    const disposedPass = disposedEffect.CurrentTechnique.Passes.Get(0);
+    disposedEffect.Dispose();
+    assert.throws(() => disposedPass.Apply(), { name: "ObjectDisposedException" });
+    const retainedTexture = new Graphics.Texture2D(this.GraphicsDevice, 1, 1);
+    const retainingEffect = new Graphics.BasicEffect(this.GraphicsDevice);
+    retainingEffect.Texture = retainedTexture;
+    retainingEffect.TextureEnabled = true;
+    retainingEffect.CurrentTechnique.Passes.Get(0).Apply();
+    retainedTexture.Dispose();
+    assert.equal(retainedTexture.IsDisposed, true);
+    retainingEffect.Dispose();
+
+    const cnaSource = path.resolve(process.env.CNA_SOURCE_PATH ?? "../../cna");
+    const compiledBytes = fs.readFileSync(path.join(
+      cnaSource, "modules/renderers/fna3d/effects/CnaConformanceEffect.fxb",
+    ));
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      assert.throws(
+        () => new Graphics.Effect(this.GraphicsDevice, [...compiledBytes]),
+        (error) => error.operation === "cna_effect_create_compiled" && error.cnaResult === 6,
+      );
+    }
+    this.graphicsRouteEvidence["compiled Effect route"] = "HEADLESS_NOT_SUPPORTED";
     const declaration = new Graphics.VertexDeclaration(12, [
       new Graphics.VertexElement(
         0,
@@ -357,6 +400,8 @@ class NativeProbeGame extends Game {
     this.GraphicsDevice.Clear(Color.CornflowerBlue);
     assert.equal(this.texture.GraphicsDevice, this.GraphicsDevice);
     if (this.draws === 0) {
+      this.qualifyHeadlessRoute("Model.Draw", () =>
+        this.model.Draw(Matrix.Identity, Matrix.Identity, Matrix.Identity), [6, 12]);
       if (this.dynamicVertexBuffer && this.dynamicIndexBuffer) {
         this.qualifyHeadlessRoute("vertex buffer binding", () => {
           this.GraphicsDevice.SetVertexBuffer(this.dynamicVertexBuffer);
@@ -415,8 +460,13 @@ class NativeProbeGame extends Game {
         this.samplerState,
         this.depthState,
         this.rasterizerState,
+        this.loadedModelEffect,
       );
-      this.graphicsRouteEvidence["advanced SpriteBatch.Begin"] = "SUCCESS";
+      assert.throws(
+        () => this.loadedModelEffect.Dispose(),
+        { name: "InvalidOperationException", message: /active SpriteBatch interval/ },
+      );
+      this.graphicsRouteEvidence["effect SpriteBatch.Begin"] = "SUCCESS";
     } else {
       this.spriteBatch.Begin();
     }
@@ -437,6 +487,8 @@ class NativeProbeGame extends Game {
     this.spriteBatch?.Dispose();
     this.spriteBatch?.Dispose();
     this.spriteBatch = null;
+    for (const effect of this.stockEffects ?? []) effect.Dispose();
+    this.stockEffects = null;
     this.fontContent?.Dispose();
     assert.equal(this.externalTexture?.IsDisposed, true);
     this.fontContent = null;
@@ -486,7 +538,7 @@ test("loads an exact real CNA ABI and only the audited symbols", () => {
   assert.equal(status.Backend, "node-native");
   assert.equal(status.IsAvailable, true);
   assert.equal(status.AbiVersion, "0.7.0");
-  assert.equal(status.ImportedSymbolCount, 280);
+  assert.equal(status.ImportedSymbolCount, 360);
 });
 
 class NativeAudioProbeGame extends Game {
@@ -688,7 +740,11 @@ for (const frameCount of [60, 600]) {
     assert.equal(game.updates, frameCount);
     assert.equal(game.draws, frameCount);
     assert.equal(game.inputPolls, 1);
-    assert.equal(game.graphicsRouteEvidence["advanced SpriteBatch.Begin"], "SUCCESS");
+    assert.equal(game.graphicsRouteEvidence["effect SpriteBatch.Begin"], "SUCCESS");
+    assert.equal(game.graphicsRouteEvidence["stock effect construction"], "SUCCESS");
+    assert.equal(game.graphicsRouteEvidence["stock effect execution"], "SUCCESS");
+    assert.equal(game.graphicsRouteEvidence["compiled Effect route"], "HEADLESS_NOT_SUPPORTED");
+    assert.equal(game.graphicsRouteEvidence["Model.Draw"], "SUCCESS");
     assert.equal(game.graphicsRouteEvidence["RenderTarget2D creation"], "SUCCESS");
     assert.equal(game.graphicsRouteEvidence["RenderTargetCube creation"], "SUCCESS");
     assert.equal(game.graphicsRouteEvidence["cube render target binding"], "SUCCESS");

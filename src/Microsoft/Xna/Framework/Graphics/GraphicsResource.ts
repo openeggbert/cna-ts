@@ -14,6 +14,7 @@ interface ResourceState {
   Tag: unknown;
   OnDisposed: ((name: string, tag: unknown) => void) | null;
   Release: (() => void) | null;
+  BeforeDispose: (() => void) | null;
   ActiveCheck: (() => boolean) | null;
 }
 
@@ -29,6 +30,7 @@ function stateOf(resource: GraphicsResource): ResourceState {
       Tag: null,
       OnDisposed: null,
       Release: null,
+      BeforeDispose: null,
       ActiveCheck: null,
     };
     states.set(resource, state);
@@ -66,6 +68,7 @@ export class GraphicsResource implements IDisposable {
       state.Disposed = true;
       return;
     }
+    state.BeforeDispose?.();
     this.#disposing.Dispatch(this, EventArgs.Empty);
     state.Release?.();
     state.Disposed = true;
@@ -128,4 +131,11 @@ export function guardGraphicsResourceReleaseForInternalUse(
     guard();
     release?.();
   };
+}
+
+export function guardGraphicsResourceDisposeForInternalUse(
+  resource: GraphicsResource,
+  guard: () => void,
+): void {
+  stateOf(resource).BeforeDispose = guard;
 }

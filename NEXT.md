@@ -1310,3 +1310,137 @@ Final verification passed `npm ci`, `npm run check`, `npm test`, `npm run test:d
 `npm run runtime:inventory`, `npm run audit:cna-abi`, `npm run verify:package`,
 `npm run verify:build-reproducibility`, `npm run verify:package-reproducibility`, the exact native
 integration suite, both generated packed consumers, and the template 60/600-frame canaries.
+
+## 2026-08-23: ABI-0.7 Effect reconciliation
+
+This narrow post-completion audit independently reconciled CNA-TS with canonical CNA ABI 0.7 and
+the qualified artifact already used by the binding qualification work. It did not add a selected
+XNA declaration or change CNA, another binding, or the 2D-only template source.
+
+### Strict API
+
+```text
+TARGET_TYPES=271
+TOTAL_DIFFERENCES=0
+MISSING_TYPE=0
+MISSING_MEMBER=0
+UNEXPECTED_TYPE=0
+UNEXPECTED_MEMBER=0
+ALLOWLIST_SIZE=0
+INTERNAL_LEAK=0
+RUNTIME_DIFFERENCES=0
+STRICT_XNA_WINDOWS_RUNTIME_PROJECTION_ZERO=true
+```
+
+### Effect, Model and SpriteBatch result
+
+The previous `EffectPass.Apply = UPSTREAM_CNA_BLOCKED` result was stale. Canonical `effects.h`
+declares `cna_effect_pass_apply(CNA_EffectPassHandle pass)`, and the exact qualified library exports
+it. The old TypeScript facade was synthetic and had no corresponding native pass identity, so the
+missing ownership projection was temporarily a CNA-TS gap. It is now implemented: native Effects
+own hidden technique/pass views, passes retain but never destroy their parent Effect, parent
+disposal invalidates the graph, and apply-after-disposal is deterministic.
+
+```text
+cna_effect_apply=VERIFIED_NATIVE
+cna_effect_pass_apply=VERIFIED_NATIVE
+cna_effect_create_compiled route=VERIFIED_NATIVE
+compiled Effect execution on HEADLESS=EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND
+BasicEffect construction/apply=VERIFIED_NATIVE
+AlphaTestEffect construction/apply=VERIFIED_NATIVE
+DualTextureEffect construction/apply=VERIFIED_NATIVE
+EnvironmentMapEffect construction/apply=VERIFIED_NATIVE
+SkinnedEffect construction/apply=VERIFIED_NATIVE
+Model.Draw=VERIFIED_NATIVE
+SpriteBatch Effect-bearing Begin=VERIFIED_NATIVE
+```
+
+All five distinct stock constructors succeed on HEADLESS and execute through generic Effect/pass
+apply after dependency-complete typed state synchronization. Three exact-byte attempts with CNA's
+legal `CnaConformanceEffect.fxb` reach `cna_effect_create_compiled`, return structured result 6,
+and leave no Effect to dispose. This proves the binding route and failure rollback, not compiled
+shader execution. The qualified Model XNB now executes mesh-part buffer/index binding, BasicEffect
+matrix updates, native pass apply and indexed draw. Effect-bearing SpriteBatch Begin passes a real
+BasicEffect, retains it through End, rejects disposal during that interval, and releases the lease
+on Begin failure.
+
+CNA-Rust was not wrong: it already constructed native Effects and native reflection views. Its
+ownerless empty-pass test proved successful no-op dispatch, while its stock-effect stress used real
+effect-owned passes. CNA-TS had only the synthetic facade and incorrectly described its unwired
+identity bridge as upstream-blocked. Both bindings now agree on route presence and stock execution;
+compiled execution remains unavailable only on the qualified HEADLESS renderer.
+
+### Runtime inventory and ABI
+
+```text
+BEFORE_RUNTIME_CAPABILITY_ENTRIES=69
+BEFORE_VERIFIED_MANAGED=19
+BEFORE_VERIFIED_NATIVE=24
+BEFORE_EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND=4
+BEFORE_UPSTREAM_CNA_BLOCKED=8
+BEFORE_FIXTURE_PENDING=3
+BEFORE_HARDWARE_PENDING=4
+BEFORE_PLATFORM_PENDING=3
+BEFORE_UNIMPLEMENTED_CNA_TS=0
+BEFORE_LANGUAGE_MAPPING_LIMITATION=3
+BEFORE_NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT=1
+
+AFTER_RUNTIME_CAPABILITY_ENTRIES=72
+AFTER_VERIFIED_MANAGED=19
+AFTER_VERIFIED_NATIVE=30
+AFTER_EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND=4
+AFTER_UPSTREAM_CNA_BLOCKED=5
+AFTER_FIXTURE_PENDING=3
+AFTER_HARDWARE_PENDING=4
+AFTER_PLATFORM_PENDING=3
+AFTER_UNIMPLEMENTED_CNA_TS=0
+AFTER_LANGUAGE_MAPPING_LIMITATION=3
+AFTER_NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT=1
+
+IMPORTED_SYMBOLS_BEFORE=280
+IMPORTED_SYMBOLS_AFTER=360
+NEW_DEPENDENCY_COMPLETE_IMPORTS=80
+NODE_BRIDGE_SIGNATURES_VERIFIED=360
+NODE_BRIDGE_SIGNATURE_MISMATCHES=0
+MISSING_NODE_BRIDGE_SYMBOLS=0
+MISSING_QUALIFIED_LIBRARY_IMPORTS=0
+ABI_VERSION=0.7.0
+QUALIFIED_LIBRARY_EXPORTED_FUNCTIONS=2861
+```
+
+The exact artifact remains
+`/tmp/cna-java-native-working-070/modules/c-api/libcna_c_api.so`, source commit
+`a09196a6477f69a7a57c8364f990658d31531a5b`, SHA-256
+`42e099146bf3b470f82fd963a516f8bdd7ff0406da8c37dd53747699117db086`. The compiler-backed audit
+checks all 360 imported pointer types against canonical headers and the artifact-export audit finds
+every imported symbol. ABI 0.8 remains rejected.
+
+### Package and unchanged template
+
+```text
+FILENAME=cna-ts-0.1.0.tgz
+PATH=/tmp/cna-ts-effect-reconciliation/cna-ts-0.1.0.tgz
+SHA256=6f0eb42af5f2d5815366b1593d8ec5622575808acf9d274f0c78a5843bbc2c97
+FILES=690
+BYTES=425551
+DIST_FILES=672
+DIST_BYTES=2092872
+DIST_SHA256=5f531e27b56159d999c403886048f563d066e7c69d1109e1026ffa07346ff203
+DIST_BYTE_IDENTICAL=PASS
+PACKAGE_BYTE_IDENTICAL=PASS
+TAR_PAYLOAD_IDENTICAL=PASS
+FILE_LIST_IDENTICAL=PASS
+PACKED_TYPESCRIPT_CONSUMER=PASS
+PACKED_JAVASCRIPT_CONSUMER=PASS
+GENERATED_TYPESCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_MANAGED_SMOKE=PASS
+LEGACY_OR_SIBLING_REFERENCES=0
+TEMPLATE_CHANGED=NO
+TEMPLATE_NATIVE_60=PASS
+TEMPLATE_NATIVE_600=PASS
+```
+
+Final verification passed the complete requested gate list, the exact ABI-0.7 native integration
+suite at 60/600 frames, both packed generated consumers, both package reproducibility checks, and
+`git diff --check` in CNA-TS and the unchanged sibling template.
