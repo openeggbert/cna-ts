@@ -21,7 +21,7 @@ import {
   GraphicsResource,
   setGraphicsResourceLifetimeForInternalUse,
 } from "./GraphicsResource.js";
-import { BufferUsage, IndexElementSize } from "./VertexEnums.js";
+import { BufferUsage, IndexElementSize, SetDataOptions } from "./VertexEnums.js";
 
 type IndexBufferState = {
   readonly Backend: CnaBackend;
@@ -100,18 +100,150 @@ export class IndexBuffer extends GraphicsResource {
   public GetData<T>(data: T[], startIndex: number, elementCount: number): void;
   public GetData<T>(offsetInBytes: number, data: T[], startIndex: number, elementCount: number): void;
   public GetData<T>(...args: unknown[]): void {
-    void args;
-    stateOf(this);
-    throw new NativeUnavailableError("IndexBuffer.GetData requires a mapped index array representation");
+    getIndexBufferDataForInternalUse(this, args);
   }
   public SetData<T>(data: T[]): void;
   public SetData<T>(data: T[], startIndex: number, elementCount: number): void;
   public SetData<T>(offsetInBytes: number, data: T[], startIndex: number, elementCount: number): void;
   public SetData<T>(...args: unknown[]): void {
-    void args;
-    stateOf(this);
-    throw new NativeUnavailableError("IndexBuffer.SetData requires a mapped index array representation");
+    setIndexBufferDataForInternalUse(this, args);
   }
+}
+
+type IndexTransferRequest = {
+  readonly OffsetInBytes: number | null;
+  readonly Data: number[];
+  readonly StartIndex: number;
+  readonly ElementCount: number;
+  readonly Options: SetDataOptions;
+};
+
+function integer(value: unknown, name: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 0x7fff_ffff) {
+    throw new ArgumentOutOfRangeException(name);
+  }
+  return value;
+}
+
+function parseTransfer(
+  buffer: IndexBuffer,
+  args: readonly unknown[],
+  dynamic: boolean,
+): IndexTransferRequest {
+  const state = stateOf(buffer);
+  let offset: number | null = null;
+  let data: unknown;
+  let start = 0;
+  let count: number;
+  let options = SetDataOptions.None;
+  if (args.length === 1) {
+    [data] = args;
+    count = Array.isArray(data) ? data.length : 0;
+  } else if (args.length === 3) {
+    [data] = args;
+    start = integer(args[1], "startIndex");
+    count = integer(args[2], "elementCount");
+  } else if (dynamic && args.length === 4) {
+    [data] = args;
+    start = integer(args[1], "startIndex");
+    count = integer(args[2], "elementCount");
+    options = integer(args[3], "options") as SetDataOptions;
+  } else if (args.length === 4 || (dynamic && args.length === 5)) {
+    offset = integer(args[0], "offsetInBytes");
+    data = args[1];
+    start = integer(args[2], "startIndex");
+    count = integer(args[3], "elementCount");
+    if (dynamic && args.length === 5) options = integer(args[4], "options") as SetDataOptions;
+  } else {
+    throw new ArgumentException("Unsupported IndexBuffer transfer overload");
+  }
+  if (data == null) throw new ArgumentNullException("data");
+  if (!Array.isArray(data)) throw new ArgumentException("data must be a number array");
+  if (start > data.length || count > data.length - start) {
+    throw new ArgumentException("data is too small for startIndex and elementCount");
+  }
+  const width = state.IndexElementSize === IndexElementSize.SixteenBits ? 2 : 4;
+  if (offset != null && offset % width !== 0) {
+    throw new ArgumentException("offsetInBytes must be aligned to the index element size");
+  }
+  if (offset != null && (offset > state.IndexCount * width || count * width > state.IndexCount * width - offset)) {
+    throw new ArgumentException("the transfer window exceeds the IndexBuffer");
+  }
+  if (options < SetDataOptions.None || options > SetDataOptions.NoOverwrite) {
+    throw new ArgumentOutOfRangeException("options");
+  }
+  if (!dynamic && options !== SetDataOptions.None) throw new ArgumentOutOfRangeException("options");
+  return { OffsetInBytes: offset, Data: data as number[], StartIndex: start, ElementCount: count, Options: options };
+}
+
+function encodeIndices(
+  data: readonly number[], elementSize: IndexElementSize,
+  startIndex: number, elementCount: number,
+): Uint8Array {
+  const width = elementSize === IndexElementSize.SixteenBits ? 2 : 4;
+  const output = new Uint8Array(data.length * width);
+  const view = new DataView(output.buffer);
+  const maximum = width === 2 ? 0xffff : 0xffff_ffff;
+  for (let index = 0; index < elementCount; index += 1) {
+    const source = data[startIndex + index];
+    if (!Number.isInteger(source) || source < 0 || source > maximum) {
+      throw new ArgumentException(`data[${startIndex + index}] is outside the index element range`);
+    }
+    if (width === 2) view.setUint16((startIndex + index) * width, source, true);
+    else view.setUint32((startIndex + index) * width, source, true);
+  }
+  return output;
+}
+
+export function setIndexBufferDataForInternalUse(
+  buffer: IndexBuffer,
+  args: readonly unknown[],
+  dynamic = false,
+): void {
+  const state = stateOf(buffer);
+  const request = parseTransfer(buffer, args, dynamic);
+  const graphics = state.Backend.Graphics;
+  if (!graphics) throw new NativeUnavailableError("IndexBuffer.SetData requires CNA graphics transfer routes");
+  const bytes = encodeIndices(
+    request.Data, state.IndexElementSize, request.StartIndex, request.ElementCount,
+  );
+  graphics.setIndexBufferData(
+    state.Lifetime.Handle, state.IndexElementSize, request.Options, request.OffsetInBytes,
+    request.StartIndex, request.ElementCount, request.Data.length, bytes,
+  );
+}
+
+export function getIndexBufferDataForInternalUse(
+  buffer: IndexBuffer,
+  args: readonly unknown[],
+): void {
+  const state = stateOf(buffer);
+  const request = parseTransfer(buffer, args, false);
+  const bytes = state.Backend.getIndexBufferRaw(
+    state.Lifetime.Handle, state.IndexElementSize, state.IndexCount,
+  );
+  const width = state.IndexElementSize === IndexElementSize.SixteenBits ? 2 : 4;
+  const first = (request.OffsetInBytes ?? 0) / width;
+  if (first + request.ElementCount > state.IndexCount) {
+    throw new ArgumentException("the readback window exceeds the IndexBuffer");
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  for (let index = 0; index < request.ElementCount; index += 1) {
+    request.Data[request.StartIndex + index] = width === 2
+      ? view.getUint16((first + index) * width, true)
+      : view.getUint32((first + index) * width, true);
+  }
+}
+
+export function resolveIndexBufferHandleForInternalUse(buffer: IndexBuffer) {
+  return stateOf(buffer).Lifetime.Handle;
+}
+
+export function getIndexBufferIsContentLostForInternalUse(buffer: IndexBuffer): boolean {
+  const state = stateOf(buffer);
+  const graphics = state.Backend.Graphics;
+  if (!graphics) throw new NativeUnavailableError("DynamicIndexBuffer requires CNA graphics routes");
+  return graphics.getIndexBufferIsContentLost(state.Lifetime.Handle);
 }
 
 export function setIndexBufferRawForInternalUse(buffer: IndexBuffer, bytes: Uint8Array): void {

@@ -1,6 +1,10 @@
-import { ArgumentNullException } from "../../../../internal/exceptions.js";
+import {
+  ArgumentNullException,
+  ArgumentOutOfRangeException,
+} from "../../../../internal/exceptions.js";
 import { Texture } from "./Texture.js";
 import type { RenderTarget2D, RenderTargetCube } from "./RenderTargets.js";
+import { TextureCube } from "./TextureCube.js";
 import { CubeMapFace } from "./TextureEnums.js";
 
 export class RenderTargetBinding {
@@ -11,6 +15,13 @@ export class RenderTargetBinding {
   public constructor(renderTarget: RenderTargetCube, cubeMapFace: CubeMapFace);
   public constructor(renderTarget: RenderTarget2D | RenderTargetCube, cubeMapFace = CubeMapFace.PositiveX) {
     if (renderTarget == null) throw new ArgumentNullException("renderTarget");
+    if (!Number.isInteger(cubeMapFace) || cubeMapFace < CubeMapFace.PositiveX ||
+        cubeMapFace > CubeMapFace.NegativeZ) {
+      throw new ArgumentOutOfRangeException("cubeMapFace");
+    }
+    if (!(renderTarget instanceof TextureCube) && cubeMapFace !== CubeMapFace.PositiveX) {
+      throw new ArgumentOutOfRangeException("cubeMapFace");
+    }
     this.#renderTarget = renderTarget;
     this.#cubeMapFace = cubeMapFace;
   }

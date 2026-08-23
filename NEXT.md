@@ -1092,3 +1092,221 @@ backend, Electron, or mobile dependency was added.
 
 The next milestone remains behavioral/runtime qualification within these measured boundaries, not
 expansion of the selected public XNA surface.
+
+## 2026-08-23: coherent ABI-0.7 graphics runtime milestone
+
+This milestone rebaselined every one of the 12 CNA-TS-owned runtime gaps against the canonical CNA
+C headers, exact ABI generation, qualified library, ownership, thread/callback model, and actual
+XNA representability before implementation. The temporary route matrix was removed after its
+classifications were transferred into the generated runtime inventory and ABI audit. No selected
+public API was added.
+
+### Strict API
+
+```text
+REFERENCE_TYPES=257
+REFERENCE_MEMBERS=2964
+EXPECTED_MAPPED_TYPES=271
+TARGET_TYPES=271
+TOTAL_DIFFERENCES=0
+MISSING_TYPE=0
+MISSING_MEMBER=0
+UNEXPECTED_TYPE=0
+UNEXPECTED_MEMBER=0
+BASE_MISMATCH=0
+INTERFACE_MISMATCH=0
+PROPERTY_MISMATCH=0
+PARAMETER_MISMATCH=0
+RETURN_TYPE_MISMATCH=0
+OVERLOAD_MISMATCH=0
+GENERIC_MISMATCH=0
+ENUM_VALUE_MISMATCH=0
+EVENT_MAPPING_MISMATCH=0
+OPERATOR_MAPPING_MISMATCH=0
+LANGUAGE_MAPPING_MISMATCH=0
+INTERNAL_LEAK=0
+ALLOWLIST_SIZE=0
+RUNTIME_DIFFERENCES=0
+STRICT_XNA_WINDOWS_RUNTIME_PROJECTION_ZERO=true
+```
+
+### Runtime capability rebaseline
+
+```text
+BEFORE_RUNTIME_CAPABILITY_ENTRIES=62
+BEFORE_VERIFIED_MANAGED=18
+BEFORE_VERIFIED_NATIVE=14
+BEFORE_EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND=2
+BEFORE_UPSTREAM_CNA_BLOCKED=5
+BEFORE_FIXTURE_PENDING=3
+BEFORE_HARDWARE_PENDING=4
+BEFORE_PLATFORM_PENDING=3
+BEFORE_UNIMPLEMENTED_CNA_TS=12
+BEFORE_LANGUAGE_MAPPING_LIMITATION=0
+BEFORE_NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT=1
+
+AFTER_RUNTIME_CAPABILITY_ENTRIES=69
+AFTER_VERIFIED_MANAGED=19
+AFTER_VERIFIED_NATIVE=24
+AFTER_EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND=4
+AFTER_UPSTREAM_CNA_BLOCKED=8
+AFTER_FIXTURE_PENDING=3
+AFTER_HARDWARE_PENDING=4
+AFTER_PLATFORM_PENDING=3
+AFTER_UNIMPLEMENTED_CNA_TS=0
+AFTER_LANGUAGE_MAPPING_LIMITATION=3
+AFTER_NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT=1
+```
+
+Implemented rows are GraphicsDevice state/scalar/resource/render-target binding and status;
+bound/indexed/instanced and four-codec user draws; advanced non-effect SpriteBatch state/transform
+Begin; DynamicVertexBuffer/DynamicIndexBuffer creation and transfers; RenderTarget2D/Cube
+construction, metadata, inherited transfers and binding; OcclusionQuery lifecycle; GameWindow
+borrowed identity/state and removable registrations; TitleContainer/default ContentManager title
+storage; and the formally mapped VertexBuffer/IndexBuffer value transfers. Texture3D/Cube now have
+exact managed Color codecs, validation and real ABI dispatch, while the qualified HEADLESS backend
+returns `CNA_RESULT_NOT_SUPPORTED` at creation.
+
+Rows split or reclassified instead of being painted green are:
+
+- direct standalone GraphicsDevice ownership, Effect-bearing SpriteBatch Begin, DynamicBuffer
+  ContentLost events, and RenderTarget ContentLost events: `UPSTREAM_CNA_BLOCKED`;
+- physical GameWindow event stimulus and Texture3D/Cube backend execution:
+  `EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND`;
+- `ContentReader.ReadRawObject<T>()` without a token, arbitrary custom generic vertex objects, and
+  `number[]` erasure of CLR `Int16[]` versus `Int32[]` user-index overload identity:
+  `LANGUAGE_MAPPING_LIMITATION`.
+
+The language mappings are deterministic: explicit content-reader tokens remain supported, four
+built-in XNA vertex structs use exact binary codecs, and public user `number[]` indices select the
+32-bit route. No fake reflection, JSON vertex serialization, value-based index-width guessing, or
+arbitrary host filesystem fallback was introduced.
+
+### Graphics and native qualification
+
+Graphics state facades preserve stable identity after successful native assignment. Validation
+covers null/unbind, slot/range bounds, repeated/same-object assignment, disposed resources,
+wrong-device resources, duplicate targets, rollback on native failure, parent shutdown, and bound
+target disposal. The typed draw families validate their exact XNA-shaped ranges and dispatch real
+CNA calls without clamping. On HEADLESS, all five draw families reach CNA and report result 12
+because no effect has been applied; this is route evidence, not GPU-output evidence.
+
+Dynamic buffer `None`, `Discard`, and `NoOverwrite` transfers are qualified. RenderTarget2D and
+RenderTargetCube creation/metadata, 2D/cube-face binding, and backbuffer restore are qualified.
+OcclusionQuery Begin/End/reuse and real completion/result calls are qualified without fabricating a
+pixel count. Advanced SpriteBatch render-state/transform Begin is qualified; Effect Begin remains
+blocked by executable Effect ownership/pass semantics. Texture3D/Cube exact ABI calls are present,
+but volume storage is backend-unavailable on this artifact.
+
+```text
+IMPORTED_SYMBOLS_BEFORE=219
+IMPORTED_SYMBOLS_AFTER=280
+NEW_DEPENDENCY_COMPLETE_IMPORTS=61
+NODE_BRIDGE_SIGNATURES_VERIFIED=280
+NODE_BRIDGE_SIGNATURE_MISMATCHES=0
+MISSING_NODE_BRIDGE_SYMBOLS=0
+ABI_VERSION=0.7.0
+PATH=/tmp/cna-java-native-working-070/modules/c-api/libcna_c_api.so
+SOURCE_COMMIT=a09196a6477f69a7a57c8364f990658d31531a5b
+LIBRARY_SHA256=42e099146bf3b470f82fd963a516f8bdd7ff0406da8c37dd53747699117db086
+PLATFORM=Linux x86-64 HEADLESS/NULL-audio
+EXPORTED_CNA_SYMBOLS=2861
+```
+
+The compiler-backed verifier covers every imported canonical declaration, pointer depth,
+signed/fixed-width types, `CNA_Bool`, enum/POD layout and callback ABI. All operations and event
+callbacks used here are synchronous on the attached game thread. Graphics devices and windows are
+borrowed; children/registrations are explicitly owned and released.
+
+### Ownership and behavior
+
+The final native integration has seven scenario groups and seven real Game lifetimes. Six graphics
+lifetimes each exercise static/dynamic buffers, render targets, volume-texture creation attempts,
+OcclusionQuery, state/binding, window registrations, title storage, and shutdown; the parent-live
+case disposes all families through reverse ownership and three further games prove recreation.
+Double disposal, failed creation, native failure rollback, bound-resource disposal, callback
+removal, and parent-before-child invalidation are deterministic tests.
+
+```text
+NATIVE_SCENARIO_GROUPS=7
+REAL_CNA_GAME_LIFETIMES=7
+FINAL_NATIVE_CRASHES=0
+FINAL_NATIVE_FAILURES=0
+USE_AFTER_FREE_OBSERVATIONS=0
+SANITIZER_BACKED_NATIVE_BUILD=NO
+ALLOCATOR_LEVEL_LEAK_FREEDOM_CLAIM=NO
+```
+
+A deliberate pre-guard negative probe found that the qualified artifact aborts with an uncaught
+canonical `InvalidOperationException` when destroying a still-bound render target, despite the C
+header documenting an invalid-state result. CNA-TS now preflights that operation and restores the
+backbuffer during shutdown. The abort is recorded as an upstream defect and is not counted as
+passing final-suite evidence.
+
+The deterministic differential corpus did not grow merely to encode HEADLESS behavior:
+
+```text
+OBSERVATIONS_BEFORE=181
+OBSERVATIONS_AFTER=181
+ASSERTIONS_BEFORE=182
+ASSERTIONS_AFTER=182
+FAILURES=0
+```
+
+New graphics runtime evidence resides in managed/native integration tests instead: state and
+binding identity/validation, draw ranges and codecs, dynamic data options, target state/lifetime,
+volume texture faces/boxes, query ordering, advanced SpriteBatch Begin, title storage, and window
+registration cleanup.
+
+### Package and template
+
+```text
+FILENAME=cna-ts-0.1.0.tgz
+PATH=/tmp/cna-ts-graphics-final2.jXcttP/cna-ts-0.1.0.tgz
+SHA256=3ae2d27aab3265141026f9dc5056f6192b904ed29b200219ffdaa71f5367ba3a
+FILES=690
+BYTES=412187
+DIST_FILES=672
+DIST_BYTES=2053644
+DIST_SHA256=fad143234cff92b61fb519b727783284291cfcec1d3aa5952528a410d8a175ce
+DIST_BYTE_IDENTICAL=PASS
+PACKAGE_BYTE_IDENTICAL=PASS
+TAR_PAYLOAD_IDENTICAL=PASS
+FILE_LIST_IDENTICAL=PASS
+PACKED_TYPESCRIPT_CONSUMER=PASS
+PACKED_JAVASCRIPT_CONSUMER=PASS
+INTERNAL_EXPORT_BLOCK=PASS
+GENERATED_TYPESCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_MANAGED_SMOKE=PASS
+LEGACY_OR_SIBLING_REFERENCES=0
+TEMPLATE_CHANGED=NO
+TEMPLATE_NATIVE_60=PASS
+TEMPLATE_NATIVE_600=PASS
+```
+
+The exact retained tarball was consumed by both generated projects and by the unchanged sibling
+template. Its native canaries passed PNG `FromStream`, SpriteBatch draw, input, and cleanup at 60
+and 600 frames on the selected HEADLESS artifact. No 3D/render-target/query showcase or new
+platform dependency was added.
+
+### Remaining CNA boundaries
+
+The eight runtime-inventory upstream rows are: EffectPass/compiled-or-stock effect execution;
+Model.Draw (now blocked specifically at EffectPass.Apply after raw indexed dispatch); transient
+VideoPlayer frame-texture ownership; Browser/Wasm artifact packaging; direct owned GraphicsDevice
+construction; Effect-bearing SpriteBatch Begin; DynamicBuffer ContentLost signaling; and
+RenderTarget ContentLost signaling. The qualified artifact's bound-render-target exception escape
+is an additional concrete ABI implementation defect. Fixture, hardware, platform, and current
+HEADLESS limitations remain separately classified in `docs/runtime-capabilities.md`.
+
+Current CNA HEAD remains
+`1bb2145d99ed572dd4eb15009c34e2e5f410fcf0`; its unmodified C-API build still fails its renderer
+identity assertion at `49 == 50`. No CNA repository was modified, no ABI-0.8 artifact was accepted,
+and runtime evidence remains pinned to the provenance/hash above.
+
+Final verification passed `npm ci`, `npm run check`, `npm test`, `npm run test:differential`,
+`npm run api:report`, `npm run api:verify`, `npm run verify:runtime`, `npm run verify:leaks`,
+`npm run runtime:inventory`, `npm run audit:cna-abi`, `npm run verify:package`,
+`npm run verify:build-reproducibility`, `npm run verify:package-reproducibility`, the exact native
+integration suite, both generated packed consumers, and the template 60/600-frame canaries.

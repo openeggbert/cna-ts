@@ -3,6 +3,7 @@ import {
   ArgumentOutOfRangeException,
 } from "../../../../internal/exceptions.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
+import { assertGraphicsResourceCompatibleForInternalUse } from "./GraphicsResource.js";
 import { bindSamplerStateForInternalUse, SamplerState } from "./SamplerState.js";
 
 type CollectionState = {
@@ -32,6 +33,7 @@ export class SamplerStateCollection {
     if (value == null) throw new ArgumentNullException("value");
     const state = stateOf(this);
     index = validateIndex(index, state.Values.length);
+    assertGraphicsResourceCompatibleForInternalUse(value, state.Device);
     state.Apply(index, value);
     bindSamplerStateForInternalUse(value, state.Device);
     state.Values[index] = value;

@@ -11,25 +11,31 @@ import { Color } from "../Color.js";
 import { Matrix } from "../Matrix.js";
 import { Rectangle } from "../Rectangle.js";
 import { Vector2 } from "../Vector2.js";
-import type { BlendState } from "./BlendState.js";
-import type { DepthStencilState } from "./DepthStencilState.js";
+import { bindBlendStateForInternalUse, BlendState } from "./BlendState.js";
+import { bindDepthStencilStateForInternalUse, DepthStencilState } from "./DepthStencilState.js";
 import type { Effect } from "./Effect.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
 import {
+  blendStateSnapshotForInternalUse,
+  depthStencilStateSnapshotForInternalUse,
   graphicsDeviceBackendForInternalUse,
   graphicsDeviceParentLifetimeForInternalUse,
   notifyGraphicsResourceCreatedForInternalUse,
   notifyGraphicsResourceDestroyedForInternalUse,
+  rasterizerStateSnapshotForInternalUse,
+  recordSpriteBatchStatesForInternalUse,
   resolveGraphicsDeviceHandleForInternalUse,
+  samplerStateSnapshotForInternalUse,
 } from "./GraphicsDevice.js";
 import {
   assertGraphicsResourceActiveForInternalUse,
+  assertGraphicsResourceCompatibleForInternalUse,
   attachGraphicsResourceForInternalUse,
   GraphicsResource,
   setGraphicsResourceLifetimeForInternalUse,
 } from "./GraphicsResource.js";
-import type { RasterizerState } from "./RasterizerState.js";
-import type { SamplerState } from "./SamplerState.js";
+import { bindRasterizerStateForInternalUse, RasterizerState } from "./RasterizerState.js";
+import { bindSamplerStateForInternalUse, SamplerState } from "./SamplerState.js";
 import { SpriteEffects, SpriteSortMode } from "./SpriteEnums.js";
 import {
   appendSpriteFontGlyphPlacementsForInternalUse,
@@ -134,14 +140,48 @@ export class SpriteBatch extends GraphicsResource {
     if (!Number.isInteger(sortMode) || sortMode < SpriteSortMode.Deferred || sortMode > SpriteSortMode.FrontToBack) {
       throw new ArgumentOutOfRangeException("sortMode");
     }
-    if (blendState != null || samplerState != null || depthStencilState != null ||
-        rasterizerState != null || effect != null || transformMatrix != null) {
+    if (effect != null) {
       throw new NativeUnavailableError(
-        "Explicit SpriteBatch render states, effects, and transforms require CNA state-descriptor routes",
+        "Effect-bearing SpriteBatch.Begin requires a CNA-backed Effect execution projection",
       );
     }
     const backend = graphicsDeviceBackendForInternalUse(state.Device);
-    backend.beginSpriteBatch(state.Lifetime.Handle, sortMode);
+    const explicit = blendState != null || samplerState != null || depthStencilState != null ||
+      rasterizerState != null || transformMatrix != null;
+    if (explicit) {
+      const graphics = backend.Graphics;
+      if (!graphics) {
+        throw new NativeUnavailableError("Advanced SpriteBatch.Begin requires CNA graphics state routes");
+      }
+      const blend = blendState ?? BlendState.AlphaBlend;
+      const sampler = samplerState ?? SamplerState.LinearClamp;
+      const depth = depthStencilState ?? DepthStencilState.None;
+      const rasterizer = rasterizerState ?? RasterizerState.CullCounterClockwise;
+      const matrix = transformMatrix == null ? null : matrixSnapshot(transformMatrix);
+      for (const value of [blend, sampler, depth, rasterizer]) {
+        assertGraphicsResourceCompatibleForInternalUse(value, state.Device);
+      }
+      graphics.beginSpriteBatchWithStates(
+        state.Lifetime.Handle,
+        sortMode,
+        blendStateSnapshotForInternalUse(blend),
+        samplerStateSnapshotForInternalUse(sampler),
+        depthStencilStateSnapshotForInternalUse(depth),
+        rasterizerStateSnapshotForInternalUse(rasterizer),
+        matrix,
+      );
+      bindBlendStateForInternalUse(blend, state.Device);
+      bindSamplerStateForInternalUse(sampler, state.Device);
+      bindDepthStencilStateForInternalUse(depth, state.Device);
+      bindRasterizerStateForInternalUse(rasterizer, state.Device);
+      recordSpriteBatchStatesForInternalUse(state.Device, blend, depth, rasterizer);
+    } else {
+      backend.beginSpriteBatch(state.Lifetime.Handle, sortMode);
+      recordSpriteBatchStatesForInternalUse(
+        state.Device, BlendState.AlphaBlend, DepthStencilState.None,
+        RasterizerState.CullCounterClockwise,
+      );
+    }
     state.Commands.length = 0;
     state.ReferencedTextures.clear();
     state.Begun = true;
@@ -290,6 +330,20 @@ export class SpriteBatch extends GraphicsResource {
     state.Begun = false;
   }
 
+}
+
+function matrixSnapshot(value: Matrix): number[] {
+  if (!(value instanceof Matrix)) throw new ArgumentException("transformMatrix must be a Matrix");
+  const result = [
+    value.M11, value.M12, value.M13, value.M14,
+    value.M21, value.M22, value.M23, value.M24,
+    value.M31, value.M32, value.M33, value.M34,
+    value.M41, value.M42, value.M43, value.M44,
+  ];
+  if (!result.every(Number.isFinite)) {
+    throw new ArgumentException("transformMatrix must contain only finite values");
+  }
+  return result;
 }
 
 function ensureBegun(state: SpriteBatchState, operation: string): void {

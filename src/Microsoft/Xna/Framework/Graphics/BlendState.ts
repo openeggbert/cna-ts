@@ -9,6 +9,7 @@ import {
 import { Blend, BlendFunction, ColorWriteChannels } from "./StateEnums.js";
 
 const locked = new WeakSet<BlendState>();
+const presets = new WeakSet<BlendState>();
 
 function mutable(state: BlendState): void {
   assertGraphicsResourceActiveForInternalUse(state);
@@ -85,11 +86,12 @@ function preset(
   state.AlphaDestinationBlend = destination;
   state.Name = name;
   locked.add(state);
+  presets.add(state);
   return state;
 }
 
 export function bindBlendStateForInternalUse(state: BlendState, device: GraphicsDevice): void {
   assertGraphicsResourceActiveForInternalUse(state);
-  attachGraphicsResourceForInternalUse(state, device);
+  if (!presets.has(state)) attachGraphicsResourceForInternalUse(state, device);
   locked.add(state);
 }

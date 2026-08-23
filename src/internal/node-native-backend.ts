@@ -5,6 +5,8 @@ import type {
   CnaMediaBackend,
   CnaVideoBackend,
   CnaStorageBackend,
+  CnaGraphicsBackend,
+  CnaGameWindowBackend,
   BackendRendererInfo,
   CnaGameCallbacks,
   CnaGameConfiguration,
@@ -23,6 +25,16 @@ import type {
   MediaSongPlaybackSnapshot,
   VideoPlayerSnapshot,
   StorageDeviceSnapshot,
+  BlendStateSnapshot,
+  DepthStencilStateSnapshot,
+  RasterizerStateSnapshot,
+  SamplerStateSnapshot,
+  VertexBufferBindingSnapshot,
+  Texture3DInfo,
+  TextureCubeInfo,
+  RenderTargetInfo,
+  RenderTargetBindingSnapshot,
+  GameWindowBoundsSnapshot,
 } from "./backend.js";
 import { NativeUnavailableError } from "./native-error.js";
 import type { NativeHandle, NativeResourceLifetime } from "./ownership.js";
@@ -148,6 +160,135 @@ interface NativeBridge {
   setIndexBufferRaw(buffer: bigint, elementSize: number, bytes: Uint8Array): void;
   getIndexBufferRaw(buffer: bigint, elementSize: number, indexCount: number): Uint8Array;
   destroyIndexBuffer(buffer: bigint): void;
+  getGraphicsDeviceStatus(device: bigint): number;
+  setGraphicsDeviceBlendFactor(device: bigint, packedColor: number): void;
+  setGraphicsDeviceBlendState(device: bigint, state: BlendStateSnapshot): void;
+  setGraphicsDeviceDepthStencilState(device: bigint, state: DepthStencilStateSnapshot): void;
+  setGraphicsDeviceRasterizerState(device: bigint, state: RasterizerStateSnapshot): void;
+  setGraphicsDeviceSamplerState(
+    device: bigint, shaderStage: number, slot: number, state: SamplerStateSnapshot,
+  ): void;
+  setGraphicsDeviceTexture(
+    device: bigint, shaderStage: number, slot: number, texture: bigint,
+  ): void;
+  setGraphicsDeviceMultiSampleMask(device: bigint, value: number): void;
+  setGraphicsDeviceReferenceStencil(device: bigint, value: number): void;
+  setGraphicsDeviceScissorRectangle(
+    device: bigint, x: number, y: number, width: number, height: number,
+  ): void;
+  setGraphicsDeviceViewport(
+    device: bigint, x: number, y: number, width: number, height: number,
+    minDepth: number, maxDepth: number,
+  ): void;
+  setGraphicsDeviceVertexBuffers(
+    device: bigint, bindings: readonly VertexBufferBindingSnapshot[],
+  ): void;
+  setGraphicsDeviceIndexBuffer(device: bigint, buffer: bigint): void;
+  drawPrimitives(device: bigint, primitiveType: number, startVertex: number, primitiveCount: number): void;
+  drawIndexedPrimitives(
+    device: bigint, primitiveType: number, baseVertex: number, minVertexIndex: number,
+    numVertices: number, startIndex: number, primitiveCount: number,
+  ): void;
+  drawInstancedPrimitives(
+    device: bigint, primitiveType: number, baseVertex: number, minVertexIndex: number,
+    numVertices: number, startIndex: number, primitiveCount: number, instanceCount: number,
+  ): void;
+  drawUserPrimitives(
+    device: bigint, primitiveType: number, vertexSource: number, bytes: Uint8Array,
+    vertexStride: number, vertexCapacity: number, vertexOffset: number, numVertices: number,
+    primitiveCount: number, hasDeclaration: boolean,
+    declaration: readonly VertexElementSnapshot[] | null,
+  ): void;
+  drawUserIndexedPrimitives(
+    device: bigint, primitiveType: number, vertexSource: number, bytes: Uint8Array,
+    vertexStride: number, vertexCapacity: number, vertexOffset: number, numVertices: number,
+    primitiveCount: number, hasDeclaration: boolean,
+    declaration: readonly VertexElementSnapshot[] | null, indexBytes: Uint8Array,
+    indexElementSize: number, indexCapacity: number, indexOffset: number,
+  ): void;
+  beginSpriteBatchWithStates(
+    spriteBatch: bigint, sortMode: number, blend: BlendStateSnapshot,
+    sampler: SamplerStateSnapshot, depth: DepthStencilStateSnapshot,
+    rasterizer: RasterizerStateSnapshot, transform: readonly number[] | null,
+  ): void;
+  setVertexBufferData(
+    buffer: bigint, vertexType: number, options: number, startIndex: number,
+    elementCount: number, capacity: number, bytes: Uint8Array,
+  ): void;
+  setVertexBufferRawAt(
+    buffer: bigint, offsetInBytes: number, bytes: Uint8Array,
+    vertexCount: number, vertexStride: number,
+  ): void;
+  getVertexBufferRawAt(
+    buffer: bigint, offsetInBytes: number, vertexCount: number, vertexStride: number,
+  ): Uint8Array;
+  getVertexBufferIsContentLost(buffer: bigint): boolean;
+  setIndexBufferData(
+    buffer: bigint, elementSize: number, options: number, hasOffset: boolean,
+    offsetInBytes: number, startIndex: number, elementCount: number,
+    capacity: number, bytes: Uint8Array,
+  ): void;
+  getIndexBufferIsContentLost(buffer: bigint): boolean;
+  createTexture3D(
+    device: bigint, width: number, height: number, depth: number, mipMap: boolean, format: number,
+  ): bigint;
+  getTexture3DInfo(texture: bigint): Texture3DInfo;
+  setTexture3DColors(
+    texture: bigint, level: number, left: number, top: number, right: number,
+    bottom: number, front: number, back: number, startIndex: number,
+    elementCount: number, packedColors: Uint32Array,
+  ): void;
+  getTexture3DColors(
+    texture: bigint, level: number, left: number, top: number, right: number,
+    bottom: number, front: number, back: number, startIndex: number,
+    elementCount: number, capacity: number,
+  ): Uint32Array;
+  destroyTexture3D(texture: bigint): void;
+  createTextureCube(device: bigint, size: number, mipMap: boolean, format: number): bigint;
+  getTextureCubeInfo(texture: bigint): TextureCubeInfo;
+  setTextureCubeColors(
+    texture: bigint, face: number, level: number, hasRectangle: boolean,
+    x: number, y: number, width: number, height: number, startIndex: number,
+    elementCount: number, packedColors: Uint32Array,
+  ): void;
+  getTextureCubeColors(
+    texture: bigint, face: number, level: number, hasRectangle: boolean,
+    x: number, y: number, width: number, height: number, startIndex: number,
+    elementCount: number, capacity: number,
+  ): Uint32Array;
+  destroyTextureCube(texture: bigint): void;
+  createRenderTarget2D(
+    device: bigint, width: number, height: number, mipMap: boolean, format: number,
+    depthFormat: number, multiSampleCount: number, usage: number,
+  ): bigint;
+  createRenderTargetCube(
+    device: bigint, size: number, mipMap: boolean, format: number,
+    depthFormat: number, multiSampleCount: number, usage: number,
+  ): bigint;
+  getRenderTargetInfo(target: bigint): RenderTargetInfo;
+  destroyRenderTarget(target: bigint): void;
+  setGraphicsDeviceRenderTargets(
+    device: bigint, bindings: readonly RenderTargetBindingSnapshot[],
+  ): void;
+  createOcclusionQuery(device: bigint): bigint;
+  beginOcclusionQuery(query: bigint): void;
+  endOcclusionQuery(query: bigint): void;
+  getOcclusionQueryIsComplete(query: bigint): boolean;
+  getOcclusionQueryPixelCount(query: bigint): number;
+  destroyOcclusionQuery(query: bigint): void;
+  openTitleStream(game: bigint, name: string): Uint8Array;
+  getGameWindowAllowUserResizing(game: bigint): boolean;
+  setGameWindowAllowUserResizing(game: bigint, value: boolean): void;
+  getGameWindowClientBounds(game: bigint): GameWindowBoundsSnapshot;
+  getGameWindowCurrentOrientation(game: bigint): number;
+  getGameWindowHandle(game: bigint): bigint;
+  getGameWindowScreenDeviceName(game: bigint): string;
+  getGameWindowTitle(game: bigint): string;
+  setGameWindowTitle(game: bigint, value: string): void;
+  beginGameWindowScreenDeviceChange(game: bigint, fullscreen: boolean): void;
+  endGameWindowScreenDeviceChange(game: bigint, name: string, width: number, height: number): void;
+  subscribeGameWindowEvent(game: bigint, event: number, callback: () => void): bigint;
+  unsubscribeGameWindowEvent(registration: bigint): void;
   getKeyboardState(game: bigint): number[];
   getMouseState(game: bigint): NativeMouseState;
   setMousePosition(game: bigint, x: number, y: number): void;
@@ -294,7 +435,7 @@ interface NativeBridge {
   openStorageFile(container: bigint, path: string, mode: number, access: number, share: number): Uint8Array;
 }
 
-export class NodeNativeBackend implements CnaBackend {
+export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaGameWindowBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
   public readonly AbiVersion = "0.7.0";
@@ -306,6 +447,8 @@ export class NodeNativeBackend implements CnaBackend {
   public readonly Media: CnaMediaBackend = this;
   public readonly Video: CnaVideoBackend = this;
   public readonly Storage: CnaStorageBackend = this;
+  public readonly Graphics: CnaGraphicsBackend = this;
+  public readonly Window: CnaGameWindowBackend = this;
   readonly #bridge: NativeBridge;
   #activeGame: NativeHandle | null = null;
   #boundGameLifetime: NativeResourceLifetime | null = null;
@@ -521,6 +664,269 @@ export class NodeNativeBackend implements CnaBackend {
     return new Uint8Array(this.#bridge.getIndexBufferRaw(buffer, elementSize, indexCount));
   }
   public destroyIndexBuffer(buffer: NativeHandle): void { this.#bridge.destroyIndexBuffer(buffer); }
+
+  public getGraphicsDeviceStatus(device: NativeHandle): number {
+    return this.#bridge.getGraphicsDeviceStatus(device);
+  }
+  public setGraphicsDeviceBlendFactor(device: NativeHandle, packedColor: number): void {
+    this.#bridge.setGraphicsDeviceBlendFactor(device, packedColor);
+  }
+  public setGraphicsDeviceBlendState(device: NativeHandle, state: BlendStateSnapshot): void {
+    this.#bridge.setGraphicsDeviceBlendState(device, state);
+  }
+  public setGraphicsDeviceDepthStencilState(
+    device: NativeHandle, state: DepthStencilStateSnapshot,
+  ): void { this.#bridge.setGraphicsDeviceDepthStencilState(device, state); }
+  public setGraphicsDeviceRasterizerState(
+    device: NativeHandle, state: RasterizerStateSnapshot,
+  ): void { this.#bridge.setGraphicsDeviceRasterizerState(device, state); }
+  public setGraphicsDeviceSamplerState(
+    device: NativeHandle, shaderStage: number, slot: number, state: SamplerStateSnapshot,
+  ): void { this.#bridge.setGraphicsDeviceSamplerState(device, shaderStage, slot, state); }
+  public setGraphicsDeviceTexture(
+    device: NativeHandle, shaderStage: number, slot: number, texture: NativeHandle | null,
+  ): void { this.#bridge.setGraphicsDeviceTexture(device, shaderStage, slot, texture ?? 0n); }
+  public setGraphicsDeviceMultiSampleMask(device: NativeHandle, value: number): void {
+    this.#bridge.setGraphicsDeviceMultiSampleMask(device, value);
+  }
+  public setGraphicsDeviceReferenceStencil(device: NativeHandle, value: number): void {
+    this.#bridge.setGraphicsDeviceReferenceStencil(device, value);
+  }
+  public setGraphicsDeviceScissorRectangle(
+    device: NativeHandle, x: number, y: number, width: number, height: number,
+  ): void { this.#bridge.setGraphicsDeviceScissorRectangle(device, x, y, width, height); }
+  public setGraphicsDeviceViewport(
+    device: NativeHandle, x: number, y: number, width: number, height: number,
+    minDepth: number, maxDepth: number,
+  ): void {
+    this.#bridge.setGraphicsDeviceViewport(
+      device, x, y, width, height, minDepth, maxDepth,
+    );
+  }
+  public setGraphicsDeviceVertexBuffers(
+    device: NativeHandle, bindings: readonly VertexBufferBindingSnapshot[],
+  ): void { this.#bridge.setGraphicsDeviceVertexBuffers(device, bindings); }
+  public setGraphicsDeviceIndexBuffer(device: NativeHandle, buffer: NativeHandle | null): void {
+    this.#bridge.setGraphicsDeviceIndexBuffer(device, buffer ?? 0n);
+  }
+  public drawPrimitives(
+    device: NativeHandle, primitiveType: number, startVertex: number, primitiveCount: number,
+  ): void { this.#bridge.drawPrimitives(device, primitiveType, startVertex, primitiveCount); }
+  public drawIndexedPrimitives(
+    device: NativeHandle, primitiveType: number, baseVertex: number, minVertexIndex: number,
+    numVertices: number, startIndex: number, primitiveCount: number,
+  ): void {
+    this.#bridge.drawIndexedPrimitives(
+      device, primitiveType, baseVertex, minVertexIndex, numVertices, startIndex, primitiveCount,
+    );
+  }
+  public drawInstancedPrimitives(
+    device: NativeHandle, primitiveType: number, baseVertex: number, minVertexIndex: number,
+    numVertices: number, startIndex: number, primitiveCount: number, instanceCount: number,
+  ): void {
+    this.#bridge.drawInstancedPrimitives(
+      device, primitiveType, baseVertex, minVertexIndex, numVertices, startIndex,
+      primitiveCount, instanceCount,
+    );
+  }
+  public drawUserPrimitives(
+    device: NativeHandle, primitiveType: number, vertexSource: number, bytes: Uint8Array,
+    vertexStride: number, vertexCapacity: number, vertexOffset: number, numVertices: number,
+    primitiveCount: number, declaration: readonly VertexElementSnapshot[] | null,
+  ): void {
+    this.#bridge.drawUserPrimitives(
+      device, primitiveType, vertexSource, bytes, vertexStride, vertexCapacity,
+      vertexOffset, numVertices, primitiveCount, declaration != null, declaration,
+    );
+  }
+  public drawUserIndexedPrimitives(
+    device: NativeHandle, primitiveType: number, vertexSource: number, bytes: Uint8Array,
+    vertexStride: number, vertexCapacity: number, vertexOffset: number, numVertices: number,
+    primitiveCount: number, declaration: readonly VertexElementSnapshot[] | null,
+    indexBytes: Uint8Array, indexElementSize: number, indexCapacity: number, indexOffset: number,
+  ): void {
+    this.#bridge.drawUserIndexedPrimitives(
+      device, primitiveType, vertexSource, bytes, vertexStride, vertexCapacity,
+      vertexOffset, numVertices, primitiveCount, declaration != null, declaration,
+      indexBytes, indexElementSize, indexCapacity, indexOffset,
+    );
+  }
+  public beginSpriteBatchWithStates(
+    spriteBatch: NativeHandle, sortMode: number, blend: BlendStateSnapshot,
+    sampler: SamplerStateSnapshot, depth: DepthStencilStateSnapshot,
+    rasterizer: RasterizerStateSnapshot, transform: readonly number[] | null,
+  ): void {
+    this.#bridge.beginSpriteBatchWithStates(
+      spriteBatch, sortMode, blend, sampler, depth, rasterizer, transform,
+    );
+  }
+  public setVertexBufferData(
+    buffer: NativeHandle, vertexType: number, options: number, startIndex: number,
+    elementCount: number, capacity: number, bytes: Uint8Array,
+  ): void {
+    this.#bridge.setVertexBufferData(
+      buffer, vertexType, options, startIndex, elementCount, capacity, bytes,
+    );
+  }
+  public setVertexBufferRawAt(
+    buffer: NativeHandle, offsetInBytes: number, bytes: Uint8Array,
+    vertexCount: number, vertexStride: number,
+  ): void {
+    this.#bridge.setVertexBufferRawAt(
+      buffer, offsetInBytes, bytes, vertexCount, vertexStride,
+    );
+  }
+  public getVertexBufferRawAt(
+    buffer: NativeHandle, offsetInBytes: number, vertexCount: number, vertexStride: number,
+  ): Uint8Array {
+    return new Uint8Array(this.#bridge.getVertexBufferRawAt(
+      buffer, offsetInBytes, vertexCount, vertexStride,
+    ));
+  }
+  public getVertexBufferIsContentLost(buffer: NativeHandle): boolean {
+    return this.#bridge.getVertexBufferIsContentLost(buffer);
+  }
+  public setIndexBufferData(
+    buffer: NativeHandle, elementSize: number, options: number, offsetInBytes: number | null,
+    startIndex: number, elementCount: number, capacity: number, bytes: Uint8Array,
+  ): void {
+    this.#bridge.setIndexBufferData(
+      buffer, elementSize, options, offsetInBytes != null, offsetInBytes ?? 0,
+      startIndex, elementCount, capacity, bytes,
+    );
+  }
+  public getIndexBufferIsContentLost(buffer: NativeHandle): boolean {
+    return this.#bridge.getIndexBufferIsContentLost(buffer);
+  }
+  public createTexture3D(
+    device: NativeHandle, width: number, height: number, depth: number,
+    mipMap: boolean, format: number,
+  ): NativeHandle {
+    return this.#bridge.createTexture3D(device, width, height, depth, mipMap, format);
+  }
+  public getTexture3DInfo(texture: NativeHandle): Texture3DInfo {
+    return this.#bridge.getTexture3DInfo(texture);
+  }
+  public setTexture3DColors(
+    texture: NativeHandle, level: number, left: number, top: number, right: number,
+    bottom: number, front: number, back: number, startIndex: number,
+    elementCount: number, packedColors: Uint32Array,
+  ): void {
+    this.#bridge.setTexture3DColors(
+      texture, level, left, top, right, bottom, front, back,
+      startIndex, elementCount, packedColors,
+    );
+  }
+  public getTexture3DColors(
+    texture: NativeHandle, level: number, left: number, top: number, right: number,
+    bottom: number, front: number, back: number, startIndex: number,
+    elementCount: number, capacity: number,
+  ): Uint32Array {
+    return new Uint32Array(this.#bridge.getTexture3DColors(
+      texture, level, left, top, right, bottom, front, back,
+      startIndex, elementCount, capacity,
+    ));
+  }
+  public destroyTexture3D(texture: NativeHandle): void { this.#bridge.destroyTexture3D(texture); }
+  public createTextureCube(
+    device: NativeHandle, size: number, mipMap: boolean, format: number,
+  ): NativeHandle { return this.#bridge.createTextureCube(device, size, mipMap, format); }
+  public getTextureCubeInfo(texture: NativeHandle): TextureCubeInfo {
+    return this.#bridge.getTextureCubeInfo(texture);
+  }
+  public setTextureCubeColors(
+    texture: NativeHandle, face: number, level: number,
+    rectangle: { readonly X: number; readonly Y: number; readonly Width: number; readonly Height: number } | null,
+    startIndex: number, elementCount: number, packedColors: Uint32Array,
+  ): void {
+    this.#bridge.setTextureCubeColors(
+      texture, face, level, rectangle != null, rectangle?.X ?? 0, rectangle?.Y ?? 0,
+      rectangle?.Width ?? 0, rectangle?.Height ?? 0, startIndex, elementCount, packedColors,
+    );
+  }
+  public getTextureCubeColors(
+    texture: NativeHandle, face: number, level: number,
+    rectangle: { readonly X: number; readonly Y: number; readonly Width: number; readonly Height: number } | null,
+    startIndex: number, elementCount: number, capacity: number,
+  ): Uint32Array {
+    return new Uint32Array(this.#bridge.getTextureCubeColors(
+      texture, face, level, rectangle != null, rectangle?.X ?? 0, rectangle?.Y ?? 0,
+      rectangle?.Width ?? 0, rectangle?.Height ?? 0, startIndex, elementCount, capacity,
+    ));
+  }
+  public destroyTextureCube(texture: NativeHandle): void { this.#bridge.destroyTextureCube(texture); }
+  public createRenderTarget2D(
+    device: NativeHandle, width: number, height: number, mipMap: boolean, format: number,
+    depthFormat: number, multiSampleCount: number, usage: number,
+  ): NativeHandle {
+    return this.#bridge.createRenderTarget2D(
+      device, width, height, mipMap, format, depthFormat, multiSampleCount, usage,
+    );
+  }
+  public createRenderTargetCube(
+    device: NativeHandle, size: number, mipMap: boolean, format: number,
+    depthFormat: number, multiSampleCount: number, usage: number,
+  ): NativeHandle {
+    return this.#bridge.createRenderTargetCube(
+      device, size, mipMap, format, depthFormat, multiSampleCount, usage,
+    );
+  }
+  public getRenderTargetInfo(target: NativeHandle): RenderTargetInfo {
+    return this.#bridge.getRenderTargetInfo(target);
+  }
+  public destroyRenderTarget(target: NativeHandle): void { this.#bridge.destroyRenderTarget(target); }
+  public setGraphicsDeviceRenderTargets(
+    device: NativeHandle, bindings: readonly RenderTargetBindingSnapshot[],
+  ): void { this.#bridge.setGraphicsDeviceRenderTargets(device, bindings); }
+  public createOcclusionQuery(device: NativeHandle): NativeHandle {
+    return this.#bridge.createOcclusionQuery(device);
+  }
+  public beginOcclusionQuery(query: NativeHandle): void { this.#bridge.beginOcclusionQuery(query); }
+  public endOcclusionQuery(query: NativeHandle): void { this.#bridge.endOcclusionQuery(query); }
+  public getOcclusionQueryIsComplete(query: NativeHandle): boolean {
+    return this.#bridge.getOcclusionQueryIsComplete(query);
+  }
+  public getOcclusionQueryPixelCount(query: NativeHandle): number {
+    return this.#bridge.getOcclusionQueryPixelCount(query);
+  }
+  public destroyOcclusionQuery(query: NativeHandle): void { this.#bridge.destroyOcclusionQuery(query); }
+  public openTitleStream(name: string): Uint8Array {
+    return new Uint8Array(this.#bridge.openTitleStream(this.#game(), name));
+  }
+  public getGameWindowAllowUserResizing(): boolean {
+    return this.#bridge.getGameWindowAllowUserResizing(this.#game());
+  }
+  public setGameWindowAllowUserResizing(value: boolean): void {
+    this.#bridge.setGameWindowAllowUserResizing(this.#game(), value);
+  }
+  public getGameWindowClientBounds(): GameWindowBoundsSnapshot {
+    return this.#bridge.getGameWindowClientBounds(this.#game());
+  }
+  public getGameWindowCurrentOrientation(): number {
+    return this.#bridge.getGameWindowCurrentOrientation(this.#game());
+  }
+  public getGameWindowHandle(): bigint {
+    return this.#bridge.getGameWindowHandle(this.#game());
+  }
+  public getGameWindowScreenDeviceName(): string {
+    return this.#bridge.getGameWindowScreenDeviceName(this.#game());
+  }
+  public getGameWindowTitle(): string { return this.#bridge.getGameWindowTitle(this.#game()); }
+  public setGameWindowTitle(value: string): void {
+    this.#bridge.setGameWindowTitle(this.#game(), value);
+  }
+  public beginGameWindowScreenDeviceChange(willBeFullScreen: boolean): void {
+    this.#bridge.beginGameWindowScreenDeviceChange(this.#game(), willBeFullScreen);
+  }
+  public endGameWindowScreenDeviceChange(name: string, width: number, height: number): void {
+    this.#bridge.endGameWindowScreenDeviceChange(this.#game(), name, width, height);
+  }
+  public subscribeGameWindowEvent(event: number, callback: () => void): NativeHandle {
+    return this.#bridge.subscribeGameWindowEvent(this.#game(), event, callback);
+  }
+  public unsubscribeGameWindowEvent(registration: NativeHandle): void {
+    this.#bridge.unsubscribeGameWindowEvent(registration);
+  }
 
   public getKeyboardState(_playerIndex: PlayerIndex | null): KeyboardState {
     return new KeyboardState(this.#bridge.getKeyboardState(this.#game()) as Keys[]);

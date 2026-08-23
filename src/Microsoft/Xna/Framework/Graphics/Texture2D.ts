@@ -61,7 +61,12 @@ export class Texture2D extends Texture {
     height: number,
     mipMap = false,
     format = SurfaceFormat.Color,
-    adopted?: { readonly Handle: NativeHandle; readonly LevelCount: number },
+    adopted?: {
+      readonly Handle: NativeHandle;
+      readonly LevelCount: number;
+      readonly Release?: (handle: NativeHandle) => void;
+      readonly Label?: string;
+    },
   ) {
     super();
     if (graphicsDevice == null) throw new ArgumentNullException("graphicsDevice");
@@ -79,13 +84,14 @@ export class Texture2D extends Texture {
       Handle: handle,
       Ownership: "owned",
       Parent: parent,
-      Release: (value) => activeBackend.destroyTexture2D(value),
-      Label: "Texture2D",
+      Release: adopted?.Release ?? ((value) => activeBackend.destroyTexture2D(value)),
+      Label: adopted?.Label ?? "Texture2D",
     });
     initializeTextureForInternalUse(
       this,
       format,
       adopted?.LevelCount ?? (mipMap ? mipLevelCount(width, height) : 1),
+      () => lifetime.Handle,
     );
     const levelCount = adopted?.LevelCount ?? (mipMap ? mipLevelCount(width, height) : 1);
     states.set(this, {

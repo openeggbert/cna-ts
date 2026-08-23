@@ -43,8 +43,10 @@ contain raw pointers, numeric native handles, memory offsets, callback IDs, or b
 
 The backend interface is executable rather than status-only: it defines initialization and error
 access, Game create/run-one-frame/run/exit/destroy, graphics-manager/device borrowing,
-clear/present, Texture2D and SpriteBatch creation/destruction, renderer information, and
-keyboard/mouse/gamepad/touch operations. The unavailable backend implements the same contract and
+clear/present, copied graphics state, sampler/texture/buffer/render-target binding, typed draw
+dispatch, static/dynamic buffers, Texture2D/3D/Cube, render targets, OcclusionQuery, SpriteBatch,
+GameWindow/title-storage, renderer information, and keyboard/mouse/gamepad/touch operations. The
+unavailable backend implements the same contract and
 fails explicitly. Managed tests install an internal backend to prove lifecycle call order and
 `NativeResourceLifetime` behavior without exposing public injection.
 
@@ -56,7 +58,7 @@ Node users may explicitly load the adapter and a compatible library. This is an 
 gap, not absence of a CNA C ABI.
 
 The package now carries a small C Node-API adapter source. It dynamically loads one explicitly
-selected library, checks encoded ABI `0x00000700`, resolves exactly 219 named C symbols, uses bigint
+selected library, checks encoded ABI `0x00000700`, resolves exactly 280 named C symbols, uses bigint
 for opaque 64-bit handles, marshals synchronous game callbacks on the Node thread, and translates
 CNA UTF-8 errors into JavaScript errors. It does not use the CNA C++ ABI, a generic FFI dependency,
 or finalizers. The adapter source/build helper are portable inputs; no platform binary or CNA
@@ -64,18 +66,20 @@ library is packed.
 
 Linux x86-64 integration used an existing HEADLESS/NULL-audio CNA ABI-0.7 library built by the
 sibling Java verification from CNA commit `a09196a6477f69a7a57c8364f990658d31531a5b`. Seven real game lifetimes covered 60 and 600
-frames, callback-scoped device access, Texture2D and SpriteBatch child ownership, all modeled input
+frames, callback-scoped device access, graphics state/binding identity, dynamic buffers,
+RenderTarget2D/RenderTargetCube, query lifecycle, advanced SpriteBatch, title/window routes, Texture2D and
+SpriteBatch child ownership, all modeled input
 polling families, PCM/dynamic audio, media/video controls, isolated storage, renderer identity,
 double disposal, live-child parent shutdown, and repeated creation/destruction. Current CNA HEAD
 still cannot reproduce that artifact because its unmodified
 C-API build stops at the renderer identity guard (49 mapped identities versus 50 canonical
 entries). This is recorded separately from the successful compatible-artifact evidence.
 
-The reproducible evidence, 32-symbol sentinel inventory, 219-symbol imported Node slice, and
+The reproducible evidence, 32-symbol sentinel inventory, 280-symbol imported Node slice, and
 required upstream artifact contract are recorded in [`cna-abi-audit.md`](cna-abi-audit.md). The audit accepts an explicit CNA checkout
 path and is not part of normal build, package installation, or runtime.
 
-The audit also compiles all 219 adapter function-pointer assignments against the selected CNA
+The audit also compiles all 280 adapter function-pointer assignments against the selected CNA
 headers. That makes signature, pointer depth, fixed-width integer, `CNA_Bool`, structure pointer,
 and callback-typedef compatibility a gate rather than a name-only inference.
 
@@ -90,8 +94,10 @@ only when the final decompressed byte count exactly matches the header.
 External-reference strings remain content identities, not host paths. They resolve relative to the
 referring XNB, normalize through the same cache key, and recursively call `ContentManager.Load`
 with the mapped class token. A derived content provider supplies bytes through protected
-`OpenStream`; the base manager still fails explicitly because the audited CNA C ABI provides no
-general XNB byte-stream route. Raw image bytes remain a separate `Texture2D.FromStream` path.
+`OpenStream`. The base manager combines `RootDirectory`, normalized asset identity and `.xnb`, then
+uses CNA's title-storage count/copy route; absolute and traversal paths are rejected before CNA, so
+this does not become a Node filesystem escape. Raw image bytes remain a separate
+`Texture2D.FromStream` path.
 
 ## Qualification boundary
 
@@ -119,3 +125,11 @@ invalidated without destroying their referent. Partial construction rolls alread
 resources back in reverse order, while transfer invalidates the old wrapper and requires immediate
 adoption by another owner. A failed release retains its opaque handle in an unusable, retryable
 internal state; a parent is not released while any child remains live.
+
+Graphics bindings retain non-owning facade references only after a successful CNA call. Resource
+getters return those stable facades and clear disposed entries; CNA descriptors are copied values,
+so no second owning wrapper is created. GraphicsDevice shutdown restores the backbuffer before the
+manager is released. An explicit bound render-target `Dispose` is rejected in TypeScript before
+native dispatch because the qualified ABI-0.7 artifact aborts in that documented invalid-state
+case instead of returning an error. Native lifecycle callback exceptions are retained by the
+adapter and rethrown on both run and destroy boundaries.

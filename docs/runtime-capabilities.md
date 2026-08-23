@@ -11,22 +11,23 @@ This inventory is independent of the strict API verifier: API shape completeness
 
 All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family.
 
-- NativeUnavailableError construction sites: 74
-- NotSupportedException construction sites: 2
-- Framework files containing those sites: 28
+- NativeUnavailableError construction sites: 63
+- NotSupportedException construction sites: 6
+- Framework files containing those sites: 25
 
 ## Counts
 
 | Category | Operation families |
 | --- | ---: |
-| VERIFIED_MANAGED | 18 |
-| VERIFIED_NATIVE | 14 |
-| EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 2 |
-| UPSTREAM_CNA_BLOCKED | 5 |
+| VERIFIED_MANAGED | 19 |
+| VERIFIED_NATIVE | 24 |
+| EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 4 |
+| UPSTREAM_CNA_BLOCKED | 8 |
 | FIXTURE_PENDING | 3 |
 | HARDWARE_PENDING | 4 |
 | PLATFORM_PENDING | 3 |
-| UNIMPLEMENTED_CNA_TS | 12 |
+| UNIMPLEMENTED_CNA_TS | 0 |
+| LANGUAGE_MAPPING_LIMITATION | 3 |
 | NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT | 1 |
 
 ## VERIFIED_MANAGED
@@ -51,6 +52,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | SpriteBatch argument and Begin/End validation | CNA-TS | graphics/content differential observation and graphics-foundation tests |
 | Storage path validation and isolated managed-directory adapter | CNA-TS | deterministic storage differential observation and design suite |
 | Texture2D, SpriteFont and Model managed XNB reader graphs | CNA-TS | uncompressed and compressed synthetic reader-graph tests |
+| Texture3D/TextureCube exact Color codec, bounds and CNA dispatch projection | CNA-TS | managed native-shaped backend verifies boxes, faces and exact packed Color round trips; all ABI signatures are compiler-audited and the qualified HEADLESS artifact returns documented NOT_SUPPORTED at creation |
 
 ## VERIFIED_NATIVE
 
@@ -58,16 +60,26 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | --- | --- | --- |
 | CNA renderer identity and capability query extension | CNA-TS + CNA | qualified artifact reports HEADLESS/custom-effects/compiled-effects capability bits |
 | DynamicSoundEffectInstance submit, pending buffers and managed refill pump | CNA-TS + CNA | qualified native integration with reentrant/self-removing/throwing callback tests |
+| DynamicVertexBuffer and DynamicIndexBuffer creation, typed transfer, readback and IsContentLost query | CNA-TS + CNA | qualified integration covers Discard/NoOverwrite, built-in vertex and 16-bit index round trips, double disposal and parent shutdown |
 | FrameworkDispatcher.Update canonical native pump | CNA-TS + CNA | native lifecycle and dynamic/media pump integration |
 | Game create, callbacks, one-frame/run/exit/destroy lifecycle | CNA-TS + CNA | qualified ABI-0.7 integration covers seven real game lifetimes and 60/600 frames |
+| GameWindow stable facade, borrowed handle/state and removable event registrations | CNA-TS + CNA | qualified integration verifies stable Game.Window identity, zero HEADLESS handle, title/state queries, callback registration cleanup and repeated game lifetimes |
+| GraphicsDevice bound, indexed, instanced and four-codec user draw dispatch | CNA-TS + CNA | 280-symbol bridge dispatch and argument layouts are signature-audited; qualified HEADLESS calls reach CNA and report pipeline-unavailable result 12 without any output claim |
+| GraphicsDevice copied state, scalar state, sampler/texture, buffer and render-target binding routes | CNA-TS + CNA | qualified ABI-0.7 integration verifies successful assignment, null/unbind, stable read-after-write facade identity and render-target state; managed suite covers bounds, disposed, duplicate, wrong-device and rollback validation |
+| GraphicsDevice status query | CNA-TS + CNA | qualified HEADLESS device reports the canonical Normal status through cna_graphics_device_get_status |
 | GraphicsDevice.Clear and Present | CNA-TS + CNA | 60/600-frame qualified native integration |
 | GraphicsDeviceManager create/configure/apply and callback-scoped device borrowing | CNA-TS + CNA | qualified native integration and ownership tests |
 | Keyboard, Mouse, GamePad and Touch polling routes | CNA-TS + CNA | qualified HEADLESS native integration; physical device behavior is separate |
 | MediaPlayer source/song creation, queue controls, position and visualization | CNA-TS + CNA | generated legal silent WAV under qualified NULL-audio integration |
+| OcclusionQuery construction, ordering, reuse, completion/result dispatch and disposal | CNA-TS + CNA | qualified integration executes the real query state machine without fabricating PixelCount; managed suite covers completion and exact result identity |
+| RenderTarget2D/Cube construction, metadata, binding and inherited exact transfer routes | CNA-TS + CNA | qualified HEADLESS integration verifies RenderTarget2D and RenderTargetCube creation, metadata, 2D/cube-face bind/unbind identity, bound-destroy rejection and parent shutdown; managed backend covers cube metadata, face identity and duplicate validation |
 | SoundEffect PCM creation, instances, controls, Apply3D and disposal | CNA-TS + CNA | qualified NULL-audio integration; no audibility claim |
 | SpriteBatch create, Begin, Draw/DrawString submission, End and destroy | CNA-TS + CNA | qualified native integration and template 60/600 frames |
+| SpriteBatch explicit render-state and transform Begin | CNA-TS + CNA | qualified integration executes copied Blend/Sampler/DepthStencil/Rasterizer descriptors; managed tests verify identity, wrong-device checks and post-success immutability |
 | StorageDevice selector, StorageContainer and stream CRUD | CNA-TS + CNA | qualified native integration in isolated XDG storage |
 | Texture2D create, Color transfer, regions/mips, FromStream and PNG encoding | CNA-TS + CNA | qualified native integration with deterministic pixel checks |
+| TitleContainer.OpenStream and default ContentManager title-storage acquisition | CNA-TS + CNA | qualified integration reads package.json through the CNA title-storage count/copy route; CNA-TS rejects absolute/traversal host paths and default ContentManager appends RootDirectory plus .xnb |
+| VertexBuffer/IndexBuffer mapped public value transfer | CNA-TS + CNA | qualified integration verifies four exact built-in vertex codecs and 16-bit index transfer; no JavaScript object serialization or layout guessing is used |
 | VertexDeclaration, VertexBuffer and IndexBuffer resource construction/readback used by Model XNB | CNA-TS + CNA | qualified native Model reader integration |
 | VideoPlayer construction and control/cached-property state without decoded frames | CNA-TS + CNA | qualified native control-state integration |
 
@@ -77,15 +89,20 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | --- | --- | --- |
 | Compiled-effect execution on the qualified renderer | current qualified backend | CNA capability bit reports compiled effects unavailable |
 | GraphicsAdapter discovery, current display mode and windowed adapter capabilities | current qualified backend | HEADLESS artifact exposes no windowed adapter/display evidence |
+| Physical GameWindow resize/orientation/screen-device event qualification | current qualified backend | event registrations are real and removable, but HEADLESS exposes no physical window or event stimulus |
+| Texture3D and TextureCube resource execution on the qualified renderer | current qualified backend | both exact ABI-0.7 creation routes return CNA_RESULT_NOT_SUPPORTED under HEADLESS; no storage or transfer success is claimed |
 
 ## UPSTREAM_CNA_BLOCKED
 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
 | Browser/Wasm CNA runtime | CNA artifact packaging | no provenance-verifiable C-ABI ESM/Wasm artifact exists |
-| ContentManager default XNB stream acquisition | CNA C ABI | managed XNB parsing is verified through protected OpenStream providers, but the audited C ABI exposes no general asset-byte stream route; host filesystem behavior is not substituted |
+| Direct standalone GraphicsDevice construction | CNA C ABI | ABI 0.7 exposes only a game-owned callback-scoped borrowed device; disposal explicitly rejects ownership by the binding |
+| Dynamic buffer ContentLost event signaling | CNA C ABI | creation, transfer and IsContentLost queries are implemented, but ABI 0.7 exposes no loss/recreation callback and CNA currently reports no loss |
 | EffectPass.Apply and XNA compiled/stock-effect execution | CNA C ABI | no audited C ABI route with XNA compiled-effect semantics and ownership |
-| Model.Draw faithful effect/pass/indexed rendering pipeline | CNA C ABI | required XNA-compatible effect application and draw orchestration are not representable by the qualified slice |
+| Model.Draw faithful effect/pass pipeline | CNA C ABI | raw indexed draw dispatch is now implemented; Model.Draw remains blocked specifically by XNA-compatible EffectPass.Apply and compiled/stock-effect execution |
+| RenderTarget ContentLost event signaling | CNA C ABI | construction, metadata and binding are implemented, but ABI 0.7 exposes no target loss/recreation callback |
+| SpriteBatch Effect-bearing Begin | CNA C ABI effect projection | the CNA route requires an owned executable Effect handle, while selected EffectPass.Apply and compiled/stock-effect execution remain unavailable |
 | VideoPlayer.GetTexture transient frame projection | CNA C ABI | CNA returns a player-owned transient texture; no borrowed-frame lifetime contract can be projected safely |
 
 ## FIXTURE_PENDING
@@ -100,7 +117,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
-| GPU custom-effect and rendering output qualification | qualification hardware | qualified artifact is HEADLESS |
+| GPU custom-effect and rendering output qualification | qualification hardware | typed bound/user/instanced draw routes now reach CNA, but the qualified HEADLESS pipeline returns result 12 and cannot prove visible output |
 | Microphone enumeration/capture/buffer callbacks | qualification hardware | all routes imported; HEADLESS enumerates zero microphones |
 | Physical keyboard/mouse/gamepad/touch behavior | qualification hardware | HEADLESS route execution is deterministic but not physical-device evidence |
 | SoundEffect/MediaPlayer audible output | qualification hardware | NULL audio verifies state/lifetime only |
@@ -117,18 +134,14 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
-| ContentReader.ReadRawObject without an explicit reader token | TypeScript language projection | erased JavaScript generics cannot select a reader at runtime; explicit-reader ReadRawObject overloads remain available and fake CLR reflection is rejected |
-| Direct GraphicsDevice construction and device status | CNA-TS | manager-owned callback-scoped device creation is verified; standalone-device and status routes are not imported |
-| DynamicVertexBuffer and DynamicIndexBuffer create/SetData/content-lost behavior | CNA-TS | strict members fail explicitly pending typed dynamic-buffer routes |
-| GameWindow.Handle, resize/orientation/screen-device events | CNA-TS | native window/event routes are not imported |
-| GraphicsDevice DrawPrimitives/DrawIndexedPrimitives/DrawUser/instancing | CNA-TS | no typed CNA-TS bridge routes are imported |
-| GraphicsDevice state binding routes and render-target binding | CNA-TS | strict setters fail explicitly; corresponding broader CNA C API routes require an audited import slice |
-| OcclusionQuery Begin/End/result | CNA-TS | strict operations fail explicitly pending query routes |
-| RenderTarget2D and RenderTargetCube construction/properties | CNA-TS | strict constructors fail explicitly pending audited render-target routes |
-| SpriteBatch explicit render states, Effect and transform Begin overloads | CNA-TS | default Begin and strict validation are verified; state/effect descriptors are not in the imported bridge slice |
-| Texture3D and TextureCube construction/data transfer | CNA-TS | strict constructors fail explicitly pending typed transfer routes |
-| TitleContainer.OpenStream title-storage route | CNA-TS | strict operation fails explicitly; host filesystem access is not exposed as a substitute |
-| VertexBuffer/IndexBuffer arbitrary public generic value transfer | CNA-TS | built-in Model raw transfer is verified; arbitrary value codecs remain explicit |
+
+## LANGUAGE_MAPPING_LIMITATION
+
+| Operation family | Owner/boundary | Evidence |
+| --- | --- | --- |
+| Arbitrary custom generic vertex value transfer | TypeScript language projection | four formally mapped XNA vertex structs have exact codecs; arbitrary JavaScript objects have no blittable CLR layout and are rejected explicitly |
+| ContentReader.ReadRawObject<T>() without an explicit reader token | TypeScript language projection | JavaScript erases T, so reader identity cannot be recovered deterministically; explicit ContentTypeReader overloads are implemented and the strict verifier models the generic surface without fake CLR reflection |
+| DrawUserIndexedPrimitives Int16[] versus Int32[] overload identity | TypeScript language projection | both CLR element types map to number[]; the deterministic public number[] route uses 32-bit indices rather than guessing from values |
 
 ## NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT
 

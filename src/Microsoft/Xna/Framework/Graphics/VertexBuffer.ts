@@ -6,6 +6,7 @@ import {
 import type { CnaBackend } from "../../../../internal/backend.js";
 import { NativeUnavailableError } from "../../../../internal/native-error.js";
 import { NativeResourceLifetime } from "../../../../internal/ownership.js";
+import { resolveVertexCodec } from "../../../../internal/vertex-transfer.js";
 import type { XnaType } from "../Contracts.js";
 import {
   graphicsDeviceBackendForInternalUse,
@@ -22,7 +23,7 @@ import {
   setGraphicsResourceLifetimeForInternalUse,
 } from "./GraphicsResource.js";
 import { VertexDeclaration } from "./VertexDeclaration.js";
-import { BufferUsage } from "./VertexEnums.js";
+import { BufferUsage, SetDataOptions } from "./VertexEnums.js";
 import { vertexDeclarationFromTypeForInternalUse } from "./VertexValues.js";
 
 type VertexBufferState = {
@@ -109,18 +110,149 @@ export class VertexBuffer extends GraphicsResource {
   public GetData<T>(data: T[], startIndex: number, elementCount: number): void;
   public GetData<T>(offsetInBytes: number, data: T[], startIndex: number, elementCount: number, vertexStride: number): void;
   public GetData<T>(...args: unknown[]): void {
-    void args;
-    stateOf(this);
-    throw new NativeUnavailableError("VertexBuffer.GetData requires a mapped vertex value representation");
+    getVertexBufferDataForInternalUse(this, args);
   }
   public SetData<T>(data: T[]): void;
   public SetData<T>(data: T[], startIndex: number, elementCount: number): void;
   public SetData<T>(offsetInBytes: number, data: T[], startIndex: number, elementCount: number, vertexStride: number): void;
   public SetData<T>(...args: unknown[]): void {
-    void args;
-    stateOf(this);
-    throw new NativeUnavailableError("VertexBuffer.SetData requires a mapped vertex value representation");
+    setVertexBufferDataForInternalUse(this, args);
   }
+}
+
+type VertexTransferRequest = {
+  readonly OffsetInBytes: number | null;
+  readonly Data: unknown[];
+  readonly StartIndex: number;
+  readonly ElementCount: number;
+  readonly VertexStride: number;
+  readonly Options: SetDataOptions;
+};
+
+function integer(value: unknown, name: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 0x7fff_ffff) {
+    throw new ArgumentOutOfRangeException(name);
+  }
+  return value;
+}
+
+function parseTransfer(
+  buffer: VertexBuffer,
+  args: readonly unknown[],
+  dynamic: boolean,
+): VertexTransferRequest {
+  const state = stateOf(buffer);
+  let offset: number | null = null;
+  let data: unknown;
+  let start = 0;
+  let count: number;
+  let stride = state.VertexDeclaration.VertexStride;
+  let options = SetDataOptions.None;
+  if (args.length === 1) {
+    [data] = args;
+    count = Array.isArray(data) ? data.length : 0;
+  } else if (args.length === 3) {
+    [data] = args;
+    start = integer(args[1], "startIndex");
+    count = integer(args[2], "elementCount");
+  } else if (dynamic && args.length === 4) {
+    [data] = args;
+    start = integer(args[1], "startIndex");
+    count = integer(args[2], "elementCount");
+    options = integer(args[3], "options") as SetDataOptions;
+  } else if (args.length === 5 || (dynamic && args.length === 6)) {
+    offset = integer(args[0], "offsetInBytes");
+    data = args[1];
+    start = integer(args[2], "startIndex");
+    count = integer(args[3], "elementCount");
+    stride = integer(args[4], "vertexStride");
+    if (dynamic && args.length === 6) options = integer(args[5], "options") as SetDataOptions;
+  } else {
+    throw new ArgumentException("Unsupported VertexBuffer transfer overload");
+  }
+  if (data == null) throw new ArgumentNullException("data");
+  if (!Array.isArray(data)) throw new ArgumentException("data must be an array");
+  if (start > data.length || count > data.length - start) {
+    throw new ArgumentException("data is too small for startIndex and elementCount");
+  }
+  if (stride <= 0) throw new ArgumentOutOfRangeException("vertexStride");
+  if (options < SetDataOptions.None || options > SetDataOptions.NoOverwrite) {
+    throw new ArgumentOutOfRangeException("options");
+  }
+  if (!dynamic && options !== SetDataOptions.None) throw new ArgumentOutOfRangeException("options");
+  if (offset != null && offset % stride !== 0) {
+    throw new ArgumentException("offsetInBytes must be a multiple of vertexStride");
+  }
+  if (offset != null && (offset > state.VertexCount * state.VertexDeclaration.VertexStride ||
+      count * stride > state.VertexCount * state.VertexDeclaration.VertexStride - offset)) {
+    throw new ArgumentException("the transfer window exceeds the VertexBuffer");
+  }
+  return { OffsetInBytes: offset, Data: data, StartIndex: start, ElementCount: count, VertexStride: stride, Options: options };
+}
+
+export function setVertexBufferDataForInternalUse(
+  buffer: VertexBuffer,
+  args: readonly unknown[],
+  dynamic = buffer.constructor.name === "DynamicVertexBuffer",
+): void {
+  const state = stateOf(buffer);
+  const request = parseTransfer(buffer, args, dynamic);
+  const codec = resolveVertexCodec(
+    request.Data, state.VertexDeclaration, request.StartIndex, request.ElementCount,
+  );
+  if (request.VertexStride !== codec.Stride) {
+    throw new ArgumentException("vertexStride must match the selected built-in vertex layout");
+  }
+  const graphics = state.Backend.Graphics;
+  if (!graphics) throw new NativeUnavailableError("VertexBuffer.SetData requires CNA graphics transfer routes");
+  if (request.OffsetInBytes == null) {
+    const bytes = codec.encode(request.Data, request.StartIndex, request.ElementCount, true);
+    graphics.setVertexBufferData(
+      state.Lifetime.Handle, codec.NativeType, request.Options, request.StartIndex,
+      request.ElementCount, request.Data.length, bytes,
+    );
+    return;
+  }
+  if (request.Options !== SetDataOptions.None) {
+    throw new NativeUnavailableError(
+      "CNA ABI 0.7 cannot combine a VertexBuffer destination byte offset with Discard or NoOverwrite",
+    );
+  }
+  const bytes = codec.encode(request.Data, request.StartIndex, request.ElementCount, false);
+  graphics.setVertexBufferRawAt(
+    state.Lifetime.Handle, request.OffsetInBytes, bytes, request.ElementCount, request.VertexStride,
+  );
+}
+
+export function getVertexBufferDataForInternalUse(
+  buffer: VertexBuffer,
+  args: readonly unknown[],
+): void {
+  const state = stateOf(buffer);
+  const request = parseTransfer(buffer, args, false);
+  const codec = resolveVertexCodec(
+    request.Data, state.VertexDeclaration, request.StartIndex, request.ElementCount,
+  );
+  if (request.VertexStride !== codec.Stride) {
+    throw new ArgumentException("vertexStride must match the selected built-in vertex layout");
+  }
+  const graphics = state.Backend.Graphics;
+  if (!graphics) throw new NativeUnavailableError("VertexBuffer.GetData requires CNA graphics transfer routes");
+  const bytes = graphics.getVertexBufferRawAt(
+    state.Lifetime.Handle, request.OffsetInBytes ?? 0, request.ElementCount, request.VertexStride,
+  );
+  codec.decode(bytes, request.Data, request.StartIndex, request.ElementCount);
+}
+
+export function resolveVertexBufferHandleForInternalUse(buffer: VertexBuffer) {
+  return stateOf(buffer).Lifetime.Handle;
+}
+
+export function getVertexBufferIsContentLostForInternalUse(buffer: VertexBuffer): boolean {
+  const state = stateOf(buffer);
+  const graphics = state.Backend.Graphics;
+  if (!graphics) throw new NativeUnavailableError("DynamicVertexBuffer requires CNA graphics routes");
+  return graphics.getVertexBufferIsContentLost(state.Lifetime.Handle);
 }
 
 export function setVertexBufferRawForInternalUse(buffer: VertexBuffer, bytes: Uint8Array): void {

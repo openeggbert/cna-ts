@@ -19,6 +19,7 @@ import {
   PlayerIndex,
   Rectangle,
   Storage,
+  TitleContainer,
   Vector2,
   Vector3,
 } from "../dist/index.js";
@@ -54,9 +55,37 @@ class NativeProbeGame extends Game {
     this.texture = null;
     this.spriteBatch = null;
     this.inputPolls = 0;
+    this.graphicsRouteEvidence = Object.create(null);
+  }
+
+  qualifyHeadlessRoute(name, action, allowedResults = [6]) {
+    try {
+      const value = action();
+      this.graphicsRouteEvidence[name] = "SUCCESS";
+      return value;
+    } catch (error) {
+      assert.ok(
+        allowedResults.includes(error?.cnaResult),
+        `${name} returned unexpected CNA result ${error?.cnaResult}`,
+      );
+      this.graphicsRouteEvidence[name] = error.cnaResult === 6
+        ? "HEADLESS_NOT_SUPPORTED"
+        : "HEADLESS_PIPELINE_UNAVAILABLE";
+      return null;
+    }
   }
 
   LoadContent() {
+    assert.equal(this.Window, this.Window, "Game.Window must preserve facade identity");
+    assert.equal(this.Window.Handle, 0n, "HEADLESS has no XNA round-trip window token");
+    assert.equal(typeof this.Window.AllowUserResizing, "boolean");
+    assert.equal(typeof this.Window.ClientBounds.Width, "number");
+    assert.equal(typeof this.Window.CurrentOrientation, "number");
+    assert.equal(typeof this.Window.ScreenDeviceName, "string");
+    this.Window.Title = "cna-ts native probe";
+    assert.equal(this.Window.Title, "cna-ts native probe");
+    const titlePackage = JSON.parse(new TextDecoder().decode(TitleContainer.OpenStream("package.json")));
+    assert.equal(titlePackage.name, "cna-ts");
     this.texture = new Graphics.Texture2D(
       this.GraphicsDevice,
       4,
@@ -171,6 +200,138 @@ class NativeProbeGame extends Game {
     const indexBytes = Uint8Array.from([0, 0, 1, 0, 2, 0]);
     setIndexBufferRawForInternalUse(this.indexBuffer, indexBytes);
     assert.deepEqual(getIndexBufferRawForInternalUse(this.indexBuffer), indexBytes);
+
+    assert.equal(this.GraphicsDevice.GraphicsDeviceStatus, Graphics.GraphicsDeviceStatus.Normal);
+    this.blendState = new Graphics.BlendState();
+    this.depthState = new Graphics.DepthStencilState();
+    this.rasterizerState = new Graphics.RasterizerState();
+    this.samplerState = new Graphics.SamplerState();
+    this.GraphicsDevice.BlendState = this.blendState;
+    this.GraphicsDevice.DepthStencilState = this.depthState;
+    this.GraphicsDevice.RasterizerState = this.rasterizerState;
+    this.GraphicsDevice.SamplerStates.Set(0, this.samplerState);
+    assert.equal(this.GraphicsDevice.BlendState, this.blendState);
+    assert.equal(this.GraphicsDevice.DepthStencilState, this.depthState);
+    assert.equal(this.GraphicsDevice.RasterizerState, this.rasterizerState);
+    assert.equal(this.GraphicsDevice.SamplerStates.Get(0), this.samplerState);
+    this.GraphicsDevice.Textures.Set(0, this.texture);
+    assert.equal(this.GraphicsDevice.Textures.Get(0), this.texture);
+    this.GraphicsDevice.Textures.Set(0, null);
+    assert.equal(this.GraphicsDevice.Textures.Get(0), null);
+
+    const vertices = [
+      new Graphics.VertexPositionColor(new Vector3(0, 0, 0), Color.Red),
+      new Graphics.VertexPositionColor(new Vector3(1, 0, 0), Color.Green),
+      new Graphics.VertexPositionColor(new Vector3(0, 1, 0), Color.Blue),
+    ];
+    this.userVertices = vertices;
+    this.dynamicVertexBuffer = this.qualifyHeadlessRoute("dynamic vertex buffer", () => {
+      const buffer = new Graphics.DynamicVertexBuffer(
+        this.GraphicsDevice, Graphics.VertexPositionColor, 3, Graphics.BufferUsage.None,
+      );
+      try {
+        buffer.SetData(vertices, 0, 3, Graphics.SetDataOptions.Discard);
+        const roundTrip = new Array(3);
+        buffer.GetData(roundTrip, 0, 3);
+        assert.deepEqual(
+          roundTrip.map((value) => value.ToString()),
+          vertices.map((value) => value.ToString()),
+        );
+        assert.equal(buffer.IsContentLost, false);
+        return buffer;
+      } catch (error) {
+        buffer.Dispose();
+        throw error;
+      }
+    });
+    this.dynamicIndexBuffer = this.qualifyHeadlessRoute("dynamic index buffer", () => {
+      const buffer = new Graphics.DynamicIndexBuffer(
+        this.GraphicsDevice, Graphics.IndexElementSize.SixteenBits, 3,
+        Graphics.BufferUsage.None,
+      );
+      try {
+        buffer.SetData([0, 1, 2], 0, 3, Graphics.SetDataOptions.NoOverwrite);
+        const roundTrip = new Array(3);
+        buffer.GetData(roundTrip);
+        assert.deepEqual(roundTrip, [0, 1, 2]);
+        assert.equal(buffer.IsContentLost, false);
+        return buffer;
+      } catch (error) {
+        buffer.Dispose();
+        throw error;
+      }
+    });
+
+    this.renderTarget = this.qualifyHeadlessRoute("RenderTarget2D creation", () => {
+      const target = new Graphics.RenderTarget2D(this.GraphicsDevice, 4, 4);
+      assert.deepEqual([target.Width, target.Height], [4, 4]);
+      assert.equal(target.Format, Graphics.SurfaceFormat.Color);
+      assert.equal(target.IsContentLost, false);
+      return target;
+    });
+    this.renderTargetCube = this.qualifyHeadlessRoute("RenderTargetCube creation", () => {
+      const target = new Graphics.RenderTargetCube(
+        this.GraphicsDevice, 4, false, Graphics.SurfaceFormat.Color, Graphics.DepthFormat.None,
+      );
+      assert.equal(target.Size, 4);
+      assert.equal(target.Format, Graphics.SurfaceFormat.Color);
+      assert.equal(target.IsContentLost, false);
+      return target;
+    });
+
+    this.qualifyHeadlessRoute("Texture3D lifecycle", () => {
+      const texture = new Graphics.Texture3D(
+        this.GraphicsDevice, 2, 2, 2, false, Graphics.SurfaceFormat.Color,
+      );
+      try {
+        const values = Array.from({ length: 8 }, (_value, index) =>
+          new Color(index, index + 1, index + 2, 255));
+        texture.SetData(values);
+        const output = new Array(8);
+        texture.GetData(output);
+        assert.deepEqual(
+          output.map((value) => value.PackedValue),
+          values.map((value) => value.PackedValue),
+        );
+      } finally {
+        texture.Dispose();
+        texture.Dispose();
+      }
+    });
+    this.qualifyHeadlessRoute("TextureCube lifecycle", () => {
+      const texture = new Graphics.TextureCube(
+        this.GraphicsDevice, 2, false, Graphics.SurfaceFormat.Color,
+      );
+      try {
+        const values = [Color.Red, Color.Green, Color.Blue, Color.White];
+        texture.SetData(Graphics.CubeMapFace.PositiveX, values);
+        const output = new Array(4);
+        texture.GetData(Graphics.CubeMapFace.PositiveX, output);
+        assert.deepEqual(
+          output.map((value) => value.PackedValue),
+          values.map((value) => value.PackedValue),
+        );
+      } finally {
+        texture.Dispose();
+        texture.Dispose();
+      }
+    });
+    this.occlusionQuery = this.qualifyHeadlessRoute("OcclusionQuery lifecycle", () => {
+      const query = new Graphics.OcclusionQuery(this.GraphicsDevice);
+      try {
+        assert.equal(query.IsComplete, false);
+        query.Begin();
+        query.End();
+        if (query.IsComplete) assert.ok(Number.isInteger(query.PixelCount));
+        query.Begin();
+        query.End();
+        return query;
+      } catch (error) {
+        query.Dispose();
+        query.Dispose();
+        throw error;
+      }
+    });
   }
 
   Update(gameTime) {
@@ -195,7 +356,70 @@ class NativeProbeGame extends Game {
   Draw(gameTime) {
     this.GraphicsDevice.Clear(Color.CornflowerBlue);
     assert.equal(this.texture.GraphicsDevice, this.GraphicsDevice);
-    this.spriteBatch.Begin();
+    if (this.draws === 0) {
+      if (this.dynamicVertexBuffer && this.dynamicIndexBuffer) {
+        this.qualifyHeadlessRoute("vertex buffer binding", () => {
+          this.GraphicsDevice.SetVertexBuffer(this.dynamicVertexBuffer);
+          assert.equal(this.GraphicsDevice.GetVertexBuffers()[0].VertexBuffer, this.dynamicVertexBuffer);
+        });
+        this.qualifyHeadlessRoute("index buffer binding", () => {
+          this.GraphicsDevice.Indices = this.dynamicIndexBuffer;
+          assert.equal(this.GraphicsDevice.Indices, this.dynamicIndexBuffer);
+        });
+        if (this.GraphicsDevice.GetVertexBuffers().length > 0 && this.GraphicsDevice.Indices) {
+          this.qualifyHeadlessRoute("DrawPrimitives", () =>
+            this.GraphicsDevice.DrawPrimitives(Graphics.PrimitiveType.TriangleList, 0, 1), [6, 12]);
+          this.qualifyHeadlessRoute("DrawIndexedPrimitives", () =>
+            this.GraphicsDevice.DrawIndexedPrimitives(
+              Graphics.PrimitiveType.TriangleList, 0, 0, 3, 0, 1,
+            ), [6, 12]);
+          this.qualifyHeadlessRoute("DrawInstancedPrimitives", () =>
+            this.GraphicsDevice.DrawInstancedPrimitives(
+              Graphics.PrimitiveType.TriangleList, 0, 0, 3, 0, 1, 2,
+            ), [6, 12]);
+        }
+      }
+      this.qualifyHeadlessRoute("DrawUserPrimitives", () =>
+        this.GraphicsDevice.DrawUserPrimitives(
+          Graphics.PrimitiveType.TriangleList, this.userVertices, 0, 1,
+        ), [6, 12]);
+      this.qualifyHeadlessRoute("DrawUserIndexedPrimitives", () =>
+        this.GraphicsDevice.DrawUserIndexedPrimitives(
+          Graphics.PrimitiveType.TriangleList, this.userVertices, 0, 3, [0, 1, 2], 0, 1,
+        ), [6, 12]);
+      if (this.renderTarget) {
+        this.qualifyHeadlessRoute("render target binding", () => {
+          this.GraphicsDevice.SetRenderTarget(this.renderTarget);
+          assert.equal(this.GraphicsDevice.GetRenderTargets()[0].RenderTarget, this.renderTarget);
+          this.GraphicsDevice.SetRenderTarget(null);
+          assert.equal(this.GraphicsDevice.GetRenderTargets().length, 0);
+        });
+      }
+      if (this.renderTargetCube) {
+        this.qualifyHeadlessRoute("cube render target binding", () => {
+          this.GraphicsDevice.SetRenderTarget(
+            this.renderTargetCube, Graphics.CubeMapFace.NegativeZ,
+          );
+          const binding = this.GraphicsDevice.GetRenderTargets()[0];
+          assert.equal(binding.RenderTarget, this.renderTargetCube);
+          assert.equal(binding.CubeMapFace, Graphics.CubeMapFace.NegativeZ);
+          this.GraphicsDevice.SetRenderTarget(null);
+          assert.equal(this.GraphicsDevice.GetRenderTargets().length, 0);
+        });
+      }
+    }
+    if (this.draws === 0) {
+      this.spriteBatch.Begin(
+        Graphics.SpriteSortMode.Deferred,
+        this.blendState,
+        this.samplerState,
+        this.depthState,
+        this.rasterizerState,
+      );
+      this.graphicsRouteEvidence["advanced SpriteBatch.Begin"] = "SUCCESS";
+    } else {
+      this.spriteBatch.Begin();
+    }
     this.spriteBatch.Draw(this.texture, new Vector2(this.draws % 32, 12), Color.White);
     this.spriteBatch.Draw(
       this.decodedTexture,
@@ -228,6 +452,23 @@ class NativeProbeGame extends Game {
     this.indexBuffer?.Dispose();
     this.indexBuffer?.Dispose();
     this.indexBuffer = null;
+    if (!this.leaveTextureLive) {
+      this.dynamicVertexBuffer?.Dispose();
+      this.dynamicVertexBuffer?.Dispose();
+      this.dynamicVertexBuffer = null;
+      this.dynamicIndexBuffer?.Dispose();
+      this.dynamicIndexBuffer?.Dispose();
+      this.dynamicIndexBuffer = null;
+      this.renderTarget?.Dispose();
+      this.renderTarget?.Dispose();
+      this.renderTarget = null;
+      this.renderTargetCube?.Dispose();
+      this.renderTargetCube?.Dispose();
+      this.renderTargetCube = null;
+      this.occlusionQuery?.Dispose();
+      this.occlusionQuery?.Dispose();
+      this.occlusionQuery = null;
+    }
     this.mipTexture?.Dispose();
     this.mipTexture = null;
     if (!this.leaveTextureLive) {
@@ -245,7 +486,7 @@ test("loads an exact real CNA ABI and only the audited symbols", () => {
   assert.equal(status.Backend, "node-native");
   assert.equal(status.IsAvailable, true);
   assert.equal(status.AbiVersion, "0.7.0");
-  assert.equal(status.ImportedSymbolCount, 219);
+  assert.equal(status.ImportedSymbolCount, 280);
 });
 
 class NativeAudioProbeGame extends Game {
@@ -447,18 +688,34 @@ for (const frameCount of [60, 600]) {
     assert.equal(game.updates, frameCount);
     assert.equal(game.draws, frameCount);
     assert.equal(game.inputPolls, 1);
+    assert.equal(game.graphicsRouteEvidence["advanced SpriteBatch.Begin"], "SUCCESS");
+    assert.equal(game.graphicsRouteEvidence["RenderTarget2D creation"], "SUCCESS");
+    assert.equal(game.graphicsRouteEvidence["RenderTargetCube creation"], "SUCCESS");
+    assert.equal(game.graphicsRouteEvidence["cube render target binding"], "SUCCESS");
+    assert.ok(game.graphicsRouteEvidence["DrawUserPrimitives"]);
+    assert.ok(game.graphicsRouteEvidence["DrawUserIndexedPrimitives"]);
     game.Dispose();
     game.Dispose();
   });
 }
 
-test("parent shutdown deterministically releases a live Texture2D", async () => {
+test("parent shutdown deterministically releases live graphics families", async () => {
   const game = new NativeProbeGame(2, true);
   await game.Run();
   game.Dispose();
   assert.equal(game.texture.IsDisposed, true);
+  assert.equal(game.dynamicVertexBuffer?.IsDisposed, true);
+  assert.equal(game.dynamicIndexBuffer?.IsDisposed, true);
+  assert.equal(game.renderTarget?.IsDisposed, true);
+  assert.equal(game.renderTargetCube?.IsDisposed, true);
+  assert.equal(game.occlusionQuery?.IsDisposed, true);
   game.texture.Dispose();
   game.texture.Dispose();
+  game.dynamicVertexBuffer?.Dispose();
+  game.dynamicIndexBuffer?.Dispose();
+  game.renderTarget?.Dispose();
+  game.renderTargetCube?.Dispose();
+  game.occlusionQuery?.Dispose();
   game.Dispose();
 });
 

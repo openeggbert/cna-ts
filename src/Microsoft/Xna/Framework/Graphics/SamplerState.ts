@@ -8,6 +8,7 @@ import {
 import { TextureAddressMode, TextureFilter } from "./StateEnums.js";
 
 const locked = new WeakSet<SamplerState>();
+const presets = new WeakSet<SamplerState>();
 function mutable(state: SamplerState): void {
   assertGraphicsResourceActiveForInternalUse(state);
   if (locked.has(state)) throw new InvalidOperationException("The SamplerState cannot be modified after it has been bound to a GraphicsDevice");
@@ -60,11 +61,12 @@ function preset(
   state.AddressW = address;
   state.Name = name;
   locked.add(state);
+  presets.add(state);
   return state;
 }
 
 export function bindSamplerStateForInternalUse(state: SamplerState, device: GraphicsDevice): void {
   assertGraphicsResourceActiveForInternalUse(state);
-  attachGraphicsResourceForInternalUse(state, device);
+  if (!presets.has(state)) attachGraphicsResourceForInternalUse(state, device);
   locked.add(state);
 }

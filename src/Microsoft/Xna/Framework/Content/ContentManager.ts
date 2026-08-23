@@ -3,13 +3,13 @@ import {
   InvalidOperationException,
   ObjectDisposedException,
 } from "../../../../internal/exceptions.js";
-import { NativeUnavailableError } from "../../../../internal/native-error.js";
 import type {
   IDisposable,
   IServiceProvider,
   XnaAction,
   XnaType,
 } from "../Contracts.js";
+import { TitleContainer } from "../TitleContainer.js";
 import { ContentLoadException } from "./ContentLoadException.js";
 import { readXnbAssetForInternalUse } from "./ContentReader.js";
 
@@ -110,8 +110,9 @@ export class ContentManager implements IDisposable {
   }
 
   protected OpenStream(assetName: string): Uint8Array {
-    void assetName;
-    throw new NativeUnavailableError("ContentManager.OpenStream requires a loaded CNA content backend");
+    const root = this.#rootDirectory.replaceAll("\\", "/").replace(/\/+$/g, "");
+    const asset = assetName.replaceAll("\\", "/");
+    return TitleContainer.OpenStream(`${root.length === 0 ? "" : `${root}/`}${asset}.xnb`);
   }
 
   protected ReadAsset<T>(

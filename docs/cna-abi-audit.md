@@ -22,10 +22,10 @@ codes, UTF-8 string views/caller-owned buffers, versioned structures, and opaque
 `uint64_t` handles; zero is the invalid handle.
 
 The broad 32-symbol sentinel set remains an audit of cross-subsystem availability. The implemented
-Node adapter separately resolves exactly 219 symbols; `tools/audit-cna-abi.mjs` extracts those
+Node adapter separately resolves exactly 280 symbols; `tools/audit-cna-abi.mjs` extracts those
 names from the adapter source and confirms that the selected headers declare every one. It also
 generates a C translation unit that assigns every declared CNA function to the bridge's exact
-function-pointer typedef and compiles it with warnings as errors. All 219 signatures pass, covering
+function-pointer typedef and compiles it with warnings as errors. All 280 signatures pass, covering
 pointer depth, fixed-width integer signedness, `CNA_Bool`, structures, and callback typedef ABI.
 The machine-readable result is [`cna-abi-report.json`](cna-abi-report.json).
 
@@ -53,7 +53,7 @@ All 32 sentinel symbols are present. Important lifetime evidence is explicit in 
 These contracts justify the binding's internal `owned`, `borrowed`, `parent-owned`, and
 `adopted/transferred` states. They do not justify exposing the numeric handle publicly.
 
-The adapter grew from 69 to 219 symbols only for implemented routes:
+The adapter grew from 219 to 280 symbols only for dependency-complete implemented routes:
 
 | Exact adapter group | Symbols | Change |
 | --- | ---: | ---: |
@@ -61,15 +61,21 @@ The adapter grew from 69 to 219 symbols only for implemented routes:
 | game/framework lifecycle | 7 | 0 |
 | manager/device/renderer information | 22 | 0 |
 | Texture2D | 8 | 0 |
-| SpriteBatch | 5 | 0 |
-| vertex declaration/buffer and index buffer | 10 | 0 |
+| GraphicsDevice status/state/binding/draw | 18 | +18 |
+| SpriteBatch | 7 | +2 |
+| vertex declaration/buffer and index buffer | 15 | +5 |
+| Texture3D/TextureCube | 10 | +10 |
+| render targets | 5 | +5 |
+| OcclusionQuery | 6 | +6 |
+| title storage | 1 | +1 |
+| GameWindow/event registration | 14 | +14 |
 | keyboard/mouse/gamepad/touch | 14 | 0 |
-| Audio/SoundEffect/dynamic/microphone | 43 | +43 |
-| XACT engine/category/bank/cue | 46 | +46 |
-| Media source/song/player | 23 | +23 |
-| VideoPlayer controls | 11 | +11 |
-| Storage device/container/stream | 27 | +27 |
-| **Total** | **219** | **+150** |
+| Audio/SoundEffect/dynamic/microphone | 43 | 0 |
+| XACT engine/category/bank/cue | 46 | 0 |
+| Media source/song/player | 23 | 0 |
+| VideoPlayer controls | 11 | 0 |
+| Storage device/container/stream | 27 | 0 |
+| **Total** | **280** | **+61** |
 
 ## Browser artifact finding
 
@@ -144,7 +150,7 @@ EXPORTED_CNA_SYMBOLS=2861
 
 This path is test evidence only and is not embedded in source, package metadata, or generated
 projects. All dynamic dependencies resolved locally. The small C Node-API adapter loads a path
-supplied by the caller, rejects any ABI other than exact 0.7.0, imports 219 named symbols, and
+supplied by the caller, rejects any ABI other than exact 0.7.0, imports 280 named symbols, and
 carries 64-bit handles as bigint. Game lifecycle callbacks are synchronous on the attached Node
 thread and contain/rethrow JavaScript exceptions after the native call returns. No native
 audio/media callback subscription is imported: dynamic buffer delivery and media updates use the
@@ -159,7 +165,15 @@ Each full lifecycle exercises Texture2D Color transfer and region readback, PNG 
 PNG encoding, public SpriteBatch Begin/Draw/End, synthetic LZX SpriteFont XNB plus DrawString, and a
 synthetic LZX Model XNB whose relative external reference resolves to a separately compressed
 Texture2D. The model creates and reads back real vertex/index buffers; cache identity and content
-disposal are checked before game shutdown. The subsystem scenario additionally exercises PCM SoundEffect and
+disposal are checked before game shutdown. The graphics scenario additionally verifies copied
+Blend/DepthStencil/Rasterizer/Sampler state, texture/buffer/render-target binding and stable facade
+identity, DynamicVertexBuffer Discard plus DynamicIndexBuffer NoOverwrite round trips,
+RenderTarget2D and RenderTargetCube metadata plus 2D/cube-face bind/unbind, OcclusionQuery
+Begin/End/reuse, advanced non-effect
+SpriteBatch Begin, GameWindow state/registrations, and title-storage reads. All five typed draw
+families reach CNA; HEADLESS reports result 12 because no effect has been applied, so no pixel or
+GPU-output claim is made. Texture3D and TextureCube creation both return the documented
+`CNA_RESULT_NOT_SUPPORTED` on this artifact. The subsystem scenario additionally exercises PCM SoundEffect and
 instance state, dynamic buffer queue transitions, one-listener Apply3D plus explicit multi-listener
 rejection, empty microphone enumeration, generated-silent-WAV MediaPlayer controls and
 visualization, VideoPlayer control state, and Storage selector/container CRUD in an isolated XDG
@@ -167,6 +181,14 @@ directory. Invalid XACT settings construction is verified with a structured CNA 
 XGS/XSB/XWB fixture was available. Renderer data reports `HEADLESS` from CNA; its actual capability bits
 report custom effects available and compiled effects unavailable. CNA-TS has not imported the
 custom-effect execution routes, so the capability bit is evidence about CNA, not a binding claim.
+
+One negative qualification deliberately attempted `cna_render_target_destroy` while the target
+was still bound. Contrary to the header's documented invalid-state result, the qualified artifact
+let `System::InvalidOperationException("Disposing target that is still bound")` escape and aborted
+with `SIGABRT`. CNA-TS now rejects bound target disposal before native dispatch and restores the
+backbuffer during device shutdown. This is a recorded upstream defect, not a passing native route;
+the final native suite has zero crashes. No ASan/LSan build was available, so the ownership evidence
+is deterministic handle/lifecycle stress rather than an allocator-level leak-freedom claim.
 
 ## Selected backend status
 
@@ -177,11 +199,12 @@ Windowed/GPU renderers, Windows, macOS, Electron, mobile, and browser runtime re
 
 The imported slice supports ABI/errors, game lifecycle and frame hooks, FrameworkDispatcher,
 GraphicsDeviceManager configuration/lifecycle, callback-scoped GraphicsDevice borrowing,
-clear/present, renderer information, Texture2D transfer/encoded image routes, SpriteBatch
-Begin/Draw/End, vertex/index buffer construction and raw built-in-content transfer, and the already
-modeled keyboard/mouse/gamepad/touch routes. Effect execution/reflection routes, indexed drawing,
-generic public vertex transfer, video asset/frame-texture routes, and native GameWindow events are
-not imported; those capabilities remain explicit blockers rather than simulations. Authored XACT
+clear/present, renderer information, copied graphics state and binding, typed bound/user/instanced
+draw dispatch, static/dynamic buffers, Texture2D/3D/Cube, render targets, OcclusionQuery,
+SpriteBatch state/transform Begin, title storage, GameWindow state and removable registrations, and
+the already modeled input/audio/media/storage routes. Effect execution, arbitrary custom JavaScript
+vertex layouts, video asset/frame-texture routes, and standalone owned GraphicsDevice construction
+remain explicit blockers or language limitations rather than simulations. Authored XACT
 success remains asset-pending, and HEADLESS exposes no microphone device.
 
 ## Actionable missing C API routes
@@ -190,11 +213,12 @@ These are binding-side requirements, not patches applied to CNA:
 
 | Affected XNA API | Required CNA operation and ownership | Callback/thread requirement | Minimal prospective ABI shape | Current CNA-TS behavior |
 | --- | --- | --- | --- | --- |
-| `ContentManager.Load` default stream acquisition | Copy the complete XNB bytes for an asset identity into caller-owned memory; CNA retains no buffer pointer | synchronous, no callback | byte-count query plus `cna_content_manager_copy_asset_xnb(manager, CNA_StringView, uint8_t*, uint64_t, uint64_t*)` | protected providers work; the base manager fails explicitly and does not expose host filesystem paths |
 | `EffectPass.Apply` and stock effects | Create/destroy compiled-effect ownership and apply a borrowed pass to the callback-scoped device | synchronous on the game thread | owned effect handle, borrowed pass identity, `cna_effect_pass_apply(device, pass)` with structured error | managed reflection/state works; apply fails explicitly |
-| `Model.Draw` | Bind borrowed vertex/index/effect resources and issue indexed draws without transferring child ownership | synchronous on the draw callback thread | typed vertex/index binding plus indexed-draw descriptor carrying primitive/base/start/count fields | model graph/resources load; rendering fails explicitly |
+| `Model.Draw` | Apply XNA-compatible compiled/stock effect passes before the now-available indexed draw | synchronous on the draw callback thread | executable effect/pass ownership and apply route | model graph/resources and raw indexed dispatch work; rendering remains blocked at `EffectPass.Apply` |
 | `VideoPlayer.GetTexture` | Either copy a decoded frame into a caller-owned texture or issue an explicit borrowed lease with generation validation | frame production may be asynchronous; delivery must be polled or marshalled to the game thread, never call JS from a decoder thread | preferred copy route, or acquire/release lease handles with documented invalidation | player controls work; frame texture fails explicitly |
-| `Game.Window` and window events | Expose a borrowed platform-window identity and separately owned event-registration handles | callbacks must identify their thread and support removal before parent destruction | window snapshot/mutation routes plus versioned callback table returning a registration handle | window access/events fail explicitly on HEADLESS |
+| Direct `GraphicsDevice` construction | Create a standalone owned device distinct from the game callback borrow | synchronous owner thread with explicit shutdown | owned device handle and standalone create/destroy contract | device status works; direct constructor fails explicitly because ABI 0.7 has only game-owned borrowing |
+| Dynamic-buffer/render-target `ContentLost` events | Surface real loss/recreation notifications with removable registrations | game thread, removable before resource/game destruction | per-resource loss callback registration and unsubscribe handle | creation, transfer and loss queries work; events are never fabricated |
+| Bound render-target destroy | Return the documented invalid-state result through the exception barrier | synchronous game thread | existing `cna_render_target_destroy` contract, fixed to contain the canonical exception | CNA-TS preflights and rejects the call; the qualified artifact otherwise aborts with `Disposing target that is still bound` |
 
 No allocator-level or sanitizer-backed leak claim is made. This run verifies deterministic managed
 and native ownership behavior, but the selected library was not built under ASan/LSan.

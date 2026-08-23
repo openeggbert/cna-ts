@@ -5,7 +5,7 @@ import type { Texture } from "./Texture.js";
 type CollectionState = {
   readonly Device: GraphicsDevice;
   readonly Values: (Texture | null)[];
-  readonly Apply: (index: number, value: Texture) => void;
+  readonly Apply: (index: number, value: Texture | null) => void;
 };
 
 const states = new WeakMap<TextureCollection, CollectionState>();
@@ -22,13 +22,14 @@ export class TextureCollection {
   public Get(index: number): Texture {
     const state = stateOf(this);
     index = validateIndex(index, state.Values.length);
+    if (state.Values[index]?.IsDisposed) state.Values[index] = null;
     return state.Values[index] as Texture;
   }
 
   public Set(index: number, value: Texture): void {
     const state = stateOf(this);
     index = validateIndex(index, state.Values.length);
-    state.Apply(index, value);
+    state.Apply(index, value ?? null);
     state.Values[index] = value;
   }
 }
@@ -42,7 +43,7 @@ function validateIndex(index: number, count: number): number {
 export function createTextureCollectionForInternalUse(
   device: GraphicsDevice,
   count: number,
-  apply: (index: number, value: Texture) => void,
+  apply: (index: number, value: Texture | null) => void,
 ): TextureCollection {
   const result = Object.create(TextureCollection.prototype) as TextureCollection;
   states.set(result, { Device: device, Values: new Array(count).fill(null), Apply: apply });

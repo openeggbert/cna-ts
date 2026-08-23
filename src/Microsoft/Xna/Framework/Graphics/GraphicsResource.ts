@@ -62,6 +62,10 @@ export class GraphicsResource implements IDisposable {
   public Dispose(): void {
     const state = stateOf(this);
     if (state.Disposed) return;
+    if (state.ActiveCheck != null && !state.ActiveCheck()) {
+      state.Disposed = true;
+      return;
+    }
     this.#disposing.Dispatch(this, EventArgs.Empty);
     state.Release?.();
     state.Disposed = true;
@@ -93,6 +97,17 @@ export function assertGraphicsResourceActiveForInternalUse(resource: GraphicsRes
   if (resource.IsDisposed) throw new ObjectDisposedException(resource.constructor.name);
 }
 
+export function assertGraphicsResourceCompatibleForInternalUse(
+  resource: GraphicsResource,
+  device: GraphicsDevice,
+): void {
+  assertGraphicsResourceActiveForInternalUse(resource);
+  const state = stateOf(resource);
+  if (state.Device != null && state.Device !== device) {
+    throw new InvalidOperationException("The graphics resource belongs to a different GraphicsDevice");
+  }
+}
+
 export function setGraphicsResourceLifetimeForInternalUse(
   resource: GraphicsResource,
   release: () => void,
@@ -101,4 +116,16 @@ export function setGraphicsResourceLifetimeForInternalUse(
   const state = stateOf(resource);
   state.Release = release;
   state.ActiveCheck = activeCheck;
+}
+
+export function guardGraphicsResourceReleaseForInternalUse(
+  resource: GraphicsResource,
+  guard: () => void,
+): void {
+  const state = stateOf(resource);
+  const release = state.Release;
+  state.Release = () => {
+    guard();
+    release?.();
+  };
 }

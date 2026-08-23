@@ -6,7 +6,9 @@ import {
   Game,
   GameServiceContainer,
   NativeUnavailableError,
+  TitleContainer,
 } from "../dist/index.js";
+import { getBackend, setBackendForInternalUse } from "../dist/internal/backend.js";
 
 class TestAsset {
   disposed = 0;
@@ -14,6 +16,10 @@ class TestAsset {
 }
 
 class OtherAsset {}
+
+class DefaultStreamContentManager extends Content.ContentManager {
+  Open(assetName) { return super.OpenStream(assetName); }
+}
 
 class ManagedContentManager extends Content.ContentManager {
   reads = [];
@@ -67,4 +73,24 @@ test("ContentLoadException preserves its inner JavaScript cause", () => {
   assert.equal(error.name, "ContentLoadException");
   assert.equal(error.message, "content");
   assert.equal(error.cause, cause);
+});
+
+test("TitleContainer and default ContentManager stay within CNA title storage", (t) => {
+  const previous = getBackend();
+  t.after(() => setBackendForInternalUse(previous));
+  const names = [];
+  const backend = Object.create(previous);
+  backend.openTitleStream = (name) => {
+    names.push(name);
+    return Uint8Array.of(1, 2, 3);
+  };
+  setBackendForInternalUse(backend);
+
+  assert.deepEqual(TitleContainer.OpenStream("Content\\asset.bin"), Uint8Array.of(1, 2, 3));
+  const content = new DefaultStreamContentManager(new GameServiceContainer(), "Content");
+  assert.deepEqual(content.Open("Models\\ship"), Uint8Array.of(1, 2, 3));
+  assert.deepEqual(names, ["Content/asset.bin", "Content/Models/ship.xnb"]);
+  assert.throws(() => TitleContainer.OpenStream("../outside.bin"), RangeError);
+  assert.throws(() => TitleContainer.OpenStream("/etc/passwd"), RangeError);
+  assert.throws(() => TitleContainer.OpenStream("C:\\outside.bin"), RangeError);
 });

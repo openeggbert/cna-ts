@@ -8,6 +8,7 @@ import {
 import { CullMode, FillMode } from "./StateEnums.js";
 
 const locked = new WeakSet<RasterizerState>();
+const presets = new WeakSet<RasterizerState>();
 function mutable(state: RasterizerState): void {
   assertGraphicsResourceActiveForInternalUse(state);
   if (locked.has(state)) throw new InvalidOperationException("The RasterizerState cannot be modified after it has been bound to a GraphicsDevice");
@@ -46,11 +47,12 @@ function preset(type: new () => RasterizerState, name: string, cullMode: CullMod
   state.CullMode = cullMode;
   state.Name = name;
   locked.add(state);
+  presets.add(state);
   return state;
 }
 
 export function bindRasterizerStateForInternalUse(state: RasterizerState, device: GraphicsDevice): void {
   assertGraphicsResourceActiveForInternalUse(state);
-  attachGraphicsResourceForInternalUse(state, device);
+  if (!presets.has(state)) attachGraphicsResourceForInternalUse(state, device);
   locked.add(state);
 }

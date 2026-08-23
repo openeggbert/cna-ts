@@ -8,6 +8,7 @@ import {
 import { CompareFunction, StencilOperation } from "./StateEnums.js";
 
 const locked = new WeakSet<DepthStencilState>();
+const presets = new WeakSet<DepthStencilState>();
 function mutable(state: DepthStencilState): void {
   assertGraphicsResourceActiveForInternalUse(state);
   if (locked.has(state)) throw new InvalidOperationException("The DepthStencilState cannot be modified after it has been bound to a GraphicsDevice");
@@ -82,11 +83,12 @@ function preset(
   state.DepthBufferWriteEnable = writeEnabled;
   state.Name = name;
   locked.add(state);
+  presets.add(state);
   return state;
 }
 
 export function bindDepthStencilStateForInternalUse(state: DepthStencilState, device: GraphicsDevice): void {
   assertGraphicsResourceActiveForInternalUse(state);
-  attachGraphicsResourceForInternalUse(state, device);
+  if (!presets.has(state)) attachGraphicsResourceForInternalUse(state, device);
   locked.add(state);
 }

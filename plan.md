@@ -112,7 +112,8 @@ Electron, or mobile support.
 - [x] Implement the first real backend as a small N-API adapter over an explicitly supplied CNA
   ABI-0.7 library.
 - [x] Exact ABI version, UTF-8 errors, synchronous callbacks, bigint handles, child ownership, and
-  shutdown have Linux HEADLESS integration evidence; native GameWindow events remain open.
+  shutdown have Linux HEADLESS integration evidence; GameWindow state/handle/event registrations
+  are now routed, while physical event delivery remains unqualifiable under HEADLESS.
 
 ## CNA C ABI status
 
@@ -124,7 +125,7 @@ Electron, or mobile support.
   first-slice sentinel symbols; it separately reports tracked C-ABI Wasm/ESM artifacts.
 - [ ] Produce or obtain a consumable C-ABI WebAssembly ESM artifact.
 - [x] Define the first exact symbol subset rather than binding all 2,861 routes blindly.
-- [x] The audit extracts and verifies the adapter's exact 219 imported symbols separately from the
+- [x] The audit extracts and verifies the adapter's exact 280 imported symbols separately from the
   broader 32-symbol cross-subsystem sentinel list.
 - [x] An isolated unmodified HEADLESS native build was investigated and stopped at CNA's upstream
   C-API renderer table assertion (49 identities versus 50); no library or adapter was fabricated.
@@ -144,6 +145,9 @@ Electron, or mobile support.
   the current CNA route is transient and player-owned.
 - [x] Exercise compressed SpriteFont/Model/Texture2D reader graphs, relative external references,
   cache identity, content disposal, and parent shutdown in the qualified native lifecycle.
+- [x] Extend deterministic ownership to dynamic buffers, render targets, Texture3D/Cube,
+  OcclusionQuery and binding references; reject bound render-target disposal in CNA-TS before the
+  qualified ABI-0.7 artifact's aborting native path can execute.
 
 ## Core/value API
 
@@ -181,9 +185,13 @@ Electron, or mobile support.
   Effect reflection, BasicEffect/stock-effect managed state, and Model graphs in dependency order.
 - [x] Route real Texture2D transfer/PNG and SpriteBatch Begin/Draw/End through CNA and construct
   native vertex/index resources from managed XNB Model readers.
-- [ ] Import effect execution and indexed drawing only with real CNA routes and renderer evidence;
-  this HEADLESS artifact advertises custom effects but not compiled effects, and no effect routes
-  are imported by CNA-TS yet.
+- [x] Import and signature-audit bound/indexed/instanced and four-codec user draw routes; the
+  qualified HEADLESS pipeline reaches CNA and returns result 12 because no effect is applied, so
+  dispatch is verified without claiming GPU output.
+- [x] Import state/scalar/sampler/texture/buffer/render-target binding, dynamic-buffer,
+  render-target, volume-texture, query and advanced SpriteBatch routes supported by ABI 0.7.
+- [ ] EffectPass.Apply, compiled/stock-effect execution and Model.Draw remain CNA-blocked even
+  though raw indexed draw dispatch is now present.
 
 ## Input/touch
 
@@ -206,6 +214,9 @@ Electron, or mobile support.
   validation, deterministic legal fixtures, and independent real-XNB byte comparison.
 - [x] Implement relative/nested external-reference resolution, normalized cache identity, type and
   cycle checks, failure cleanup, shared-resource interaction, compressed targets, and unload.
+- [x] Route `TitleContainer.OpenStream` and base `ContentManager` acquisition through CNA title
+  storage, normalize separators, append `RootDirectory`/`.xnb`, and reject absolute/traversal host
+  paths.
 
 ## Audio/XACT, media, storage, GamerServices
 
@@ -229,10 +240,11 @@ Electron, or mobile support.
 
 - [x] Keep runtime capability claims independent of the strict structural verifier.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
-- [x] Classify 62 operation families: 18 verified managed, 14 verified native, five upstream-CNA
-  blocked, three fixture pending, four hardware pending, three platform pending, 12 CNA-TS gaps,
-  two explicitly unavailable on the qualified backend, and one not applicable to HEADLESS Linux.
-- [x] Audit all 74 `NativeUnavailableError` and two `NotSupportedException` construction sites in 28
+- [x] Rebaseline 69 operation families: 19 verified managed, 24 verified native, eight upstream-CNA
+  blocked, three fixture pending, four hardware pending, three platform pending, zero CNA-TS gaps,
+  three language-mapping limitations, four explicitly unavailable on the qualified backend, and
+  one not applicable to HEADLESS Linux.
+- [x] Audit all 63 `NativeUnavailableError` and six `NotSupportedException` construction sites in 25
   selected-framework source files into those operation-family boundaries.
 
 ## Template
@@ -246,7 +258,8 @@ Electron, or mobile support.
 - [x] Verify the template at 60 and 600 real SpriteBatch draw frames against the final package.
 - [ ] Implement native window/resize and a packaged windowed renderer before making windowed claims.
 - [x] Add managed BasicEffect state after the 2D route; keep BasicEffect execution/3D blocked by
-  measured HEADLESS renderer capability and absent effect/indexed-draw bridge routes.
+  the missing XNA-compatible effect/pass execution route. Raw indexed drawing is now imported and
+  verified to dispatch, independently of that remaining effect boundary.
 - [x] Generate TypeScript and ordinary JavaScript projects from one canonical source; both install
   the packed artifact and build, and JavaScript runs a managed smoke without TypeScript.
 
@@ -293,8 +306,13 @@ Electron, or mobile support.
   so the unmodified native shared target can compile;
 - publish reproducible CNA ABI-0.7 shared artifacts instead of relying on temporary sibling build
   paths for verification;
-- expose a general caller-buffer XNB byte-stream route if the base `ContentManager` is to load
-  arbitrary compiled assets without leaking host filesystem semantics;
+- standalone owned GraphicsDevice construction (ABI 0.7 exposes only the game-owned borrowed
+  device);
+- executable EffectPass/compiled-or-stock-effect semantics required by effect-bearing
+  SpriteBatch.Begin and Model.Draw;
+- actual dynamic-buffer/render-target loss callbacks (queries exist, loss events do not);
+- fix the documented bound-render-target destroy path so it returns invalid state instead of
+  aborting the process;
 - platform-specific renderer/window integration evidence for WebView/Electron claims.
 
 These are narrower than “CNA has no ABI”: the native C ABI exists and is broad.

@@ -78,6 +78,151 @@ function fakeBackend(calls) {
   };
 }
 
+function graphicsRuntimeBackend(calls) {
+  const backend = fakeBackend(calls);
+  let next = 10_000n;
+  const vertexData = new Map();
+  const indexData = new Map();
+  const texture3DData = new Map();
+  const textureCubeData = new Map();
+  const renderTargets = new Map();
+  const queries = new Map();
+  Object.assign(backend, {
+    getGraphicsDeviceStatus() { return Graphics.GraphicsDeviceStatus.Normal; },
+    setGraphicsDeviceBlendState(_device, value) { calls.push(["blend", value]); },
+    setGraphicsDeviceDepthStencilState(_device, value) { calls.push(["depth", value]); },
+    setGraphicsDeviceRasterizerState(_device, value) { calls.push(["rasterizer", value]); },
+    setGraphicsDeviceSamplerState(_device, stage, slot, value) {
+      if (backend.failNextSampler) {
+        backend.failNextSampler = false;
+        throw new Error("injected sampler failure");
+      }
+      calls.push(["sampler", stage, slot, value]);
+    },
+    setGraphicsDeviceTexture(_device, stage, slot, texture) {
+      calls.push(["texture", stage, slot, texture]);
+    },
+    setGraphicsDeviceBlendFactor(_device, value) { calls.push(["blendFactor", value]); },
+    setGraphicsDeviceMultiSampleMask(_device, value) { calls.push(["multiSampleMask", value]); },
+    setGraphicsDeviceReferenceStencil(_device, value) { calls.push(["referenceStencil", value]); },
+    setGraphicsDeviceScissorRectangle(_device, x, y, width, height) {
+      calls.push(["scissor", x, y, width, height]);
+    },
+    setGraphicsDeviceViewport(_device, value) { calls.push(["viewport", value]); },
+    setGraphicsDeviceVertexBuffers(_device, bindings) { calls.push(["vertexBindings", bindings]); },
+    setGraphicsDeviceIndexBuffer(_device, buffer) { calls.push(["indexBinding", buffer]); },
+    setGraphicsDeviceRenderTargets(_device, bindings) { calls.push(["renderTargets", bindings]); },
+    drawPrimitives(...args) { calls.push(["draw", ...args]); },
+    drawIndexedPrimitives(...args) { calls.push(["drawIndexed", ...args]); },
+    drawInstancedPrimitives(...args) { calls.push(["drawInstanced", ...args]); },
+    drawUserPrimitives(...args) { calls.push(["drawUser", ...args]); },
+    drawUserIndexedPrimitives(...args) { calls.push(["drawUserIndexed", ...args]); },
+    beginSpriteBatchWithStates(...args) { calls.push(["spriteStates", ...args]); },
+    createVertexBuffer(_device, stride, _elements, count, _usage, dynamic) {
+      const handle = next++;
+      vertexData.set(handle, new Uint8Array(stride * count));
+      calls.push(["vertexCreate", handle, dynamic]);
+      return handle;
+    },
+    setVertexBufferRaw(handle, bytes) { vertexData.set(handle, new Uint8Array(bytes)); },
+    getVertexBufferRaw(handle) { return new Uint8Array(vertexData.get(handle)); },
+    setVertexBufferData(handle, _type, options, _start, _count, _capacity, bytes) {
+      vertexData.set(handle, new Uint8Array(bytes));
+      calls.push(["vertexSet", options]);
+    },
+    setVertexBufferRawAt(handle, offset, bytes) { vertexData.get(handle).set(bytes, offset); },
+    getVertexBufferRawAt(handle, offset, count, stride) {
+      return vertexData.get(handle).slice(offset, offset + count * stride);
+    },
+    getVertexBufferIsContentLost() { return false; },
+    destroyVertexBuffer(handle) { vertexData.delete(handle); calls.push(["vertexDestroy", handle]); },
+    createIndexBuffer(_device, size, count, _usage, dynamic) {
+      const handle = next++;
+      indexData.set(handle, new Uint8Array(count * (size === 0 ? 2 : 4)));
+      calls.push(["indexCreate", handle, dynamic]);
+      return handle;
+    },
+    setIndexBufferRaw(handle, _size, bytes) { indexData.set(handle, new Uint8Array(bytes)); },
+    getIndexBufferRaw(handle) { return new Uint8Array(indexData.get(handle)); },
+    setIndexBufferData(handle, _size, options, _offset, _start, _count, _capacity, bytes) {
+      indexData.set(handle, new Uint8Array(bytes));
+      calls.push(["indexSet", options]);
+    },
+    getIndexBufferIsContentLost() { return false; },
+    destroyIndexBuffer(handle) { indexData.delete(handle); calls.push(["indexDestroy", handle]); },
+    createTexture3D(_device, width, height, depth, mipMap, format) {
+      const handle = next++;
+      texture3DData.set(handle, {
+        info: { Width: width, Height: height, Depth: depth, LevelCount: mipMap ? 2 : 1, Format: format },
+        colors: new Uint32Array(width * height * depth),
+      });
+      return handle;
+    },
+    getTexture3DInfo(handle) { return texture3DData.get(handle).info; },
+    setTexture3DColors(handle, _level, _left, _top, _right, _bottom, _front, _back,
+      start, count, colors) {
+      texture3DData.get(handle).colors.set(colors.slice(start, start + count), start);
+    },
+    getTexture3DColors(handle, _level, _left, _top, _right, _bottom, _front, _back,
+      _start, _count, capacity) {
+      return texture3DData.get(handle).colors.slice(0, capacity);
+    },
+    destroyTexture3D(handle) { texture3DData.delete(handle); },
+    createTextureCube(_device, size, mipMap, format) {
+      const handle = next++;
+      textureCubeData.set(handle, {
+        info: { Size: size, LevelCount: mipMap ? 2 : 1, Format: format },
+        colors: new Uint32Array(size * size),
+      });
+      return handle;
+    },
+    getTextureCubeInfo(handle) { return textureCubeData.get(handle).info; },
+    setTextureCubeColors(handle, _face, _level, _rect, start, count, colors) {
+      textureCubeData.get(handle).colors.set(colors.slice(start, start + count), start);
+    },
+    getTextureCubeColors(handle, _face, _level, _rect, _start, _count, capacity) {
+      return textureCubeData.get(handle).colors.slice(0, capacity);
+    },
+    destroyTextureCube(handle) { textureCubeData.delete(handle); },
+    createRenderTarget2D(_device, width, height, mipMap, format, depth, samples, usage) {
+      const handle = next++;
+      renderTargets.set(handle, {
+        Kind: 1, Width: width, Height: height, Size: 0, LevelCount: mipMap ? 2 : 1,
+        Format: format, DepthFormat: depth, MultiSampleCount: samples, Usage: usage,
+        IsContentLost: false, RendererAvailable: true,
+      });
+      return handle;
+    },
+    createRenderTargetCube(_device, size, mipMap, format, depth, samples, usage) {
+      const handle = next++;
+      renderTargets.set(handle, {
+        Kind: 2, Width: size, Height: size, Size: size, LevelCount: mipMap ? 2 : 1,
+        Format: format, DepthFormat: depth, MultiSampleCount: samples, Usage: usage,
+        IsContentLost: false, RendererAvailable: true,
+      });
+      textureCubeData.set(handle, {
+        info: { Size: size, LevelCount: mipMap ? 2 : 1, Format: format },
+        colors: new Uint32Array(size * size),
+      });
+      return handle;
+    },
+    getRenderTargetInfo(handle) { return renderTargets.get(handle); },
+    destroyRenderTarget(handle) { renderTargets.delete(handle); textureCubeData.delete(handle); },
+    createOcclusionQuery() {
+      const handle = next++;
+      queries.set(handle, { active: false, ended: false });
+      return handle;
+    },
+    beginOcclusionQuery(handle) { queries.set(handle, { active: true, ended: false }); },
+    endOcclusionQuery(handle) { queries.set(handle, { active: false, ended: true }); },
+    getOcclusionQueryIsComplete(handle) { return queries.get(handle).ended; },
+    getOcclusionQueryPixelCount() { return 7; },
+    destroyOcclusionQuery(handle) { queries.delete(handle); },
+  });
+  backend.Graphics = backend;
+  return backend;
+}
+
 test("graphics states expose XNA enum values, defaults, presets, and binding immutability", () => {
   assert.deepEqual(
     [Graphics.Blend.One, Graphics.Blend.Zero, Graphics.Blend.SourceAlphaSaturation],
@@ -118,6 +263,181 @@ test("graphics states expose XNA enum values, defaults, presets, and binding imm
     [Graphics.TextureFilter.Point, Graphics.TextureAddressMode.Clamp,
       Graphics.TextureFilter.Anisotropic, Graphics.TextureAddressMode.Wrap],
   );
+});
+
+test("CNA graphics routes preserve identity, validate transfers, and roll back failed binding", (t) => {
+  const previous = getBackend();
+  t.after(() => setBackendForInternalUse(previous));
+  const calls = [];
+  const backend = graphicsRuntimeBackend(calls);
+  setBackendForInternalUse(backend);
+
+  const game = new Game();
+  const manager = new GraphicsDeviceManager(game);
+  manager.CreateDevice();
+  const device = manager.GraphicsDevice;
+  const secondGame = new Game();
+  const secondManager = new GraphicsDeviceManager(secondGame);
+  secondManager.CreateDevice();
+  const secondDevice = secondManager.GraphicsDevice;
+
+  assert.equal(device.GraphicsDeviceStatus, Graphics.GraphicsDeviceStatus.Normal);
+  const blend = new Graphics.BlendState();
+  const depth = new Graphics.DepthStencilState();
+  const rasterizer = new Graphics.RasterizerState();
+  device.BlendState = blend;
+  device.BlendState = blend;
+  device.DepthStencilState = depth;
+  device.RasterizerState = rasterizer;
+  assert.deepEqual([device.BlendState, device.DepthStencilState, device.RasterizerState],
+    [blend, depth, rasterizer]);
+
+  const failedSampler = new Graphics.SamplerState();
+  backend.failNextSampler = true;
+  assert.throws(() => device.SamplerStates.Set(0, failedSampler), /injected sampler failure/);
+  secondDevice.SamplerStates.Set(0, failedSampler);
+  assert.equal(secondDevice.SamplerStates.Get(0), failedSampler);
+  assert.throws(() => device.SamplerStates.Set(0, failedSampler), { name: "InvalidOperationException" });
+  assert.throws(() => device.SamplerStates.Get(-1), { name: "ArgumentOutOfRangeException" });
+
+  const texture = new Graphics.Texture2D(device, 2, 2);
+  device.Textures.Set(0, texture);
+  device.Textures.Set(0, texture);
+  assert.equal(device.Textures.Get(0), texture);
+  assert.throws(() => secondDevice.Textures.Set(0, texture), { name: "InvalidOperationException" });
+  assert.throws(() => device.Textures.Set(99, texture), { name: "ArgumentOutOfRangeException" });
+  texture.Dispose();
+  assert.equal(device.Textures.Get(0), null);
+
+  const vertices = [
+    new Graphics.VertexPositionColor(new Vector3(0, 0, 0), Color.Red),
+    new Graphics.VertexPositionColor(new Vector3(1, 0, 0), Color.Green),
+    new Graphics.VertexPositionColor(new Vector3(0, 1, 0), Color.Blue),
+  ];
+  const vertexBuffer = new Graphics.DynamicVertexBuffer(
+    device, Graphics.VertexPositionColor, 3, Graphics.BufferUsage.None,
+  );
+  vertexBuffer.SetData(vertices, 0, 3, Graphics.SetDataOptions.Discard);
+  const vertexOutput = new Array(3);
+  vertexBuffer.GetData(vertexOutput, 0, 3);
+  assert.deepEqual(
+    vertexOutput.map((value) => value.ToString()),
+    vertices.map((value) => value.ToString()),
+  );
+  assert.equal(vertexBuffer.IsContentLost, false);
+  assert.throws(
+    () => vertexBuffer.SetData(1, vertices, 0, 1, 16, Graphics.SetDataOptions.NoOverwrite),
+    { name: "ArgumentException" },
+  );
+
+  const indexBuffer = new Graphics.DynamicIndexBuffer(
+    device, Graphics.IndexElementSize.SixteenBits, 3, Graphics.BufferUsage.None,
+  );
+  indexBuffer.SetData([0, 1, 2], 0, 3, Graphics.SetDataOptions.NoOverwrite);
+  const indexOutput = new Array(3);
+  indexBuffer.GetData(indexOutput);
+  assert.deepEqual(indexOutput, [0, 1, 2]);
+  assert.throws(() => indexBuffer.SetData([0, 70_000, 2]), { name: "ArgumentException" });
+
+  assert.throws(
+    () => device.DrawPrimitives(Graphics.PrimitiveType.TriangleList, 0, 1),
+    { name: "InvalidOperationException" },
+  );
+  device.SetVertexBuffer(vertexBuffer);
+  device.Indices = indexBuffer;
+  assert.equal(device.GetVertexBuffers()[0].VertexBuffer, vertexBuffer);
+  assert.equal(device.Indices, indexBuffer);
+  device.DrawPrimitives(Graphics.PrimitiveType.TriangleList, 0, 1);
+  device.DrawIndexedPrimitives(Graphics.PrimitiveType.TriangleList, 0, 0, 3, 0, 1);
+  device.DrawInstancedPrimitives(Graphics.PrimitiveType.TriangleList, 0, 0, 3, 0, 1, 2);
+  device.DrawUserPrimitives(Graphics.PrimitiveType.TriangleList, vertices, 0, 1);
+  device.DrawUserIndexedPrimitives(
+    Graphics.PrimitiveType.TriangleList, vertices, 0, 3, [0, 1, 2], 0, 1,
+  );
+  assert.throws(
+    () => device.DrawUserPrimitives(Graphics.PrimitiveType.TriangleList, [{ x: 1 }, { x: 2 }, { x: 3 }], 0, 1),
+    { name: "ArgumentException" },
+  );
+  assert.throws(
+    () => device.DrawUserIndexedPrimitives(
+      Graphics.PrimitiveType.TriangleList, vertices, 0, 3, [0, 1, 3], 0, 1,
+    ),
+    { name: "ArgumentException" },
+  );
+
+  const target = new Graphics.RenderTarget2D(device, 4, 4);
+  device.SetRenderTarget(target);
+  assert.equal(device.GetRenderTargets()[0].RenderTarget, target);
+  assert.throws(() => target.Dispose(), { name: "InvalidOperationException" });
+  assert.equal(target.IsDisposed, false);
+  assert.throws(
+    () => device.SetRenderTargets([
+      new Graphics.RenderTargetBinding(target), new Graphics.RenderTargetBinding(target),
+    ]),
+    { name: "ArgumentException" },
+  );
+  device.SetRenderTarget(null);
+  assert.equal(device.GetRenderTargets().length, 0);
+
+  const targetCube = new Graphics.RenderTargetCube(
+    device, 4, false, Graphics.SurfaceFormat.Color, Graphics.DepthFormat.Depth24,
+    2, Graphics.RenderTargetUsage.PreserveContents,
+  );
+  assert.deepEqual(
+    [targetCube.Size, targetCube.DepthStencilFormat, targetCube.MultiSampleCount,
+      targetCube.RenderTargetUsage, targetCube.IsContentLost],
+    [4, Graphics.DepthFormat.Depth24, 2, Graphics.RenderTargetUsage.PreserveContents, false],
+  );
+  device.SetRenderTarget(targetCube, Graphics.CubeMapFace.NegativeZ);
+  assert.equal(device.GetRenderTargets()[0].RenderTarget, targetCube);
+  assert.equal(device.GetRenderTargets()[0].CubeMapFace, Graphics.CubeMapFace.NegativeZ);
+  assert.throws(() => targetCube.Dispose(), { name: "InvalidOperationException" });
+  device.SetRenderTarget(null);
+  targetCube.Dispose();
+  targetCube.Dispose();
+
+  const texture3D = new Graphics.Texture3D(device, 2, 2, 2, false, Graphics.SurfaceFormat.Color);
+  const volumeColors = Array.from({ length: 8 }, (_value, index) => new Color(index, 0, 0, 255));
+  texture3D.SetData(volumeColors);
+  const volumeOutput = new Array(8);
+  texture3D.GetData(volumeOutput);
+  assert.deepEqual(
+    volumeOutput.map((value) => value.PackedValue),
+    volumeColors.map((value) => value.PackedValue),
+  );
+  const cube = new Graphics.TextureCube(device, 2, false, Graphics.SurfaceFormat.Color);
+  const faceColors = [Color.Red, Color.Green, Color.Blue, Color.White];
+  cube.SetData(Graphics.CubeMapFace.NegativeZ, faceColors);
+  const faceOutput = new Array(4);
+  cube.GetData(Graphics.CubeMapFace.NegativeZ, faceOutput);
+  assert.deepEqual(
+    faceOutput.map((value) => value.PackedValue),
+    faceColors.map((value) => value.PackedValue),
+  );
+
+  const query = new Graphics.OcclusionQuery(device);
+  assert.throws(() => query.End(), { name: "InvalidOperationException" });
+  query.Begin();
+  assert.throws(() => query.Begin(), { name: "InvalidOperationException" });
+  query.End();
+  assert.equal(query.IsComplete, true);
+  assert.equal(query.PixelCount, 7);
+
+  const spriteBatch = new Graphics.SpriteBatch(device);
+  spriteBatch.Begin(
+    Graphics.SpriteSortMode.Deferred, blend, new Graphics.SamplerState(), depth, rasterizer,
+  );
+  spriteBatch.End();
+  assert.ok(calls.some((value) => Array.isArray(value) && value[0] === "spriteStates"));
+
+  game.Dispose();
+  assert.equal(vertexBuffer.IsDisposed, true);
+  assert.equal(indexBuffer.IsDisposed, true);
+  assert.equal(target.IsDisposed, true);
+  assert.equal(texture3D.IsDisposed, true);
+  assert.equal(cube.IsDisposed, true);
+  assert.equal(query.IsDisposed, true);
+  secondGame.Dispose();
 });
 
 test("device manager, device, and Texture2D preserve wrapper identity and deterministic ownership", (t) => {

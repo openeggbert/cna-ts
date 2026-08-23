@@ -69,6 +69,61 @@ typedef CNA_Result (*IndexBufferSetFn)(
   CNA_IndexBufferHandle, const CNA_IndexBufferTransfer*, const void*, uint64_t);
 typedef CNA_Result (*IndexBufferGetFn)(
   CNA_IndexBufferHandle, const CNA_IndexBufferTransfer*, void*, uint64_t, uint64_t*);
+typedef CNA_Result (*GraphicsDeviceStatusFn)(CNA_Handle, CNA_GraphicsDeviceStatus*);
+typedef CNA_Result (*GraphicsSetColorFn)(CNA_Handle, CNA_Color);
+typedef CNA_Result (*GraphicsSetBlendStateFn)(CNA_Handle, const CNA_BlendState*);
+typedef CNA_Result (*GraphicsSetDepthStencilStateFn)(CNA_Handle, const CNA_DepthStencilState*);
+typedef CNA_Result (*GraphicsSetRasterizerStateFn)(CNA_Handle, const CNA_RasterizerState*);
+typedef CNA_Result (*GraphicsSetSamplerStateFn)(
+  CNA_Handle, CNA_ShaderStage, uint32_t, const CNA_SamplerState*);
+typedef CNA_Result (*GraphicsSetTextureFn)(CNA_Handle, CNA_ShaderStage, uint32_t, CNA_Handle);
+typedef CNA_Result (*GraphicsSetI32Fn)(CNA_Handle, int32_t);
+typedef CNA_Result (*GraphicsSetRectangleFn)(CNA_Handle, CNA_Rectangle);
+typedef CNA_Result (*GraphicsSetViewportFn)(CNA_Handle, CNA_Viewport);
+typedef CNA_Result (*GraphicsSetVertexBuffersFn)(
+  CNA_Handle, const CNA_VertexBufferBinding*, uint64_t);
+typedef CNA_Result (*GraphicsSetIndexBufferFn)(CNA_Handle, CNA_IndexBufferHandle);
+typedef CNA_Result (*GraphicsDrawPrimitivesFn)(CNA_Handle, CNA_PrimitiveType, int32_t, int32_t);
+typedef CNA_Result (*GraphicsDrawIndexedFn)(
+  CNA_Handle, CNA_PrimitiveType, int32_t, int32_t, int32_t, int32_t, int32_t);
+typedef CNA_Result (*GraphicsDrawInstancedFn)(
+  CNA_Handle, CNA_PrimitiveType, int32_t, int32_t, int32_t, int32_t, int32_t, int32_t);
+typedef CNA_Result (*GraphicsDrawUserFn)(CNA_Handle, const CNA_UserPrimitives*);
+typedef CNA_Result (*GraphicsDrawUserIndexedFn)(
+  CNA_Handle, const CNA_UserPrimitives*, const CNA_UserIndices*);
+typedef CNA_Result (*SpriteBatchBeginStatesFn)(
+  CNA_Handle, CNA_SpriteSortMode, const CNA_BlendState*, const CNA_SamplerState*,
+  const CNA_DepthStencilState*, const CNA_RasterizerState*);
+typedef CNA_Result (*SpriteBatchBeginEffectFn)(
+  CNA_Handle, CNA_SpriteSortMode, const CNA_BlendState*, const CNA_SamplerState*,
+  const CNA_DepthStencilState*, const CNA_RasterizerState*, CNA_Handle, const CNA_Matrix*);
+typedef CNA_Result (*VertexBufferSetDataFn)(
+  CNA_VertexBufferHandle, const CNA_VertexBufferTransfer*, const void*, uint64_t);
+typedef CNA_Result (*VertexBufferSetRawAtFn)(
+  CNA_VertexBufferHandle, uint64_t, const void*, uint64_t, uint64_t, uint32_t);
+typedef CNA_Result (*VertexBufferInfoFn)(CNA_VertexBufferHandle, CNA_VertexBufferInfo*);
+typedef CNA_Result (*IndexBufferSetAtFn)(
+  CNA_IndexBufferHandle, uint64_t, const CNA_IndexBufferTransfer*, const void*, uint64_t);
+typedef CNA_Result (*IndexBufferInfoFn)(CNA_IndexBufferHandle, CNA_IndexBufferInfo*);
+typedef CNA_Result (*Texture3DCreateFn)(CNA_Handle, const CNA_Texture3DCreateInfo*, CNA_Handle*);
+typedef CNA_Result (*Texture3DInfoFn)(CNA_Handle, CNA_Texture3DInfo*);
+typedef CNA_Result (*Texture3DSetFn)(
+  CNA_Handle, const CNA_Texture3DTransfer*, const CNA_Color*, uint64_t);
+typedef CNA_Result (*Texture3DGetFn)(
+  CNA_Handle, const CNA_Texture3DTransfer*, CNA_Color*, uint64_t, uint64_t*);
+typedef CNA_Result (*TextureCubeCreateFn)(CNA_Handle, const CNA_TextureCubeCreateInfo*, CNA_Handle*);
+typedef CNA_Result (*TextureCubeInfoFn)(CNA_Handle, CNA_TextureCubeInfo*);
+typedef CNA_Result (*TextureCubeSetFn)(
+  CNA_Handle, const CNA_TextureCubeTransfer*, const CNA_Color*, uint64_t);
+typedef CNA_Result (*TextureCubeGetFn)(
+  CNA_Handle, const CNA_TextureCubeTransfer*, CNA_Color*, uint64_t, uint64_t*);
+typedef CNA_Result (*RenderTarget2DCreateFn)(
+  CNA_Handle, const CNA_RenderTarget2DCreateInfo*, CNA_Handle*);
+typedef CNA_Result (*RenderTargetCubeCreateFn)(
+  CNA_Handle, const CNA_RenderTargetCubeCreateInfo*, CNA_Handle*);
+typedef CNA_Result (*RenderTargetInfoFn)(CNA_Handle, CNA_RenderTargetInfo*);
+typedef CNA_Result (*GraphicsSetRenderTargetsFn)(
+  CNA_Handle, const CNA_RenderTargetBinding*, uint64_t);
 typedef CNA_Result (*KeyboardGetStateFn)(CNA_Handle, CNA_KeyboardState*);
 typedef CNA_Result (*MouseGetStateFn)(CNA_Handle, CNA_MouseState*);
 typedef CNA_Result (*MouseSetPositionFn)(CNA_Handle, int32_t, int32_t);
@@ -148,6 +203,12 @@ typedef CNA_Result (*StorageNameCopyFn)(
 typedef CNA_Result (*StorageOpenFileFn)(
   CNA_Handle, CNA_StringView, uint32_t, uint32_t, uint32_t, CNA_Handle*);
 typedef CNA_Result (*StorageStreamReadFn)(CNA_Handle, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*TitleContainerReadFn)(
+  CNA_Handle, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*HandleRectangleOutFn)(CNA_Handle, CNA_Rectangle*);
+typedef CNA_Result (*GameWindowEndFn)(CNA_Handle, CNA_StringView, int32_t, int32_t);
+typedef CNA_Result (*GameWindowSubscribeFn)(
+  CNA_Handle, CNA_GameWindowEvent, CNA_GameEventCallback, void*, CNA_Handle*);
 
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
@@ -204,7 +265,53 @@ typedef struct Api {
   IndexBufferCreateFn index_buffer_create;
   GameHandleFn index_buffer_destroy;
   IndexBufferSetFn index_buffer_set;
+  IndexBufferSetAtFn index_buffer_set_at;
   IndexBufferGetFn index_buffer_get;
+  IndexBufferInfoFn index_buffer_get_info;
+  GraphicsDeviceStatusFn graphics_get_status;
+  GraphicsSetColorFn graphics_set_blend_factor;
+  GraphicsSetBlendStateFn graphics_set_blend_state;
+  GraphicsSetDepthStencilStateFn graphics_set_depth_stencil_state;
+  GraphicsSetRasterizerStateFn graphics_set_rasterizer_state;
+  GraphicsSetSamplerStateFn graphics_set_sampler_state;
+  GraphicsSetTextureFn graphics_set_texture;
+  GraphicsSetI32Fn graphics_set_multi_sample_mask;
+  GraphicsSetI32Fn graphics_set_reference_stencil;
+  GraphicsSetRectangleFn graphics_set_scissor_rectangle;
+  GraphicsSetViewportFn graphics_set_viewport;
+  GraphicsSetVertexBuffersFn graphics_set_vertex_buffers;
+  GraphicsSetIndexBufferFn graphics_set_index_buffer;
+  GraphicsDrawPrimitivesFn graphics_draw_primitives;
+  GraphicsDrawIndexedFn graphics_draw_indexed;
+  GraphicsDrawInstancedFn graphics_draw_instanced;
+  GraphicsDrawUserFn graphics_draw_user;
+  GraphicsDrawUserIndexedFn graphics_draw_user_indexed;
+  SpriteBatchBeginStatesFn sprite_batch_begin_states;
+  SpriteBatchBeginEffectFn sprite_batch_begin_effect;
+  VertexBufferSetDataFn vertex_buffer_set_data;
+  VertexBufferSetRawAtFn vertex_buffer_set_raw_at;
+  VertexBufferInfoFn vertex_buffer_get_info;
+  Texture3DCreateFn texture3d_create;
+  Texture3DInfoFn texture3d_get_info;
+  Texture3DSetFn texture3d_set;
+  Texture3DGetFn texture3d_get;
+  GameHandleFn texture3d_destroy;
+  TextureCubeCreateFn texturecube_create;
+  TextureCubeInfoFn texturecube_get_info;
+  TextureCubeSetFn texturecube_set;
+  TextureCubeGetFn texturecube_get;
+  GameHandleFn texturecube_destroy;
+  RenderTarget2DCreateFn render_target2d_create;
+  RenderTargetCubeCreateFn render_target_cube_create;
+  RenderTargetInfoFn render_target_get_info;
+  GraphicsSetRenderTargetsFn graphics_set_render_targets;
+  GameHandleFn render_target_destroy;
+  HandleHandleOutFn occlusion_create;
+  GameHandleFn occlusion_begin;
+  GameHandleFn occlusion_end;
+  BoolGetFn occlusion_get_complete;
+  HandleI32OutFn occlusion_get_pixel_count;
+  GameHandleFn occlusion_destroy;
   KeyboardGetStateFn keyboard_get_state;
   MouseGetStateFn mouse_get_state;
   MouseSetPositionFn mouse_set_position;
@@ -369,6 +476,21 @@ typedef struct Api {
   HandleInt64OutFn storage_stream_get_length;
   StorageStreamReadFn storage_stream_read;
   GameHandleFn storage_stream_close;
+  TitleContainerReadFn title_container_read;
+  BoolGetFn window_get_allow_resizing;
+  HandleBoolFn window_set_allow_resizing;
+  HandleRectangleOutFn window_get_client_bounds;
+  GameU32OutFn window_get_orientation;
+  HandleU64OutFn window_get_handle;
+  HandleU64OutFn window_get_screen_name_size;
+  HandleCopyStringFn window_copy_screen_name;
+  HandleU64OutFn window_get_title_size;
+  HandleCopyStringFn window_copy_title;
+  HandleStringViewFn window_set_title;
+  HandleBoolFn window_begin_screen_change;
+  GameWindowEndFn window_end_screen_change;
+  GameWindowSubscribeFn window_subscribe;
+  GameHandleFn game_unsubscribe;
 } Api;
 
 typedef struct GameContext {
@@ -379,10 +501,22 @@ typedef struct GameContext {
   struct GameContext* next;
 } GameContext;
 
+typedef struct WindowEventContext {
+  napi_env env;
+  napi_ref callback;
+  CNA_Handle game;
+  CNA_Handle registration;
+  struct WindowEventContext* next;
+} WindowEventContext;
+
 static LibraryHandle g_library;
 static Api g_api;
 static uint32_t g_imported_symbols;
 static GameContext* g_games;
+static WindowEventContext* g_window_events;
+
+static napi_value undefined_result(napi_env env, const char* operation);
+static int get_named_handle(napi_env env, napi_value object, const char* name, CNA_Handle* out);
 
 static napi_value throw_message(napi_env env, const char* message) {
   napi_throw_error(env, NULL, message);
@@ -445,6 +579,15 @@ static int read_handle(napi_env env, napi_value value, CNA_Handle* out) {
   bool lossless = false;
   if (napi_get_value_bigint_uint64(env, value, out, &lossless) != napi_ok || !lossless || *out == 0) {
     throw_message(env, "expected a nonzero uint64 bigint CNA handle");
+    return 0;
+  }
+  return 1;
+}
+
+static int read_handle_allow_zero(napi_env env, napi_value value, CNA_Handle* out) {
+  bool lossless = false;
+  if (napi_get_value_bigint_uint64(env, value, out, &lossless) != napi_ok || !lossless) {
+    throw_message(env, "expected a uint64 bigint CNA handle");
     return 0;
   }
   return 1;
@@ -665,7 +808,68 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(index_buffer_create, IndexBufferCreateFn, "cna_index_buffer_create");
   LOAD_REQUIRED(index_buffer_destroy, GameHandleFn, "cna_index_buffer_destroy");
   LOAD_REQUIRED(index_buffer_set, IndexBufferSetFn, "cna_index_buffer_set_data");
+  LOAD_REQUIRED(index_buffer_set_at, IndexBufferSetAtFn, "cna_index_buffer_set_data_at");
   LOAD_REQUIRED(index_buffer_get, IndexBufferGetFn, "cna_index_buffer_get_data");
+  LOAD_REQUIRED(index_buffer_get_info, IndexBufferInfoFn, "cna_index_buffer_get_info");
+  LOAD_REQUIRED(graphics_get_status, GraphicsDeviceStatusFn, "cna_graphics_device_get_status");
+  LOAD_REQUIRED(graphics_set_blend_factor, GraphicsSetColorFn, "cna_graphics_device_set_blend_factor");
+  LOAD_REQUIRED(graphics_set_blend_state, GraphicsSetBlendStateFn, "cna_graphics_device_set_blend_state");
+  LOAD_REQUIRED(graphics_set_depth_stencil_state, GraphicsSetDepthStencilStateFn, "cna_graphics_device_set_depth_stencil_state");
+  LOAD_REQUIRED(graphics_set_rasterizer_state, GraphicsSetRasterizerStateFn, "cna_graphics_device_set_rasterizer_state");
+  LOAD_REQUIRED(graphics_set_sampler_state, GraphicsSetSamplerStateFn, "cna_graphics_device_set_sampler_state");
+  LOAD_REQUIRED(graphics_set_texture, GraphicsSetTextureFn, "cna_graphics_device_set_texture");
+  LOAD_REQUIRED(graphics_set_multi_sample_mask, GraphicsSetI32Fn, "cna_graphics_device_set_multi_sample_mask");
+  LOAD_REQUIRED(graphics_set_reference_stencil, GraphicsSetI32Fn, "cna_graphics_device_set_reference_stencil");
+  LOAD_REQUIRED(graphics_set_scissor_rectangle, GraphicsSetRectangleFn, "cna_graphics_device_set_scissor_rectangle");
+  LOAD_REQUIRED(graphics_set_viewport, GraphicsSetViewportFn, "cna_graphics_device_set_viewport");
+  LOAD_REQUIRED(graphics_set_vertex_buffers, GraphicsSetVertexBuffersFn, "cna_graphics_device_set_vertex_buffers");
+  LOAD_REQUIRED(graphics_set_index_buffer, GraphicsSetIndexBufferFn, "cna_graphics_device_set_index_buffer");
+  LOAD_REQUIRED(graphics_draw_primitives, GraphicsDrawPrimitivesFn, "cna_graphics_device_draw_primitives");
+  LOAD_REQUIRED(graphics_draw_indexed, GraphicsDrawIndexedFn, "cna_graphics_device_draw_indexed_primitives");
+  LOAD_REQUIRED(graphics_draw_instanced, GraphicsDrawInstancedFn, "cna_graphics_device_draw_instanced_primitives");
+  LOAD_REQUIRED(graphics_draw_user, GraphicsDrawUserFn, "cna_graphics_device_draw_user_primitives");
+  LOAD_REQUIRED(graphics_draw_user_indexed, GraphicsDrawUserIndexedFn, "cna_graphics_device_draw_user_indexed_primitives");
+  LOAD_REQUIRED(sprite_batch_begin_states, SpriteBatchBeginStatesFn, "cna_sprite_batch_begin_with_states");
+  LOAD_REQUIRED(sprite_batch_begin_effect, SpriteBatchBeginEffectFn, "cna_sprite_batch_begin_with_effect");
+  LOAD_REQUIRED(vertex_buffer_set_data, VertexBufferSetDataFn, "cna_vertex_buffer_set_data");
+  LOAD_REQUIRED(vertex_buffer_set_raw_at, VertexBufferSetRawAtFn, "cna_vertex_buffer_set_data_raw_at");
+  LOAD_REQUIRED(vertex_buffer_get_info, VertexBufferInfoFn, "cna_vertex_buffer_get_info");
+  LOAD_REQUIRED(texture3d_create, Texture3DCreateFn, "cna_texture3d_create");
+  LOAD_REQUIRED(texture3d_get_info, Texture3DInfoFn, "cna_texture3d_get_info");
+  LOAD_REQUIRED(texture3d_set, Texture3DSetFn, "cna_texture3d_set_data");
+  LOAD_REQUIRED(texture3d_get, Texture3DGetFn, "cna_texture3d_get_data");
+  LOAD_REQUIRED(texture3d_destroy, GameHandleFn, "cna_texture3d_destroy");
+  LOAD_REQUIRED(texturecube_create, TextureCubeCreateFn, "cna_texturecube_create");
+  LOAD_REQUIRED(texturecube_get_info, TextureCubeInfoFn, "cna_texturecube_get_info");
+  LOAD_REQUIRED(texturecube_set, TextureCubeSetFn, "cna_texturecube_set_data");
+  LOAD_REQUIRED(texturecube_get, TextureCubeGetFn, "cna_texturecube_get_data");
+  LOAD_REQUIRED(texturecube_destroy, GameHandleFn, "cna_texturecube_destroy");
+  LOAD_REQUIRED(render_target2d_create, RenderTarget2DCreateFn, "cna_render_target2d_create");
+  LOAD_REQUIRED(render_target_cube_create, RenderTargetCubeCreateFn, "cna_render_target_cube_create");
+  LOAD_REQUIRED(render_target_get_info, RenderTargetInfoFn, "cna_render_target_get_info");
+  LOAD_REQUIRED(graphics_set_render_targets, GraphicsSetRenderTargetsFn, "cna_graphics_device_set_render_targets");
+  LOAD_REQUIRED(render_target_destroy, GameHandleFn, "cna_render_target_destroy");
+  LOAD_REQUIRED(occlusion_create, HandleHandleOutFn, "cna_occlusion_query_create");
+  LOAD_REQUIRED(occlusion_begin, GameHandleFn, "cna_occlusion_query_begin");
+  LOAD_REQUIRED(occlusion_end, GameHandleFn, "cna_occlusion_query_end");
+  LOAD_REQUIRED(occlusion_get_complete, BoolGetFn, "cna_occlusion_query_get_is_complete");
+  LOAD_REQUIRED(occlusion_get_pixel_count, HandleI32OutFn, "cna_occlusion_query_get_pixel_count");
+  LOAD_REQUIRED(occlusion_destroy, GameHandleFn, "cna_occlusion_query_destroy");
+  LOAD_REQUIRED(title_container_read, TitleContainerReadFn, "cna_title_container_read_ext");
+  LOAD_REQUIRED(window_get_allow_resizing, BoolGetFn, "cna_game_window_get_allow_user_resizing");
+  LOAD_REQUIRED(window_set_allow_resizing, HandleBoolFn, "cna_game_window_set_allow_user_resizing");
+  LOAD_REQUIRED(window_get_client_bounds, HandleRectangleOutFn, "cna_game_window_get_client_bounds");
+  LOAD_REQUIRED(window_get_orientation, GameU32OutFn, "cna_game_window_get_current_orientation");
+  LOAD_REQUIRED(window_get_handle, HandleU64OutFn, "cna_game_window_get_native_handle_ext");
+  LOAD_REQUIRED(window_get_screen_name_size, HandleU64OutFn, "cna_game_window_get_screen_device_name_size");
+  LOAD_REQUIRED(window_copy_screen_name, HandleCopyStringFn, "cna_game_window_copy_screen_device_name");
+  LOAD_REQUIRED(window_get_title_size, HandleU64OutFn, "cna_game_window_get_title_size");
+  LOAD_REQUIRED(window_copy_title, HandleCopyStringFn, "cna_game_window_copy_title");
+  LOAD_REQUIRED(window_set_title, HandleStringViewFn, "cna_game_set_window_title");
+  LOAD_REQUIRED(window_begin_screen_change, HandleBoolFn, "cna_game_window_begin_screen_device_change");
+  LOAD_REQUIRED(window_end_screen_change, GameWindowEndFn, "cna_game_window_end_screen_device_change");
+  LOAD_REQUIRED(window_subscribe, GameWindowSubscribeFn, "cna_game_window_subscribe");
+  LOAD_REQUIRED(game_unsubscribe, GameHandleFn, "cna_game_unsubscribe");
   LOAD_REQUIRED(keyboard_get_state, KeyboardGetStateFn, "cna_keyboard_get_state");
   LOAD_REQUIRED(mouse_get_state, MouseGetStateFn, "cna_mouse_get_state");
   LOAD_REQUIRED(mouse_set_position, MouseSetPositionFn, "cna_mouse_set_position");
@@ -965,6 +1169,12 @@ GAME_METHOD(destroy_texture, texture_destroy, "cna_texture2d_destroy")
 GAME_METHOD(destroy_sprite_batch, sprite_batch_destroy, "cna_sprite_batch_destroy")
 GAME_METHOD(destroy_vertex_buffer, vertex_buffer_destroy, "cna_vertex_buffer_destroy")
 GAME_METHOD(destroy_index_buffer, index_buffer_destroy, "cna_index_buffer_destroy")
+GAME_METHOD(destroy_texture3d, texture3d_destroy, "cna_texture3d_destroy")
+GAME_METHOD(destroy_texturecube, texturecube_destroy, "cna_texturecube_destroy")
+GAME_METHOD(destroy_render_target, render_target_destroy, "cna_render_target_destroy")
+GAME_METHOD(begin_occlusion_query, occlusion_begin, "cna_occlusion_query_begin")
+GAME_METHOD(end_occlusion_query, occlusion_end, "cna_occlusion_query_end")
+GAME_METHOD(destroy_occlusion_query, occlusion_destroy, "cna_occlusion_query_destroy")
 
 static napi_value destroy_game(napi_env env, napi_callback_info info) {
   if (!require_loaded(env)) return NULL;
@@ -973,6 +1183,7 @@ static napi_value destroy_game(napi_env env, napi_callback_info info) {
   if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &handle)) return NULL;
   GameContext* context = find_game(handle);
   CNA_Result result = g_api.game_destroy(handle);
+  if (rethrow_callback_exception(context)) return NULL;
   if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_game_destroy", result);
   if (context) {
     unlink_game(context);
@@ -1509,6 +1720,1116 @@ static int get_named_u32(napi_env env, napi_value object, const char* name, uint
   if (napi_get_value_uint32(env, value, out) == napi_ok) return 1;
   throw_message(env, "SpriteBatch command contains a non-uint32 field");
   return 0;
+}
+
+static int get_named_handle(napi_env env, napi_value object, const char* name, CNA_Handle* out);
+
+static int get_named_bool(napi_env env, napi_value object, const char* name, CNA_Bool* out) {
+  napi_value value;
+  bool result = false;
+  if (!get_named_value(env, object, name, &value)) return 0;
+  if (napi_get_value_bool(env, value, &result) != napi_ok) {
+    throw_message(env, "graphics state contains a non-Boolean field");
+    return 0;
+  }
+  *out = result ? CNA_TRUE : CNA_FALSE;
+  return 1;
+}
+
+static int read_blend_state(napi_env env, napi_value object, CNA_BlendState* out) {
+  uint32_t packed = 0;
+  memset(out, 0, sizeof(*out));
+  out->struct_size = sizeof(*out);
+  out->struct_version = 1;
+  if (!get_named_u32(env, object, "AlphaBlendFunction", &out->alpha_blend_function) ||
+      !get_named_u32(env, object, "AlphaDestinationBlend", &out->alpha_destination_blend) ||
+      !get_named_u32(env, object, "AlphaSourceBlend", &out->alpha_source_blend) ||
+      !get_named_u32(env, object, "ColorBlendFunction", &out->color_blend_function) ||
+      !get_named_u32(env, object, "ColorDestinationBlend", &out->color_destination_blend) ||
+      !get_named_u32(env, object, "ColorSourceBlend", &out->color_source_blend) ||
+      !get_named_u32(env, object, "ColorWriteChannels", &out->color_write_channels) ||
+      !get_named_u32(env, object, "ColorWriteChannels1", &out->color_write_channels1) ||
+      !get_named_u32(env, object, "ColorWriteChannels2", &out->color_write_channels2) ||
+      !get_named_u32(env, object, "ColorWriteChannels3", &out->color_write_channels3) ||
+      !get_named_u32(env, object, "BlendFactor", &packed) ||
+      !get_named_i32(env, object, "MultiSampleMask", &out->multi_sample_mask)) return 0;
+  out->blend_factor = (CNA_Color){
+    (uint8_t) packed, (uint8_t) (packed >> 8),
+    (uint8_t) (packed >> 16), (uint8_t) (packed >> 24)
+  };
+  return 1;
+}
+
+static int read_depth_stencil_state(
+  napi_env env, napi_value object, CNA_DepthStencilState* out
+) {
+  memset(out, 0, sizeof(*out));
+  out->struct_size = sizeof(*out);
+  out->struct_version = 1;
+  return get_named_bool(env, object, "DepthBufferEnable", &out->depth_buffer_enable) &&
+    get_named_bool(env, object, "DepthBufferWriteEnable", &out->depth_buffer_write_enable) &&
+    get_named_bool(env, object, "StencilEnable", &out->stencil_enable) &&
+    get_named_bool(env, object, "TwoSidedStencilMode", &out->two_sided_stencil_mode) &&
+    get_named_u32(env, object, "DepthBufferFunction", &out->depth_buffer_function) &&
+    get_named_u32(env, object, "StencilFunction", &out->stencil_function) &&
+    get_named_i32(env, object, "StencilMask", &out->stencil_mask) &&
+    get_named_i32(env, object, "StencilWriteMask", &out->stencil_write_mask) &&
+    get_named_i32(env, object, "ReferenceStencil", &out->reference_stencil) &&
+    get_named_u32(env, object, "StencilFail", &out->stencil_fail) &&
+    get_named_u32(env, object, "StencilDepthBufferFail", &out->stencil_depth_buffer_fail) &&
+    get_named_u32(env, object, "StencilPass", &out->stencil_pass) &&
+    get_named_u32(env, object, "CounterClockwiseStencilFunction", &out->counter_clockwise_stencil_function) &&
+    get_named_u32(env, object, "CounterClockwiseStencilFail", &out->counter_clockwise_stencil_fail) &&
+    get_named_u32(env, object, "CounterClockwiseStencilDepthBufferFail", &out->counter_clockwise_stencil_depth_buffer_fail) &&
+    get_named_u32(env, object, "CounterClockwiseStencilPass", &out->counter_clockwise_stencil_pass);
+}
+
+static int read_rasterizer_state(napi_env env, napi_value object, CNA_RasterizerState* out) {
+  double depth_bias = 0, slope_bias = 0;
+  memset(out, 0, sizeof(*out));
+  out->struct_size = sizeof(*out);
+  out->struct_version = 1;
+  if (!get_named_u32(env, object, "CullMode", &out->cull_mode) ||
+      !get_named_u32(env, object, "FillMode", &out->fill_mode) ||
+      !get_named_double(env, object, "DepthBias", &depth_bias) ||
+      !get_named_double(env, object, "SlopeScaleDepthBias", &slope_bias) ||
+      !get_named_bool(env, object, "MultiSampleAntiAlias", &out->multi_sample_anti_alias) ||
+      !get_named_bool(env, object, "ScissorTestEnable", &out->scissor_test_enable)) return 0;
+  out->depth_bias = (float) depth_bias;
+  out->slope_scale_depth_bias = (float) slope_bias;
+  return 1;
+}
+
+static int read_sampler_state(napi_env env, napi_value object, CNA_SamplerState* out) {
+  double bias = 0;
+  memset(out, 0, sizeof(*out));
+  out->struct_size = sizeof(*out);
+  out->struct_version = 1;
+  if (!get_named_u32(env, object, "AddressU", &out->address_u) ||
+      !get_named_u32(env, object, "AddressV", &out->address_v) ||
+      !get_named_u32(env, object, "AddressW", &out->address_w) ||
+      !get_named_u32(env, object, "Filter", &out->filter) ||
+      !get_named_i32(env, object, "MaxAnisotropy", &out->max_anisotropy) ||
+      !get_named_i32(env, object, "MaxMipLevel", &out->max_mip_level) ||
+      !get_named_double(env, object, "MipMapLevelOfDetailBias", &bias)) return 0;
+  out->mip_map_level_of_detail_bias = (float) bias;
+  return 1;
+}
+
+static napi_value get_graphics_device_status(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle device = 0;
+  CNA_GraphicsDeviceStatus status = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  CNA_Result result = g_api.graphics_get_status(device, &status);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_device_get_status", result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, status, &output), "graphics-device status");
+  return output;
+}
+
+static napi_value set_graphics_blend_factor(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0;
+  uint32_t packed = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &packed) != napi_ok) return NULL;
+  const CNA_Color color = {(uint8_t) packed, (uint8_t) (packed >> 8),
+    (uint8_t) (packed >> 16), (uint8_t) (packed >> 24)};
+  CNA_Result result = g_api.graphics_set_blend_factor(device, color);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_device_set_blend_factor", result);
+  return undefined_result(env, "blend-factor result");
+}
+
+#define GRAPHICS_STATE_SETTER(name, reader, field, ctype, operation) \
+  static napi_value name(napi_env env, napi_callback_info info) { \
+    napi_value args[2]; CNA_Handle device = 0; ctype state; \
+    if (!require_loaded(env) || !get_args(env, info, 2, args) || \
+        !read_handle(env, args[0], &device) || !reader(env, args[1], &state)) return NULL; \
+    CNA_Result result = g_api.field(device, &state); \
+    if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result); \
+    return undefined_result(env, operation); \
+  }
+
+GRAPHICS_STATE_SETTER(set_graphics_blend_state, read_blend_state,
+  graphics_set_blend_state, CNA_BlendState, "cna_graphics_device_set_blend_state")
+GRAPHICS_STATE_SETTER(set_graphics_depth_stencil_state, read_depth_stencil_state,
+  graphics_set_depth_stencil_state, CNA_DepthStencilState, "cna_graphics_device_set_depth_stencil_state")
+GRAPHICS_STATE_SETTER(set_graphics_rasterizer_state, read_rasterizer_state,
+  graphics_set_rasterizer_state, CNA_RasterizerState, "cna_graphics_device_set_rasterizer_state")
+
+static napi_value set_graphics_sampler_state(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle device = 0;
+  uint32_t stage = 0, slot = 0;
+  CNA_SamplerState state;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &stage) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &slot) != napi_ok ||
+      !read_sampler_state(env, args[3], &state)) return NULL;
+  CNA_Result result = g_api.graphics_set_sampler_state(device, stage, slot, &state);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_device_set_sampler_state", result);
+  return undefined_result(env, "sampler-state result");
+}
+
+static napi_value set_graphics_texture(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle device = 0, texture = 0;
+  uint32_t stage = 0, slot = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &stage) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &slot) != napi_ok ||
+      !read_handle_allow_zero(env, args[3], &texture)) return NULL;
+  CNA_Result result = g_api.graphics_set_texture(device, stage, slot, texture);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_device_set_texture", result);
+  return undefined_result(env, "texture-binding result");
+}
+
+static napi_value set_graphics_i32(
+  napi_env env, napi_callback_info info, GraphicsSetI32Fn function, const char* operation
+) {
+  napi_value args[2];
+  CNA_Handle device = 0;
+  int32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &value) != napi_ok) return NULL;
+  CNA_Result result = function(device, value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return undefined_result(env, operation);
+}
+
+static napi_value set_graphics_multi_sample_mask(napi_env env, napi_callback_info info) {
+  return set_graphics_i32(env, info, g_api.graphics_set_multi_sample_mask,
+    "cna_graphics_device_set_multi_sample_mask");
+}
+static napi_value set_graphics_reference_stencil(napi_env env, napi_callback_info info) {
+  return set_graphics_i32(env, info, g_api.graphics_set_reference_stencil,
+    "cna_graphics_device_set_reference_stencil");
+}
+
+static napi_value set_graphics_scissor(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle device = 0;
+  CNA_Rectangle value;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &value.x) != napi_ok ||
+      napi_get_value_int32(env, args[2], &value.y) != napi_ok ||
+      napi_get_value_int32(env, args[3], &value.width) != napi_ok ||
+      napi_get_value_int32(env, args[4], &value.height) != napi_ok) return NULL;
+  CNA_Result result = g_api.graphics_set_scissor_rectangle(device, value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_device_set_scissor_rectangle", result);
+  return undefined_result(env, "scissor result");
+}
+
+static napi_value set_graphics_viewport(napi_env env, napi_callback_info info) {
+  napi_value args[7];
+  CNA_Handle device = 0;
+  CNA_Viewport value;
+  double min_depth = 0, max_depth = 0;
+  if (!require_loaded(env) || !get_args(env, info, 7, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &value.x) != napi_ok ||
+      napi_get_value_int32(env, args[2], &value.y) != napi_ok ||
+      napi_get_value_int32(env, args[3], &value.width) != napi_ok ||
+      napi_get_value_int32(env, args[4], &value.height) != napi_ok ||
+      napi_get_value_double(env, args[5], &min_depth) != napi_ok ||
+      napi_get_value_double(env, args[6], &max_depth) != napi_ok) return NULL;
+  value.min_depth = (float) min_depth;
+  value.max_depth = (float) max_depth;
+  CNA_Result result = g_api.graphics_set_viewport(device, value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_device_set_viewport", result);
+  return undefined_result(env, "viewport result");
+}
+
+static napi_value set_graphics_vertex_buffers(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0;
+  bool is_array = false;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_is_array(env, args[1], &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, args[1], &count) != napi_ok) {
+    return throw_message(env, "vertex-buffer bindings must be an array");
+  }
+  CNA_VertexBufferBinding* bindings = count == 0 ? NULL :
+    (CNA_VertexBufferBinding*) calloc(count, sizeof(*bindings));
+  if (count != 0 && !bindings) return throw_message(env, "vertex-buffer binding allocation failed");
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value object;
+    if (napi_get_element(env, args[1], index, &object) != napi_ok ||
+        !get_named_handle(env, object, "VertexBuffer", &bindings[index].vertex_buffer) ||
+        !get_named_i32(env, object, "VertexOffset", &bindings[index].vertex_offset) ||
+        !get_named_i32(env, object, "InstanceFrequency", &bindings[index].instance_frequency)) {
+      free(bindings);
+      return NULL;
+    }
+  }
+  CNA_Result result = g_api.graphics_set_vertex_buffers(device, bindings, count);
+  free(bindings);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_device_set_vertex_buffers", result);
+  return undefined_result(env, "vertex-buffer binding result");
+}
+
+static napi_value set_graphics_index_buffer(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0, buffer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) || !read_handle_allow_zero(env, args[1], &buffer)) return NULL;
+  CNA_Result result = g_api.graphics_set_index_buffer(device, buffer);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_device_set_index_buffer", result);
+  return undefined_result(env, "index-buffer binding result");
+}
+
+static napi_value draw_primitives(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle device = 0;
+  uint32_t primitive_type = 0;
+  int32_t start_vertex = 0, primitive_count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &primitive_type) != napi_ok ||
+      napi_get_value_int32(env, args[2], &start_vertex) != napi_ok ||
+      napi_get_value_int32(env, args[3], &primitive_count) != napi_ok) return NULL;
+  CNA_Result result = g_api.graphics_draw_primitives(device, primitive_type, start_vertex, primitive_count);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_device_draw_primitives", result);
+  return undefined_result(env, "draw-primitives result");
+}
+
+static napi_value draw_indexed_primitives(napi_env env, napi_callback_info info) {
+  napi_value args[7];
+  CNA_Handle device = 0;
+  uint32_t primitive_type = 0;
+  int32_t base_vertex = 0, min_vertex_index = 0, num_vertices = 0;
+  int32_t start_index = 0, primitive_count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 7, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &primitive_type) != napi_ok ||
+      napi_get_value_int32(env, args[2], &base_vertex) != napi_ok ||
+      napi_get_value_int32(env, args[3], &min_vertex_index) != napi_ok ||
+      napi_get_value_int32(env, args[4], &num_vertices) != napi_ok ||
+      napi_get_value_int32(env, args[5], &start_index) != napi_ok ||
+      napi_get_value_int32(env, args[6], &primitive_count) != napi_ok) return NULL;
+  CNA_Result result = g_api.graphics_draw_indexed(
+    device, primitive_type, base_vertex, min_vertex_index, num_vertices, start_index, primitive_count);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_device_draw_indexed_primitives", result);
+  return undefined_result(env, "draw-indexed result");
+}
+
+static napi_value draw_instanced_primitives(napi_env env, napi_callback_info info) {
+  napi_value args[8];
+  CNA_Handle device = 0;
+  uint32_t primitive_type = 0;
+  int32_t base_vertex = 0, min_vertex_index = 0, num_vertices = 0;
+  int32_t start_index = 0, primitive_count = 0, instance_count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 8, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &primitive_type) != napi_ok ||
+      napi_get_value_int32(env, args[2], &base_vertex) != napi_ok ||
+      napi_get_value_int32(env, args[3], &min_vertex_index) != napi_ok ||
+      napi_get_value_int32(env, args[4], &num_vertices) != napi_ok ||
+      napi_get_value_int32(env, args[5], &start_index) != napi_ok ||
+      napi_get_value_int32(env, args[6], &primitive_count) != napi_ok ||
+      napi_get_value_int32(env, args[7], &instance_count) != napi_ok) return NULL;
+  CNA_Result result = g_api.graphics_draw_instanced(
+    device, primitive_type, base_vertex, min_vertex_index, num_vertices,
+    start_index, primitive_count, instance_count);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_device_draw_instanced_primitives", result);
+  return undefined_result(env, "draw-instanced result");
+}
+
+static int create_user_vertex_declaration(
+  napi_env env,
+  napi_value value,
+  uint32_t stride,
+  CNA_VertexDeclarationHandle* out_declaration
+) {
+  bool is_array = false;
+  uint32_t count = 0;
+  if (napi_is_array(env, value, &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, value, &count) != napi_ok || count == 0 || count > 1024) {
+    throw_message(env, "an explicit user vertex declaration must contain elements");
+    return 0;
+  }
+  CNA_VertexElement* elements = (CNA_VertexElement*) calloc(count, sizeof(*elements));
+  if (!elements) {
+    throw_message(env, "user vertex-declaration allocation failed");
+    return 0;
+  }
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value object;
+    uint32_t format = 0, usage = 0;
+    if (napi_get_element(env, value, index, &object) != napi_ok ||
+        !get_named_i32(env, object, "Offset", &elements[index].offset) ||
+        !get_named_u32(env, object, "VertexElementFormat", &format) ||
+        !get_named_u32(env, object, "VertexElementUsage", &usage) ||
+        !get_named_i32(env, object, "UsageIndex", &elements[index].usage_index)) {
+      free(elements);
+      return 0;
+    }
+    if (elements[index].offset < 0 || elements[index].usage_index < 0 ||
+        format > CNA_VERTEX_ELEMENT_FORMAT_HALF_VECTOR4 ||
+        usage > CNA_VERTEX_ELEMENT_USAGE_TESSELLATE_FACTOR) {
+      free(elements);
+      throw_message(env, "invalid user vertex-declaration element");
+      return 0;
+    }
+    elements[index].format = format;
+    elements[index].usage = usage;
+  }
+  CNA_Result result = g_api.vertex_declaration_create(
+    (int32_t) stride, elements, count, out_declaration);
+  free(elements);
+  if (result != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_vertex_declaration_create_with_stride", result);
+    return 0;
+  }
+  return 1;
+}
+
+static int read_user_primitives(
+  napi_env env,
+  napi_value* args,
+  CNA_UserPrimitives* primitives,
+  void** owned_vertices,
+  CNA_VertexDeclarationHandle* owned_declaration
+) {
+  CNA_Handle device = 0;
+  uint32_t source = 0, stride = 0, capacity = 0;
+  int32_t vertex_offset = 0, num_vertices = 0, primitive_count = 0;
+  bool has_declaration = false;
+  const uint8_t* bytes = NULL;
+  size_t byte_count = 0;
+  if (!read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &primitives->primitive_type) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &source) != napi_ok ||
+      !read_byte_view(env, args[3], &bytes, &byte_count) ||
+      napi_get_value_uint32(env, args[4], &stride) != napi_ok ||
+      napi_get_value_uint32(env, args[5], &capacity) != napi_ok ||
+      napi_get_value_int32(env, args[6], &vertex_offset) != napi_ok ||
+      napi_get_value_int32(env, args[7], &num_vertices) != napi_ok ||
+      napi_get_value_int32(env, args[8], &primitive_count) != napi_ok ||
+      napi_get_value_bool(env, args[9], &has_declaration) != napi_ok) return 0;
+  const uint32_t expected_stride = source == CNA_USER_VERTEX_SOURCE_POSITION_COLOR ? 16U :
+    source == CNA_USER_VERTEX_SOURCE_POSITION_COLOR_TEXTURE ? 24U :
+    source == CNA_USER_VERTEX_SOURCE_POSITION_TEXTURE ? 20U :
+    source == CNA_USER_VERTEX_SOURCE_POSITION_NORMAL_TEXTURE ? 32U : 0U;
+  if (expected_stride == 0 || stride != expected_stride || capacity == 0 ||
+      capacity > SIZE_MAX / stride || byte_count != (size_t) capacity * stride ||
+      vertex_offset < 0 || num_vertices <= 0 ||
+      (uint32_t) vertex_offset > capacity || (uint32_t) num_vertices > capacity - (uint32_t) vertex_offset ||
+      primitive_count <= 0) {
+    throw_message(env, "invalid user vertex-array extent or built-in layout");
+    return 0;
+  }
+  *owned_vertices = malloc(byte_count);
+  if (!*owned_vertices) {
+    throw_message(env, "user vertex-array allocation failed");
+    return 0;
+  }
+  memcpy(*owned_vertices, bytes, byte_count);
+  *owned_declaration = CNA_INVALID_HANDLE;
+  if (has_declaration &&
+      !create_user_vertex_declaration(env, args[10], stride, owned_declaration)) {
+    free(*owned_vertices);
+    *owned_vertices = NULL;
+    return 0;
+  }
+  memset(primitives, 0, sizeof(*primitives));
+  primitives->struct_size = sizeof(*primitives);
+  primitives->struct_version = 1;
+  if (napi_get_value_uint32(env, args[1], &primitives->primitive_type) != napi_ok) return 0;
+  primitives->vertex_source = source;
+  primitives->vertex_data = *owned_vertices;
+  primitives->vertex_declaration = *owned_declaration;
+  primitives->vertex_offset = vertex_offset;
+  primitives->num_vertices = num_vertices;
+  primitives->primitive_count = primitive_count;
+  (void) device;
+  return 1;
+}
+
+static napi_value draw_user_primitives(napi_env env, napi_callback_info info) {
+  napi_value args[11];
+  CNA_Handle device = 0;
+  CNA_UserPrimitives primitives;
+  void* vertices = NULL;
+  CNA_VertexDeclarationHandle declaration = CNA_INVALID_HANDLE;
+  if (!require_loaded(env) || !get_args(env, info, 11, args) ||
+      !read_handle(env, args[0], &device) ||
+      !read_user_primitives(env, args, &primitives, &vertices, &declaration)) return NULL;
+  CNA_Result result = g_api.graphics_draw_user(device, &primitives);
+  CNA_Result declaration_result = declaration == CNA_INVALID_HANDLE
+    ? CNA_RESULT_SUCCESS : g_api.vertex_declaration_destroy(declaration);
+  free(vertices);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_device_draw_user_primitives", result);
+  }
+  if (declaration_result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_vertex_declaration_destroy", declaration_result);
+  }
+  return undefined_result(env, "draw-user-primitives result");
+}
+
+static napi_value draw_user_indexed_primitives(napi_env env, napi_callback_info info) {
+  napi_value args[15];
+  CNA_Handle device = 0;
+  CNA_UserPrimitives primitives;
+  void* vertices = NULL;
+  CNA_VertexDeclarationHandle declaration = CNA_INVALID_HANDLE;
+  const uint8_t* index_bytes = NULL;
+  size_t index_byte_count = 0;
+  uint32_t index_element_size = 0, index_capacity = 0;
+  int32_t index_offset = 0;
+  if (!require_loaded(env) || !get_args(env, info, 15, args) ||
+      !read_handle(env, args[0], &device) ||
+      !read_user_primitives(env, args, &primitives, &vertices, &declaration) ||
+      !read_byte_view(env, args[11], &index_bytes, &index_byte_count) ||
+      napi_get_value_uint32(env, args[12], &index_element_size) != napi_ok ||
+      napi_get_value_uint32(env, args[13], &index_capacity) != napi_ok ||
+      napi_get_value_int32(env, args[14], &index_offset) != napi_ok) {
+    if (declaration != CNA_INVALID_HANDLE) (void) g_api.vertex_declaration_destroy(declaration);
+    free(vertices);
+    return NULL;
+  }
+  const uint32_t index_stride = index_element_size == CNA_INDEX_ELEMENT_SIZE_SIXTEEN_BITS ? 2U :
+    index_element_size == CNA_INDEX_ELEMENT_SIZE_THIRTY_TWO_BITS ? 4U : 0U;
+  if (index_stride == 0 || index_capacity == 0 || index_capacity > SIZE_MAX / index_stride ||
+      index_byte_count != (size_t) index_capacity * index_stride || index_offset < 0 ||
+      (uint32_t) index_offset >= index_capacity) {
+    if (declaration != CNA_INVALID_HANDLE) (void) g_api.vertex_declaration_destroy(declaration);
+    free(vertices);
+    return throw_message(env, "invalid user index-array extent or element size");
+  }
+  void* indices = malloc(index_byte_count);
+  if (!indices) {
+    if (declaration != CNA_INVALID_HANDLE) (void) g_api.vertex_declaration_destroy(declaration);
+    free(vertices);
+    return throw_message(env, "user index-array allocation failed");
+  }
+  memcpy(indices, index_bytes, index_byte_count);
+  CNA_UserIndices index_request;
+  memset(&index_request, 0, sizeof(index_request));
+  index_request.struct_size = sizeof(index_request);
+  index_request.struct_version = 1;
+  index_request.index_element_size = index_element_size;
+  index_request.index_offset = index_offset;
+  index_request.index_data = indices;
+  CNA_Result result = g_api.graphics_draw_user_indexed(device, &primitives, &index_request);
+  CNA_Result declaration_result = declaration == CNA_INVALID_HANDLE
+    ? CNA_RESULT_SUCCESS : g_api.vertex_declaration_destroy(declaration);
+  free(indices);
+  free(vertices);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_device_draw_user_indexed_primitives", result);
+  }
+  if (declaration_result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_vertex_declaration_destroy", declaration_result);
+  }
+  return undefined_result(env, "draw-user-indexed-primitives result");
+}
+
+static int read_matrix_array(napi_env env, napi_value value, CNA_Matrix* out, int* has_matrix) {
+  napi_valuetype type;
+  if (napi_typeof(env, value, &type) != napi_ok) return 0;
+  if (type == napi_null) {
+    *has_matrix = 0;
+    return 1;
+  }
+  bool is_array = false;
+  uint32_t length = 0;
+  if (napi_is_array(env, value, &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, value, &length) != napi_ok || length != 16) {
+    throw_message(env, "SpriteBatch transform must be null or a 16-number array");
+    return 0;
+  }
+  float* fields[] = {
+    &out->m11, &out->m12, &out->m13, &out->m14,
+    &out->m21, &out->m22, &out->m23, &out->m24,
+    &out->m31, &out->m32, &out->m33, &out->m34,
+    &out->m41, &out->m42, &out->m43, &out->m44,
+  };
+  for (uint32_t index = 0; index < 16; index += 1) {
+    napi_value item;
+    double number = 0;
+    if (napi_get_element(env, value, index, &item) != napi_ok ||
+        napi_get_value_double(env, item, &number) != napi_ok) {
+      throw_message(env, "SpriteBatch transform contains a non-number");
+      return 0;
+    }
+    *fields[index] = (float) number;
+  }
+  *has_matrix = 1;
+  return 1;
+}
+
+static napi_value begin_sprite_batch_with_states(napi_env env, napi_callback_info info) {
+  napi_value args[7];
+  CNA_Handle batch = 0;
+  uint32_t sort_mode = 0;
+  CNA_BlendState blend;
+  CNA_SamplerState sampler;
+  CNA_DepthStencilState depth;
+  CNA_RasterizerState rasterizer;
+  CNA_Matrix transform;
+  int has_transform = 0;
+  if (!require_loaded(env) || !get_args(env, info, 7, args) ||
+      !read_handle(env, args[0], &batch) ||
+      napi_get_value_uint32(env, args[1], &sort_mode) != napi_ok ||
+      !read_blend_state(env, args[2], &blend) ||
+      !read_sampler_state(env, args[3], &sampler) ||
+      !read_depth_stencil_state(env, args[4], &depth) ||
+      !read_rasterizer_state(env, args[5], &rasterizer) ||
+      !read_matrix_array(env, args[6], &transform, &has_transform)) return NULL;
+  CNA_Result result = has_transform
+    ? g_api.sprite_batch_begin_effect(
+        batch, sort_mode, &blend, &sampler, &depth, &rasterizer,
+        CNA_INVALID_HANDLE, &transform)
+    : g_api.sprite_batch_begin_states(batch, sort_mode, &blend, &sampler, &depth, &rasterizer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, has_transform
+      ? "cna_sprite_batch_begin_with_effect" : "cna_sprite_batch_begin_with_states", result);
+  }
+  return undefined_result(env, "advanced SpriteBatch begin result");
+}
+
+static uint32_t vertex_type_size(uint32_t vertex_type) {
+  switch (vertex_type) {
+    case CNA_VERTEX_TYPE_POSITION_COLOR: return (uint32_t) sizeof(CNA_VertexPositionColor);
+    case CNA_VERTEX_TYPE_POSITION_COLOR_TEXTURE: return (uint32_t) sizeof(CNA_VertexPositionColorTexture);
+    case CNA_VERTEX_TYPE_POSITION_TEXTURE: return (uint32_t) sizeof(CNA_VertexPositionTexture);
+    case CNA_VERTEX_TYPE_POSITION_NORMAL_TEXTURE: return (uint32_t) sizeof(CNA_VertexPositionNormalTexture);
+    default: return 0;
+  }
+}
+
+static napi_value set_vertex_buffer_data(napi_env env, napi_callback_info info) {
+  napi_value args[7];
+  CNA_Handle buffer = 0;
+  uint32_t vertex_type = 0, options = 0, start = 0, count = 0, capacity = 0;
+  const uint8_t* bytes = NULL;
+  size_t byte_count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 7, args) ||
+      !read_handle(env, args[0], &buffer) ||
+      napi_get_value_uint32(env, args[1], &vertex_type) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &options) != napi_ok ||
+      napi_get_value_uint32(env, args[3], &start) != napi_ok ||
+      napi_get_value_uint32(env, args[4], &count) != napi_ok ||
+      napi_get_value_uint32(env, args[5], &capacity) != napi_ok ||
+      !read_byte_view(env, args[6], &bytes, &byte_count)) return NULL;
+  const uint32_t width = vertex_type_size(vertex_type);
+  if (width == 0 || capacity > SIZE_MAX / width || byte_count != (size_t) capacity * width) {
+    return throw_message(env, "typed VertexBuffer byte snapshot has the wrong extent");
+  }
+  CNA_VertexBufferTransfer transfer;
+  memset(&transfer, 0, sizeof(transfer));
+  transfer.struct_size = sizeof(transfer);
+  transfer.struct_version = 1;
+  transfer.vertex_type = vertex_type;
+  transfer.options = options;
+  transfer.start_index = start;
+  transfer.element_count = count;
+  CNA_Result result = g_api.vertex_buffer_set_data(buffer, &transfer, bytes, capacity);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_vertex_buffer_set_data", result);
+  return undefined_result(env, "typed VertexBuffer upload result");
+}
+
+static napi_value set_vertex_buffer_raw_at(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle buffer = 0;
+  uint32_t offset = 0, vertex_count = 0, stride = 0;
+  const uint8_t* bytes = NULL;
+  size_t byte_count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &buffer) ||
+      napi_get_value_uint32(env, args[1], &offset) != napi_ok ||
+      !read_byte_view(env, args[2], &bytes, &byte_count) ||
+      napi_get_value_uint32(env, args[3], &vertex_count) != napi_ok ||
+      napi_get_value_uint32(env, args[4], &stride) != napi_ok) return NULL;
+  CNA_Result result = g_api.vertex_buffer_set_raw_at(
+    buffer, offset, bytes, byte_count, vertex_count, stride);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_vertex_buffer_set_data_raw_at", result);
+  return undefined_result(env, "VertexBuffer window upload result");
+}
+
+static napi_value get_vertex_buffer_raw_at(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle buffer = 0;
+  uint32_t offset = 0, vertex_count = 0, stride = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &buffer) ||
+      napi_get_value_uint32(env, args[1], &offset) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &vertex_count) != napi_ok ||
+      napi_get_value_uint32(env, args[3], &stride) != napi_ok) return NULL;
+  if (stride == 0 || vertex_count > SIZE_MAX / stride) {
+    return throw_message(env, "VertexBuffer readback extent overflows native memory");
+  }
+  const size_t byte_count = (size_t) vertex_count * stride;
+  uint8_t* bytes = byte_count == 0 ? NULL : (uint8_t*) malloc(byte_count);
+  if (byte_count != 0 && !bytes) return throw_message(env, "VertexBuffer readback allocation failed");
+  CNA_Result result = g_api.vertex_buffer_get_raw(
+    buffer, offset, bytes, byte_count, vertex_count, stride);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(bytes);
+    return throw_result(env, "cna_vertex_buffer_get_data_raw", result);
+  }
+  napi_value output = copy_bytes(env, bytes, byte_count, "VertexBuffer window readback copy");
+  free(bytes);
+  return output;
+}
+
+static napi_value get_vertex_buffer_content_lost(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle buffer = 0;
+  CNA_VertexBufferInfo value;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &buffer)) return NULL;
+  memset(&value, 0, sizeof(value));
+  value.struct_size = sizeof(value);
+  value.struct_version = 1;
+  CNA_Result result = g_api.vertex_buffer_get_info(buffer, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_vertex_buffer_get_info", result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, value.is_content_lost == CNA_TRUE, &output), "VertexBuffer content state");
+  return output;
+}
+
+static napi_value set_index_buffer_data(napi_env env, napi_callback_info info) {
+  napi_value args[9];
+  CNA_Handle buffer = 0;
+  uint32_t element_size = 0, options = 0, offset = 0, start = 0, count = 0, capacity = 0;
+  bool has_offset = false;
+  const uint8_t* bytes = NULL;
+  size_t byte_count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 9, args) ||
+      !read_handle(env, args[0], &buffer) ||
+      napi_get_value_uint32(env, args[1], &element_size) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &options) != napi_ok ||
+      napi_get_value_bool(env, args[3], &has_offset) != napi_ok ||
+      napi_get_value_uint32(env, args[4], &offset) != napi_ok ||
+      napi_get_value_uint32(env, args[5], &start) != napi_ok ||
+      napi_get_value_uint32(env, args[6], &count) != napi_ok ||
+      napi_get_value_uint32(env, args[7], &capacity) != napi_ok ||
+      !read_byte_view(env, args[8], &bytes, &byte_count)) return NULL;
+  const uint32_t width = element_size == CNA_INDEX_ELEMENT_SIZE_SIXTEEN_BITS ? 2 :
+    element_size == CNA_INDEX_ELEMENT_SIZE_THIRTY_TWO_BITS ? 4 : 0;
+  if (width == 0 || capacity > SIZE_MAX / width || byte_count != (size_t) capacity * width) {
+    return throw_message(env, "typed IndexBuffer byte snapshot has the wrong extent");
+  }
+  CNA_IndexBufferTransfer transfer;
+  memset(&transfer, 0, sizeof(transfer));
+  transfer.struct_size = sizeof(transfer);
+  transfer.struct_version = 1;
+  transfer.index_element_size = element_size;
+  transfer.options = options;
+  transfer.start_index = start;
+  transfer.element_count = count;
+  CNA_Result result = has_offset
+    ? g_api.index_buffer_set_at(buffer, offset, &transfer, bytes, capacity)
+    : g_api.index_buffer_set(buffer, &transfer, bytes, capacity);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env,
+    has_offset ? "cna_index_buffer_set_data_at" : "cna_index_buffer_set_data", result);
+  return undefined_result(env, "typed IndexBuffer upload result");
+}
+
+static napi_value get_index_buffer_content_lost(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle buffer = 0;
+  CNA_IndexBufferInfo value;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &buffer)) return NULL;
+  memset(&value, 0, sizeof(value));
+  value.struct_size = sizeof(value);
+  value.struct_version = 1;
+  CNA_Result result = g_api.index_buffer_get_info(buffer, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_index_buffer_get_info", result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, value.is_content_lost == CNA_TRUE, &output), "IndexBuffer content state");
+  return output;
+}
+
+static int read_u32_view(
+  napi_env env, napi_value value, const uint32_t** out_data, size_t* out_length
+) {
+  bool is_typed = false;
+  napi_typedarray_type type;
+  void* data = NULL;
+  napi_value array_buffer;
+  size_t byte_offset = 0;
+  if (napi_is_typedarray(env, value, &is_typed) != napi_ok || !is_typed ||
+      napi_get_typedarray_info(
+        env, value, &type, out_length, &data, &array_buffer, &byte_offset) != napi_ok ||
+      type != napi_uint32_array) {
+    throw_message(env, "expected a Uint32Array");
+    return 0;
+  }
+  (void) array_buffer;
+  (void) byte_offset;
+  *out_data = (const uint32_t*) data;
+  return 1;
+}
+
+static CNA_Color* colors_from_packed(const uint32_t* packed, size_t count) {
+  CNA_Color* colors = count == 0 ? NULL : (CNA_Color*) malloc(count * sizeof(*colors));
+  if (count != 0 && !colors) return NULL;
+  for (size_t index = 0; index < count; index += 1) {
+    colors[index] = (CNA_Color){
+      (uint8_t) packed[index], (uint8_t) (packed[index] >> 8),
+      (uint8_t) (packed[index] >> 16), (uint8_t) (packed[index] >> 24)
+    };
+  }
+  return colors;
+}
+
+static napi_value packed_from_colors(
+  napi_env env, const CNA_Color* colors, size_t count, const char* operation
+) {
+  napi_value buffer, output;
+  void* data = NULL;
+  if (count > SIZE_MAX / sizeof(uint32_t) ||
+      napi_create_arraybuffer(env, count * sizeof(uint32_t), &data, &buffer) != napi_ok ||
+      napi_create_typedarray(env, napi_uint32_array, count, buffer, 0, &output) != napi_ok) {
+    return throw_napi(env, operation);
+  }
+  uint32_t* packed = (uint32_t*) data;
+  for (size_t index = 0; index < count; index += 1) {
+    packed[index] = (uint32_t) colors[index].r |
+      ((uint32_t) colors[index].g << 8) |
+      ((uint32_t) colors[index].b << 16) |
+      ((uint32_t) colors[index].a << 24);
+  }
+  return output;
+}
+
+static napi_value create_texture3d(napi_env env, napi_callback_info info) {
+  napi_value args[6];
+  CNA_Handle device = 0, texture = 0;
+  uint32_t width = 0, height = 0, depth = 0, format = 0;
+  bool mip_map = false;
+  if (!require_loaded(env) || !get_args(env, info, 6, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &width) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &height) != napi_ok ||
+      napi_get_value_uint32(env, args[3], &depth) != napi_ok ||
+      napi_get_value_bool(env, args[4], &mip_map) != napi_ok ||
+      napi_get_value_uint32(env, args[5], &format) != napi_ok) return NULL;
+  CNA_Texture3DCreateInfo create_info;
+  memset(&create_info, 0, sizeof(create_info));
+  create_info.struct_size = sizeof(create_info);
+  create_info.struct_version = 1;
+  create_info.width = width;
+  create_info.height = height;
+  create_info.depth = depth;
+  create_info.mip_map = mip_map ? CNA_TRUE : CNA_FALSE;
+  create_info.format = format;
+  CNA_Result result = g_api.texture3d_create(device, &create_info, &texture);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_texture3d_create", result);
+  return make_handle(env, texture);
+}
+
+static napi_value get_texture3d_info(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle texture = 0;
+  CNA_Texture3DInfo value;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &texture)) return NULL;
+  memset(&value, 0, sizeof(value)); value.struct_size = sizeof(value); value.struct_version = 1;
+  CNA_Result result = g_api.texture3d_get_info(texture, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_texture3d_get_info", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "Texture3D info");
+  if (!set_u32(env, output, "Width", value.width) || !set_u32(env, output, "Height", value.height) ||
+      !set_u32(env, output, "Depth", value.depth) || !set_u32(env, output, "LevelCount", value.level_count) ||
+      !set_u32(env, output, "Format", value.format)) return throw_napi(env, "Texture3D info properties");
+  return output;
+}
+
+static int read_texture3d_transfer(
+  napi_env env, napi_value* args, CNA_Texture3DTransfer* transfer
+) {
+  uint32_t start_index = 0, element_count = 0;
+  memset(transfer, 0, sizeof(*transfer));
+  transfer->struct_size = sizeof(*transfer); transfer->struct_version = 1;
+  if (napi_get_value_int32(env, args[1], &transfer->level) != napi_ok ||
+      napi_get_value_int32(env, args[2], &transfer->left) != napi_ok ||
+      napi_get_value_int32(env, args[3], &transfer->top) != napi_ok ||
+      napi_get_value_int32(env, args[4], &transfer->right) != napi_ok ||
+      napi_get_value_int32(env, args[5], &transfer->bottom) != napi_ok ||
+      napi_get_value_int32(env, args[6], &transfer->front) != napi_ok ||
+      napi_get_value_int32(env, args[7], &transfer->back) != napi_ok ||
+      napi_get_value_uint32(env, args[8], &start_index) != napi_ok ||
+      napi_get_value_uint32(env, args[9], &element_count) != napi_ok) return 0;
+  transfer->start_index = start_index;
+  transfer->element_count = element_count;
+  return 1;
+}
+
+static napi_value set_texture3d_colors(napi_env env, napi_callback_info info) {
+  napi_value args[11];
+  CNA_Handle texture = 0;
+  CNA_Texture3DTransfer transfer;
+  const uint32_t* packed = NULL;
+  size_t capacity = 0;
+  if (!require_loaded(env) || !get_args(env, info, 11, args) ||
+      !read_handle(env, args[0], &texture) ||
+      !read_texture3d_transfer(env, args, &transfer) ||
+      !read_u32_view(env, args[10], &packed, &capacity)) return NULL;
+  CNA_Color* colors = colors_from_packed(packed, capacity);
+  if (capacity != 0 && !colors) return throw_message(env, "Texture3D color allocation failed");
+  CNA_Result result = g_api.texture3d_set(texture, &transfer, colors, capacity);
+  free(colors);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_texture3d_set_data", result);
+  return undefined_result(env, "Texture3D upload result");
+}
+
+static napi_value get_texture3d_colors(napi_env env, napi_callback_info info) {
+  napi_value args[11];
+  CNA_Handle texture = 0;
+  CNA_Texture3DTransfer transfer;
+  uint32_t capacity = 0;
+  if (!require_loaded(env) || !get_args(env, info, 11, args) ||
+      !read_handle(env, args[0], &texture) ||
+      !read_texture3d_transfer(env, args, &transfer) ||
+      napi_get_value_uint32(env, args[10], &capacity) != napi_ok) return NULL;
+  CNA_Color* colors = capacity == 0 ? NULL : (CNA_Color*) calloc(capacity, sizeof(*colors));
+  if (capacity != 0 && !colors) return throw_message(env, "Texture3D readback allocation failed");
+  uint64_t required = 0;
+  CNA_Result result = g_api.texture3d_get(texture, &transfer, colors, capacity, &required);
+  if (result != CNA_RESULT_SUCCESS) { free(colors); return throw_result(env, "cna_texture3d_get_data", result); }
+  if (required != transfer.element_count) {
+    free(colors);
+    return throw_message(env, "CNA returned an inconsistent Texture3D readback size");
+  }
+  napi_value output = packed_from_colors(env, colors, capacity, "Texture3D readback copy");
+  free(colors);
+  return output;
+}
+
+static napi_value create_texturecube(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle device = 0, texture = 0;
+  uint32_t size = 0, format = 0;
+  bool mip_map = false;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &size) != napi_ok ||
+      napi_get_value_bool(env, args[2], &mip_map) != napi_ok ||
+      napi_get_value_uint32(env, args[3], &format) != napi_ok) return NULL;
+  CNA_TextureCubeCreateInfo create_info;
+  memset(&create_info, 0, sizeof(create_info)); create_info.struct_size = sizeof(create_info); create_info.struct_version = 1;
+  create_info.size = size; create_info.mip_map = mip_map ? CNA_TRUE : CNA_FALSE; create_info.format = format;
+  CNA_Result result = g_api.texturecube_create(device, &create_info, &texture);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_texturecube_create", result);
+  return make_handle(env, texture);
+}
+
+static napi_value get_texturecube_info(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle texture = 0;
+  CNA_TextureCubeInfo value;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) || !read_handle(env, args[0], &texture)) return NULL;
+  memset(&value, 0, sizeof(value)); value.struct_size = sizeof(value); value.struct_version = 1;
+  CNA_Result result = g_api.texturecube_get_info(texture, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_texturecube_get_info", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "TextureCube info");
+  if (!set_u32(env, output, "Size", value.size) || !set_u32(env, output, "LevelCount", value.level_count) ||
+      !set_u32(env, output, "Format", value.format)) return throw_napi(env, "TextureCube info properties");
+  return output;
+}
+
+static int read_texturecube_transfer(
+  napi_env env, napi_value* args, CNA_TextureCubeTransfer* transfer
+) {
+  bool has_rectangle = false;
+  uint32_t start_index = 0, element_count = 0;
+  memset(transfer, 0, sizeof(*transfer)); transfer->struct_size = sizeof(*transfer); transfer->struct_version = 1;
+  if (napi_get_value_uint32(env, args[1], &transfer->face) != napi_ok ||
+      napi_get_value_int32(env, args[2], &transfer->level) != napi_ok ||
+      napi_get_value_bool(env, args[3], &has_rectangle) != napi_ok ||
+      napi_get_value_int32(env, args[4], &transfer->rectangle.x) != napi_ok ||
+      napi_get_value_int32(env, args[5], &transfer->rectangle.y) != napi_ok ||
+      napi_get_value_int32(env, args[6], &transfer->rectangle.width) != napi_ok ||
+      napi_get_value_int32(env, args[7], &transfer->rectangle.height) != napi_ok ||
+      napi_get_value_uint32(env, args[8], &start_index) != napi_ok ||
+      napi_get_value_uint32(env, args[9], &element_count) != napi_ok) return 0;
+  transfer->has_rectangle = has_rectangle ? CNA_TRUE : CNA_FALSE;
+  transfer->start_index = start_index;
+  transfer->element_count = element_count;
+  return 1;
+}
+
+static napi_value set_texturecube_colors(napi_env env, napi_callback_info info) {
+  napi_value args[11]; CNA_Handle texture = 0; CNA_TextureCubeTransfer transfer;
+  const uint32_t* packed = NULL; size_t capacity = 0;
+  if (!require_loaded(env) || !get_args(env, info, 11, args) || !read_handle(env, args[0], &texture) ||
+      !read_texturecube_transfer(env, args, &transfer) || !read_u32_view(env, args[10], &packed, &capacity)) return NULL;
+  CNA_Color* colors = colors_from_packed(packed, capacity);
+  if (capacity != 0 && !colors) return throw_message(env, "TextureCube color allocation failed");
+  CNA_Result result = g_api.texturecube_set(texture, &transfer, colors, capacity); free(colors);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_texturecube_set_data", result);
+  return undefined_result(env, "TextureCube upload result");
+}
+
+static napi_value get_texturecube_colors(napi_env env, napi_callback_info info) {
+  napi_value args[11]; CNA_Handle texture = 0; CNA_TextureCubeTransfer transfer; uint32_t capacity = 0;
+  if (!require_loaded(env) || !get_args(env, info, 11, args) || !read_handle(env, args[0], &texture) ||
+      !read_texturecube_transfer(env, args, &transfer) ||
+      napi_get_value_uint32(env, args[10], &capacity) != napi_ok) return NULL;
+  CNA_Color* colors = capacity == 0 ? NULL : (CNA_Color*) calloc(capacity, sizeof(*colors));
+  if (capacity != 0 && !colors) return throw_message(env, "TextureCube readback allocation failed");
+  uint64_t required = 0; CNA_Result result = g_api.texturecube_get(texture, &transfer, colors, capacity, &required);
+  if (result != CNA_RESULT_SUCCESS) { free(colors); return throw_result(env, "cna_texturecube_get_data", result); }
+  if (required != transfer.element_count) {
+    free(colors);
+    return throw_message(env, "CNA returned an inconsistent TextureCube readback size");
+  }
+  napi_value output = packed_from_colors(env, colors, capacity, "TextureCube readback copy"); free(colors); return output;
+}
+
+static napi_value create_render_target2d(napi_env env, napi_callback_info info) {
+  napi_value args[8];
+  CNA_Handle device = 0, target = 0;
+  CNA_RenderTarget2DCreateInfo create_info;
+  bool mip_map = false;
+  memset(&create_info, 0, sizeof(create_info));
+  create_info.struct_size = sizeof(create_info);
+  create_info.struct_version = 1;
+  if (!require_loaded(env) || !get_args(env, info, 8, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &create_info.width) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &create_info.height) != napi_ok ||
+      napi_get_value_bool(env, args[3], &mip_map) != napi_ok ||
+      napi_get_value_uint32(env, args[4], &create_info.format) != napi_ok ||
+      napi_get_value_uint32(env, args[5], &create_info.depth_format) != napi_ok ||
+      napi_get_value_int32(env, args[6], &create_info.multi_sample_count) != napi_ok ||
+      napi_get_value_uint32(env, args[7], &create_info.usage) != napi_ok) return NULL;
+  create_info.mip_map = mip_map ? CNA_TRUE : CNA_FALSE;
+  CNA_Result result = g_api.render_target2d_create(device, &create_info, &target);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_render_target2d_create", result);
+  return make_handle(env, target);
+}
+
+static napi_value create_render_target_cube(napi_env env, napi_callback_info info) {
+  napi_value args[7];
+  CNA_Handle device = 0, target = 0;
+  CNA_RenderTargetCubeCreateInfo create_info;
+  bool mip_map = false;
+  memset(&create_info, 0, sizeof(create_info));
+  create_info.struct_size = sizeof(create_info);
+  create_info.struct_version = 1;
+  if (!require_loaded(env) || !get_args(env, info, 7, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &create_info.size) != napi_ok ||
+      napi_get_value_bool(env, args[2], &mip_map) != napi_ok ||
+      napi_get_value_uint32(env, args[3], &create_info.format) != napi_ok ||
+      napi_get_value_uint32(env, args[4], &create_info.depth_format) != napi_ok ||
+      napi_get_value_int32(env, args[5], &create_info.multi_sample_count) != napi_ok ||
+      napi_get_value_uint32(env, args[6], &create_info.usage) != napi_ok) return NULL;
+  create_info.mip_map = mip_map ? CNA_TRUE : CNA_FALSE;
+  CNA_Result result = g_api.render_target_cube_create(device, &create_info, &target);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_render_target_cube_create", result);
+  return make_handle(env, target);
+}
+
+static napi_value get_render_target_info(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle target = 0;
+  CNA_RenderTargetInfo value;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &target)) return NULL;
+  memset(&value, 0, sizeof(value));
+  value.struct_size = sizeof(value);
+  value.struct_version = 1;
+  CNA_Result result = g_api.render_target_get_info(target, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_render_target_get_info", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "render-target info");
+  if (!set_u32(env, output, "Kind", value.kind) ||
+      !set_u32(env, output, "Width", value.width) ||
+      !set_u32(env, output, "Height", value.height) ||
+      !set_u32(env, output, "LevelCount", value.level_count) ||
+      !set_u32(env, output, "Format", value.format) ||
+      !set_u32(env, output, "DepthFormat", value.depth_format) ||
+      !set_i32(env, output, "MultiSampleCount", value.multi_sample_count) ||
+      !set_u32(env, output, "Usage", value.usage) ||
+      !set_bool(env, output, "IsContentLost", value.is_content_lost == CNA_TRUE) ||
+      !set_bool(env, output, "RendererAvailable", value.renderer_available == CNA_TRUE)) {
+    return throw_napi(env, "render-target info properties");
+  }
+  return output;
+}
+
+static napi_value set_graphics_render_targets(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0;
+  bool is_array = false;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_is_array(env, args[1], &is_array) != napi_ok || !is_array) {
+    return throw_message(env, "render-target bindings must be an array");
+  }
+  uint32_t count = 0;
+  NAPI_OR_RETURN(env, napi_get_array_length(env, args[1], &count), "render-target binding count");
+  CNA_RenderTargetBinding* bindings = count == 0 ? NULL :
+    (CNA_RenderTargetBinding*) calloc(count, sizeof(*bindings));
+  if (count != 0 && !bindings) return throw_message(env, "render-target binding allocation failed");
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value object;
+    if (napi_get_element(env, args[1], index, &object) != napi_ok ||
+        !get_named_handle(env, object, "RenderTarget", &bindings[index].render_target) ||
+        !get_named_i32(env, object, "ArraySlice", &bindings[index].array_slice) ||
+        !get_named_u32(env, object, "CubeMapFace", &bindings[index].cube_map_face)) {
+      free(bindings);
+      return NULL;
+    }
+    bindings[index].struct_size = sizeof(bindings[index]);
+    bindings[index].struct_version = 1;
+  }
+  CNA_Result result = g_api.graphics_set_render_targets(device, bindings, count);
+  free(bindings);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_device_set_render_targets", result);
+  }
+  return undefined_result(env, "render-target binding result");
+}
+
+static napi_value create_occlusion_query(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle device = 0, query = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  CNA_Result result = g_api.occlusion_create(device, &query);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_occlusion_query_create", result);
+  return make_handle(env, query);
+}
+
+static napi_value get_occlusion_query_is_complete(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle query = 0;
+  CNA_Bool value = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &query)) return NULL;
+  CNA_Result result = g_api.occlusion_get_complete(query, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_occlusion_query_get_is_complete", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, value == CNA_TRUE, &output), "query completion");
+  return output;
+}
+
+static napi_value get_occlusion_query_pixel_count(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle query = 0;
+  int32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &query)) return NULL;
+  CNA_Result result = g_api.occlusion_get_pixel_count(query, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_occlusion_query_get_pixel_count", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, value, &output), "query pixel count");
+  return output;
 }
 
 static int get_named_handle(napi_env env, napi_value object, const char* name, CNA_Handle* out) {
@@ -2136,6 +3457,300 @@ static int read_utf8(napi_env env, napi_value value, char** out_data, size_t* ou
   *out_data = data;
   *out_length = length;
   return 1;
+}
+
+static napi_value open_title_stream(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle game = 0;
+  char* name = NULL;
+  size_t name_length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      !read_utf8(env, args[1], &name, &name_length)) return NULL;
+  const CNA_StringView view = {name, name_length};
+  uint64_t required = 0;
+  CNA_Result result = g_api.title_container_read(game, view, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    free(name);
+    return throw_result(env, "cna_title_container_read_ext", result);
+  }
+  if (required > SIZE_MAX) {
+    free(name);
+    return throw_message(env, "title content exceeds the Node address space");
+  }
+  uint8_t* bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) {
+    free(name);
+    return throw_message(env, "title-content allocation failed");
+  }
+  uint64_t copied = 0;
+  result = g_api.title_container_read(game, view, bytes, required, &copied);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS || copied != required) {
+    free(bytes);
+    if (result == CNA_RESULT_SUCCESS) {
+      return throw_message(env, "CNA title content changed during the count/copy operation");
+    }
+    return throw_result(env, "cna_title_container_read_ext", result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) copied, "title-content copy");
+  free(bytes);
+  return output;
+}
+
+static napi_value get_window_allow_resizing(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  CNA_Bool value = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  CNA_Result result = g_api.window_get_allow_resizing(game, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_game_window_get_allow_user_resizing", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, value == CNA_TRUE, &output), "window resizing state");
+  return output;
+}
+
+static napi_value set_window_allow_resizing(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle game = 0;
+  bool value = false;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_bool(env, args[1], &value) != napi_ok) return NULL;
+  CNA_Result result = g_api.window_set_allow_resizing(game, value ? CNA_TRUE : CNA_FALSE);
+  if (rethrow_callback_exception(find_game(game))) return NULL;
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_game_window_set_allow_user_resizing", result);
+  }
+  return undefined_result(env, "window resizing result");
+}
+
+static napi_value get_window_client_bounds(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  CNA_Rectangle value;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  memset(&value, 0, sizeof(value));
+  CNA_Result result = g_api.window_get_client_bounds(game, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_game_window_get_client_bounds", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "window client bounds");
+  if (!set_i32(env, output, "X", value.x) || !set_i32(env, output, "Y", value.y) ||
+      !set_i32(env, output, "Width", value.width) || !set_i32(env, output, "Height", value.height)) {
+    return throw_napi(env, "window client-bound properties");
+  }
+  return output;
+}
+
+static napi_value get_window_orientation(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  uint32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  CNA_Result result = g_api.window_get_orientation(game, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_game_window_get_current_orientation", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_uint32(env, value, &output), "window orientation");
+  return output;
+}
+
+static napi_value get_window_handle(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  uint64_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  CNA_Result result = g_api.window_get_handle(game, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_game_window_get_native_handle_ext", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_bigint_uint64(env, value, &output), "window handle");
+  return output;
+}
+
+static napi_value copy_window_string(
+  napi_env env,
+  napi_callback_info info,
+  HandleU64OutFn size_function,
+  HandleCopyStringFn copy_function,
+  const char* operation
+) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  uint64_t length = 0, copied = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  CNA_Result result = size_function(game, &length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  if (length > SIZE_MAX) return throw_message(env, "window text exceeds the Node address space");
+  char* value = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !value) return throw_message(env, "window-text allocation failed");
+  result = copy_function(game, value, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(value);
+    if (result == CNA_RESULT_SUCCESS) return throw_message(env, "window text changed during count/copy");
+    return throw_result(env, operation, result);
+  }
+  napi_status status = napi_create_string_utf8(env, value ? value : "", (size_t) copied, &output);
+  free(value);
+  if (status != napi_ok) return throw_napi(env, operation);
+  return output;
+}
+
+static napi_value get_window_screen_name(napi_env env, napi_callback_info info) {
+  return copy_window_string(env, info, g_api.window_get_screen_name_size,
+    g_api.window_copy_screen_name, "cna_game_window_copy_screen_device_name");
+}
+
+static napi_value get_window_title(napi_env env, napi_callback_info info) {
+  return copy_window_string(env, info, g_api.window_get_title_size,
+    g_api.window_copy_title, "cna_game_window_copy_title");
+}
+
+static napi_value set_window_title(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle game = 0;
+  char* title = NULL;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) || !read_utf8(env, args[1], &title, &length)) return NULL;
+  const CNA_StringView view = {title, length};
+  CNA_Result result = g_api.window_set_title(game, view);
+  free(title);
+  if (rethrow_callback_exception(find_game(game))) return NULL;
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_game_set_window_title", result);
+  return undefined_result(env, "window title result");
+}
+
+static napi_value begin_window_screen_change(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle game = 0;
+  bool fullscreen = false;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_bool(env, args[1], &fullscreen) != napi_ok) return NULL;
+  CNA_Result result = g_api.window_begin_screen_change(game, fullscreen ? CNA_TRUE : CNA_FALSE);
+  if (rethrow_callback_exception(find_game(game))) return NULL;
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_game_window_begin_screen_device_change", result);
+  }
+  return undefined_result(env, "window screen-change begin result");
+}
+
+static napi_value end_window_screen_change(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle game = 0;
+  char* name = NULL;
+  size_t length = 0;
+  int32_t width = 0, height = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &game) || !read_utf8(env, args[1], &name, &length) ||
+      napi_get_value_int32(env, args[2], &width) != napi_ok ||
+      napi_get_value_int32(env, args[3], &height) != napi_ok) {
+    free(name);
+    return NULL;
+  }
+  const CNA_StringView view = {name, length};
+  CNA_Result result = g_api.window_end_screen_change(game, view, width, height);
+  free(name);
+  if (rethrow_callback_exception(find_game(game))) return NULL;
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_game_window_end_screen_device_change", result);
+  }
+  return undefined_result(env, "window screen-change end result");
+}
+
+static WindowEventContext* find_window_event(const CNA_Handle registration) {
+  for (WindowEventContext* value = g_window_events; value; value = value->next) {
+    if (value->registration == registration) return value;
+  }
+  return NULL;
+}
+
+static void unlink_window_event(WindowEventContext* context) {
+  WindowEventContext** current = &g_window_events;
+  while (*current) {
+    if (*current == context) {
+      *current = context->next;
+      return;
+    }
+    current = &(*current)->next;
+  }
+}
+
+static void on_window_event(void* raw) {
+  WindowEventContext* context = (WindowEventContext*) raw;
+  if (!context) return;
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(context->env, &scope) != napi_ok) return;
+  napi_value callback, receiver, result;
+  napi_status status = napi_get_reference_value(context->env, context->callback, &callback);
+  if (status == napi_ok) status = napi_get_undefined(context->env, &receiver);
+  if (status == napi_ok) {
+    status = napi_call_function(context->env, receiver, callback, 0, NULL, &result);
+  }
+  if (status == napi_pending_exception) {
+    napi_value exception;
+    GameContext* game = find_game(context->game);
+    if (game && napi_get_and_clear_last_exception(context->env, &exception) == napi_ok) {
+      if (game->exception) napi_delete_reference(context->env, game->exception);
+      napi_create_reference(context->env, exception, 1, &game->exception);
+    }
+  }
+  napi_close_handle_scope(context->env, scope);
+}
+
+static napi_value subscribe_window_event(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle game = 0;
+  uint32_t event = 0;
+  napi_valuetype type;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &event) != napi_ok ||
+      napi_typeof(env, args[2], &type) != napi_ok || type != napi_function) {
+    return throw_message(env, "window event callback must be a function");
+  }
+  WindowEventContext* context = (WindowEventContext*) calloc(1, sizeof(*context));
+  if (!context) return throw_message(env, "window-event context allocation failed");
+  context->env = env;
+  context->game = game;
+  if (napi_create_reference(env, args[2], 1, &context->callback) != napi_ok) {
+    free(context);
+    return throw_napi(env, "window-event callback retention");
+  }
+  CNA_Result result = g_api.window_subscribe(
+    game, event, on_window_event, context, &context->registration);
+  if (result != CNA_RESULT_SUCCESS) {
+    napi_delete_reference(env, context->callback);
+    free(context);
+    return throw_result(env, "cna_game_window_subscribe", result);
+  }
+  context->next = g_window_events;
+  g_window_events = context;
+  return make_handle(env, context->registration);
+}
+
+static napi_value unsubscribe_window_event(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle registration = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &registration)) return NULL;
+  WindowEventContext* context = find_window_event(registration);
+  CNA_Result result = g_api.game_unsubscribe(registration);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_game_unsubscribe", result);
+  if (context) {
+    unlink_window_event(context);
+    napi_delete_reference(env, context->callback);
+    free(context);
+  }
+  return undefined_result(env, "window-event unsubscribe result");
 }
 
 static napi_value create_sound_effect_pcm(napi_env env, napi_callback_info info) {
@@ -3605,6 +5220,65 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "setIndexBufferRaw", NULL, set_index_buffer_raw, NULL, NULL, NULL, napi_default, NULL },
     { "getIndexBufferRaw", NULL, get_index_buffer_raw, NULL, NULL, NULL, napi_default, NULL },
     { "destroyIndexBuffer", NULL, destroy_index_buffer, NULL, NULL, NULL, napi_default, NULL },
+    { "getGraphicsDeviceStatus", NULL, get_graphics_device_status, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceBlendFactor", NULL, set_graphics_blend_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceBlendState", NULL, set_graphics_blend_state, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceDepthStencilState", NULL, set_graphics_depth_stencil_state, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceRasterizerState", NULL, set_graphics_rasterizer_state, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceSamplerState", NULL, set_graphics_sampler_state, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceTexture", NULL, set_graphics_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceMultiSampleMask", NULL, set_graphics_multi_sample_mask, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceReferenceStencil", NULL, set_graphics_reference_stencil, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceScissorRectangle", NULL, set_graphics_scissor, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceViewport", NULL, set_graphics_viewport, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceVertexBuffers", NULL, set_graphics_vertex_buffers, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceIndexBuffer", NULL, set_graphics_index_buffer, NULL, NULL, NULL, napi_default, NULL },
+    { "drawPrimitives", NULL, draw_primitives, NULL, NULL, NULL, napi_default, NULL },
+    { "drawIndexedPrimitives", NULL, draw_indexed_primitives, NULL, NULL, NULL, napi_default, NULL },
+    { "drawInstancedPrimitives", NULL, draw_instanced_primitives, NULL, NULL, NULL, napi_default, NULL },
+    { "drawUserPrimitives", NULL, draw_user_primitives, NULL, NULL, NULL, napi_default, NULL },
+    { "drawUserIndexedPrimitives", NULL, draw_user_indexed_primitives, NULL, NULL, NULL, napi_default, NULL },
+    { "beginSpriteBatchWithStates", NULL, begin_sprite_batch_with_states, NULL, NULL, NULL, napi_default, NULL },
+    { "setVertexBufferData", NULL, set_vertex_buffer_data, NULL, NULL, NULL, napi_default, NULL },
+    { "setVertexBufferRawAt", NULL, set_vertex_buffer_raw_at, NULL, NULL, NULL, napi_default, NULL },
+    { "getVertexBufferRawAt", NULL, get_vertex_buffer_raw_at, NULL, NULL, NULL, napi_default, NULL },
+    { "getVertexBufferIsContentLost", NULL, get_vertex_buffer_content_lost, NULL, NULL, NULL, napi_default, NULL },
+    { "setIndexBufferData", NULL, set_index_buffer_data, NULL, NULL, NULL, napi_default, NULL },
+    { "getIndexBufferIsContentLost", NULL, get_index_buffer_content_lost, NULL, NULL, NULL, napi_default, NULL },
+    { "createTexture3D", NULL, create_texture3d, NULL, NULL, NULL, napi_default, NULL },
+    { "getTexture3DInfo", NULL, get_texture3d_info, NULL, NULL, NULL, napi_default, NULL },
+    { "setTexture3DColors", NULL, set_texture3d_colors, NULL, NULL, NULL, napi_default, NULL },
+    { "getTexture3DColors", NULL, get_texture3d_colors, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyTexture3D", NULL, destroy_texture3d, NULL, NULL, NULL, napi_default, NULL },
+    { "createTextureCube", NULL, create_texturecube, NULL, NULL, NULL, napi_default, NULL },
+    { "getTextureCubeInfo", NULL, get_texturecube_info, NULL, NULL, NULL, napi_default, NULL },
+    { "setTextureCubeColors", NULL, set_texturecube_colors, NULL, NULL, NULL, napi_default, NULL },
+    { "getTextureCubeColors", NULL, get_texturecube_colors, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyTextureCube", NULL, destroy_texturecube, NULL, NULL, NULL, napi_default, NULL },
+    { "createRenderTarget2D", NULL, create_render_target2d, NULL, NULL, NULL, napi_default, NULL },
+    { "createRenderTargetCube", NULL, create_render_target_cube, NULL, NULL, NULL, napi_default, NULL },
+    { "getRenderTargetInfo", NULL, get_render_target_info, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyRenderTarget", NULL, destroy_render_target, NULL, NULL, NULL, napi_default, NULL },
+    { "setGraphicsDeviceRenderTargets", NULL, set_graphics_render_targets, NULL, NULL, NULL, napi_default, NULL },
+    { "createOcclusionQuery", NULL, create_occlusion_query, NULL, NULL, NULL, napi_default, NULL },
+    { "beginOcclusionQuery", NULL, begin_occlusion_query, NULL, NULL, NULL, napi_default, NULL },
+    { "endOcclusionQuery", NULL, end_occlusion_query, NULL, NULL, NULL, napi_default, NULL },
+    { "getOcclusionQueryIsComplete", NULL, get_occlusion_query_is_complete, NULL, NULL, NULL, napi_default, NULL },
+    { "getOcclusionQueryPixelCount", NULL, get_occlusion_query_pixel_count, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyOcclusionQuery", NULL, destroy_occlusion_query, NULL, NULL, NULL, napi_default, NULL },
+    { "openTitleStream", NULL, open_title_stream, NULL, NULL, NULL, napi_default, NULL },
+    { "getGameWindowAllowUserResizing", NULL, get_window_allow_resizing, NULL, NULL, NULL, napi_default, NULL },
+    { "setGameWindowAllowUserResizing", NULL, set_window_allow_resizing, NULL, NULL, NULL, napi_default, NULL },
+    { "getGameWindowClientBounds", NULL, get_window_client_bounds, NULL, NULL, NULL, napi_default, NULL },
+    { "getGameWindowCurrentOrientation", NULL, get_window_orientation, NULL, NULL, NULL, napi_default, NULL },
+    { "getGameWindowHandle", NULL, get_window_handle, NULL, NULL, NULL, napi_default, NULL },
+    { "getGameWindowScreenDeviceName", NULL, get_window_screen_name, NULL, NULL, NULL, napi_default, NULL },
+    { "getGameWindowTitle", NULL, get_window_title, NULL, NULL, NULL, napi_default, NULL },
+    { "setGameWindowTitle", NULL, set_window_title, NULL, NULL, NULL, napi_default, NULL },
+    { "beginGameWindowScreenDeviceChange", NULL, begin_window_screen_change, NULL, NULL, NULL, napi_default, NULL },
+    { "endGameWindowScreenDeviceChange", NULL, end_window_screen_change, NULL, NULL, NULL, napi_default, NULL },
+    { "subscribeGameWindowEvent", NULL, subscribe_window_event, NULL, NULL, NULL, napi_default, NULL },
+    { "unsubscribeGameWindowEvent", NULL, unsubscribe_window_event, NULL, NULL, NULL, napi_default, NULL },
     { "getKeyboardState", NULL, get_keyboard_state, NULL, NULL, NULL, napi_default, NULL },
     { "getMouseState", NULL, get_mouse_state, NULL, NULL, NULL, napi_default, NULL },
     { "setMousePosition", NULL, set_mouse_position, NULL, NULL, NULL, napi_default, NULL },

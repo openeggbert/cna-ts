@@ -6,20 +6,21 @@
   "granularity": "Each row is a reviewed operation family; overloads with the same implementation and evidence share a row.",
   "sourceAudit": {
     "root": "src/Microsoft/Xna/Framework",
-    "nativeUnavailableErrorSites": 74,
-    "notSupportedExceptionSites": 2,
-    "filesWithExplicitFailureSites": 28,
+    "nativeUnavailableErrorSites": 63,
+    "notSupportedExceptionSites": 6,
+    "filesWithExplicitFailureSites": 25,
     "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family."
   },
   "counts": {
-    "VERIFIED_MANAGED": 18,
-    "VERIFIED_NATIVE": 14,
-    "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 2,
-    "UPSTREAM_CNA_BLOCKED": 5,
+    "VERIFIED_MANAGED": 19,
+    "VERIFIED_NATIVE": 24,
+    "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 4,
+    "UPSTREAM_CNA_BLOCKED": 8,
     "FIXTURE_PENDING": 3,
     "HARDWARE_PENDING": 4,
     "PLATFORM_PENDING": 3,
-    "UNIMPLEMENTED_CNA_TS": 12,
+    "UNIMPLEMENTED_CNA_TS": 0,
+    "LANGUAGE_MAPPING_LIMITATION": 3,
     "NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT": 1
   },
   "entries": [
@@ -34,6 +35,18 @@
       "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
       "owner": "current qualified backend",
       "evidence": "HEADLESS artifact exposes no windowed adapter/display evidence"
+    },
+    {
+      "operation": "Physical GameWindow resize/orientation/screen-device event qualification",
+      "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
+      "owner": "current qualified backend",
+      "evidence": "event registrations are real and removable, but HEADLESS exposes no physical window or event stimulus"
+    },
+    {
+      "operation": "Texture3D and TextureCube resource execution on the qualified renderer",
+      "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
+      "owner": "current qualified backend",
+      "evidence": "both exact ABI-0.7 creation routes return CNA_RESULT_NOT_SUPPORTED under HEADLESS; no storage or transfer success is claimed"
     },
     {
       "operation": "AudioEngine, AudioCategory, WaveBank, SoundBank and Cue authored success",
@@ -57,7 +70,7 @@
       "operation": "GPU custom-effect and rendering output qualification",
       "category": "HARDWARE_PENDING",
       "owner": "qualification hardware",
-      "evidence": "qualified artifact is HEADLESS"
+      "evidence": "typed bound/user/instanced draw routes now reach CNA, but the qualified HEADLESS pipeline returns result 12 and cannot prove visible output"
     },
     {
       "operation": "Microphone enumeration/capture/buffer callbacks",
@@ -76,6 +89,24 @@
       "category": "HARDWARE_PENDING",
       "owner": "qualification hardware",
       "evidence": "NULL audio verifies state/lifetime only"
+    },
+    {
+      "operation": "Arbitrary custom generic vertex value transfer",
+      "category": "LANGUAGE_MAPPING_LIMITATION",
+      "owner": "TypeScript language projection",
+      "evidence": "four formally mapped XNA vertex structs have exact codecs; arbitrary JavaScript objects have no blittable CLR layout and are rejected explicitly"
+    },
+    {
+      "operation": "ContentReader.ReadRawObject<T>() without an explicit reader token",
+      "category": "LANGUAGE_MAPPING_LIMITATION",
+      "owner": "TypeScript language projection",
+      "evidence": "JavaScript erases T, so reader identity cannot be recovered deterministically; explicit ContentTypeReader overloads are implemented and the strict verifier models the generic surface without fake CLR reflection"
+    },
+    {
+      "operation": "DrawUserIndexedPrimitives Int16[] versus Int32[] overload identity",
+      "category": "LANGUAGE_MAPPING_LIMITATION",
+      "owner": "TypeScript language projection",
+      "evidence": "both CLR element types map to number[]; the deterministic public number[] route uses 32-bit indices rather than guessing from values"
     },
     {
       "operation": "Windowed renderer behavior on Linux",
@@ -102,88 +133,22 @@
       "evidence": "no qualified artifact/job on either OS"
     },
     {
-      "operation": "ContentReader.ReadRawObject without an explicit reader token",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "TypeScript language projection",
-      "evidence": "erased JavaScript generics cannot select a reader at runtime; explicit-reader ReadRawObject overloads remain available and fake CLR reflection is rejected"
-    },
-    {
-      "operation": "Direct GraphicsDevice construction and device status",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "manager-owned callback-scoped device creation is verified; standalone-device and status routes are not imported"
-    },
-    {
-      "operation": "DynamicVertexBuffer and DynamicIndexBuffer create/SetData/content-lost behavior",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "strict members fail explicitly pending typed dynamic-buffer routes"
-    },
-    {
-      "operation": "GameWindow.Handle, resize/orientation/screen-device events",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "native window/event routes are not imported"
-    },
-    {
-      "operation": "GraphicsDevice DrawPrimitives/DrawIndexedPrimitives/DrawUser/instancing",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "no typed CNA-TS bridge routes are imported"
-    },
-    {
-      "operation": "GraphicsDevice state binding routes and render-target binding",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "strict setters fail explicitly; corresponding broader CNA C API routes require an audited import slice"
-    },
-    {
-      "operation": "OcclusionQuery Begin/End/result",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "strict operations fail explicitly pending query routes"
-    },
-    {
-      "operation": "RenderTarget2D and RenderTargetCube construction/properties",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "strict constructors fail explicitly pending audited render-target routes"
-    },
-    {
-      "operation": "SpriteBatch explicit render states, Effect and transform Begin overloads",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "default Begin and strict validation are verified; state/effect descriptors are not in the imported bridge slice"
-    },
-    {
-      "operation": "Texture3D and TextureCube construction/data transfer",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "strict constructors fail explicitly pending typed transfer routes"
-    },
-    {
-      "operation": "TitleContainer.OpenStream title-storage route",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "strict operation fails explicitly; host filesystem access is not exposed as a substitute"
-    },
-    {
-      "operation": "VertexBuffer/IndexBuffer arbitrary public generic value transfer",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "built-in Model raw transfer is verified; arbitrary value codecs remain explicit"
-    },
-    {
       "operation": "Browser/Wasm CNA runtime",
       "category": "UPSTREAM_CNA_BLOCKED",
       "owner": "CNA artifact packaging",
       "evidence": "no provenance-verifiable C-ABI ESM/Wasm artifact exists"
     },
     {
-      "operation": "ContentManager default XNB stream acquisition",
+      "operation": "Direct standalone GraphicsDevice construction",
       "category": "UPSTREAM_CNA_BLOCKED",
       "owner": "CNA C ABI",
-      "evidence": "managed XNB parsing is verified through protected OpenStream providers, but the audited C ABI exposes no general asset-byte stream route; host filesystem behavior is not substituted"
+      "evidence": "ABI 0.7 exposes only a game-owned callback-scoped borrowed device; disposal explicitly rejects ownership by the binding"
+    },
+    {
+      "operation": "Dynamic buffer ContentLost event signaling",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA C ABI",
+      "evidence": "creation, transfer and IsContentLost queries are implemented, but ABI 0.7 exposes no loss/recreation callback and CNA currently reports no loss"
     },
     {
       "operation": "EffectPass.Apply and XNA compiled/stock-effect execution",
@@ -192,10 +157,22 @@
       "evidence": "no audited C ABI route with XNA compiled-effect semantics and ownership"
     },
     {
-      "operation": "Model.Draw faithful effect/pass/indexed rendering pipeline",
+      "operation": "Model.Draw faithful effect/pass pipeline",
       "category": "UPSTREAM_CNA_BLOCKED",
       "owner": "CNA C ABI",
-      "evidence": "required XNA-compatible effect application and draw orchestration are not representable by the qualified slice"
+      "evidence": "raw indexed draw dispatch is now implemented; Model.Draw remains blocked specifically by XNA-compatible EffectPass.Apply and compiled/stock-effect execution"
+    },
+    {
+      "operation": "RenderTarget ContentLost event signaling",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA C ABI",
+      "evidence": "construction, metadata and binding are implemented, but ABI 0.7 exposes no target loss/recreation callback"
+    },
+    {
+      "operation": "SpriteBatch Effect-bearing Begin",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA C ABI effect projection",
+      "evidence": "the CNA route requires an owned executable Effect handle, while selected EffectPass.Apply and compiled/stock-effect execution remain unavailable"
     },
     {
       "operation": "VideoPlayer.GetTexture transient frame projection",
@@ -312,6 +289,12 @@
       "evidence": "uncompressed and compressed synthetic reader-graph tests"
     },
     {
+      "operation": "Texture3D/TextureCube exact Color codec, bounds and CNA dispatch projection",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "managed native-shaped backend verifies boxes, faces and exact packed Color round trips; all ABI signatures are compiler-audited and the qualified HEADLESS artifact returns documented NOT_SUPPORTED at creation"
+    },
+    {
       "operation": "CNA renderer identity and capability query extension",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
@@ -324,6 +307,12 @@
       "evidence": "qualified native integration with reentrant/self-removing/throwing callback tests"
     },
     {
+      "operation": "DynamicVertexBuffer and DynamicIndexBuffer creation, typed transfer, readback and IsContentLost query",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified integration covers Discard/NoOverwrite, built-in vertex and 16-bit index round trips, double disposal and parent shutdown"
+    },
+    {
       "operation": "FrameworkDispatcher.Update canonical native pump",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
@@ -334,6 +323,30 @@
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
       "evidence": "qualified ABI-0.7 integration covers seven real game lifetimes and 60/600 frames"
+    },
+    {
+      "operation": "GameWindow stable facade, borrowed handle/state and removable event registrations",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified integration verifies stable Game.Window identity, zero HEADLESS handle, title/state queries, callback registration cleanup and repeated game lifetimes"
+    },
+    {
+      "operation": "GraphicsDevice bound, indexed, instanced and four-codec user draw dispatch",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "280-symbol bridge dispatch and argument layouts are signature-audited; qualified HEADLESS calls reach CNA and report pipeline-unavailable result 12 without any output claim"
+    },
+    {
+      "operation": "GraphicsDevice copied state, scalar state, sampler/texture, buffer and render-target binding routes",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified ABI-0.7 integration verifies successful assignment, null/unbind, stable read-after-write facade identity and render-target state; managed suite covers bounds, disposed, duplicate, wrong-device and rollback validation"
+    },
+    {
+      "operation": "GraphicsDevice status query",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified HEADLESS device reports the canonical Normal status through cna_graphics_device_get_status"
     },
     {
       "operation": "GraphicsDevice.Clear and Present",
@@ -360,6 +373,18 @@
       "evidence": "generated legal silent WAV under qualified NULL-audio integration"
     },
     {
+      "operation": "OcclusionQuery construction, ordering, reuse, completion/result dispatch and disposal",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified integration executes the real query state machine without fabricating PixelCount; managed suite covers completion and exact result identity"
+    },
+    {
+      "operation": "RenderTarget2D/Cube construction, metadata, binding and inherited exact transfer routes",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified HEADLESS integration verifies RenderTarget2D and RenderTargetCube creation, metadata, 2D/cube-face bind/unbind identity, bound-destroy rejection and parent shutdown; managed backend covers cube metadata, face identity and duplicate validation"
+    },
+    {
       "operation": "SoundEffect PCM creation, instances, controls, Apply3D and disposal",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
@@ -372,6 +397,12 @@
       "evidence": "qualified native integration and template 60/600 frames"
     },
     {
+      "operation": "SpriteBatch explicit render-state and transform Begin",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified integration executes copied Blend/Sampler/DepthStencil/Rasterizer descriptors; managed tests verify identity, wrong-device checks and post-success immutability"
+    },
+    {
       "operation": "StorageDevice selector, StorageContainer and stream CRUD",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
@@ -382,6 +413,18 @@
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
       "evidence": "qualified native integration with deterministic pixel checks"
+    },
+    {
+      "operation": "TitleContainer.OpenStream and default ContentManager title-storage acquisition",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified integration reads package.json through the CNA title-storage count/copy route; CNA-TS rejects absolute/traversal host paths and default ContentManager appends RootDirectory plus .xnb"
+    },
+    {
+      "operation": "VertexBuffer/IndexBuffer mapped public value transfer",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified integration verifies four exact built-in vertex codecs and 16-bit index transfer; no JavaScript object serialization or layout guessing is used"
     },
     {
       "operation": "VertexDeclaration, VertexBuffer and IndexBuffer resource construction/readback used by Model XNB",

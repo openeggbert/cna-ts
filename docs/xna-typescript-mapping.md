@@ -200,6 +200,27 @@ only deterministic mapped representations: `Color[]`, supported typed arrays, an
 packed-vector arrays. Each representation supplies a fixed element size and native byte codec;
 surface-format compatibility, mip/region bounds, source offsets, and counts are validated before
 the synchronous CNA call. Arbitrary JavaScript objects are not treated as generic texture data.
+
+Vertex-buffer and user-draw generics use the same deterministic rule. CNA-TS supplies exact
+little-endian codecs only for `VertexPositionColor`, `VertexPositionColorTexture`,
+`VertexPositionTexture`, and `VertexPositionNormalTexture`, and requires the matching
+`VertexDeclaration`. Arbitrary JavaScript objects are not blittable CLR structs and are rejected;
+JSON serialization is never a vertex layout. IndexBuffer transfers use the buffer's explicit
+`IndexElementSize`. For `DrawUserIndexedPrimitives`, both CLR `short[]` and `int[]` map to
+TypeScript `number[]`, so the public number-array route deterministically uses 32-bit indices
+instead of guessing width from values. This loss of overload identity is recorded as a language
+mapping limitation.
+
+`ContentReader.ReadRawObject<T>()` without a `ContentTypeReader` token is another intentional
+language boundary: JavaScript erases `T`, so there is no deterministic reader identity to recover.
+The explicit-reader overloads remain executable. CNA-TS does not introduce fake CLR reflection;
+the strict verifier preserves the selected generic declaration while the runtime inventory records
+the erased-token limitation separately from implementation debt.
+
+XNA stream-returning title APIs map to complete caller-owned `Uint8Array` values because the CNA
+ABI 0.7 title route is a whole-file count/copy pair rather than a stream handle. Names are
+normalized as title-storage identities, and absolute or parent-traversal host paths are rejected.
+
 `System.Text.StringBuilder` parameters map to `string`: a JavaScript caller supplies an immutable
 text value, which the binding snapshots at the call boundary.
 

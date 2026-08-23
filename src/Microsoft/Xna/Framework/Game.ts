@@ -19,7 +19,7 @@ import { GameComponentCollection } from "./GameComponentCollection.js";
 import type { GameComponentCollectionEventArgs } from "./GameComponentCollectionEventArgs.js";
 import { GameServiceContainer } from "./GameServiceContainer.js";
 import { GameTime } from "./GameTime.js";
-import type { GameWindow } from "./GameWindow.js";
+import { createGameWindowForInternalUse, type GameWindow } from "./GameWindow.js";
 import type { GraphicsDevice } from "./Graphics/GraphicsDevice.js";
 import type { GraphicsDeviceManager } from "./GraphicsDeviceManager.js";
 import type { IDrawable } from "./IDrawable.js";
@@ -91,6 +91,7 @@ export class Game implements IDisposable {
   #disposed = false;
   #gameLifetime: NativeResourceLifetime | null = null;
   #nativeBackend: CnaBackend | null = null;
+  #window: GameWindow | null = null;
 
   public readonly Activated: XnaEvent<unknown, EventArgs> = this.#activated;
   public readonly Deactivated: XnaEvent<unknown, EventArgs> = this.#deactivated;
@@ -115,7 +116,15 @@ export class Game implements IDisposable {
     this.#content = value;
   }
   public get Window(): GameWindow {
-    throw new NativeUnavailableError("Game.Window requires a loaded CNA platform backend");
+    this.#ensureUsable();
+    if (this.#window) return this.#window;
+    const backend = this.#nativeBackend ?? getBackend();
+    if (!backend.Window) {
+      throw new NativeUnavailableError("Game.Window requires a loaded CNA platform backend");
+    }
+    const lifetime = this.#ensureNativeGame(backend);
+    this.#window = createGameWindowForInternalUse(backend.Window, lifetime);
+    return this.#window;
   }
   public get GraphicsDevice(): GraphicsDevice {
     const manager = graphicsManagers.get(this);
@@ -248,6 +257,7 @@ export class Game implements IDisposable {
     this.#nativeBackend?.bindGameLifetimeForInternalUse?.(null);
     this.#gameLifetime = null;
     this.#nativeBackend = null;
+    this.#window = null;
     this.#disposed = true;
     this.#disposedEvent.Dispatch(this, EventArgs.Empty);
   }

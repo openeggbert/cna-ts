@@ -116,6 +116,239 @@ export interface VertexElementSnapshot {
   readonly UsageIndex: number;
 }
 
+export interface BlendStateSnapshot {
+  readonly AlphaBlendFunction: number;
+  readonly AlphaDestinationBlend: number;
+  readonly AlphaSourceBlend: number;
+  readonly ColorBlendFunction: number;
+  readonly ColorDestinationBlend: number;
+  readonly ColorSourceBlend: number;
+  readonly ColorWriteChannels: number;
+  readonly ColorWriteChannels1: number;
+  readonly ColorWriteChannels2: number;
+  readonly ColorWriteChannels3: number;
+  readonly BlendFactor: number;
+  readonly MultiSampleMask: number;
+}
+
+export interface DepthStencilStateSnapshot {
+  readonly DepthBufferEnable: boolean;
+  readonly DepthBufferWriteEnable: boolean;
+  readonly StencilEnable: boolean;
+  readonly TwoSidedStencilMode: boolean;
+  readonly DepthBufferFunction: number;
+  readonly StencilFunction: number;
+  readonly StencilMask: number;
+  readonly StencilWriteMask: number;
+  readonly ReferenceStencil: number;
+  readonly StencilFail: number;
+  readonly StencilDepthBufferFail: number;
+  readonly StencilPass: number;
+  readonly CounterClockwiseStencilFunction: number;
+  readonly CounterClockwiseStencilFail: number;
+  readonly CounterClockwiseStencilDepthBufferFail: number;
+  readonly CounterClockwiseStencilPass: number;
+}
+
+export interface RasterizerStateSnapshot {
+  readonly CullMode: number;
+  readonly FillMode: number;
+  readonly DepthBias: number;
+  readonly SlopeScaleDepthBias: number;
+  readonly MultiSampleAntiAlias: boolean;
+  readonly ScissorTestEnable: boolean;
+}
+
+export interface SamplerStateSnapshot {
+  readonly AddressU: number;
+  readonly AddressV: number;
+  readonly AddressW: number;
+  readonly Filter: number;
+  readonly MaxAnisotropy: number;
+  readonly MaxMipLevel: number;
+  readonly MipMapLevelOfDetailBias: number;
+}
+
+export interface VertexBufferBindingSnapshot {
+  readonly VertexBuffer: NativeHandle;
+  readonly VertexOffset: number;
+  readonly InstanceFrequency: number;
+}
+
+export interface Texture3DInfo {
+  readonly Width: number;
+  readonly Height: number;
+  readonly Depth: number;
+  readonly LevelCount: number;
+  readonly Format: number;
+}
+
+export interface TextureCubeInfo {
+  readonly Size: number;
+  readonly LevelCount: number;
+  readonly Format: number;
+}
+
+export interface RenderTargetInfo {
+  readonly Kind: number;
+  readonly Width: number;
+  readonly Height: number;
+  readonly LevelCount: number;
+  readonly Format: number;
+  readonly DepthFormat: number;
+  readonly MultiSampleCount: number;
+  readonly Usage: number;
+  readonly IsContentLost: boolean;
+  readonly RendererAvailable: boolean;
+}
+
+export interface RenderTargetBindingSnapshot {
+  readonly RenderTarget: NativeHandle;
+  readonly ArraySlice: number;
+  readonly CubeMapFace: number;
+}
+
+export interface GameWindowBoundsSnapshot {
+  readonly X: number;
+  readonly Y: number;
+  readonly Width: number;
+  readonly Height: number;
+}
+
+/** Game-owned borrowed window facade and same-thread removable event registrations. */
+export interface CnaGameWindowBackend {
+  getGameWindowAllowUserResizing(): boolean;
+  setGameWindowAllowUserResizing(value: boolean): void;
+  getGameWindowClientBounds(): GameWindowBoundsSnapshot;
+  getGameWindowCurrentOrientation(): number;
+  getGameWindowHandle(): bigint;
+  getGameWindowScreenDeviceName(): string;
+  getGameWindowTitle(): string;
+  setGameWindowTitle(value: string): void;
+  beginGameWindowScreenDeviceChange(willBeFullScreen: boolean): void;
+  endGameWindowScreenDeviceChange(name: string, width: number, height: number): void;
+  subscribeGameWindowEvent(event: number, callback: () => void): NativeHandle;
+  unsubscribeGameWindowEvent(registration: NativeHandle): void;
+}
+
+/** Optional dependency-complete graphics slice beyond the minimal 2D backend. */
+export interface CnaGraphicsBackend {
+  getGraphicsDeviceStatus(device: NativeHandle): number;
+  setGraphicsDeviceBlendFactor(device: NativeHandle, packedColor: number): void;
+  setGraphicsDeviceBlendState(device: NativeHandle, state: BlendStateSnapshot): void;
+  setGraphicsDeviceDepthStencilState(device: NativeHandle, state: DepthStencilStateSnapshot): void;
+  setGraphicsDeviceRasterizerState(device: NativeHandle, state: RasterizerStateSnapshot): void;
+  setGraphicsDeviceSamplerState(
+    device: NativeHandle, shaderStage: number, slot: number, state: SamplerStateSnapshot,
+  ): void;
+  setGraphicsDeviceTexture(
+    device: NativeHandle, shaderStage: number, slot: number, texture: NativeHandle | null,
+  ): void;
+  setGraphicsDeviceMultiSampleMask(device: NativeHandle, value: number): void;
+  setGraphicsDeviceReferenceStencil(device: NativeHandle, value: number): void;
+  setGraphicsDeviceScissorRectangle(
+    device: NativeHandle, x: number, y: number, width: number, height: number,
+  ): void;
+  setGraphicsDeviceViewport(
+    device: NativeHandle, x: number, y: number, width: number, height: number,
+    minDepth: number, maxDepth: number,
+  ): void;
+  setGraphicsDeviceVertexBuffers(
+    device: NativeHandle, bindings: readonly VertexBufferBindingSnapshot[],
+  ): void;
+  setGraphicsDeviceIndexBuffer(device: NativeHandle, buffer: NativeHandle | null): void;
+  drawPrimitives(device: NativeHandle, primitiveType: number, startVertex: number, primitiveCount: number): void;
+  drawIndexedPrimitives(
+    device: NativeHandle, primitiveType: number, baseVertex: number, minVertexIndex: number,
+    numVertices: number, startIndex: number, primitiveCount: number,
+  ): void;
+  drawInstancedPrimitives(
+    device: NativeHandle, primitiveType: number, baseVertex: number, minVertexIndex: number,
+    numVertices: number, startIndex: number, primitiveCount: number, instanceCount: number,
+  ): void;
+  drawUserPrimitives(
+    device: NativeHandle, primitiveType: number, vertexSource: number, bytes: Uint8Array,
+    vertexStride: number, vertexCapacity: number, vertexOffset: number, numVertices: number,
+    primitiveCount: number, declaration: readonly VertexElementSnapshot[] | null,
+  ): void;
+  drawUserIndexedPrimitives(
+    device: NativeHandle, primitiveType: number, vertexSource: number, bytes: Uint8Array,
+    vertexStride: number, vertexCapacity: number, vertexOffset: number, numVertices: number,
+    primitiveCount: number, declaration: readonly VertexElementSnapshot[] | null,
+    indexBytes: Uint8Array, indexElementSize: number, indexCapacity: number, indexOffset: number,
+  ): void;
+  beginSpriteBatchWithStates(
+    spriteBatch: NativeHandle, sortMode: number, blend: BlendStateSnapshot,
+    sampler: SamplerStateSnapshot, depth: DepthStencilStateSnapshot,
+    rasterizer: RasterizerStateSnapshot, transform: readonly number[] | null,
+  ): void;
+  setVertexBufferData(
+    buffer: NativeHandle, vertexType: number, options: number, startIndex: number,
+    elementCount: number, capacity: number, bytes: Uint8Array,
+  ): void;
+  setVertexBufferRawAt(
+    buffer: NativeHandle, offsetInBytes: number, bytes: Uint8Array,
+    vertexCount: number, vertexStride: number,
+  ): void;
+  getVertexBufferRawAt(
+    buffer: NativeHandle, offsetInBytes: number, vertexCount: number, vertexStride: number,
+  ): Uint8Array;
+  getVertexBufferIsContentLost(buffer: NativeHandle): boolean;
+  setIndexBufferData(
+    buffer: NativeHandle, elementSize: number, options: number, offsetInBytes: number | null,
+    startIndex: number, elementCount: number, capacity: number, bytes: Uint8Array,
+  ): void;
+  getIndexBufferIsContentLost(buffer: NativeHandle): boolean;
+  createTexture3D(
+    device: NativeHandle, width: number, height: number, depth: number,
+    mipMap: boolean, format: number,
+  ): NativeHandle;
+  getTexture3DInfo(texture: NativeHandle): Texture3DInfo;
+  setTexture3DColors(
+    texture: NativeHandle, level: number, left: number, top: number, right: number,
+    bottom: number, front: number, back: number, startIndex: number,
+    elementCount: number, packedColors: Uint32Array,
+  ): void;
+  getTexture3DColors(
+    texture: NativeHandle, level: number, left: number, top: number, right: number,
+    bottom: number, front: number, back: number, startIndex: number,
+    elementCount: number, capacity: number,
+  ): Uint32Array;
+  destroyTexture3D(texture: NativeHandle): void;
+  createTextureCube(device: NativeHandle, size: number, mipMap: boolean, format: number): NativeHandle;
+  getTextureCubeInfo(texture: NativeHandle): TextureCubeInfo;
+  setTextureCubeColors(
+    texture: NativeHandle, face: number, level: number,
+    rectangle: { readonly X: number; readonly Y: number; readonly Width: number; readonly Height: number } | null,
+    startIndex: number, elementCount: number, packedColors: Uint32Array,
+  ): void;
+  getTextureCubeColors(
+    texture: NativeHandle, face: number, level: number,
+    rectangle: { readonly X: number; readonly Y: number; readonly Width: number; readonly Height: number } | null,
+    startIndex: number, elementCount: number, capacity: number,
+  ): Uint32Array;
+  destroyTextureCube(texture: NativeHandle): void;
+  createRenderTarget2D(
+    device: NativeHandle, width: number, height: number, mipMap: boolean, format: number,
+    depthFormat: number, multiSampleCount: number, usage: number,
+  ): NativeHandle;
+  createRenderTargetCube(
+    device: NativeHandle, size: number, mipMap: boolean, format: number,
+    depthFormat: number, multiSampleCount: number, usage: number,
+  ): NativeHandle;
+  getRenderTargetInfo(target: NativeHandle): RenderTargetInfo;
+  destroyRenderTarget(target: NativeHandle): void;
+  setGraphicsDeviceRenderTargets(
+    device: NativeHandle, bindings: readonly RenderTargetBindingSnapshot[],
+  ): void;
+  createOcclusionQuery(device: NativeHandle): NativeHandle;
+  beginOcclusionQuery(query: NativeHandle): void;
+  endOcclusionQuery(query: NativeHandle): void;
+  getOcclusionQueryIsComplete(query: NativeHandle): boolean;
+  getOcclusionQueryPixelCount(query: NativeHandle): number;
+  destroyOcclusionQuery(query: NativeHandle): void;
+}
+
 export interface AudioVectorSnapshot {
   readonly X: number;
   readonly Y: number;
@@ -366,6 +599,9 @@ export interface CnaBackend {
   readonly Media?: CnaMediaBackend;
   readonly Video?: CnaVideoBackend;
   readonly Storage?: CnaStorageBackend;
+  readonly Graphics?: CnaGraphicsBackend;
+  readonly Window?: CnaGameWindowBackend;
+  openTitleStream?(name: string): Uint8Array;
 
   initialize(): Promise<void>;
   bindGameLifetimeForInternalUse?(lifetime: NativeResourceLifetime | null): void;
