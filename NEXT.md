@@ -861,3 +861,234 @@ TypeScript source tree. The template only removed its redundant explicit dispatc
 
 Platform evidence remains Node managed plus Node CNA native on Linux x86-64 HEADLESS/NULL audio.
 Browser/Wasm, Electron, Android, and iOS remain unverified.
+
+## 2026-08-23: strict-zero runtime-fidelity qualification
+
+This continuation did not add public XNA surface. It strengthened what strict zero measures,
+implemented the two managed content blockers, separated runtime capability from API shape, and
+made the package/CI boundary reproducible and explicit. The generated evidence is committed as
+`docs/api-compat-report.json`, `docs/runtime-symbol-report.json`,
+`docs/internal-leak-report.json`, `docs/missing-type-inventory.*`,
+`docs/runtime-capabilities.*`, and `docs/cna-abi-report.json`.
+
+### Strict API and verifier depth
+
+```text
+REFERENCE_TYPES=257
+REFERENCE_MEMBERS=2964
+EXPECTED_MAPPED_TYPES=271
+TARGET_TYPES=271
+TOTAL_DIFFERENCES=0
+MISSING_TYPE=0
+MISSING_MEMBER=0
+UNEXPECTED_TYPE=0
+BASE_MISMATCH=0
+INTERFACE_MISMATCH=0
+UNEXPECTED_MEMBER=0
+PROPERTY_MISMATCH=0
+PARAMETER_MISMATCH=0
+RETURN_TYPE_MISMATCH=0
+OVERLOAD_MISMATCH=0
+GENERIC_MISMATCH=0
+ENUM_VALUE_MISMATCH=0
+EVENT_MAPPING_MISMATCH=0
+OPERATOR_MAPPING_MISMATCH=0
+LANGUAGE_MAPPING_MISMATCH=0
+INTERNAL_LEAK=0
+ALLOWLIST_SIZE=0
+RUNTIME_DIFFERENCES=0
+STRICT_BASELINE_ASSERTION=PASS
+```
+
+The verifier now measures generic arity, parameter identity/order, type and generic-method
+constraints, nested generic substitution, and inherited members through substituted mapped
+interfaces. Method generic parameters use their own CLR identity (`!!n`) rather than being confused
+with type parameters (`!n`). Deliberately broken fixtures prove parameter-order, method-constraint,
+and nested-interface-substitution diagnostics.
+
+```text
+REFERENCE_GENERIC_TYPES=2
+REFERENCE_GENERIC_METHODS=55
+REFERENCE_GENERIC_PARAMETERS=57
+CONSTRAINED_GENERIC_PARAMETERS=43
+REFERENCE_TYPE_CONSTRAINTS=3
+REFERENCE_REFERENCE_TYPE_CONSTRAINTS=0
+REFERENCE_VALUE_TYPE_CONSTRAINTS=43
+REFERENCE_DEFAULT_CONSTRUCTOR_CONSTRAINTS=43
+MAPPED_TYPESCRIPT_CONSTRAINTS=2
+NESTED_GENERIC_SUBSTITUTIONS=44
+```
+
+Value-type and `new()` constraints are measured even though the normative TypeScript projection
+cannot express them faithfully. The profile freezes `TARGET_TYPES=271`, `TOTAL_DIFFERENCES=0`, and
+`ALLOWLIST_SIZE=0`; strict execution fails if expected-map regeneration tries to normalize a
+regression.
+
+```text
+STRICT_XNA_WINDOWS_RUNTIME_PROJECTION_ZERO=true
+```
+
+### Managed content
+
+The explicit LZX blocker is closed. `ContentReader` now implements the XNA 4.0 compressed-XNB
+wrapper around a persistent managed LZX decoder: compressed flag, declared decompressed size,
+short and extended frame/block headers, multi-frame state, truncation, invalid lengths, decoder
+errors, trailing data, and exact final byte count are checked. XNB LZX is kept separate from DXT or
+other GPU texture formats; compressed texture payloads are not reinterpreted.
+
+General external references now use the same class-token rule as `Content.Load`, resolve relative
+to the referring asset, normalize slash/`.`/`..` and case through the manager cache, preserve
+identity, recurse through compressed targets/shared resources, detect cycles, validate runtime
+type, and retain ordinary `Unload` ownership. Missing/malformed targets and failures after a nested
+load remain explicit and leave the manager in a coherent state.
+
+```text
+LEGAL_SYNTHETIC_COMPRESSED_MANAGED_VARIANTS=6
+MALFORMED_COMPRESSED_VARIANTS=9
+QUALIFIED_NATIVE_COMPRESSED_GRAPH_TYPES=3
+INDEPENDENT_REAL_XNB_EXACT_BYTE_COMPARISONS=2
+EXTERNAL_REFERENCE_SUCCESS_TOPOLOGIES=2
+EXTERNAL_REFERENCE_FAILURE_VARIANTS=5
+```
+
+The two independent XNB comparisons decoded 16,561-byte and 44,032-byte real reference payloads
+exactly against independently decompressed bytes; those proprietary inputs are not committed. The
+legal committed fixtures are deterministic synthetic XNB data. Texture2D, SpriteFont, and Model
+reader paths all execute through compressed XNB where their managed graphs permit.
+
+### Behavioral evidence
+
+Thirteen content observations were added from the authoritative XNA/CNA-CS neutral snapshot:
+platform/version/header/declared-length behavior, profile flags, legal and truncated LZX, unknown
+reader, reader-version mismatch, reader-index failure, and normalized cache identity.
+
+```text
+STARTING_OBSERVATIONS=168
+FINAL_OBSERVATIONS=181
+STARTING_ASSERTIONS=169
+FINAL_ASSERTIONS=182
+FAILURES=0
+NEW_CONTENT_OBSERVATIONS=13
+PURE_DETERMINISTIC_OBSERVATIONS=181
+```
+
+Native deterministic and backend/platform qualification remain separate from this golden corpus.
+No microphone, audio-device, timing, or other nondeterministic hardware output was encoded.
+
+### Runtime capability boundary
+
+`tools/runtime-capabilities/source.json` is now the machine source for generated JSON and Markdown.
+Its granularity is reviewed operation families, with overloads sharing one implementation/evidence
+row. The generator also freezes an audit of all 74 `NativeUnavailableError` and two
+`NotSupportedException` construction sites across 28 selected-framework files.
+
+```text
+RUNTIME_CAPABILITY_ENTRIES=62
+VERIFIED_MANAGED=18
+VERIFIED_NATIVE=14
+EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND=2
+UPSTREAM_CNA_BLOCKED=5
+FIXTURE_PENDING=3
+HARDWARE_PENDING=4
+PLATFORM_PENDING=3
+UNIMPLEMENTED_CNA_TS=12
+NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT=1
+```
+
+This inventory explicitly separates CNA-TS gaps from missing CNA C-ABI semantics. It includes
+EffectPass/stock effects/model rendering, graphics state and indexed routes, dynamic buffers,
+render targets, window events, VideoPlayer frame ownership, microphone/XACT/media-library
+fixtures, and Browser/Wasm. It is not part of the strict API difference count.
+
+### Native ABI and ownership
+
+```text
+IMPORTED_SYMBOLS=219
+ABI_VERSION=0.7.0
+NODE_BRIDGE_SIGNATURES_VERIFIED=219
+NODE_BRIDGE_SIGNATURE_MISMATCHES=0
+MISSING_NODE_BRIDGE_SYMBOLS=0
+NATIVE_SCENARIO_GROUPS=7
+REAL_CNA_GAME_LIFETIMES=7
+OWNERSHIP_AND_SUBSYSTEM_TEST_GROUPS=11
+SANITIZER_BACKED_NATIVE_BUILD=NO
+ALLOCATOR_LEVEL_LEAK_FREEDOM_CLAIM=NO
+```
+
+The ABI audit now compiles every bridge function-pointer type against the exact CNA declarations,
+covering pointer depth, fixed-width signedness, `CNA_Bool`, structures, and callback ABI. Existing
+ownership/error handling remains explicit: caller-owned UTF-8 buffers, copied last-error text,
+synchronous game-thread callbacks, managed framework pumping instead of foreign audio-thread JS,
+reverse parent/child teardown, double-dispose safety, callback self-removal/reentrancy/exception
+containment, failed-create rollback, and repeated Game recreation.
+
+The native content lifecycle now loads compressed SpriteFont and Model assets; the model's relative
+external reference resolves a separately compressed Texture2D with cache identity and disposal
+checks. The exact external artifact remains unchanged and unshipped:
+
+```text
+PATH=/tmp/cna-java-native-working-070/modules/c-api/libcna_c_api.so
+SOURCE_COMMIT=a09196a6477f69a7a57c8364f990658d31531a5b
+LIBRARY_SHA256=42e099146bf3b470f82fd963a516f8bdd7ff0406da8c37dd53747699117db086
+PLATFORM=Linux x86-64 HEADLESS/NULL-audio
+EXPORTED_CNA_SYMBOLS=2861
+```
+
+Read-only CNA HEAD was rechecked once at
+`1bb2145d99ed572dd4eb15009c34e2e5f410fcf0`. The unmodified `cna_c_api` target again failed at
+`modules/c-api/src/CnaCApiCoreExt.cpp:250`, exactly `49 == 50` renderer identities. CNA-TS did not
+patch CNA, did not switch to ABI 0.8, and continues using only the already-qualified ABI-0.7
+artifact. No ASan/LSan artifact was available, so this is deterministic lifetime evidence rather
+than an allocator-level leak claim.
+
+### CI, package, and template
+
+The new qualification workflow always gates locked install, clean build, strict type checking,
+unit/differential tests, runtime symbols, internal leak guard, runtime-inventory generation,
+compiler-backed ABI audit, `npm pack`, exact TS/JS packed consumers, internal export blocking,
+byte-level `dist`/package reproducibility, and both generated template consumers. XNA reference
+metadata and native integration are conditional self-hosted jobs using repository-controlled
+paths. Missing protected artifacts are reported as `NOT_CONFIGURED`; no random native binary is
+downloaded.
+
+One artifact was reused for all package and template consumers:
+
+```text
+FILENAME=cna-ts-0.1.0.tgz
+PATH=/tmp/cna-ts-runtime-qualification-final4-20260823/cna-ts-0.1.0.tgz
+SHA256=6c7e2d9fa6e9233fdc87aeace91523eb93c65c63dc760523bf4230653bb19d9d
+FILES=686
+BYTES=366511
+DIST_FILES=668
+DIST_SHA256=ec0564236abf867e26441b777b1043584e9d56537c490eaa3d54023f97a3090f
+DIST_BYTE_IDENTICAL=PASS
+PACKAGE_BYTE_IDENTICAL=PASS
+TAR_PAYLOAD_IDENTICAL=PASS
+FILE_LIST_IDENTICAL=PASS
+PACKED_TYPESCRIPT_CONSUMER=PASS
+PACKED_JAVASCRIPT_CONSUMER=PASS
+INTERNAL_EXPORT_BLOCK=PASS
+GENERATED_TYPESCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_MANAGED_SMOKE=PASS
+LEGACY_OR_SIBLING_REFERENCES=0
+```
+
+The sibling template remained unchanged and small; no Audio/XACT/Media/Video, fake 3D, browser
+backend, Electron, or mobile dependency was added.
+
+### Platform qualification
+
+| Platform | Managed/package evidence | CNA runtime evidence | Status |
+| --- | --- | --- | --- |
+| Node managed | clean build, 14 unit files, 181-observation corpus, exact TS/JS consumers | not required | verified |
+| Linux x86-64 Node/native | exact ABI-0.7 HEADLESS/NULL artifact, seven lifetimes, 60/600 frames | real CNA | verified for selected environment |
+| Windows | declarations are the selected Windows API profile | no qualified native artifact/job | platform pending |
+| macOS | package source is portable | no qualified native artifact/job | platform pending |
+| Browser/Wasm | generated Vite bundles only | no provenance-verifiable C-ABI ESM/Wasm artifact | upstream artifact blocked |
+| Electron | no application/runtime test | no windowed artifact | not verified |
+| Android | no application/runtime test | no mobile artifact/toolchain | not verified |
+| iOS | no application/runtime test | no mobile artifact/toolchain | not verified |
+
+The next milestone remains behavioral/runtime qualification within these measured boundaries, not
+expansion of the selected public XNA surface.

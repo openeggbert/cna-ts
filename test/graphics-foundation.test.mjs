@@ -486,8 +486,9 @@ test("Model XNB resolves its reader table and shared buffer/effect resources", a
   manager.CreateDevice();
   class SyntheticContent extends Content.ContentManager {
     OpenStream(name) {
-      assert.equal(name, "Triangle");
-      return modelXnbForManagedTest();
+      if (name === "Triangle") return modelXnbForManagedTest();
+      if (name === "CompressedTriangle") return compressManagedXnb(modelXnbForManagedTest());
+      throw new Content.ContentLoadException(`missing ${name}`);
     }
   }
   const content = new SyntheticContent({
@@ -502,12 +503,14 @@ test("Model XNB resolves its reader table and shared buffer/effect resources", a
   assert.equal(mesh.Effects.Get(0), part.Effect);
   assert.deepEqual(part.Effect.DiffuseColor, Vector3.One);
   assert.equal(content.Load(Graphics.Model, "triangle"), model);
+  const compressedModel = content.Load(Graphics.Model, "CompressedTriangle");
+  assert.equal(compressedModel.Meshes.Get("Triangle").ParentBone, compressedModel.Root);
   content.Dispose();
   assert.equal(part.VertexBuffer.IsDisposed, true);
   assert.equal(part.IndexBuffer.IsDisposed, true);
   assert.equal(part.Effect.IsDisposed, true);
-  assert.equal(calls.filter((value) => value.startsWith("vertex:destroy:")).length, 1);
-  assert.equal(calls.filter((value) => value.startsWith("index:destroy:")).length, 1);
+  assert.equal(calls.filter((value) => value.startsWith("vertex:destroy:")).length, 2);
+  assert.equal(calls.filter((value) => value.startsWith("index:destroy:")).length, 2);
   game.Dispose();
 });
 
@@ -597,4 +600,24 @@ function modelXnbForManagedTest() {
     0x58, 0x4e, 0x42, 0x77, 5, 0,
     ...integer(10 + payload.length), ...payload,
   ]);
+}
+
+function compressManagedXnb(uncompressed) {
+  const payload = uncompressed.slice(10);
+  const headerBits = (3 << 28) | (payload.length << 4);
+  const block = new Uint8Array(16 + payload.length);
+  block.set([
+    headerBits >>> 16, headerBits >>> 24, headerBits, headerBits >>> 8,
+    1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+  ]);
+  block.set(payload, 16);
+  const frame = new Uint8Array(5 + block.length);
+  frame.set([0xff, payload.length >>> 8, payload.length, block.length >>> 8, block.length]);
+  frame.set(block, 5);
+  const result = new Uint8Array(14 + frame.length);
+  result.set([0x58, 0x4e, 0x42, 0x77, 5, 0x80]);
+  result.set(integer(result.length), 6);
+  result.set(integer(payload.length), 10);
+  result.set(frame, 14);
+  return result;
 }

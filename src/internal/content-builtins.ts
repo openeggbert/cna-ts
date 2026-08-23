@@ -1,5 +1,4 @@
 import { ArgumentException, ArgumentOutOfRangeException } from "./exceptions.js";
-import { NativeUnavailableError } from "./native-error.js";
 import { BoundingSphere } from "../Microsoft/Xna/Framework/BoundingSphere.js";
 import { Matrix } from "../Microsoft/Xna/Framework/Matrix.js";
 import { Rectangle } from "../Microsoft/Xna/Framework/Rectangle.js";
@@ -344,14 +343,10 @@ class BasicEffectReader extends ContentTypeReader {
   public constructor() { super(BasicEffect); }
   protected Read(input: ContentReader, existingInstance: unknown): unknown {
     if (existingInstance != null) throw new ArgumentException("BasicEffectReader cannot populate an existing effect");
-    const textureReference = input.ReadString();
-    if (textureReference.length !== 0) {
-      throw new NativeUnavailableError(
-        "BasicEffectReader external Texture2D references require an explicit runtime type token",
-      );
-    }
+    const texture = input.ReadExternalReference(Texture2D);
     const effect = new BasicEffect(graphicsDevice(input));
     try {
+      effect.Texture = texture;
       effect.DiffuseColor = input.ReadVector3();
       effect.EmissiveColor = input.ReadVector3();
       effect.SpecularColor = input.ReadVector3();

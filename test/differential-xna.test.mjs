@@ -8,6 +8,7 @@ import {
   Game, GraphicsDeviceManager, Point, Quaternion, Ray, Rectangle, Storage, TimeSpan, Vector2, Vector3, Vector4,
 } from "../dist/index.js";
 import { FileMode } from "../dist/IO/index.js";
+import { RegisterContentTypeReader } from "../dist/extensions/index.js";
 import { getBackend, setBackendForInternalUse } from "../dist/internal/backend.js";
 import { touchLocationsEqual } from "../dist/Microsoft/Xna/Framework/Input/Touch/TouchValues.js";
 
@@ -590,6 +591,18 @@ async function captureGraphicsContent() {
   const device = manager.GraphicsDevice;
   const texture = new Graphics.Texture2D(device, 4, 4);
   const batch = new Graphics.SpriteBatch(device);
+  class CorpusAsset { constructor(value = 0) { this.Value = value; } }
+  class CorpusAssetReader extends Content.ContentTypeReaderOfT {
+    get TypeVersion() { return 1; }
+    Read(input) { return new CorpusAsset(input.ReadInt32()); }
+  }
+  class CorpusContent extends Content.ContentManager {
+    constructor(bytes) { super({ GetService() { return null; } }); this.bytes = bytes; }
+    OpenStream() { return this.bytes; }
+  }
+  const unregisterCorpusReader = RegisterContentTypeReader(
+    "Tests.DifferentialCorpusAssetReader", CorpusAssetReader, CorpusAsset,
+  );
   try {
     add("graphics.texture.validation", [
       exceptionName(() => texture.SetData(1, null, new Array(16).fill(Color.White), 0, 16)),
@@ -665,14 +678,106 @@ async function captureGraphicsContent() {
     }
     class InvalidAsset {}
     add("content.xnb.badmagic", exceptionName(() => new InvalidXnbContent().Load(InvalidAsset, "bad")));
+
+    const body = corpusPayload(42);
+    const valid = corpusXnb(body);
+    const observeContent = (bytes) => {
+      try { return `ok:${new CorpusContent(bytes).Load(CorpusAsset, "fixture").Value}`; }
+      catch (error) { return error instanceof Error ? error.name : typeof error; }
+    };
+    add("content.bad_platform", observeContent(corpusXnb(body, { platform: 0x78 })));
+    add("content.bad_version", observeContent(corpusXnb(body, { version: 4 })));
+    add("content.truncated_header", observeContent(Uint8Array.from([0x58, 0x4e, 0x42, 0x77, 5])));
+    add("content.declared_size_larger", observeContent(corpusXnb(body, { declaredLength: valid.length + 1 })));
+    add("content.declared_size_smaller", observeContent(corpusXnb(body, { declaredLength: valid.length - 1 })));
+    add("content.profile_flag_40", observeContent(corpusXnb(body, { flags: 0x40 })));
+    add("content.profile_flags_7f", observeContent(corpusXnb(body, { flags: 0x7f })));
+    add("content.lzx.uncompressed_block", observeContent(corpusLzx(valid)));
+    add("content.lzx.truncated_block", observeContent(corpusLzx(valid).slice(0, -1)));
+    add("content.unknown_reader", observeContent(corpusXnb(corpusPayload(42, {
+      readerName: "Tests.MissingReader", readerVersion: 0,
+    }))));
+    add("content.reader_version_mismatch", observeContent(corpusXnb(corpusPayload(42, {
+      readerVersion: 0,
+    }))));
+    add("content.reader_index_out_of_range", observeContent(corpusXnb(corpusPayload(42, {
+      rootIndex: 2,
+    }))));
+    const cachedManager = new CorpusContent(valid);
+    add("content.cache.identity", flag(
+      cachedManager.Load(CorpusAsset, "Folder/../Fixture") === cachedManager.Load(CorpusAsset, "fixture"),
+    ));
+    cachedManager.Dispose();
     basic.Dispose();
   } finally {
+    unregisterCorpusReader();
     batch.Dispose();
     texture.Dispose();
     game.Dispose();
     setBackendForInternalUse(previous);
   }
   return observed;
+}
+
+function corpusSeven(value) {
+  const result = [];
+  value >>>= 0;
+  do {
+    let item = value & 0x7f;
+    value >>>= 7;
+    if (value) item |= 0x80;
+    result.push(item);
+  } while (value);
+  return result;
+}
+
+function corpusInt32(value) {
+  const result = new Uint8Array(4);
+  new DataView(result.buffer).setInt32(0, value, true);
+  return [...result];
+}
+
+function corpusString(value) {
+  const bytes = [...new TextEncoder().encode(value)];
+  return [...corpusSeven(bytes.length), ...bytes];
+}
+
+function corpusPayload(value, options = {}) {
+  return [
+    ...corpusSeven(1),
+    ...corpusString(`${options.readerName ?? "Tests.DifferentialCorpusAssetReader"}, Tests`),
+    ...corpusInt32(options.readerVersion ?? 1),
+    ...corpusSeven(0),
+    ...corpusSeven(options.rootIndex ?? 1),
+    ...corpusInt32(value),
+  ];
+}
+
+function corpusXnb(payload, options = {}) {
+  const length = options.declaredLength ?? 10 + payload.length;
+  return Uint8Array.from([
+    0x58, 0x4e, 0x42, options.platform ?? 0x77,
+    options.version ?? 5, options.flags ?? 0,
+    ...corpusInt32(length), ...payload,
+  ]);
+}
+
+function corpusLzx(uncompressed) {
+  const payload = uncompressed.slice(10);
+  const headerBits = (3 << 28) | (payload.length << 4);
+  const block = new Uint8Array(16 + payload.length);
+  block.set([
+    headerBits >>> 16, headerBits >>> 24, headerBits, headerBits >>> 8,
+    1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+  ]);
+  block.set(payload, 16);
+  const result = new Uint8Array(19 + block.length);
+  result.set([0x58, 0x4e, 0x42, 0x77, 5, 0x80]);
+  result.set(corpusInt32(result.length), 6);
+  result.set(corpusInt32(payload.length), 10);
+  result.set([0xff, payload.length >>> 8, payload.length, block.length >>> 8, block.length], 14);
+  result.set(block, 19);
+  return result;
 }
 
 test(`XNA differential corpus: ${corpus.cases.length} observations`, async (context) => {

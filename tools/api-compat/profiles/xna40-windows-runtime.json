@@ -19,5 +19,10 @@
     "Microsoft.Xna.Framework.Input.Touch.dll": "b0585224c18022c3661057ae79544644c10f33f1dc529678364f3d6b25151c25",
     "Microsoft.Xna.Framework.Xact.dll": "a14d5364dca7cf49fb90639e87ba04d52b59a700dc9198efa5707ce8eae28f0a"
   },
-  "namespacePrefixes": ["Microsoft.Xna.Framework"]
+  "namespacePrefixes": ["Microsoft.Xna.Framework"],
+  "strictBaseline": {
+    "targetTypes": 271,
+    "totalDifferences": 0,
+    "allowlistSize": 0
+  }
 }

@@ -22,23 +22,29 @@ function backend() {
 }
 
 class MemoryManager extends Content.ContentManager {
-  constructor(device, bytes) {
+  constructor(device, assets) {
     super({ GetService(type) { return type === Graphics.GraphicsDevice ? device : null; } });
-    this.bytes = bytes;
+    this.assets = assets;
   }
-  OpenStream() { return this.bytes; }
+  OpenStream(name) { return this.assets.get(name); }
 }
 
-test("uncompressed SpriteFont XNB constructs atlas and glyph graph", (t) => {
+test("uncompressed and LZX SpriteFont XNB construct atlas and glyph graphs", (t) => {
   const previous = getBackend();
   t.after(() => setBackendForInternalUse(previous));
   setBackendForInternalUse(backend());
   const game = new Game();
   const graphics = new GraphicsDeviceManager(game);
   graphics.CreateDevice();
-  const content = new MemoryManager(graphics.GraphicsDevice, fixture());
+  const ordinary = fixture();
+  const content = new MemoryManager(graphics.GraphicsDevice, new Map([
+    ["font", ordinary],
+    ["compressed-font", compress(ordinary)],
+  ]));
   const font = content.Load(Graphics.SpriteFont, "font");
   assert.deepEqual([font.MeasureString("A?").X, font.MeasureString("A?").Y], [9, 8]);
+  const compressed = content.Load(Graphics.SpriteFont, "compressed-font");
+  assert.deepEqual([compressed.MeasureString("A?").X, compressed.MeasureString("A?").Y], [9, 8]);
   content.Dispose();
   game.Dispose();
 });
@@ -77,4 +83,24 @@ function fixture() {
     1, 63, 0,
   ];
   return Uint8Array.from([88, 78, 66, 119, 5, 0, ...integer(10 + payload.length), ...payload]);
+}
+
+function compress(uncompressed) {
+  const payload = uncompressed.slice(10);
+  const headerBits = (3 << 28) | (payload.length << 4);
+  const block = new Uint8Array(16 + payload.length);
+  block.set([
+    headerBits >>> 16, headerBits >>> 24, headerBits, headerBits >>> 8,
+    1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0,
+  ]);
+  block.set(payload, 16);
+  const frame = new Uint8Array(5 + block.length);
+  frame.set([0xff, payload.length >>> 8, payload.length, block.length >>> 8, block.length]);
+  frame.set(block, 5);
+  const result = new Uint8Array(14 + frame.length);
+  result.set([88, 78, 66, 119, 5, 0x80]);
+  result.set(integer(result.length), 6);
+  result.set(integer(payload.length), 10);
+  result.set(frame, 14);
+  return result;
 }

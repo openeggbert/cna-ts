@@ -1,0 +1,399 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": "tools/runtime-capabilities/source.json",
+  "profile": "XNA 4.0 Windows runtime",
+  "environment": "Linux x86-64 Node, CNA ABI 0.7.0, HEADLESS renderer, NULL audio",
+  "granularity": "Each row is a reviewed operation family; overloads with the same implementation and evidence share a row.",
+  "sourceAudit": {
+    "root": "src/Microsoft/Xna/Framework",
+    "nativeUnavailableErrorSites": 74,
+    "notSupportedExceptionSites": 2,
+    "filesWithExplicitFailureSites": 28,
+    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family."
+  },
+  "counts": {
+    "VERIFIED_MANAGED": 18,
+    "VERIFIED_NATIVE": 14,
+    "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 2,
+    "UPSTREAM_CNA_BLOCKED": 5,
+    "FIXTURE_PENDING": 3,
+    "HARDWARE_PENDING": 4,
+    "PLATFORM_PENDING": 3,
+    "UNIMPLEMENTED_CNA_TS": 12,
+    "NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT": 1
+  },
+  "entries": [
+    {
+      "operation": "Compiled-effect execution on the qualified renderer",
+      "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
+      "owner": "current qualified backend",
+      "evidence": "CNA capability bit reports compiled effects unavailable"
+    },
+    {
+      "operation": "GraphicsAdapter discovery, current display mode and windowed adapter capabilities",
+      "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
+      "owner": "current qualified backend",
+      "evidence": "HEADLESS artifact exposes no windowed adapter/display evidence"
+    },
+    {
+      "operation": "AudioEngine, AudioCategory, WaveBank, SoundBank and Cue authored success",
+      "category": "FIXTURE_PENDING",
+      "owner": "qualification fixtures",
+      "evidence": "native routes and invalid/missing-bank behavior verified; no legal redistributable XGS/XSB/XWB corpus"
+    },
+    {
+      "operation": "MediaLibrary albums/artists/genres/playlists and picture streams",
+      "category": "FIXTURE_PENDING",
+      "owner": "qualification fixtures",
+      "evidence": "strict shape exists but no deterministic populated media-library fixture"
+    },
+    {
+      "operation": "VideoPlayer.Play decode, duration and frame progression",
+      "category": "FIXTURE_PENDING",
+      "owner": "qualification fixtures",
+      "evidence": "native controls verified; no legal decode fixture qualified"
+    },
+    {
+      "operation": "GPU custom-effect and rendering output qualification",
+      "category": "HARDWARE_PENDING",
+      "owner": "qualification hardware",
+      "evidence": "qualified artifact is HEADLESS"
+    },
+    {
+      "operation": "Microphone enumeration/capture/buffer callbacks",
+      "category": "HARDWARE_PENDING",
+      "owner": "qualification hardware",
+      "evidence": "all routes imported; HEADLESS enumerates zero microphones"
+    },
+    {
+      "operation": "Physical keyboard/mouse/gamepad/touch behavior",
+      "category": "HARDWARE_PENDING",
+      "owner": "qualification hardware",
+      "evidence": "HEADLESS route execution is deterministic but not physical-device evidence"
+    },
+    {
+      "operation": "SoundEffect/MediaPlayer audible output",
+      "category": "HARDWARE_PENDING",
+      "owner": "qualification hardware",
+      "evidence": "NULL audio verifies state/lifetime only"
+    },
+    {
+      "operation": "Windowed renderer behavior on Linux",
+      "category": "NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT",
+      "owner": "selected environment",
+      "evidence": "qualified artifact is HEADLESS"
+    },
+    {
+      "operation": "Android and iOS runtime",
+      "category": "PLATFORM_PENDING",
+      "owner": "platform qualification",
+      "evidence": "not attempted; no mobile artifact/toolchain evidence"
+    },
+    {
+      "operation": "Electron desktop runtime",
+      "category": "PLATFORM_PENDING",
+      "owner": "platform qualification",
+      "evidence": "not attempted and no windowed artifact"
+    },
+    {
+      "operation": "Windows and macOS Node/native runtime",
+      "category": "PLATFORM_PENDING",
+      "owner": "platform qualification",
+      "evidence": "no qualified artifact/job on either OS"
+    },
+    {
+      "operation": "ContentReader.ReadRawObject without an explicit reader token",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "TypeScript language projection",
+      "evidence": "erased JavaScript generics cannot select a reader at runtime; explicit-reader ReadRawObject overloads remain available and fake CLR reflection is rejected"
+    },
+    {
+      "operation": "Direct GraphicsDevice construction and device status",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "manager-owned callback-scoped device creation is verified; standalone-device and status routes are not imported"
+    },
+    {
+      "operation": "DynamicVertexBuffer and DynamicIndexBuffer create/SetData/content-lost behavior",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "strict members fail explicitly pending typed dynamic-buffer routes"
+    },
+    {
+      "operation": "GameWindow.Handle, resize/orientation/screen-device events",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "native window/event routes are not imported"
+    },
+    {
+      "operation": "GraphicsDevice DrawPrimitives/DrawIndexedPrimitives/DrawUser/instancing",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "no typed CNA-TS bridge routes are imported"
+    },
+    {
+      "operation": "GraphicsDevice state binding routes and render-target binding",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "strict setters fail explicitly; corresponding broader CNA C API routes require an audited import slice"
+    },
+    {
+      "operation": "OcclusionQuery Begin/End/result",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "strict operations fail explicitly pending query routes"
+    },
+    {
+      "operation": "RenderTarget2D and RenderTargetCube construction/properties",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "strict constructors fail explicitly pending audited render-target routes"
+    },
+    {
+      "operation": "SpriteBatch explicit render states, Effect and transform Begin overloads",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "default Begin and strict validation are verified; state/effect descriptors are not in the imported bridge slice"
+    },
+    {
+      "operation": "Texture3D and TextureCube construction/data transfer",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "strict constructors fail explicitly pending typed transfer routes"
+    },
+    {
+      "operation": "TitleContainer.OpenStream title-storage route",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "strict operation fails explicitly; host filesystem access is not exposed as a substitute"
+    },
+    {
+      "operation": "VertexBuffer/IndexBuffer arbitrary public generic value transfer",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "built-in Model raw transfer is verified; arbitrary value codecs remain explicit"
+    },
+    {
+      "operation": "Browser/Wasm CNA runtime",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA artifact packaging",
+      "evidence": "no provenance-verifiable C-ABI ESM/Wasm artifact exists"
+    },
+    {
+      "operation": "ContentManager default XNB stream acquisition",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA C ABI",
+      "evidence": "managed XNB parsing is verified through protected OpenStream providers, but the audited C ABI exposes no general asset-byte stream route; host filesystem behavior is not substituted"
+    },
+    {
+      "operation": "EffectPass.Apply and XNA compiled/stock-effect execution",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA C ABI",
+      "evidence": "no audited C ABI route with XNA compiled-effect semantics and ownership"
+    },
+    {
+      "operation": "Model.Draw faithful effect/pass/indexed rendering pipeline",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA C ABI",
+      "evidence": "required XNA-compatible effect application and draw orchestration are not representable by the qualified slice"
+    },
+    {
+      "operation": "VideoPlayer.GetTexture transient frame projection",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA C ABI",
+      "evidence": "CNA returns a player-owned transient texture; no borrowed-frame lifetime contract can be projected safely"
+    },
+    {
+      "operation": "Audio enums, listener/emitter values and SoundEffect duration/size arithmetic",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "47 deterministic XNA differential observations"
+    },
+    {
+      "operation": "BlendState, DepthStencilState, RasterizerState and SamplerState managed values/presets",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "graphics-foundation unit suite verifies snapshots, defaults and disposal"
+    },
+    {
+      "operation": "Content cache, failure cleanup, Unload and Dispose",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "content and content-xnb lifecycle tests including failed nested construction"
+    },
+    {
+      "operation": "ContentManager LZX-compressed XNB framing and decompression",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "synthetic single/multi-frame tests plus exact independent 16,561/44,032-byte fixture comparison"
+    },
+    {
+      "operation": "ContentManager uncompressed XNB framing, reader tables, object dispatch and shared resources",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "deterministic synthetic content-xnb fixtures"
+    },
+    {
+      "operation": "ContentReader.ReadExternalReference and nested ContentManager resolution",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "relative/nested/repeated/circular/missing/malformed/compressed reference tests"
+    },
+    {
+      "operation": "Design TypeConverter projections and GamerServicesComponent lifecycle",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "design and framework unit suites"
+    },
+    {
+      "operation": "Effect reflection, parameter values, techniques and managed stock-effect state",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "graphics/content differential observations and graphics-foundation tests"
+    },
+    {
+      "operation": "Framework math, geometry, curves, packed vectors, TimeSpan, Color and value contracts",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "83 deterministic XNA differential observations plus math/geometry/graphics-value unit suites"
+    },
+    {
+      "operation": "GameComponent, DrawableGameComponent, collections, services and managed events",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "framework-components unit suite covers ordering, mutation, filtering, services and disposal"
+    },
+    {
+      "operation": "Graphics presentation, viewport, display, vertex and render-target value objects",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "graphics-foundation and graphics-values unit suites"
+    },
+    {
+      "operation": "KeyboardState, MouseState, GamePad values and Touch values/collections",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "23 deterministic XNA differential observations and input unit suite"
+    },
+    {
+      "operation": "Media collections, queue identity and MediaPlayer managed settings/events",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "deterministic subsystem differential observations"
+    },
+    {
+      "operation": "Model graph collections, parent/child identity and absolute transforms",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "graphics/content differential observation and managed Model tests"
+    },
+    {
+      "operation": "SoundEffectInstance managed lifecycle state and disposal guards",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "differential and audio/media/storage design suites"
+    },
+    {
+      "operation": "SpriteBatch argument and Begin/End validation",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "graphics/content differential observation and graphics-foundation tests"
+    },
+    {
+      "operation": "Storage path validation and isolated managed-directory adapter",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "deterministic storage differential observation and design suite"
+    },
+    {
+      "operation": "Texture2D, SpriteFont and Model managed XNB reader graphs",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "uncompressed and compressed synthetic reader-graph tests"
+    },
+    {
+      "operation": "CNA renderer identity and capability query extension",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified artifact reports HEADLESS/custom-effects/compiled-effects capability bits"
+    },
+    {
+      "operation": "DynamicSoundEffectInstance submit, pending buffers and managed refill pump",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified native integration with reentrant/self-removing/throwing callback tests"
+    },
+    {
+      "operation": "FrameworkDispatcher.Update canonical native pump",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "native lifecycle and dynamic/media pump integration"
+    },
+    {
+      "operation": "Game create, callbacks, one-frame/run/exit/destroy lifecycle",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified ABI-0.7 integration covers seven real game lifetimes and 60/600 frames"
+    },
+    {
+      "operation": "GraphicsDevice.Clear and Present",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "60/600-frame qualified native integration"
+    },
+    {
+      "operation": "GraphicsDeviceManager create/configure/apply and callback-scoped device borrowing",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified native integration and ownership tests"
+    },
+    {
+      "operation": "Keyboard, Mouse, GamePad and Touch polling routes",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified HEADLESS native integration; physical device behavior is separate"
+    },
+    {
+      "operation": "MediaPlayer source/song creation, queue controls, position and visualization",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "generated legal silent WAV under qualified NULL-audio integration"
+    },
+    {
+      "operation": "SoundEffect PCM creation, instances, controls, Apply3D and disposal",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified NULL-audio integration; no audibility claim"
+    },
+    {
+      "operation": "SpriteBatch create, Begin, Draw/DrawString submission, End and destroy",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified native integration and template 60/600 frames"
+    },
+    {
+      "operation": "StorageDevice selector, StorageContainer and stream CRUD",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified native integration in isolated XDG storage"
+    },
+    {
+      "operation": "Texture2D create, Color transfer, regions/mips, FromStream and PNG encoding",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified native integration with deterministic pixel checks"
+    },
+    {
+      "operation": "VertexDeclaration, VertexBuffer and IndexBuffer resource construction/readback used by Model XNB",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified native Model reader integration"
+    },
+    {
+      "operation": "VideoPlayer construction and control/cached-property state without decoded frames",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "qualified native control-state integration"
+    }
+  ]
+}

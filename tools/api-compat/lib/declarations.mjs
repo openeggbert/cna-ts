@@ -98,6 +98,9 @@ function typeText(root, checker, node) {
   if (ts.isUnionTypeNode(node)) {
     return node.types.map((value) => typeText(root, checker, value)).sort().join("|");
   }
+  if (ts.isIntersectionTypeNode(node)) {
+    return node.types.map((value) => typeText(root, checker, value)).sort().join("&");
+  }
   if (ts.isParenthesizedTypeNode(node)) return typeText(root, checker, node.type);
   if (ts.isTypeOperatorNode(node)) return typeText(root, checker, node.type);
   if (ts.isLiteralTypeNode(node)) return node.literal.getText();
@@ -279,7 +282,10 @@ export function readDeclarationModel(root) {
 
 export function memberSignature(member) {
   if (member.kind === "constructor" || member.kind === "method") {
-    const generic = member.genericArity ? `<${member.genericArity}>` : "";
+    const generic = member.genericArity
+      ? `<${member.genericParameters.map((value) =>
+        `${value.name}${value.constraint == null ? "" : ` extends ${value.constraint}`}`).join(",")}>`
+      : "";
     const parametersText = member.parameters
       .map((value) => `${value.rest ? "..." : ""}${value.type}${value.optional ? "?" : ""}`)
       .join(",");

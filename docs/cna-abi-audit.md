@@ -2,9 +2,11 @@
 
 Audit date: 2026-08-23
 
-This is a read-only binding-side audit of CNA revision
-`1bb2145d99ed572dd4eb15009c34e2e5f410fcf0`. CNA itself remains the authority. Reproduce the
-header and artifact inventory from a CNA checkout with:
+This is a read-only binding-side audit. Current CNA HEAD
+`1bb2145d99ed572dd4eb15009c34e2e5f410fcf0` is the upstream-build/blocker reference. The exact
+machine-readable import/signature report uses qualified ABI-0.7 artifact source revision
+`a09196a6477f69a7a57c8364f990658d31531a5b`. CNA itself remains the authority. Reproduce the
+header and artifact inventory from either explicit CNA checkout with:
 
 ```bash
 npm run audit:cna-abi -- --cna-root /path/to/cna
@@ -21,7 +23,11 @@ codes, UTF-8 string views/caller-owned buffers, versioned structures, and opaque
 
 The broad 32-symbol sentinel set remains an audit of cross-subsystem availability. The implemented
 Node adapter separately resolves exactly 219 symbols; `tools/audit-cna-abi.mjs` extracts those
-names from the adapter source and confirms that current headers declare every one.
+names from the adapter source and confirms that the selected headers declare every one. It also
+generates a C translation unit that assigns every declared CNA function to the bridge's exact
+function-pointer typedef and compiles it with warnings as errors. All 219 signatures pass, covering
+pointer depth, fixed-width integer signedness, `CNA_Bool`, structures, and callback typedef ABI.
+The machine-readable result is [`cna-abi-report.json`](cna-abi-report.json).
 
 | Group | Required routes | Evidence |
 | --- | ---: | --- |
@@ -103,7 +109,8 @@ target produce the intended modular ESM output; this audit does not guess from C
 
 ## Native Node evidence
 
-The attempt to build current CNA HEAD was repeated on 2026-08-23. A fresh separate `/tmp`
+The attempt to build current CNA HEAD was rechecked on 2026-08-23 at exact revision
+`1bb2145d99ed572dd4eb15009c34e2e5f410fcf0`. A separate `/tmp`
 directory configured the unmodified, read-only revision with:
 
 ```text
@@ -149,9 +156,10 @@ completed seven real CNA game lifetimes. It covers ABI/symbol validation; typed 
 Media/Video, and Storage routes; 60 real draw frames; 600 real draw frames; live-child parent
 shutdown; repeated creation/destruction; and renderer identity/capabilities.
 Each full lifecycle exercises Texture2D Color transfer and region readback, PNG `FromStream` and
-PNG encoding, public SpriteBatch Begin/Draw/End, synthetic uncompressed SpriteFont XNB plus
-DrawString, synthetic Model XNB plus real vertex/index buffer construction and readback, content
-disposal, and input polling. The subsystem scenario additionally exercises PCM SoundEffect and
+PNG encoding, public SpriteBatch Begin/Draw/End, synthetic LZX SpriteFont XNB plus DrawString, and a
+synthetic LZX Model XNB whose relative external reference resolves to a separately compressed
+Texture2D. The model creates and reads back real vertex/index buffers; cache identity and content
+disposal are checked before game shutdown. The subsystem scenario additionally exercises PCM SoundEffect and
 instance state, dynamic buffer queue transitions, one-listener Apply3D plus explicit multi-listener
 rejection, empty microphone enumeration, generated-silent-WAV MediaPlayer controls and
 visualization, VideoPlayer control state, and Storage selector/container CRUD in an isolated XDG
@@ -175,3 +183,18 @@ modeled keyboard/mouse/gamepad/touch routes. Effect execution/reflection routes,
 generic public vertex transfer, video asset/frame-texture routes, and native GameWindow events are
 not imported; those capabilities remain explicit blockers rather than simulations. Authored XACT
 success remains asset-pending, and HEADLESS exposes no microphone device.
+
+## Actionable missing C API routes
+
+These are binding-side requirements, not patches applied to CNA:
+
+| Affected XNA API | Required CNA operation and ownership | Callback/thread requirement | Minimal prospective ABI shape | Current CNA-TS behavior |
+| --- | --- | --- | --- | --- |
+| `ContentManager.Load` default stream acquisition | Copy the complete XNB bytes for an asset identity into caller-owned memory; CNA retains no buffer pointer | synchronous, no callback | byte-count query plus `cna_content_manager_copy_asset_xnb(manager, CNA_StringView, uint8_t*, uint64_t, uint64_t*)` | protected providers work; the base manager fails explicitly and does not expose host filesystem paths |
+| `EffectPass.Apply` and stock effects | Create/destroy compiled-effect ownership and apply a borrowed pass to the callback-scoped device | synchronous on the game thread | owned effect handle, borrowed pass identity, `cna_effect_pass_apply(device, pass)` with structured error | managed reflection/state works; apply fails explicitly |
+| `Model.Draw` | Bind borrowed vertex/index/effect resources and issue indexed draws without transferring child ownership | synchronous on the draw callback thread | typed vertex/index binding plus indexed-draw descriptor carrying primitive/base/start/count fields | model graph/resources load; rendering fails explicitly |
+| `VideoPlayer.GetTexture` | Either copy a decoded frame into a caller-owned texture or issue an explicit borrowed lease with generation validation | frame production may be asynchronous; delivery must be polled or marshalled to the game thread, never call JS from a decoder thread | preferred copy route, or acquire/release lease handles with documented invalidation | player controls work; frame texture fails explicitly |
+| `Game.Window` and window events | Expose a borrowed platform-window identity and separately owned event-registration handles | callbacks must identify their thread and support removal before parent destruction | window snapshot/mutation routes plus versioned callback table returning a registration handle | window access/events fail explicitly on HEADLESS |
+
+No allocator-level or sanitizer-backed leak claim is made. This run verifies deterministic managed
+and native ownership behavior, but the selected library was not built under ASan/LSan.

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -152,6 +153,9 @@ try {
   );
 
   console.log(`PACKED_ARTIFACT=${path.basename(tarball)}`);
+  console.log(`PACKED_SHA256=${crypto.createHash("sha256").update(fs.readFileSync(tarball)).digest("hex")}`);
+  console.log(`PACKED_FILES=${run("tar", ["-tzf", tarball], ROOT).split("\n").filter(Boolean).length}`);
+  console.log(`PACKED_BYTES=${fs.statSync(tarball).size}`);
   console.log("JAVASCRIPT_CONSUMER=PASS");
   console.log("TYPESCRIPT_CONSUMER=PASS");
   console.log("INTERNAL_EXPORT_BLOCK=PASS");

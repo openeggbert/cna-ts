@@ -51,6 +51,11 @@
   "structStyle": "mutable-class",
   "timeSpan": "Microsoft.Xna.Framework.TimeSpan",
   "gameRun": "Promise<void>",
+  "genericConstraints": {
+    "referenceType": "object",
+    "valueType": "erased; runtime transfer representations enforce the value contract",
+    "defaultConstructor": "erased when attached to a CLR value-type constraint"
+  },
   "numericOverloadCollisions": {
     "Microsoft.Xna.Framework.Color..ctor(number,number,number)": "integral-channels; normalized values use the Vector3 overload",
     "Microsoft.Xna.Framework.Color..ctor(number,number,number,number)": "integral-channels; normalized values use the Vector4 overload"
@@ -92,6 +97,7 @@
     }
   },
   "contentLoad": "Load<T>(assetType: XnaType<T>, assetName: string): T",
+  "contentExternalReference": "ReadExternalReference<T>(assetType: XnaType<T>): T",
   "events": "XnaEvent<TSender,TArgs>",
   "iterableProtocolMember": "[Symbol.iterator]",
   "genericTypeRenames": {
@@ -118,12 +124,14 @@
     {
       "name": "Microsoft.Xna.Framework.IEquatable",
       "kind": "interface",
-      "genericArity": 1
+      "genericArity": 1,
+      "genericParameters": ["T"]
     },
     {
       "name": "Microsoft.Xna.Framework.IComparable",
       "kind": "interface",
-      "genericArity": 1
+      "genericArity": 1,
+      "genericParameters": ["T"]
     },
     {
       "name": "Microsoft.Xna.Framework.IDisposable",
@@ -132,7 +140,8 @@
     {
       "name": "Microsoft.Xna.Framework.TryResult",
       "kind": "interface",
-      "genericArity": 1
+      "genericArity": 1,
+      "genericParameters": ["T"]
     },
     {
       "name": "Microsoft.Xna.Framework.MatrixDecomposeResult",
@@ -153,22 +162,26 @@
     {
       "name": "Microsoft.Xna.Framework.XnaEvent",
       "kind": "interface",
-      "genericArity": 2
+      "genericArity": 2,
+      "genericParameters": ["TSender", "TArgs"]
     },
     {
       "name": "Microsoft.Xna.Framework.XnaAction",
       "kind": "delegate",
-      "genericArity": 1
+      "genericArity": 1,
+      "genericParameters": ["T"]
     },
     {
       "name": "Microsoft.Xna.Framework.XnaEventHandler",
       "kind": "delegate",
-      "genericArity": 2
+      "genericArity": 2,
+      "genericParameters": ["TSender", "TArgs"]
     },
     {
       "name": "Microsoft.Xna.Framework.XnaType",
       "kind": "interface",
-      "genericArity": 1
+      "genericArity": 1,
+      "genericParameters": ["T"]
     },
     {
       "name": "Microsoft.Xna.Framework.IServiceProvider",

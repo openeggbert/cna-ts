@@ -48,7 +48,10 @@ phase is complete. API completeness can only be claimed from a reproducible stri
 - [x] Transform CLR metadata to the expected TypeScript contract.
 - [x] Read generated declarations with the TypeScript compiler API.
 - [x] Compare type identity, bases/interfaces, members, overloads, parameters, properties, fields,
-  events, nested identity, and enum values; generic-constraint depth still needs expansion.
+  events, nested identity, enum values, generic arity/identity/order, expressible constraints,
+  generic methods, and nested substitution through mapped interfaces.
+- [x] Count CLR reference/value/new() and named generic constraints even where the formal
+  TypeScript mapping erases them; deliberate broken-contract fixtures prove the generic gate.
 - [x] Emit text and JSON diagnostics with the required categories.
 - [x] Strict mode exits nonzero; report-only records 443 initial differences.
 - [x] Runtime-symbol verifier reports zero differences for all 271 target types, including
@@ -70,6 +73,17 @@ all other diagnostic categories=0
 ALLOWLIST_SIZE=0
 RUNTIME_DIFFERENCES=0
 INTERNAL_LEAK=0
+REFERENCE_GENERIC_TYPES=2
+REFERENCE_GENERIC_METHODS=55
+REFERENCE_GENERIC_PARAMETERS=57
+CONSTRAINED_GENERIC_PARAMETERS=43
+REFERENCE_TYPE_CONSTRAINTS=3
+REFERENCE_VALUE_TYPE_CONSTRAINTS=43
+REFERENCE_DEFAULT_CONSTRUCTOR_CONSTRAINTS=43
+MAPPED_TYPESCRIPT_CONSTRAINTS=2
+NESTED_GENERIC_SUBSTITUTIONS=44
+STRICT_BASELINE_ASSERTION=PASS
+STRICT_XNA_WINDOWS_RUNTIME_PROJECTION_ZERO=true
 ```
 
 ## Definition of done
@@ -128,6 +142,8 @@ Electron, or mobile support.
 - [x] Verify SoundEffect parent/child, AudioEngine category/bank/cue, dynamic pump teardown, and
   Storage device/container ownership. VideoPlayer frame-texture ownership remains blocked because
   the current CNA route is transient and player-owned.
+- [x] Exercise compressed SpriteFont/Model/Texture2D reader graphs, relative external references,
+  cache identity, content disposal, and parent shutdown in the qualified native lifecycle.
 
 ## Core/value API
 
@@ -138,9 +154,9 @@ Electron, or mobile support.
   Color, Point, Rectangle, Plane, Ray, bounding volumes/frustum, curves, and all 17 packed values.
 - [x] Import the first 26-observation neutral XNA differential JSON corpus, including NaN,
   infinities, signed zero, rounding, clamping, packing, matrix inversion, and geometry edges.
-- [x] Expand the corpus to 168 observations: 83 math/value, 23 input/touch, 47 Audio reference
-  observations, seven deterministic subsystem-projection observations, and eight graphics/content
-  observations, producing 169 passing TAP assertions and zero failures.
+- [x] Expand the corpus to 181 observations: 83 math/value, 23 input/touch, 47 Audio reference
+  observations, seven deterministic subsystem-projection observations, and 21 graphics/content
+  observations, producing 182 passing TAP assertions and zero failures.
 - [x] Add compile/type probes and managed regressions for the completed value/input groups.
 
 ## Game/device/window
@@ -186,7 +202,10 @@ Electron, or mobile support.
 - [x] Implement reader tables/versions/indexes, shared resources, cleanup, public extension-based
   custom reader registration, and Texture2D/SpriteFont/Model built-in reader graphs.
 - [x] Keep raw PNG loading on `Texture2D.FromStream`, separate from XNB content loading.
-- [ ] Implement LZX compression and general external-reference resolution.
+- [x] Implement the XNA LZX frame/block wrapper with persistent managed decoding, exact output-size
+  validation, deterministic legal fixtures, and independent real-XNB byte comparison.
+- [x] Implement relative/nested external-reference resolution, normalized cache identity, type and
+  cycle checks, failure cleanup, shared-resource interaction, compressed targets, and unload.
 
 ## Audio/XACT, media, storage, GamerServices
 
@@ -205,6 +224,16 @@ Electron, or mobile support.
 - [x] Separate extension subpath exists.
 - [x] Renderer information and capability flags come from CNA device queries and remain outside
   strict `GraphicsDevice`; they are unavailable before a real device callback executes.
+
+## Runtime capability inventory
+
+- [x] Keep runtime capability claims independent of the strict structural verifier.
+- [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
+- [x] Classify 62 operation families: 18 verified managed, 14 verified native, five upstream-CNA
+  blocked, three fixture pending, four hardware pending, three platform pending, 12 CNA-TS gaps,
+  two explicitly unavailable on the qualified backend, and one not applicable to HEADLESS Linux.
+- [x] Audit all 74 `NativeUnavailableError` and two `NotSupportedException` construction sites in 28
+  selected-framework source files into those operation-family boundaries.
 
 ## Template
 
@@ -243,13 +272,15 @@ Electron, or mobile support.
 
 ## Packaging and CI gates
 
-- [ ] `npm ci`, build, type check, tests, verifier, runtime symbols, leak guard, and `npm pack` are CI
-  gates.
+- [x] `npm ci`, clean build, strict type check, unit/differential tests, runtime symbols, leak guard,
+  ABI audit, capability generation, and `npm pack` are always-on CI gates; strict XNA metadata and
+  native integration are protected conditional jobs that report `NOT_CONFIGURED` when absent.
 - [x] Install the exact tarball in independent TS and JS consumers with no sibling paths.
 - [x] Package exports contain no internal subpath and fresh consumers prove the guard.
 - [x] Final generated template TypeScript/JavaScript projects both install the one exact final
   `cna-ts-0.1.0.tgz`; its measured SHA-256 and file count are recorded in `NEXT.md`.
-- [ ] Preserve deterministic generated artifact hashes in CI.
+- [x] CI rebuilds `dist` twice and packs twice; it requires identical generated-tree hashes,
+  tar payloads, and file lists. Current npm gzip output is byte-identical as well.
 - [x] Manual source `.d.ts` duplication = 0.
 - [x] Hand-maintained duplicate JavaScript implementation = 0.
 - [x] Legacy worktree changes from start through end-of-session verification = 0.
@@ -262,6 +293,8 @@ Electron, or mobile support.
   so the unmodified native shared target can compile;
 - publish reproducible CNA ABI-0.7 shared artifacts instead of relying on temporary sibling build
   paths for verification;
+- expose a general caller-buffer XNB byte-stream route if the base `ContentManager` is to load
+  arbitrary compiled assets without leaking host filesystem semantics;
 - platform-specific renderer/window integration evidence for WebView/Electron claims.
 
 These are narrower than “CNA has no ABI”: the native C ABI exists and is broad.

@@ -1,0 +1,134 @@
+name: Qualification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  managed-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - name: Locked dependency install
+        run: npm ci
+      - name: Clean build
+        run: npm run build
+      - name: Strict declaration type check
+        run: node node_modules/typescript/bin/tsc -p tsconfig.types.json
+      - name: Unit tests
+        run: node --test test/*.test.mjs
+      - name: Differential tests
+        run: node test/differential-xna.test.mjs
+      - name: Runtime-symbol verification
+        run: |
+          node tools/api-compat/verify-runtime.mjs --format json --output /tmp/runtime-symbol-report.json
+          cmp docs/runtime-symbol-report.json /tmp/runtime-symbol-report.json
+      - name: Internal/native leak guard
+        run: |
+          node tools/api-compat/verify.mjs --leak-only --format json --output /tmp/internal-leak-report.json
+          cmp docs/internal-leak-report.json /tmp/internal-leak-report.json
+      - name: Runtime capability inventory is current
+        run: |
+          node tools/runtime-capabilities/generate.mjs
+          git diff --exit-code -- docs/runtime-capabilities.json docs/runtime-capabilities.md
+      - name: Checkout exact audited CNA ABI-0.7 headers
+        uses: actions/checkout@v4
+        with:
+          repository: openeggbert/cna
+          ref: a09196a6477f69a7a57c8364f990658d31531a5b
+          path: cna-abi-070
+      - name: ABI declarations and all imported signatures
+        run: |
+          node tools/audit-cna-abi.mjs --cna-root cna-abi-070 --format json --output /tmp/cna-abi-report.json
+          cmp docs/cna-abi-report.json /tmp/cna-abi-report.json
+      - name: Reproducible clean dist
+        run: node tools/verify-build-reproducibility.mjs
+      - name: npm pack
+        run: |
+          mkdir -p artifacts
+          npm pack --ignore-scripts --pack-destination artifacts
+      - name: Exact packed TypeScript, JavaScript, and export consumers
+        run: node tools/verify-package.mjs --package artifacts/cna-ts-0.1.0.tgz
+      - name: Reproducible npm package
+        run: node tools/verify-package-reproducibility.mjs
+      - name: Checkout canonical template generator
+        uses: actions/checkout@v4
+        with:
+          repository: openeggbert/cna-ts-template
+          ref: 49620019729ae87208ea67d84504b568e8b08b0b
+          path: cna-ts-template
+      - name: Install template tooling against the exact package
+        run: >-
+          npm install --prefix cna-ts-template --ignore-scripts --no-save --no-audit --no-fund
+          "$GITHUB_WORKSPACE/artifacts/cna-ts-0.1.0.tgz" typescript@5.9.2 vite@8.2.2
+      - name: Generated TypeScript and JavaScript consumers
+        run: >-
+          node cna-ts-template/tools/verify-generated.mjs
+          --package "$GITHUB_WORKSPACE/artifacts/cna-ts-0.1.0.tgz"
+      - name: Optional evidence status
+        env:
+          XNA_REFERENCE_PATH: ${{ vars.XNA_REFERENCE_PATH }}
+          CNA_070_LIBRARY_PATH: ${{ vars.CNA_070_LIBRARY_PATH }}
+          CNA_070_SOURCE_PATH: ${{ vars.CNA_070_SOURCE_PATH }}
+        run: |
+          test -n "$XNA_REFERENCE_PATH" && echo STRICT_API_ARTIFACT=CONFIGURED || echo STRICT_API_ARTIFACT=NOT_CONFIGURED
+          test -n "$CNA_070_LIBRARY_PATH" && test -n "$CNA_070_SOURCE_PATH" && echo NATIVE_070_ARTIFACT=CONFIGURED || echo NATIVE_070_ARTIFACT=NOT_CONFIGURED
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cna-ts-package
+          path: artifacts/cna-ts-0.1.0.tgz
+          if-no-files-found: error
+
+  strict-api:
+    if: ${{ vars.XNA_REFERENCE_PATH != '' }}
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Strict XNA API verification and missing-family inventory
+        env:
+          XNA_REFERENCE_PATH: ${{ vars.XNA_REFERENCE_PATH }}
+        run: |
+          node tools/api-compat/verify.mjs --format json --output /tmp/api-compat-report.json
+          cmp docs/api-compat-report.json /tmp/api-compat-report.json
+          node tools/api-compat/missing-type-inventory.mjs --output /tmp/missing-type-inventory.md --json-output /tmp/missing-type-inventory.json
+          test "$(node -p "require('/tmp/missing-type-inventory.json').missingTypeCount")" = 0
+          cmp docs/missing-type-inventory.md /tmp/missing-type-inventory.md
+          cmp docs/missing-type-inventory.json /tmp/missing-type-inventory.json
+
+  native-qualification:
+    if: ${{ vars.CNA_070_LIBRARY_PATH != '' && vars.CNA_070_SOURCE_PATH != '' }}
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - run: npm ci
+      - name: Validate protected ABI-0.7 artifact provenance
+        env:
+          CNA_NATIVE_LIBRARY: ${{ vars.CNA_070_LIBRARY_PATH }}
+          CNA_SOURCE_PATH: ${{ vars.CNA_070_SOURCE_PATH }}
+        run: |
+          test "$(git -C "$CNA_SOURCE_PATH" rev-parse HEAD)" = a09196a6477f69a7a57c8364f990658d31531a5b
+          test "$(sha256sum "$CNA_NATIVE_LIBRARY" | cut -d' ' -f1)" = 42e099146bf3b470f82fd963a516f8bdd7ff0406da8c37dd53747699117db086
+          node tools/audit-cna-abi.mjs --cna-root "$CNA_SOURCE_PATH"
+      - name: Exact native integration
+        env:
+          CNA_NATIVE_LIBRARY: ${{ vars.CNA_070_LIBRARY_PATH }}
+          CNA_SOURCE_PATH: ${{ vars.CNA_070_SOURCE_PATH }}
+        run: npm run test:native

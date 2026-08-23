@@ -127,11 +127,58 @@ function splitGeneric(value) {
   return { base: value.slice(0, first), argumentsList };
 }
 
-function mapType(value, rules, genericNames = []) {
+function splitMappedGeneric(value) {
+  const first = value.indexOf("<");
+  if (first < 0 || !value.endsWith(">")) return null;
+  const body = value.slice(first + 1, -1);
+  const argumentsList = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < body.length; index += 1) {
+    if (body[index] === "<") depth += 1;
+    else if (body[index] === ">") depth -= 1;
+    else if (body[index] === "," && depth === 0) {
+      argumentsList.push(body.slice(start, index));
+      start = index + 1;
+    }
+  }
+  argumentsList.push(body.slice(start));
+  return { base: value.slice(0, first), argumentsList };
+}
+
+function substituteMappedType(value, substitutions) {
+  if (value == null || substitutions.size === 0) return value;
+  return value.replace(/\b[A-Za-z_$][\w$]*\b/g, (token) => substitutions.get(token) ?? token);
+}
+
+function substituteMember(member, substitutions) {
+  const shadowed = new Set(member.genericParameters?.map((value) => value.name) ?? []);
+  const active = new Map([...substitutions].filter(([name]) => !shadowed.has(name)));
+  return {
+    ...member,
+    type: substituteMappedType(member.type, active),
+    returnType: substituteMappedType(member.returnType, active),
+    genericParameters: member.genericParameters?.map((parameter) => ({
+      ...parameter,
+      constraint: substituteMappedType(parameter.constraint, active),
+    })),
+    parameters: member.parameters?.map((parameter) => ({
+      ...parameter,
+      type: substituteMappedType(parameter.type, active),
+    })),
+  };
+}
+
+function mapType(value, rules, typeGenericNames = [], methodGenericNames = []) {
   if (value == null) return null;
-  if (value.endsWith("&")) return mapType(value.slice(0, -1), rules, genericNames);
-  if (value.endsWith("[]")) return `${mapType(value.slice(0, -2), rules, genericNames)}[]`;
-  if (value.startsWith("!")) return genericNames[Number(value.slice(1))] ?? `T${value.slice(1)}`;
+  if (value.endsWith("&")) return mapType(value.slice(0, -1), rules, typeGenericNames, methodGenericNames);
+  if (value.endsWith("[]")) return `${mapType(value.slice(0, -2), rules, typeGenericNames, methodGenericNames)}[]`;
+  if (value.startsWith("!!")) {
+    return methodGenericNames[Number(value.slice(2))] ?? `TMethod${value.slice(2)}`;
+  }
+  if (value.startsWith("!")) {
+    return typeGenericNames[Number(value.slice(1))] ?? `T${value.slice(1)}`;
+  }
   if (rules.frameworkTypeMappings[value]) return rules.frameworkTypeMappings[value];
   const generic = splitGeneric(value);
   if (generic) {
@@ -153,13 +200,36 @@ function mapType(value, rules, genericNames = []) {
     };
     const mappedBase =
       collectionMappings[generic.base] ?? rules.genericTypeRenames[generic.base] ?? stripArity(generic.base);
-    const argumentsText = generic.argumentsList.map((argument) => mapType(argument, rules, genericNames));
+    const argumentsText = generic.argumentsList.map(
+      (argument) => mapType(argument, rules, typeGenericNames, methodGenericNames),
+    );
     if (mappedBase === "Nullable") return [argumentsText[0], "null"].sort().join("|");
     return `${mappedBase}<${argumentsText.join(",")}>`;
   }
   if (value === "System.IDisposable") return "Microsoft.Xna.Framework.IDisposable";
   if (value.startsWith("System.")) return stripArity(value).slice("System.".length);
   return rules.genericTypeRenames[value] ?? stripArity(value);
+}
+
+function genericAttributeSet(parameter) {
+  return new Set((parameter.attributes ?? "None").split(",").map((value) => value.trim()));
+}
+
+function mappedGenericParameters(parameters, rules, typeGenericNames, methodGenericNames = []) {
+  return (parameters ?? []).map((parameter, position) => {
+    const attributes = genericAttributeSet(parameter);
+    const constraints = (parameter.constraints ?? [])
+      .filter((value) => value !== "System.ValueType")
+      .map((value) => mapType(value, rules, typeGenericNames, methodGenericNames));
+    if (attributes.has("ReferenceTypeConstraint")) {
+      constraints.push(rules.genericConstraints.referenceType);
+    }
+    return {
+      name: parameter.name,
+      position: parameter.position ?? position,
+      constraint: constraints.length === 0 ? null : [...new Set(constraints)].sort().join("&"),
+    };
+  });
 }
 
 function mapTypeIdentity(value, rules) {
@@ -180,10 +250,10 @@ function memberKey(member) {
   return `${member.kind}:${member.static ? "static:" : ""}${member.name}`;
 }
 
-function mappedParameters(values, rules, genericNames) {
+function mappedParameters(values, rules, typeGenericNames, methodGenericNames = []) {
   return values.map((value) => ({
     name: value.name,
-    type: mapType(value.type, rules, genericNames),
+    type: mapType(value.type, rules, typeGenericNames, methodGenericNames),
     optional: value.optional,
     rest: false,
   }));
@@ -191,8 +261,7 @@ function mappedParameters(values, rules, genericNames) {
 
 function mapCallable(member, rules, genericNames) {
   const methodGenericNames = member.genericParameters?.map((parameter) => parameter.name) ?? [];
-  const names = methodGenericNames.length > 0 ? methodGenericNames : genericNames;
-  let returnType = mapType(member.returnType, rules, names);
+  let returnType = mapType(member.returnType, rules, genericNames, methodGenericNames);
   if (member.name === "Run" && returnType === "void") returnType = rules.gameRun;
   return {
     kind: member.kind,
@@ -201,9 +270,14 @@ function mapCallable(member, rules, genericNames) {
     static: member.static,
     abstract: member.abstract,
     genericArity: member.genericArity,
-    genericParameters: member.genericParameters ?? [],
+    genericParameters: mappedGenericParameters(
+      member.genericParameters,
+      rules,
+      genericNames,
+      methodGenericNames,
+    ),
     returnType,
-    parameters: mappedParameters(member.parameters, rules, names),
+    parameters: mappedParameters(member.parameters, rules, genericNames, methodGenericNames),
   };
 }
 
@@ -293,6 +367,24 @@ function transformReference(reference, rules) {
         stripArity(sourceType.name) === "Microsoft.Xna.Framework.Content.ContentManager" &&
         member.kind === "method" &&
         member.name === "Load" &&
+        member.genericArity === 1
+      ) {
+        const mapped = mapCallable(member, rules, genericNames);
+        const genericName = member.genericParameters?.[0]?.name ?? "T";
+        mapped.parameters.unshift({
+          name: "assetType",
+          type: `Microsoft.Xna.Framework.XnaType<${genericName}>`,
+          optional: false,
+          rest: false,
+        });
+        members.push(mapped);
+        continue;
+      }
+      if (
+        rules.contentExternalReference &&
+        stripArity(sourceType.name) === "Microsoft.Xna.Framework.Content.ContentReader" &&
+        member.kind === "method" &&
+        member.name === "ReadExternalReference" &&
         member.genericArity === 1
       ) {
         const mapped = mapCallable(member, rules, genericNames);
@@ -450,7 +542,7 @@ function transformReference(reference, rules) {
       abstract: sourceType.abstract,
       sealed: sourceType.sealed,
       genericArity: sourceType.genericArity,
-      genericParameters: sourceType.genericParameters ?? [],
+      genericParameters: mappedGenericParameters(sourceType.genericParameters, rules, genericNames),
       baseType:
         ignoredBases.has(sourceType.baseType) ||
         (rules.erasedBaseTypes ?? []).some(
@@ -493,7 +585,11 @@ function transformReference(reference, rules) {
       abstract: false,
       sealed: false,
       genericArity: synthetic.genericArity ?? 0,
-      genericParameters: [],
+      genericParameters: (synthetic.genericParameters ?? []).map((name, position) => ({
+        name,
+        position,
+        constraint: null,
+      })),
       baseType: null,
       interfaces: [],
       members: syntheticMembers,
@@ -525,14 +621,22 @@ function transformReference(reference, rules) {
     }
   }
   const interfaceMembers = (name, visited = new Set()) => {
-    const identity = name.replace(/<.*>$/, "");
-    if (visited.has(identity)) return [];
-    visited.add(identity);
+    if (visited.has(name)) return [];
+    visited.add(name);
+    const generic = splitMappedGeneric(name);
+    const identity = generic?.base ?? name;
     const contract = byName.get(identity);
     if (!contract || contract.kind !== "interface") return [];
+    const substitutions = new Map(
+      (contract.genericParameters ?? []).map((parameter, index) => [
+        parameter.name,
+        generic?.argumentsList[index] ?? parameter.name,
+      ]),
+    );
     return [
-      ...(contract.members ?? []),
-      ...contract.interfaces.flatMap((value) => interfaceMembers(value, visited)),
+      ...(contract.members ?? []).map((member) => substituteMember(member, substitutions)),
+      ...contract.interfaces.flatMap((value) =>
+        interfaceMembers(substituteMappedType(value, substitutions), visited)),
     ];
   };
   for (const type of types) {
@@ -615,6 +719,16 @@ function compareCallables(typeName, key, expected, actual, diagnostics) {
           `${typeName}.${key}#${index + 1}`,
           expectedMember.genericArity,
           actualMember.genericArity,
+        ),
+      );
+    }
+    if (JSON.stringify(expectedMember.genericParameters) !== JSON.stringify(actualMember.genericParameters)) {
+      diagnostics.push(
+        diagnostic(
+          "GENERIC_MISMATCH",
+          `${typeName}.${key}#${index + 1}.genericParameters`,
+          expectedMember.genericParameters,
+          actualMember.genericParameters,
         ),
       );
     }
@@ -701,6 +815,16 @@ function compareTypes(expectedModel, targetModel, initialDiagnostics, rules) {
         diagnostic("GENERIC_MISMATCH", `${name}.genericArity`, expectedType.genericArity, actualType.genericArity),
       );
     }
+    if (JSON.stringify(expectedType.genericParameters) !== JSON.stringify(actualType.genericParameters)) {
+      diagnostics.push(
+        diagnostic(
+          "GENERIC_MISMATCH",
+          `${name}.genericParameters`,
+          expectedType.genericParameters,
+          actualType.genericParameters,
+        ),
+      );
+    }
     if (expectedType.members == null) continue;
     const expectedMembers = groupMembers(expectedType.members);
     const actualMembers = groupMembers(actualType.members);
@@ -773,6 +897,60 @@ function leakDiagnostics(targetModel) {
   return diagnostics;
 }
 
+function genericCoverage(reference, expected) {
+  if (!reference || !expected) return null;
+  const referenceParameters = [];
+  let genericMethods = 0;
+  let genericTypes = 0;
+  let nestedGenericSubstitutions = 0;
+  const inspectTypeUse = (value) => {
+    if (typeof value === "string" && value.includes("[") && /!{1,2}\d/.test(value)) {
+      nestedGenericSubstitutions += 1;
+    }
+  };
+  for (const type of reference.types) {
+    if (type.genericArity > 0) genericTypes += 1;
+    referenceParameters.push(...(type.genericParameters ?? []));
+    inspectTypeUse(type.baseType);
+    type.interfaces.forEach(inspectTypeUse);
+    for (const member of type.members) {
+      if (member.genericArity > 0) genericMethods += 1;
+      referenceParameters.push(...(member.genericParameters ?? []));
+      inspectTypeUse(member.type);
+      inspectTypeUse(member.returnType);
+      (member.parameters ?? []).forEach((parameter) => inspectTypeUse(parameter.type));
+    }
+  }
+  const hasAttribute = (parameter, value) => genericAttributeSet(parameter).has(value);
+  const constrained = referenceParameters.filter((parameter) =>
+    (parameter.constraints?.length ?? 0) > 0 ||
+    hasAttribute(parameter, "ReferenceTypeConstraint") ||
+    hasAttribute(parameter, "NotNullableValueTypeConstraint") ||
+    hasAttribute(parameter, "DefaultConstructorConstraint"));
+  const mappedParameters = expected.types.flatMap((type) => [
+    ...(type.synthetic ? [] : type.genericParameters ?? []),
+    ...(type.members ?? []).flatMap((member) => member.genericParameters ?? []),
+  ]);
+  return {
+    genericTypes,
+    genericMethods,
+    genericParameters: referenceParameters.length,
+    constrainedGenericParameters: constrained.length,
+    referenceTypeConstraints: referenceParameters.filter((parameter) =>
+      hasAttribute(parameter, "ReferenceTypeConstraint")).length,
+    valueTypeConstraints: referenceParameters.filter((parameter) =>
+      hasAttribute(parameter, "NotNullableValueTypeConstraint")).length,
+    defaultConstructorConstraints: referenceParameters.filter((parameter) =>
+      hasAttribute(parameter, "DefaultConstructorConstraint")).length,
+    namedTypeConstraints: referenceParameters.reduce(
+      (total, parameter) => total + (parameter.constraints?.length ?? 0),
+      0,
+    ),
+    mappedTypeScriptConstraints: mappedParameters.filter((parameter) => parameter.constraint != null).length,
+    nestedGenericSubstitutions,
+  };
+}
+
 function summary(reference, expected, target, diagnostics, rules) {
   const diagnosticCounts = Object.fromEntries(DIAGNOSTIC_CODES.map((code) => [code, 0]));
   for (const item of diagnostics) diagnosticCounts[item.code] = (diagnosticCounts[item.code] ?? 0) + 1;
@@ -785,7 +963,21 @@ function summary(reference, expected, target, diagnostics, rules) {
     totalDifferences: diagnostics.length,
     allowlistSize: rules.allowlist.length,
     diagnosticCounts,
+    genericCoverage: genericCoverage(reference, expected),
   };
+}
+
+function strictBaseline(profile, report) {
+  if (!profile.strictBaseline) return { configured: false, satisfied: true, failures: [] };
+  const checks = [
+    ["TARGET_TYPES", profile.strictBaseline.targetTypes, report.summary.targetTypes],
+    ["TOTAL_DIFFERENCES", profile.strictBaseline.totalDifferences, report.summary.totalDifferences],
+    ["ALLOWLIST_SIZE", profile.strictBaseline.allowlistSize, report.summary.allowlistSize],
+  ];
+  const failures = checks
+    .filter(([, expected, actual]) => expected !== actual)
+    .map(([name, expected, actual]) => ({ name, expected, actual }));
+  return { configured: true, satisfied: failures.length === 0, failures };
 }
 
 function textReport(report, summaryOnly) {
@@ -799,6 +991,27 @@ function textReport(report, summaryOnly) {
     `ALLOWLIST_SIZE=${report.summary.allowlistSize}`,
     ...Object.entries(report.summary.diagnosticCounts).map(([code, count]) => `${code}=${count}`),
   ];
+  if (report.summary.genericCoverage) {
+    const coverage = report.summary.genericCoverage;
+    lines.push(
+      `REFERENCE_GENERIC_TYPES=${coverage.genericTypes}`,
+      `REFERENCE_GENERIC_METHODS=${coverage.genericMethods}`,
+      `REFERENCE_GENERIC_PARAMETERS=${coverage.genericParameters}`,
+      `CONSTRAINED_GENERIC_PARAMETERS=${coverage.constrainedGenericParameters}`,
+      `REFERENCE_TYPE_CONSTRAINTS=${coverage.namedTypeConstraints}`,
+      `REFERENCE_REFERENCE_TYPE_CONSTRAINTS=${coverage.referenceTypeConstraints}`,
+      `REFERENCE_VALUE_TYPE_CONSTRAINTS=${coverage.valueTypeConstraints}`,
+      `REFERENCE_DEFAULT_CONSTRUCTOR_CONSTRAINTS=${coverage.defaultConstructorConstraints}`,
+      `MAPPED_TYPESCRIPT_CONSTRAINTS=${coverage.mappedTypeScriptConstraints}`,
+      `NESTED_GENERIC_SUBSTITUTIONS=${coverage.nestedGenericSubstitutions}`,
+    );
+  }
+  if (report.strictBaseline?.configured) {
+    lines.push(`STRICT_BASELINE_ASSERTION=${report.strictBaseline.satisfied ? "PASS" : "FAIL"}`);
+    for (const failure of report.strictBaseline.failures) {
+      lines.push(`STRICT_BASELINE_FAILURE ${failure.name} expected=${failure.expected} actual=${failure.actual}`);
+    }
+  }
   if (!summaryOnly) {
     for (const item of report.diagnostics) {
       lines.push(`${item.code} ${item.subject}${item.expected === undefined ? "" : ` expected=${JSON.stringify(item.expected)}`}${item.actual === undefined ? "" : ` actual=${JSON.stringify(item.actual)}`}`);
@@ -839,15 +1052,22 @@ function main() {
     summary: summary(reference, expected, target, diagnostics, rules),
     diagnostics,
   };
+  report.strictBaseline = args.leakOnly
+    ? { configured: false, satisfied: true, failures: [] }
+    : strictBaseline(profile, report);
   const output = args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : textReport(report, args.summaryOnly);
   if (args.output) fs.writeFileSync(args.output, output);
   else process.stdout.write(output);
-  if (diagnostics.length > 0 && !args.reportOnly) process.exitCode = 1;
+  if ((diagnostics.length > 0 || !report.strictBaseline.satisfied) && !args.reportOnly) process.exitCode = 1;
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 2;
+if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
+  try {
+    main();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 2;
+  }
 }
+
+export { compareTypes, mapType, strictBaseline, transformReference };

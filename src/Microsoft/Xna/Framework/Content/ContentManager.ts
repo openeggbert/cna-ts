@@ -46,6 +46,7 @@ export class ContentManager implements IDisposable {
   readonly #serviceProvider: IServiceProvider;
   readonly #loadedAssets = new Map<string, unknown>();
   readonly #disposableAssets: IDisposable[] = [];
+  readonly #loadingAssets: string[] = [];
   #rootDirectory: string;
   #disposed = false;
 
@@ -82,8 +83,14 @@ export class ContentManager implements IDisposable {
       }
       return cached;
     }
+    const cycleIndex = this.#loadingAssets.indexOf(key);
+    if (cycleIndex >= 0) {
+      const cycle = [...this.#loadingAssets.slice(cycleIndex), key].join(" -> ");
+      throw new ContentLoadException(`Circular external content reference: ${cycle}`);
+    }
 
     const acquired: IDisposable[] = [];
+    this.#loadingAssets.push(key);
     try {
       const value = this.ReadAsset<T>(cleanedName, (asset) => acquired.push(asset));
       if (!isInstance(assetType, value)) {
@@ -97,6 +104,8 @@ export class ContentManager implements IDisposable {
         try { asset.Dispose(); } catch { /* Preserve the load failure as the primary error. */ }
       }
       throw error;
+    } finally {
+      this.#loadingAssets.pop();
     }
   }
 
@@ -120,6 +129,7 @@ export class ContentManager implements IDisposable {
     } finally {
       this.#loadedAssets.clear();
       this.#disposableAssets.length = 0;
+      this.#loadingAssets.length = 0;
     }
   }
 

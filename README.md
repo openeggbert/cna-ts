@@ -9,7 +9,8 @@ TypeScript.
 > target types are present, with zero missing members, signature mismatches, runtime-symbol
 > differences, internal leaks, or allowlist entries. The real graphics/content slice includes typed
 > Texture2D transfer and encoded streams, public SpriteBatch drawing, Effect reflection and stock
-> effect state, managed uncompressed XNB readers, SpriteFont/DrawString, and Model graphs. Audio,
+> effect state, managed uncompressed/LZX XNB readers, external-reference resolution,
+> SpriteFont/DrawString, and Model graphs. Audio,
 > XACT, Media, Video, and Storage now have typed runtime routes where CNA exposes them. An opt-in
 > Node-API bridge executes CNA ABI 0.7.0 on Linux HEADLESS/NULL audio; no native binary or CNA
 > library is bundled. Without an explicitly loaded backend, native operations fail rather than
@@ -73,11 +74,13 @@ remains usable. Linux HEADLESS evidence is not a Windows, GPU,
 Electron, browser, or mobile support claim.
 
 XNB framing, reader tables/versions, shared resources, disposal tracking, and custom reader
-dispatch are implemented in TypeScript. The current reader accepts uncompressed Windows XNB v5;
-LZX-compressed XNB and generic external-reference resolution remain explicit blockers. Consumers
-register TypeScript custom readers through `RegisterContentTypeReader` from `cna-ts/extensions`,
-while the strict `Microsoft.Xna.Framework.Content` surface stays unchanged. Raw PNG/JPEG bytes go
-through `Texture2D.FromStream`, never `Content.Load`.
+dispatch are implemented in TypeScript. Windows XNB v5 supports uncompressed streams and the XNA
+LZX frame/block wrapper, including persistent multi-frame decoding and exact decompressed-length
+validation. External references resolve relative to the referring asset, reuse the normalized
+ContentManager cache, detect cycles, and retain ordinary unload ownership; referenced assets may
+themselves be compressed or contain shared resources. Consumers register TypeScript custom readers
+through `RegisterContentTypeReader` from `cna-ts/extensions`. Raw PNG/JPEG bytes go through
+`Texture2D.FromStream`, never `Content.Load`.
 
 ## Compatibility scope
 
@@ -102,7 +105,10 @@ npm run api:verify
 npm run api:inventory
 npm run verify:runtime
 npm run verify:leaks
+npm run runtime:inventory
+npm run verify:build-reproducibility
 npm run verify:package
+npm run verify:package-reproducibility
 ```
 
 When a CNA source checkout is available, its native contract can be audited without becoming a
@@ -127,8 +133,8 @@ The sibling `cna-ts-template` is the single maintained project template. Its can
 source generates both strict TypeScript and ordinary JavaScript projects; both are verified against
 the exact packed `cna-ts` artifact.
 
-See the [architecture](docs/architecture.md), [C ABI audit](docs/cna-abi-audit.md),
-[measured roadmap](plan.md), and
+See the [architecture](docs/architecture.md), [runtime capability inventory](docs/runtime-capabilities.md),
+[C ABI audit](docs/cna-abi-audit.md), [measured roadmap](plan.md), and
 [CNA-JS consolidation assessment](docs/cna-js-consolidation.md).
 
 ## License

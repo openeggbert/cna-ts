@@ -22,6 +22,35 @@ class CustomAsset {
 
 class WrongAsset {}
 
+class ExternalOwner {
+  constructor(first = null, second = null) {
+    this.first = first;
+    this.second = second;
+    this.disposeCount = 0;
+  }
+  Dispose() { this.disposeCount += 1; }
+}
+
+class ExternalOwnerReader extends Content.ContentTypeReaderOfT {
+  Read(input) {
+    return new ExternalOwner(
+      input.ReadExternalReference(Payload),
+      input.ReadExternalReference(Payload),
+    );
+  }
+}
+
+class ExternalChainReader extends Content.ContentTypeReaderOfT {
+  Read(input) { return new ExternalOwner(input.ReadExternalReference(ExternalOwner)); }
+}
+
+class ThrowAfterExternalReader extends Content.ContentTypeReaderOfT {
+  Read(input) {
+    input.ReadExternalReference(Payload);
+    throw new Error("failure after external load");
+  }
+}
+
 class PayloadReader extends Content.ContentTypeReaderOfT {
   Read(input, existingInstance) {
     const result = existingInstance ?? new Payload();
@@ -60,6 +89,9 @@ const unregister = [
   RegisterContentTypeReader("Tests.CustomAssetReader", CustomAssetReader, CustomAsset),
   RegisterContentTypeReader("Tests.PayloadReader", PayloadReader, Payload),
   RegisterContentTypeReader("Tests.ThrowingReader", ThrowingReader, WrongAsset),
+  RegisterContentTypeReader("Tests.ExternalOwnerReader", ExternalOwnerReader, ExternalOwner),
+  RegisterContentTypeReader("Tests.ExternalChainReader", ExternalChainReader, ExternalOwner),
+  RegisterContentTypeReader("Tests.ThrowAfterExternalReader", ThrowAfterExternalReader, WrongAsset),
 ];
 test.after(() => unregister.reverse().forEach((value) => value()));
 
@@ -101,6 +133,75 @@ function xnb(payload, options = {}) {
   ]);
 }
 
+function lzxUncompressedBlock(payload, firstBlock) {
+  if (payload.length <= 0 || payload.length > 0x8000) throw new RangeError("payload");
+  const headerBits = firstBlock
+    ? ((3 << 28) | (payload.length << 4))
+    : ((3 << 29) | (payload.length << 5));
+  const result = new Uint8Array(16 + payload.length);
+  result[0] = headerBits >>> 16;
+  result[1] = headerBits >>> 24;
+  result[2] = headerBits;
+  result[3] = headerBits >>> 8;
+  result[4] = 1;
+  result[8] = 1;
+  result[12] = 1;
+  result.set(payload, 16);
+  return result;
+}
+
+function lzxFrame(block, frameSize) {
+  const result = new Uint8Array(5 + block.length);
+  result.set([0xff, frameSize >>> 8, frameSize, block.length >>> 8, block.length]);
+  result.set(block, 5);
+  return result;
+}
+
+function compressedXnb(uncompressed, splitAt = -1) {
+  const payload = uncompressed.slice(10);
+  const parts = splitAt < 0
+    ? [payload]
+    : [payload.slice(0, splitAt), payload.slice(splitAt)];
+  const frames = parts.map((part, index) => lzxFrame(lzxUncompressedBlock(part, index === 0), part.length));
+  const compressedLength = frames.reduce((total, frame) => total + frame.length, 0);
+  const result = new Uint8Array(14 + compressedLength);
+  result.set([0x58, 0x4e, 0x42, 0x77, 5, 0x80]);
+  result.set(int32(result.length), 6);
+  result.set(int32(payload.length), 10);
+  let offset = 14;
+  for (const frame of frames) { result.set(frame, offset); offset += frame.length; }
+  return result;
+}
+
+function shortFrameCompressedXnb(uncompressed) {
+  const payload = new Uint8Array(0x8000);
+  payload.set(uncompressed.slice(10));
+  const block = lzxUncompressedBlock(payload, true);
+  const frame = new Uint8Array(2 + block.length);
+  frame.set([block.length >>> 8, block.length]);
+  frame.set(block, 2);
+  const result = new Uint8Array(14 + frame.length);
+  result.set([0x58, 0x4e, 0x42, 0x77, 5, 0x80]);
+  result.set(int32(result.length), 6);
+  result.set(int32(payload.length), 10);
+  result.set(frame, 14);
+  return result;
+}
+
+function payloadAsset(value) {
+  return xnb([
+    ...seven(1), ...string("Tests.PayloadReader, Tests"), ...int32(0),
+    ...seven(0), ...seven(1), ...string(value),
+  ]);
+}
+
+function externalAsset(readerName, ...references) {
+  return xnb([
+    ...seven(1), ...string(`${readerName}, Tests`), ...int32(0),
+    ...seven(0), ...seven(1), ...references.flatMap(string),
+  ]);
+}
+
 function customPayload(options = {}) {
   const readerName = options.readerName ?? "Tests.CustomAssetReader, Tests";
   const readerVersion = options.readerVersion ?? 3;
@@ -129,6 +230,128 @@ test("managed XNB dispatches a custom reader, existing instance, and shared reso
   manager.Unload();
   assert.equal(asset.disposeCount, 1);
   assert.equal(asset.shared.disposeCount, 1);
+  manager.Dispose();
+});
+
+test("LZX XNB framing supports short, extended, and persistent multi-frame reader graphs", () => {
+  const ordinary = xnb(customPayload());
+  const single = compressedXnb(ordinary);
+  const split = 20;
+  const multi = compressedXnb(ordinary, split);
+  const manager = new MemoryContentManager(new Map([
+    ["single", single],
+    ["multi", multi],
+    ["short", shortFrameCompressedXnb(ordinary)],
+  ]));
+  const one = manager.Load(CustomAsset, "single");
+  const two = manager.Load(CustomAsset, "multi");
+  const three = manager.Load(CustomAsset, "short");
+  assert.deepEqual([one.name, one.shared.value, two.name, two.shared.value, three.name, three.shared.value],
+    ["custom", "shared", "custom", "shared", "custom", "shared"]);
+  assert.equal(manager.Load(CustomAsset, "multi"), two);
+  manager.Unload();
+  assert.deepEqual([
+    one.disposeCount, one.shared.disposeCount, two.disposeCount, two.shared.disposeCount,
+    three.disposeCount, three.shared.disposeCount,
+  ], [1, 1, 1, 1, 1, 1]);
+  manager.Dispose();
+});
+
+test("LZX XNB framing rejects truncated headers, payloads, lengths, and decoder failures", () => {
+  const ordinary = xnb(customPayload());
+  const valid = compressedXnb(ordinary);
+  const cases = [];
+  cases.push(valid.slice(0, 11));
+  cases.push(Uint8Array.from([...valid.slice(0, 14), 0xff]));
+
+  const truncatedPayload = valid.slice(0, -1);
+  truncatedPayload.set(int32(truncatedPayload.length), 6);
+  cases.push(truncatedPayload);
+
+  const zeroBlock = valid.slice();
+  zeroBlock[17] = 0;
+  zeroBlock[18] = 0;
+  cases.push(zeroBlock);
+
+  const zeroFrame = valid.slice();
+  zeroFrame[15] = 0;
+  zeroFrame[16] = 0;
+  cases.push(zeroFrame);
+
+  const oversizedFrame = valid.slice();
+  oversizedFrame[15] = 0x80;
+  oversizedFrame[16] = 1;
+  cases.push(oversizedFrame);
+
+  const negativeOutput = valid.slice();
+  negativeOutput.set(int32(-1), 10);
+  cases.push(negativeOutput);
+
+  const wrongOutput = valid.slice();
+  wrongOutput.set(int32(ordinary.length - 9), 10);
+  cases.push(wrongOutput);
+
+  const decoderFailure = Uint8Array.from([
+    0x58, 0x4e, 0x42, 0x77, 5, 0x80,
+    ...int32(23), ...int32(1),
+    0xff, 0, 1, 0, 4, 0, 0, 0, 0,
+  ]);
+  cases.push(decoderFailure);
+
+  for (const [index, bytes] of cases.entries()) {
+    const manager = new MemoryContentManager(new Map([["bad", bytes]]));
+    assert.throws(() => manager.Load(CustomAsset, "bad"), Content.ContentLoadException, `case ${index}`);
+    manager.Dispose();
+  }
+});
+
+test("external references normalize paths, recurse, share cache identity, and load compressed assets", () => {
+  const shared = compressedXnb(payloadAsset("shared"));
+  const nested = externalAsset("Tests.ExternalOwnerReader", "..\\..\\shared", "../../shared");
+  const outer = externalAsset("Tests.ExternalChainReader", "nested/owner");
+  const manager = new MemoryContentManager(new Map([
+    ["shared", shared],
+    ["root\\nested\\owner", nested],
+    ["root\\outer", outer],
+  ]));
+  const root = manager.Load(ExternalOwner, "root/outer");
+  assert.equal(root.first.first.value, "shared");
+  assert.equal(root.first.first, root.first.second);
+  assert.equal(manager.Load(Payload, "shared"), root.first.first);
+  manager.Unload();
+  assert.equal(root.first.first.disposeCount, 1);
+  manager.Dispose();
+});
+
+test("external references report missing, malformed, wrong-type, and circular targets coherently", () => {
+  const missing = externalAsset("Tests.ExternalOwnerReader", "missing", "");
+  const malformed = externalAsset("Tests.ExternalOwnerReader", "malformed", "");
+  const circular = externalAsset("Tests.ExternalChainReader", "cycle");
+  const manager = new MemoryContentManager(new Map([
+    ["missing-owner", missing],
+    ["malformed-owner", malformed],
+    ["malformed", xnb([], { magic: [1, 2, 3] })],
+    ["cycle", circular],
+  ]));
+  assert.throws(() => manager.Load(ExternalOwner, "missing-owner"), /missing missing/);
+  assert.throws(() => manager.Load(ExternalOwner, "malformed-owner"), Content.ContentLoadException);
+  assert.throws(() => manager.Load(ExternalOwner, "cycle"), /Circular external content reference/);
+
+  const wrong = new MemoryContentManager(new Map([["value", payloadAsset("value")]]));
+  assert.throws(() => wrong.Load(WrongAsset, "value"), /requested runtime type/);
+  manager.Dispose();
+  wrong.Dispose();
+});
+
+test("failure after a nested external load preserves the completed cache entry and later unloads it", () => {
+  const shared = payloadAsset("retained");
+  const owner = externalAsset("Tests.ThrowAfterExternalReader", "shared");
+  const manager = new MemoryContentManager(new Map([["shared", shared], ["owner", owner]]));
+  assert.throws(() => manager.Load(WrongAsset, "owner"), Content.ContentLoadException);
+  const retained = manager.Load(Payload, "shared");
+  assert.equal(retained.value, "retained");
+  manager.Unload();
+  assert.equal(retained.disposeCount, 1);
   manager.Dispose();
 });
 

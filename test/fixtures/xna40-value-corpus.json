@@ -6,7 +6,7 @@
   "inputObservationCount": 23,
   "audioObservationCount": 47,
   "subsystemProjectionObservationCount": 7,
-  "graphicsContentObservationCount": 8,
+  "graphicsContentObservationCount": 21,
   "cases": [
     { "id": "v2.normalize.zero", "expected": "NaN,NaN" },
     { "id": "v3.normalize.zero", "expected": "NaN,NaN,NaN" },
@@ -175,6 +175,19 @@
     { "id": "graphics.effect.identity", "expected": "1,1" },
     { "id": "graphics.basiceffect.defaults", "expected": "3F800000,0,00000000,3F800000,0,0,0,41800000" },
     { "id": "graphics.model.absolute", "expected": "40400000,40800000,40A00000" },
-    { "id": "content.xnb.badmagic", "expected": "ContentLoadException" }
+    { "id": "content.xnb.badmagic", "expected": "ContentLoadException" },
+    { "id": "content.bad_platform", "expected": "ContentLoadException" },
+    { "id": "content.bad_version", "expected": "ContentLoadException" },
+    { "id": "content.truncated_header", "expected": "ContentLoadException" },
+    { "id": "content.declared_size_larger", "expected": "ContentLoadException" },
+    { "id": "content.declared_size_smaller", "expected": "ok:42" },
+    { "id": "content.profile_flag_40", "expected": "ok:42" },
+    { "id": "content.profile_flags_7f", "expected": "ok:42" },
+    { "id": "content.lzx.uncompressed_block", "expected": "ok:42" },
+    { "id": "content.lzx.truncated_block", "expected": "ContentLoadException" },
+    { "id": "content.unknown_reader", "expected": "ContentLoadException" },
+    { "id": "content.reader_version_mismatch", "expected": "ContentLoadException" },
+    { "id": "content.reader_index_out_of_range", "expected": "ContentLoadException" },
+    { "id": "content.cache.identity", "expected": "1" }
   ]
 }

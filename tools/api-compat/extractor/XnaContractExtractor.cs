@@ -247,7 +247,8 @@ internal static class XnaContractExtractor
         if (type == null) return null;
         if (type.IsByRef) return TypeName(type.GetElementType()) + "&";
         if (type.IsArray) return TypeName(type.GetElementType()) + "[]";
-        if (type.IsGenericParameter) return "!" + type.GenericParameterPosition;
+        if (type.IsGenericParameter)
+            return (type.DeclaringMethod == null ? "!" : "!!") + type.GenericParameterPosition;
         if (type.IsGenericType)
         {
             string definition = type.GetGenericTypeDefinition().FullName;

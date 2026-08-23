@@ -106,12 +106,14 @@ class NativeProbeGame extends Game {
     this.decodedTexture.SaveAsPng(png, 1, 1);
     assert.deepEqual([...png.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
     this.spriteBatch = new Graphics.SpriteBatch(this.GraphicsDevice);
-    const fontBytes = spriteFontXnb();
-    const modelBytes = modelXnb();
+    const fontBytes = compressedXnb(spriteFontXnb());
+    const modelBytes = compressedXnb(modelXnb());
+    const externalTextureBytes = compressedXnb(textureXnb());
     class FontContentManager extends Content.ContentManager {
       OpenStream(assetName) {
         if (assetName === "SyntheticFont") return fontBytes;
-        if (assetName === "SyntheticModel") return modelBytes;
+        if (assetName === "Models\\SyntheticModel") return modelBytes;
+        if (assetName === "Textures\\Atlas") return externalTextureBytes;
         throw new Error(`Unknown synthetic asset ${assetName}`);
       }
     }
@@ -119,11 +121,13 @@ class NativeProbeGame extends Game {
       GetService: (type) => type === Graphics.GraphicsDevice ? this.GraphicsDevice : null,
     });
     this.font = this.fontContent.Load(Graphics.SpriteFont, "SyntheticFont");
+    assert.equal(this.fontContent.Load(Graphics.SpriteFont, ".\\SyntheticFont"), this.font);
     assert.deepEqual(
       [this.font.MeasureString("A?").X, this.font.MeasureString("A?").Y],
       [9, 8],
     );
-    this.model = this.fontContent.Load(Graphics.Model, "SyntheticModel");
+    this.model = this.fontContent.Load(Graphics.Model, "Models/SyntheticModel");
+    assert.equal(this.fontContent.Load(Graphics.Model, "Models\\SyntheticModel"), this.model);
     assert.equal(this.model.Root, this.model.Bones.Get("Root"));
     assert.equal(this.model.Meshes.Get("Triangle").ParentBone, this.model.Root);
     const loadedPart = this.model.Meshes.Get(0).MeshParts.Get(0);
@@ -139,6 +143,8 @@ class NativeProbeGame extends Game {
       [0, 0, 1, 0, 2, 0],
     );
     assert.deepEqual(loadedPart.Effect.DiffuseColor, Vector3.One);
+    this.externalTexture = this.fontContent.Load(Graphics.Texture2D, "Textures/Atlas");
+    assert.equal(loadedPart.Effect.Texture, this.externalTexture);
     this.loadedModelVertexBuffer = loadedPart.VertexBuffer;
     this.loadedModelIndexBuffer = loadedPart.IndexBuffer;
     this.loadedModelEffect = loadedPart.Effect;
@@ -208,7 +214,9 @@ class NativeProbeGame extends Game {
     this.spriteBatch?.Dispose();
     this.spriteBatch = null;
     this.fontContent?.Dispose();
+    assert.equal(this.externalTexture?.IsDisposed, true);
     this.fontContent = null;
+    this.externalTexture = null;
     this.font = null;
     this.model = null;
     assert.equal(this.loadedModelVertexBuffer?.IsDisposed, true);
@@ -538,6 +546,46 @@ function spriteFontXnb() {
   return Uint8Array.from([0x58, 0x4e, 0x42, 0x77, 5, 0, ...integer(length), ...payload]);
 }
 
+function textureXnb() {
+  const pixels = [Color.Red, Color.Green, Color.Blue, Color.White]
+    .flatMap((color) => [color.R, color.G, color.B, color.A]);
+  const payload = [
+    ...seven(1),
+    ...text("Microsoft.Xna.Framework.Content.Texture2DReader, Microsoft.Xna.Framework"),
+    ...integer(0), ...seven(0), ...seven(1),
+    ...integer(Graphics.SurfaceFormat.Color), ...integer(2), ...integer(2), ...integer(1),
+    ...integer(pixels.length), ...pixels,
+  ];
+  const length = 10 + payload.length;
+  return Uint8Array.from([0x58, 0x4e, 0x42, 0x77, 5, 0, ...integer(length), ...payload]);
+}
+
+function lzxUncompressedBlock(payload) {
+  const headerBits = (3 << 28) | (payload.length << 4);
+  const result = new Uint8Array(16 + payload.length);
+  result[0] = headerBits >>> 16;
+  result[1] = headerBits >>> 24;
+  result[2] = headerBits;
+  result[3] = headerBits >>> 8;
+  result[4] = 1;
+  result[8] = 1;
+  result[12] = 1;
+  result.set(payload, 16);
+  return result;
+}
+
+function compressedXnb(uncompressed) {
+  const payload = uncompressed.slice(10);
+  const block = lzxUncompressedBlock(payload);
+  const result = new Uint8Array(19 + block.length);
+  result.set([0x58, 0x4e, 0x42, 0x77, 5, 0x80]);
+  result.set(integer(result.length), 6);
+  result.set(integer(payload.length), 10);
+  result.set([0xff, payload.length >>> 8, payload.length, block.length >>> 8, block.length], 14);
+  result.set(block, 19);
+  return result;
+}
+
 function modelVertexBytes() {
   return [
     ...single(0), ...single(0), ...single(0),
@@ -582,7 +630,7 @@ function modelXnb() {
     ...integer(Graphics.VertexElementUsage.Position), ...integer(0),
     ...integer(3), ...modelVertexBytes(),
     ...seven(4), 1, ...integer(6), 0, 0, 1, 0, 2, 0,
-    ...seven(5), ...seven(0),
+    ...seven(5), ...text("../Textures/Atlas"),
     ...single(1), ...single(1), ...single(1),
     ...single(0), ...single(0), ...single(0),
     ...single(1), ...single(1), ...single(1),

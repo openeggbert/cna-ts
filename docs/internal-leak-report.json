@@ -1,0 +1,36 @@
+{
+  "summary": {
+    "profile": "reference-independent leak guard",
+    "referenceTypes": null,
+    "referenceMembers": null,
+    "expectedMappedTypes": null,
+    "targetTypes": 271,
+    "totalDifferences": 0,
+    "allowlistSize": 0,
+    "diagnosticCounts": {
+      "MISSING_TYPE": 0,
+      "UNEXPECTED_TYPE": 0,
+      "BASE_MISMATCH": 0,
+      "INTERFACE_MISMATCH": 0,
+      "MISSING_MEMBER": 0,
+      "UNEXPECTED_MEMBER": 0,
+      "PROPERTY_MISMATCH": 0,
+      "PARAMETER_MISMATCH": 0,
+      "RETURN_TYPE_MISMATCH": 0,
+      "OVERLOAD_MISMATCH": 0,
+      "GENERIC_MISMATCH": 0,
+      "ENUM_VALUE_MISMATCH": 0,
+      "EVENT_MAPPING_MISMATCH": 0,
+      "OPERATOR_MAPPING_MISMATCH": 0,
+      "LANGUAGE_MAPPING_MISMATCH": 0,
+      "INTERNAL_LEAK": 0
+    },
+    "genericCoverage": null
+  },
+  "diagnostics": [],
+  "strictBaseline": {
+    "configured": false,
+    "satisfied": true,
+    "failures": []
+  }
+}

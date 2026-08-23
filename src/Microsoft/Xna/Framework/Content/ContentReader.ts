@@ -6,8 +6,9 @@ import {
   NotSupportedException,
 } from "../../../../internal/exceptions.js";
 import { NativeUnavailableError } from "../../../../internal/native-error.js";
+import { decompressXnbLzxForInternalUse } from "../../../../internal/lzx.js";
 import { Color } from "../Color.js";
-import type { IDisposable, XnaAction } from "../Contracts.js";
+import type { IDisposable, XnaAction, XnaType } from "../Contracts.js";
 import { Matrix } from "../Matrix.js";
 import { Quaternion } from "../Quaternion.js";
 import { Vector2 } from "../Vector2.js";
@@ -67,12 +68,15 @@ export class ContentReader extends IO.BinaryReader {
 
   public ReadColor(): Color { return new Color(this.ReadByte(), this.ReadByte(), this.ReadByte(), this.ReadByte()); }
   public override ReadDouble(): number { return super.ReadDouble(); }
-  public ReadExternalReference<T>(): T {
+  public ReadExternalReference<T>(assetType: XnaType<T>): T {
+    if (assetType == null) throw new ArgumentNullException("assetType");
     const reference = this.ReadString();
     if (reference.length === 0) return undefined as T;
-    throw new NativeUnavailableError(
-      "ReadExternalReference<T> requires a runtime class token that the CLR generic signature does not carry",
-    );
+    const assetName = this.AssetName;
+    const separator = Math.max(assetName.lastIndexOf("/"), assetName.lastIndexOf("\\"));
+    const parent = separator < 0 ? "" : assetName.slice(0, separator);
+    const resolved = parent.length === 0 ? reference : `${parent}\\${reference}`;
+    return this.ContentManager.Load(assetType, resolved);
   }
   public ReadMatrix(): Matrix {
     return new Matrix(
@@ -183,15 +187,27 @@ export function readXnbAssetForInternalUse<T>(
     }
     const versionAndProfile = container.ReadUInt16();
     const format = versionAndProfile & 0x80ff;
-    if (format === 0x8005) {
-      throw new NativeUnavailableError("LZX-compressed XNB payloads are not supported by this managed slice");
+    if (format !== 5 && format !== 0x8005) {
+      throw new ContentLoadException(`Error loading '${assetName}'. Invalid XNB version or flags`);
     }
-    if (format !== 5) throw new ContentLoadException(`Error loading '${assetName}'. Invalid XNB version or flags`);
     const totalLength = container.ReadInt32();
     if (totalLength < 10 || totalLength > bytes.byteLength) {
       throw new ContentLoadException(`Error loading '${assetName}'. The XNB file is truncated`);
     }
-    const payload = container.ReadBytes(container.Remaining);
+    let payload: Uint8Array;
+    if (format === 0x8005) {
+      if (totalLength < 14 || container.Remaining < 4) {
+        throw new ContentLoadException(`Error loading '${assetName}'. The LZX payload header is truncated`);
+      }
+      const decompressedSize = container.ReadInt32();
+      payload = decompressXnbLzxForInternalUse(
+        container.ReadBytes(totalLength - 14),
+        decompressedSize,
+        assetName,
+      );
+    } else {
+      payload = container.ReadBytes(container.Remaining);
+    }
     const reader = createContentReader(contentManager, payload, assetName, recordDisposableObject);
     const state = stateOf(reader);
     const table = loadContentTypeReadersForInternalUse(state.Manager, reader);

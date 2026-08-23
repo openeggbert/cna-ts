@@ -140,7 +140,17 @@ remains the ordinary public cloning API.
 
 ## Generics and content loading
 
-Type parameters and constraints are kept in declarations where TypeScript can express them.
+Generic arity, parameter identity/order, generic-method parameters, named base/interface
+constraints, and nested substitution through mapped interfaces are verifier inputs. Named
+constraints become TypeScript intersections. A CLR reference-type constraint maps to `object`.
+CLR value-type and parameterless-constructor constraints are counted and reported but erased from
+the declaration because TypeScript has no faithful `struct`/`new()` equivalent for these numeric
+XNA overloads. The verifier therefore reports separate measured counts instead of implying those
+constraints were never inspected.
+
+Type parameters and expressible constraints are kept in declarations. For example, the mapped
+graphics transfer overloads preserve `T extends IVertexType`. When erased runtime type information
+is needed, CNA-TS adds a class token consistently:
 When erased runtime type information is needed, CNA-TS adds a class token consistently:
 
 ```ts
@@ -151,7 +161,10 @@ interface XnaType<T> {
 Content.Load(Texture2D, "logo"); // inferred Texture2D
 ```
 
-The mapped contract is `Load<T>(assetType: XnaType<T>, assetName: string): T`. Every content type
+The mapped contract is `Load<T>(assetType: XnaType<T>, assetName: string): T`. Likewise,
+`ContentReader.ReadExternalReference<T>()` maps to
+`ReadExternalReference<T>(assetType: XnaType<T>): T`, because the external target reader also needs
+the erased runtime type. Every content type
 uses this convention. It does not pretend that JavaScript has CLR generic reflection. Raw PNG
 files use the mapped `Texture2D.FromStream`/raw-image route, not `Content.Load` unless they have
 actually been compiled to XNB.
@@ -162,13 +175,25 @@ methods maps to `Uint8Array`, the deterministic byte representation available in
 browsers. Inputs are snapshotted. Save methods accept caller-owned writable capacity and copy the
 encoded result into it; insufficient capacity is an argument error.
 
-Managed `ContentManager` implements uncompressed Windows XNB v5 framing, reader tables and
+Managed `ContentManager` implements Windows XNB v5 framing, reader tables and
 versions, reader indexes, shared-resource fixups, cache/unload, disposable tracking, and built-in
 Texture2D/SpriteFont/Model resource readers. `Content.Load(Type, name)` and nested reader dispatch
 use the same class-token model. CLR reflection cannot discover a TypeScript reader constructor by
 assembly-qualified string, so `cna-ts/extensions` provides `RegisterContentTypeReader(name,
-readerType, targetType)`; this is a CNA-TS language bridge outside the strict XNA namespace. LZX
-compression and general external-reference resolution fail explicitly until implemented.
+readerType, targetType)`; this is a CNA-TS language bridge outside the strict XNA namespace.
+
+Compressed XNB uses the XNA LZX framing contract, not a bare generic LZX stream: declared
+decompressed size, short/extended frame headers, compressed block lengths, persistent decoder
+state across frames, truncation, and exact final byte count are all validated. This container
+compression is independent of GPU texture compression such as DXT; compressed texture bytes are
+never reinterpreted as pixels.
+
+Non-empty external references resolve relative to the referring asset name, normalize separators,
+`.` and `..` through the same case-insensitive ContentManager cache, and recursively use the class
+token. Repeated references preserve identity; cycles, missing/malformed targets, and type mismatch
+fail explicitly. Nested successes keep ordinary cache ownership even if the referring asset later
+fails, and `Unload` disposes the complete cache once. These are asset identities supplied to
+`OpenStream`, not exposure of Node filesystem paths.
 
 Texture transfer generics retain their XNA overload declarations. At runtime, the binding accepts
 only deterministic mapped representations: `Color[]`, supported typed arrays, and supported

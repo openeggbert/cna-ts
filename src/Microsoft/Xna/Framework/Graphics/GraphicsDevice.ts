@@ -22,6 +22,7 @@ import {
 import type { DisplayMode } from "./DisplayMode.js";
 import type { GraphicsAdapter } from "./GraphicsAdapter.js";
 import type { IndexBuffer } from "./IndexBuffer.js";
+import type { IVertexType } from "./IVertexType.js";
 import { PresentationParameters } from "./PresentationParameters.js";
 import type { PrimitiveType } from "./VertexEnums.js";
 import { RasterizerState } from "./RasterizerState.js";
@@ -271,7 +272,7 @@ export class GraphicsDevice implements IDisposable {
     unsupported("GraphicsDevice.DrawPrimitives");
   }
 
-  public DrawUserIndexedPrimitives<T>(
+  public DrawUserIndexedPrimitives<T extends IVertexType>(
     primitiveType: PrimitiveType, vertexData: T[], vertexOffset: number, numVertices: number,
     indexData: number[], indexOffset: number, primitiveCount: number,
   ): void;
@@ -287,7 +288,7 @@ export class GraphicsDevice implements IDisposable {
     stateOf(this); unsupported("GraphicsDevice.DrawUserIndexedPrimitives");
   }
 
-  public DrawUserPrimitives<T>(
+  public DrawUserPrimitives<T extends IVertexType>(
     primitiveType: PrimitiveType, vertexData: T[], vertexOffset: number, primitiveCount: number,
   ): void;
   public DrawUserPrimitives<T>(

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -110,6 +111,52 @@ function commandAvailable(command) {
   return !result.error && result.status === 0;
 }
 
+function verifyNodeBridgeSignatures(cnaRoot, bridgeSource) {
+  const typedefStart = bridgeSource.indexOf("typedef uint32_t (*GetAbiVersionFn)");
+  const typedefEnd = bridgeSource.indexOf("typedef struct Api {");
+  if (typedefStart < 0 || typedefEnd < typedefStart) {
+    throw new Error("could not locate the Node bridge function-pointer typedefs");
+  }
+  const imports = [...bridgeSource.matchAll(
+    /LOAD_REQUIRED\(\s*[A-Za-z0-9_]+\s*,\s*([A-Za-z0-9_]+)\s*,\s*"(cna_[A-Za-z0-9_]+)"\s*\)/g,
+  )].map((match) => ({ type: match[1], symbol: match[2] }));
+  if (imports.length === 0) throw new Error("the Node bridge contains no typed imports");
+
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "cna-ts-abi-signatures-"));
+  const sourcePath = path.join(temporary, "signatures.c");
+  const checks = imports.map(
+    ({ type, symbol }, index) => `  ${type} signature_${index} = &${symbol}; (void)signature_${index};`,
+  );
+  const source = [
+    "#include <CNA/C/cna.h>",
+    "#include <stdint.h>",
+    bridgeSource.slice(typedefStart, typedefEnd),
+    "static void verify_signatures(void) {",
+    ...checks,
+    "}",
+    "int main(void) { verify_signatures(); return 0; }",
+    "",
+  ].join("\n");
+  fs.writeFileSync(sourcePath, source);
+  try {
+    const compiler = process.env.CC ?? "cc";
+    const result = spawnSync(compiler, [
+      "-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only",
+      `-I${path.join(cnaRoot, "modules/c-api/include")}`,
+      sourcePath,
+    ], { encoding: "utf8" });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      throw new Error(
+        `Node bridge signature compilation failed (${result.status ?? "signal"})\n${result.stdout}${result.stderr}`,
+      );
+    }
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+  return imports;
+}
+
 function formatText(report) {
   const lines = [
     `CNA_REVISION=${report.cnaRevision}`,
@@ -120,6 +167,8 @@ function formatText(report) {
     `MISSING_REQUIRED_SYMBOLS=${report.missingRequiredSymbols.length}`,
     `NODE_BRIDGE_IMPORTED_SYMBOLS=${report.nodeBridgeImportedSymbols.length}`,
     `MISSING_NODE_BRIDGE_SYMBOLS=${report.missingNodeBridgeSymbols.length}`,
+    `NODE_BRIDGE_SIGNATURES_VERIFIED=${report.nodeBridgeSignaturesVerified}`,
+    `NODE_BRIDGE_SIGNATURE_MISMATCHES=${report.nodeBridgeSignatureMismatches}`,
     `TRACKED_WASM_ARTIFACTS=${report.trackedWasmArtifacts.length}`,
     `TRACKED_C_API_ESM_LOADERS=${report.trackedCApiEsmLoaders.length}`,
     `EMCC_AVAILABLE=${report.emccAvailable ? 1 : 0}`,
@@ -165,6 +214,12 @@ function main() {
   const missingNodeBridgeSymbols = nodeBridgeImportedSymbols.filter(
     (symbol) => !exportedSymbols.has(symbol),
   );
+  const verifiedSignatures = verifyNodeBridgeSignatures(args.cnaRoot, bridgeSource);
+  if (verifiedSignatures.length !== nodeBridgeImportedSymbols.length) {
+    throw new Error(
+      `verified ${verifiedSignatures.length} Node bridge signatures for ${nodeBridgeImportedSymbols.length} imports`,
+    );
+  }
   const trackedFiles = runGit(args.cnaRoot, ["ls-files"]).split("\n").filter(Boolean);
   const trackedWasmArtifacts = trackedFiles.filter((file) => file.endsWith(".wasm"));
   const trackedCApiEsmLoaders = trackedFiles.filter((file) => {
@@ -173,7 +228,6 @@ function main() {
     return isScript && (normalized.includes("modules/c-api/") || normalized.includes("cna_c_api"));
   });
   const report = {
-    cnaRoot: args.cnaRoot,
     cnaRevision: runGit(args.cnaRoot, ["rev-parse", "HEAD"]),
     abiVersion: `${version.major}.${version.minor}.${version.patch}`,
     abiVersionComponents: version,
@@ -183,6 +237,8 @@ function main() {
     missingRequiredSymbols: missing,
     nodeBridgeImportedSymbols,
     missingNodeBridgeSymbols,
+    nodeBridgeSignaturesVerified: verifiedSignatures.length,
+    nodeBridgeSignatureMismatches: 0,
     symbolGroups: REQUIRED_SYMBOL_GROUPS,
     trackedWasmArtifacts,
     trackedCApiEsmLoaders,

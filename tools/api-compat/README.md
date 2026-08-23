@@ -29,3 +29,15 @@ handle/pointer-shaped members.
 
 The mapping allowlist is intentionally empty. Language adaptations belong in
 `mapping-rules.json`, and an unmapped transformation is reported as `LANGUAGE_MAPPING_MISMATCH`.
+
+Generic verification includes arity, parameter identity/order, type and method constraints,
+interface/base constraints expressible in TypeScript, nested generic substitution, and inherited
+mapped-interface members. CLR reference/value/new() and named constraints are counted separately;
+the latter two CLR flags are measured even where the normative TypeScript mapping must erase them.
+`test/api-compat-verifier.test.mjs` contains deliberately broken generic contracts.
+
+The selected profile also freezes `TARGET_TYPES=271`, `TOTAL_DIFFERENCES=0`, and
+`ALLOWLIST_SIZE=0`. Strict verification fails if any of those values moves, so expected-contract
+regeneration cannot silently normalize an incomplete target. The current generated evidence is in
+`docs/api-compat-report.json`, `docs/runtime-symbol-report.json`,
+`docs/internal-leak-report.json`, and `docs/missing-type-inventory.*`.

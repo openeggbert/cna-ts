@@ -75,6 +75,40 @@ The reproducible evidence, 32-symbol sentinel inventory, 219-symbol imported Nod
 required upstream artifact contract are recorded in [`cna-abi-audit.md`](cna-abi-audit.md). The audit accepts an explicit CNA checkout
 path and is not part of normal build, package installation, or runtime.
 
+The audit also compiles all 219 adapter function-pointer assignments against the selected CNA
+headers. That makes signature, pointer depth, fixed-width integer, `CNA_Bool`, structure pointer,
+and callback-typedef compatibility a gate rather than a name-only inference.
+
+## Managed content boundary
+
+`ContentManager` owns asset-name normalization, case-insensitive cache identity, construction-time
+disposable tracking, nested-load cycle detection, and unload. `ContentReader` owns Windows XNB v5
+framing and reader graphs. Its managed LZX layer implements the XNA frame wrapper—including short
+32-KiB frames and extended frame/block headers—over one persistent decoder, and accepts a stream
+only when the final decompressed byte count exactly matches the header.
+
+External-reference strings remain content identities, not host paths. They resolve relative to the
+referring XNB, normalize through the same cache key, and recursively call `ContentManager.Load`
+with the mapped class token. A derived content provider supplies bytes through protected
+`OpenStream`; the base manager still fails explicitly because the audited CNA C ABI provides no
+general XNB byte-stream route. Raw image bytes remain a separate `Texture2D.FromStream` path.
+
+## Qualification boundary
+
+[`runtime-capabilities.json`](runtime-capabilities.json) is the machine-readable capability source
+generated from `tools/runtime-capabilities/source.json`; its Markdown companion groups reviewed
+operation families by verified, upstream-blocked, fixture/hardware/platform-pending, and CNA-TS-gap
+status. It audits every selected-framework source site that explicitly constructs
+`NativeUnavailableError` or `NotSupportedException`, but remains independent of the strict API
+verifier.
+
+CI always runs locked install, clean build/type checking, managed and differential tests,
+runtime-symbol/leak gates, exact ABI-header signature audit, reproducible `dist` and tarball checks,
+packed TS/JS consumers, internal-export rejection, and generated-template consumers. Strict XNA
+metadata and native integration jobs require repository-controlled paths on a self-hosted runner;
+when absent, the workflow records `NOT_CONFIGURED` and does not download an arbitrary reference or
+native binary.
+
 ## Ownership
 
 Native-backed resources carry one private state: owned, borrowed, parent-owned, or adopted.
