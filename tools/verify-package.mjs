@@ -8,6 +8,10 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "cna-ts-package-"));
+const packageArgument = process.argv.indexOf("--package");
+const suppliedTarball = packageArgument >= 0
+  ? path.resolve(process.argv[packageArgument + 1] ?? "")
+  : null;
 
 function run(command, args, cwd, options = {}) {
   const result = spawnSync(command, args, {
@@ -62,21 +66,27 @@ function installTarball(directory, tarball) {
 }
 
 try {
-  runNpm(
-    [
-      "pack",
-      "--ignore-scripts",
-      "--pack-destination",
-      temporary,
-      "--cache",
-      path.join(temporary, "npm-cache"),
-    ],
-    ROOT,
-  );
-  const packages = fs.readdirSync(temporary).filter((value) => value.endsWith(".tgz"));
-  if (packages.length !== 1) throw new Error(`npm pack produced ${packages.length} tarballs`);
-  const packageName = packages[0];
-  const tarball = path.join(temporary, packageName);
+  let tarball = suppliedTarball;
+  if (tarball) {
+    if (!fs.statSync(tarball, { throwIfNoEntry: false })?.isFile()) {
+      throw new Error(`package tarball not found: ${tarball}`);
+    }
+  } else {
+    runNpm(
+      [
+        "pack",
+        "--ignore-scripts",
+        "--pack-destination",
+        temporary,
+        "--cache",
+        path.join(temporary, "npm-cache"),
+      ],
+      ROOT,
+    );
+    const packages = fs.readdirSync(temporary).filter((value) => value.endsWith(".tgz"));
+    if (packages.length !== 1) throw new Error(`npm pack produced ${packages.length} tarballs`);
+    tarball = path.join(temporary, packages[0]);
+  }
 
   const javascript = path.join(temporary, "javascript-consumer");
   fs.mkdirSync(javascript);

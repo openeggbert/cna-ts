@@ -27,6 +27,8 @@
   "files": [
     "dist",
     "docs",
+    "native",
+    "tools/build-native-bridge.mjs",
     "LICENSE",
     "NOTICE.md",
     "README.md"
@@ -34,10 +36,13 @@
   "scripts": {
     "build": "node tools/clean.mjs && tsc -p tsconfig.json",
     "check": "npm run build && tsc -p tsconfig.types.json",
-    "test": "npm run build && node --test",
+    "test": "npm run build && node --test test/*.test.mjs",
     "test:differential": "npm run build && node test/differential-xna.test.mjs",
+    "build:native-bridge": "node tools/build-native-bridge.mjs",
+    "test:native": "npm run build:native-bridge && npm run build && node --test test/native-cna.integration.mjs",
     "audit:cna-abi": "node tools/audit-cna-abi.mjs",
     "api:report": "node tools/api-compat/verify.mjs --report-only --summary-only",
+    "api:inventory": "node tools/api-compat/missing-type-inventory.mjs",
     "api:verify": "node tools/api-compat/verify.mjs --summary-only",
     "verify:runtime": "npm run build && node tools/api-compat/verify-runtime.mjs",
     "verify:leaks": "npm run build && node tools/api-compat/verify.mjs --leak-only --summary-only",

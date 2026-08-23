@@ -331,3 +331,191 @@ LEGACY_OR_SIBLING_REFERENCES=0
 Both generated template forms installed that same tarball. The canary now exercises components,
 services, keyboard snapshots, and matrix/vector behavior while retaining its explicit statement
 that it is not yet a playable CNA game.
+
+## 2026-08-22: graphics/resource expansion starting inventory
+
+The strict verifier was rerun against all seven SHA-256-pinned XNA 4.0 Windows reference
+assemblies before implementation. `tools/api-compat/missing-type-inventory.mjs` groups its exact
+`MISSING_TYPE` diagnostics; the generated Markdown and JSON queues live in
+`docs/missing-type-inventory.*` and are not maintained by hand.
+
+| Family | Starting missing types |
+| --- | ---: |
+| Framework/core | 4 |
+| Graphics foundation | 13 |
+| Graphics resources | 10 |
+| Graphics states | 15 |
+| Vertex/buffer | 18 |
+| SpriteBatch/font | 4 |
+| Effects | 21 |
+| Models | 12 |
+| Content readers | 10 |
+| Audio/XACT | 19 |
+| Media | 24 |
+| Storage | 3 |
+| GamerServices/other selected-profile runtime types | 14 |
+| **Total** | **167** |
+
+The measured Framework/core queue is exactly `DrawableGameComponent`, `FrameworkDispatcher`,
+`TitleContainer`, and the synthetic `TryResult` projection. `TitleLocation` is not present in this
+selected profile. The only selected GamerServices type is `GamerServicesComponent`; Net and the
+rest of GamerServices remain outside this profile.
+
+## 2026-08-22: foundational graphics graph and first real CNA-TS runtime
+
+### Exact missing-type queue
+
+The generated queue, not a handwritten list, measured these changes:
+
+| Family | Before | After |
+| --- | ---: | ---: |
+| Framework/core | 4 | 0 |
+| Graphics foundation | 13 | 0 |
+| Graphics resources | 10 | 0 |
+| Graphics states | 15 | 0 |
+| Vertex/buffer | 18 | 0 |
+| SpriteBatch/font | 4 | 4 |
+| Effects | 21 | 21 |
+| Models | 12 | 12 |
+| Content readers | 10 | 10 |
+| Audio/XACT | 19 | 19 |
+| Media | 24 | 24 |
+| Storage | 3 | 3 |
+| GamerServices/other selected-profile runtime types | 14 | 14 |
+| **Total** | **167** | **107** |
+
+The completed missing-type queues comprise the Framework stragglers; device/adapter/presentation
+foundation; `GraphicsResource` and texture/render-target declarations; all graphics states and
+stock presets; and vertex declarations/values plus static/dynamic buffer declarations. “Queue at
+zero” means every mapped declaration is present, not that every native capability is implemented.
+Texture3D/Cube, render targets, buffer transfer, adapter discovery, device-status queries, and
+nontrivial device operations still fail explicitly where the 50-symbol backend slice has no route.
+
+`GraphicsDeviceManager` now owns configuration and native manager lifecycle, `GraphicsDevice`
+resolves its callback-scoped borrowed handle rather than retaining it, and resource wrappers retain
+the one creating device identity. `Game.GraphicsDevice` is implemented, so missing members reached
+zero. Texture2D is real for validated creation, dimensions/mips/device identity, deterministic
+destroy, and parent shutdown. Generic SetData/GetData, encoded stream load/save, and raw byte
+packing remain unavailable pending an explicit TypeScript representation and imported transfer
+routes. The strict public SpriteBatch/effect dependency graph was not added as a shell.
+
+### Strict API result
+
+```text
+REFERENCE_TYPES=257
+REFERENCE_MEMBERS=2964
+EXPECTED_MAPPED_TYPES=271
+TARGET_TYPES=164
+
+TOTAL_DIFFERENCES=107
+MISSING_TYPE=107
+MISSING_MEMBER=0
+
+UNEXPECTED_TYPE=0
+BASE_MISMATCH=0
+INTERFACE_MISMATCH=0
+UNEXPECTED_MEMBER=0
+PROPERTY_MISMATCH=0
+PARAMETER_MISMATCH=0
+RETURN_TYPE_MISMATCH=0
+OVERLOAD_MISMATCH=0
+GENERIC_MISMATCH=0
+ENUM_VALUE_MISMATCH=0
+EVENT_MAPPING_MISMATCH=0
+OPERATOR_MAPPING_MISMATCH=0
+LANGUAGE_MAPPING_MISMATCH=0
+INTERNAL_LEAK=0
+ALLOWLIST_SIZE=0
+RUNTIME_DIFFERENCES=0
+```
+
+The verifier gained machine-readable expected-contract output, structural `IDisposable`, inherited
+TypeScript overload-set projection, and erasure of CNA-internal resource marker interfaces. No
+allowlist or weakened expected signature was introduced.
+
+### Real Node CNA evidence
+
+Before rebuilding upstream, the run found the compatible library already produced by the sibling
+Java verification:
+
+```text
+LIBRARY=/tmp/cna-java-native-working-070/modules/c-api/libcna_c_api.so
+SOURCE_COMMIT=a09196a64
+LIBRARY_SHA256=42e099146bf3b470f82fd963a516f8bdd7ff0406da8c37dd53747699117db086
+PLATFORM=Linux x86-64 HEADLESS/NULL-audio
+REPORTED_CNA_ABI=0.7.0
+NODE_BRIDGE=N-API C adapter with runtime dynamic loading
+IMPORTED_CNA_SYMBOLS=50
+```
+
+The adapter uses only CNA C ABI headers/routes, exact ABI equality, bigint handles, caller-owned
+UTF-8 error buffers, synchronous callback trampolines, and explicit destruction. It is source-only
+in the package; neither this temporary library path nor a compiled `.node` binary is distributed.
+
+`npm run test:native` contains six native scenarios (reported by Node as one isolated TAP top-level)
+and completed six CNA game lifetimes:
+
+```text
+REAL_CNA_ABI_FUNCTION_EXECUTED=yes
+GAME_LIFECYCLE=CNA native verified
+GRAPHICS_DEVICE=CNA native verified for borrow/clear/present and renderer queries
+TEXTURE2D=CNA native verified for create/destroy and ownership
+SPRITEBATCH=CNA native verified for create/destroy only; strict public API still planned
+INPUT_POLLING=CNA native verified for keyboard/mouse/gamepad/touch HEADLESS snapshots
+60_FRAMES=PASS
+600_FRAMES=PASS
+DOUBLE_DISPOSE=PASS
+PARENT_SHUTDOWN_WITH_LIVE_TEXTURE=PASS
+REPEATED_GAME_CREATE_DESTROY=PASS (3 additional lifetimes)
+RENDERER=HEADLESS (queried from CNA)
+```
+
+Current CNA HEAD `1bb2145d99ed572dd4eb15009c34e2e5f410fcf0` still fails the previously
+documented unmodified C-API build guard (`49 == 50`). The compatible artifact proves CNA-TS runtime
+integration but does not remove the reproducible-build blocker. Browser/Wasm remains blocked by
+zero tracked C-API Wasm artifacts/loaders and no local Emscripten toolchain.
+
+### Feature status
+
+| Group | Status |
+| --- | --- |
+| Game.GraphicsDevice | managed + CNA native verified |
+| GraphicsDeviceManager | complete mapped declaration; CNA configuration/lifecycle verified |
+| GraphicsDevice | complete mapped declaration; imported operations verified, remainder explicit |
+| GraphicsAdapter | complete mapped declaration; native adapter discovery unavailable |
+| GraphicsResource | managed ownership/identity verified; real Texture2D child verified |
+| Texture2D | partial native functionality as described above |
+| SpriteBatch | native create/destroy verified internally; strict public type planned |
+| States | managed verified; real device binding planned |
+| Buffers | declaration/managed validation verified; native allocation/transfer planned |
+| Effects | planned (21 missing types) |
+| Models | planned (12 missing types) |
+| Browser | blocked/unverified |
+
+### Final gates and exact package
+
+The final managed/API gates passed: strict TypeScript check, 10 pure-managed Node files, the
+unchanged 106-observation/107-assertion differential corpus, report-only API measurement, runtime
+symbols, leak guard, 50-symbol bridge audit, package consumers, and both generated template forms.
+Strict API verification exited 1 as intended because 107 types remain missing; it reported no
+other category.
+
+The exact final artifact was then reused, not repacked between consumers:
+
+```text
+FILENAME=cna-ts-0.1.0.tgz
+PATH=/tmp/cna-ts-final-pack.4FMhY2/cna-ts-0.1.0.tgz
+SHA256=6286371bb50ecf1a56529ec812716d676a5bae9d857c5250fd09d6d3ac7aa37b
+FILES=484
+PACKED_TYPESCRIPT_CONSUMER=PASS
+PACKED_JAVASCRIPT_CONSUMER=PASS
+INTERNAL_EXPORT_BLOCK=PASS
+GENERATED_TYPESCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_MANAGED_SMOKE=PASS
+LEGACY_OR_SIBLING_REFERENCES=0
+```
+
+The sibling template also passed its new opt-in Node-native smoke against that installed tarball
+at both 60 and 600 frames, reporting the CNA renderer as `HEADLESS`. Its browser canary and browser
+support statement were left unchanged: no C-ABI Wasm/ESM artifact was available or executed.

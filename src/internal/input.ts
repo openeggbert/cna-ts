@@ -54,3 +54,15 @@ export interface TouchPanelCapabilitiesSnapshot {
   readonly IsConnected: boolean;
   readonly MaximumTouchCount: number;
 }
+
+export interface GamePadStateSnapshot {
+  readonly IsConnected: boolean;
+  readonly PacketNumber: number;
+  readonly PressedButtons: number;
+  readonly LeftX: number;
+  readonly LeftY: number;
+  readonly RightX: number;
+  readonly RightY: number;
+  readonly LeftTrigger: number;
+  readonly RightTrigger: number;
+}

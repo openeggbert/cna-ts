@@ -1,4 +1,7 @@
-import type { GamePadCapabilitiesSnapshot } from "../../../../internal/input.js";
+import type {
+  GamePadCapabilitiesSnapshot,
+  GamePadStateSnapshot,
+} from "../../../../internal/input.js";
 import { boolString, int32, rawFloatBits, smartInputHash } from "../../../../internal/input.js";
 import { valueString } from "../../../../internal/value.js";
 import { Vector2 } from "../Vector2.js";
@@ -200,6 +203,8 @@ function rawButtons(
   return result | 0;
 }
 
+const nativeState = new WeakMap<GamePadState, Pick<GamePadStateSnapshot, "IsConnected" | "PacketNumber">>();
+
 export class GamePadState {
   readonly #isConnected: boolean;
   readonly #packetNumber: number;
@@ -250,8 +255,8 @@ export class GamePadState {
     this.#rawButtons = rawButtons(this.#thumbSticks, this.#triggers, this.#buttons, this.#dPad);
   }
 
-  public get IsConnected(): boolean { return this.#isConnected; }
-  public get PacketNumber(): number { return this.#packetNumber; }
+  public get IsConnected(): boolean { return nativeState.get(this)?.IsConnected ?? this.#isConnected; }
+  public get PacketNumber(): number { return nativeState.get(this)?.PacketNumber ?? this.#packetNumber; }
   public get ThumbSticks(): GamePadThumbSticks { return this.#thumbSticks; }
   public get Triggers(): GamePadTriggers { return this.#triggers; }
   public get Buttons(): GamePadButtons { return this.#buttons; }
@@ -277,6 +282,22 @@ export class GamePadState {
   }
 
   public ToString(): string { return `{IsConnected:${boolString(this.IsConnected)}}`; }
+}
+
+/** Internal construction boundary for an exact native controller snapshot. */
+export function createGamePadState(snapshot: GamePadStateSnapshot): GamePadState {
+  const result = new GamePadState(
+    new Vector2(snapshot.LeftX, snapshot.LeftY),
+    new Vector2(snapshot.RightX, snapshot.RightY),
+    snapshot.LeftTrigger,
+    snapshot.RightTrigger,
+    [snapshot.PressedButtons as Buttons],
+  );
+  nativeState.set(result, {
+    IsConnected: snapshot.IsConnected,
+    PacketNumber: int32(snapshot.PacketNumber),
+  });
+  return result;
 }
 
 /** Backend-produced controller capabilities; XNA exposes no public constructor. */

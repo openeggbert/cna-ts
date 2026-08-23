@@ -6,6 +6,8 @@ import type { GameTime } from "./GameTime.js";
 import type { IGameComponent } from "./IGameComponent.js";
 import type { IUpdateable } from "./IUpdateable.js";
 
+const disposalCallbacks = new WeakMap<GameComponent, () => void>();
+
 /** Backend-independent XNA game component with managed events and ordering state. */
 export class GameComponent implements IGameComponent, IUpdateable, IDisposable {
   readonly #game: Game;
@@ -46,6 +48,8 @@ export class GameComponent implements IGameComponent, IUpdateable, IDisposable {
   public Update(gameTime: GameTime): void { void gameTime; }
 
   public Dispose(): void {
+    disposalCallbacks.get(this)?.();
+    disposalCallbacks.delete(this);
     this.#game?.Components.Remove(this);
     this.#disposed.Dispatch(this, EventArgs.Empty);
   }
@@ -59,4 +63,11 @@ export class GameComponent implements IGameComponent, IUpdateable, IDisposable {
     void sender;
     this.#updateOrderChanged.Dispatch(this, args);
   }
+}
+
+export function setGameComponentDisposalForInternalUse(
+  component: GameComponent,
+  callback: () => void,
+): void {
+  disposalCallbacks.set(component, callback);
 }

@@ -43,23 +43,35 @@ contain raw pointers, numeric native handles, memory offsets, callback IDs, or b
 
 The backend interface is executable rather than status-only: it defines initialization and error
 access, Game create/run-one-frame/run/exit/destroy, graphics-manager/device borrowing,
-clear/present, Texture2D and SpriteBatch creation/destruction, and keyboard/mouse/gamepad/touch
-operations. The unavailable backend implements the same contract and fails explicitly. Managed
-tests install an internal backend to prove lifecycle call order and `NativeResourceLifetime`
-release behavior without exposing it as public injection API or claiming native execution.
+clear/present, Texture2D and SpriteBatch creation/destruction, renderer information, and
+keyboard/mouse/gamepad/touch operations. The unavailable backend implements the same contract and
+fails explicitly. Managed tests install an internal backend to prove lifecycle call order and
+`NativeResourceLifetime` behavior without exposing public injection.
 
 The inspected CNA revision publishes experimental C ABI version 0.7.0 through 59 public C headers
 and 2,861 unique `CNA_C_API` declarations. CNA has real Emscripten-aware engine and renderer code,
 but the inspected worktree has no packaged CNA C-ABI ESM loader/Wasm artifact and the local
-environment has no `emcc` toolchain. Consequently the current package reports the backend as
-unavailable. This is a binding/toolchain integration gap, not absence of a CNA C ABI.
+environment has no `emcc` toolchain. Consequently the default/browser backend remains unavailable;
+Node users may explicitly load the adapter and a compatible library. This is an artifact/toolchain
+gap, not absence of a CNA C ABI.
 
-An isolated native HEADLESS build of the unmodified CNA revision also failed inside the upstream C
-API renderer identity guard (49 mapped identities versus 50 canonical renderer entries), before a
-shared library was produced. CNA-TS therefore has no Node FFI adapter and no real CNA route has run.
+The package now carries a small C Node-API adapter source. It dynamically loads one explicitly
+selected library, checks encoded ABI `0x00000700`, resolves exactly 50 named C symbols, uses bigint
+for opaque 64-bit handles, marshals synchronous game callbacks on the Node thread, and translates
+CNA UTF-8 errors into JavaScript errors. It does not use the CNA C++ ABI, a generic FFI dependency,
+or finalizers. The adapter source/build helper are portable inputs; no platform binary or CNA
+library is packed.
 
-The reproducible evidence, 32-symbol first-slice inventory, and required upstream artifact contract
-are recorded in [`cna-abi-audit.md`](cna-abi-audit.md). The audit accepts an explicit CNA checkout
+Linux x86-64 integration used an existing HEADLESS/NULL-audio CNA ABI-0.7 library built by the
+sibling Java verification from CNA commit `a09196a64`. Six real game lifetimes covered 60 and 600
+frames, callback-scoped device access, Texture2D and SpriteBatch child ownership, all modeled input
+polling families, renderer identity, double disposal, live-child parent shutdown, and repeated
+creation/destruction. Current CNA HEAD still cannot reproduce that artifact because its unmodified
+C-API build stops at the renderer identity guard (49 mapped identities versus 50 canonical
+entries). This is recorded separately from the successful compatible-artifact evidence.
+
+The reproducible evidence, 32-symbol sentinel inventory, 50-symbol imported Node slice, and
+required upstream artifact contract are recorded in [`cna-abi-audit.md`](cna-abi-audit.md). The audit accepts an explicit CNA checkout
 path and is not part of normal build, package installation, or runtime.
 
 ## Ownership

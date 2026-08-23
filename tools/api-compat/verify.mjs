@@ -39,6 +39,7 @@ function parseArgs(values) {
     rules: DEFAULT_RULES,
     format: "text",
     output: null,
+    expectedOutput: null,
     reportOnly: false,
     summaryOnly: false,
     leakOnly: false,
@@ -51,6 +52,7 @@ function parseArgs(values) {
     else if (value === "--mapping-rules") result.rules = path.resolve(values[++index]);
     else if (value === "--format") result.format = values[++index];
     else if (value === "--output") result.output = path.resolve(values[++index]);
+    else if (value === "--expected-output") result.expectedOutput = path.resolve(values[++index]);
     else if (value === "--report-only") result.reportOnly = true;
     else if (value === "--summary-only") result.summaryOnly = true;
     else if (value === "--leak-only") result.leakOnly = true;
@@ -429,6 +431,19 @@ function transformReference(reference, rules) {
     });
   }
   for (const synthetic of rules.syntheticTypes) {
+    const syntheticMembers = synthetic.name === "Microsoft.Xna.Framework.IDisposable"
+      ? [{
+        kind: "method",
+        name: "Dispose",
+        access: "public",
+        static: false,
+        abstract: true,
+        genericArity: 0,
+        genericParameters: [],
+        returnType: "void",
+        parameters: [],
+      }]
+      : null;
     types.push({
       name: synthetic.name,
       kind: synthetic.kind,
@@ -439,7 +454,7 @@ function transformReference(reference, rules) {
       genericParameters: [],
       baseType: null,
       interfaces: [],
-      members: null,
+      members: syntheticMembers,
       synthetic: true,
     });
   }
@@ -447,6 +462,26 @@ function transformReference(reference, rules) {
   // members. TypeScript uses structural interfaces, so projected classes must
   // expose the inherited interface contract as ordinary public members.
   const byName = new Map(types.map((value) => [value.name, value]));
+  // TypeScript overrides replace an overload set rather than adding to it. When a CLR subtype
+  // adds overloads under a base method's name, repeat the inherited signatures so the derived
+  // declaration remains assignable to its declared base while preserving every callable shape.
+  for (const type of types) {
+    if (type.kind !== "class" || type.members == null || !type.baseType) continue;
+    const base = byName.get(type.baseType.replace(/<.*>$/, ""));
+    if (!base?.members) continue;
+    const overriddenNames = new Set(
+      type.members.filter((member) => member.kind === "method").map((member) => member.name),
+    );
+    const signatures = new Set(type.members.map((member) => `${memberKey(member)}:${memberSignature(member)}`));
+    for (const member of base.members) {
+      if (member.kind !== "method" || !overriddenNames.has(member.name)) continue;
+      const key = `${memberKey(member)}:${memberSignature(member)}`;
+      if (!signatures.has(key)) {
+        type.members.push({ ...member, access: "public", abstract: false });
+        signatures.add(key);
+      }
+    }
+  }
   const interfaceMembers = (name, visited = new Set()) => {
     const identity = name.replace(/<.*>$/, "");
     if (visited.has(identity)) return [];
@@ -750,6 +785,9 @@ function main() {
     }
     const transformed = transformReference(reference, rules);
     expected = { types: transformed.types };
+    if (args.expectedOutput) {
+      fs.writeFileSync(args.expectedOutput, `${JSON.stringify(expected, null, 2)}\n`);
+    }
     diagnostics = compareTypes(expected, target, [
       ...transformed.mappingDiagnostics,
       ...leakDiagnostics(target),

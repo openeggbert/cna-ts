@@ -12,6 +12,8 @@ function clone(value: TouchLocation): TouchLocation {
     : new TouchLocation(value.Id, value.State, value.Position);
 }
 
+const nativeConnection = new WeakMap<TouchCollection, boolean>();
+
 /** Read-only, at-most-eight-contact XNA touch snapshot. */
 export class TouchCollection {
   readonly #touches: TouchLocation[];
@@ -23,7 +25,7 @@ export class TouchCollection {
   }
 
   public get Count(): number { return this.#touches.length; }
-  public get IsConnected(): boolean { return true; }
+  public get IsConnected(): boolean { return nativeConnection.get(this) ?? true; }
   public get IsReadOnly(): boolean { return true; }
 
   public Get(index: number): TouchLocation {
@@ -75,6 +77,13 @@ export class TouchCollection {
   private validateIndex(index: number): void {
     if (!Number.isInteger(index) || index < 0 || index >= this.Count) throw new ArgumentOutOfRangeException("index");
   }
+}
+
+/** Internal construction boundary for a native touch snapshot's connection flag. */
+export function createTouchCollection(touches: TouchLocation[], isConnected: boolean): TouchCollection {
+  const result = new TouchCollection(touches);
+  nativeConnection.set(result, Boolean(isConnected));
+  return result;
 }
 
 /** Runtime attachment matching XNA's nested TouchCollection.Enumerator type. */

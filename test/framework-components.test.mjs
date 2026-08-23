@@ -252,8 +252,21 @@ test("internal backend lifecycle routes are owned and released without exposing 
     Detail: "internal managed test backend",
     async initialize() { calls.push("initialize"); },
     getLastError() { return null; },
-    createGame() { calls.push("create:41"); return 41n; },
-    async runGame(handle) { calls.push(`run:${handle}`); },
+    createGame(callbacks) { calls.push("create:41"); this.callbacks = callbacks; return 41n; },
+    async runGame(handle) {
+      calls.push(`run:${handle}`);
+      this.callbacks.initialize();
+      this.callbacks.loadContent();
+      this.callbacks.beginRun();
+      this.callbacks.update({ TotalGameTimeTicks: 0n, ElapsedGameTimeTicks: 0n, IsRunningSlowly: false });
+      if (this.callbacks.beginDraw()) {
+        this.callbacks.draw({ TotalGameTimeTicks: 0n, ElapsedGameTimeTicks: 0n, IsRunningSlowly: false });
+        this.callbacks.endDraw();
+      }
+      this.callbacks.endRun();
+      this.callbacks.unloadContent();
+      this.callbacks.exiting();
+    },
     runGameOneFrame(handle) { calls.push(`frame:${handle}`); },
     exitGame(handle) { calls.push(`exit:${handle}`); },
     destroyGame(handle) { calls.push(`destroy:${handle}`); },
@@ -275,7 +288,7 @@ test("internal backend lifecycle routes are owned and released without exposing 
 
   assert.equal(exitingSender, null);
   assert.deepEqual(calls, [
-    "initialize", "create:41", "begin", "update:0", "exit:41", "run:41", "end",
+    "initialize", "create:41", "exit:41", "run:41", "begin", "update:0", "end",
     "frame:41", "destroy:41",
   ]);
   assert.throws(() => game.RunOneFrame(), /already disposed/);

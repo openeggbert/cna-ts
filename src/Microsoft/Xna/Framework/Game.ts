@@ -19,6 +19,8 @@ import type { GameComponentCollectionEventArgs } from "./GameComponentCollection
 import { GameServiceContainer } from "./GameServiceContainer.js";
 import { GameTime } from "./GameTime.js";
 import type { GameWindow } from "./GameWindow.js";
+import type { GraphicsDevice } from "./Graphics/GraphicsDevice.js";
+import type { GraphicsDeviceManager } from "./GraphicsDeviceManager.js";
 import type { IDrawable } from "./IDrawable.js";
 import type { IGameComponent } from "./IGameComponent.js";
 import type { IUpdateable } from "./IUpdateable.js";
@@ -52,6 +54,13 @@ function isDrawable(value: IGameComponent): value is IGameComponent & IDrawable 
 function isDisposable(value: IGameComponent): value is IGameComponent & IDisposable {
   return typeof (value as IGameComponent & Partial<IDisposable>).Dispose === "function";
 }
+
+type NativeGameAccess = {
+  readonly Ensure: (backend: CnaBackend) => NativeResourceLifetime;
+  readonly Backend: () => CnaBackend | null;
+};
+const nativeAccess = new WeakMap<Game, NativeGameAccess>();
+const graphicsManagers = new WeakMap<Game, GraphicsDeviceManager>();
 
 /** Managed XNA lifecycle and component pipeline with an explicit CNA execution boundary. */
 export class Game implements IDisposable {
@@ -90,6 +99,10 @@ export class Game implements IDisposable {
   public constructor() {
     this.#components.ComponentAdded.Add((_sender, args) => this.#componentAdded(args));
     this.#components.ComponentRemoved.Add((_sender, args) => this.#componentRemoved(args));
+    nativeAccess.set(this, {
+      Ensure: (backend) => this.#ensureNativeGame(backend),
+      Backend: () => this.#nativeBackend,
+    });
   }
 
   public get Components(): GameComponentCollection { return this.#components; }
@@ -102,6 +115,11 @@ export class Game implements IDisposable {
   }
   public get Window(): GameWindow {
     throw new NativeUnavailableError("Game.Window requires a loaded CNA platform backend");
+  }
+  public get GraphicsDevice(): GraphicsDevice {
+    const manager = graphicsManagers.get(this);
+    if (!manager) throw new InvalidOperationException("No graphics device manager is registered with this Game");
+    return manager.GraphicsDevice;
   }
 
   public get InactiveSleepTime(): TimeSpan { return this.#inactiveSleepTime; }
@@ -130,21 +148,13 @@ export class Game implements IDisposable {
     const backend = getBackend();
     await backend.initialize();
     const lifetime = this.#ensureNativeGame(backend);
-    if (!this.#initialized) {
-      this.Initialize();
-      this.#initialized = true;
-    }
+    graphicsManagers.get(this)?.CreateDevice();
     this.#inRun = true;
-    let began = false;
     try {
-      this.BeginRun();
-      began = true;
-      this.Update(new GameTime(TimeSpan.Zero, TimeSpan.Zero, false));
       if (this.#exitRequested) backend.exitGame(lifetime.Handle);
       await backend.runGame(lifetime.Handle);
       this.#raiseExiting();
     } finally {
-      if (began) this.EndRun();
       this.#inRun = false;
     }
   }
@@ -225,11 +235,14 @@ export class Game implements IDisposable {
   }
 
   public Dispose(): void {
+    if (this.#disposed) return;
     const snapshot = new Array<IGameComponent>(this.#components.Count);
     this.#components.CopyTo(snapshot, 0);
     for (const component of snapshot) {
       if (isDisposable(component)) component.Dispose();
     }
+    graphicsManagers.get(this)?.Dispose();
+    graphicsManagers.delete(this);
     this.#gameLifetime?.Dispose();
     this.#gameLifetime = null;
     this.#nativeBackend = null;
@@ -300,7 +313,33 @@ export class Game implements IDisposable {
 
   #ensureNativeGame(backend: CnaBackend): NativeResourceLifetime {
     if (this.#gameLifetime?.State === "active") return this.#gameLifetime;
-    const handle = backend.createGame();
+    const handle = backend.createGame({
+      initialize: () => {
+        if (this.#initialized) return;
+        this.Initialize();
+        this.#initialized = true;
+      },
+      loadContent: () => this.LoadContent(),
+      beginRun: () => this.BeginRun(),
+      update: (time) => this.Update(new GameTime(
+        TimeSpan.FromTicks(time.TotalGameTimeTicks),
+        TimeSpan.FromTicks(time.ElapsedGameTimeTicks),
+        time.IsRunningSlowly,
+      )),
+      beginDraw: () => this.BeginDraw(),
+      draw: (time) => this.Draw(new GameTime(
+        TimeSpan.FromTicks(time.TotalGameTimeTicks),
+        TimeSpan.FromTicks(time.ElapsedGameTimeTicks),
+        time.IsRunningSlowly,
+      )),
+      endDraw: () => this.EndDraw(),
+      endRun: () => this.EndRun(),
+      unloadContent: () => this.UnloadContent(),
+      exiting: () => this.#raiseExiting(),
+    }, {
+      IsFixedTimeStep: this.#isFixedTimeStep,
+      TargetElapsedTimeTicks: this.#targetElapsedTime.Ticks,
+    });
     this.#nativeBackend = backend;
     this.#gameLifetime = new NativeResourceLifetime({
       Handle: handle,
@@ -320,4 +359,30 @@ export class Game implements IDisposable {
   #ensureUsable(): void {
     if (this.#disposed) throw new InvalidOperationException("Game is already disposed");
   }
+}
+
+export function ensureNativeGameForInternalUse(
+  game: Game,
+  backend: CnaBackend,
+): NativeResourceLifetime {
+  const access = nativeAccess.get(game);
+  if (!access) throw new InvalidOperationException("Invalid Game instance");
+  return access.Ensure(backend);
+}
+
+export function registerGraphicsDeviceManagerForInternalUse(
+  game: Game,
+  manager: GraphicsDeviceManager,
+): void {
+  if (graphicsManagers.has(game)) {
+    throw new InvalidOperationException("The Game already has a GraphicsDeviceManager");
+  }
+  graphicsManagers.set(game, manager);
+}
+
+export function unregisterGraphicsDeviceManagerForInternalUse(
+  game: Game,
+  manager: GraphicsDeviceManager,
+): void {
+  if (graphicsManagers.get(game) === manager) graphicsManagers.delete(game);
 }

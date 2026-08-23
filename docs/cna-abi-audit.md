@@ -19,8 +19,9 @@ declaration scan finds 2,861 unique `CNA_C_API` function names. The ABI uses fix
 codes, UTF-8 string views/caller-owned buffers, versioned structures, and opaque generation-checked
 `uint64_t` handles; zero is the invalid handle.
 
-The binding's first executable slice needs only this audited sentinel set, not eager bindings for
-all 2,861 routes:
+The broad 32-symbol sentinel set remains an audit of planned subsystems. The implemented Node
+adapter separately resolves exactly 50 symbols; `tools/audit-cna-abi.mjs` extracts those names from
+the adapter source and confirms that current headers declare every one.
 
 | Group | Required routes | Evidence |
 | --- | ---: | --- |
@@ -63,8 +64,8 @@ EMCMAKE_AVAILABLE=0
 
 Therefore this run cannot build, load, or browser-test a C-ABI WebAssembly backend. Existing CNA
 browser test scripts exercise engine renderer work, but they are not a packaged CNA C-ABI module
-that an npm binding can import. CNA-TS consequently keeps its backend unavailable and does not
-claim Web support.
+that an npm binding can import. CNA-TS consequently keeps its browser backend unavailable and does
+not claim Web support.
 
 ## Required upstream/artifact contract
 
@@ -82,11 +83,10 @@ The `cna_c_api` CMake target also applies ELF version-script options under `UNIX
 An Emscripten configure/link must be executed to determine whether that guard and the shared-library
 target produce the intended modular ESM output; this audit does not guess from CMake conditionals.
 
-## Opportunistic native Node investigation
+## Native Node evidence
 
-The existing CNA `cmake-build-debug` tree was not usable as a Node source because it was configured
-with `CNA_BUILD_C_API=OFF` and contains no `libcna_c_api.so`. A separate build directory under
-`/tmp` configured the unmodified, read-only CNA revision successfully with:
+The attempt to build current CNA HEAD remains relevant. A separate `/tmp` directory configured the
+unmodified, read-only revision with:
 
 ```text
 CMAKE_BUILD_TYPE=Release
@@ -99,19 +99,47 @@ CNA_DEVICES=OFF
 CNA_USE_CCACHE=OFF
 ```
 
-The build progressed into the C API target but stopped at
+That build progressed into the C API target but stopped at
 `modules/c-api/src/CnaCApiCoreExt.cpp:250`. Its compile-time renderer identity guard compared 49 C
 identities with 50 canonical renderer entries and failed with “A renderer was added to
-`CNA::GraphicsRendererType` without a C identity.” No shared library was produced. Because the
-task forbids modifying upstream CNA and the failure is in upstream source rather than adapter
-tooling, CNA-TS did not patch around it, add an FFI dependency, or construct a Node adapter.
+`CNA::GraphicsRendererType` without a C identity.” No shared library was produced, and CNA-TS did
+not patch upstream.
+
+Before attempting another build, this run searched for compatible artifacts already produced by
+the sibling Java/Rust verification. It selected:
+
+```text
+PATH=/tmp/cna-java-native-working-070/modules/c-api/libcna_c_api.so
+SOURCE_COMMIT=a09196a64
+BUILD=Linux x86-64, HEADLESS renderer/platform, NULL audio
+SHA256=42e099146bf3b470f82fd963a516f8bdd7ff0406da8c37dd53747699117db086
+REPORTED_ABI=0.7.0 (encoded 0x00000700)
+EXPORTED_CNA_SYMBOLS=2861
+```
+
+This path is test evidence only and is not embedded in source, package metadata, or generated
+projects. All dynamic dependencies resolved locally. The small C Node-API adapter loads a path
+supplied by the caller, rejects any ABI other than exact 0.7.0, imports 50 named symbols, carries
+64-bit handles as bigint, and uses synchronous callback trampolines. It adds no generic FFI
+dependency and no finalizer-based ownership.
+
+The native integration command completed six real CNA game lifetimes. Its six scenario groups
+(one Node TAP top-level) cover ABI/symbol validation; 60 frames; 600 frames; live-child parent
+shutdown; repeated creation/destruction; and renderer identity. Across those lifetimes it created
+and released six managers, six device views, six Texture2D resources, and six SpriteBatch resources,
+and polled keyboard, mouse, gamepad, and touch routes. Renderer data reported `HEADLESS` from CNA,
+not the former binding label `CNA`.
 
 ## Selected backend status
 
-No native backend is selected yet. Browser WebAssembly remains the strategic first candidate, and
-the same WebAssembly ABI could be reused under Node if the produced module is host-neutral enough.
-The private backend contract now has typed executable operations for initialization/error state,
-game lifecycle, device borrowing, clear/present, Texture2D/SpriteBatch ownership, and input. The
-managed Game route and its ownership release order are exercised with an internal test backend,
-but no real CNA ABI function was executed. Node is verified only for managed/value behavior,
-package loading, and consumer tests.
+The package defaults to the unavailable backend. `LoadNodeNativeBackend` is an explicit opt-in that
+accepts the compiled adapter and CNA library paths; no platform artifact is selected implicitly.
+Node CNA execution is verified only for Linux x86-64 HEADLESS with the compatible artifact above.
+Windowed/GPU renderers, Windows, macOS, Electron, mobile, and browser runtime remain unverified.
+
+The imported slice supports ABI/errors, game lifecycle and frame hooks, FrameworkDispatcher,
+GraphicsDeviceManager configuration/lifecycle, callback-scoped GraphicsDevice borrowing,
+clear/present, renderer information, Texture2D and SpriteBatch create/destroy, and the already
+modeled keyboard/mouse/gamepad/touch routes. Texture transfer, SpriteBatch begin/draw/end, and
+native GameWindow events are not imported by this bridge yet, so the corresponding strict public
+features remain partial or unavailable rather than simulated.

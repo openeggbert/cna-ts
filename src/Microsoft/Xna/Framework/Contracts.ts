@@ -34,3 +34,9 @@ export interface XnaEvent<TSender, TArgs> {
 export interface IServiceProvider {
   GetService(type: XnaType<unknown>): unknown;
 }
+
+/** Named-result projection used for CLR Try-pattern methods with one out value. */
+export interface TryResult<T> {
+  readonly Success: boolean;
+  readonly Value: T;
+}

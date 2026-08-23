@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const REQUIRED_SYMBOL_GROUPS = {
   versionAndErrors: [
@@ -117,6 +118,8 @@ function formatText(report) {
     `EXPORTED_FUNCTIONS=${report.exportedFunctions}`,
     `REQUIRED_SYMBOLS=${report.requiredSymbols}`,
     `MISSING_REQUIRED_SYMBOLS=${report.missingRequiredSymbols.length}`,
+    `NODE_BRIDGE_IMPORTED_SYMBOLS=${report.nodeBridgeImportedSymbols.length}`,
+    `MISSING_NODE_BRIDGE_SYMBOLS=${report.missingNodeBridgeSymbols.length}`,
     `TRACKED_WASM_ARTIFACTS=${report.trackedWasmArtifacts.length}`,
     `TRACKED_C_API_ESM_LOADERS=${report.trackedCApiEsmLoaders.length}`,
     `EMCC_AVAILABLE=${report.emccAvailable ? 1 : 0}`,
@@ -156,6 +159,12 @@ function main() {
   };
   const required = Object.values(REQUIRED_SYMBOL_GROUPS).flat();
   const missing = required.filter((symbol) => !exportedSymbols.has(symbol));
+  const bridgeSource = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../native/cna_node_bridge.c"), "utf8");
+  const nodeBridgeImportedSymbols = [...bridgeSource.matchAll(/LOAD_REQUIRED\([^\n]*?"(cna_[A-Za-z0-9_]+)"\)/g)]
+    .map((match) => match[1]);
+  const missingNodeBridgeSymbols = nodeBridgeImportedSymbols.filter(
+    (symbol) => !exportedSymbols.has(symbol),
+  );
   const trackedFiles = runGit(args.cnaRoot, ["ls-files"]).split("\n").filter(Boolean);
   const trackedWasmArtifacts = trackedFiles.filter((file) => file.endsWith(".wasm"));
   const trackedCApiEsmLoaders = trackedFiles.filter((file) => {
@@ -172,6 +181,8 @@ function main() {
     exportedFunctions: exportedSymbols.size,
     requiredSymbols: required.length,
     missingRequiredSymbols: missing,
+    nodeBridgeImportedSymbols,
+    missingNodeBridgeSymbols,
     symbolGroups: REQUIRED_SYMBOL_GROUPS,
     trackedWasmArtifacts,
     trackedCApiEsmLoaders,
@@ -188,7 +199,10 @@ function main() {
   if (args.output) fs.writeFileSync(args.output, output);
   else process.stdout.write(output);
 
-  if (missing.length > 0 || (args.requireWasm && report.browserArtifactStatus === "MISSING")) {
+  if (
+    missing.length > 0 || missingNodeBridgeSymbols.length > 0 ||
+    (args.requireWasm && report.browserArtifactStatus === "MISSING")
+  ) {
     process.exitCode = 1;
   }
 }

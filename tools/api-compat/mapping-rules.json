@@ -9,7 +9,24 @@
   "mixedVisibilityOverloads": [
     "Microsoft.Xna.Framework.Game.Dispose",
     "Microsoft.Xna.Framework.GameComponent.Dispose",
-    "Microsoft.Xna.Framework.Content.ContentManager.Dispose"
+    "Microsoft.Xna.Framework.Content.ContentManager.Dispose",
+    "Microsoft.Xna.Framework.DrawableGameComponent.Dispose",
+    "Microsoft.Xna.Framework.Graphics.GraphicsResource.Dispose",
+    "Microsoft.Xna.Framework.Graphics.GraphicsDevice.Dispose",
+    "Microsoft.Xna.Framework.GraphicsDeviceManager.Dispose",
+    "Microsoft.Xna.Framework.Graphics.BlendState.Dispose",
+    "Microsoft.Xna.Framework.Graphics.DepthStencilState.Dispose",
+    "Microsoft.Xna.Framework.Graphics.RasterizerState.Dispose",
+    "Microsoft.Xna.Framework.Graphics.SamplerState.Dispose",
+    "Microsoft.Xna.Framework.Graphics.Texture2D.Dispose",
+    "Microsoft.Xna.Framework.Graphics.Texture3D.Dispose",
+    "Microsoft.Xna.Framework.Graphics.TextureCube.Dispose",
+    "Microsoft.Xna.Framework.Graphics.RenderTarget2D.Dispose",
+    "Microsoft.Xna.Framework.Graphics.RenderTargetCube.Dispose",
+    "Microsoft.Xna.Framework.Graphics.OcclusionQuery.Dispose",
+    "Microsoft.Xna.Framework.Graphics.VertexDeclaration.Dispose",
+    "Microsoft.Xna.Framework.Graphics.VertexBuffer.Dispose",
+    "Microsoft.Xna.Framework.Graphics.IndexBuffer.Dispose"
   ],
   "ignoredConstructors": [
     "Microsoft.Xna.Framework.Content.ContentLoadException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)"
@@ -69,7 +86,9 @@
   "erasedInterfaces": [
     "System.Collections.Generic.ICollection`1",
     "System.Collections.Generic.IList`1",
-    "System.Collections.Generic.IEnumerator`1"
+    "System.Collections.Generic.IEnumerator`1",
+    "Microsoft.Xna.Framework.Graphics.IGraphicsResource",
+    "Microsoft.Xna.Framework.Graphics.IDynamicGraphicsResource"
   ],
   "erasedBaseTypes": [
     "System.Collections.ObjectModel.Collection`1"
