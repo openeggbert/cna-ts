@@ -5,11 +5,13 @@
 the package build emits the JavaScript used by both languages and the declarations used by
 TypeScript.
 
-> Status: XNA projection work in progress. The managed foundation and the selected-profile
-> Framework/core, graphics-device, graphics-resource, state, texture, vertex, and buffer
-> declarations are structurally complete. A small opt-in Node-API bridge has executed CNA ABI
-> 0.7.0 on Linux HEADLESS; no native binary or CNA library is bundled. Without an explicitly loaded
-> backend, `Game.Run()` still fails rather than simulating native execution.
+> Status: XNA projection work in progress: 211 mapped target types are complete and 60 later
+> Audio/Media/Storage/other types remain. The real graphics/content slice now includes typed
+> Texture2D transfer and encoded streams, public SpriteBatch drawing, Effect reflection and stock
+> effect state, managed uncompressed XNB readers, SpriteFont/DrawString, and Model graphs. An
+> opt-in Node-API bridge executes CNA ABI 0.7.0 on Linux HEADLESS; no native binary or CNA library
+> is bundled. Without an explicitly loaded backend, native operations fail rather than simulating
+> execution.
 
 ## One package for both languages
 
@@ -52,11 +54,22 @@ await LoadNodeNativeBackend({
 });
 ```
 
-The adapter enforces exact ABI 0.7.0 and uses the C ABI only. Current native evidence covers game
-lifecycle, graphics manager/device borrowing, clear/present, Texture2D and SpriteBatch ownership,
-renderer information, and keyboard/mouse/gamepad/touch polling. SpriteBatch’s strict public draw
-surface is not implemented yet. Linux HEADLESS evidence is not a Windows, GPU, Electron, browser,
-or mobile support claim.
+The adapter enforces exact ABI 0.7.0 and uses exactly 69 audited symbols. Current native evidence
+covers game lifecycle, graphics manager/device borrowing, clear/present, Texture2D Color
+upload/readback/regions/mips, PNG `FromStream` and encoding, public SpriteBatch drawing,
+SpriteFont XNB/DrawString, model XNB resource construction, vertex/index buffers, renderer
+capabilities, and keyboard/mouse/gamepad/touch polling. This HEADLESS artifact reports custom
+effects but not compiled effects; the bridge imports no effect execution or indexed-draw routes,
+so `EffectPass.Apply` and model rendering fail explicitly while managed reflection/property
+behavior remains usable. Linux HEADLESS evidence is not a Windows, GPU,
+Electron, browser, or mobile support claim.
+
+XNB framing, reader tables/versions, shared resources, disposal tracking, and custom reader
+dispatch are implemented in TypeScript. The current reader accepts uncompressed Windows XNB v5;
+LZX-compressed XNB and generic external-reference resolution remain explicit blockers. Consumers
+register TypeScript custom readers through `RegisterContentTypeReader` from `cna-ts/extensions`,
+while the strict `Microsoft.Xna.Framework.Content` surface stays unchanged. Raw PNG/JPEG bytes go
+through `Texture2D.FromStream`, never `Content.Load`.
 
 ## Compatibility scope
 
@@ -75,6 +88,10 @@ and pins TypeScript 5.9.2.
 npm ci
 npm run check
 npm test
+npm run test:differential
+npm run api:report
+npm run api:verify
+npm run api:inventory
 npm run verify:runtime
 npm run verify:leaks
 npm run verify:package

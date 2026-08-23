@@ -65,6 +65,56 @@ export interface BackendRendererInfo {
   readonly MaxTextureDimension: number;
 }
 
+export interface Texture2DInfo {
+  readonly Width: number;
+  readonly Height: number;
+  readonly LevelCount: number;
+  readonly Format: number;
+}
+
+export interface Texture2DTransfer {
+  readonly DataType: number;
+  readonly ElementSize: number;
+  readonly Level: number;
+  readonly Rectangle: {
+    readonly X: number;
+    readonly Y: number;
+    readonly Width: number;
+    readonly Height: number;
+  } | null;
+  readonly StartIndex: number;
+  readonly ElementCount: number;
+  readonly Capacity: number;
+}
+
+export interface SpriteBatchCommand {
+  readonly Texture: NativeHandle;
+  readonly PositionX: number;
+  readonly PositionY: number;
+  readonly SourceX: number;
+  readonly SourceY: number;
+  readonly SourceWidth: number;
+  readonly SourceHeight: number;
+  readonly ColorR: number;
+  readonly ColorG: number;
+  readonly ColorB: number;
+  readonly ColorA: number;
+  readonly Rotation: number;
+  readonly OriginX: number;
+  readonly OriginY: number;
+  readonly ScaleX: number;
+  readonly ScaleY: number;
+  readonly Effects: number;
+  readonly LayerDepth: number;
+}
+
+export interface VertexElementSnapshot {
+  readonly Offset: number;
+  readonly VertexElementFormat: number;
+  readonly VertexElementUsage: number;
+  readonly UsageIndex: number;
+}
+
 export interface CnaBackend {
   readonly Kind: BackendKind;
   readonly IsAvailable: boolean;
@@ -101,9 +151,39 @@ export interface CnaBackend {
     mipMap: boolean,
     surfaceFormat: number,
   ): NativeHandle;
+  getTexture2DInfo(texture: NativeHandle): Texture2DInfo;
+  createTexture2DFromEncodedMemory(
+    device: NativeHandle,
+    encoded: Uint8Array,
+    decode: { readonly Width: number; readonly Height: number; readonly Zoom: boolean } | null,
+  ): NativeHandle;
+  setTexture2DData(texture: NativeHandle, transfer: Texture2DTransfer, bytes: Uint8Array): void;
+  getTexture2DData(texture: NativeHandle, transfer: Texture2DTransfer): Uint8Array;
+  encodeTexture2D(
+    texture: NativeHandle,
+    imageFormat: number,
+    width: number,
+    height: number,
+  ): Uint8Array;
   destroyTexture2D(texture: NativeHandle): void;
   createSpriteBatch(device: NativeHandle): NativeHandle;
+  beginSpriteBatch(spriteBatch: NativeHandle, sortMode: number): void;
+  submitSpriteBatch(spriteBatch: NativeHandle, commands: readonly SpriteBatchCommand[]): void;
+  endSpriteBatch(spriteBatch: NativeHandle): void;
   destroySpriteBatch(spriteBatch: NativeHandle): void;
+  createVertexBuffer(
+    device: NativeHandle, vertexStride: number, elements: readonly VertexElementSnapshot[],
+    vertexCount: number, usage: number, dynamic: boolean,
+  ): NativeHandle;
+  setVertexBufferRaw(buffer: NativeHandle, bytes: Uint8Array, vertexCount: number, vertexStride: number): void;
+  getVertexBufferRaw(buffer: NativeHandle, vertexCount: number, vertexStride: number): Uint8Array;
+  destroyVertexBuffer(buffer: NativeHandle): void;
+  createIndexBuffer(
+    device: NativeHandle, elementSize: number, indexCount: number, usage: number, dynamic: boolean,
+  ): NativeHandle;
+  setIndexBufferRaw(buffer: NativeHandle, elementSize: number, bytes: Uint8Array): void;
+  getIndexBufferRaw(buffer: NativeHandle, elementSize: number, indexCount: number): Uint8Array;
+  destroyIndexBuffer(buffer: NativeHandle): void;
 
   getKeyboardState(playerIndex: PlayerIndex | null): KeyboardState;
   getMouseState(): MouseState;
@@ -160,9 +240,58 @@ class UnavailableBackend implements CnaBackend {
     _mipMap: boolean,
     _surfaceFormat: number,
   ): NativeHandle { return this.fail(); }
+  public getTexture2DInfo(_texture: NativeHandle): Texture2DInfo { return this.fail(); }
+  public createTexture2DFromEncodedMemory(
+    _device: NativeHandle,
+    _encoded: Uint8Array,
+    _decode: { readonly Width: number; readonly Height: number; readonly Zoom: boolean } | null,
+  ): NativeHandle { return this.fail(); }
+  public setTexture2DData(
+    _texture: NativeHandle,
+    _transfer: Texture2DTransfer,
+    _bytes: Uint8Array,
+  ): void { this.fail(); }
+  public getTexture2DData(
+    _texture: NativeHandle,
+    _transfer: Texture2DTransfer,
+  ): Uint8Array { return this.fail(); }
+  public encodeTexture2D(
+    _texture: NativeHandle,
+    _imageFormat: number,
+    _width: number,
+    _height: number,
+  ): Uint8Array { return this.fail(); }
   public destroyTexture2D(_texture: NativeHandle): void { this.fail(); }
   public createSpriteBatch(_device: NativeHandle): NativeHandle { return this.fail(); }
+  public beginSpriteBatch(_spriteBatch: NativeHandle, _sortMode: number): void { this.fail(); }
+  public submitSpriteBatch(
+    _spriteBatch: NativeHandle,
+    _commands: readonly SpriteBatchCommand[],
+  ): void { this.fail(); }
+  public endSpriteBatch(_spriteBatch: NativeHandle): void { this.fail(); }
   public destroySpriteBatch(_spriteBatch: NativeHandle): void { this.fail(); }
+  public createVertexBuffer(
+    _device: NativeHandle, _vertexStride: number, _elements: readonly VertexElementSnapshot[],
+    _vertexCount: number, _usage: number, _dynamic: boolean,
+  ): NativeHandle { return this.fail(); }
+  public setVertexBufferRaw(
+    _buffer: NativeHandle, _bytes: Uint8Array, _vertexCount: number, _vertexStride: number,
+  ): void { this.fail(); }
+  public getVertexBufferRaw(
+    _buffer: NativeHandle, _vertexCount: number, _vertexStride: number,
+  ): Uint8Array { return this.fail(); }
+  public destroyVertexBuffer(_buffer: NativeHandle): void { this.fail(); }
+  public createIndexBuffer(
+    _device: NativeHandle, _elementSize: number, _indexCount: number,
+    _usage: number, _dynamic: boolean,
+  ): NativeHandle { return this.fail(); }
+  public setIndexBufferRaw(
+    _buffer: NativeHandle, _elementSize: number, _bytes: Uint8Array,
+  ): void { this.fail(); }
+  public getIndexBufferRaw(
+    _buffer: NativeHandle, _elementSize: number, _indexCount: number,
+  ): Uint8Array { return this.fail(); }
+  public destroyIndexBuffer(_buffer: NativeHandle): void { this.fail(); }
 
   public getKeyboardState(_playerIndex: PlayerIndex | null): KeyboardState { return this.fail(); }
   public getMouseState(): MouseState { return this.fail(); }

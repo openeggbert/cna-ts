@@ -4,157 +4,59 @@
 
 Profile: XNA 4.0 Windows runtime
 
-Missing types: 167
+Missing types: 60
 
 | Family | Count |
 | --- | ---: |
-| Framework/core | 4 |
-| Graphics foundation | 13 |
-| Graphics resources | 10 |
-| Graphics states | 15 |
-| Vertex/buffer | 18 |
-| SpriteBatch/font | 4 |
-| Effects | 21 |
-| Models | 12 |
-| Content readers | 10 |
+| Framework/core | 0 |
+| Graphics foundation | 0 |
+| Graphics resources | 0 |
+| Graphics states | 0 |
+| Vertex/buffer | 0 |
+| SpriteBatch/font | 0 |
+| Effects | 0 |
+| Models | 0 |
+| Content readers | 0 |
 | Audio/XACT | 19 |
 | Media | 24 |
 | Storage | 3 |
 | GamerServices/other selected-profile runtime types | 14 |
 
-## Framework/core (4)
+## Framework/core (0)
 
-- `Microsoft.Xna.Framework.DrawableGameComponent`
-- `Microsoft.Xna.Framework.FrameworkDispatcher`
-- `Microsoft.Xna.Framework.TitleContainer`
-- `Microsoft.Xna.Framework.TryResult`
+_None._
 
-## Graphics foundation (13)
+## Graphics foundation (0)
 
-- `Microsoft.Xna.Framework.Graphics.DeviceLostException`
-- `Microsoft.Xna.Framework.Graphics.DeviceNotResetException`
-- `Microsoft.Xna.Framework.Graphics.GraphicsAdapter`
-- `Microsoft.Xna.Framework.Graphics.GraphicsDevice`
-- `Microsoft.Xna.Framework.Graphics.GraphicsFormatQueryResult`
-- `Microsoft.Xna.Framework.Graphics.IGraphicsDeviceService`
-- `Microsoft.Xna.Framework.Graphics.NoSuitableGraphicsDeviceException`
-- `Microsoft.Xna.Framework.Graphics.ResourceCreatedEventArgs`
-- `Microsoft.Xna.Framework.Graphics.ResourceDestroyedEventArgs`
-- `Microsoft.Xna.Framework.GraphicsDeviceInformation`
-- `Microsoft.Xna.Framework.GraphicsDeviceManager`
-- `Microsoft.Xna.Framework.IGraphicsDeviceManager`
-- `Microsoft.Xna.Framework.PreparingDeviceSettingsEventArgs`
+_None._
 
-## Graphics resources (10)
+## Graphics resources (0)
 
-- `Microsoft.Xna.Framework.Graphics.CubeMapFace`
-- `Microsoft.Xna.Framework.Graphics.GraphicsResource`
-- `Microsoft.Xna.Framework.Graphics.OcclusionQuery`
-- `Microsoft.Xna.Framework.Graphics.RenderTarget2D`
-- `Microsoft.Xna.Framework.Graphics.RenderTargetBinding`
-- `Microsoft.Xna.Framework.Graphics.RenderTargetCube`
-- `Microsoft.Xna.Framework.Graphics.Texture`
-- `Microsoft.Xna.Framework.Graphics.Texture2D`
-- `Microsoft.Xna.Framework.Graphics.Texture3D`
-- `Microsoft.Xna.Framework.Graphics.TextureCube`
+_None._
 
-## Graphics states (15)
+## Graphics states (0)
 
-- `Microsoft.Xna.Framework.Graphics.Blend`
-- `Microsoft.Xna.Framework.Graphics.BlendFunction`
-- `Microsoft.Xna.Framework.Graphics.BlendState`
-- `Microsoft.Xna.Framework.Graphics.ColorWriteChannels`
-- `Microsoft.Xna.Framework.Graphics.CompareFunction`
-- `Microsoft.Xna.Framework.Graphics.CullMode`
-- `Microsoft.Xna.Framework.Graphics.DepthStencilState`
-- `Microsoft.Xna.Framework.Graphics.FillMode`
-- `Microsoft.Xna.Framework.Graphics.RasterizerState`
-- `Microsoft.Xna.Framework.Graphics.SamplerState`
-- `Microsoft.Xna.Framework.Graphics.SamplerStateCollection`
-- `Microsoft.Xna.Framework.Graphics.StencilOperation`
-- `Microsoft.Xna.Framework.Graphics.TextureAddressMode`
-- `Microsoft.Xna.Framework.Graphics.TextureCollection`
-- `Microsoft.Xna.Framework.Graphics.TextureFilter`
+_None._
 
-## Vertex/buffer (18)
+## Vertex/buffer (0)
 
-- `Microsoft.Xna.Framework.Graphics.BufferUsage`
-- `Microsoft.Xna.Framework.Graphics.DynamicIndexBuffer`
-- `Microsoft.Xna.Framework.Graphics.DynamicVertexBuffer`
-- `Microsoft.Xna.Framework.Graphics.IVertexType`
-- `Microsoft.Xna.Framework.Graphics.IndexBuffer`
-- `Microsoft.Xna.Framework.Graphics.IndexElementSize`
-- `Microsoft.Xna.Framework.Graphics.PrimitiveType`
-- `Microsoft.Xna.Framework.Graphics.SetDataOptions`
-- `Microsoft.Xna.Framework.Graphics.VertexBuffer`
-- `Microsoft.Xna.Framework.Graphics.VertexBufferBinding`
-- `Microsoft.Xna.Framework.Graphics.VertexDeclaration`
-- `Microsoft.Xna.Framework.Graphics.VertexElement`
-- `Microsoft.Xna.Framework.Graphics.VertexElementFormat`
-- `Microsoft.Xna.Framework.Graphics.VertexElementUsage`
-- `Microsoft.Xna.Framework.Graphics.VertexPositionColor`
-- `Microsoft.Xna.Framework.Graphics.VertexPositionColorTexture`
-- `Microsoft.Xna.Framework.Graphics.VertexPositionNormalTexture`
-- `Microsoft.Xna.Framework.Graphics.VertexPositionTexture`
+_None._
 
-## SpriteBatch/font (4)
+## SpriteBatch/font (0)
 
-- `Microsoft.Xna.Framework.Graphics.SpriteBatch`
-- `Microsoft.Xna.Framework.Graphics.SpriteEffects`
-- `Microsoft.Xna.Framework.Graphics.SpriteFont`
-- `Microsoft.Xna.Framework.Graphics.SpriteSortMode`
+_None._
 
-## Effects (21)
+## Effects (0)
 
-- `Microsoft.Xna.Framework.Graphics.AlphaTestEffect`
-- `Microsoft.Xna.Framework.Graphics.BasicEffect`
-- `Microsoft.Xna.Framework.Graphics.DirectionalLight`
-- `Microsoft.Xna.Framework.Graphics.DualTextureEffect`
-- `Microsoft.Xna.Framework.Graphics.Effect`
-- `Microsoft.Xna.Framework.Graphics.EffectAnnotation`
-- `Microsoft.Xna.Framework.Graphics.EffectAnnotationCollection`
-- `Microsoft.Xna.Framework.Graphics.EffectMaterial`
-- `Microsoft.Xna.Framework.Graphics.EffectParameter`
-- `Microsoft.Xna.Framework.Graphics.EffectParameterClass`
-- `Microsoft.Xna.Framework.Graphics.EffectParameterCollection`
-- `Microsoft.Xna.Framework.Graphics.EffectParameterType`
-- `Microsoft.Xna.Framework.Graphics.EffectPass`
-- `Microsoft.Xna.Framework.Graphics.EffectPassCollection`
-- `Microsoft.Xna.Framework.Graphics.EffectTechnique`
-- `Microsoft.Xna.Framework.Graphics.EffectTechniqueCollection`
-- `Microsoft.Xna.Framework.Graphics.EnvironmentMapEffect`
-- `Microsoft.Xna.Framework.Graphics.IEffectFog`
-- `Microsoft.Xna.Framework.Graphics.IEffectLights`
-- `Microsoft.Xna.Framework.Graphics.IEffectMatrices`
-- `Microsoft.Xna.Framework.Graphics.SkinnedEffect`
+_None._
 
-## Models (12)
+## Models (0)
 
-- `Microsoft.Xna.Framework.Graphics.Model`
-- `Microsoft.Xna.Framework.Graphics.ModelBone`
-- `Microsoft.Xna.Framework.Graphics.ModelBoneCollection`
-- `Microsoft.Xna.Framework.Graphics.ModelBoneCollection.Enumerator`
-- `Microsoft.Xna.Framework.Graphics.ModelEffectCollection`
-- `Microsoft.Xna.Framework.Graphics.ModelEffectCollection.Enumerator`
-- `Microsoft.Xna.Framework.Graphics.ModelMesh`
-- `Microsoft.Xna.Framework.Graphics.ModelMeshCollection`
-- `Microsoft.Xna.Framework.Graphics.ModelMeshCollection.Enumerator`
-- `Microsoft.Xna.Framework.Graphics.ModelMeshPart`
-- `Microsoft.Xna.Framework.Graphics.ModelMeshPartCollection`
-- `Microsoft.Xna.Framework.Graphics.ModelMeshPartCollection.Enumerator`
+_None._
 
-## Content readers (10)
+## Content readers (0)
 
-- `Microsoft.Xna.Framework.Content.ContentReader`
-- `Microsoft.Xna.Framework.Content.ContentSerializerAttribute`
-- `Microsoft.Xna.Framework.Content.ContentSerializerCollectionItemNameAttribute`
-- `Microsoft.Xna.Framework.Content.ContentSerializerIgnoreAttribute`
-- `Microsoft.Xna.Framework.Content.ContentSerializerRuntimeTypeAttribute`
-- `Microsoft.Xna.Framework.Content.ContentSerializerTypeVersionAttribute`
-- `Microsoft.Xna.Framework.Content.ContentTypeReader`
-- `Microsoft.Xna.Framework.Content.ContentTypeReaderManager`
-- `Microsoft.Xna.Framework.Content.ContentTypeReaderOfT`
-- `Microsoft.Xna.Framework.Content.ResourceContentManager`
+_None._
 
 ## Audio/XACT (19)
 

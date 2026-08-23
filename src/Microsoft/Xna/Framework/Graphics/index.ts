@@ -55,6 +55,44 @@ export { RenderTarget2D, RenderTargetCube } from "./RenderTargets.js";
 export { ResourceCreatedEventArgs, ResourceDestroyedEventArgs } from "./ResourceEventArgs.js";
 export { Texture } from "./Texture.js";
 export { Texture2D } from "./Texture2D.js";
+export { SpriteBatch } from "./SpriteBatch.js";
+export { SpriteFont } from "./SpriteFont.js";
+export { SpriteEffects, SpriteSortMode } from "./SpriteEnums.js";
+export {
+  Model,
+  ModelBone,
+  ModelBoneCollection,
+  ModelEffectCollection,
+  ModelMesh,
+  ModelMeshCollection,
+  ModelMeshPart,
+  ModelMeshPartCollection,
+} from "./Model.js";
+export {
+  Effect,
+  EffectAnnotation,
+  EffectAnnotationCollection,
+  EffectMaterial,
+  EffectParameter,
+  EffectParameterClass,
+  EffectParameterCollection,
+  EffectParameterType,
+  EffectPass,
+  EffectPassCollection,
+  EffectTechnique,
+  EffectTechniqueCollection,
+} from "./Effect.js";
+export {
+  AlphaTestEffect,
+  BasicEffect,
+  DirectionalLight,
+  DualTextureEffect,
+  EnvironmentMapEffect,
+  SkinnedEffect,
+  type IEffectFog,
+  type IEffectLights,
+  type IEffectMatrices,
+} from "./StockEffects.js";
 export { Texture3D } from "./Texture3D.js";
 export { TextureCube } from "./TextureCube.js";
 export type { IVertexType } from "./IVertexType.js";

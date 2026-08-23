@@ -11,6 +11,7 @@ import type {
   XnaType,
 } from "../Contracts.js";
 import { ContentLoadException } from "./ContentLoadException.js";
+import { readXnbAssetForInternalUse } from "./ContentReader.js";
 
 function cleanPath(value: string): string {
   let path = value.replaceAll("/", "\\").replaceAll("\\.\\", "\\");
@@ -40,7 +41,7 @@ function isInstance<T>(type: XnaType<T>, value: unknown): value is T {
   return Function.prototype[Symbol.hasInstance].call(type, value) as boolean;
 }
 
-/** Managed content cache/lifetime contract; XNB byte decoding remains a CNA backend operation. */
+/** Managed XNA content cache, lifetime, and XNB reader pipeline. */
 export class ContentManager implements IDisposable {
   readonly #serviceProvider: IServiceProvider;
   readonly #loadedAssets = new Map<string, unknown>();
@@ -82,12 +83,21 @@ export class ContentManager implements IDisposable {
       return cached;
     }
 
-    const value = this.ReadAsset<T>(cleanedName, (asset) => this.#disposableAssets.push(asset));
-    if (!isInstance(assetType, value)) {
-      throw new ContentLoadException(`Asset '${cleanedName}' did not produce the requested runtime type`);
+    const acquired: IDisposable[] = [];
+    try {
+      const value = this.ReadAsset<T>(cleanedName, (asset) => acquired.push(asset));
+      if (!isInstance(assetType, value)) {
+        throw new ContentLoadException(`Asset '${cleanedName}' did not produce the requested runtime type`);
+      }
+      this.#loadedAssets.set(key, value);
+      this.#disposableAssets.push(...acquired);
+      return value;
+    } catch (error) {
+      for (const asset of acquired.reverse()) {
+        try { asset.Dispose(); } catch { /* Preserve the load failure as the primary error. */ }
+      }
+      throw error;
     }
-    this.#loadedAssets.set(key, value);
-    return value;
   }
 
   protected OpenStream(assetName: string): Uint8Array {
@@ -99,9 +109,8 @@ export class ContentManager implements IDisposable {
     assetName: string,
     recordDisposableObject: XnaAction<IDisposable>,
   ): T {
-    void assetName;
-    void recordDisposableObject;
-    throw new NativeUnavailableError("XNB decoding requires a loaded CNA content backend");
+    const input = this.OpenStream(assetName);
+    return readXnbAssetForInternalUse<T>(this, input, assetName, recordDisposableObject);
   }
 
   public Unload(): void {

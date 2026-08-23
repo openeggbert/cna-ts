@@ -26,7 +26,17 @@
     "Microsoft.Xna.Framework.Graphics.OcclusionQuery.Dispose",
     "Microsoft.Xna.Framework.Graphics.VertexDeclaration.Dispose",
     "Microsoft.Xna.Framework.Graphics.VertexBuffer.Dispose",
-    "Microsoft.Xna.Framework.Graphics.IndexBuffer.Dispose"
+    "Microsoft.Xna.Framework.Graphics.IndexBuffer.Dispose",
+    "Microsoft.Xna.Framework.Graphics.Effect.Dispose",
+    "Microsoft.Xna.Framework.Graphics.SpriteBatch.Dispose"
+  ],
+  "publicConstructorOverloads": [
+    "Microsoft.Xna.Framework.Graphics.Effect..ctor(Microsoft.Xna.Framework.Graphics.Effect)",
+    "Microsoft.Xna.Framework.Graphics.AlphaTestEffect..ctor(Microsoft.Xna.Framework.Graphics.AlphaTestEffect)",
+    "Microsoft.Xna.Framework.Graphics.BasicEffect..ctor(Microsoft.Xna.Framework.Graphics.BasicEffect)",
+    "Microsoft.Xna.Framework.Graphics.DualTextureEffect..ctor(Microsoft.Xna.Framework.Graphics.DualTextureEffect)",
+    "Microsoft.Xna.Framework.Graphics.EnvironmentMapEffect..ctor(Microsoft.Xna.Framework.Graphics.EnvironmentMapEffect)",
+    "Microsoft.Xna.Framework.Graphics.SkinnedEffect..ctor(Microsoft.Xna.Framework.Graphics.SkinnedEffect)"
   ],
   "ignoredConstructors": [
     "Microsoft.Xna.Framework.Content.ContentLoadException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)"
@@ -91,7 +101,8 @@
     "Microsoft.Xna.Framework.Graphics.IDynamicGraphicsResource"
   ],
   "erasedBaseTypes": [
-    "System.Collections.ObjectModel.Collection`1"
+    "System.Collections.ObjectModel.Collection`1",
+    "System.Collections.ObjectModel.ReadOnlyCollection`1"
   ],
   "syntheticTypes": [
     {
@@ -176,6 +187,7 @@
     "System.Object": "unknown",
     "System.IntPtr": "bigint",
     "System.IO.Stream": "Uint8Array",
+    "System.Text.StringBuilder": "string",
     "System.EventArgs": "Microsoft.Xna.Framework.EventArgs",
     "System.Exception": "Error",
     "System.IServiceProvider": "Microsoft.Xna.Framework.IServiceProvider",

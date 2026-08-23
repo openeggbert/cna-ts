@@ -519,3 +519,180 @@ LEGACY_OR_SIBLING_REFERENCES=0
 The sibling template also passed its new opt-in Node-native smoke against that installed tarball
 at both 60 and 600 frames, reporting the CNA renderer as `HEADLESS`. Its browser canary and browser
 support statement were left unchanged: no C-ABI Wasm/ESM artifact was available or executed.
+
+## 2026-08-23: real graphics/content vertical slice
+
+### Exact strict contract movement
+
+The run began by regenerating the stale inventory from a strict verifier JSON. Its exact 107
+`MISSING_TYPE` names matched the generated Markdown and JSON before implementation. The final
+verifier JSON at `/tmp/cna-ts-final-api-report.json` and both regenerated inventories again contain
+the same exact diagnostic list, now 60 names.
+
+```text
+                                      BEFORE   AFTER
+REFERENCE_TYPES                         257      257
+REFERENCE_MEMBERS                      2964     2964
+EXPECTED_MAPPED_TYPES                   271      271
+TARGET_TYPES                            164      211
+TOTAL_DIFFERENCES                       107       60
+MISSING_TYPE                            107       60
+MISSING_MEMBER                            0        0
+UNEXPECTED_TYPE                           0        0
+BASE_MISMATCH                             0        0
+INTERFACE_MISMATCH                        0        0
+UNEXPECTED_MEMBER                         0        0
+PROPERTY_MISMATCH                         0        0
+PARAMETER_MISMATCH                        0        0
+RETURN_TYPE_MISMATCH                      0        0
+OVERLOAD_MISMATCH                         0        0
+GENERIC_MISMATCH                          0        0
+ENUM_VALUE_MISMATCH                       0        0
+EVENT_MAPPING_MISMATCH                    0        0
+OPERATOR_MAPPING_MISMATCH                 0        0
+LANGUAGE_MAPPING_MISMATCH                 0        0
+INTERNAL_LEAK                             0        0
+ALLOWLIST_SIZE                            0        0
+RUNTIME_DIFFERENCES                       0        0
+```
+
+| Missing family | Before | After |
+| --- | ---: | ---: |
+| SpriteBatch/font | 4 | 0 |
+| Effects | 21 | 0 |
+| Models | 12 | 0 |
+| Content readers | 10 | 0 |
+| Audio/XACT | 19 | 19 |
+| Media | 24 | 24 |
+| Storage | 3 | 3 |
+| Design/GamerServices/other | 14 | 14 |
+| **Total** | **107** | **60** |
+
+No implemented type ended with a missing member. `ReadOnlyCollection<T>` erasure plus explicit
+inherited read-only surface projection is now a formal mapping rule for Model collections; no
+allowlist was introduced.
+
+### Implemented families and capability boundaries
+
+| Surface | Status | Exact evidence or boundary |
+| --- | --- | --- |
+| Texture2D transfer | verified | Color and mapped packed/typed representations; mip, region, start/count validation; native Color region/mip round trips |
+| Texture2D FromStream | verified | PNG byte stream decoded by CNA; PNG encode copied into caller capacity; JPEG route present |
+| SpriteBatch public API | verified | strict typed Begin/Draw/End overloads and deterministic validation/ownership |
+| SpriteBatch native Draw | verified | real CNA batched submit at 60 and 600 frames |
+| Effect | verified | owned parent plus stable borrowed reflection views and clone isolation |
+| EffectParameter | verified | typed scalar/vector/matrix/array/texture value overloads and snapshots |
+| EffectTechnique | verified | stable collection/name identity and wrong-parent assignment rejection |
+| EffectPass reflection | verified | stable parent-owned views and disposal behavior |
+| EffectPass.Apply | blocked | no effect execution routes imported; never a no-op |
+| BasicEffect | verified | complete managed matrices/fog/light/material/texture state and cloning |
+| BasicEffect execution / 3D | blocked | bridge lacks effect/indexed-draw routes; HEADLESS compiled-effects bit is false |
+| ContentReader | verified | XNB framing, primitive reads, reader indexes, shared fixups, disposal tracking |
+| ContentTypeReader | verified | versioned table activation and existing-instance dispatch |
+| custom readers | verified | user class/reader selected through public `cna-ts/extensions` registration and normal XNB table |
+| shared resources | verified | deferred root finalization and invalid-index/truncation cleanup coverage |
+| XNB | verified | uncompressed Windows XNB v5, synthetic legal custom/SpriteFont/Model fixtures |
+| compressed XNB / external references | blocked | LZX and general external-reference resolution remain explicit errors |
+| ResourceContentManager | verified | byte resource snapshots feed the same managed reader pipeline |
+| SpriteFont | verified | real atlas/glyph/cropping/kerning/character graph and MeasureString |
+| DrawString | verified | real glyph commands submitted through native SpriteBatch |
+| Model | verified | stable bone/mesh collections, transforms, effects, and content graph |
+| ModelMesh | verified | stable parent/part/effect graph; draw execution remains blocked |
+| ModelMeshPart | verified | real native vertex/index buffers and managed effect relationships from XNB |
+| model rendering | blocked | EffectPass.Apply and indexed drawing are not imported |
+
+The differential gate grew without changing any existing expected value:
+
+```text
+OBSERVATIONS=114
+ASSERTIONS=115
+FAILURES=0
+NEW_GRAPHICS_CONTENT_OBSERVATIONS=8
+```
+
+### Native bridge and runtime evidence
+
+The bridge grew only for completed work:
+
+```text
+STARTING_IMPORTED_SYMBOLS=50
+FINAL_IMPORTED_SYMBOLS=69
+TEXTURE2D_NEW_SYMBOLS=6
+SPRITEBATCH_NEW_SYMBOLS=3
+VERTEX_INDEX_BUFFER_NEW_SYMBOLS=10
+ABI_VERSION=0.7.0
+```
+
+The working external evidence artifact remains:
+
+```text
+PATH=/tmp/cna-java-native-working-070/modules/c-api/libcna_c_api.so
+SOURCE_COMMIT=a09196a6477f69a7a57c8364f990658d31531a5b
+LIBRARY_SHA256=42e099146bf3b470f82fd963a516f8bdd7ff0406da8c37dd53747699117db086
+ELF_BUILD_ID=f2ef34a34f7620d3627fef68bf55aed0f883f168
+PLATFORM=Linux x86-64 HEADLESS/NULL-audio
+EXPORTED_CNA_SYMBOLS=2861
+```
+
+Six real CNA game lifetimes cover 60/600 frames, live-child parent shutdown, three repeated game
+lifetimes, double disposal, Texture2D transfers and encoded images, SpriteBatch cycles,
+SpriteFont/DrawString, content-loaded resource disposal, and Model XNB vertex/index resources.
+Actual renderer flags report custom effects available and compiled effects unavailable; CNA-TS has
+not imported custom-effect execution routes.
+
+| Runtime evidence | Status |
+| --- | --- |
+| 2D drawing | verified |
+| 60 real draw frames | verified |
+| 600 real draw frames | verified |
+| Effect execution | blocked |
+| BasicEffect / 3D | blocked |
+| uncompressed XNB content loading | verified |
+| SpriteFont / DrawString | verified |
+| model loading | verified |
+| model rendering | blocked |
+
+Current read-only CNA HEAD remains
+`1bb2145d99ed572dd4eb15009c34e2e5f410fcf0`. A clean unmodified C-API build was repeated in
+`/tmp/cna-ts-cna-head-20260823`; configure passed, then compilation failed at
+`modules/c-api/src/CnaCApiCoreExt.cpp:250` with the same renderer identity assertion
+`49 == 50`. CNA source was not modified and no current-HEAD library was produced.
+
+### Exact package, template, and platforms
+
+One produced artifact was reused for every packed consumer and template check:
+
+```text
+FILENAME=cna-ts-0.1.0.tgz
+PATH=/tmp/cna-ts-final-20260823/cna-ts-0.1.0.tgz
+SHA256=639cf0df2d751b8f1f02886f25203babd34be95de377ad46da6606f866b96050
+FILES=572
+BYTES=271684
+PACKED_TYPESCRIPT_CONSUMER=PASS
+PACKED_JAVASCRIPT_CONSUMER=PASS
+INTERNAL_EXPORT_BLOCK=PASS
+GENERATED_TYPESCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_MANAGED_SMOKE=PASS
+LEGACY_OR_SIBLING_REFERENCES=0
+TEMPLATE_60_NATIVE_DRAW_FRAMES=PASS
+TEMPLATE_600_NATIVE_DRAW_FRAMES=PASS
+```
+
+The template's maintained `HelloGame` now performs real PNG `FromStream`, moving-sprite state,
+Clear, SpriteBatch Begin/Draw/End, keyboard/mouse/gamepad polling, and deterministic disposal. Its
+browser claims are unchanged.
+
+| Platform | Status |
+| --- | --- |
+| Node managed | verified |
+| Node CNA native (Linux x86-64 HEADLESS) | verified |
+| Browser/Wasm | blocked |
+| Electron | not attempted |
+| Android | not attempted |
+| iOS | not attempted |
+
+Final gates passed: `npm run check`, `npm test`, `npm run test:differential`, `npm run api:report`,
+`npm run api:verify`, `npm run api:inventory`, `npm run verify:runtime`, `npm run verify:leaks`,
+`npm run verify:package -- --package <exact tarball>`, `npm run audit:cna-abi`, native integration,
+template builds/smokes, and both repositories' `git diff --check`.

@@ -1,9 +1,10 @@
 {
   "schemaVersion": 2,
   "profile": "XNA 4.0 Windows runtime",
-  "provenance": "Neutral inputs from CNA-C# MathBehaviorCorpus/InputBehaviorCorpus; expected results derived from XNA 4.0 Windows reference source and IL and normalized by the CNA-C# corpus",
+  "provenance": "Neutral inputs from CNA-C# MathBehaviorCorpus/InputBehaviorCorpus plus CNA-TS graphics/content cases; expected results derived from XNA 4.0 Windows reference source, IL, and metadata and normalized as deterministic text",
   "mathObservationCount": 83,
   "inputObservationCount": 23,
+  "graphicsContentObservationCount": 8,
   "cases": [
     { "id": "v2.normalize.zero", "expected": "NaN,NaN" },
     { "id": "v3.normalize.zero", "expected": "NaN,NaN,NaN" },
@@ -110,6 +111,14 @@
     { "id": "touch.string", "expected": "{Position:{X:1 Y:2}}" },
     { "id": "touch.collection.clone", "expected": "5" },
     { "id": "touch.collection.contains", "expected": "0" },
-    { "id": "touch.collection.oob", "expected": "ArgumentOutOfRangeException" }
+    { "id": "touch.collection.oob", "expected": "ArgumentOutOfRangeException" },
+    { "id": "graphics.texture.validation", "expected": "ArgumentOutOfRangeException,ArgumentException,ArgumentException" },
+    { "id": "graphics.spritebatch.pairing", "expected": "InvalidOperationException,InvalidOperationException,InvalidOperationException" },
+    { "id": "graphics.spritefont.measure", "expected": "41500000,41100000" },
+    { "id": "graphics.effect.parameter", "expected": "1,40E00000,41000000" },
+    { "id": "graphics.effect.identity", "expected": "1,1" },
+    { "id": "graphics.basiceffect.defaults", "expected": "3F800000,0,00000000,3F800000,0,0,0,41800000" },
+    { "id": "graphics.model.absolute", "expected": "40400000,40800000,40A00000" },
+    { "id": "content.xnb.badmagic", "expected": "ContentLoadException" }
   ]
 }

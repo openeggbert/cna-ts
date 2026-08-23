@@ -143,6 +143,9 @@ function mapType(value, rules, genericNames = []) {
       "System.Collections.Generic.Dictionary`2": "Map",
       "System.Collections.ObjectModel.ReadOnlyCollection`1": "ReadonlyArray",
       "System.Collections.Generic.IEnumerator`1": "IterableIterator",
+      "System.Collections.Generic.List.Enumerator`1": "IterableIterator",
+      "System.Collections.Generic.List.Enumerator": "IterableIterator",
+      "System.Collections.Generic.List`1+Enumerator": "IterableIterator",
       "System.Nullable`1": "Nullable",
       "System.EventHandler`1": "XnaEventHandler",
       "System.IEquatable`1": "Microsoft.Xna.Framework.IEquatable",
@@ -304,7 +307,11 @@ function transformReference(reference, rules) {
         continue;
       }
       if (member.kind === "method" || member.kind === "constructor") {
-        members.push(mapCallable(member, rules, genericNames));
+        const mapped = mapCallable(member, rules, genericNames);
+        if (constructorIdentity && (rules.publicConstructorOverloads ?? []).includes(constructorIdentity)) {
+          mapped.access = "public";
+        }
+        members.push(mapped);
       } else if (member.kind === "property" && member.parameters.length > 0) {
         const indexes = mappedParameters(member.parameters, rules, genericNames);
         const type = mapType(member.type, rules, genericNames);
@@ -400,6 +407,36 @@ function transformReference(reference, rules) {
         method("RemoveAt", "void", [parameter("index", "number")]),
       );
     }
+    if (genericBase?.base === "System.Collections.ObjectModel.ReadOnlyCollection`1") {
+      const itemType = mapType(genericBase.argumentsList[0], rules, genericNames);
+      const parameter = (name, type) => ({ name, type, optional: false, rest: false });
+      const method = (name, returnType, parameters) => ({
+        kind: "method",
+        name,
+        access: "public",
+        static: false,
+        abstract: false,
+        genericArity: 0,
+        genericParameters: [],
+        returnType,
+        parameters,
+      });
+      members.push(
+        {
+          kind: "property",
+          name: "Count",
+          type: "number",
+          static: false,
+          getterAccess: "public",
+          setterAccess: "none",
+          parameters: [],
+        },
+        method("Get", itemType, [parameter("index", "number")]),
+        method("Contains", "boolean", [parameter("item", itemType)]),
+        method("CopyTo", "void", [parameter("array", `${itemType}[]`), parameter("arrayIndex", "number")]),
+        method("IndexOf", "number", [parameter("item", itemType)]),
+      );
+    }
     const uniqueMembers = new Map();
     for (const member of members) {
       const key = `${memberKey(member)}:${memberSignature(member)}`;
@@ -421,11 +458,16 @@ function transformReference(reference, rules) {
         )
           ? null
           : mapType(sourceType.baseType, rules, genericNames),
-      interfaces: sourceType.interfaces
+      interfaces: [
+        ...sourceType.interfaces
         .filter((value) => !(rules.erasedInterfaces ?? []).some(
           (identity) => value === identity || value.startsWith(`${identity}[`),
         ))
-        .map((value) => mapType(value, rules, genericNames))
+        .map((value) => mapType(value, rules, genericNames)),
+        ...(genericBase?.base === "System.Collections.ObjectModel.ReadOnlyCollection`1"
+          ? [`Iterable<${mapType(genericBase.argumentsList[0], rules, genericNames)}>`]
+          : []),
+      ]
         .sort(),
       members: [...uniqueMembers.values()],
     });

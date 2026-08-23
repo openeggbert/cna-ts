@@ -9,6 +9,7 @@ import {
   Game,
   GameTime,
   GameWindow,
+  Graphics,
   MathHelper,
   Matrix,
   Microsoft,
@@ -23,7 +24,7 @@ import {
   Vector3,
   Vector4,
 } from "cna-ts";
-import { GetRendererInfo } from "cna-ts/extensions";
+import { GetRendererInfo, RegisterContentTypeReader } from "cna-ts/extensions";
 import { GetRuntimeStatus } from "cna-ts/runtime";
 import { Vector2 as StrictVector2 } from "cna-ts/xna";
 
@@ -38,6 +39,16 @@ const services: GameServiceContainer = game.Services;
 const keyboard = new Input.KeyboardState([Input.Keys.A]);
 const windowType: typeof GameWindow = GameWindow;
 class Asset {}
+class AssetReader extends Content.ContentTypeReaderOfT<Asset> {
+  public constructor() { super(); }
+  protected override Read(input: Content.ContentReader, existingInstance: Asset): Asset {
+    void input;
+    return existingInstance ?? new Asset();
+  }
+}
+const unregisterAssetReader = RegisterContentTypeReader(
+  "Example.AssetReader, Example", AssetReader, Asset,
+);
 const contentAsset: Asset | undefined = false
   ? game.Content.Load(Asset, "asset")
   : undefined;
@@ -59,6 +70,20 @@ void presentation;
 void displayModeType;
 void GetRuntimeStatus;
 void GetRendererInfo;
+void unregisterAssetReader;
+declare const graphicsDevice: Graphics.GraphicsDevice;
+if (false) {
+  const texture = new Graphics.Texture2D(graphicsDevice, 4, 4);
+  texture.SetData([Color.White, Color.Red, Color.Green, Color.Blue]);
+  const spriteBatch = new Graphics.SpriteBatch(graphicsDevice);
+  spriteBatch.Begin();
+  spriteBatch.Draw(texture, Vector2.Zero, Color.White);
+  spriteBatch.End();
+  const basicEffect = new Graphics.BasicEffect(graphicsDevice);
+  basicEffect.World = Matrix.Identity;
+  const model = game.Content.Load(Graphics.Model, "model");
+  void [spriteBatch, basicEffect, model];
+}
 void new BoundingBox(Vector3.Zero, Vector3.One);
 void new BoundingSphere(Vector3.Zero, 1);
 void new BoundingFrustum(Matrix.Identity);

@@ -1,4 +1,9 @@
 import { GetRuntimeStatus, NativeUnavailableError } from "../runtime/index.js";
+import type { XnaType } from "../Microsoft/Xna/Framework/Contracts.js";
+import type { ContentTypeReaderOfT } from
+  "../Microsoft/Xna/Framework/Content/ContentTypeReader.js";
+import { registerContentTypeReaderForInternalUse } from
+  "../Microsoft/Xna/Framework/Content/ContentTypeReaderManager.js";
 
 export interface RendererInfo {
   readonly Name: string;
@@ -23,4 +28,16 @@ export function GetRendererInfo(): RendererInfo {
     ...status.RendererInfo,
     Backend: status.Backend,
   });
+}
+
+/**
+ * Registers a TypeScript reader token for the CLR reader name serialized in an XNB reader table.
+ * The returned function removes exactly this registration and is safe to call more than once.
+ */
+export function RegisterContentTypeReader<T>(
+  serializedName: string,
+  readerType: new () => ContentTypeReaderOfT<T>,
+  targetType: XnaType<T>,
+): () => void {
+  return registerContentTypeReaderForInternalUse(serializedName, readerType, targetType);
 }

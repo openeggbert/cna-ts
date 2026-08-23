@@ -51,8 +51,10 @@ member contract. `System.Exception` maps to `Error`, and `System.EventArgs` to t
 projection. CLR `ICollection<T>`/`IList<T>` implementation heritage on XNA's named collection
 classes is erased: those classes are not JavaScript arrays, while every declared XNA collection
 member remains verified. A `Collection<T>` base is likewise erased, but its inherited public
-collection surface is projected and verified on the named class. A `Dictionary<K,V>` base maps to
-JavaScript `Map<K,V>`. Public `GetEnumerator()` results map to `IterableIterator<T>`; an
+collection surface is projected and verified on the named class. `ReadOnlyCollection<T>` follows
+the same rule for Model collections: mutation stays absent while `Count`, index access, lookup,
+copy, and enumeration remain explicit. A `Dictionary<K,V>` base maps to JavaScript `Map<K,V>`.
+Public `GetEnumerator()` results map to `IterableIterator<T>`; an
 `IEnumerable<T>` class also implements `Iterable<T>` and its required `[Symbol.iterator]()` is a
 machine-recognized JavaScript protocol adaptation rather than an unexpected XNA member.
 
@@ -132,6 +134,9 @@ CLR finalizers are omitted because JavaScript garbage collection cannot expose d
 also omitted; JavaScript errors use their ordinary constructor and optional `cause`. Where CLR
 declares a public `Dispose()` and protected `Dispose(bool)` overload on the same class, TypeScript
 projects the public overload because it cannot express overload-specific accessibility.
+The same limitation applies to `Effect`'s protected clone constructor beside its public byte-code
+constructor, so both constructor signatures are callable in the TypeScript projection; `Clone()`
+remains the ordinary public cloning API.
 
 ## Generics and content loading
 
@@ -152,10 +157,26 @@ files use the mapped `Texture2D.FromStream`/raw-image route, not `Content.Load` 
 actually been compiled to XNB.
 
 `System.Action<T>` maps to `XnaAction<T> = (value: T) => void`. The protected synchronous
-`System.IO.Stream` surface used by `ContentManager` maps to `Uint8Array`, the byte representation
-available consistently in Node and browsers. This does not claim an XNB decoder: managed
-`ContentManager` caching, root-directory state, type-token checks, unload, and disposal are
-implemented, while base XNB reading fails explicitly until a real content backend is loaded.
+`System.IO.Stream` surface used by `ContentManager`, `Texture2D.FromStream`, and texture save
+methods maps to `Uint8Array`, the deterministic byte representation available in Node and
+browsers. Inputs are snapshotted. Save methods accept caller-owned writable capacity and copy the
+encoded result into it; insufficient capacity is an argument error.
+
+Managed `ContentManager` implements uncompressed Windows XNB v5 framing, reader tables and
+versions, reader indexes, shared-resource fixups, cache/unload, disposable tracking, and built-in
+Texture2D/SpriteFont/Model resource readers. `Content.Load(Type, name)` and nested reader dispatch
+use the same class-token model. CLR reflection cannot discover a TypeScript reader constructor by
+assembly-qualified string, so `cna-ts/extensions` provides `RegisterContentTypeReader(name,
+readerType, targetType)`; this is a CNA-TS language bridge outside the strict XNA namespace. LZX
+compression and general external-reference resolution fail explicitly until implemented.
+
+Texture transfer generics retain their XNA overload declarations. At runtime, the binding accepts
+only deterministic mapped representations: `Color[]`, supported typed arrays, and supported
+packed-vector arrays. Each representation supplies a fixed element size and native byte codec;
+surface-format compatibility, mip/region bounds, source offsets, and counts are validated before
+the synchronous CNA call. Arbitrary JavaScript objects are not treated as generic texture data.
+`System.Text.StringBuilder` parameters map to `string`: a JavaScript caller supplies an immutable
+text value, which the binding snapshots at the call boundary.
 
 ## Delegates and events
 

@@ -1,6 +1,6 @@
 # CNA-TS implementation plan
 
-Status date: 2026-08-22
+Status date: 2026-08-23
 
 Selected profile: XNA 4.0 Windows runtime
 
@@ -16,9 +16,8 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   `dist/` under strict NodeNext settings.
 - [x] Root, `xna`, `extensions`, and `runtime` package exports resolve in compile probes.
 - [x] Node baseline is 20+; local verification currently uses checksum-verified Node 22.14.0.
-- [x] The strict target now has 164 measured types: the previous managed foundation plus complete
-  selected-profile Framework/core, graphics foundation/resource/state, and vertex/buffer
-  declaration families.
+- [x] The strict target now has 211 measured types: the managed/graphics foundation plus complete
+  selected-profile SpriteBatch/font, Effect, ContentReader, and Model declaration families.
 - [x] `Game` drives its managed pipeline from real CNA lifecycle callbacks when the opt-in Node
   backend is loaded; the default/backendless path remains explicitly unavailable.
 - [x] Linux x86-64 HEADLESS Node execution is verified through an existing exact CNA ABI-0.7
@@ -63,9 +62,9 @@ Current measured report:
 REFERENCE_TYPES=257
 REFERENCE_MEMBERS=2964
 EXPECTED_MAPPED_TYPES=271
-TARGET_TYPES=164
-TOTAL_DIFFERENCES=107
-MISSING_TYPE=107
+TARGET_TYPES=211
+TOTAL_DIFFERENCES=60
+MISSING_TYPE=60
 MISSING_MEMBER=0
 all other diagnostic categories=0
 ALLOWLIST_SIZE=0
@@ -100,8 +99,7 @@ progress.”
 - [x] Implement the first real backend as a small N-API adapter over an explicitly supplied CNA
   ABI-0.7 library.
 - [x] Exact ABI version, UTF-8 errors, synchronous callbacks, bigint handles, child ownership, and
-  shutdown have Linux HEADLESS integration evidence; general arrays and native GameWindow events
-  remain open.
+  shutdown have Linux HEADLESS integration evidence; native GameWindow events remain open.
 
 ## CNA C ABI status
 
@@ -113,7 +111,7 @@ progress.”
   first-slice sentinel symbols; it separately reports tracked C-ABI Wasm/ESM artifacts.
 - [ ] Produce or obtain a consumable C-ABI WebAssembly ESM artifact.
 - [x] Define the first exact symbol subset rather than binding all 2,861 routes blindly.
-- [x] The audit extracts and verifies the adapter's exact 50 imported symbols separately from the
+- [x] The audit extracts and verifies the adapter's exact 69 imported symbols separately from the
   broader 32-symbol cross-subsystem sentinel list.
 - [x] An isolated unmodified HEADLESS native build was investigated and stopped at CNA's upstream
   C-API renderer table assertion (49 identities versus 50); no library or adapter was fabricated.
@@ -138,8 +136,8 @@ progress.”
   Color, Point, Rectangle, Plane, Ray, bounding volumes/frustum, curves, and all 17 packed values.
 - [x] Import the first 26-observation neutral XNA differential JSON corpus, including NaN,
   infinities, signed zero, rounding, clamping, packing, matrix inversion, and geometry edges.
-- [x] Expand the shared neutral corpus to all currently available 106 observations: 83 math/value
-  and 23 input/touch, producing 107 passing TAP assertions and zero failures.
+- [x] Expand the shared neutral corpus to 114 observations: 83 math/value, 23 input/touch, and
+  eight graphics/content observations, producing 115 passing TAP assertions and zero failures.
 - [x] Add compile/type probes and managed regressions for the completed value/input groups.
 
 ## Game/device/window
@@ -160,8 +158,13 @@ progress.”
   deterministic disposal.
 - [x] Complete graphics states and stock presets, texture/render-target declarations, vertex
   declarations/values, and buffer declarations; real Texture2D create/destroy is verified.
-- [ ] Implement typed texture transfer/encoded streams, strict public SpriteBatch, SpriteFont,
-  effects, BasicEffect, and models in dependency order.
+- [x] Implement typed Texture2D transfer/encoded streams, strict public SpriteBatch, SpriteFont,
+  Effect reflection, BasicEffect/stock-effect managed state, and Model graphs in dependency order.
+- [x] Route real Texture2D transfer/PNG and SpriteBatch Begin/Draw/End through CNA and construct
+  native vertex/index resources from managed XNB Model readers.
+- [ ] Import effect execution and indexed drawing only with real CNA routes and renderer evidence;
+  this HEADLESS artifact advertises custom effects but not compiled effects, and no effect routes
+  are imported by CNA-TS yet.
 
 ## Input/touch
 
@@ -175,11 +178,12 @@ progress.”
 ## Content and models
 
 - [x] Implement and machine-verify the class-token `Content.Load(Type, name)` mapping consistently.
-- [x] Implement `ContentManager` root/cache/type/disposable/unload state without claiming XNB
-  decoding; base reading fails explicitly when no backend exists.
-- [ ] Implement XNB header/reader table, caching, unload, built-in readers, shared resources, and
-  custom readers before claiming ContentManager functionality.
-- [ ] Keep raw PNG loading separate from XNB content loading.
+- [x] Implement `ContentManager` root/cache/type/disposable/unload state and managed uncompressed
+  Windows XNB v5 framing.
+- [x] Implement reader tables/versions/indexes, shared resources, cleanup, public extension-based
+  custom reader registration, and Texture2D/SpriteFont/Model built-in reader graphs.
+- [x] Keep raw PNG loading on `Texture2D.FromStream`, separate from XNB content loading.
+- [ ] Implement LZX compression and general external-reference resolution.
 
 ## Audio/XACT, media, storage, GamerServices
 
@@ -199,11 +203,12 @@ progress.”
 - [x] Replace aspirational cube/mobile claims with the smallest truthful managed/build canary.
 - [x] Expand the managed canary to exercise components, services, keyboard snapshots, and matrix
   math without treating those as rendering or hardware polling evidence.
-- [x] Add a separate opt-in template Node-native smoke for lifecycle, GameTime, device, Texture2D,
-  keyboard, deterministic draw count, and clean shutdown.
-- [ ] Complete strict public SpriteBatch drawing and native window/resize before calling the full
-  first functional slice complete.
-- [ ] Add 3D/BasicEffect only after the 2D route works.
+- [x] Make the template's actual `HelloGame` an opt-in Node-native 2D demo using embedded PNG
+  `FromStream`, public SpriteBatch drawing, moving state, input polling, and deterministic cleanup.
+- [x] Verify the template at 60 and 600 real SpriteBatch draw frames against the final package.
+- [ ] Implement native window/resize and a packaged windowed renderer before making windowed claims.
+- [x] Add managed BasicEffect state after the 2D route; keep BasicEffect execution/3D blocked by
+  measured HEADLESS renderer capability and absent effect/indexed-draw bridge routes.
 - [x] Generate TypeScript and ordinary JavaScript projects from one canonical source; both install
   the packed artifact and build, and JavaScript runs a managed smoke without TypeScript.
 
@@ -235,7 +240,7 @@ progress.”
 - [x] Package exports contain no internal subpath and fresh consumers prove the guard.
 - [x] Final generated template TypeScript/JavaScript projects both install
   `cna-ts-0.1.0.tgz` at SHA-256
-  `6286371bb50ecf1a56529ec812716d676a5bae9d857c5250fd09d6d3ac7aa37b` and pass.
+  `639cf0df2d751b8f1f02886f25203babd34be95de377ad46da6606f866b96050` (572 files) and pass.
 - [ ] Preserve deterministic generated artifact hashes in CI.
 - [x] Manual source `.d.ts` duplication = 0.
 - [x] Hand-maintained duplicate JavaScript implementation = 0.

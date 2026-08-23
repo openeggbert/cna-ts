@@ -3,10 +3,11 @@ import fs from "node:fs";
 import test from "node:test";
 
 import {
-  BoundingBox, BoundingFrustum, BoundingSphere, Color, Curve, CurveContinuity, CurveKey,
+  BoundingBox, BoundingFrustum, BoundingSphere, Color, Content, Curve, CurveContinuity, CurveKey,
   CurveKeyCollection, CurveLoopType, CurveTangent, Graphics, Input, MathHelper, Matrix, Plane,
-  Point, Quaternion, Ray, Rectangle, Vector2, Vector3, Vector4,
+  Game, GraphicsDeviceManager, Point, Quaternion, Ray, Rectangle, Vector2, Vector3, Vector4,
 } from "../dist/index.js";
+import { getBackend, setBackendForInternalUse } from "../dist/internal/backend.js";
 import { touchLocationsEqual } from "../dist/Microsoft/Xna/Framework/Input/Touch/TouchValues.js";
 
 const corpus = JSON.parse(fs.readFileSync(new URL("./fixtures/xna40-value-corpus.json", import.meta.url), "utf8"));
@@ -332,9 +333,125 @@ function captureInput() {
   return observed;
 }
 
+function graphicsBackend() {
+  let next = 100n;
+  return {
+    Kind: "node-native", IsAvailable: true, AbiVersion: "0.7.0-reference",
+    Detail: "deterministic differential backend",
+    async initialize() {}, updateFrameworkDispatcher() {}, getLastError() { return null; },
+    createGame() { return next++; }, async runGame() {}, runGameOneFrame() {}, exitGame() {}, destroyGame() {},
+    createGraphicsDeviceManager() { return next++; }, configureGraphicsDeviceManager() {},
+    applyGraphicsDeviceManagerChanges() {}, toggleGraphicsDeviceManagerFullScreen() {},
+    createManagedGraphicsDevice() {}, beginGraphicsDeviceManagerDraw() { return true; },
+    endGraphicsDeviceManagerDraw() {}, destroyGraphicsDeviceManager() {}, borrowGraphicsDevice() { return 500n; },
+    clearGraphicsDevice() {}, presentGraphicsDevice() {},
+    createTexture2D() { return next++; }, destroyTexture2D() {},
+    createSpriteBatch() { return next++; }, beginSpriteBatch() {}, submitSpriteBatch() {},
+    endSpriteBatch() {}, destroySpriteBatch() {},
+  };
+}
+
+async function captureGraphicsContent() {
+  const observed = new Map();
+  const add = (id, value) => observed.set(id, value);
+  const previous = getBackend();
+  setBackendForInternalUse(graphicsBackend());
+  const game = new Game();
+  const manager = new GraphicsDeviceManager(game);
+  manager.CreateDevice();
+  const device = manager.GraphicsDevice;
+  const texture = new Graphics.Texture2D(device, 4, 4);
+  const batch = new Graphics.SpriteBatch(device);
+  try {
+    add("graphics.texture.validation", [
+      exceptionName(() => texture.SetData(1, null, new Array(16).fill(Color.White), 0, 16)),
+      exceptionName(() => texture.SetData(0, new Rectangle(-1, 0, 1, 1), [Color.White], 0, 1)),
+      exceptionName(() => texture.SetData(new Uint8Array(64))),
+    ].join(","));
+    add("graphics.spritebatch.pairing", [
+      exceptionName(() => batch.End()),
+      exceptionName(() => batch.Draw(texture, Vector2.Zero, Color.White)),
+      (() => { batch.Begin(); const value = exceptionName(() => batch.Begin()); batch.End(); return value; })(),
+    ].join(","));
+
+    const { createSpriteFontForInternalUse } = await import(
+      "../dist/Microsoft/Xna/Framework/Graphics/SpriteFont.js"
+    );
+    const font = createSpriteFontForInternalUse({
+      Texture: texture,
+      GlyphBounds: [new Rectangle(0, 0, 4, 7), new Rectangle(4, 0, 4, 7)],
+      Cropping: [new Rectangle(0, 1, 4, 7), new Rectangle(0, 1, 4, 7)],
+      Characters: ["A", "?"], LineSpacing: 9, Spacing: 1,
+      Kerning: [new Vector3(1, 4, 1), new Vector3(0, 4, 0)], DefaultCharacter: "?",
+    });
+    const measured = font.MeasureString("AA");
+    add("graphics.spritefont.measure", `${bits(measured.X)},${bits(measured.Y)}`);
+
+    const { createEffectForInternalUse } = await import(
+      "../dist/Microsoft/Xna/Framework/Graphics/Effect.js"
+    );
+    const effect = createEffectForInternalUse(device, {
+      Parameters: [{
+        Name: "Offset", Semantic: "POSITION",
+        ParameterClass: Graphics.EffectParameterClass.Vector,
+        ParameterType: Graphics.EffectParameterType.Single,
+        RowCount: 1, ColumnCount: 2, Value: new Vector2(1, 2), Annotations: [],
+      }],
+      Techniques: [{ Name: "Default", Passes: [{ Name: "P0" }] }],
+    });
+    const parameter = effect.Parameters.Get("Offset");
+    const input = new Vector2(7, 8);
+    parameter.SetValue(input);
+    input.X = 99;
+    const value = parameter.GetValueVector2();
+    add("graphics.effect.parameter", `${flag(parameter === effect.Parameters.GetParameterBySemantic("POSITION"))},${bits(value.X)},${bits(value.Y)}`);
+    const pass = effect.CurrentTechnique.Passes.Get(0);
+    add("graphics.effect.identity", `${flag(effect.CurrentTechnique === effect.Techniques.Get(0))},${flag(pass === effect.CurrentTechnique.Passes.Get("P0"))}`);
+    effect.Dispose();
+
+    const basic = new Graphics.BasicEffect(device);
+    add("graphics.basiceffect.defaults", [
+      bits(basic.Alpha), flag(basic.FogEnabled), bits(basic.FogStart), bits(basic.FogEnd),
+      flag(basic.LightingEnabled), flag(basic.TextureEnabled), flag(basic.VertexColorEnabled),
+      bits(basic.SpecularPower),
+    ].join(","));
+
+    const { createModelForInternalUse } = await import(
+      "../dist/Microsoft/Xna/Framework/Graphics/Model.js"
+    );
+    const model = createModelForInternalUse(device, {
+      Bones: [
+        { Name: "Root", Transform: Matrix.CreateTranslation(1, 1, 1) },
+        { Name: "Child", Transform: Matrix.CreateTranslation(2, 3, 4), ParentIndex: 0 },
+      ],
+      RootBoneIndex: 0,
+      Meshes: [],
+    });
+    const transforms = new Array(2);
+    model.CopyAbsoluteBoneTransformsTo(transforms);
+    add("graphics.model.absolute", vectorBits(transforms[1].Translation));
+
+    class InvalidXnbContent extends Content.ContentManager {
+      constructor() { super({ GetService() { return null; } }); }
+      OpenStream() { return Uint8Array.from([0, 0, 0, 0, 0, 0, 0, 0, 0, 0]); }
+    }
+    class InvalidAsset {}
+    add("content.xnb.badmagic", exceptionName(() => new InvalidXnbContent().Load(InvalidAsset, "bad")));
+    basic.Dispose();
+  } finally {
+    batch.Dispose();
+    texture.Dispose();
+    game.Dispose();
+    setBackendForInternalUse(previous);
+  }
+  return observed;
+}
+
 test(`XNA differential corpus: ${corpus.cases.length} observations`, async (context) => {
   assert.equal(corpus.profile, "XNA 4.0 Windows runtime");
-  const observations = new Map([...captureMath(), ...captureInput()]);
+  const observations = new Map([
+    ...captureMath(), ...captureInput(), ...(await captureGraphicsContent()),
+  ]);
   assert.equal(observations.size, corpus.cases.length);
   for (const fixture of corpus.cases) {
     await context.test(fixture.id, () => assert.equal(observations.get(fixture.id), fixture.expected));

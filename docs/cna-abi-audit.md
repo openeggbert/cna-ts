@@ -1,6 +1,6 @@
 # CNA C ABI audit
 
-Audit date: 2026-08-22
+Audit date: 2026-08-23
 
 This is a read-only binding-side audit of CNA revision
 `1bb2145d99ed572dd4eb15009c34e2e5f410fcf0`. CNA itself remains the authority. Reproduce the
@@ -20,7 +20,7 @@ codes, UTF-8 string views/caller-owned buffers, versioned structures, and opaque
 `uint64_t` handles; zero is the invalid handle.
 
 The broad 32-symbol sentinel set remains an audit of planned subsystems. The implemented Node
-adapter separately resolves exactly 50 symbols; `tools/audit-cna-abi.mjs` extracts those names from
+adapter separately resolves exactly 69 symbols; `tools/audit-cna-abi.mjs` extracts those names from
 the adapter source and confirms that current headers declare every one.
 
 | Group | Required routes | Evidence |
@@ -46,6 +46,19 @@ All 32 sentinel symbols are present. Important lifetime evidence is explicit in 
 
 These contracts justify the binding's internal `owned`, `borrowed`, `parent-owned`, and
 `adopted/transferred` states. They do not justify exposing the numeric handle publicly.
+
+The adapter grew from 50 to 69 symbols only for implemented routes:
+
+| Exact adapter group | Symbols | Change |
+| --- | ---: | ---: |
+| ABI/error | 3 | 0 |
+| game/framework lifecycle | 7 | 0 |
+| manager/device/renderer information | 22 | 0 |
+| Texture2D | 8 | +6 transfer/info/encoded routes |
+| SpriteBatch | 5 | +3 begin/submit/end routes |
+| vertex declaration/buffer and index buffer | 10 | +10 |
+| keyboard/mouse/gamepad/touch | 14 | 0 |
+| **Total** | **69** | **+19** |
 
 ## Browser artifact finding
 
@@ -85,8 +98,8 @@ target produce the intended modular ESM output; this audit does not guess from C
 
 ## Native Node evidence
 
-The attempt to build current CNA HEAD remains relevant. A separate `/tmp` directory configured the
-unmodified, read-only revision with:
+The attempt to build current CNA HEAD was repeated on 2026-08-23. A fresh separate `/tmp`
+directory configured the unmodified, read-only revision with:
 
 ```text
 CMAKE_BUILD_TYPE=Release
@@ -119,16 +132,19 @@ EXPORTED_CNA_SYMBOLS=2861
 
 This path is test evidence only and is not embedded in source, package metadata, or generated
 projects. All dynamic dependencies resolved locally. The small C Node-API adapter loads a path
-supplied by the caller, rejects any ABI other than exact 0.7.0, imports 50 named symbols, carries
+supplied by the caller, rejects any ABI other than exact 0.7.0, imports 69 named symbols, carries
 64-bit handles as bigint, and uses synchronous callback trampolines. It adds no generic FFI
 dependency and no finalizer-based ownership.
 
-The native integration command completed six real CNA game lifetimes. Its six scenario groups
-(one Node TAP top-level) cover ABI/symbol validation; 60 frames; 600 frames; live-child parent
-shutdown; repeated creation/destruction; and renderer identity. Across those lifetimes it created
-and released six managers, six device views, six Texture2D resources, and six SpriteBatch resources,
-and polled keyboard, mouse, gamepad, and touch routes. Renderer data reported `HEADLESS` from CNA,
-not the former binding label `CNA`.
+The native integration command completed six real CNA game lifetimes. Its scenario groups (one
+isolated Node TAP top-level) cover ABI/symbol validation; 60 real draw frames; 600 real draw frames;
+live-child parent shutdown; repeated creation/destruction; and renderer identity/capabilities.
+Each full lifecycle exercises Texture2D Color transfer and region readback, PNG `FromStream` and
+PNG encoding, public SpriteBatch Begin/Draw/End, synthetic uncompressed SpriteFont XNB plus
+DrawString, synthetic Model XNB plus real vertex/index buffer construction and readback, content
+disposal, and input polling. Renderer data reports `HEADLESS` from CNA; its actual capability bits
+report custom effects available and compiled effects unavailable. CNA-TS has not imported the
+custom-effect execution routes, so the capability bit is evidence about CNA, not a binding claim.
 
 ## Selected backend status
 
@@ -139,7 +155,8 @@ Windowed/GPU renderers, Windows, macOS, Electron, mobile, and browser runtime re
 
 The imported slice supports ABI/errors, game lifecycle and frame hooks, FrameworkDispatcher,
 GraphicsDeviceManager configuration/lifecycle, callback-scoped GraphicsDevice borrowing,
-clear/present, renderer information, Texture2D and SpriteBatch create/destroy, and the already
-modeled keyboard/mouse/gamepad/touch routes. Texture transfer, SpriteBatch begin/draw/end, and
-native GameWindow events are not imported by this bridge yet, so the corresponding strict public
-features remain partial or unavailable rather than simulated.
+clear/present, renderer information, Texture2D transfer/encoded image routes, SpriteBatch
+Begin/Draw/End, vertex/index buffer construction and raw built-in-content transfer, and the already
+modeled keyboard/mouse/gamepad/touch routes. Effect execution/reflection routes, indexed drawing,
+generic public vertex transfer, and native GameWindow events are not imported; those capabilities
+remain explicit blockers rather than simulations.

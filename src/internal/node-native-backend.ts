@@ -4,6 +4,10 @@ import type {
   CnaGameCallbacks,
   CnaGameConfiguration,
   GraphicsManagerConfiguration,
+  SpriteBatchCommand,
+  Texture2DInfo,
+  Texture2DTransfer,
+  VertexElementSnapshot,
 } from "./backend.js";
 import { NativeUnavailableError } from "./native-error.js";
 import type { NativeHandle } from "./ownership.js";
@@ -71,9 +75,64 @@ interface NativeBridge {
   presentGraphicsDevice(device: bigint): void;
   getRendererInfo(device: bigint): BackendRendererInfo;
   createTexture2D(device: bigint, width: number, height: number, mipMap: boolean, format: number): bigint;
+  getTexture2DInfo(texture: bigint): Texture2DInfo;
+  createTexture2DFromEncodedMemory(
+    device: bigint,
+    encoded: Uint8Array,
+    hasDecode: boolean,
+    width: number,
+    height: number,
+    zoom: boolean,
+  ): bigint;
+  setTexture2DData(
+    texture: bigint,
+    dataType: number,
+    level: number,
+    hasRectangle: boolean,
+    rectangleX: number,
+    rectangleY: number,
+    rectangleWidth: number,
+    rectangleHeight: number,
+    startIndex: number,
+    elementCount: number,
+    capacity: number,
+    elementSize: number,
+    bytes: Uint8Array,
+  ): void;
+  getTexture2DData(
+    texture: bigint,
+    dataType: number,
+    level: number,
+    hasRectangle: boolean,
+    rectangleX: number,
+    rectangleY: number,
+    rectangleWidth: number,
+    rectangleHeight: number,
+    startIndex: number,
+    elementCount: number,
+    capacity: number,
+    elementSize: number,
+  ): Uint8Array;
+  encodeTexture2D(texture: bigint, imageFormat: number, width: number, height: number): Uint8Array;
   destroyTexture2D(texture: bigint): void;
   createSpriteBatch(device: bigint): bigint;
+  beginSpriteBatch(spriteBatch: bigint, sortMode: number): void;
+  submitSpriteBatch(spriteBatch: bigint, commands: readonly SpriteBatchCommand[]): void;
+  endSpriteBatch(spriteBatch: bigint): void;
   destroySpriteBatch(spriteBatch: bigint): void;
+  createVertexBuffer(
+    device: bigint, vertexStride: number, elements: readonly VertexElementSnapshot[],
+    vertexCount: number, usage: number, dynamic: boolean,
+  ): bigint;
+  setVertexBufferRaw(buffer: bigint, bytes: Uint8Array, vertexCount: number, vertexStride: number): void;
+  getVertexBufferRaw(buffer: bigint, vertexCount: number, vertexStride: number): Uint8Array;
+  destroyVertexBuffer(buffer: bigint): void;
+  createIndexBuffer(
+    device: bigint, elementSize: number, indexCount: number, usage: number, dynamic: boolean,
+  ): bigint;
+  setIndexBufferRaw(buffer: bigint, elementSize: number, bytes: Uint8Array): void;
+  getIndexBufferRaw(buffer: bigint, elementSize: number, indexCount: number): Uint8Array;
+  destroyIndexBuffer(buffer: bigint): void;
   getKeyboardState(game: bigint): number[];
   getMouseState(game: bigint): NativeMouseState;
   setMousePosition(game: bigint, x: number, y: number): void;
@@ -187,13 +246,121 @@ export class NodeNativeBackend implements CnaBackend {
   ): NativeHandle {
     return this.#bridge.createTexture2D(device, width, height, mipMap, surfaceFormat);
   }
+  public getTexture2DInfo(texture: NativeHandle): Texture2DInfo {
+    return this.#bridge.getTexture2DInfo(texture);
+  }
+  public createTexture2DFromEncodedMemory(
+    device: NativeHandle,
+    encoded: Uint8Array,
+    decode: { readonly Width: number; readonly Height: number; readonly Zoom: boolean } | null,
+  ): NativeHandle {
+    return this.#bridge.createTexture2DFromEncodedMemory(
+      device,
+      encoded,
+      decode != null,
+      decode?.Width ?? 0,
+      decode?.Height ?? 0,
+      decode?.Zoom ?? false,
+    );
+  }
+  public setTexture2DData(
+    texture: NativeHandle,
+    transfer: Texture2DTransfer,
+    bytes: Uint8Array,
+  ): void {
+    const rectangle = transfer.Rectangle;
+    this.#bridge.setTexture2DData(
+      texture,
+      transfer.DataType,
+      transfer.Level,
+      rectangle != null,
+      rectangle?.X ?? 0,
+      rectangle?.Y ?? 0,
+      rectangle?.Width ?? 0,
+      rectangle?.Height ?? 0,
+      transfer.StartIndex,
+      transfer.ElementCount,
+      transfer.Capacity,
+      transfer.ElementSize,
+      bytes,
+    );
+  }
+  public getTexture2DData(texture: NativeHandle, transfer: Texture2DTransfer): Uint8Array {
+    const rectangle = transfer.Rectangle;
+    return this.#bridge.getTexture2DData(
+      texture,
+      transfer.DataType,
+      transfer.Level,
+      rectangle != null,
+      rectangle?.X ?? 0,
+      rectangle?.Y ?? 0,
+      rectangle?.Width ?? 0,
+      rectangle?.Height ?? 0,
+      transfer.StartIndex,
+      transfer.ElementCount,
+      transfer.Capacity,
+      transfer.ElementSize,
+    );
+  }
+  public encodeTexture2D(
+    texture: NativeHandle,
+    imageFormat: number,
+    width: number,
+    height: number,
+  ): Uint8Array {
+    return this.#bridge.encodeTexture2D(texture, imageFormat, width, height);
+  }
   public destroyTexture2D(texture: NativeHandle): void { this.#bridge.destroyTexture2D(texture); }
   public createSpriteBatch(device: NativeHandle): NativeHandle {
     return this.#bridge.createSpriteBatch(device);
   }
+  public beginSpriteBatch(spriteBatch: NativeHandle, sortMode: number): void {
+    this.#bridge.beginSpriteBatch(spriteBatch, sortMode);
+  }
+  public submitSpriteBatch(
+    spriteBatch: NativeHandle,
+    commands: readonly SpriteBatchCommand[],
+  ): void {
+    this.#bridge.submitSpriteBatch(spriteBatch, commands);
+  }
+  public endSpriteBatch(spriteBatch: NativeHandle): void {
+    this.#bridge.endSpriteBatch(spriteBatch);
+  }
   public destroySpriteBatch(spriteBatch: NativeHandle): void {
     this.#bridge.destroySpriteBatch(spriteBatch);
   }
+  public createVertexBuffer(
+    device: NativeHandle, vertexStride: number, elements: readonly VertexElementSnapshot[],
+    vertexCount: number, usage: number, dynamic: boolean,
+  ): NativeHandle {
+    return this.#bridge.createVertexBuffer(
+      device, vertexStride, elements, vertexCount, usage, dynamic,
+    );
+  }
+  public setVertexBufferRaw(
+    buffer: NativeHandle, bytes: Uint8Array, vertexCount: number, vertexStride: number,
+  ): void { this.#bridge.setVertexBufferRaw(buffer, bytes, vertexCount, vertexStride); }
+  public getVertexBufferRaw(
+    buffer: NativeHandle, vertexCount: number, vertexStride: number,
+  ): Uint8Array {
+    return new Uint8Array(this.#bridge.getVertexBufferRaw(buffer, vertexCount, vertexStride));
+  }
+  public destroyVertexBuffer(buffer: NativeHandle): void { this.#bridge.destroyVertexBuffer(buffer); }
+  public createIndexBuffer(
+    device: NativeHandle, elementSize: number, indexCount: number,
+    usage: number, dynamic: boolean,
+  ): NativeHandle {
+    return this.#bridge.createIndexBuffer(device, elementSize, indexCount, usage, dynamic);
+  }
+  public setIndexBufferRaw(
+    buffer: NativeHandle, elementSize: number, bytes: Uint8Array,
+  ): void { this.#bridge.setIndexBufferRaw(buffer, elementSize, bytes); }
+  public getIndexBufferRaw(
+    buffer: NativeHandle, elementSize: number, indexCount: number,
+  ): Uint8Array {
+    return new Uint8Array(this.#bridge.getIndexBufferRaw(buffer, elementSize, indexCount));
+  }
+  public destroyIndexBuffer(buffer: NativeHandle): void { this.#bridge.destroyIndexBuffer(buffer); }
 
   public getKeyboardState(_playerIndex: PlayerIndex | null): KeyboardState {
     return new KeyboardState(this.#bridge.getKeyboardState(this.#game()) as Keys[]);
