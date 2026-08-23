@@ -56,21 +56,22 @@ Node users may explicitly load the adapter and a compatible library. This is an 
 gap, not absence of a CNA C ABI.
 
 The package now carries a small C Node-API adapter source. It dynamically loads one explicitly
-selected library, checks encoded ABI `0x00000700`, resolves exactly 50 named C symbols, uses bigint
+selected library, checks encoded ABI `0x00000700`, resolves exactly 219 named C symbols, uses bigint
 for opaque 64-bit handles, marshals synchronous game callbacks on the Node thread, and translates
 CNA UTF-8 errors into JavaScript errors. It does not use the CNA C++ ABI, a generic FFI dependency,
 or finalizers. The adapter source/build helper are portable inputs; no platform binary or CNA
 library is packed.
 
 Linux x86-64 integration used an existing HEADLESS/NULL-audio CNA ABI-0.7 library built by the
-sibling Java verification from CNA commit `a09196a64`. Six real game lifetimes covered 60 and 600
+sibling Java verification from CNA commit `a09196a6477f69a7a57c8364f990658d31531a5b`. Seven real game lifetimes covered 60 and 600
 frames, callback-scoped device access, Texture2D and SpriteBatch child ownership, all modeled input
-polling families, renderer identity, double disposal, live-child parent shutdown, and repeated
-creation/destruction. Current CNA HEAD still cannot reproduce that artifact because its unmodified
+polling families, PCM/dynamic audio, media/video controls, isolated storage, renderer identity,
+double disposal, live-child parent shutdown, and repeated creation/destruction. Current CNA HEAD
+still cannot reproduce that artifact because its unmodified
 C-API build stops at the renderer identity guard (49 mapped identities versus 50 canonical
 entries). This is recorded separately from the successful compatible-artifact evidence.
 
-The reproducible evidence, 32-symbol sentinel inventory, 50-symbol imported Node slice, and
+The reproducible evidence, 32-symbol sentinel inventory, 219-symbol imported Node slice, and
 required upstream artifact contract are recorded in [`cna-abi-audit.md`](cna-abi-audit.md). The audit accepts an explicit CNA checkout
 path and is not part of normal build, package installation, or runtime.
 

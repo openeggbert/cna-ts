@@ -3,10 +3,11 @@ import fs from "node:fs";
 import test from "node:test";
 
 import {
-  BoundingBox, BoundingFrustum, BoundingSphere, Color, Content, Curve, CurveContinuity, CurveKey,
-  CurveKeyCollection, CurveLoopType, CurveTangent, Graphics, Input, MathHelper, Matrix, Plane,
-  Game, GraphicsDeviceManager, Point, Quaternion, Ray, Rectangle, Vector2, Vector3, Vector4,
+  Audio, BoundingBox, BoundingFrustum, BoundingSphere, Color, Content, Curve, CurveContinuity, CurveKey,
+  CurveKeyCollection, CurveLoopType, CurveTangent, Design, Graphics, Input, MathHelper, Matrix, Media, Plane,
+  Game, GraphicsDeviceManager, Point, Quaternion, Ray, Rectangle, Storage, TimeSpan, Vector2, Vector3, Vector4,
 } from "../dist/index.js";
+import { FileMode } from "../dist/IO/index.js";
 import { getBackend, setBackendForInternalUse } from "../dist/internal/backend.js";
 import { touchLocationsEqual } from "../dist/Microsoft/Xna/Framework/Input/Touch/TouchValues.js";
 
@@ -34,6 +35,15 @@ function matrixBits(value) {
 function exceptionName(action) {
   try { action(); return "none"; }
   catch (error) { return error instanceof Error ? error.name : typeof error; }
+}
+function exceptionDetail(action) {
+  try { action(); return "none"; }
+  catch (error) {
+    if (!(error instanceof Error)) return typeof error;
+    const parameter = ["sizeInBytes", "sampleRate", "channels", "duration", "value"]
+      .find((name) => error.message.includes(name));
+    return parameter ? `${error.name}:${parameter}` : error.name;
+  }
 }
 function hex(value, width) { return Number(value).toString(16).toUpperCase().padStart(width, "0"); }
 
@@ -333,6 +343,224 @@ function captureInput() {
   return observed;
 }
 
+function captureAudio() {
+  const observed = new Map();
+  const add = (id, value) => observed.set(id, value);
+  const {
+    AudioChannels, AudioEmitter, AudioListener, AudioStopOptions, DynamicSoundEffectInstance,
+    MicrophoneState, RendererDetail, SoundEffect, SoundState,
+  } = Audio;
+
+  add("audio.enum.channels", `${AudioChannels.Mono},${AudioChannels.Stereo}`);
+  add("audio.enum.state", `${SoundState.Playing},${SoundState.Paused},${SoundState.Stopped}`);
+  add("audio.enum.stop", `${AudioStopOptions.AsAuthored},${AudioStopOptions.Immediate}`);
+  add("audio.enum.microphone_state", `${MicrophoneState.Started},${MicrophoneState.Stopped}`);
+  const renderer = new RendererDetail();
+  add("audio.renderer.default", `${renderer.FriendlyName ?? "<null>"},${renderer.RendererId ?? "<null>"}`);
+  add("audio.renderer.equals", `${flag(renderer.Equals(renderer))},${flag(renderer.Equals(null))}`);
+
+  const listener = new AudioListener();
+  add("audio.listener.position", vectorBits(listener.Position));
+  add("audio.listener.velocity", vectorBits(listener.Velocity));
+  add("audio.listener.forward", vectorBits(listener.Forward));
+  add("audio.listener.up", vectorBits(listener.Up));
+  const emitter = new AudioEmitter();
+  add("audio.emitter.position", vectorBits(emitter.Position));
+  add("audio.emitter.velocity", vectorBits(emitter.Velocity));
+  add("audio.emitter.forward", vectorBits(emitter.Forward));
+  add("audio.emitter.up", vectorBits(emitter.Up));
+  add("audio.emitter.doppler.default", bits(emitter.DopplerScale));
+  add("audio.emitter.doppler.negative", exceptionDetail(() => emitter.DopplerScale = -1));
+  add("audio.emitter.doppler.nan", exceptionDetail(() => emitter.DopplerScale = Number.NaN));
+
+  add("audio.duration.zero", String(SoundEffect.GetSampleDuration(0, 44100, AudioChannels.Mono).Ticks));
+  add("audio.duration.mono", String(SoundEffect.GetSampleDuration(88200, 44100, AudioChannels.Mono).Ticks));
+  add("audio.duration.stereo", String(SoundEffect.GetSampleDuration(88200, 44100, AudioChannels.Stereo).Ticks));
+  add("audio.duration.partial", String(SoundEffect.GetSampleDuration(3, 44100, AudioChannels.Mono).Ticks));
+  add("audio.duration.rounding", String(SoundEffect.GetSampleDuration(10, 8000, AudioChannels.Mono).Ticks));
+  add("audio.duration.negative", exceptionDetail(() => SoundEffect.GetSampleDuration(-1, 44100, AudioChannels.Mono)));
+  add("audio.duration.rate.low", exceptionDetail(() => SoundEffect.GetSampleDuration(2, 7999, AudioChannels.Mono)));
+  add("audio.duration.rate.high", exceptionDetail(() => SoundEffect.GetSampleDuration(2, 48001, AudioChannels.Mono)));
+  add("audio.duration.rate.order", exceptionDetail(() => SoundEffect.GetSampleDuration(-1, 7999, AudioChannels.Mono)));
+  add("audio.duration.channels", exceptionDetail(() => SoundEffect.GetSampleDuration(2, 44100, 0)));
+
+  add("audio.size.zero", String(SoundEffect.GetSampleSizeInBytes(TimeSpan.Zero, 44100, AudioChannels.Mono)));
+  add("audio.size.mono", String(SoundEffect.GetSampleSizeInBytes(TimeSpan.FromSeconds(1), 44100, AudioChannels.Mono)));
+  add("audio.size.stereo", String(SoundEffect.GetSampleSizeInBytes(TimeSpan.FromSeconds(1), 44100, AudioChannels.Stereo)));
+  add("audio.size.rounding", String(SoundEffect.GetSampleSizeInBytes(TimeSpan.FromMilliseconds(1), 44100, AudioChannels.Stereo)));
+  add("audio.size.negative", exceptionDetail(() => SoundEffect.GetSampleSizeInBytes(TimeSpan.FromTicks(-1n), 44100, AudioChannels.Mono)));
+  add("audio.size.overflow", exceptionDetail(() => SoundEffect.GetSampleSizeInBytes(TimeSpan.MaxValue, 44100, AudioChannels.Mono)));
+  add("audio.size.rate.order", exceptionDetail(() => SoundEffect.GetSampleSizeInBytes(TimeSpan.FromTicks(-1n), 7999, AudioChannels.Mono)));
+
+  add("audio.ctor.basic.null", exceptionName(() => new SoundEffect(null, 44100, AudioChannels.Mono)));
+  add("audio.ctor.basic.empty", exceptionName(() => new SoundEffect([], 44100, AudioChannels.Mono)));
+  add("audio.ctor.rate_before_buffer", exceptionDetail(() => new SoundEffect([], 7999, AudioChannels.Mono)));
+  add("audio.ctor.channels_before_buffer", exceptionDetail(() => new SoundEffect([], 44100, 0)));
+  add("audio.ctor.unaligned_buffer", exceptionName(() => new SoundEffect([0], 44100, AudioChannels.Mono)));
+  add("audio.ctor.offset", exceptionName(() => new SoundEffect([0, 0, 0, 0], -1, 2, 44100, AudioChannels.Mono, 0, 0)));
+  add("audio.ctor.count", exceptionName(() => new SoundEffect([0, 0, 0, 0], 0, 3, 44100, AudioChannels.Mono, 0, 0)));
+  add("audio.ctor.range_overflow", exceptionName(() => new SoundEffect([0, 0, 0, 0], 2, 4, 44100, AudioChannels.Mono, 0, 0)));
+  add("audio.ctor.loop_negative", exceptionName(() => new SoundEffect([0, 0, 0, 0], 0, 4, 44100, AudioChannels.Mono, -1, 0)));
+  add("audio.ctor.loop_past_end", exceptionName(() => new SoundEffect([0, 0, 0, 0], 0, 4, 44100, AudioChannels.Mono, 2, 1)));
+  add("audio.ctor.loop_overflow", exceptionName(() => new SoundEffect([0, 0, 0, 0], 0, 4, 44100, AudioChannels.Mono, 0x7fffffff, 1)));
+  add("audio.dynamic.rate", exceptionDetail(() => new DynamicSoundEffectInstance(7999, AudioChannels.Mono)));
+  add("audio.dynamic.channels", exceptionDetail(() => new DynamicSoundEffectInstance(44100, 0)));
+  return observed;
+}
+
+async function captureSubsystemProjection() {
+  const observed = new Map();
+  const add = (id, value) => observed.set(id, value);
+  const previous = getBackend();
+  const { NativeResourceLifetime } = await import("../dist/internal/ownership.js");
+  let next = 9000n;
+  const instances = new Map();
+  const parent = new NativeResourceLifetime({
+    Handle: next++, Ownership: "owned", Release() {}, Label: "differential subsystem backend",
+  });
+  const audio = {
+    ParentLifetime: parent,
+    createSoundEffect: () => next++, createSoundEffectFromEncoded: () => next++,
+    getSoundEffectDurationTicks: () => 625n, getSoundEffectName: () => "", setSoundEffectName() {},
+    createSoundEffectInstance() {
+      const handle = next++;
+      instances.set(handle, { State: Audio.SoundState.Stopped, Volume: 1, Pitch: 0, Pan: 0, IsLooped: false });
+      return handle;
+    },
+    playSoundEffect: () => true, destroySoundEffect() {},
+    getMasterVolume: () => 1, setMasterVolume() {}, getDistanceScale: () => 1, setDistanceScale() {},
+    getDopplerScale: () => 1, setDopplerScale() {}, getSpeedOfSound: () => 343.5, setSpeedOfSound() {},
+    playSoundEffectInstance(handle) { instances.get(handle).State = Audio.SoundState.Playing; },
+    pauseSoundEffectInstance(handle) {
+      const value = instances.get(handle);
+      if (value.State === Audio.SoundState.Playing) value.State = Audio.SoundState.Paused;
+    },
+    resumeSoundEffectInstance(handle) { instances.get(handle).State = Audio.SoundState.Playing; },
+    stopSoundEffectInstance(handle) { instances.get(handle).State = Audio.SoundState.Stopped; },
+    getSoundEffectInstanceInfo(handle) { return { ...instances.get(handle) }; },
+    setSoundEffectInstanceVolume(handle, value) { instances.get(handle).Volume = value; },
+    setSoundEffectInstancePitch(handle, value) { instances.get(handle).Pitch = value; },
+    setSoundEffectInstancePan(handle, value) { instances.get(handle).Pan = value; },
+    setSoundEffectInstanceLooped(handle, value) { instances.get(handle).IsLooped = value; },
+    applySoundEffectInstance3D() {},
+    destroySoundEffectInstance(handle) { instances.delete(handle); },
+    createDynamicSoundEffectInstance: () => next++, getDynamicPendingBufferCount: () => 0, submitDynamicBuffer() {},
+  };
+  const media = {
+    getAvailableMediaSources: () => [], playSongs() {}, pause() {}, resume() {}, stop() {},
+    moveNext() {}, movePrevious() {}, setVolume() {}, setMuted() {}, setRepeating() {}, setShuffled() {},
+    setVisualizationEnabled() {}, getGameHasControl: () => true, getPlayPositionTicks: () => 0n,
+    getVisualizationData: () => ({ Frequencies: new Array(256).fill(0), Samples: new Array(256).fill(0) }),
+    update() {},
+  };
+  const backend = Object.create(previous);
+  Object.assign(backend, {
+    Kind: "node-native", IsAvailable: true, AbiVersion: "0.7.0-projection",
+    Detail: "deterministic subsystem projection backend", Audio: audio, Media: media,
+  });
+  setBackendForInternalUse(backend);
+  let effect;
+  let first;
+  let second;
+  let songs;
+  try {
+    effect = new Audio.SoundEffect([0, 0], 8000, Audio.AudioChannels.Mono);
+    const instance = effect.CreateInstance();
+    const transitions = [instance.State];
+    instance.Pause(); transitions.push(instance.State);
+    instance.IsLooped = true;
+    instance.Volume = 0.25; instance.Pitch = -0.5; instance.Pan = 0.75;
+    instance.Resume(); transitions.push(instance.State);
+    instance.Stop(false); transitions.push(instance.State);
+    instance.Play(); instance.Play(); transitions.push(instance.State);
+    add("audio.instance.transitions", transitions.join(","));
+    effect.Dispose();
+    add("audio.instance.dispose", [
+      flag(instance.IsDisposed), bits(instance.Volume), bits(instance.Pitch), bits(instance.Pan),
+      flag(instance.IsLooped), exceptionName(() => instance.State),
+    ].join(","));
+
+    const { createSongCollectionForInternalUse } = await import(
+      "../dist/Microsoft/Xna/Framework/Media/Collections.js"
+    );
+    first = Media.Song.FromUri("first", new URL("file:///projection/first.wav"));
+    second = Media.Song.FromUri("second", new URL("file:///projection/second.wav"));
+    songs = createSongCollectionForInternalUse([first, second]);
+    add("media.collection.identity", [
+      songs.Count, flag(songs.Get(0) === first), flag(songs.Get(0) === songs.Get(0)),
+      flag([...songs][1] === second),
+    ].join(","));
+
+    Media.MediaPlayer.Stop();
+    const events = [];
+    const active = () => { events.push("A"); Media.MediaPlayer.ActiveSongChanged.Remove(active); };
+    const changed = () => events.push(`S${Media.MediaPlayer.State}`);
+    Media.MediaPlayer.ActiveSongChanged.Add(active);
+    Media.MediaPlayer.MediaStateChanged.Add(changed);
+    const states = [Media.MediaPlayer.State];
+    Media.MediaPlayer.Play(songs); states.push(Media.MediaPlayer.State);
+    Media.MediaPlayer.Pause(); states.push(Media.MediaPlayer.State);
+    Media.MediaPlayer.Resume(); states.push(Media.MediaPlayer.State);
+    Media.MediaPlayer.MoveNext();
+    const throwing = () => { throw new Error("projection handler"); };
+    Media.MediaPlayer.MediaStateChanged.Add(throwing);
+    const thrown = exceptionName(() => Media.MediaPlayer.Stop());
+    states.push(Media.MediaPlayer.State);
+    Media.MediaPlayer.MediaStateChanged.Remove(throwing);
+    Media.MediaPlayer.MediaStateChanged.Remove(changed);
+    add("media.player.transitions", `${states.join(",")}|${events.join(",")}|${thrown}|${Media.MediaPlayer.Queue.ActiveSong.Name}`);
+    Media.MediaPlayer.Volume = 2;
+    const clampedVolume = bits(Media.MediaPlayer.Volume);
+    Media.MediaPlayer.Volume = Number.NaN;
+    Media.MediaPlayer.IsMuted = true;
+    Media.MediaPlayer.IsRepeating = true;
+    Media.MediaPlayer.IsShuffled = true;
+    add("media.player.settings", `${clampedVolume},${bits(Media.MediaPlayer.Volume)},1,1,1`);
+
+    const select = () => new Promise((resolve, reject) => {
+      Storage.StorageDevice.BeginShowSelector((result) => {
+        try { resolve(Storage.StorageDevice.EndShowSelector(result)); } catch (error) { reject(error); }
+      }, null);
+    });
+    const open = (device, name) => new Promise((resolve, reject) => {
+      device.BeginOpenContainer(name, (result) => {
+        try { resolve(device.EndOpenContainer(result)); } catch (error) { reject(error); }
+      }, null);
+    });
+    const device = await select();
+    const container = await open(device, "differential");
+    const same = await open(device, "differential");
+    container.CreateDirectory("saves");
+    container.CreateFile("slot.dat");
+    const appended = container.OpenFile("new.dat", FileMode.Append);
+    add("storage.managed.paths", [
+      flag(device.IsConnected), flag(container === same), container.GetDirectoryNames("sav*").join(";"),
+      container.GetFileNames("*.dat").join(";"), appended.byteLength,
+      exceptionName(() => container.CreateDirectory("../escape")),
+    ].join(","));
+    container.Dispose();
+    device.DeleteContainer("differential");
+
+    const converter = new Design.Vector3Converter();
+    const culture = { ListSeparator: ";", DecimalSeparator: "," };
+    const vector = converter.ConvertFrom({}, culture, "1,5; 2,5; 3,5");
+    const recreated = converter.CreateInstance({}, new Map([["X", 7], ["Y", 8], ["Z", 9]]));
+    add("design.vector3.converter", [
+      converter.ConvertTo({}, culture, vector, String),
+      [...converter.GetProperties({}, vector, [])].join(":"),
+      `${recreated.X}:${recreated.Y}:${recreated.Z}`,
+    ].join("|"));
+  } finally {
+    songs?.Dispose();
+    first?.Dispose();
+    second?.Dispose();
+    effect?.Dispose();
+    parent.Dispose();
+    setBackendForInternalUse(previous);
+  }
+  return observed;
+}
+
 function graphicsBackend() {
   let next = 100n;
   return {
@@ -450,7 +678,8 @@ async function captureGraphicsContent() {
 test(`XNA differential corpus: ${corpus.cases.length} observations`, async (context) => {
   assert.equal(corpus.profile, "XNA 4.0 Windows runtime");
   const observations = new Map([
-    ...captureMath(), ...captureInput(), ...(await captureGraphicsContent()),
+    ...captureMath(), ...captureInput(), ...captureAudio(), ...(await captureSubsystemProjection()),
+    ...(await captureGraphicsContent()),
   ]);
   assert.equal(observations.size, corpus.cases.length);
   for (const fixture of corpus.cases) {

@@ -696,3 +696,168 @@ Final gates passed: `npm run check`, `npm test`, `npm run test:differential`, `n
 `npm run api:verify`, `npm run api:inventory`, `npm run verify:runtime`, `npm run verify:leaks`,
 `npm run verify:package -- --package <exact tarball>`, `npm run audit:cna-abi`, native integration,
 template builds/smokes, and both repositories' `git diff --check`.
+
+## 2026-08-23: selected Windows runtime projection reaches strict zero
+
+### Exact API movement
+
+This run began from the generated 60-type queue and implemented the remaining families as coherent
+groups. The inventory was regenerated from verifier diagnostics; it now reports zero in every
+family.
+
+```text
+                                      BEFORE   AFTER
+REFERENCE_TYPES                         257      257
+REFERENCE_MEMBERS                      2964     2964
+EXPECTED_MAPPED_TYPES                   271      271
+TARGET_TYPES                            211      271
+TOTAL_DIFFERENCES                        60        0
+MISSING_TYPE                             60        0
+MISSING_MEMBER                            0        0
+UNEXPECTED_TYPE                           0        0
+BASE_MISMATCH                             0        0
+INTERFACE_MISMATCH                        0        0
+UNEXPECTED_MEMBER                         0        0
+PROPERTY_MISMATCH                         0        0
+PARAMETER_MISMATCH                        0        0
+RETURN_TYPE_MISMATCH                      0        0
+OVERLOAD_MISMATCH                         0        0
+GENERIC_MISMATCH                          0        0
+ENUM_VALUE_MISMATCH                       0        0
+EVENT_MAPPING_MISMATCH                    0        0
+OPERATOR_MAPPING_MISMATCH                 0        0
+LANGUAGE_MAPPING_MISMATCH                 0        0
+INTERNAL_LEAK                             0        0
+ALLOWLIST_SIZE                            0        0
+RUNTIME_DIFFERENCES                       0        0
+```
+
+```text
+STRICT_XNA_WINDOWS_RUNTIME_PROJECTION_ZERO=true
+```
+
+| Family | Before | After |
+| --- | ---: | ---: |
+| Audio/XACT | 19 | 0 |
+| Media | 24 | 0 |
+| Storage | 3 | 0 |
+| Design | 13 | 0 |
+| GamerServices | 1 | 0 |
+| **Total** | **60** | **0** |
+
+All introduced types finished member-complete. The mapping allowlist remains empty and no
+expected signature was weakened.
+
+### Behavior corpus
+
+The reference-backed Audio group adds exact enum/default/vector observations, XNA-ordered
+binary32 `SoundEffect.GetSampleDuration`/`GetSampleSizeInBytes` arithmetic, and constructor
+validation. The subsystem projection group adds deterministic instance lifecycle/disposal, media
+collection identity, global MediaPlayer state/events/settings, isolated managed Storage path
+behavior, and Design conversion/decomposition.
+
+```text
+STARTING_OBSERVATIONS=114
+FINAL_OBSERVATIONS=168
+STARTING_ASSERTIONS=115
+FINAL_ASSERTIONS=169
+FAILURES=0
+NEW_AUDIO_REFERENCE_OBSERVATIONS=47
+NEW_SUBSYSTEM_PROJECTION_OBSERVATIONS=7
+```
+
+Asset-dependent and hardware-dependent behavior is not encoded as a deterministic golden value.
+
+### Native bridge and runtime truth
+
+The typed bridge grew from 69 to 219 exact ABI-0.7 imports. Every imported name is declared by the
+audited current CNA headers.
+
+```text
+STARTING_IMPORTED_SYMBOLS=69
+FINAL_IMPORTED_SYMBOLS=219
+AUDIO_ROUTES=43
+XACT_ROUTES=46
+MEDIA_ROUTES=23
+VIDEO_ROUTES=11
+STORAGE_ROUTES=27
+ABI_VERSION=0.7.0
+MISSING_NODE_BRIDGE_SYMBOLS=0
+NATIVE_SCENARIO_GROUPS=7
+```
+
+The external runtime evidence artifact was not shipped:
+
+```text
+PATH=/tmp/cna-java-native-working-070/modules/c-api/libcna_c_api.so
+SOURCE_COMMIT=a09196a6477f69a7a57c8364f990658d31531a5b
+LIBRARY_SHA256=42e099146bf3b470f82fd963a516f8bdd7ff0406da8c37dd53747699117db086
+PLATFORM=Linux x86-64 HEADLESS/NULL-audio
+EXPORTED_CNA_SYMBOLS=2861
+```
+
+| Runtime operation | Status | Boundary |
+| --- | --- | --- |
+| SoundEffect | verified | PCM creation, globals, instances, Apply3D and deterministic disposal; NULL playback is not an audibility claim |
+| DynamicSoundEffectInstance | verified | submit/pending/refill through the canonical framework pump |
+| XACT authored-bank playback | asset-pending | invalid/missing XGS behavior is verified; no legal XGS/XSB/XWB fixture was available |
+| MediaPlayer | verified | generated legal silent WAV, controls, queue/settings/position/visualization under NULL audio |
+| VideoPlayer | backend-blocked | player controls are verified; no legal decode fixture and no safe player-owned transient texture facade |
+| Storage | verified | native selector/device/container CRUD and managed isolated-directory adapter |
+
+HEADLESS enumerated zero microphones, so the strict Microphone shape and unavailable state are
+complete while hardware capture is not claimed verified. No audio/media callback registration is
+imported; dynamic and media work is delivered on the JavaScript thread by the single Game/
+FrameworkDispatcher pump. A successful Game update pumps once; a throwing update skips the pump.
+
+### Ownership truth
+
+| Relationship | Status | Evidence |
+| --- | --- | --- |
+| SoundEffect → SoundEffectInstance | verified | parent-owned native child, child-first and parent-first disposal, double Dispose, cached properties after disposal |
+| AudioEngine → category/bank/cue | verified | strong managed dependencies and reverse deterministic teardown; authored success remains asset-pending |
+| Dynamic callbacks | verified | rooted managed handler, self-removal, reentrant submit, throwing handler containment, disposal with pending buffers |
+| VideoPlayer → frame texture | backend-blocked | `GetTexture` fails explicitly instead of wrapping a player-owned transient CNA texture as owned |
+| StorageDevice → StorageContainer | verified | repeated container identity and parent shutdown invalidation on the native route |
+| backend shutdown | verified | live Audio, VideoPlayer, and Storage children are invalidated/released before Game destruction |
+
+Explicit `Dispose` remains authoritative; normal cleanup does not depend on JavaScript finalizers.
+
+### CNA HEAD and unchanged blockers
+
+Read-only CNA HEAD remains `1bb2145d99ed572dd4eb15009c34e2e5f410fcf0`. Its unmodified C-API
+build still fails the renderer identity assertion (49 C identities versus 50 canonical entries),
+so the exact compatible ABI-0.7 artifact above remains test evidence only. CNA was not modified and
+ABI 0.8 was not accepted.
+
+The prior truthful boundaries are unchanged: `EffectPass.Apply`, BasicEffect/3D execution,
+compressed XNB/LZX, generic external references, and model rendering remain blocked.
+
+### Exact final package and template
+
+One final artifact was reused for every packed consumer and template check:
+
+```text
+FILENAME=cna-ts-0.1.0.tgz
+PATH=/tmp/cna-ts-strict-zero-20260823.ZA0H8D/cna-ts-0.1.0.tgz
+SHA256=f51ca05a569c2251806e307021c37fbf77fbafaaf0d4f81ee890f30e7d603bdd
+FILES=676
+BYTES=345746
+PACKED_TYPESCRIPT_CONSUMER=PASS
+PACKED_JAVASCRIPT_CONSUMER=PASS
+INTERNAL_EXPORT_BLOCK=PASS
+GENERATED_TYPESCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_BUILD=PASS
+GENERATED_JAVASCRIPT_MANAGED_SMOKE=PASS
+LEGACY_OR_SIBLING_REFERENCES=0
+TEMPLATE_BUILD=PASS
+TEMPLATE_60_NATIVE_DRAW_FRAMES=PASS
+TEMPLATE_600_NATIVE_DRAW_FRAMES=PASS
+```
+
+Generated `.js`, `.d.ts`, source maps, and declaration maps remain outputs of the one canonical
+TypeScript source tree. The template only removed its redundant explicit dispatcher call because
+`Game` now owns the canonical per-update pump; it did not add fake Audio, Media, or Video demos.
+
+Platform evidence remains Node managed plus Node CNA native on Linux x86-64 HEADLESS/NULL audio.
+Browser/Wasm, Electron, Android, and iOS remain unverified.

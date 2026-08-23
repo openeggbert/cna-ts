@@ -1,6 +1,11 @@
 export * as Graphics from "./Graphics/index.js";
 export * as Input from "./Input/index.js";
 export * as Content from "./Content/index.js";
+export * as Audio from "./Audio/index.js";
+export * as Media from "./Media/index.js";
+export * as Storage from "./Storage/index.js";
+export * as Design from "./Design/index.js";
+export * as GamerServices from "./GamerServices/index.js";
 
 export { Color } from "./Color.js";
 export { DisplayOrientation } from "./DisplayOrientation.js";

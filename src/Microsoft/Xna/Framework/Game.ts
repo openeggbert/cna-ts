@@ -6,6 +6,7 @@ import {
   InvalidOperationException,
 } from "../../../internal/exceptions.js";
 import { NativeUnavailableError } from "../../../internal/native-error.js";
+import { pumpFrameworkServicesForInternalUse } from "../../../internal/framework-pump.js";
 import { NativeResourceLifetime } from "../../../internal/ownership.js";
 import type {
   IDisposable,
@@ -244,6 +245,7 @@ export class Game implements IDisposable {
     graphicsManagers.get(this)?.Dispose();
     graphicsManagers.delete(this);
     this.#gameLifetime?.Dispose();
+    this.#nativeBackend?.bindGameLifetimeForInternalUse?.(null);
     this.#gameLifetime = null;
     this.#nativeBackend = null;
     this.#disposed = true;
@@ -321,11 +323,15 @@ export class Game implements IDisposable {
       },
       loadContent: () => this.LoadContent(),
       beginRun: () => this.BeginRun(),
-      update: (time) => this.Update(new GameTime(
-        TimeSpan.FromTicks(time.TotalGameTimeTicks),
-        TimeSpan.FromTicks(time.ElapsedGameTimeTicks),
-        time.IsRunningSlowly,
-      )),
+      update: (time) => {
+        this.Update(new GameTime(
+          TimeSpan.FromTicks(time.TotalGameTimeTicks),
+          TimeSpan.FromTicks(time.ElapsedGameTimeTicks),
+          time.IsRunningSlowly,
+        ));
+        backend.updateFrameworkDispatcher();
+        pumpFrameworkServicesForInternalUse();
+      },
       beginDraw: () => this.BeginDraw(),
       draw: (time) => this.Draw(new GameTime(
         TimeSpan.FromTicks(time.TotalGameTimeTicks),
@@ -347,6 +353,7 @@ export class Game implements IDisposable {
       Release: (value) => backend.destroyGame(value),
       Label: "Game",
     });
+    backend.bindGameLifetimeForInternalUse?.(this.#gameLifetime);
     return this.#gameLifetime;
   }
 

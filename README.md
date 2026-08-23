@@ -5,13 +5,15 @@
 the package build emits the JavaScript used by both languages and the declarations used by
 TypeScript.
 
-> Status: XNA projection work in progress: 211 mapped target types are complete and 60 later
-> Audio/Media/Storage/other types remain. The real graphics/content slice now includes typed
+> Status: the selected XNA 4.0 Windows runtime projection is strict-zero complete: all 271 mapped
+> target types are present, with zero missing members, signature mismatches, runtime-symbol
+> differences, internal leaks, or allowlist entries. The real graphics/content slice includes typed
 > Texture2D transfer and encoded streams, public SpriteBatch drawing, Effect reflection and stock
-> effect state, managed uncompressed XNB readers, SpriteFont/DrawString, and Model graphs. An
-> opt-in Node-API bridge executes CNA ABI 0.7.0 on Linux HEADLESS; no native binary or CNA library
-> is bundled. Without an explicitly loaded backend, native operations fail rather than simulating
-> execution.
+> effect state, managed uncompressed XNB readers, SpriteFont/DrawString, and Model graphs. Audio,
+> XACT, Media, Video, and Storage now have typed runtime routes where CNA exposes them. An opt-in
+> Node-API bridge executes CNA ABI 0.7.0 on Linux HEADLESS/NULL audio; no native binary or CNA
+> library is bundled. Without an explicitly loaded backend, native operations fail rather than
+> simulating execution.
 
 ## One package for both languages
 
@@ -54,14 +56,20 @@ await LoadNodeNativeBackend({
 });
 ```
 
-The adapter enforces exact ABI 0.7.0 and uses exactly 69 audited symbols. Current native evidence
+The adapter enforces exact ABI 0.7.0 and uses exactly 219 audited symbols: the previous 69-route
+graphics/content/input slice plus 43 Audio, 46 XACT, 23 Media, 11 Video, and 27 Storage symbols.
+Current native evidence
 covers game lifecycle, graphics manager/device borrowing, clear/present, Texture2D Color
 upload/readback/regions/mips, PNG `FromStream` and encoding, public SpriteBatch drawing,
 SpriteFont XNB/DrawString, model XNB resource construction, vertex/index buffers, renderer
-capabilities, and keyboard/mouse/gamepad/touch polling. This HEADLESS artifact reports custom
-effects but not compiled effects; the bridge imports no effect execution or indexed-draw routes,
-so `EffectPass.Apply` and model rendering fail explicitly while managed reflection/property
-behavior remains usable. Linux HEADLESS evidence is not a Windows, GPU,
+capabilities, keyboard/mouse/gamepad/touch polling, PCM SoundEffect and dynamic buffers,
+MediaPlayer with a generated silent WAV, VideoPlayer control state, and isolated Storage CRUD.
+HEADLESS reports no microphones. No redistributable XACT or video fixture was available, and CNA's
+player-owned video frame texture cannot yet be projected safely, so authored-bank playback and
+video decode/`GetTexture` remain explicit boundaries. This HEADLESS artifact reports custom effects
+but not compiled effects; the bridge imports no effect execution or indexed-draw routes, so
+`EffectPass.Apply` and model rendering fail explicitly while managed reflection/property behavior
+remains usable. Linux HEADLESS evidence is not a Windows, GPU,
 Electron, browser, or mobile support claim.
 
 XNB framing, reader tables/versions, shared resources, disposal tracking, and custom reader
@@ -73,8 +81,8 @@ through `Texture2D.FromStream`, never `Content.Load`.
 
 ## Compatibility scope
 
-The target is an **XNA 4.0 TypeScript/JavaScript API projection**, initially for the seven-assembly
-Windows runtime profile. It is not a claim that C# source compiles unchanged as TypeScript. The
+The completed strict target is an **XNA 4.0 TypeScript/JavaScript API projection** for the
+seven-assembly Windows runtime profile. It is not a claim that C# source compiles unchanged as TypeScript. The
 language transformations are normative in
 [`docs/xna-typescript-mapping.md`](docs/xna-typescript-mapping.md) and will be measured from the
 actual XNA reference assemblies.

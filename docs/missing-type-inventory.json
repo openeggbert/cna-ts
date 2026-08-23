@@ -3,8 +3,8 @@
   "referenceTypes": 257,
   "referenceMembers": 2964,
   "expectedMappedTypes": 271,
-  "targetTypes": 211,
-  "missingTypeCount": 60,
+  "targetTypes": 271,
+  "missingTypeCount": 0,
   "families": [
     {
       "name": "Framework/core",
@@ -53,87 +53,23 @@
     },
     {
       "name": "Audio/XACT",
-      "count": 19,
-      "types": [
-        "Microsoft.Xna.Framework.Audio.AudioCategory",
-        "Microsoft.Xna.Framework.Audio.AudioChannels",
-        "Microsoft.Xna.Framework.Audio.AudioEmitter",
-        "Microsoft.Xna.Framework.Audio.AudioEngine",
-        "Microsoft.Xna.Framework.Audio.AudioListener",
-        "Microsoft.Xna.Framework.Audio.AudioStopOptions",
-        "Microsoft.Xna.Framework.Audio.Cue",
-        "Microsoft.Xna.Framework.Audio.DynamicSoundEffectInstance",
-        "Microsoft.Xna.Framework.Audio.InstancePlayLimitException",
-        "Microsoft.Xna.Framework.Audio.Microphone",
-        "Microsoft.Xna.Framework.Audio.MicrophoneState",
-        "Microsoft.Xna.Framework.Audio.NoAudioHardwareException",
-        "Microsoft.Xna.Framework.Audio.NoMicrophoneConnectedException",
-        "Microsoft.Xna.Framework.Audio.RendererDetail",
-        "Microsoft.Xna.Framework.Audio.SoundBank",
-        "Microsoft.Xna.Framework.Audio.SoundEffect",
-        "Microsoft.Xna.Framework.Audio.SoundEffectInstance",
-        "Microsoft.Xna.Framework.Audio.SoundState",
-        "Microsoft.Xna.Framework.Audio.WaveBank"
-      ]
+      "count": 0,
+      "types": []
     },
     {
       "name": "Media",
-      "count": 24,
-      "types": [
-        "Microsoft.Xna.Framework.Media.Album",
-        "Microsoft.Xna.Framework.Media.AlbumCollection",
-        "Microsoft.Xna.Framework.Media.Artist",
-        "Microsoft.Xna.Framework.Media.ArtistCollection",
-        "Microsoft.Xna.Framework.Media.Genre",
-        "Microsoft.Xna.Framework.Media.GenreCollection",
-        "Microsoft.Xna.Framework.Media.MediaLibrary",
-        "Microsoft.Xna.Framework.Media.MediaPlayer",
-        "Microsoft.Xna.Framework.Media.MediaQueue",
-        "Microsoft.Xna.Framework.Media.MediaSource",
-        "Microsoft.Xna.Framework.Media.MediaSourceType",
-        "Microsoft.Xna.Framework.Media.MediaState",
-        "Microsoft.Xna.Framework.Media.Picture",
-        "Microsoft.Xna.Framework.Media.PictureAlbum",
-        "Microsoft.Xna.Framework.Media.PictureAlbumCollection",
-        "Microsoft.Xna.Framework.Media.PictureCollection",
-        "Microsoft.Xna.Framework.Media.Playlist",
-        "Microsoft.Xna.Framework.Media.PlaylistCollection",
-        "Microsoft.Xna.Framework.Media.Song",
-        "Microsoft.Xna.Framework.Media.SongCollection",
-        "Microsoft.Xna.Framework.Media.Video",
-        "Microsoft.Xna.Framework.Media.VideoPlayer",
-        "Microsoft.Xna.Framework.Media.VideoSoundtrackType",
-        "Microsoft.Xna.Framework.Media.VisualizationData"
-      ]
+      "count": 0,
+      "types": []
     },
     {
       "name": "Storage",
-      "count": 3,
-      "types": [
-        "Microsoft.Xna.Framework.Storage.StorageContainer",
-        "Microsoft.Xna.Framework.Storage.StorageDevice",
-        "Microsoft.Xna.Framework.Storage.StorageDeviceNotConnectedException"
-      ]
+      "count": 0,
+      "types": []
     },
     {
       "name": "GamerServices/other selected-profile runtime types",
-      "count": 14,
-      "types": [
-        "Microsoft.Xna.Framework.Design.BoundingBoxConverter",
-        "Microsoft.Xna.Framework.Design.BoundingSphereConverter",
-        "Microsoft.Xna.Framework.Design.ColorConverter",
-        "Microsoft.Xna.Framework.Design.MathTypeConverter",
-        "Microsoft.Xna.Framework.Design.MatrixConverter",
-        "Microsoft.Xna.Framework.Design.PlaneConverter",
-        "Microsoft.Xna.Framework.Design.PointConverter",
-        "Microsoft.Xna.Framework.Design.QuaternionConverter",
-        "Microsoft.Xna.Framework.Design.RayConverter",
-        "Microsoft.Xna.Framework.Design.RectangleConverter",
-        "Microsoft.Xna.Framework.Design.Vector2Converter",
-        "Microsoft.Xna.Framework.Design.Vector3Converter",
-        "Microsoft.Xna.Framework.Design.Vector4Converter",
-        "Microsoft.Xna.Framework.GamerServices.GamerServicesComponent"
-      ]
+      "count": 0,
+      "types": []
     }
   ]
 }

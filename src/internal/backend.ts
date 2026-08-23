@@ -1,5 +1,6 @@
 import type { PlayerIndex } from "../Microsoft/Xna/Framework/PlayerIndex.js";
 import type { NativeHandle } from "./ownership.js";
+import type { NativeResourceLifetime } from "./ownership.js";
 import type { GamePadDeadZone } from "../Microsoft/Xna/Framework/Input/Enums.js";
 import type {
   GamePadCapabilities,
@@ -115,13 +116,259 @@ export interface VertexElementSnapshot {
   readonly UsageIndex: number;
 }
 
+export interface AudioVectorSnapshot {
+  readonly X: number;
+  readonly Y: number;
+  readonly Z: number;
+}
+
+export interface AudioListenerSnapshot {
+  readonly Forward: AudioVectorSnapshot;
+  readonly Position: AudioVectorSnapshot;
+  readonly Up: AudioVectorSnapshot;
+  readonly Velocity: AudioVectorSnapshot;
+}
+
+export interface AudioEmitterSnapshot extends AudioListenerSnapshot {
+  readonly DopplerScale: number;
+}
+
+export interface SoundEffectInstanceSnapshot {
+  readonly State: number;
+  readonly IsLooped: boolean;
+  readonly Volume: number;
+  readonly Pitch: number;
+  readonly Pan: number;
+}
+
+export interface MicrophoneSnapshot {
+  readonly Index: number;
+  readonly Name: string;
+  readonly IsHeadset: boolean;
+  readonly SampleRate: number;
+  readonly State: number;
+  readonly BufferDurationTicks: bigint;
+  readonly IsDefault: boolean;
+}
+
+export interface RendererDetailSnapshot {
+  readonly FriendlyName: string;
+  readonly RendererId: string;
+}
+
+export interface CueSnapshot {
+  readonly IsCreated: boolean;
+  readonly IsDisposed: boolean;
+  readonly IsPaused: boolean;
+  readonly IsPlaying: boolean;
+  readonly IsPrepared: boolean;
+  readonly IsPreparing: boolean;
+  readonly IsStopped: boolean;
+  readonly IsStopping: boolean;
+}
+
+/** Optional typed CNA XACT slice. Authored-bank success still requires legal XGS/XSB/XWB assets. */
+export interface CnaXactBackend {
+  readonly ParentLifetime: NativeResourceLifetime;
+  createAudioEngine(settingsFile: string, lookAheadTicks?: bigint, rendererId?: string): NativeHandle;
+  destroyAudioEngine(engine: NativeHandle): void;
+  getAudioEngineIsDisposed(engine: NativeHandle): boolean;
+  getAudioEngineRendererDetails(engine: NativeHandle): readonly RendererDetailSnapshot[];
+  getAudioEngineGlobalVariable(engine: NativeHandle, name: string): number;
+  setAudioEngineGlobalVariable(engine: NativeHandle, name: string, value: number): void;
+  updateAudioEngine(engine: NativeHandle): void;
+  getAudioCategory(engine: NativeHandle, name: string): NativeHandle;
+  destroyAudioCategory(category: NativeHandle): void;
+  getAudioCategoryName(category: NativeHandle): string;
+  pauseAudioCategory(category: NativeHandle): void;
+  resumeAudioCategory(category: NativeHandle): void;
+  setAudioCategoryVolume(category: NativeHandle, value: number): void;
+  stopAudioCategory(category: NativeHandle, options: number): void;
+  audioCategoriesEqual(left: NativeHandle, right: NativeHandle): boolean;
+  getAudioCategoryHashCode(category: NativeHandle): number;
+  createSoundBank(engine: NativeHandle, filename: string): NativeHandle;
+  destroySoundBank(bank: NativeHandle): void;
+  getSoundBankIsDisposed(bank: NativeHandle): boolean;
+  getSoundBankIsInUse(bank: NativeHandle): boolean;
+  getCue(bank: NativeHandle, name: string): NativeHandle;
+  playCue(bank: NativeHandle, name: string): void;
+  playCue3D(
+    bank: NativeHandle,
+    name: string,
+    listener: AudioListenerSnapshot,
+    emitter: AudioEmitterSnapshot,
+  ): void;
+  createWaveBank(engine: NativeHandle, filename: string): NativeHandle;
+  createStreamingWaveBank(
+    engine: NativeHandle,
+    filename: string,
+    offset: number,
+    packetSize: number,
+  ): NativeHandle;
+  destroyWaveBank(bank: NativeHandle): void;
+  getWaveBankIsDisposed(bank: NativeHandle): boolean;
+  getWaveBankIsInUse(bank: NativeHandle): boolean;
+  getWaveBankIsPrepared(bank: NativeHandle): boolean;
+  destroyCue(cue: NativeHandle): void;
+  getCueInfo(cue: NativeHandle): CueSnapshot;
+  getCueName(cue: NativeHandle): string;
+  applyCue3D(cue: NativeHandle, listener: AudioListenerSnapshot, emitter: AudioEmitterSnapshot): void;
+  getCueVariable(cue: NativeHandle, name: string): number;
+  setCueVariable(cue: NativeHandle, name: string, value: number): void;
+  playCueHandle(cue: NativeHandle): void;
+  pauseCue(cue: NativeHandle): void;
+  resumeCue(cue: NativeHandle): void;
+  stopCue(cue: NativeHandle, options: number): void;
+}
+
+export interface MediaSourceSnapshot {
+  readonly Index: number;
+  readonly Name: string;
+  readonly Type: number;
+}
+
+export interface MediaSongPlaybackSnapshot {
+  readonly Name: string;
+  readonly Uri: string;
+}
+
+/** Optional typed process-global media-player slice. */
+export interface CnaMediaBackend {
+  getAvailableMediaSources(): readonly MediaSourceSnapshot[];
+  playSongs(songs: readonly MediaSongPlaybackSnapshot[], index: number): void;
+  pause(): void;
+  resume(): void;
+  stop(): void;
+  moveNext(): void;
+  movePrevious(): void;
+  setVolume(value: number): void;
+  setMuted(value: boolean): void;
+  setRepeating(value: boolean): void;
+  setShuffled(value: boolean): void;
+  setVisualizationEnabled(value: boolean): void;
+  getGameHasControl(): boolean;
+  getPlayPositionTicks(): bigint;
+  getVisualizationData(): {
+    readonly Frequencies: readonly number[];
+    readonly Samples: readonly number[];
+  };
+  update(): void;
+}
+
+export interface VideoPlayerSnapshot {
+  readonly State: number;
+  readonly PlayPositionTicks: bigint;
+}
+
+/** Optional typed video-player slice. Frame textures remain player-owned transient aliases. */
+export interface CnaVideoBackend {
+  readonly ParentLifetime: NativeResourceLifetime;
+  createVideoPlayer(): NativeHandle;
+  destroyVideoPlayer(player: NativeHandle): void;
+  getVideoPlayerInfo(player: NativeHandle): VideoPlayerSnapshot;
+  setVideoPlayerLooped(player: NativeHandle, value: boolean): void;
+  setVideoPlayerMuted(player: NativeHandle, value: boolean): void;
+  setVideoPlayerVolume(player: NativeHandle, value: number): void;
+  playVideo(player: NativeHandle, video: NativeHandle): void;
+  pauseVideo(player: NativeHandle): void;
+  resumeVideo(player: NativeHandle): void;
+  stopVideo(player: NativeHandle): void;
+}
+
+export interface StorageDeviceSnapshot {
+  readonly IsConnected: boolean;
+  readonly FreeSpace: bigint;
+  readonly TotalSpace: bigint;
+}
+
+/** Optional typed CNA storage slice. Paths remain private to the storage backend. */
+export interface CnaStorageBackend {
+  readonly ParentLifetime: NativeResourceLifetime;
+  selectStorageDevice(player: number | null, sizeInBytes: number | null, directoryCount: number | null): NativeHandle;
+  destroyStorageDevice(device: NativeHandle): void;
+  getStorageDeviceInfo(device: NativeHandle): StorageDeviceSnapshot;
+  deleteStorageContainer(device: NativeHandle, name: string): void;
+  openStorageContainer(device: NativeHandle, name: string): NativeHandle;
+  destroyStorageContainer(container: NativeHandle): void;
+  getStorageContainerDisplayName(container: NativeHandle): string;
+  createStorageDirectory(container: NativeHandle, path: string): void;
+  storageDirectoryExists(container: NativeHandle, path: string): boolean;
+  deleteStorageDirectory(container: NativeHandle, path: string): void;
+  getStorageDirectoryNames(container: NativeHandle, pattern: string): readonly string[];
+  createStorageFile(container: NativeHandle, path: string): void;
+  storageFileExists(container: NativeHandle, path: string): boolean;
+  deleteStorageFile(container: NativeHandle, path: string): void;
+  getStorageFileNames(container: NativeHandle, pattern: string): readonly string[];
+  openStorageFile(
+    container: NativeHandle, path: string, mode: number, access: number, share: number,
+  ): Uint8Array;
+}
+
+/** Optional typed CNA audio slice. Absence means the loaded backend cannot execute audio. */
+export interface CnaAudioBackend {
+  readonly ParentLifetime: NativeResourceLifetime;
+  createSoundEffect(
+    pcmBytes: Uint8Array,
+    offset: number,
+    count: number,
+    sampleRate: number,
+    channels: number,
+    loopStart: number,
+    loopLength: number,
+  ): NativeHandle;
+  createSoundEffectFromEncoded(encoded: Uint8Array): NativeHandle;
+  getSoundEffectDurationTicks(soundEffect: NativeHandle): bigint;
+  getSoundEffectName(soundEffect: NativeHandle): string;
+  setSoundEffectName(soundEffect: NativeHandle, value: string): void;
+  createSoundEffectInstance(soundEffect: NativeHandle): NativeHandle;
+  playSoundEffect(soundEffect: NativeHandle, volume: number, pitch: number, pan: number): boolean;
+  destroySoundEffect(soundEffect: NativeHandle): void;
+  getMasterVolume(): number;
+  setMasterVolume(value: number): void;
+  getDistanceScale(): number;
+  setDistanceScale(value: number): void;
+  getDopplerScale(): number;
+  setDopplerScale(value: number): void;
+  getSpeedOfSound(): number;
+  setSpeedOfSound(value: number): void;
+  playSoundEffectInstance(instance: NativeHandle): void;
+  pauseSoundEffectInstance(instance: NativeHandle): void;
+  resumeSoundEffectInstance(instance: NativeHandle): void;
+  stopSoundEffectInstance(instance: NativeHandle, immediate: boolean): void;
+  getSoundEffectInstanceInfo(instance: NativeHandle): SoundEffectInstanceSnapshot;
+  setSoundEffectInstanceVolume(instance: NativeHandle, value: number): void;
+  setSoundEffectInstancePitch(instance: NativeHandle, value: number): void;
+  setSoundEffectInstancePan(instance: NativeHandle, value: number): void;
+  setSoundEffectInstanceLooped(instance: NativeHandle, value: boolean): void;
+  applySoundEffectInstance3D(
+    instance: NativeHandle,
+    listeners: readonly AudioListenerSnapshot[],
+    emitter: AudioEmitterSnapshot,
+  ): void;
+  destroySoundEffectInstance(instance: NativeHandle): void;
+  createDynamicSoundEffectInstance(sampleRate: number, channels: number): NativeHandle;
+  getDynamicPendingBufferCount(instance: NativeHandle): number;
+  submitDynamicBuffer(instance: NativeHandle, buffer: Uint8Array, offset: number, count: number): void;
+  getMicrophones?(): readonly MicrophoneSnapshot[];
+  setMicrophoneBufferDurationTicks?(index: number, ticks: bigint): void;
+  startMicrophone?(index: number): void;
+  stopMicrophone?(index: number): void;
+  getMicrophoneData?(index: number, count: number): Uint8Array;
+}
+
 export interface CnaBackend {
   readonly Kind: BackendKind;
   readonly IsAvailable: boolean;
   readonly AbiVersion: string | null;
   readonly Detail: string;
+  readonly Audio?: CnaAudioBackend;
+  readonly Xact?: CnaXactBackend;
+  readonly Media?: CnaMediaBackend;
+  readonly Video?: CnaVideoBackend;
+  readonly Storage?: CnaStorageBackend;
 
   initialize(): Promise<void>;
+  bindGameLifetimeForInternalUse?(lifetime: NativeResourceLifetime | null): void;
   updateFrameworkDispatcher(): void;
   getLastError(): string | null;
   createGame(callbacks: CnaGameCallbacks, configuration: CnaGameConfiguration): NativeHandle;

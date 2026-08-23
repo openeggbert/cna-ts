@@ -4,7 +4,7 @@ Status date: 2026-08-23
 
 Selected profile: XNA 4.0 Windows runtime
 
-Package: `cna-ts` 0.1.x before compatibility completion
+Package: `cna-ts` 0.1.x; selected-profile strict API projection complete
 
 This is the normative roadmap. A checkbox means the named evidence exists; it never means a larger
 phase is complete. API completeness can only be claimed from a reproducible strict verifier run.
@@ -16,13 +16,13 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   `dist/` under strict NodeNext settings.
 - [x] Root, `xna`, `extensions`, and `runtime` package exports resolve in compile probes.
 - [x] Node baseline is 20+; local verification currently uses checksum-verified Node 22.14.0.
-- [x] The strict target now has 211 measured types: the managed/graphics foundation plus complete
-  selected-profile SpriteBatch/font, Effect, ContentReader, and Model declaration families.
+- [x] The strict target has all 271 mapped types, including the complete selected-profile
+  Audio/XACT, Media/Video, Storage, Design, and GamerServices families.
 - [x] `Game` drives its managed pipeline from real CNA lifecycle callbacks when the opt-in Node
   backend is loaded; the default/backendless path remains explicitly unavailable.
 - [x] Linux x86-64 HEADLESS Node execution is verified through an existing exact CNA ABI-0.7
   artifact; no native artifact is bundled and WebAssembly remains unavailable.
-- [ ] The XNA structural difference count is not yet at zero.
+- [x] The XNA structural difference count is zero with no missing members or allowlist.
 
 ## Canonical JavaScript/TypeScript consolidation
 
@@ -51,7 +51,7 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   events, nested identity, and enum values; generic-constraint depth still needs expansion.
 - [x] Emit text and JSON diagnostics with the required categories.
 - [x] Strict mode exits nonzero; report-only records 443 initial differences.
-- [x] Runtime-symbol verifier reports zero differences for all 104 current target types, including
+- [x] Runtime-symbol verifier reports zero differences for all 271 target types, including
   abstract-member and JavaScript iterable-protocol handling.
 - [x] Strict internal/native leak gate reports zero.
 - [x] Allowlist size is zero and blanket allowlisting is prohibited.
@@ -62,9 +62,9 @@ Current measured report:
 REFERENCE_TYPES=257
 REFERENCE_MEMBERS=2964
 EXPECTED_MAPPED_TYPES=271
-TARGET_TYPES=211
-TOTAL_DIFFERENCES=60
-MISSING_TYPE=60
+TARGET_TYPES=271
+TOTAL_DIFFERENCES=0
+MISSING_TYPE=0
 MISSING_MEMBER=0
 all other diagnostic categories=0
 ALLOWLIST_SIZE=0
@@ -74,11 +74,10 @@ INTERNAL_LEAK=0
 
 ## Definition of done
 
-The selected profile is complete only when mapped declaration differences, runtime-symbol
-differences, internal leaks, and unreviewed mapping differences are zero; differential behavior,
-lifecycle, native ownership, packed-package consumers, and every claimed platform all pass their
-reproducible gates. Until then documentation says “XNA 4.0 TypeScript/JavaScript API projection in
-progress.”
+The selected strict profile meets its declaration, runtime-symbol, leak, and mapping gates.
+Behavior and native capability claims remain independently scoped: strict API completeness does
+not imply authored XACT assets, microphone hardware, video decode/frame ownership, browser/Wasm,
+Electron, or mobile support.
 
 ## Package/module architecture
 
@@ -111,7 +110,7 @@ progress.”
   first-slice sentinel symbols; it separately reports tracked C-ABI Wasm/ESM artifacts.
 - [ ] Produce or obtain a consumable C-ABI WebAssembly ESM artifact.
 - [x] Define the first exact symbol subset rather than binding all 2,861 routes blindly.
-- [x] The audit extracts and verifies the adapter's exact 69 imported symbols separately from the
+- [x] The audit extracts and verifies the adapter's exact 219 imported symbols separately from the
   broader 32-symbol cross-subsystem sentinel list.
 - [x] An isolated unmodified HEADLESS native build was investigated and stopped at CNA's upstream
   C-API renderer table assertion (49 identities versus 50); no library or adapter was fabricated.
@@ -126,6 +125,9 @@ progress.”
   cleanup errors; failed releases retain ownership for retry and block parent release.
 - [x] Connect the state machine to real CNA and verify 60/600 frames, double disposal, live-child
   parent shutdown, and repeated Game/resource creation/destruction.
+- [x] Verify SoundEffect parent/child, AudioEngine category/bank/cue, dynamic pump teardown, and
+  Storage device/container ownership. VideoPlayer frame-texture ownership remains blocked because
+  the current CNA route is transient and player-owned.
 
 ## Core/value API
 
@@ -136,8 +138,9 @@ progress.”
   Color, Point, Rectangle, Plane, Ray, bounding volumes/frustum, curves, and all 17 packed values.
 - [x] Import the first 26-observation neutral XNA differential JSON corpus, including NaN,
   infinities, signed zero, rounding, clamping, packing, matrix inversion, and geometry edges.
-- [x] Expand the shared neutral corpus to 114 observations: 83 math/value, 23 input/touch, and
-  eight graphics/content observations, producing 115 passing TAP assertions and zero failures.
+- [x] Expand the corpus to 168 observations: 83 math/value, 23 input/touch, 47 Audio reference
+  observations, seven deterministic subsystem-projection observations, and eight graphics/content
+  observations, producing 169 passing TAP assertions and zero failures.
 - [x] Add compile/type probes and managed regressions for the completed value/input groups.
 
 ## Game/device/window
@@ -187,8 +190,14 @@ progress.”
 
 ## Audio/XACT, media, storage, GamerServices
 
-- [ ] Implement the selected profile over real ABI routes with deterministic unsupported behavior
-  only where the platform genuinely cannot support a projected API.
+- [x] Implement all selected-profile Audio/XACT, Media/Video, Storage, Design, and
+  GamerServices declarations without missing members.
+- [x] Import typed CNA routes for SoundEffect/instances/dynamic audio/microphones, XACT engines and
+  authored banks/cues, MediaPlayer, VideoPlayer controls, and Storage selectors/containers.
+- [x] Verify PCM SoundEffect, dynamic buffers, generated-WAV MediaPlayer state, VideoPlayer control
+  state, and isolated Storage on Linux HEADLESS/NULL audio.
+- [ ] Authored XACT playback is asset-pending; microphone capture has no HEADLESS device; video
+  decode and player-owned transient frame textures remain backend/fixture blocked.
 - [ ] Inventory non-selected GamerServices/Net profiles separately.
 
 ## CNA extensions
@@ -238,9 +247,8 @@ progress.”
   gates.
 - [x] Install the exact tarball in independent TS and JS consumers with no sibling paths.
 - [x] Package exports contain no internal subpath and fresh consumers prove the guard.
-- [x] Final generated template TypeScript/JavaScript projects both install
-  `cna-ts-0.1.0.tgz` at SHA-256
-  `639cf0df2d751b8f1f02886f25203babd34be95de377ad46da6606f866b96050` (572 files) and pass.
+- [x] Final generated template TypeScript/JavaScript projects both install the one exact final
+  `cna-ts-0.1.0.tgz`; its measured SHA-256 and file count are recorded in `NEXT.md`.
 - [ ] Preserve deterministic generated artifact hashes in CI.
 - [x] Manual source `.d.ts` duplication = 0.
 - [x] Hand-maintained duplicate JavaScript implementation = 0.

@@ -28,7 +28,12 @@
     "Microsoft.Xna.Framework.Graphics.VertexBuffer.Dispose",
     "Microsoft.Xna.Framework.Graphics.IndexBuffer.Dispose",
     "Microsoft.Xna.Framework.Graphics.Effect.Dispose",
-    "Microsoft.Xna.Framework.Graphics.SpriteBatch.Dispose"
+    "Microsoft.Xna.Framework.Graphics.SpriteBatch.Dispose",
+    "Microsoft.Xna.Framework.Audio.AudioEngine.Dispose",
+    "Microsoft.Xna.Framework.Audio.DynamicSoundEffectInstance.Dispose",
+    "Microsoft.Xna.Framework.Audio.SoundBank.Dispose",
+    "Microsoft.Xna.Framework.Audio.SoundEffectInstance.Dispose",
+    "Microsoft.Xna.Framework.Audio.WaveBank.Dispose"
   ],
   "publicConstructorOverloads": [
     "Microsoft.Xna.Framework.Graphics.Effect..ctor(Microsoft.Xna.Framework.Graphics.Effect)",
@@ -39,7 +44,8 @@
     "Microsoft.Xna.Framework.Graphics.SkinnedEffect..ctor(Microsoft.Xna.Framework.Graphics.SkinnedEffect)"
   ],
   "ignoredConstructors": [
-    "Microsoft.Xna.Framework.Content.ContentLoadException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)"
+    "Microsoft.Xna.Framework.Content.ContentLoadException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)",
+    "Microsoft.Xna.Framework.Storage.StorageDeviceNotConnectedException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)"
   ],
   "fieldStyle": "same-cased-field",
   "structStyle": "mutable-class",
@@ -190,6 +196,9 @@
     "System.Text.StringBuilder": "string",
     "System.EventArgs": "Microsoft.Xna.Framework.EventArgs",
     "System.Exception": "Error",
+    "System.Runtime.InteropServices.ExternalException": "Error",
+    "System.DateTime": "Date",
+    "System.Uri": "URL",
     "System.IServiceProvider": "Microsoft.Xna.Framework.IServiceProvider",
     "System.TimeSpan": "Microsoft.Xna.Framework.TimeSpan",
     "System.Type": "Microsoft.Xna.Framework.XnaType<unknown>"

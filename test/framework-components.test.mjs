@@ -251,6 +251,7 @@ test("internal backend lifecycle routes are owned and released without exposing 
     AbiVersion: "0.7.0-test",
     Detail: "internal managed test backend",
     async initialize() { calls.push("initialize"); },
+    updateFrameworkDispatcher() { calls.push("dispatcher"); },
     getLastError() { return null; },
     createGame(callbacks) { calls.push("create:41"); this.callbacks = callbacks; return 41n; },
     async runGame(handle) {
@@ -288,9 +289,44 @@ test("internal backend lifecycle routes are owned and released without exposing 
 
   assert.equal(exitingSender, null);
   assert.deepEqual(calls, [
-    "initialize", "create:41", "exit:41", "run:41", "begin", "update:0", "end",
+    "initialize", "create:41", "exit:41", "run:41", "begin", "update:0", "dispatcher", "end",
     "frame:41", "destroy:41",
   ]);
   assert.throws(() => game.RunOneFrame(), /already disposed/);
   assert.equal(TimeSpan.FromTicks(game.TargetElapsedTime.Ticks).Ticks, 166_667n);
+});
+
+test("Game pumps framework services once after Update and skips the pump when Update throws", async (t) => {
+  const previous = getBackend();
+  t.after(() => setBackendForInternalUse(previous));
+  const calls = [];
+  let next = 70n;
+  const backend = {
+    Kind: "node-native", IsAvailable: true, AbiVersion: "0.7.0-test", Detail: "pump test backend",
+    async initialize() {}, getLastError() { return null; },
+    createGame(callbacks) { this.callbacks = callbacks; return next++; },
+    async runGame() {
+      this.callbacks.update({ TotalGameTimeTicks: 0n, ElapsedGameTimeTicks: 1n, IsRunningSlowly: false });
+    },
+    runGameOneFrame() {}, exitGame() {}, destroyGame() {},
+    updateFrameworkDispatcher() { calls.push("dispatcher"); },
+  };
+  setBackendForInternalUse(backend);
+
+  class SuccessfulGame extends Game {
+    Update() { calls.push("update"); }
+  }
+  const successful = new SuccessfulGame();
+  await successful.Run();
+  successful.Dispose();
+  assert.deepEqual(calls, ["update", "dispatcher"]);
+
+  calls.length = 0;
+  class ThrowingGame extends Game {
+    Update() { calls.push("throwing-update"); throw new Error("update failed"); }
+  }
+  const throwing = new ThrowingGame();
+  await assert.rejects(throwing.Run(), /update failed/);
+  throwing.Dispose();
+  assert.deepEqual(calls, ["throwing-update"]);
 });

@@ -1,5 +1,10 @@
 import type {
   CnaBackend,
+  CnaAudioBackend,
+  CnaXactBackend,
+  CnaMediaBackend,
+  CnaVideoBackend,
+  CnaStorageBackend,
   BackendRendererInfo,
   CnaGameCallbacks,
   CnaGameConfiguration,
@@ -8,9 +13,19 @@ import type {
   Texture2DInfo,
   Texture2DTransfer,
   VertexElementSnapshot,
+  AudioListenerSnapshot,
+  AudioEmitterSnapshot,
+  SoundEffectInstanceSnapshot,
+  MicrophoneSnapshot,
+  RendererDetailSnapshot,
+  CueSnapshot,
+  MediaSourceSnapshot,
+  MediaSongPlaybackSnapshot,
+  VideoPlayerSnapshot,
+  StorageDeviceSnapshot,
 } from "./backend.js";
 import { NativeUnavailableError } from "./native-error.js";
-import type { NativeHandle } from "./ownership.js";
+import type { NativeHandle, NativeResourceLifetime } from "./ownership.js";
 import type { PlayerIndex } from "../Microsoft/Xna/Framework/PlayerIndex.js";
 import { ButtonState, type GamePadDeadZone, type Keys } from "../Microsoft/Xna/Framework/Input/Enums.js";
 import {
@@ -147,6 +162,136 @@ interface NativeBridge {
   readGesture(game: bigint): NativeGestureSample;
   getTouchWindowHandle(game: bigint): bigint;
   setTouchWindowHandle(game: bigint, value: bigint): void;
+  createSoundEffectPcm(
+    game: bigint, bytes: Uint8Array, offset: number, count: number,
+    sampleRate: number, channels: number, loopStart: number, loopLength: number,
+  ): bigint;
+  createSoundEffectEncoded(game: bigint, bytes: Uint8Array): bigint;
+  getSoundEffectDurationTicks(soundEffect: bigint): bigint;
+  getSoundEffectName(soundEffect: bigint): string;
+  setSoundEffectName(soundEffect: bigint, value: string): void;
+  createSoundEffectInstance(soundEffect: bigint): bigint;
+  playSoundEffect(soundEffect: bigint, volume: number, pitch: number, pan: number): boolean;
+  destroySoundEffect(soundEffect: bigint): void;
+  getMasterVolume(game: bigint): number;
+  setMasterVolume(game: bigint, value: number): void;
+  getDistanceScale(game: bigint): number;
+  setDistanceScale(game: bigint, value: number): void;
+  getDopplerScale(game: bigint): number;
+  setDopplerScale(game: bigint, value: number): void;
+  getSpeedOfSound(game: bigint): number;
+  setSpeedOfSound(game: bigint, value: number): void;
+  playSoundEffectInstance(instance: bigint): void;
+  pauseSoundEffectInstance(instance: bigint): void;
+  resumeSoundEffectInstance(instance: bigint): void;
+  stopSoundEffectInstance(instance: bigint, immediate: boolean): void;
+  getSoundEffectInstanceInfo(instance: bigint): SoundEffectInstanceSnapshot;
+  setSoundEffectInstanceVolume(instance: bigint, value: number): void;
+  setSoundEffectInstancePitch(instance: bigint, value: number): void;
+  setSoundEffectInstancePan(instance: bigint, value: number): void;
+  setSoundEffectInstanceLooped(instance: bigint, value: boolean): void;
+  applySoundEffectInstance3D(
+    instance: bigint, listeners: readonly AudioListenerSnapshot[], emitter: AudioEmitterSnapshot,
+  ): void;
+  destroySoundEffectInstance(instance: bigint): void;
+  createDynamicSoundEffectInstance(game: bigint, sampleRate: number, channels: number): bigint;
+  getDynamicPendingBufferCount(instance: bigint): number;
+  submitDynamicBuffer(instance: bigint, buffer: Uint8Array, offset: number, count: number): void;
+  getMicrophones(game: bigint): MicrophoneSnapshot[];
+  setMicrophoneBufferDurationTicks(game: bigint, index: number, ticks: bigint): void;
+  startMicrophone(game: bigint, index: number): void;
+  stopMicrophone(game: bigint, index: number): void;
+  getMicrophoneData(game: bigint, index: number, count: number): Uint8Array;
+  createAudioEngine(
+    game: bigint, settingsFile: string, extended: boolean, lookAheadTicks: bigint, rendererId: string,
+  ): bigint;
+  destroyAudioEngine(engine: bigint): void;
+  getAudioEngineIsDisposed(engine: bigint): boolean;
+  getAudioEngineRendererDetails(engine: bigint): RendererDetailSnapshot[];
+  getAudioEngineGlobalVariable(engine: bigint, name: string): number;
+  setAudioEngineGlobalVariable(engine: bigint, name: string, value: number): void;
+  updateAudioEngine(engine: bigint): void;
+  getAudioCategory(engine: bigint, name: string): bigint;
+  destroyAudioCategory(category: bigint): void;
+  getAudioCategoryName(category: bigint): string;
+  pauseAudioCategory(category: bigint): void;
+  resumeAudioCategory(category: bigint): void;
+  setAudioCategoryVolume(category: bigint, value: number): void;
+  stopAudioCategory(category: bigint, options: number): void;
+  audioCategoriesEqual(left: bigint, right: bigint): boolean;
+  getAudioCategoryHashCode(category: bigint): number;
+  createWaveBank(engine: bigint, filename: string): bigint;
+  createStreamingWaveBank(engine: bigint, filename: string, offset: number, packetSize: number): bigint;
+  destroyWaveBank(bank: bigint): void;
+  getWaveBankIsDisposed(bank: bigint): boolean;
+  getWaveBankIsPrepared(bank: bigint): boolean;
+  getWaveBankIsInUse(bank: bigint): boolean;
+  createSoundBank(engine: bigint, filename: string): bigint;
+  destroySoundBank(bank: bigint): void;
+  getSoundBankIsDisposed(bank: bigint): boolean;
+  getSoundBankIsInUse(bank: bigint): boolean;
+  getCue(bank: bigint, name: string): bigint;
+  playSoundBankCue(bank: bigint, name: string): void;
+  playSoundBankCue3D(
+    bank: bigint, name: string, listener: AudioListenerSnapshot, emitter: AudioEmitterSnapshot,
+  ): void;
+  destroyCue(cue: bigint): void;
+  getCueInfo(cue: bigint): CueSnapshot;
+  getCueName(cue: bigint): string;
+  applyCue3D(cue: bigint, listener: AudioListenerSnapshot, emitter: AudioEmitterSnapshot): void;
+  getCueVariable(cue: bigint, name: string): number;
+  setCueVariable(cue: bigint, name: string, value: number): void;
+  playCue(cue: bigint): void;
+  pauseCue(cue: bigint): void;
+  resumeCue(cue: bigint): void;
+  stopCue(cue: bigint, options: number): void;
+  getAvailableMediaSources(game: bigint): MediaSourceSnapshot[];
+  playMediaSongs(game: bigint, songs: readonly MediaSongPlaybackSnapshot[], index: number): void;
+  pauseMedia(game: bigint): void;
+  resumeMedia(game: bigint): void;
+  stopMedia(game: bigint): void;
+  moveNextMedia(game: bigint): void;
+  movePreviousMedia(game: bigint): void;
+  setMediaVolume(game: bigint, value: number): void;
+  setMediaMuted(game: bigint, value: boolean): void;
+  setMediaRepeating(game: bigint, value: boolean): void;
+  setMediaShuffled(game: bigint, value: boolean): void;
+  setMediaVisualizationEnabled(game: bigint, value: boolean): void;
+  getMediaGameHasControl(game: bigint): boolean;
+  getMediaPlayPositionTicks(game: bigint): bigint;
+  getMediaVisualizationData(game: bigint): {
+    readonly Frequencies: readonly number[];
+    readonly Samples: readonly number[];
+  };
+  updateMedia(game: bigint): void;
+  createVideoPlayer(game: bigint): bigint;
+  destroyVideoPlayer(player: bigint): void;
+  getVideoPlayerInfo(player: bigint): VideoPlayerSnapshot;
+  setVideoPlayerLooped(player: bigint, value: boolean): void;
+  setVideoPlayerMuted(player: bigint, value: boolean): void;
+  setVideoPlayerVolume(player: bigint, value: number): void;
+  playVideo(player: bigint, video: bigint): void;
+  pauseVideo(player: bigint): void;
+  resumeVideo(player: bigint): void;
+  stopVideo(player: bigint): void;
+  selectStorageDevice(
+    hasPlayer: boolean, player: number, hasSpace: boolean, sizeInBytes: number, directoryCount: number,
+  ): bigint;
+  destroyStorageDevice(device: bigint): void;
+  getStorageDeviceInfo(device: bigint): StorageDeviceSnapshot;
+  deleteStorageContainer(device: bigint, name: string): void;
+  openStorageContainer(device: bigint, name: string): bigint;
+  destroyStorageContainer(container: bigint): void;
+  getStorageContainerDisplayName(container: bigint): string;
+  createStorageDirectory(container: bigint, path: string): void;
+  storageDirectoryExists(container: bigint, path: string): boolean;
+  deleteStorageDirectory(container: bigint, path: string): void;
+  getStorageDirectoryNames(container: bigint, pattern: string): string[];
+  createStorageFile(container: bigint, path: string): void;
+  storageFileExists(container: bigint, path: string): boolean;
+  deleteStorageFile(container: bigint, path: string): void;
+  getStorageFileNames(container: bigint, pattern: string): string[];
+  openStorageFile(container: bigint, path: string, mode: number, access: number, share: number): Uint8Array;
 }
 
 export class NodeNativeBackend implements CnaBackend {
@@ -156,8 +301,14 @@ export class NodeNativeBackend implements CnaBackend {
   public readonly Detail: string;
   public readonly ImportedSymbolCount: number;
   public RendererInfo: BackendRendererInfo | null = null;
+  public readonly Audio: CnaAudioBackend = this;
+  public readonly Xact: CnaXactBackend = this;
+  public readonly Media: CnaMediaBackend = this;
+  public readonly Video: CnaVideoBackend = this;
+  public readonly Storage: CnaStorageBackend = this;
   readonly #bridge: NativeBridge;
   #activeGame: NativeHandle | null = null;
+  #boundGameLifetime: NativeResourceLifetime | null = null;
 
   public constructor(bridge: NativeBridge, libraryPath: string) {
     bridge.loadLibrary(libraryPath);
@@ -173,6 +324,15 @@ export class NodeNativeBackend implements CnaBackend {
   }
 
   public initialize(): Promise<void> { return Promise.resolve(); }
+  public bindGameLifetimeForInternalUse(lifetime: NativeResourceLifetime | null): void {
+    this.#boundGameLifetime = lifetime;
+  }
+  public get ParentLifetime(): NativeResourceLifetime {
+    if (this.#boundGameLifetime == null) {
+      throw new NativeUnavailableError("CNA audio resources require an active native Game lifetime");
+    }
+    return this.#boundGameLifetime;
+  }
   public updateFrameworkDispatcher(): void {
     if (this.#activeGame == null) {
       throw new NativeUnavailableError("FrameworkDispatcher.Update requires an active native Game");
@@ -423,6 +583,300 @@ export class NodeNativeBackend implements CnaBackend {
   }
   public get touchWindowHandle(): bigint { return this.#bridge.getTouchWindowHandle(this.#game()); }
   public setTouchWindowHandle(value: bigint) { this.#bridge.setTouchWindowHandle(this.#game(), value); }
+
+  public createSoundEffect(
+    pcmBytes: Uint8Array, offset: number, count: number, sampleRate: number,
+    channels: number, loopStart: number, loopLength: number,
+  ): NativeHandle {
+    return this.#bridge.createSoundEffectPcm(
+      this.#game(), pcmBytes, offset, count, sampleRate, channels, loopStart, loopLength,
+    );
+  }
+  public createSoundEffectFromEncoded(encoded: Uint8Array): NativeHandle {
+    return this.#bridge.createSoundEffectEncoded(this.#game(), encoded);
+  }
+  public getSoundEffectDurationTicks(soundEffect: NativeHandle): bigint {
+    return this.#bridge.getSoundEffectDurationTicks(soundEffect);
+  }
+  public getSoundEffectName(soundEffect: NativeHandle): string {
+    return this.#bridge.getSoundEffectName(soundEffect);
+  }
+  public setSoundEffectName(soundEffect: NativeHandle, value: string): void {
+    this.#bridge.setSoundEffectName(soundEffect, value);
+  }
+  public createSoundEffectInstance(soundEffect: NativeHandle): NativeHandle {
+    return this.#bridge.createSoundEffectInstance(soundEffect);
+  }
+  public playSoundEffect(
+    soundEffect: NativeHandle, volume: number, pitch: number, pan: number,
+  ): boolean { return this.#bridge.playSoundEffect(soundEffect, volume, pitch, pan); }
+  public destroySoundEffect(soundEffect: NativeHandle): void {
+    this.#bridge.destroySoundEffect(soundEffect);
+  }
+  public getMasterVolume(): number { return this.#bridge.getMasterVolume(this.#game()); }
+  public setMasterVolume(value: number): void { this.#bridge.setMasterVolume(this.#game(), value); }
+  public getDistanceScale(): number { return this.#bridge.getDistanceScale(this.#game()); }
+  public setDistanceScale(value: number): void { this.#bridge.setDistanceScale(this.#game(), value); }
+  public getDopplerScale(): number { return this.#bridge.getDopplerScale(this.#game()); }
+  public setDopplerScale(value: number): void { this.#bridge.setDopplerScale(this.#game(), value); }
+  public getSpeedOfSound(): number { return this.#bridge.getSpeedOfSound(this.#game()); }
+  public setSpeedOfSound(value: number): void { this.#bridge.setSpeedOfSound(this.#game(), value); }
+  public playSoundEffectInstance(instance: NativeHandle): void {
+    this.#bridge.playSoundEffectInstance(instance);
+  }
+  public pauseSoundEffectInstance(instance: NativeHandle): void {
+    this.#bridge.pauseSoundEffectInstance(instance);
+  }
+  public resumeSoundEffectInstance(instance: NativeHandle): void {
+    this.#bridge.resumeSoundEffectInstance(instance);
+  }
+  public stopSoundEffectInstance(instance: NativeHandle, immediate: boolean): void {
+    this.#bridge.stopSoundEffectInstance(instance, immediate);
+  }
+  public getSoundEffectInstanceInfo(instance: NativeHandle): SoundEffectInstanceSnapshot {
+    return this.#bridge.getSoundEffectInstanceInfo(instance);
+  }
+  public setSoundEffectInstanceVolume(instance: NativeHandle, value: number): void {
+    this.#bridge.setSoundEffectInstanceVolume(instance, value);
+  }
+  public setSoundEffectInstancePitch(instance: NativeHandle, value: number): void {
+    this.#bridge.setSoundEffectInstancePitch(instance, value);
+  }
+  public setSoundEffectInstancePan(instance: NativeHandle, value: number): void {
+    this.#bridge.setSoundEffectInstancePan(instance, value);
+  }
+  public setSoundEffectInstanceLooped(instance: NativeHandle, value: boolean): void {
+    this.#bridge.setSoundEffectInstanceLooped(instance, value);
+  }
+  public applySoundEffectInstance3D(
+    instance: NativeHandle,
+    listeners: readonly AudioListenerSnapshot[],
+    emitter: AudioEmitterSnapshot,
+  ): void { this.#bridge.applySoundEffectInstance3D(instance, listeners, emitter); }
+  public destroySoundEffectInstance(instance: NativeHandle): void {
+    this.#bridge.destroySoundEffectInstance(instance);
+  }
+  public createDynamicSoundEffectInstance(sampleRate: number, channels: number): NativeHandle {
+    return this.#bridge.createDynamicSoundEffectInstance(this.#game(), sampleRate, channels);
+  }
+  public getDynamicPendingBufferCount(instance: NativeHandle): number {
+    return this.#bridge.getDynamicPendingBufferCount(instance);
+  }
+  public submitDynamicBuffer(
+    instance: NativeHandle, buffer: Uint8Array, offset: number, count: number,
+  ): void { this.#bridge.submitDynamicBuffer(instance, buffer, offset, count); }
+  public getMicrophones(): readonly MicrophoneSnapshot[] {
+    return Object.freeze(this.#bridge.getMicrophones(this.#game()).map((value) => Object.freeze(value)));
+  }
+  public setMicrophoneBufferDurationTicks(index: number, ticks: bigint): void {
+    this.#bridge.setMicrophoneBufferDurationTicks(this.#game(), index, ticks);
+  }
+  public startMicrophone(index: number): void { this.#bridge.startMicrophone(this.#game(), index); }
+  public stopMicrophone(index: number): void { this.#bridge.stopMicrophone(this.#game(), index); }
+  public getMicrophoneData(index: number, count: number): Uint8Array {
+    return new Uint8Array(this.#bridge.getMicrophoneData(this.#game(), index, count));
+  }
+
+  public createAudioEngine(
+    settingsFile: string, lookAheadTicks?: bigint, rendererId = "",
+  ): NativeHandle {
+    return this.#bridge.createAudioEngine(
+      this.#game(), settingsFile, lookAheadTicks !== undefined, lookAheadTicks ?? 0n, rendererId,
+    );
+  }
+  public destroyAudioEngine(engine: NativeHandle): void { this.#bridge.destroyAudioEngine(engine); }
+  public getAudioEngineIsDisposed(engine: NativeHandle): boolean {
+    return this.#bridge.getAudioEngineIsDisposed(engine);
+  }
+  public getAudioEngineRendererDetails(engine: NativeHandle): readonly RendererDetailSnapshot[] {
+    return Object.freeze(this.#bridge.getAudioEngineRendererDetails(engine).map((value) => Object.freeze(value)));
+  }
+  public getAudioEngineGlobalVariable(engine: NativeHandle, name: string): number {
+    return this.#bridge.getAudioEngineGlobalVariable(engine, name);
+  }
+  public setAudioEngineGlobalVariable(engine: NativeHandle, name: string, value: number): void {
+    this.#bridge.setAudioEngineGlobalVariable(engine, name, value);
+  }
+  public updateAudioEngine(engine: NativeHandle): void { this.#bridge.updateAudioEngine(engine); }
+  public getAudioCategory(engine: NativeHandle, name: string): NativeHandle {
+    return this.#bridge.getAudioCategory(engine, name);
+  }
+  public destroyAudioCategory(category: NativeHandle): void {
+    this.#bridge.destroyAudioCategory(category);
+  }
+  public getAudioCategoryName(category: NativeHandle): string {
+    return this.#bridge.getAudioCategoryName(category);
+  }
+  public pauseAudioCategory(category: NativeHandle): void { this.#bridge.pauseAudioCategory(category); }
+  public resumeAudioCategory(category: NativeHandle): void { this.#bridge.resumeAudioCategory(category); }
+  public setAudioCategoryVolume(category: NativeHandle, value: number): void {
+    this.#bridge.setAudioCategoryVolume(category, value);
+  }
+  public stopAudioCategory(category: NativeHandle, options: number): void {
+    this.#bridge.stopAudioCategory(category, options);
+  }
+  public audioCategoriesEqual(left: NativeHandle, right: NativeHandle): boolean {
+    return this.#bridge.audioCategoriesEqual(left, right);
+  }
+  public getAudioCategoryHashCode(category: NativeHandle): number {
+    return this.#bridge.getAudioCategoryHashCode(category);
+  }
+  public createWaveBank(engine: NativeHandle, filename: string): NativeHandle {
+    return this.#bridge.createWaveBank(engine, filename);
+  }
+  public createStreamingWaveBank(
+    engine: NativeHandle, filename: string, offset: number, packetSize: number,
+  ): NativeHandle { return this.#bridge.createStreamingWaveBank(engine, filename, offset, packetSize); }
+  public destroyWaveBank(bank: NativeHandle): void { this.#bridge.destroyWaveBank(bank); }
+  public getWaveBankIsDisposed(bank: NativeHandle): boolean {
+    return this.#bridge.getWaveBankIsDisposed(bank);
+  }
+  public getWaveBankIsPrepared(bank: NativeHandle): boolean {
+    return this.#bridge.getWaveBankIsPrepared(bank);
+  }
+  public getWaveBankIsInUse(bank: NativeHandle): boolean {
+    return this.#bridge.getWaveBankIsInUse(bank);
+  }
+  public createSoundBank(engine: NativeHandle, filename: string): NativeHandle {
+    return this.#bridge.createSoundBank(engine, filename);
+  }
+  public destroySoundBank(bank: NativeHandle): void { this.#bridge.destroySoundBank(bank); }
+  public getSoundBankIsDisposed(bank: NativeHandle): boolean {
+    return this.#bridge.getSoundBankIsDisposed(bank);
+  }
+  public getSoundBankIsInUse(bank: NativeHandle): boolean {
+    return this.#bridge.getSoundBankIsInUse(bank);
+  }
+  public getCue(bank: NativeHandle, name: string): NativeHandle {
+    return this.#bridge.getCue(bank, name);
+  }
+  public playCue(bank: NativeHandle, name: string): void { this.#bridge.playSoundBankCue(bank, name); }
+  public playCue3D(
+    bank: NativeHandle, name: string,
+    listener: AudioListenerSnapshot, emitter: AudioEmitterSnapshot,
+  ): void { this.#bridge.playSoundBankCue3D(bank, name, listener, emitter); }
+  public destroyCue(cue: NativeHandle): void { this.#bridge.destroyCue(cue); }
+  public getCueInfo(cue: NativeHandle): CueSnapshot { return this.#bridge.getCueInfo(cue); }
+  public getCueName(cue: NativeHandle): string { return this.#bridge.getCueName(cue); }
+  public applyCue3D(
+    cue: NativeHandle, listener: AudioListenerSnapshot, emitter: AudioEmitterSnapshot,
+  ): void { this.#bridge.applyCue3D(cue, listener, emitter); }
+  public getCueVariable(cue: NativeHandle, name: string): number {
+    return this.#bridge.getCueVariable(cue, name);
+  }
+  public setCueVariable(cue: NativeHandle, name: string, value: number): void {
+    this.#bridge.setCueVariable(cue, name, value);
+  }
+  public playCueHandle(cue: NativeHandle): void { this.#bridge.playCue(cue); }
+  public pauseCue(cue: NativeHandle): void { this.#bridge.pauseCue(cue); }
+  public resumeCue(cue: NativeHandle): void { this.#bridge.resumeCue(cue); }
+  public stopCue(cue: NativeHandle, options: number): void { this.#bridge.stopCue(cue, options); }
+
+  public getAvailableMediaSources(): readonly MediaSourceSnapshot[] {
+    return Object.freeze(this.#bridge.getAvailableMediaSources(this.#game()).map((value) => Object.freeze(value)));
+  }
+  public playSongs(songs: readonly MediaSongPlaybackSnapshot[], index: number): void {
+    this.#bridge.playMediaSongs(this.#game(), songs, index);
+  }
+  public pause(): void { this.#bridge.pauseMedia(this.#game()); }
+  public resume(): void { this.#bridge.resumeMedia(this.#game()); }
+  public stop(): void { this.#bridge.stopMedia(this.#game()); }
+  public moveNext(): void { this.#bridge.moveNextMedia(this.#game()); }
+  public movePrevious(): void { this.#bridge.movePreviousMedia(this.#game()); }
+  public setVolume(value: number): void { this.#bridge.setMediaVolume(this.#game(), value); }
+  public setMuted(value: boolean): void { this.#bridge.setMediaMuted(this.#game(), value); }
+  public setRepeating(value: boolean): void { this.#bridge.setMediaRepeating(this.#game(), value); }
+  public setShuffled(value: boolean): void { this.#bridge.setMediaShuffled(this.#game(), value); }
+  public setVisualizationEnabled(value: boolean): void {
+    this.#bridge.setMediaVisualizationEnabled(this.#game(), value);
+  }
+  public getGameHasControl(): boolean { return this.#bridge.getMediaGameHasControl(this.#game()); }
+  public getPlayPositionTicks(): bigint { return this.#bridge.getMediaPlayPositionTicks(this.#game()); }
+  public getVisualizationData(): {
+    readonly Frequencies: readonly number[];
+    readonly Samples: readonly number[];
+  } {
+    const value = this.#bridge.getMediaVisualizationData(this.#game());
+    return Object.freeze({
+      Frequencies: Object.freeze([...value.Frequencies]),
+      Samples: Object.freeze([...value.Samples]),
+    });
+  }
+  public update(): void { this.#bridge.updateMedia(this.#game()); }
+
+  public createVideoPlayer(): NativeHandle { return this.#bridge.createVideoPlayer(this.#game()); }
+  public destroyVideoPlayer(player: NativeHandle): void { this.#bridge.destroyVideoPlayer(player); }
+  public getVideoPlayerInfo(player: NativeHandle): VideoPlayerSnapshot {
+    return this.#bridge.getVideoPlayerInfo(player);
+  }
+  public setVideoPlayerLooped(player: NativeHandle, value: boolean): void {
+    this.#bridge.setVideoPlayerLooped(player, value);
+  }
+  public setVideoPlayerMuted(player: NativeHandle, value: boolean): void {
+    this.#bridge.setVideoPlayerMuted(player, value);
+  }
+  public setVideoPlayerVolume(player: NativeHandle, value: number): void {
+    this.#bridge.setVideoPlayerVolume(player, value);
+  }
+  public playVideo(player: NativeHandle, video: NativeHandle): void {
+    this.#bridge.playVideo(player, video);
+  }
+  public pauseVideo(player: NativeHandle): void { this.#bridge.pauseVideo(player); }
+  public resumeVideo(player: NativeHandle): void { this.#bridge.resumeVideo(player); }
+  public stopVideo(player: NativeHandle): void { this.#bridge.stopVideo(player); }
+
+  public selectStorageDevice(
+    player: number | null, sizeInBytes: number | null, directoryCount: number | null,
+  ): NativeHandle {
+    return this.#bridge.selectStorageDevice(
+      player != null, player ?? 0, sizeInBytes != null, sizeInBytes ?? 0, directoryCount ?? 0,
+    );
+  }
+  public destroyStorageDevice(device: NativeHandle): void { this.#bridge.destroyStorageDevice(device); }
+  public getStorageDeviceInfo(device: NativeHandle): StorageDeviceSnapshot {
+    return this.#bridge.getStorageDeviceInfo(device);
+  }
+  public deleteStorageContainer(device: NativeHandle, name: string): void {
+    this.#bridge.deleteStorageContainer(device, name);
+  }
+  public openStorageContainer(device: NativeHandle, name: string): NativeHandle {
+    return this.#bridge.openStorageContainer(device, name);
+  }
+  public destroyStorageContainer(container: NativeHandle): void {
+    this.#bridge.destroyStorageContainer(container);
+  }
+  public getStorageContainerDisplayName(container: NativeHandle): string {
+    return this.#bridge.getStorageContainerDisplayName(container);
+  }
+  public createStorageDirectory(container: NativeHandle, path: string): void {
+    this.#bridge.createStorageDirectory(container, path);
+  }
+  public storageDirectoryExists(container: NativeHandle, path: string): boolean {
+    return this.#bridge.storageDirectoryExists(container, path);
+  }
+  public deleteStorageDirectory(container: NativeHandle, path: string): void {
+    this.#bridge.deleteStorageDirectory(container, path);
+  }
+  public getStorageDirectoryNames(container: NativeHandle, pattern: string): readonly string[] {
+    return Object.freeze(this.#bridge.getStorageDirectoryNames(container, pattern));
+  }
+  public createStorageFile(container: NativeHandle, path: string): void {
+    this.#bridge.createStorageFile(container, path);
+  }
+  public storageFileExists(container: NativeHandle, path: string): boolean {
+    return this.#bridge.storageFileExists(container, path);
+  }
+  public deleteStorageFile(container: NativeHandle, path: string): void {
+    this.#bridge.deleteStorageFile(container, path);
+  }
+  public getStorageFileNames(container: NativeHandle, pattern: string): readonly string[] {
+    return Object.freeze(this.#bridge.getStorageFileNames(container, pattern));
+  }
+  public openStorageFile(
+    container: NativeHandle, path: string, mode: number, access: number, share: number,
+  ): Uint8Array {
+    return new Uint8Array(this.#bridge.openStorageFile(container, path, mode, access, share));
+  }
 
   #game(): NativeHandle {
     if (this.#activeGame == null) {

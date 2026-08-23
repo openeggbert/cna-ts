@@ -81,6 +81,73 @@ typedef CNA_Result (*TouchGetStateFn)(CNA_Handle, CNA_TouchState*);
 typedef CNA_Result (*TouchGetCapabilitiesFn)(CNA_Handle, CNA_TouchCapabilities*);
 typedef CNA_Result (*BoolGetFn)(CNA_Handle, CNA_Bool*);
 typedef CNA_Result (*GestureReadFn)(CNA_Handle, CNA_GestureSample*);
+typedef CNA_Result (*SoundEffectCreatePcmRangeFn)(
+  CNA_Handle, const CNA_SoundEffectCreateInfo*, const uint8_t*, uint64_t,
+  int32_t, int32_t, int32_t, int32_t, CNA_Handle*);
+typedef CNA_Result (*SoundEffectCreateEncodedFn)(CNA_Handle, const uint8_t*, uint64_t, CNA_Handle*);
+typedef CNA_Result (*HandleInt64OutFn)(CNA_Handle, int64_t*);
+typedef CNA_Result (*HandleU64OutFn)(CNA_Handle, uint64_t*);
+typedef CNA_Result (*HandleCopyStringFn)(CNA_Handle, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*HandleStringViewFn)(CNA_Handle, CNA_StringView);
+typedef CNA_Result (*HandleHandleOutFn)(CNA_Handle, CNA_Handle*);
+typedef CNA_Result (*SoundEffectPlaySettingsFn)(CNA_Handle, float, float, float, CNA_Bool*);
+typedef CNA_Result (*HandleFloatOutFn)(CNA_Handle, float*);
+typedef CNA_Result (*HandleFloatFn)(CNA_Handle, float);
+typedef CNA_Result (*HandleBoolFn)(CNA_Handle, CNA_Bool);
+typedef CNA_Result (*SoundEffectInstanceStopFn)(CNA_Handle, CNA_Bool);
+typedef CNA_Result (*SoundEffectInstanceInfoFn)(CNA_Handle, CNA_SoundEffectInstanceInfo*);
+typedef CNA_Result (*SoundEffectApply3DMultiFn)(
+  CNA_Handle, const CNA_AudioListener*, uint64_t, const CNA_AudioEmitter*);
+typedef CNA_Result (*DynamicSoundCreateFn)(CNA_Handle, int32_t, CNA_AudioChannels, CNA_Handle*);
+typedef CNA_Result (*HandleI32OutFn)(CNA_Handle, int32_t*);
+typedef CNA_Result (*DynamicSoundSubmitFn)(CNA_Handle, const uint8_t*, uint64_t, int32_t, int32_t);
+typedef CNA_Result (*GameDefaultMicrophoneFn)(CNA_Handle, uint64_t*, CNA_Bool*);
+typedef CNA_Result (*GameIndexU64OutFn)(CNA_Handle, uint64_t, uint64_t*);
+typedef CNA_Result (*GameIndexCopyStringFn)(CNA_Handle, uint64_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*GameIndexInt64OutFn)(CNA_Handle, uint64_t, int64_t*);
+typedef CNA_Result (*GameIndexInt64Fn)(CNA_Handle, uint64_t, int64_t);
+typedef CNA_Result (*GameIndexBoolOutFn)(CNA_Handle, uint64_t, CNA_Bool*);
+typedef CNA_Result (*GameIndexI32OutFn)(CNA_Handle, uint64_t, int32_t*);
+typedef CNA_Result (*GameIndexU32OutFn)(CNA_Handle, uint64_t, uint32_t*);
+typedef CNA_Result (*GameIndexFn)(CNA_Handle, uint64_t);
+typedef CNA_Result (*GameIndexBytesFn)(CNA_Handle, uint64_t, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*HandleStringHandleOutFn)(CNA_Handle, CNA_StringView, CNA_Handle*);
+typedef CNA_Result (*AudioEngineCreateRendererFn)(
+  CNA_Handle, CNA_StringView, int64_t, CNA_StringView, CNA_Handle*);
+typedef CNA_Result (*HandleIndexU64OutFn)(CNA_Handle, uint64_t, uint64_t*);
+typedef CNA_Result (*HandleIndexCopyStringFn)(CNA_Handle, uint64_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*HandleStringFloatOutFn)(CNA_Handle, CNA_StringView, float*);
+typedef CNA_Result (*HandleStringFloatFn)(CNA_Handle, CNA_StringView, float);
+typedef CNA_Result (*HandleOptionsFn)(CNA_Handle, uint32_t);
+typedef CNA_Result (*TwoHandleBoolOutFn)(CNA_Handle, CNA_Handle, CNA_Bool*);
+typedef CNA_Result (*WaveBankStreamingCreateFn)(CNA_Handle, CNA_StringView, int32_t, int16_t, CNA_Handle*);
+typedef CNA_Result (*SoundBankPlay3DFn)(
+  CNA_Handle, CNA_StringView, const CNA_AudioListener*, const CNA_AudioEmitter*);
+typedef CNA_Result (*CueInfoFn)(CNA_Handle, CNA_CueInfo*);
+typedef CNA_Result (*CueApply3DFn)(CNA_Handle, const CNA_AudioListener*, const CNA_AudioEmitter*);
+typedef CNA_Result (*GameU32OutFn)(CNA_Handle, uint32_t*);
+typedef CNA_Result (*GameIndexU32U32OutFn)(CNA_Handle, uint32_t, uint32_t*);
+typedef CNA_Result (*GameIndexU32U64OutFn)(CNA_Handle, uint32_t, uint64_t*);
+typedef CNA_Result (*GameIndexU32CopyStringFn)(CNA_Handle, uint32_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*SongCreateUriFn)(CNA_Handle, CNA_StringView, CNA_StringView, CNA_Handle*);
+typedef CNA_Result (*SongCollectionCreateFn)(CNA_Handle, const CNA_Handle*, uint64_t, CNA_Handle*);
+typedef CNA_Result (*MediaPlayCollectionFromFn)(CNA_Handle, CNA_Handle, int32_t);
+typedef CNA_Result (*VisualizationGetFn)(CNA_Handle, CNA_VisualizationData*);
+typedef CNA_Result (*TwoHandleFn)(CNA_Handle, CNA_Handle);
+typedef CNA_Result (*StorageSelectFn)(CNA_StorageCompletionCallback, void*, CNA_Handle*);
+typedef CNA_Result (*StorageSelectPlayerFn)(uint32_t, CNA_StorageCompletionCallback, void*, CNA_Handle*);
+typedef CNA_Result (*StorageSelectSpaceFn)(int32_t, int32_t, CNA_StorageCompletionCallback, void*, CNA_Handle*);
+typedef CNA_Result (*StorageSelectPlayerSpaceFn)(
+  uint32_t, int32_t, int32_t, CNA_StorageCompletionCallback, void*, CNA_Handle*);
+typedef CNA_Result (*StorageContainerOpenFn)(
+  CNA_Handle, CNA_StringView, CNA_StorageCompletionCallback, void*, CNA_Handle*);
+typedef CNA_Result (*HandleStringBoolOutFn)(CNA_Handle, CNA_StringView, CNA_Bool*);
+typedef CNA_Result (*HandleStringU64OutFn)(CNA_Handle, CNA_StringView, uint64_t*);
+typedef CNA_Result (*StorageNameCopyFn)(
+  CNA_Handle, CNA_StringView, uint64_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*StorageOpenFileFn)(
+  CNA_Handle, CNA_StringView, uint32_t, uint32_t, uint32_t, CNA_Handle*);
+typedef CNA_Result (*StorageStreamReadFn)(CNA_Handle, uint8_t*, uint64_t, uint64_t*);
 
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
@@ -152,6 +219,156 @@ typedef struct Api {
   GestureReadFn gesture_read;
   WindowGetFn touch_get_window;
   WindowSetFn touch_set_window;
+  SoundEffectCreatePcmRangeFn sound_effect_create_pcm_range;
+  SoundEffectCreateEncodedFn sound_effect_create_encoded;
+  HandleInt64OutFn sound_effect_get_duration;
+  HandleU64OutFn sound_effect_get_name_size;
+  HandleCopyStringFn sound_effect_copy_name;
+  HandleStringViewFn sound_effect_set_name;
+  HandleHandleOutFn sound_effect_create_instance;
+  SoundEffectPlaySettingsFn sound_effect_play_settings;
+  GameHandleFn sound_effect_destroy;
+  HandleFloatOutFn sound_effect_get_master_volume;
+  HandleFloatFn sound_effect_set_master_volume;
+  HandleFloatOutFn sound_effect_get_distance_scale;
+  HandleFloatFn sound_effect_set_distance_scale;
+  HandleFloatOutFn sound_effect_get_doppler_scale;
+  HandleFloatFn sound_effect_set_doppler_scale;
+  HandleFloatOutFn sound_effect_get_speed_of_sound;
+  HandleFloatFn sound_effect_set_speed_of_sound;
+  GameHandleFn sound_instance_play;
+  GameHandleFn sound_instance_pause;
+  GameHandleFn sound_instance_resume;
+  SoundEffectInstanceStopFn sound_instance_stop;
+  SoundEffectInstanceInfoFn sound_instance_get_info;
+  HandleFloatFn sound_instance_set_volume;
+  HandleFloatFn sound_instance_set_pitch;
+  HandleFloatFn sound_instance_set_pan;
+  HandleBoolFn sound_instance_set_looped;
+  SoundEffectApply3DMultiFn sound_instance_apply_3d_multi;
+  GameHandleFn sound_instance_destroy;
+  DynamicSoundCreateFn dynamic_sound_create;
+  HandleI32OutFn dynamic_sound_get_pending;
+  DynamicSoundSubmitFn dynamic_sound_submit;
+  HandleU64OutFn microphone_get_count;
+  GameDefaultMicrophoneFn microphone_get_default;
+  GameIndexU64OutFn microphone_get_name_size;
+  GameIndexCopyStringFn microphone_copy_name;
+  GameIndexInt64OutFn microphone_get_buffer_duration;
+  GameIndexInt64Fn microphone_set_buffer_duration;
+  GameIndexBoolOutFn microphone_get_is_headset;
+  GameIndexI32OutFn microphone_get_sample_rate;
+  GameIndexU32OutFn microphone_get_state;
+  GameIndexFn microphone_start;
+  GameIndexFn microphone_stop;
+  GameIndexBytesFn microphone_get_data;
+  HandleStringHandleOutFn audio_engine_create;
+  AudioEngineCreateRendererFn audio_engine_create_renderer;
+  GameHandleFn audio_engine_destroy;
+  BoolGetFn audio_engine_get_disposed;
+  HandleU64OutFn audio_engine_get_renderer_count;
+  HandleIndexU64OutFn audio_engine_get_renderer_friendly_size;
+  HandleIndexCopyStringFn audio_engine_copy_renderer_friendly;
+  HandleIndexU64OutFn audio_engine_get_renderer_id_size;
+  HandleIndexCopyStringFn audio_engine_copy_renderer_id;
+  HandleStringFloatOutFn audio_engine_get_global;
+  HandleStringFloatFn audio_engine_set_global;
+  GameHandleFn audio_engine_update;
+  HandleStringHandleOutFn audio_engine_get_category;
+  GameHandleFn audio_category_destroy;
+  HandleU64OutFn audio_category_get_name_size;
+  HandleCopyStringFn audio_category_copy_name;
+  GameHandleFn audio_category_pause;
+  GameHandleFn audio_category_resume;
+  HandleFloatFn audio_category_set_volume;
+  HandleOptionsFn audio_category_stop;
+  TwoHandleBoolOutFn audio_category_equals;
+  HandleI32OutFn audio_category_get_hash;
+  HandleStringHandleOutFn wave_bank_create;
+  WaveBankStreamingCreateFn wave_bank_create_streaming;
+  GameHandleFn wave_bank_destroy;
+  BoolGetFn wave_bank_get_disposed;
+  BoolGetFn wave_bank_get_prepared;
+  BoolGetFn wave_bank_get_in_use;
+  HandleStringHandleOutFn sound_bank_create;
+  GameHandleFn sound_bank_destroy;
+  BoolGetFn sound_bank_get_disposed;
+  BoolGetFn sound_bank_get_in_use;
+  HandleStringHandleOutFn sound_bank_get_cue;
+  HandleStringViewFn sound_bank_play_cue;
+  SoundBankPlay3DFn sound_bank_play_cue_3d;
+  GameHandleFn cue_destroy;
+  CueInfoFn cue_get_info;
+  HandleU64OutFn cue_get_name_size;
+  HandleCopyStringFn cue_copy_name;
+  CueApply3DFn cue_apply_3d;
+  HandleStringFloatOutFn cue_get_variable;
+  HandleStringFloatFn cue_set_variable;
+  GameHandleFn cue_play;
+  GameHandleFn cue_pause;
+  GameHandleFn cue_resume;
+  HandleOptionsFn cue_stop;
+  GameU32OutFn media_source_get_count;
+  GameIndexU32U32OutFn media_source_get_type;
+  GameIndexU32U64OutFn media_source_get_name_size;
+  GameIndexU32CopyStringFn media_source_copy_name;
+  SongCreateUriFn song_create_uri;
+  GameHandleFn song_destroy;
+  SongCollectionCreateFn song_collection_create;
+  GameHandleFn song_collection_destroy;
+  MediaPlayCollectionFromFn media_player_play_collection_from;
+  GameHandleFn media_player_pause;
+  GameHandleFn media_player_resume;
+  GameHandleFn media_player_stop;
+  GameHandleFn media_player_move_next;
+  GameHandleFn media_player_move_previous;
+  HandleFloatFn media_player_set_volume;
+  HandleBoolFn media_player_set_muted;
+  HandleBoolFn media_player_set_repeating;
+  HandleBoolFn media_player_set_shuffled;
+  HandleBoolFn media_player_set_visualization;
+  BoolGetFn media_player_get_game_control;
+  HandleInt64OutFn media_player_get_position;
+  VisualizationGetFn media_player_get_visualization;
+  GameHandleFn media_player_update;
+  HandleHandleOutFn video_player_create;
+  GameHandleFn video_player_destroy;
+  GameU32OutFn video_player_get_state;
+  HandleInt64OutFn video_player_get_position;
+  HandleBoolFn video_player_set_looped;
+  HandleBoolFn video_player_set_muted;
+  HandleFloatFn video_player_set_volume;
+  TwoHandleFn video_player_play;
+  GameHandleFn video_player_pause;
+  GameHandleFn video_player_resume;
+  GameHandleFn video_player_stop;
+  StorageSelectFn storage_select;
+  StorageSelectPlayerFn storage_select_player;
+  StorageSelectSpaceFn storage_select_space;
+  StorageSelectPlayerSpaceFn storage_select_player_space;
+  HandleInt64OutFn storage_device_get_free_space;
+  BoolGetFn storage_device_get_connected;
+  HandleInt64OutFn storage_device_get_total_space;
+  HandleStringViewFn storage_device_delete_container;
+  GameHandleFn storage_device_destroy;
+  StorageContainerOpenFn storage_container_open;
+  HandleU64OutFn storage_container_get_display_name_size;
+  HandleCopyStringFn storage_container_copy_display_name;
+  GameHandleFn storage_container_destroy;
+  HandleStringViewFn storage_container_create_directory;
+  HandleStringBoolOutFn storage_container_directory_exists;
+  HandleStringViewFn storage_container_delete_directory;
+  HandleStringBoolOutFn storage_container_file_exists;
+  HandleStringViewFn storage_container_delete_file;
+  HandleStringU64OutFn storage_container_get_directory_count;
+  StorageNameCopyFn storage_container_copy_directory_name;
+  HandleStringU64OutFn storage_container_get_file_count;
+  StorageNameCopyFn storage_container_copy_file_name;
+  HandleStringHandleOutFn storage_container_create_file;
+  StorageOpenFileFn storage_container_open_file;
+  HandleInt64OutFn storage_stream_get_length;
+  StorageStreamReadFn storage_stream_read;
+  GameHandleFn storage_stream_close;
 } Api;
 
 typedef struct GameContext {
@@ -463,6 +680,156 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(gesture_read, GestureReadFn, "cna_touch_panel_read_gesture");
   LOAD_REQUIRED(touch_get_window, WindowGetFn, "cna_touch_panel_get_window_handle");
   LOAD_REQUIRED(touch_set_window, WindowSetFn, "cna_touch_panel_set_window_handle");
+  LOAD_REQUIRED(sound_effect_create_pcm_range, SoundEffectCreatePcmRangeFn, "cna_sound_effect_create_pcm16_range_ext");
+  LOAD_REQUIRED(sound_effect_create_encoded, SoundEffectCreateEncodedFn, "cna_sound_effect_create_from_encoded_ext");
+  LOAD_REQUIRED(sound_effect_get_duration, HandleInt64OutFn, "cna_sound_effect_get_duration_ticks");
+  LOAD_REQUIRED(sound_effect_get_name_size, HandleU64OutFn, "cna_sound_effect_get_name_size");
+  LOAD_REQUIRED(sound_effect_copy_name, HandleCopyStringFn, "cna_sound_effect_copy_name");
+  LOAD_REQUIRED(sound_effect_set_name, HandleStringViewFn, "cna_sound_effect_set_name");
+  LOAD_REQUIRED(sound_effect_create_instance, HandleHandleOutFn, "cna_sound_effect_create_instance");
+  LOAD_REQUIRED(sound_effect_play_settings, SoundEffectPlaySettingsFn, "cna_sound_effect_play_with_settings");
+  LOAD_REQUIRED(sound_effect_destroy, GameHandleFn, "cna_sound_effect_destroy");
+  LOAD_REQUIRED(sound_effect_get_master_volume, HandleFloatOutFn, "cna_sound_effect_get_master_volume");
+  LOAD_REQUIRED(sound_effect_set_master_volume, HandleFloatFn, "cna_sound_effect_set_master_volume");
+  LOAD_REQUIRED(sound_effect_get_distance_scale, HandleFloatOutFn, "cna_sound_effect_get_distance_scale");
+  LOAD_REQUIRED(sound_effect_set_distance_scale, HandleFloatFn, "cna_sound_effect_set_distance_scale");
+  LOAD_REQUIRED(sound_effect_get_doppler_scale, HandleFloatOutFn, "cna_sound_effect_get_doppler_scale");
+  LOAD_REQUIRED(sound_effect_set_doppler_scale, HandleFloatFn, "cna_sound_effect_set_doppler_scale");
+  LOAD_REQUIRED(sound_effect_get_speed_of_sound, HandleFloatOutFn, "cna_sound_effect_get_speed_of_sound");
+  LOAD_REQUIRED(sound_effect_set_speed_of_sound, HandleFloatFn, "cna_sound_effect_set_speed_of_sound");
+  LOAD_REQUIRED(sound_instance_play, GameHandleFn, "cna_sound_effect_instance_play");
+  LOAD_REQUIRED(sound_instance_pause, GameHandleFn, "cna_sound_effect_instance_pause");
+  LOAD_REQUIRED(sound_instance_resume, GameHandleFn, "cna_sound_effect_instance_resume");
+  LOAD_REQUIRED(sound_instance_stop, SoundEffectInstanceStopFn, "cna_sound_effect_instance_stop");
+  LOAD_REQUIRED(sound_instance_get_info, SoundEffectInstanceInfoFn, "cna_sound_effect_instance_get_info");
+  LOAD_REQUIRED(sound_instance_set_volume, HandleFloatFn, "cna_sound_effect_instance_set_volume");
+  LOAD_REQUIRED(sound_instance_set_pitch, HandleFloatFn, "cna_sound_effect_instance_set_pitch");
+  LOAD_REQUIRED(sound_instance_set_pan, HandleFloatFn, "cna_sound_effect_instance_set_pan");
+  LOAD_REQUIRED(sound_instance_set_looped, HandleBoolFn, "cna_sound_effect_instance_set_is_looped");
+  LOAD_REQUIRED(sound_instance_apply_3d_multi, SoundEffectApply3DMultiFn, "cna_sound_effect_instance_apply_3d_multi_ext");
+  LOAD_REQUIRED(sound_instance_destroy, GameHandleFn, "cna_sound_effect_instance_destroy");
+  LOAD_REQUIRED(dynamic_sound_create, DynamicSoundCreateFn, "cna_dynamic_sound_effect_instance_create");
+  LOAD_REQUIRED(dynamic_sound_get_pending, HandleI32OutFn, "cna_dynamic_sound_effect_instance_get_pending_buffer_count");
+  LOAD_REQUIRED(dynamic_sound_submit, DynamicSoundSubmitFn, "cna_dynamic_sound_effect_instance_submit_buffer");
+  LOAD_REQUIRED(microphone_get_count, HandleU64OutFn, "cna_microphone_get_count");
+  LOAD_REQUIRED(microphone_get_default, GameDefaultMicrophoneFn, "cna_microphone_get_default_index_ext");
+  LOAD_REQUIRED(microphone_get_name_size, GameIndexU64OutFn, "cna_microphone_get_name_size_at");
+  LOAD_REQUIRED(microphone_copy_name, GameIndexCopyStringFn, "cna_microphone_copy_name_at");
+  LOAD_REQUIRED(microphone_get_buffer_duration, GameIndexInt64OutFn, "cna_microphone_get_buffer_duration_ticks_at");
+  LOAD_REQUIRED(microphone_set_buffer_duration, GameIndexInt64Fn, "cna_microphone_set_buffer_duration_ticks_at");
+  LOAD_REQUIRED(microphone_get_is_headset, GameIndexBoolOutFn, "cna_microphone_get_is_headset_at");
+  LOAD_REQUIRED(microphone_get_sample_rate, GameIndexI32OutFn, "cna_microphone_get_sample_rate_at");
+  LOAD_REQUIRED(microphone_get_state, GameIndexU32OutFn, "cna_microphone_get_state_at");
+  LOAD_REQUIRED(microphone_start, GameIndexFn, "cna_microphone_start_at");
+  LOAD_REQUIRED(microphone_stop, GameIndexFn, "cna_microphone_stop_at");
+  LOAD_REQUIRED(microphone_get_data, GameIndexBytesFn, "cna_microphone_get_data_at");
+  LOAD_REQUIRED(audio_engine_create, HandleStringHandleOutFn, "cna_audio_engine_create");
+  LOAD_REQUIRED(audio_engine_create_renderer, AudioEngineCreateRendererFn, "cna_audio_engine_create_with_renderer");
+  LOAD_REQUIRED(audio_engine_destroy, GameHandleFn, "cna_audio_engine_destroy");
+  LOAD_REQUIRED(audio_engine_get_disposed, BoolGetFn, "cna_audio_engine_get_is_disposed");
+  LOAD_REQUIRED(audio_engine_get_renderer_count, HandleU64OutFn, "cna_audio_engine_get_renderer_count");
+  LOAD_REQUIRED(audio_engine_get_renderer_friendly_size, HandleIndexU64OutFn, "cna_audio_engine_get_renderer_friendly_name_size");
+  LOAD_REQUIRED(audio_engine_copy_renderer_friendly, HandleIndexCopyStringFn, "cna_audio_engine_copy_renderer_friendly_name");
+  LOAD_REQUIRED(audio_engine_get_renderer_id_size, HandleIndexU64OutFn, "cna_audio_engine_get_renderer_id_size");
+  LOAD_REQUIRED(audio_engine_copy_renderer_id, HandleIndexCopyStringFn, "cna_audio_engine_copy_renderer_id");
+  LOAD_REQUIRED(audio_engine_get_global, HandleStringFloatOutFn, "cna_audio_engine_get_global_variable");
+  LOAD_REQUIRED(audio_engine_set_global, HandleStringFloatFn, "cna_audio_engine_set_global_variable");
+  LOAD_REQUIRED(audio_engine_update, GameHandleFn, "cna_audio_engine_update");
+  LOAD_REQUIRED(audio_engine_get_category, HandleStringHandleOutFn, "cna_audio_engine_get_category");
+  LOAD_REQUIRED(audio_category_destroy, GameHandleFn, "cna_audio_category_destroy");
+  LOAD_REQUIRED(audio_category_get_name_size, HandleU64OutFn, "cna_audio_category_get_name_size");
+  LOAD_REQUIRED(audio_category_copy_name, HandleCopyStringFn, "cna_audio_category_copy_name");
+  LOAD_REQUIRED(audio_category_pause, GameHandleFn, "cna_audio_category_pause");
+  LOAD_REQUIRED(audio_category_resume, GameHandleFn, "cna_audio_category_resume");
+  LOAD_REQUIRED(audio_category_set_volume, HandleFloatFn, "cna_audio_category_set_volume");
+  LOAD_REQUIRED(audio_category_stop, HandleOptionsFn, "cna_audio_category_stop");
+  LOAD_REQUIRED(audio_category_equals, TwoHandleBoolOutFn, "cna_audio_category_equals");
+  LOAD_REQUIRED(audio_category_get_hash, HandleI32OutFn, "cna_audio_category_get_hash_code");
+  LOAD_REQUIRED(wave_bank_create, HandleStringHandleOutFn, "cna_wave_bank_create");
+  LOAD_REQUIRED(wave_bank_create_streaming, WaveBankStreamingCreateFn, "cna_wave_bank_create_streaming");
+  LOAD_REQUIRED(wave_bank_destroy, GameHandleFn, "cna_wave_bank_destroy");
+  LOAD_REQUIRED(wave_bank_get_disposed, BoolGetFn, "cna_wave_bank_get_is_disposed");
+  LOAD_REQUIRED(wave_bank_get_prepared, BoolGetFn, "cna_wave_bank_get_is_prepared");
+  LOAD_REQUIRED(wave_bank_get_in_use, BoolGetFn, "cna_wave_bank_get_is_in_use");
+  LOAD_REQUIRED(sound_bank_create, HandleStringHandleOutFn, "cna_sound_bank_create");
+  LOAD_REQUIRED(sound_bank_destroy, GameHandleFn, "cna_sound_bank_destroy");
+  LOAD_REQUIRED(sound_bank_get_disposed, BoolGetFn, "cna_sound_bank_get_is_disposed");
+  LOAD_REQUIRED(sound_bank_get_in_use, BoolGetFn, "cna_sound_bank_get_is_in_use");
+  LOAD_REQUIRED(sound_bank_get_cue, HandleStringHandleOutFn, "cna_sound_bank_get_cue");
+  LOAD_REQUIRED(sound_bank_play_cue, HandleStringViewFn, "cna_sound_bank_play_cue");
+  LOAD_REQUIRED(sound_bank_play_cue_3d, SoundBankPlay3DFn, "cna_sound_bank_play_cue_3d");
+  LOAD_REQUIRED(cue_destroy, GameHandleFn, "cna_cue_destroy");
+  LOAD_REQUIRED(cue_get_info, CueInfoFn, "cna_cue_get_info");
+  LOAD_REQUIRED(cue_get_name_size, HandleU64OutFn, "cna_cue_get_name_size");
+  LOAD_REQUIRED(cue_copy_name, HandleCopyStringFn, "cna_cue_copy_name");
+  LOAD_REQUIRED(cue_apply_3d, CueApply3DFn, "cna_cue_apply_3d");
+  LOAD_REQUIRED(cue_get_variable, HandleStringFloatOutFn, "cna_cue_get_variable");
+  LOAD_REQUIRED(cue_set_variable, HandleStringFloatFn, "cna_cue_set_variable");
+  LOAD_REQUIRED(cue_play, GameHandleFn, "cna_cue_play");
+  LOAD_REQUIRED(cue_pause, GameHandleFn, "cna_cue_pause");
+  LOAD_REQUIRED(cue_resume, GameHandleFn, "cna_cue_resume");
+  LOAD_REQUIRED(cue_stop, HandleOptionsFn, "cna_cue_stop");
+  LOAD_REQUIRED(media_source_get_count, GameU32OutFn, "cna_media_source_get_available_count");
+  LOAD_REQUIRED(media_source_get_type, GameIndexU32U32OutFn, "cna_media_source_get_type_at");
+  LOAD_REQUIRED(media_source_get_name_size, GameIndexU32U64OutFn, "cna_media_source_get_name_size_at");
+  LOAD_REQUIRED(media_source_copy_name, GameIndexU32CopyStringFn, "cna_media_source_copy_name_at");
+  LOAD_REQUIRED(song_create_uri, SongCreateUriFn, "cna_song_create_from_uri");
+  LOAD_REQUIRED(song_destroy, GameHandleFn, "cna_song_destroy");
+  LOAD_REQUIRED(song_collection_create, SongCollectionCreateFn, "cna_song_collection_create");
+  LOAD_REQUIRED(song_collection_destroy, GameHandleFn, "cna_song_collection_destroy");
+  LOAD_REQUIRED(media_player_play_collection_from, MediaPlayCollectionFromFn, "cna_media_player_play_songs_from");
+  LOAD_REQUIRED(media_player_pause, GameHandleFn, "cna_media_player_pause");
+  LOAD_REQUIRED(media_player_resume, GameHandleFn, "cna_media_player_resume");
+  LOAD_REQUIRED(media_player_stop, GameHandleFn, "cna_media_player_stop");
+  LOAD_REQUIRED(media_player_move_next, GameHandleFn, "cna_media_player_move_next");
+  LOAD_REQUIRED(media_player_move_previous, GameHandleFn, "cna_media_player_move_previous");
+  LOAD_REQUIRED(media_player_set_volume, HandleFloatFn, "cna_media_player_set_volume");
+  LOAD_REQUIRED(media_player_set_muted, HandleBoolFn, "cna_media_player_set_is_muted");
+  LOAD_REQUIRED(media_player_set_repeating, HandleBoolFn, "cna_media_player_set_is_repeating");
+  LOAD_REQUIRED(media_player_set_shuffled, HandleBoolFn, "cna_media_player_set_is_shuffled");
+  LOAD_REQUIRED(media_player_set_visualization, HandleBoolFn, "cna_media_player_set_is_visualization_enabled");
+  LOAD_REQUIRED(media_player_get_game_control, BoolGetFn, "cna_media_player_get_game_has_control");
+  LOAD_REQUIRED(media_player_get_position, HandleInt64OutFn, "cna_media_player_get_play_position_ticks");
+  LOAD_REQUIRED(media_player_get_visualization, VisualizationGetFn, "cna_media_player_get_visualization_data");
+  LOAD_REQUIRED(media_player_update, GameHandleFn, "cna_media_player_update_ext");
+  LOAD_REQUIRED(video_player_create, HandleHandleOutFn, "cna_video_player_create");
+  LOAD_REQUIRED(video_player_destroy, GameHandleFn, "cna_video_player_destroy");
+  LOAD_REQUIRED(video_player_get_state, GameU32OutFn, "cna_video_player_get_state");
+  LOAD_REQUIRED(video_player_get_position, HandleInt64OutFn, "cna_video_player_get_play_position_ticks");
+  LOAD_REQUIRED(video_player_set_looped, HandleBoolFn, "cna_video_player_set_is_looped");
+  LOAD_REQUIRED(video_player_set_muted, HandleBoolFn, "cna_video_player_set_is_muted");
+  LOAD_REQUIRED(video_player_set_volume, HandleFloatFn, "cna_video_player_set_volume");
+  LOAD_REQUIRED(video_player_play, TwoHandleFn, "cna_video_player_play");
+  LOAD_REQUIRED(video_player_pause, GameHandleFn, "cna_video_player_pause");
+  LOAD_REQUIRED(video_player_resume, GameHandleFn, "cna_video_player_resume");
+  LOAD_REQUIRED(video_player_stop, GameHandleFn, "cna_video_player_stop");
+  LOAD_REQUIRED(storage_select, StorageSelectFn, "cna_storage_device_show_selector");
+  LOAD_REQUIRED(storage_select_player, StorageSelectPlayerFn, "cna_storage_device_show_selector_for_player");
+  LOAD_REQUIRED(storage_select_space, StorageSelectSpaceFn, "cna_storage_device_show_selector_with_space");
+  LOAD_REQUIRED(storage_select_player_space, StorageSelectPlayerSpaceFn, "cna_storage_device_show_selector_for_player_with_space");
+  LOAD_REQUIRED(storage_device_get_free_space, HandleInt64OutFn, "cna_storage_device_get_free_space");
+  LOAD_REQUIRED(storage_device_get_connected, BoolGetFn, "cna_storage_device_get_is_connected");
+  LOAD_REQUIRED(storage_device_get_total_space, HandleInt64OutFn, "cna_storage_device_get_total_space");
+  LOAD_REQUIRED(storage_device_delete_container, HandleStringViewFn, "cna_storage_device_delete_container");
+  LOAD_REQUIRED(storage_device_destroy, GameHandleFn, "cna_storage_device_destroy");
+  LOAD_REQUIRED(storage_container_open, StorageContainerOpenFn, "cna_storage_container_open");
+  LOAD_REQUIRED(storage_container_get_display_name_size, HandleU64OutFn, "cna_storage_container_get_display_name_size");
+  LOAD_REQUIRED(storage_container_copy_display_name, HandleCopyStringFn, "cna_storage_container_copy_display_name");
+  LOAD_REQUIRED(storage_container_destroy, GameHandleFn, "cna_storage_container_destroy");
+  LOAD_REQUIRED(storage_container_create_directory, HandleStringViewFn, "cna_storage_container_create_directory");
+  LOAD_REQUIRED(storage_container_directory_exists, HandleStringBoolOutFn, "cna_storage_container_directory_exists");
+  LOAD_REQUIRED(storage_container_delete_directory, HandleStringViewFn, "cna_storage_container_delete_directory");
+  LOAD_REQUIRED(storage_container_file_exists, HandleStringBoolOutFn, "cna_storage_container_file_exists");
+  LOAD_REQUIRED(storage_container_delete_file, HandleStringViewFn, "cna_storage_container_delete_file");
+  LOAD_REQUIRED(storage_container_get_directory_count, HandleStringU64OutFn, "cna_storage_container_get_directory_name_count");
+  LOAD_REQUIRED(storage_container_copy_directory_name, StorageNameCopyFn, "cna_storage_container_copy_directory_name");
+  LOAD_REQUIRED(storage_container_get_file_count, HandleStringU64OutFn, "cna_storage_container_get_file_name_count");
+  LOAD_REQUIRED(storage_container_copy_file_name, StorageNameCopyFn, "cna_storage_container_copy_file_name");
+  LOAD_REQUIRED(storage_container_create_file, HandleStringHandleOutFn, "cna_storage_container_create_file");
+  LOAD_REQUIRED(storage_container_open_file, StorageOpenFileFn, "cna_storage_container_open_file_share");
+  LOAD_REQUIRED(storage_stream_get_length, HandleInt64OutFn, "cna_storage_stream_get_length");
+  LOAD_REQUIRED(storage_stream_read, StorageStreamReadFn, "cna_storage_stream_read");
+  LOAD_REQUIRED(storage_stream_close, GameHandleFn, "cna_storage_stream_close");
 
   napi_value undefined;
   NAPI_OR_RETURN(env, napi_get_undefined(env, &undefined), "load result");
@@ -1743,6 +2110,1457 @@ static napi_value set_touch_window(napi_env env, napi_callback_info info) {
   return set_window_handle(env, info, g_api.touch_set_window, "cna_touch_panel_set_window_handle");
 }
 
+static napi_value undefined_result(napi_env env, const char* operation) {
+  napi_value output;
+  if (napi_get_undefined(env, &output) != napi_ok) return throw_napi(env, operation);
+  return output;
+}
+
+static int read_utf8(napi_env env, napi_value value, char** out_data, size_t* out_length) {
+  size_t length = 0;
+  if (napi_get_value_string_utf8(env, value, NULL, 0, &length) != napi_ok) {
+    throw_message(env, "expected a string");
+    return 0;
+  }
+  char* data = (char*) malloc(length + 1);
+  if (!data) {
+    throw_message(env, "UTF-8 string allocation failed");
+    return 0;
+  }
+  size_t copied = 0;
+  if (napi_get_value_string_utf8(env, value, data, length + 1, &copied) != napi_ok || copied != length) {
+    free(data);
+    throw_napi(env, "UTF-8 string reading");
+    return 0;
+  }
+  *out_data = data;
+  *out_length = length;
+  return 1;
+}
+
+static napi_value create_sound_effect_pcm(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[8];
+  CNA_Handle game = 0, sound_effect = 0;
+  const uint8_t* bytes = NULL;
+  size_t byte_count = 0;
+  int32_t offset = 0, count = 0, loop_start = 0, loop_length = 0;
+  uint32_t sample_rate = 0, channels = 0;
+  if (!get_args(env, info, 8, args) || !read_handle(env, args[0], &game) ||
+      !read_byte_view(env, args[1], &bytes, &byte_count) ||
+      napi_get_value_int32(env, args[2], &offset) != napi_ok ||
+      napi_get_value_int32(env, args[3], &count) != napi_ok ||
+      napi_get_value_uint32(env, args[4], &sample_rate) != napi_ok ||
+      napi_get_value_uint32(env, args[5], &channels) != napi_ok ||
+      napi_get_value_int32(env, args[6], &loop_start) != napi_ok ||
+      napi_get_value_int32(env, args[7], &loop_length) != napi_ok) {
+    return NULL;
+  }
+  CNA_SoundEffectCreateInfo create_info;
+  memset(&create_info, 0, sizeof(create_info));
+  create_info.struct_size = sizeof(create_info);
+  create_info.struct_version = 1;
+  create_info.sample_rate = sample_rate;
+  create_info.channels = channels;
+  CNA_Result result = g_api.sound_effect_create_pcm_range(
+    game, &create_info, bytes, byte_count, offset, count, loop_start, loop_length, &sound_effect);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_sound_effect_create_pcm16_range_ext", result);
+  }
+  return make_handle(env, sound_effect);
+}
+
+static napi_value create_sound_effect_encoded(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle game = 0, sound_effect = 0;
+  const uint8_t* bytes = NULL;
+  size_t byte_count = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &game) ||
+      !read_byte_view(env, args[1], &bytes, &byte_count)) return NULL;
+  if (byte_count == 0) return throw_message(env, "encoded audio data must not be empty");
+  CNA_Result result = g_api.sound_effect_create_encoded(game, bytes, byte_count, &sound_effect);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_sound_effect_create_from_encoded_ext", result);
+  }
+  return make_handle(env, sound_effect);
+}
+
+static napi_value get_sound_effect_duration(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle sound_effect = 0;
+  int64_t ticks = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &sound_effect)) return NULL;
+  CNA_Result result = g_api.sound_effect_get_duration(sound_effect, &ticks);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_sound_effect_get_duration_ticks", result);
+  NAPI_OR_RETURN(env, napi_create_bigint_int64(env, ticks, &output), "sound duration");
+  return output;
+}
+
+static napi_value get_sound_effect_name(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  CNA_Handle sound_effect = 0;
+  uint64_t length = 0, copied = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &sound_effect)) return NULL;
+  CNA_Result result = g_api.sound_effect_get_name_size(sound_effect, &length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_sound_effect_get_name_size", result);
+  if (length > SIZE_MAX) return throw_message(env, "sound effect name is too large for Node");
+  char* value = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !value) return throw_message(env, "sound effect name allocation failed");
+  result = g_api.sound_effect_copy_name(sound_effect, value, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(value);
+    return throw_result(env, "cna_sound_effect_copy_name", result);
+  }
+  napi_value output;
+  napi_status status = napi_create_string_utf8(env, value ? value : "", (size_t) length, &output);
+  free(value);
+  if (status != napi_ok) return throw_napi(env, "sound effect name creation");
+  return output;
+}
+
+static napi_value set_sound_effect_name(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle sound_effect = 0;
+  char* name = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &sound_effect) ||
+      !read_utf8(env, args[1], &name, &length)) return NULL;
+  const CNA_StringView view = {name, length};
+  CNA_Result result = g_api.sound_effect_set_name(sound_effect, view);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_sound_effect_set_name", result);
+  return undefined_result(env, "sound effect name result");
+}
+
+static napi_value create_sound_effect_instance(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  CNA_Handle sound_effect = 0, instance = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &sound_effect)) return NULL;
+  CNA_Result result = g_api.sound_effect_create_instance(sound_effect, &instance);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_sound_effect_create_instance", result);
+  return make_handle(env, instance);
+}
+
+static napi_value play_sound_effect(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[4], output;
+  CNA_Handle sound_effect = 0;
+  double volume = 0, pitch = 0, pan = 0;
+  CNA_Bool played = CNA_FALSE;
+  if (!get_args(env, info, 4, args) || !read_handle(env, args[0], &sound_effect) ||
+      napi_get_value_double(env, args[1], &volume) != napi_ok ||
+      napi_get_value_double(env, args[2], &pitch) != napi_ok ||
+      napi_get_value_double(env, args[3], &pan) != napi_ok) return NULL;
+  CNA_Result result = g_api.sound_effect_play_settings(
+    sound_effect, (float) volume, (float) pitch, (float) pan, &played);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_sound_effect_play_with_settings", result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, played == CNA_TRUE, &output), "sound playback result");
+  return output;
+}
+
+static napi_value get_audio_float(napi_env env, napi_callback_info info, HandleFloatOutFn function, const char* operation) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  float value = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &game)) return NULL;
+  CNA_Result result = function(game, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  NAPI_OR_RETURN(env, napi_create_double(env, value, &output), "audio setting");
+  return output;
+}
+
+static napi_value set_audio_float(napi_env env, napi_callback_info info, HandleFloatFn function, const char* operation) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle game = 0;
+  double value = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &game) ||
+      napi_get_value_double(env, args[1], &value) != napi_ok) return NULL;
+  CNA_Result result = function(game, (float) value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return undefined_result(env, "audio setting result");
+}
+
+#define AUDIO_FLOAT_GETTER(name, field, operation) \
+  static napi_value name(napi_env env, napi_callback_info info) { \
+    return get_audio_float(env, info, g_api.field, operation); \
+  }
+#define AUDIO_FLOAT_SETTER(name, field, operation) \
+  static napi_value name(napi_env env, napi_callback_info info) { \
+    return set_audio_float(env, info, g_api.field, operation); \
+  }
+
+AUDIO_FLOAT_GETTER(get_master_volume, sound_effect_get_master_volume, "cna_sound_effect_get_master_volume")
+AUDIO_FLOAT_SETTER(set_master_volume, sound_effect_set_master_volume, "cna_sound_effect_set_master_volume")
+AUDIO_FLOAT_GETTER(get_distance_scale, sound_effect_get_distance_scale, "cna_sound_effect_get_distance_scale")
+AUDIO_FLOAT_SETTER(set_distance_scale, sound_effect_set_distance_scale, "cna_sound_effect_set_distance_scale")
+AUDIO_FLOAT_GETTER(get_doppler_scale, sound_effect_get_doppler_scale, "cna_sound_effect_get_doppler_scale")
+AUDIO_FLOAT_SETTER(set_doppler_scale, sound_effect_set_doppler_scale, "cna_sound_effect_set_doppler_scale")
+AUDIO_FLOAT_GETTER(get_speed_of_sound, sound_effect_get_speed_of_sound, "cna_sound_effect_get_speed_of_sound")
+AUDIO_FLOAT_SETTER(set_speed_of_sound, sound_effect_set_speed_of_sound, "cna_sound_effect_set_speed_of_sound")
+
+#define AUDIO_HANDLE_METHOD(name, field, operation) \
+  static napi_value name(napi_env env, napi_callback_info info) { \
+    return call_game_handle(env, info, g_api.field, operation); \
+  }
+
+AUDIO_HANDLE_METHOD(destroy_sound_effect, sound_effect_destroy, "cna_sound_effect_destroy")
+AUDIO_HANDLE_METHOD(play_sound_instance, sound_instance_play, "cna_sound_effect_instance_play")
+AUDIO_HANDLE_METHOD(pause_sound_instance, sound_instance_pause, "cna_sound_effect_instance_pause")
+AUDIO_HANDLE_METHOD(resume_sound_instance, sound_instance_resume, "cna_sound_effect_instance_resume")
+AUDIO_HANDLE_METHOD(destroy_sound_instance, sound_instance_destroy, "cna_sound_effect_instance_destroy")
+
+static napi_value stop_sound_instance(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle instance = 0;
+  bool immediate = false;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &instance) ||
+      napi_get_value_bool(env, args[1], &immediate) != napi_ok) return NULL;
+  CNA_Result result = g_api.sound_instance_stop(instance, immediate ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_sound_effect_instance_stop", result);
+  return undefined_result(env, "sound stop result");
+}
+
+static napi_value get_sound_instance_info(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle instance = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &instance)) return NULL;
+  CNA_SoundEffectInstanceInfo value;
+  memset(&value, 0, sizeof(value));
+  value.struct_size = sizeof(value);
+  value.struct_version = 1;
+  CNA_Result result = g_api.sound_instance_get_info(instance, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_sound_effect_instance_get_info", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "sound instance info");
+  if (!set_u32(env, output, "State", value.state) ||
+      !set_bool(env, output, "IsLooped", value.is_looped == CNA_TRUE) ||
+      !set_number(env, output, "Volume", value.volume) ||
+      !set_number(env, output, "Pitch", value.pitch) ||
+      !set_number(env, output, "Pan", value.pan)) {
+    return throw_napi(env, "sound instance info properties");
+  }
+  return output;
+}
+
+static napi_value set_sound_instance_float(
+  napi_env env, napi_callback_info info, HandleFloatFn function, const char* operation
+) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle instance = 0;
+  double value = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &instance) ||
+      napi_get_value_double(env, args[1], &value) != napi_ok) return NULL;
+  CNA_Result result = function(instance, (float) value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return undefined_result(env, "sound instance setting result");
+}
+
+#define SOUND_INSTANCE_FLOAT_SETTER(name, field, operation) \
+  static napi_value name(napi_env env, napi_callback_info info) { \
+    return set_sound_instance_float(env, info, g_api.field, operation); \
+  }
+
+SOUND_INSTANCE_FLOAT_SETTER(set_sound_instance_volume, sound_instance_set_volume, "cna_sound_effect_instance_set_volume")
+SOUND_INSTANCE_FLOAT_SETTER(set_sound_instance_pitch, sound_instance_set_pitch, "cna_sound_effect_instance_set_pitch")
+SOUND_INSTANCE_FLOAT_SETTER(set_sound_instance_pan, sound_instance_set_pan, "cna_sound_effect_instance_set_pan")
+
+static napi_value set_sound_instance_looped(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle instance = 0;
+  bool value = false;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &instance) ||
+      napi_get_value_bool(env, args[1], &value) != napi_ok) return NULL;
+  CNA_Result result = g_api.sound_instance_set_looped(instance, value ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_sound_effect_instance_set_is_looped", result);
+  return undefined_result(env, "sound instance loop result");
+}
+
+static int read_audio_vector(napi_env env, napi_value object, CNA_Vector3* output) {
+  double x = 0, y = 0, z = 0;
+  if (!get_named_double(env, object, "X", &x) ||
+      !get_named_double(env, object, "Y", &y) ||
+      !get_named_double(env, object, "Z", &z)) return 0;
+  *output = (CNA_Vector3){(float) x, (float) y, (float) z};
+  return 1;
+}
+
+static int read_audio_listener(napi_env env, napi_value object, CNA_AudioListener* output) {
+  napi_value forward, position, up, velocity;
+  memset(output, 0, sizeof(*output));
+  output->struct_size = sizeof(*output);
+  output->struct_version = 1;
+  return get_named_value(env, object, "Forward", &forward) &&
+    get_named_value(env, object, "Position", &position) &&
+    get_named_value(env, object, "Up", &up) &&
+    get_named_value(env, object, "Velocity", &velocity) &&
+    read_audio_vector(env, forward, &output->forward) &&
+    read_audio_vector(env, position, &output->position) &&
+    read_audio_vector(env, up, &output->up) &&
+    read_audio_vector(env, velocity, &output->velocity);
+}
+
+static int read_audio_emitter(napi_env env, napi_value object, CNA_AudioEmitter* output) {
+  napi_value forward, position, up, velocity;
+  double doppler = 0;
+  memset(output, 0, sizeof(*output));
+  output->struct_size = sizeof(*output);
+  output->struct_version = 1;
+  return get_named_double(env, object, "DopplerScale", &doppler) &&
+    get_named_value(env, object, "Forward", &forward) &&
+    get_named_value(env, object, "Position", &position) &&
+    get_named_value(env, object, "Up", &up) &&
+    get_named_value(env, object, "Velocity", &velocity) &&
+    read_audio_vector(env, forward, &output->forward) &&
+    read_audio_vector(env, position, &output->position) &&
+    read_audio_vector(env, up, &output->up) &&
+    read_audio_vector(env, velocity, &output->velocity) &&
+    ((output->doppler_scale = (float) doppler), 1);
+}
+
+static napi_value apply_sound_instance_3d(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle instance = 0;
+  bool is_array = false;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &instance) ||
+      napi_is_array(env, args[1], &is_array) != napi_ok || !is_array) {
+    return throw_message(env, "audio listeners must be an array");
+  }
+  uint32_t count = 0;
+  NAPI_OR_RETURN(env, napi_get_array_length(env, args[1], &count), "audio listener count");
+  CNA_AudioListener* listeners = count == 0 ? NULL :
+    (CNA_AudioListener*) calloc(count, sizeof(*listeners));
+  if (count != 0 && !listeners) return throw_message(env, "audio listener allocation failed");
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value listener;
+    if (napi_get_element(env, args[1], index, &listener) != napi_ok ||
+        !read_audio_listener(env, listener, &listeners[index])) {
+      free(listeners);
+      return NULL;
+    }
+  }
+  CNA_AudioEmitter emitter;
+  if (!read_audio_emitter(env, args[2], &emitter)) {
+    free(listeners);
+    return NULL;
+  }
+  CNA_Result result = g_api.sound_instance_apply_3d_multi(instance, listeners, count, &emitter);
+  free(listeners);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_sound_effect_instance_apply_3d_multi_ext", result);
+  }
+  return undefined_result(env, "Apply3D result");
+}
+
+static napi_value create_dynamic_sound_instance(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle game = 0, instance = 0;
+  int32_t sample_rate = 0;
+  uint32_t channels = 0;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &game) ||
+      napi_get_value_int32(env, args[1], &sample_rate) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &channels) != napi_ok) return NULL;
+  CNA_Result result = g_api.dynamic_sound_create(game, sample_rate, channels, &instance);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_dynamic_sound_effect_instance_create", result);
+  }
+  return make_handle(env, instance);
+}
+
+static napi_value get_dynamic_pending(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle instance = 0;
+  int32_t count = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &instance)) return NULL;
+  CNA_Result result = g_api.dynamic_sound_get_pending(instance, &count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_dynamic_sound_effect_instance_get_pending_buffer_count", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, count, &output), "dynamic pending count");
+  return output;
+}
+
+static napi_value submit_dynamic_buffer(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[4];
+  CNA_Handle instance = 0;
+  const uint8_t* bytes = NULL;
+  size_t byte_count = 0;
+  int32_t offset = 0, count = 0;
+  if (!get_args(env, info, 4, args) || !read_handle(env, args[0], &instance) ||
+      !read_byte_view(env, args[1], &bytes, &byte_count) ||
+      napi_get_value_int32(env, args[2], &offset) != napi_ok ||
+      napi_get_value_int32(env, args[3], &count) != napi_ok) return NULL;
+  CNA_Result result = g_api.dynamic_sound_submit(instance, bytes, byte_count, offset, count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_dynamic_sound_effect_instance_submit_buffer", result);
+  }
+  return undefined_result(env, "dynamic buffer submission result");
+}
+
+static int copy_microphone_name(
+  napi_env env, CNA_Handle game, uint64_t index, napi_value* output
+) {
+  uint64_t length = 0, copied = 0;
+  CNA_Result result = g_api.microphone_get_name_size(game, index, &length);
+  if (result != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_microphone_get_name_size_at", result);
+    return 0;
+  }
+  if (length > SIZE_MAX) {
+    throw_message(env, "microphone name exceeds the native address space");
+    return 0;
+  }
+  char* value = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !value) {
+    throw_message(env, "microphone name allocation failed");
+    return 0;
+  }
+  result = g_api.microphone_copy_name(game, index, value, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(value);
+    throw_result(env, "cna_microphone_copy_name_at", result);
+    return 0;
+  }
+  napi_status status = napi_create_string_utf8(env, value ? value : "", (size_t) length, output);
+  free(value);
+  if (status != napi_ok) {
+    throw_napi(env, "microphone name creation");
+    return 0;
+  }
+  return 1;
+}
+
+static napi_value get_microphones(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  uint64_t count = 0, default_index = 0;
+  CNA_Bool has_default = CNA_FALSE;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &game)) return NULL;
+  CNA_Result result = g_api.microphone_get_count(game, &count);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_microphone_get_count", result);
+  if (count > UINT32_MAX) return throw_message(env, "microphone count exceeds JavaScript array capacity");
+  result = g_api.microphone_get_default(game, &default_index, &has_default);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_microphone_get_default_index_ext", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, (size_t) count, &output), "microphone array");
+  for (uint64_t index = 0; index < count; index += 1) {
+    napi_value item, name;
+    CNA_Bool headset = CNA_FALSE;
+    int32_t sample_rate = 0;
+    uint32_t state = 0;
+    int64_t buffer_duration = 0;
+    if (!copy_microphone_name(env, game, index, &name)) return NULL;
+    result = g_api.microphone_get_is_headset(game, index, &headset);
+    if (result == CNA_RESULT_SUCCESS) result = g_api.microphone_get_sample_rate(game, index, &sample_rate);
+    if (result == CNA_RESULT_SUCCESS) result = g_api.microphone_get_state(game, index, &state);
+    if (result == CNA_RESULT_SUCCESS) result = g_api.microphone_get_buffer_duration(game, index, &buffer_duration);
+    if (result != CNA_RESULT_SUCCESS) return throw_result(env, "CNA microphone snapshot", result);
+    NAPI_OR_RETURN(env, napi_create_object(env, &item), "microphone snapshot");
+    napi_value ticks;
+    NAPI_OR_RETURN(env, napi_create_bigint_int64(env, buffer_duration, &ticks), "microphone duration");
+    if (!set_u32(env, item, "Index", (uint32_t) index) ||
+        napi_set_named_property(env, item, "Name", name) != napi_ok ||
+        !set_bool(env, item, "IsHeadset", headset == CNA_TRUE) ||
+        !set_i32(env, item, "SampleRate", sample_rate) ||
+        !set_u32(env, item, "State", state) ||
+        napi_set_named_property(env, item, "BufferDurationTicks", ticks) != napi_ok ||
+        !set_bool(env, item, "IsDefault", has_default == CNA_TRUE && default_index == index) ||
+        napi_set_element(env, output, (uint32_t) index, item) != napi_ok) {
+      return throw_napi(env, "microphone snapshot properties");
+    }
+  }
+  return output;
+}
+
+static napi_value set_microphone_duration(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle game = 0;
+  uint32_t index = 0;
+  int64_t ticks = 0;
+  bool lossless = false;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok ||
+      napi_get_value_bigint_int64(env, args[2], &ticks, &lossless) != napi_ok || !lossless) return NULL;
+  CNA_Result result = g_api.microphone_set_buffer_duration(game, index, ticks);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_microphone_set_buffer_duration_ticks_at", result);
+  }
+  return undefined_result(env, "microphone duration result");
+}
+
+static napi_value call_microphone_index(
+  napi_env env, napi_callback_info info, GameIndexFn function, const char* operation
+) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle game = 0;
+  uint32_t index = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) return NULL;
+  CNA_Result result = function(game, index);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return undefined_result(env, "microphone operation result");
+}
+
+static napi_value start_microphone(napi_env env, napi_callback_info info) {
+  return call_microphone_index(env, info, g_api.microphone_start, "cna_microphone_start_at");
+}
+
+static napi_value stop_microphone(napi_env env, napi_callback_info info) {
+  return call_microphone_index(env, info, g_api.microphone_stop, "cna_microphone_stop_at");
+}
+
+static napi_value get_microphone_data(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle game = 0;
+  uint32_t index = 0, capacity = 0;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &capacity) != napi_ok) return NULL;
+  uint8_t* bytes = capacity == 0 ? NULL : (uint8_t*) malloc(capacity);
+  if (capacity != 0 && !bytes) return throw_message(env, "microphone buffer allocation failed");
+  uint64_t written = 0;
+  CNA_Result result = g_api.microphone_get_data(game, index, bytes, capacity, &written);
+  if (result != CNA_RESULT_SUCCESS || written > capacity) {
+    free(bytes);
+    return throw_result(env, "cna_microphone_get_data_at", result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) written, "microphone data copy");
+  free(bytes);
+  return output;
+}
+
+static napi_value create_audio_engine(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[5];
+  CNA_Handle game = 0, engine = 0;
+  char* settings = NULL;
+  char* renderer = NULL;
+  size_t settings_length = 0, renderer_length = 0;
+  bool extended = false, lossless = false;
+  int64_t look_ahead = 0;
+  if (!get_args(env, info, 5, args) || !read_handle(env, args[0], &game) ||
+      !read_utf8(env, args[1], &settings, &settings_length) ||
+      napi_get_value_bool(env, args[2], &extended) != napi_ok ||
+      napi_get_value_bigint_int64(env, args[3], &look_ahead, &lossless) != napi_ok || !lossless ||
+      !read_utf8(env, args[4], &renderer, &renderer_length)) {
+    free(settings);
+    free(renderer);
+    return NULL;
+  }
+  const CNA_StringView settings_view = {settings, settings_length};
+  const CNA_StringView renderer_view = {renderer, renderer_length};
+  CNA_Result result = extended
+    ? g_api.audio_engine_create_renderer(game, settings_view, look_ahead, renderer_view, &engine)
+    : g_api.audio_engine_create(game, settings_view, &engine);
+  free(settings);
+  free(renderer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, extended ? "cna_audio_engine_create_with_renderer" : "cna_audio_engine_create", result);
+  }
+  return make_handle(env, engine);
+}
+
+static napi_value get_handle_bool(
+  napi_env env, napi_callback_info info, BoolGetFn function, const char* operation
+) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle handle = 0;
+  CNA_Bool value = CNA_FALSE;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &handle)) return NULL;
+  CNA_Result result = function(handle, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, value == CNA_TRUE, &output), "native boolean result");
+  return output;
+}
+
+#define HANDLE_BOOL_GETTER(name, field, operation) \
+  static napi_value name(napi_env env, napi_callback_info info) { \
+    return get_handle_bool(env, info, g_api.field, operation); \
+  }
+
+HANDLE_BOOL_GETTER(get_audio_engine_disposed, audio_engine_get_disposed, "cna_audio_engine_get_is_disposed")
+HANDLE_BOOL_GETTER(get_wave_bank_disposed, wave_bank_get_disposed, "cna_wave_bank_get_is_disposed")
+HANDLE_BOOL_GETTER(get_wave_bank_prepared, wave_bank_get_prepared, "cna_wave_bank_get_is_prepared")
+HANDLE_BOOL_GETTER(get_wave_bank_in_use, wave_bank_get_in_use, "cna_wave_bank_get_is_in_use")
+HANDLE_BOOL_GETTER(get_sound_bank_disposed, sound_bank_get_disposed, "cna_sound_bank_get_is_disposed")
+HANDLE_BOOL_GETTER(get_sound_bank_in_use, sound_bank_get_in_use, "cna_sound_bank_get_is_in_use")
+
+static int copy_indexed_string(
+  napi_env env,
+  CNA_Handle handle,
+  uint64_t index,
+  HandleIndexU64OutFn size_function,
+  HandleIndexCopyStringFn copy_function,
+  const char* operation,
+  napi_value* output
+) {
+  uint64_t length = 0, copied = 0;
+  CNA_Result result = size_function(handle, index, &length);
+  if (result != CNA_RESULT_SUCCESS) {
+    throw_result(env, operation, result);
+    return 0;
+  }
+  if (length > SIZE_MAX) {
+    throw_message(env, "native string exceeds host address space");
+    return 0;
+  }
+  char* value = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !value) {
+    throw_message(env, "native string allocation failed");
+    return 0;
+  }
+  result = copy_function(handle, index, value, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(value);
+    throw_result(env, operation, result);
+    return 0;
+  }
+  napi_status status = napi_create_string_utf8(env, value ? value : "", (size_t) length, output);
+  free(value);
+  if (status != napi_ok) {
+    throw_napi(env, operation);
+    return 0;
+  }
+  return 1;
+}
+
+static napi_value get_audio_engine_renderers(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle engine = 0;
+  uint64_t count = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &engine)) return NULL;
+  CNA_Result result = g_api.audio_engine_get_renderer_count(engine, &count);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_audio_engine_get_renderer_count", result);
+  if (count > UINT32_MAX) return throw_message(env, "XACT renderer count exceeds JavaScript array capacity");
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, (size_t) count, &output), "XACT renderer array");
+  for (uint64_t index = 0; index < count; index += 1) {
+    napi_value item, friendly, renderer_id;
+    if (!copy_indexed_string(
+          env, engine, index,
+          g_api.audio_engine_get_renderer_friendly_size,
+          g_api.audio_engine_copy_renderer_friendly,
+          "cna_audio_engine_copy_renderer_friendly_name", &friendly) ||
+        !copy_indexed_string(
+          env, engine, index,
+          g_api.audio_engine_get_renderer_id_size,
+          g_api.audio_engine_copy_renderer_id,
+          "cna_audio_engine_copy_renderer_id", &renderer_id)) return NULL;
+    NAPI_OR_RETURN(env, napi_create_object(env, &item), "XACT renderer detail");
+    if (napi_set_named_property(env, item, "FriendlyName", friendly) != napi_ok ||
+        napi_set_named_property(env, item, "RendererId", renderer_id) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, item) != napi_ok) {
+      return throw_napi(env, "XACT renderer detail properties");
+    }
+  }
+  return output;
+}
+
+static napi_value handle_string_float(
+  napi_env env, napi_callback_info info,
+  HandleStringFloatOutFn get_function, HandleStringFloatFn set_function,
+  const char* operation
+) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle handle = 0;
+  char* name = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, set_function ? 3 : 2, args) ||
+      !read_handle(env, args[0], &handle) || !read_utf8(env, args[1], &name, &length)) return NULL;
+  const CNA_StringView view = {name, length};
+  if (set_function) {
+    double value = 0;
+    if (napi_get_value_double(env, args[2], &value) != napi_ok) {
+      free(name);
+      return NULL;
+    }
+    CNA_Result result = set_function(handle, view, (float) value);
+    free(name);
+    if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+    return undefined_result(env, "XACT variable result");
+  }
+  float value = 0;
+  CNA_Result result = get_function(handle, view, &value);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_double(env, value, &output), "XACT variable value");
+  return output;
+}
+
+static napi_value get_audio_engine_global(napi_env env, napi_callback_info info) {
+  return handle_string_float(env, info, g_api.audio_engine_get_global, NULL, "cna_audio_engine_get_global_variable");
+}
+static napi_value set_audio_engine_global(napi_env env, napi_callback_info info) {
+  return handle_string_float(env, info, NULL, g_api.audio_engine_set_global, "cna_audio_engine_set_global_variable");
+}
+static napi_value get_cue_variable(napi_env env, napi_callback_info info) {
+  return handle_string_float(env, info, g_api.cue_get_variable, NULL, "cna_cue_get_variable");
+}
+static napi_value set_cue_variable(napi_env env, napi_callback_info info) {
+  return handle_string_float(env, info, NULL, g_api.cue_set_variable, "cna_cue_set_variable");
+}
+
+static napi_value create_handle_from_string(
+  napi_env env, napi_callback_info info, HandleStringHandleOutFn function, const char* operation
+) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle parent = 0, handle = 0;
+  char* value = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &parent) ||
+      !read_utf8(env, args[1], &value, &length)) return NULL;
+  const CNA_StringView view = {value, length};
+  CNA_Result result = function(parent, view, &handle);
+  free(value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return make_handle(env, handle);
+}
+
+#define STRING_HANDLE_CREATOR(name, field, operation) \
+  static napi_value name(napi_env env, napi_callback_info info) { \
+    return create_handle_from_string(env, info, g_api.field, operation); \
+  }
+
+STRING_HANDLE_CREATOR(get_audio_category, audio_engine_get_category, "cna_audio_engine_get_category")
+STRING_HANDLE_CREATOR(create_wave_bank, wave_bank_create, "cna_wave_bank_create")
+STRING_HANDLE_CREATOR(create_sound_bank, sound_bank_create, "cna_sound_bank_create")
+STRING_HANDLE_CREATOR(get_sound_bank_cue, sound_bank_get_cue, "cna_sound_bank_get_cue")
+
+static napi_value copy_handle_string(
+  napi_env env, napi_callback_info info,
+  HandleU64OutFn size_function, HandleCopyStringFn copy_function, const char* operation
+) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle handle = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &handle)) return NULL;
+  uint64_t length = 0, copied = 0;
+  CNA_Result result = size_function(handle, &length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  if (length > SIZE_MAX) return throw_message(env, "native string exceeds host address space");
+  char* value = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !value) return throw_message(env, "native string allocation failed");
+  result = copy_function(handle, value, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(value);
+    return throw_result(env, operation, result);
+  }
+  napi_status status = napi_create_string_utf8(env, value ? value : "", (size_t) length, &output);
+  free(value);
+  if (status != napi_ok) return throw_napi(env, operation);
+  return output;
+}
+
+static napi_value get_audio_category_name(napi_env env, napi_callback_info info) {
+  return copy_handle_string(env, info, g_api.audio_category_get_name_size,
+    g_api.audio_category_copy_name, "cna_audio_category_copy_name");
+}
+static napi_value get_cue_name(napi_env env, napi_callback_info info) {
+  return copy_handle_string(env, info, g_api.cue_get_name_size,
+    g_api.cue_copy_name, "cna_cue_copy_name");
+}
+
+static napi_value set_audio_category_volume(napi_env env, napi_callback_info info) {
+  return set_sound_instance_float(env, info, g_api.audio_category_set_volume, "cna_audio_category_set_volume");
+}
+
+static napi_value handle_options(
+  napi_env env, napi_callback_info info, HandleOptionsFn function, const char* operation
+) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle handle = 0;
+  uint32_t options = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &handle) ||
+      napi_get_value_uint32(env, args[1], &options) != napi_ok) return NULL;
+  CNA_Result result = function(handle, options);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return undefined_result(env, "XACT stop result");
+}
+
+static napi_value stop_audio_category(napi_env env, napi_callback_info info) {
+  return handle_options(env, info, g_api.audio_category_stop, "cna_audio_category_stop");
+}
+static napi_value stop_cue(napi_env env, napi_callback_info info) {
+  return handle_options(env, info, g_api.cue_stop, "cna_cue_stop");
+}
+
+static napi_value audio_categories_equal(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2], output;
+  CNA_Handle left = 0, right = 0;
+  CNA_Bool value = CNA_FALSE;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &left) ||
+      !read_handle(env, args[1], &right)) return NULL;
+  CNA_Result result = g_api.audio_category_equals(left, right, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_audio_category_equals", result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, value == CNA_TRUE, &output), "category equality");
+  return output;
+}
+
+static napi_value get_audio_category_hash(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle category = 0;
+  int32_t value = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &category)) return NULL;
+  CNA_Result result = g_api.audio_category_get_hash(category, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_audio_category_get_hash_code", result);
+  NAPI_OR_RETURN(env, napi_create_int32(env, value, &output), "category hash code");
+  return output;
+}
+
+static napi_value create_streaming_wave_bank(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[4];
+  CNA_Handle engine = 0, bank = 0;
+  char* filename = NULL;
+  size_t length = 0;
+  int32_t offset = 0, packet_size_value = 0;
+  if (!get_args(env, info, 4, args) || !read_handle(env, args[0], &engine) ||
+      !read_utf8(env, args[1], &filename, &length) ||
+      napi_get_value_int32(env, args[2], &offset) != napi_ok ||
+      napi_get_value_int32(env, args[3], &packet_size_value) != napi_ok) {
+    free(filename);
+    return NULL;
+  }
+  if (packet_size_value < INT16_MIN || packet_size_value > INT16_MAX) {
+    free(filename);
+    return throw_message(env, "XACT wave-bank packet size must fit an int16");
+  }
+  const CNA_StringView view = {filename, length};
+  CNA_Result result = g_api.wave_bank_create_streaming(
+    engine, view, offset, (int16_t) packet_size_value, &bank);
+  free(filename);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_wave_bank_create_streaming", result);
+  return make_handle(env, bank);
+}
+
+static napi_value play_sound_bank_cue(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle bank = 0;
+  char* name = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &bank) ||
+      !read_utf8(env, args[1], &name, &length)) return NULL;
+  const CNA_StringView view = {name, length};
+  CNA_Result result = g_api.sound_bank_play_cue(bank, view);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_sound_bank_play_cue", result);
+  return undefined_result(env, "sound-bank cue result");
+}
+
+static napi_value play_sound_bank_cue_3d(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[4];
+  CNA_Handle bank = 0;
+  char* name = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 4, args) || !read_handle(env, args[0], &bank) ||
+      !read_utf8(env, args[1], &name, &length)) return NULL;
+  CNA_AudioListener listener;
+  CNA_AudioEmitter emitter;
+  if (!read_audio_listener(env, args[2], &listener) || !read_audio_emitter(env, args[3], &emitter)) {
+    free(name);
+    return NULL;
+  }
+  const CNA_StringView view = {name, length};
+  CNA_Result result = g_api.sound_bank_play_cue_3d(bank, view, &listener, &emitter);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_sound_bank_play_cue_3d", result);
+  return undefined_result(env, "3D sound-bank cue result");
+}
+
+static napi_value get_cue_info(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle cue = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &cue)) return NULL;
+  CNA_CueInfo value;
+  memset(&value, 0, sizeof(value));
+  value.struct_size = sizeof(value);
+  value.struct_version = 1;
+  CNA_Result result = g_api.cue_get_info(cue, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cue_get_info", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "cue info");
+  if (!set_bool(env, output, "IsCreated", value.is_created == CNA_TRUE) ||
+      !set_bool(env, output, "IsDisposed", value.is_disposed == CNA_TRUE) ||
+      !set_bool(env, output, "IsPaused", value.is_paused == CNA_TRUE) ||
+      !set_bool(env, output, "IsPlaying", value.is_playing == CNA_TRUE) ||
+      !set_bool(env, output, "IsPrepared", value.is_prepared == CNA_TRUE) ||
+      !set_bool(env, output, "IsPreparing", value.is_preparing == CNA_TRUE) ||
+      !set_bool(env, output, "IsStopped", value.is_stopped == CNA_TRUE) ||
+      !set_bool(env, output, "IsStopping", value.is_stopping == CNA_TRUE)) {
+    return throw_napi(env, "cue info properties");
+  }
+  return output;
+}
+
+static napi_value apply_cue_3d(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle cue = 0;
+  CNA_AudioListener listener;
+  CNA_AudioEmitter emitter;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &cue) ||
+      !read_audio_listener(env, args[1], &listener) || !read_audio_emitter(env, args[2], &emitter)) {
+    return NULL;
+  }
+  CNA_Result result = g_api.cue_apply_3d(cue, &listener, &emitter);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cue_apply_3d", result);
+  return undefined_result(env, "cue Apply3D result");
+}
+
+AUDIO_HANDLE_METHOD(destroy_audio_engine, audio_engine_destroy, "cna_audio_engine_destroy")
+AUDIO_HANDLE_METHOD(update_audio_engine, audio_engine_update, "cna_audio_engine_update")
+AUDIO_HANDLE_METHOD(destroy_audio_category, audio_category_destroy, "cna_audio_category_destroy")
+AUDIO_HANDLE_METHOD(pause_audio_category, audio_category_pause, "cna_audio_category_pause")
+AUDIO_HANDLE_METHOD(resume_audio_category, audio_category_resume, "cna_audio_category_resume")
+AUDIO_HANDLE_METHOD(destroy_wave_bank, wave_bank_destroy, "cna_wave_bank_destroy")
+AUDIO_HANDLE_METHOD(destroy_sound_bank, sound_bank_destroy, "cna_sound_bank_destroy")
+AUDIO_HANDLE_METHOD(destroy_cue, cue_destroy, "cna_cue_destroy")
+AUDIO_HANDLE_METHOD(play_cue, cue_play, "cna_cue_play")
+AUDIO_HANDLE_METHOD(pause_cue, cue_pause, "cna_cue_pause")
+AUDIO_HANDLE_METHOD(resume_cue, cue_resume, "cna_cue_resume")
+
+static napi_value get_media_sources(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  uint32_t count = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &game)) return NULL;
+  CNA_Result result = g_api.media_source_get_count(game, &count);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_media_source_get_available_count", result);
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, count, &output), "media source array");
+  for (uint32_t index = 0; index < count; index += 1) {
+    uint32_t type = 0;
+    uint64_t length = 0, copied = 0;
+    result = g_api.media_source_get_type(game, index, &type);
+    if (result == CNA_RESULT_SUCCESS) result = g_api.media_source_get_name_size(game, index, &length);
+    if (result != CNA_RESULT_SUCCESS) return throw_result(env, "CNA media source snapshot", result);
+    if (length > SIZE_MAX) return throw_message(env, "media source name exceeds host address space");
+    char* name = length == 0 ? NULL : (char*) malloc((size_t) length);
+    if (length != 0 && !name) return throw_message(env, "media source name allocation failed");
+    result = g_api.media_source_copy_name(game, index, name, length, &copied);
+    if (result != CNA_RESULT_SUCCESS || copied != length) {
+      free(name);
+      return throw_result(env, "cna_media_source_copy_name_at", result);
+    }
+    napi_value item, name_value;
+    napi_status status = napi_create_string_utf8(env, name ? name : "", (size_t) length, &name_value);
+    free(name);
+    if (status != napi_ok) return throw_napi(env, "media source name creation");
+    NAPI_OR_RETURN(env, napi_create_object(env, &item), "media source snapshot");
+    if (!set_u32(env, item, "Index", index) || !set_u32(env, item, "Type", type) ||
+        napi_set_named_property(env, item, "Name", name_value) != napi_ok ||
+        napi_set_element(env, output, index, item) != napi_ok) {
+      return throw_napi(env, "media source snapshot properties");
+    }
+  }
+  return output;
+}
+
+static void destroy_song_handles(CNA_Handle* songs, uint32_t count) {
+  for (uint32_t index = count; index > 0; index -= 1) {
+    if (songs[index - 1] != 0) (void) g_api.song_destroy(songs[index - 1]);
+  }
+}
+
+static napi_value play_media_songs(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle game = 0;
+  int32_t start_index = 0;
+  bool is_array = false;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &game) ||
+      napi_is_array(env, args[1], &is_array) != napi_ok || !is_array ||
+      napi_get_value_int32(env, args[2], &start_index) != napi_ok) {
+    return throw_message(env, "media songs must be an array with an int32 start index");
+  }
+  uint32_t count = 0;
+  NAPI_OR_RETURN(env, napi_get_array_length(env, args[1], &count), "media song count");
+  CNA_Handle* songs = count == 0 ? NULL : (CNA_Handle*) calloc(count, sizeof(*songs));
+  if (count != 0 && !songs) return throw_message(env, "media song handle allocation failed");
+  uint32_t created = 0;
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value item, name_value, uri_value;
+    char* name = NULL;
+    char* uri = NULL;
+    size_t name_length = 0, uri_length = 0;
+    if (napi_get_element(env, args[1], index, &item) != napi_ok ||
+        !get_named_value(env, item, "Name", &name_value) ||
+        !get_named_value(env, item, "Uri", &uri_value) ||
+        !read_utf8(env, name_value, &name, &name_length) ||
+        !read_utf8(env, uri_value, &uri, &uri_length)) {
+      free(name);
+      free(uri);
+      destroy_song_handles(songs, created);
+      free(songs);
+      return NULL;
+    }
+    const CNA_StringView name_view = {name, name_length};
+    const CNA_StringView uri_view = {uri, uri_length};
+    CNA_Result result = g_api.song_create_uri(game, name_view, uri_view, &songs[index]);
+    free(name);
+    free(uri);
+    if (result != CNA_RESULT_SUCCESS) {
+      destroy_song_handles(songs, created);
+      free(songs);
+      return throw_result(env, "cna_song_create_from_uri", result);
+    }
+    created += 1;
+  }
+  CNA_Handle collection = 0;
+  const char* operation = "cna_song_collection_create";
+  CNA_Result result = g_api.song_collection_create(game, songs, count, &collection);
+  if (result == CNA_RESULT_SUCCESS) {
+    operation = "cna_media_player_play_songs_from";
+    result = g_api.media_player_play_collection_from(game, collection, start_index);
+  }
+  CNA_Result collection_result = collection == 0
+    ? CNA_RESULT_SUCCESS : g_api.song_collection_destroy(collection);
+  destroy_song_handles(songs, created);
+  free(songs);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, operation, result);
+  }
+  if (collection_result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_song_collection_destroy", collection_result);
+  }
+  return undefined_result(env, "media playback result");
+}
+
+static napi_value set_media_bool(
+  napi_env env, napi_callback_info info, HandleBoolFn function, const char* operation
+) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle game = 0;
+  bool value = false;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &game) ||
+      napi_get_value_bool(env, args[1], &value) != napi_ok) return NULL;
+  CNA_Result result = function(game, value ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return undefined_result(env, "media setting result");
+}
+
+#define MEDIA_BOOL_SETTER(name, field, operation) \
+  static napi_value name(napi_env env, napi_callback_info info) { \
+    return set_media_bool(env, info, g_api.field, operation); \
+  }
+
+MEDIA_BOOL_SETTER(set_media_muted, media_player_set_muted, "cna_media_player_set_is_muted")
+MEDIA_BOOL_SETTER(set_media_repeating, media_player_set_repeating, "cna_media_player_set_is_repeating")
+MEDIA_BOOL_SETTER(set_media_shuffled, media_player_set_shuffled, "cna_media_player_set_is_shuffled")
+MEDIA_BOOL_SETTER(set_media_visualization, media_player_set_visualization, "cna_media_player_set_is_visualization_enabled")
+
+static napi_value set_media_volume(napi_env env, napi_callback_info info) {
+  return set_audio_float(env, info, g_api.media_player_set_volume, "cna_media_player_set_volume");
+}
+
+static napi_value get_media_game_control(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.media_player_get_game_control, "cna_media_player_get_game_has_control");
+}
+
+static napi_value get_media_position(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  int64_t ticks = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &game)) return NULL;
+  CNA_Result result = g_api.media_player_get_position(game, &ticks);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_media_player_get_play_position_ticks", result);
+  NAPI_OR_RETURN(env, napi_create_bigint_int64(env, ticks, &output), "media play position");
+  return output;
+}
+
+static napi_value get_media_visualization(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output, frequencies, samples;
+  CNA_Handle game = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &game)) return NULL;
+  CNA_VisualizationData data;
+  memset(&data, 0, sizeof(data));
+  data.struct_size = sizeof(data);
+  data.struct_version = 1;
+  CNA_Result result = g_api.media_player_get_visualization(game, &data);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_media_player_get_visualization_data", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "visualization data");
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, CNA_VISUALIZATION_DATA_SIZE, &frequencies), "frequency array");
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, CNA_VISUALIZATION_DATA_SIZE, &samples), "sample array");
+  for (uint32_t index = 0; index < CNA_VISUALIZATION_DATA_SIZE; index += 1) {
+    napi_value frequency, sample;
+    NAPI_OR_RETURN(env, napi_create_double(env, data.frequencies[index], &frequency), "frequency value");
+    NAPI_OR_RETURN(env, napi_create_double(env, data.samples[index], &sample), "sample value");
+    NAPI_OR_RETURN(env, napi_set_element(env, frequencies, index, frequency), "frequency append");
+    NAPI_OR_RETURN(env, napi_set_element(env, samples, index, sample), "sample append");
+  }
+  if (napi_set_named_property(env, output, "Frequencies", frequencies) != napi_ok ||
+      napi_set_named_property(env, output, "Samples", samples) != napi_ok) {
+    return throw_napi(env, "visualization properties");
+  }
+  return output;
+}
+
+AUDIO_HANDLE_METHOD(pause_media, media_player_pause, "cna_media_player_pause")
+AUDIO_HANDLE_METHOD(resume_media, media_player_resume, "cna_media_player_resume")
+AUDIO_HANDLE_METHOD(stop_media, media_player_stop, "cna_media_player_stop")
+AUDIO_HANDLE_METHOD(move_next_media, media_player_move_next, "cna_media_player_move_next")
+AUDIO_HANDLE_METHOD(move_previous_media, media_player_move_previous, "cna_media_player_move_previous")
+AUDIO_HANDLE_METHOD(update_media, media_player_update, "cna_media_player_update_ext")
+
+static napi_value create_video_player(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  CNA_Handle game = 0, player = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &game)) return NULL;
+  CNA_Result result = g_api.video_player_create(game, &player);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_video_player_create", result);
+  return make_handle(env, player);
+}
+
+static napi_value get_video_player_info(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output, ticks;
+  CNA_Handle player = 0;
+  uint32_t state = 0;
+  int64_t position = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &player)) return NULL;
+  CNA_Result result = g_api.video_player_get_state(player, &state);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.video_player_get_position(player, &position);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "CNA video-player info", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "video-player info");
+  NAPI_OR_RETURN(env, napi_create_bigint_int64(env, position, &ticks), "video play position");
+  if (!set_u32(env, output, "State", state) ||
+      napi_set_named_property(env, output, "PlayPositionTicks", ticks) != napi_ok) {
+    return throw_napi(env, "video-player info properties");
+  }
+  return output;
+}
+
+static napi_value set_video_player_bool(
+  napi_env env, napi_callback_info info, HandleBoolFn function, const char* operation
+) {
+  return set_media_bool(env, info, function, operation);
+}
+
+static napi_value set_video_player_looped(napi_env env, napi_callback_info info) {
+  return set_video_player_bool(env, info, g_api.video_player_set_looped, "cna_video_player_set_is_looped");
+}
+static napi_value set_video_player_muted(napi_env env, napi_callback_info info) {
+  return set_video_player_bool(env, info, g_api.video_player_set_muted, "cna_video_player_set_is_muted");
+}
+static napi_value set_video_player_volume(napi_env env, napi_callback_info info) {
+  return set_audio_float(env, info, g_api.video_player_set_volume, "cna_video_player_set_volume");
+}
+
+static napi_value play_video(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle player = 0, video = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &player) ||
+      !read_handle(env, args[1], &video)) return NULL;
+  CNA_Result result = g_api.video_player_play(player, video);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_video_player_play", result);
+  return undefined_result(env, "video playback result");
+}
+
+AUDIO_HANDLE_METHOD(destroy_video_player, video_player_destroy, "cna_video_player_destroy")
+AUDIO_HANDLE_METHOD(pause_video, video_player_pause, "cna_video_player_pause")
+AUDIO_HANDLE_METHOD(resume_video, video_player_resume, "cna_video_player_resume")
+AUDIO_HANDLE_METHOD(stop_video, video_player_stop, "cna_video_player_stop")
+
+static napi_value select_storage_device(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[5];
+  bool has_player = false, has_space = false;
+  uint32_t player = 0;
+  int32_t size = 0, directories = 0;
+  CNA_Handle device = 0;
+  if (!get_args(env, info, 5, args) ||
+      napi_get_value_bool(env, args[0], &has_player) != napi_ok ||
+      napi_get_value_uint32(env, args[1], &player) != napi_ok ||
+      napi_get_value_bool(env, args[2], &has_space) != napi_ok ||
+      napi_get_value_int32(env, args[3], &size) != napi_ok ||
+      napi_get_value_int32(env, args[4], &directories) != napi_ok) return NULL;
+  CNA_Result result;
+  const char* operation;
+  if (has_player && has_space) {
+    operation = "cna_storage_device_show_selector_for_player_with_space";
+    result = g_api.storage_select_player_space(player, size, directories, NULL, NULL, &device);
+  } else if (has_player) {
+    operation = "cna_storage_device_show_selector_for_player";
+    result = g_api.storage_select_player(player, NULL, NULL, &device);
+  } else if (has_space) {
+    operation = "cna_storage_device_show_selector_with_space";
+    result = g_api.storage_select_space(size, directories, NULL, NULL, &device);
+  } else {
+    operation = "cna_storage_device_show_selector";
+    result = g_api.storage_select(NULL, NULL, &device);
+  }
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return make_handle(env, device);
+}
+
+static napi_value get_storage_device_info(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1], output, free_space_value, total_space_value;
+  CNA_Handle device = 0;
+  CNA_Bool connected = CNA_FALSE;
+  int64_t free_space = 0, total_space = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &device)) return NULL;
+  CNA_Result result = g_api.storage_device_get_connected(device, &connected);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.storage_device_get_free_space(device, &free_space);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.storage_device_get_total_space(device, &total_space);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "CNA storage-device info", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "storage-device info");
+  NAPI_OR_RETURN(env, napi_create_bigint_int64(env, free_space, &free_space_value), "storage free space");
+  NAPI_OR_RETURN(env, napi_create_bigint_int64(env, total_space, &total_space_value), "storage total space");
+  if (!set_bool(env, output, "IsConnected", connected == CNA_TRUE) ||
+      napi_set_named_property(env, output, "FreeSpace", free_space_value) != napi_ok ||
+      napi_set_named_property(env, output, "TotalSpace", total_space_value) != napi_ok) {
+    return throw_napi(env, "storage-device info properties");
+  }
+  return output;
+}
+
+static napi_value call_handle_string(
+  napi_env env, napi_callback_info info, HandleStringViewFn function, const char* operation
+) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle handle = 0;
+  char* value = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &handle) ||
+      !read_utf8(env, args[1], &value, &length)) return NULL;
+  const CNA_StringView view = {value, length};
+  CNA_Result result = function(handle, view);
+  free(value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return undefined_result(env, "storage path operation result");
+}
+
+#define HANDLE_STRING_METHOD(name, field, operation) \
+  static napi_value name(napi_env env, napi_callback_info info) { \
+    return call_handle_string(env, info, g_api.field, operation); \
+  }
+
+HANDLE_STRING_METHOD(delete_storage_container, storage_device_delete_container, "cna_storage_device_delete_container")
+HANDLE_STRING_METHOD(create_storage_directory, storage_container_create_directory, "cna_storage_container_create_directory")
+HANDLE_STRING_METHOD(delete_storage_directory, storage_container_delete_directory, "cna_storage_container_delete_directory")
+HANDLE_STRING_METHOD(delete_storage_file, storage_container_delete_file, "cna_storage_container_delete_file")
+
+static napi_value open_storage_container(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle device = 0, container = 0;
+  char* name = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &device) ||
+      !read_utf8(env, args[1], &name, &length)) return NULL;
+  const CNA_StringView view = {name, length};
+  CNA_Result result = g_api.storage_container_open(device, view, NULL, NULL, &container);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_storage_container_open", result);
+  return make_handle(env, container);
+}
+
+static napi_value get_storage_container_display_name(napi_env env, napi_callback_info info) {
+  return copy_handle_string(env, info, g_api.storage_container_get_display_name_size,
+    g_api.storage_container_copy_display_name, "cna_storage_container_copy_display_name");
+}
+
+static napi_value handle_string_exists(
+  napi_env env, napi_callback_info info, HandleStringBoolOutFn function, const char* operation
+) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2], output;
+  CNA_Handle handle = 0;
+  char* value = NULL;
+  size_t length = 0;
+  CNA_Bool exists = CNA_FALSE;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &handle) ||
+      !read_utf8(env, args[1], &value, &length)) return NULL;
+  const CNA_StringView view = {value, length};
+  CNA_Result result = function(handle, view, &exists);
+  free(value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, exists == CNA_TRUE, &output), "storage existence result");
+  return output;
+}
+
+static napi_value storage_directory_exists(napi_env env, napi_callback_info info) {
+  return handle_string_exists(env, info, g_api.storage_container_directory_exists,
+    "cna_storage_container_directory_exists");
+}
+static napi_value storage_file_exists(napi_env env, napi_callback_info info) {
+  return handle_string_exists(env, info, g_api.storage_container_file_exists,
+    "cna_storage_container_file_exists");
+}
+
+static napi_value get_storage_names(
+  napi_env env, napi_callback_info info,
+  HandleStringU64OutFn count_function, StorageNameCopyFn copy_function, const char* operation
+) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2], output;
+  CNA_Handle container = 0;
+  char* pattern = NULL;
+  size_t pattern_length = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &container) ||
+      !read_utf8(env, args[1], &pattern, &pattern_length)) return NULL;
+  const CNA_StringView view = {pattern, pattern_length};
+  uint64_t count = 0;
+  CNA_Result result = count_function(container, view, &count);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(pattern);
+    return throw_result(env, operation, result);
+  }
+  if (count > UINT32_MAX) {
+    free(pattern);
+    return throw_message(env, "storage name count exceeds JavaScript array capacity");
+  }
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, (size_t) count, &output), "storage name array");
+  for (uint64_t index = 0; index < count; index += 1) {
+    uint64_t length = 0, copied = 0;
+    result = copy_function(container, view, index, NULL, 0, &length);
+    if (result != CNA_RESULT_BUFFER_TOO_SMALL && result != CNA_RESULT_SUCCESS) {
+      free(pattern);
+      return throw_result(env, operation, result);
+    }
+    if (length > SIZE_MAX) {
+      free(pattern);
+      return throw_message(env, "storage name exceeds host address space");
+    }
+    char* name = length == 0 ? NULL : (char*) malloc((size_t) length);
+    if (length != 0 && !name) {
+      free(pattern);
+      return throw_message(env, "storage name allocation failed");
+    }
+    result = copy_function(container, view, index, name, length, &copied);
+    if (result != CNA_RESULT_SUCCESS || copied != length) {
+      free(name);
+      free(pattern);
+      return throw_result(env, operation, result);
+    }
+    napi_value name_value;
+    napi_status status = napi_create_string_utf8(env, name ? name : "", (size_t) length, &name_value);
+    free(name);
+    if (status != napi_ok || napi_set_element(env, output, (uint32_t) index, name_value) != napi_ok) {
+      free(pattern);
+      return throw_napi(env, "storage name creation");
+    }
+  }
+  free(pattern);
+  return output;
+}
+
+static napi_value get_storage_directory_names(napi_env env, napi_callback_info info) {
+  return get_storage_names(env, info, g_api.storage_container_get_directory_count,
+    g_api.storage_container_copy_directory_name, "CNA storage directory listing");
+}
+static napi_value get_storage_file_names(napi_env env, napi_callback_info info) {
+  return get_storage_names(env, info, g_api.storage_container_get_file_count,
+    g_api.storage_container_copy_file_name, "CNA storage file listing");
+}
+
+static napi_value create_storage_file(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle container = 0, stream = 0;
+  char* file = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &container) ||
+      !read_utf8(env, args[1], &file, &length)) return NULL;
+  const CNA_StringView view = {file, length};
+  CNA_Result result = g_api.storage_container_create_file(container, view, &stream);
+  free(file);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_storage_container_create_file", result);
+  result = g_api.storage_stream_close(stream);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_storage_stream_close", result);
+  return undefined_result(env, "storage file creation result");
+}
+
+static napi_value open_storage_file(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[5];
+  CNA_Handle container = 0, stream = 0;
+  char* file = NULL;
+  size_t length = 0;
+  uint32_t mode = 0, access = 0, share = 0;
+  if (!get_args(env, info, 5, args) || !read_handle(env, args[0], &container) ||
+      !read_utf8(env, args[1], &file, &length) ||
+      napi_get_value_uint32(env, args[2], &mode) != napi_ok ||
+      napi_get_value_uint32(env, args[3], &access) != napi_ok ||
+      napi_get_value_uint32(env, args[4], &share) != napi_ok) {
+    free(file);
+    return NULL;
+  }
+  const CNA_StringView view = {file, length};
+  CNA_Result result = g_api.storage_container_open_file(container, view, mode, access, share, &stream);
+  free(file);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_storage_container_open_file_share", result);
+  int64_t signed_length = 0;
+  result = g_api.storage_stream_get_length(stream, &signed_length);
+  if (result != CNA_RESULT_SUCCESS) {
+    (void) g_api.storage_stream_close(stream);
+    return throw_result(env, "cna_storage_stream_get_length", result);
+  }
+  if (signed_length < 0 || (uint64_t) signed_length > SIZE_MAX) {
+    (void) g_api.storage_stream_close(stream);
+    return throw_message(env, "storage stream length exceeds the native address space");
+  }
+  const size_t byte_count = access == CNA_FILE_ACCESS_WRITE ? 0 : (size_t) signed_length;
+  uint8_t* bytes = byte_count == 0 ? NULL : (uint8_t*) malloc(byte_count);
+  if (byte_count != 0 && !bytes) {
+    (void) g_api.storage_stream_close(stream);
+    return throw_message(env, "storage stream buffer allocation failed");
+  }
+  uint64_t read = 0;
+  if (byte_count != 0) result = g_api.storage_stream_read(stream, bytes, byte_count, &read);
+  CNA_Result close_result = g_api.storage_stream_close(stream);
+  if (result != CNA_RESULT_SUCCESS || read > byte_count) {
+    free(bytes);
+    return throw_result(env, "cna_storage_stream_read", result);
+  }
+  if (close_result != CNA_RESULT_SUCCESS) {
+    free(bytes);
+    return throw_result(env, "cna_storage_stream_close", close_result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) read, "storage stream copy");
+  free(bytes);
+  return output;
+}
+
+AUDIO_HANDLE_METHOD(destroy_storage_device, storage_device_destroy, "cna_storage_device_destroy")
+AUDIO_HANDLE_METHOD(destroy_storage_container, storage_container_destroy, "cna_storage_container_destroy")
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
@@ -1801,6 +3619,122 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "readGesture", NULL, read_gesture, NULL, NULL, NULL, napi_default, NULL },
     { "getTouchWindowHandle", NULL, get_touch_window, NULL, NULL, NULL, napi_default, NULL },
     { "setTouchWindowHandle", NULL, set_touch_window, NULL, NULL, NULL, napi_default, NULL },
+    { "createSoundEffectPcm", NULL, create_sound_effect_pcm, NULL, NULL, NULL, napi_default, NULL },
+    { "createSoundEffectEncoded", NULL, create_sound_effect_encoded, NULL, NULL, NULL, napi_default, NULL },
+    { "getSoundEffectDurationTicks", NULL, get_sound_effect_duration, NULL, NULL, NULL, napi_default, NULL },
+    { "getSoundEffectName", NULL, get_sound_effect_name, NULL, NULL, NULL, napi_default, NULL },
+    { "setSoundEffectName", NULL, set_sound_effect_name, NULL, NULL, NULL, napi_default, NULL },
+    { "createSoundEffectInstance", NULL, create_sound_effect_instance, NULL, NULL, NULL, napi_default, NULL },
+    { "playSoundEffect", NULL, play_sound_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "destroySoundEffect", NULL, destroy_sound_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getMasterVolume", NULL, get_master_volume, NULL, NULL, NULL, napi_default, NULL },
+    { "setMasterVolume", NULL, set_master_volume, NULL, NULL, NULL, napi_default, NULL },
+    { "getDistanceScale", NULL, get_distance_scale, NULL, NULL, NULL, napi_default, NULL },
+    { "setDistanceScale", NULL, set_distance_scale, NULL, NULL, NULL, napi_default, NULL },
+    { "getDopplerScale", NULL, get_doppler_scale, NULL, NULL, NULL, napi_default, NULL },
+    { "setDopplerScale", NULL, set_doppler_scale, NULL, NULL, NULL, napi_default, NULL },
+    { "getSpeedOfSound", NULL, get_speed_of_sound, NULL, NULL, NULL, napi_default, NULL },
+    { "setSpeedOfSound", NULL, set_speed_of_sound, NULL, NULL, NULL, napi_default, NULL },
+    { "playSoundEffectInstance", NULL, play_sound_instance, NULL, NULL, NULL, napi_default, NULL },
+    { "pauseSoundEffectInstance", NULL, pause_sound_instance, NULL, NULL, NULL, napi_default, NULL },
+    { "resumeSoundEffectInstance", NULL, resume_sound_instance, NULL, NULL, NULL, napi_default, NULL },
+    { "stopSoundEffectInstance", NULL, stop_sound_instance, NULL, NULL, NULL, napi_default, NULL },
+    { "getSoundEffectInstanceInfo", NULL, get_sound_instance_info, NULL, NULL, NULL, napi_default, NULL },
+    { "setSoundEffectInstanceVolume", NULL, set_sound_instance_volume, NULL, NULL, NULL, napi_default, NULL },
+    { "setSoundEffectInstancePitch", NULL, set_sound_instance_pitch, NULL, NULL, NULL, napi_default, NULL },
+    { "setSoundEffectInstancePan", NULL, set_sound_instance_pan, NULL, NULL, NULL, napi_default, NULL },
+    { "setSoundEffectInstanceLooped", NULL, set_sound_instance_looped, NULL, NULL, NULL, napi_default, NULL },
+    { "applySoundEffectInstance3D", NULL, apply_sound_instance_3d, NULL, NULL, NULL, napi_default, NULL },
+    { "destroySoundEffectInstance", NULL, destroy_sound_instance, NULL, NULL, NULL, napi_default, NULL },
+    { "createDynamicSoundEffectInstance", NULL, create_dynamic_sound_instance, NULL, NULL, NULL, napi_default, NULL },
+    { "getDynamicPendingBufferCount", NULL, get_dynamic_pending, NULL, NULL, NULL, napi_default, NULL },
+    { "submitDynamicBuffer", NULL, submit_dynamic_buffer, NULL, NULL, NULL, napi_default, NULL },
+    { "getMicrophones", NULL, get_microphones, NULL, NULL, NULL, napi_default, NULL },
+    { "setMicrophoneBufferDurationTicks", NULL, set_microphone_duration, NULL, NULL, NULL, napi_default, NULL },
+    { "startMicrophone", NULL, start_microphone, NULL, NULL, NULL, napi_default, NULL },
+    { "stopMicrophone", NULL, stop_microphone, NULL, NULL, NULL, napi_default, NULL },
+    { "getMicrophoneData", NULL, get_microphone_data, NULL, NULL, NULL, napi_default, NULL },
+    { "createAudioEngine", NULL, create_audio_engine, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyAudioEngine", NULL, destroy_audio_engine, NULL, NULL, NULL, napi_default, NULL },
+    { "getAudioEngineIsDisposed", NULL, get_audio_engine_disposed, NULL, NULL, NULL, napi_default, NULL },
+    { "getAudioEngineRendererDetails", NULL, get_audio_engine_renderers, NULL, NULL, NULL, napi_default, NULL },
+    { "getAudioEngineGlobalVariable", NULL, get_audio_engine_global, NULL, NULL, NULL, napi_default, NULL },
+    { "setAudioEngineGlobalVariable", NULL, set_audio_engine_global, NULL, NULL, NULL, napi_default, NULL },
+    { "updateAudioEngine", NULL, update_audio_engine, NULL, NULL, NULL, napi_default, NULL },
+    { "getAudioCategory", NULL, get_audio_category, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyAudioCategory", NULL, destroy_audio_category, NULL, NULL, NULL, napi_default, NULL },
+    { "getAudioCategoryName", NULL, get_audio_category_name, NULL, NULL, NULL, napi_default, NULL },
+    { "pauseAudioCategory", NULL, pause_audio_category, NULL, NULL, NULL, napi_default, NULL },
+    { "resumeAudioCategory", NULL, resume_audio_category, NULL, NULL, NULL, napi_default, NULL },
+    { "setAudioCategoryVolume", NULL, set_audio_category_volume, NULL, NULL, NULL, napi_default, NULL },
+    { "stopAudioCategory", NULL, stop_audio_category, NULL, NULL, NULL, napi_default, NULL },
+    { "audioCategoriesEqual", NULL, audio_categories_equal, NULL, NULL, NULL, napi_default, NULL },
+    { "getAudioCategoryHashCode", NULL, get_audio_category_hash, NULL, NULL, NULL, napi_default, NULL },
+    { "createWaveBank", NULL, create_wave_bank, NULL, NULL, NULL, napi_default, NULL },
+    { "createStreamingWaveBank", NULL, create_streaming_wave_bank, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyWaveBank", NULL, destroy_wave_bank, NULL, NULL, NULL, napi_default, NULL },
+    { "getWaveBankIsDisposed", NULL, get_wave_bank_disposed, NULL, NULL, NULL, napi_default, NULL },
+    { "getWaveBankIsPrepared", NULL, get_wave_bank_prepared, NULL, NULL, NULL, napi_default, NULL },
+    { "getWaveBankIsInUse", NULL, get_wave_bank_in_use, NULL, NULL, NULL, napi_default, NULL },
+    { "createSoundBank", NULL, create_sound_bank, NULL, NULL, NULL, napi_default, NULL },
+    { "destroySoundBank", NULL, destroy_sound_bank, NULL, NULL, NULL, napi_default, NULL },
+    { "getSoundBankIsDisposed", NULL, get_sound_bank_disposed, NULL, NULL, NULL, napi_default, NULL },
+    { "getSoundBankIsInUse", NULL, get_sound_bank_in_use, NULL, NULL, NULL, napi_default, NULL },
+    { "getCue", NULL, get_sound_bank_cue, NULL, NULL, NULL, napi_default, NULL },
+    { "playSoundBankCue", NULL, play_sound_bank_cue, NULL, NULL, NULL, napi_default, NULL },
+    { "playSoundBankCue3D", NULL, play_sound_bank_cue_3d, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyCue", NULL, destroy_cue, NULL, NULL, NULL, napi_default, NULL },
+    { "getCueInfo", NULL, get_cue_info, NULL, NULL, NULL, napi_default, NULL },
+    { "getCueName", NULL, get_cue_name, NULL, NULL, NULL, napi_default, NULL },
+    { "applyCue3D", NULL, apply_cue_3d, NULL, NULL, NULL, napi_default, NULL },
+    { "getCueVariable", NULL, get_cue_variable, NULL, NULL, NULL, napi_default, NULL },
+    { "setCueVariable", NULL, set_cue_variable, NULL, NULL, NULL, napi_default, NULL },
+    { "playCue", NULL, play_cue, NULL, NULL, NULL, napi_default, NULL },
+    { "pauseCue", NULL, pause_cue, NULL, NULL, NULL, napi_default, NULL },
+    { "resumeCue", NULL, resume_cue, NULL, NULL, NULL, napi_default, NULL },
+    { "stopCue", NULL, stop_cue, NULL, NULL, NULL, napi_default, NULL },
+    { "getAvailableMediaSources", NULL, get_media_sources, NULL, NULL, NULL, napi_default, NULL },
+    { "playMediaSongs", NULL, play_media_songs, NULL, NULL, NULL, napi_default, NULL },
+    { "pauseMedia", NULL, pause_media, NULL, NULL, NULL, napi_default, NULL },
+    { "resumeMedia", NULL, resume_media, NULL, NULL, NULL, napi_default, NULL },
+    { "stopMedia", NULL, stop_media, NULL, NULL, NULL, napi_default, NULL },
+    { "moveNextMedia", NULL, move_next_media, NULL, NULL, NULL, napi_default, NULL },
+    { "movePreviousMedia", NULL, move_previous_media, NULL, NULL, NULL, napi_default, NULL },
+    { "setMediaVolume", NULL, set_media_volume, NULL, NULL, NULL, napi_default, NULL },
+    { "setMediaMuted", NULL, set_media_muted, NULL, NULL, NULL, napi_default, NULL },
+    { "setMediaRepeating", NULL, set_media_repeating, NULL, NULL, NULL, napi_default, NULL },
+    { "setMediaShuffled", NULL, set_media_shuffled, NULL, NULL, NULL, napi_default, NULL },
+    { "setMediaVisualizationEnabled", NULL, set_media_visualization, NULL, NULL, NULL, napi_default, NULL },
+    { "getMediaGameHasControl", NULL, get_media_game_control, NULL, NULL, NULL, napi_default, NULL },
+    { "getMediaPlayPositionTicks", NULL, get_media_position, NULL, NULL, NULL, napi_default, NULL },
+    { "getMediaVisualizationData", NULL, get_media_visualization, NULL, NULL, NULL, napi_default, NULL },
+    { "updateMedia", NULL, update_media, NULL, NULL, NULL, napi_default, NULL },
+    { "createVideoPlayer", NULL, create_video_player, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyVideoPlayer", NULL, destroy_video_player, NULL, NULL, NULL, napi_default, NULL },
+    { "getVideoPlayerInfo", NULL, get_video_player_info, NULL, NULL, NULL, napi_default, NULL },
+    { "setVideoPlayerLooped", NULL, set_video_player_looped, NULL, NULL, NULL, napi_default, NULL },
+    { "setVideoPlayerMuted", NULL, set_video_player_muted, NULL, NULL, NULL, napi_default, NULL },
+    { "setVideoPlayerVolume", NULL, set_video_player_volume, NULL, NULL, NULL, napi_default, NULL },
+    { "playVideo", NULL, play_video, NULL, NULL, NULL, napi_default, NULL },
+    { "pauseVideo", NULL, pause_video, NULL, NULL, NULL, napi_default, NULL },
+    { "resumeVideo", NULL, resume_video, NULL, NULL, NULL, napi_default, NULL },
+    { "stopVideo", NULL, stop_video, NULL, NULL, NULL, napi_default, NULL },
+    { "selectStorageDevice", NULL, select_storage_device, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyStorageDevice", NULL, destroy_storage_device, NULL, NULL, NULL, napi_default, NULL },
+    { "getStorageDeviceInfo", NULL, get_storage_device_info, NULL, NULL, NULL, napi_default, NULL },
+    { "deleteStorageContainer", NULL, delete_storage_container, NULL, NULL, NULL, napi_default, NULL },
+    { "openStorageContainer", NULL, open_storage_container, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyStorageContainer", NULL, destroy_storage_container, NULL, NULL, NULL, napi_default, NULL },
+    { "getStorageContainerDisplayName", NULL, get_storage_container_display_name, NULL, NULL, NULL, napi_default, NULL },
+    { "createStorageDirectory", NULL, create_storage_directory, NULL, NULL, NULL, napi_default, NULL },
+    { "storageDirectoryExists", NULL, storage_directory_exists, NULL, NULL, NULL, napi_default, NULL },
+    { "deleteStorageDirectory", NULL, delete_storage_directory, NULL, NULL, NULL, napi_default, NULL },
+    { "getStorageDirectoryNames", NULL, get_storage_directory_names, NULL, NULL, NULL, napi_default, NULL },
+    { "createStorageFile", NULL, create_storage_file, NULL, NULL, NULL, napi_default, NULL },
+    { "storageFileExists", NULL, storage_file_exists, NULL, NULL, NULL, napi_default, NULL },
+    { "deleteStorageFile", NULL, delete_storage_file, NULL, NULL, NULL, napi_default, NULL },
+    { "getStorageFileNames", NULL, get_storage_file_names, NULL, NULL, NULL, napi_default, NULL },
+    { "openStorageFile", NULL, open_storage_file, NULL, NULL, NULL, napi_default, NULL },
   };
   if (napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties) != napi_ok) {
     return throw_napi(env, "module initialization");

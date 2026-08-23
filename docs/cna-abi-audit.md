@@ -19,9 +19,9 @@ declaration scan finds 2,861 unique `CNA_C_API` function names. The ABI uses fix
 codes, UTF-8 string views/caller-owned buffers, versioned structures, and opaque generation-checked
 `uint64_t` handles; zero is the invalid handle.
 
-The broad 32-symbol sentinel set remains an audit of planned subsystems. The implemented Node
-adapter separately resolves exactly 69 symbols; `tools/audit-cna-abi.mjs` extracts those names from
-the adapter source and confirms that current headers declare every one.
+The broad 32-symbol sentinel set remains an audit of cross-subsystem availability. The implemented
+Node adapter separately resolves exactly 219 symbols; `tools/audit-cna-abi.mjs` extracts those
+names from the adapter source and confirms that current headers declare every one.
 
 | Group | Required routes | Evidence |
 | --- | ---: | --- |
@@ -36,8 +36,8 @@ the adapter source and confirms that current headers declare every one.
 
 All 32 sentinel symbols are present. Important lifetime evidence is explicit in the headers:
 
-- the game, device manager, Texture2D, SpriteBatch, content manager, and sound resources have
-  owned handles and explicit release routes;
+- the game, device manager, Texture2D, SpriteBatch, content manager, sound/XACT, media/video, and
+  storage resources have owned handles and explicit release routes;
 - the graphics device returned during lifecycle work is borrowed/callback-scoped;
 - SpriteBatch and Texture2D children must be destroyed before their game;
 - successful destruction invalidates a handle and a second destroy reports invalid handle;
@@ -47,18 +47,23 @@ All 32 sentinel symbols are present. Important lifetime evidence is explicit in 
 These contracts justify the binding's internal `owned`, `borrowed`, `parent-owned`, and
 `adopted/transferred` states. They do not justify exposing the numeric handle publicly.
 
-The adapter grew from 50 to 69 symbols only for implemented routes:
+The adapter grew from 69 to 219 symbols only for implemented routes:
 
 | Exact adapter group | Symbols | Change |
 | --- | ---: | ---: |
 | ABI/error | 3 | 0 |
 | game/framework lifecycle | 7 | 0 |
 | manager/device/renderer information | 22 | 0 |
-| Texture2D | 8 | +6 transfer/info/encoded routes |
-| SpriteBatch | 5 | +3 begin/submit/end routes |
-| vertex declaration/buffer and index buffer | 10 | +10 |
+| Texture2D | 8 | 0 |
+| SpriteBatch | 5 | 0 |
+| vertex declaration/buffer and index buffer | 10 | 0 |
 | keyboard/mouse/gamepad/touch | 14 | 0 |
-| **Total** | **69** | **+19** |
+| Audio/SoundEffect/dynamic/microphone | 43 | +43 |
+| XACT engine/category/bank/cue | 46 | +46 |
+| Media source/song/player | 23 | +23 |
+| VideoPlayer controls | 11 | +11 |
+| Storage device/container/stream | 27 | +27 |
+| **Total** | **219** | **+150** |
 
 ## Browser artifact finding
 
@@ -123,7 +128,7 @@ the sibling Java/Rust verification. It selected:
 
 ```text
 PATH=/tmp/cna-java-native-working-070/modules/c-api/libcna_c_api.so
-SOURCE_COMMIT=a09196a64
+SOURCE_COMMIT=a09196a6477f69a7a57c8364f990658d31531a5b
 BUILD=Linux x86-64, HEADLESS renderer/platform, NULL audio
 SHA256=42e099146bf3b470f82fd963a516f8bdd7ff0406da8c37dd53747699117db086
 REPORTED_ABI=0.7.0 (encoded 0x00000700)
@@ -132,17 +137,26 @@ EXPORTED_CNA_SYMBOLS=2861
 
 This path is test evidence only and is not embedded in source, package metadata, or generated
 projects. All dynamic dependencies resolved locally. The small C Node-API adapter loads a path
-supplied by the caller, rejects any ABI other than exact 0.7.0, imports 69 named symbols, carries
-64-bit handles as bigint, and uses synchronous callback trampolines. It adds no generic FFI
-dependency and no finalizer-based ownership.
+supplied by the caller, rejects any ABI other than exact 0.7.0, imports 219 named symbols, and
+carries 64-bit handles as bigint. Game lifecycle callbacks are synchronous on the attached Node
+thread and contain/rethrow JavaScript exceptions after the native call returns. No native
+audio/media callback subscription is imported: dynamic buffer delivery and media updates use the
+single Game/FrameworkDispatcher managed pump, so JavaScript is never invoked from an arbitrary
+foreign audio thread. The bridge adds no generic FFI dependency and no finalizer-based ownership.
 
-The native integration command completed six real CNA game lifetimes. Its scenario groups (one
-isolated Node TAP top-level) cover ABI/symbol validation; 60 real draw frames; 600 real draw frames;
-live-child parent shutdown; repeated creation/destruction; and renderer identity/capabilities.
+The native integration command exposes seven scenario groups (one isolated Node TAP top-level) and
+completed seven real CNA game lifetimes. It covers ABI/symbol validation; typed Audio/XACT,
+Media/Video, and Storage routes; 60 real draw frames; 600 real draw frames; live-child parent
+shutdown; repeated creation/destruction; and renderer identity/capabilities.
 Each full lifecycle exercises Texture2D Color transfer and region readback, PNG `FromStream` and
 PNG encoding, public SpriteBatch Begin/Draw/End, synthetic uncompressed SpriteFont XNB plus
 DrawString, synthetic Model XNB plus real vertex/index buffer construction and readback, content
-disposal, and input polling. Renderer data reports `HEADLESS` from CNA; its actual capability bits
+disposal, and input polling. The subsystem scenario additionally exercises PCM SoundEffect and
+instance state, dynamic buffer queue transitions, one-listener Apply3D plus explicit multi-listener
+rejection, empty microphone enumeration, generated-silent-WAV MediaPlayer controls and
+visualization, VideoPlayer control state, and Storage selector/container CRUD in an isolated XDG
+directory. Invalid XACT settings construction is verified with a structured CNA result; no legal
+XGS/XSB/XWB fixture was available. Renderer data reports `HEADLESS` from CNA; its actual capability bits
 report custom effects available and compiled effects unavailable. CNA-TS has not imported the
 custom-effect execution routes, so the capability bit is evidence about CNA, not a binding claim.
 
@@ -158,5 +172,6 @@ GraphicsDeviceManager configuration/lifecycle, callback-scoped GraphicsDevice bo
 clear/present, renderer information, Texture2D transfer/encoded image routes, SpriteBatch
 Begin/Draw/End, vertex/index buffer construction and raw built-in-content transfer, and the already
 modeled keyboard/mouse/gamepad/touch routes. Effect execution/reflection routes, indexed drawing,
-generic public vertex transfer, and native GameWindow events are not imported; those capabilities
-remain explicit blockers rather than simulations.
+generic public vertex transfer, video asset/frame-texture routes, and native GameWindow events are
+not imported; those capabilities remain explicit blockers rather than simulations. Authored XACT
+success remains asset-pending, and HEADLESS exposes no microphone device.

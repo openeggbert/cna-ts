@@ -1,22 +1,28 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
+import { pathToFileURL } from "node:url";
 
 import {
+  Audio,
   Color,
   Content,
-  FrameworkDispatcher,
   Game,
   Graphics,
   GraphicsDeviceManager,
   GetRuntimeStatus,
   Input,
   LoadNodeNativeBackend,
+  Media,
   PlayerIndex,
   Rectangle,
+  Storage,
   Vector2,
   Vector3,
 } from "../dist/index.js";
+import { getBackend } from "../dist/internal/backend.js";
 import {
   getVertexBufferRawForInternalUse,
   setVertexBufferRawForInternalUse,
@@ -28,6 +34,9 @@ import {
 
 const library = process.env.CNA_NATIVE_LIBRARY;
 if (!library) throw new Error("CNA_NATIVE_LIBRARY must name an existing CNA ABI 0.7.0 shared library");
+const nativeStorageHome = fs.mkdtempSync(path.join(os.tmpdir(), "cna-ts-native-storage-"));
+process.env.XDG_DATA_HOME = nativeStorageHome;
+after(() => fs.rmSync(nativeStorageHome, { recursive: true, force: true }));
 const bridge = path.resolve(process.env.CNA_NODE_BRIDGE ?? "build/cna_node_bridge.node");
 const status = await LoadNodeNativeBackend({
   CnaLibrary: path.resolve(library),
@@ -161,7 +170,6 @@ class NativeProbeGame extends Game {
   Update(gameTime) {
     super.Update(gameTime);
     if (this.inputPolls === 0) {
-      FrameworkDispatcher.Update();
       assert.deepEqual(Input.Keyboard.GetState().GetPressedKeys(), []);
       assert.equal(typeof Input.Mouse.GetState().X, "number");
       assert.equal(Input.GamePad.GetState(PlayerIndex.One).IsConnected, false);
@@ -229,8 +237,200 @@ test("loads an exact real CNA ABI and only the audited symbols", () => {
   assert.equal(status.Backend, "node-native");
   assert.equal(status.IsAvailable, true);
   assert.equal(status.AbiVersion, "0.7.0");
-  assert.equal(status.ImportedSymbolCount, 69);
+  assert.equal(status.ImportedSymbolCount, 219);
 });
+
+class NativeAudioProbeGame extends Game {
+  constructor(mediaUri) {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.bufferNeeded = 0;
+    this.mediaUri = mediaUri;
+    this.storagePromise = null;
+  }
+
+  LoadContent() {
+    this.storagePromise = selectStorage();
+    const backend = getBackend().Audio;
+    assert.ok(backend);
+    assert.deepEqual(Audio.Microphone.All, []);
+    assert.equal(Audio.Microphone.Default, undefined);
+
+    Audio.SoundEffect.MasterVolume = 0.75;
+    Audio.SoundEffect.DistanceScale = 2;
+    Audio.SoundEffect.DopplerScale = 0.5;
+    Audio.SoundEffect.SpeedOfSound = 340;
+    assert.equal(backend.getMasterVolume(), Math.fround(0.75));
+    assert.equal(backend.getDistanceScale(), Math.fround(2));
+    assert.equal(backend.getDopplerScale(), Math.fround(0.5));
+    assert.equal(backend.getSpeedOfSound(), Math.fround(340));
+    assert.throws(
+      () => new Audio.AudioEngine("/tmp/cna-ts-missing-settings.xgs"),
+      (error) => error.operation === "cna_audio_engine_create" && Number.isInteger(error.cnaResult),
+    );
+
+    this.sound = new Audio.SoundEffect(Array(320).fill(0), 8000, Audio.AudioChannels.Mono);
+    assert.equal(this.sound.Name, "");
+    this.sound.Name = "native-audio-probe";
+    assert.equal(this.sound.Name, "native-audio-probe");
+    assert.equal(this.sound.Play(0.5, 0.25, -0.25), false);
+
+    const disposableChild = this.sound.CreateInstance();
+    disposableChild.Dispose();
+    disposableChild.Dispose();
+    assert.equal(disposableChild.IsDisposed, true);
+
+    this.instance = this.sound.CreateInstance();
+    assert.equal(this.instance.State, Audio.SoundState.Stopped);
+    this.instance.Pause();
+    assert.equal(this.instance.State, Audio.SoundState.Stopped);
+    this.instance.Volume = 0.5;
+    this.instance.Pitch = -0.25;
+    this.instance.Pan = 0.25;
+    this.instance.IsLooped = true;
+    this.instance.Apply3D(new Audio.AudioListener(), new Audio.AudioEmitter());
+    assert.throws(
+      () => this.instance.Apply3D(
+        [new Audio.AudioListener(), new Audio.AudioListener()], new Audio.AudioEmitter(),
+      ),
+      (error) => error.cnaResult === 6,
+    );
+    this.instance.Play();
+    assert.equal(this.instance.State, Audio.SoundState.Stopped);
+    this.instance.Resume();
+    this.instance.Stop(false);
+
+    this.dynamic = new Audio.DynamicSoundEffectInstance(8000, Audio.AudioChannels.Mono);
+    this.dynamic.SubmitBuffer(Array(320).fill(0));
+    assert.equal(this.dynamic.PendingBufferCount, 1);
+    const onNeeded = () => {
+      this.bufferNeeded += 1;
+      this.dynamic.BufferNeeded.Remove(onNeeded);
+      this.dynamic.SubmitBuffer(Array(320).fill(0));
+    };
+    this.dynamic.BufferNeeded.Add(onNeeded);
+    this.dynamic.Play();
+
+    const sources = Media.MediaSource.GetAvailableMediaSources();
+    assert.ok(sources.length >= 1);
+    assert.equal(typeof sources[0].Name, "string");
+    assert.equal(typeof sources[0].MediaSourceType, "number");
+    assert.equal(typeof Media.MediaPlayer.GameHasControl, "boolean");
+    Media.MediaPlayer.Volume = 0.5;
+    Media.MediaPlayer.IsMuted = true;
+    Media.MediaPlayer.IsRepeating = true;
+    Media.MediaPlayer.IsShuffled = false;
+    Media.MediaPlayer.IsVisualizationEnabled = true;
+    this.song = Media.Song.FromUri("generated-silence", this.mediaUri);
+    Media.MediaPlayer.Play(this.song);
+    assert.equal(Media.MediaPlayer.State, Media.MediaState.Playing);
+    Media.MediaPlayer.Pause();
+    Media.MediaPlayer.Resume();
+    Media.MediaPlayer.MoveNext();
+    Media.MediaPlayer.MovePrevious();
+    assert.equal(typeof Media.MediaPlayer.PlayPosition.Ticks, "bigint");
+    const visualization = new Media.VisualizationData();
+    Media.MediaPlayer.GetVisualizationData(visualization);
+    assert.equal(visualization.Frequencies.length, 256);
+    Media.MediaPlayer.Stop();
+
+    this.videoPlayer = new Media.VideoPlayer();
+    assert.equal(this.videoPlayer.State, Media.MediaState.Stopped);
+    assert.equal(this.videoPlayer.PlayPosition.Ticks, 0n);
+    this.videoPlayer.IsLooped = true;
+    this.videoPlayer.IsMuted = true;
+    this.videoPlayer.Volume = 0.25;
+    this.videoPlayer.Pause();
+    this.videoPlayer.Resume();
+    this.videoPlayer.Stop();
+    assert.throws(() => this.videoPlayer.GetTexture(), /No video has been played/);
+  }
+
+  Update() {
+    assert.ok(this.bufferNeeded <= 1);
+    this.Exit();
+  }
+}
+
+test("executes typed CNA Audio/XACT, Media/Video and Storage routes", async () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cna-ts-media-native-"));
+  const filename = path.join(directory, "silence.wav");
+  fs.writeFileSync(filename, silentWave());
+  try {
+    const game = new NativeAudioProbeGame(pathToFileURL(filename));
+    await game.Run();
+    const storageDevice = await game.storagePromise;
+    assert.equal(storageDevice.IsConnected, true);
+    assert.ok(storageDevice.FreeSpace > 0n);
+    assert.ok(storageDevice.TotalSpace > 0n);
+    const container = await openStorage(storageDevice, "native-tests");
+    assert.equal(await openStorage(storageDevice, "native-tests"), container);
+    assert.equal(container.DisplayName, "native-tests");
+    container.CreateDirectory("saves");
+    assert.equal(container.DirectoryExists("saves"), true);
+    assert.deepEqual(container.GetDirectoryNames("sav*"), ["saves"]);
+    container.CreateFile("slot.dat");
+    assert.equal(container.FileExists("slot.dat"), true);
+    assert.deepEqual(container.GetFileNames("*.dat"), ["slot.dat"]);
+    assert.equal(container.OpenFile("slot.dat", 3).byteLength, 0);
+    container.DeleteFile("slot.dat");
+    container.DeleteDirectory("saves");
+    container.Dispose();
+    container.Dispose();
+    storageDevice.DeleteContainer("native-tests");
+    const liveContainer = await openStorage(storageDevice, "parent-owned");
+    assert.equal(game.bufferNeeded, 1);
+    game.Dispose();
+    assert.equal(game.instance.IsDisposed, true);
+    assert.equal(game.dynamic.IsDisposed, true);
+    assert.equal(game.sound.IsDisposed, true);
+    assert.equal(game.videoPlayer.IsDisposed, true);
+    assert.equal(liveContainer.IsDisposed, true);
+    assert.equal(storageDevice.IsConnected, false);
+    game.instance.Dispose();
+    game.dynamic.Dispose();
+    game.sound.Dispose();
+    game.videoPlayer.Dispose();
+    game.song.Dispose();
+    game.Dispose();
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+function selectStorage() {
+  return new Promise((resolve, reject) => {
+    Storage.StorageDevice.BeginShowSelector((result) => {
+      try { resolve(Storage.StorageDevice.EndShowSelector(result)); } catch (error) { reject(error); }
+    }, null);
+  });
+}
+
+function openStorage(device, name) {
+  return new Promise((resolve, reject) => {
+    device.BeginOpenContainer(name, (result) => {
+      try { resolve(device.EndOpenContainer(result)); } catch (error) { reject(error); }
+    }, null);
+  });
+}
+
+function silentWave() {
+  const sampleCount = 800;
+  const output = Buffer.alloc(44 + sampleCount * 2);
+  output.write("RIFF", 0, "ascii");
+  output.writeUInt32LE(output.length - 8, 4);
+  output.write("WAVEfmt ", 8, "ascii");
+  output.writeUInt32LE(16, 16);
+  output.writeUInt16LE(1, 20);
+  output.writeUInt16LE(1, 22);
+  output.writeUInt32LE(8000, 24);
+  output.writeUInt32LE(16000, 28);
+  output.writeUInt16LE(2, 32);
+  output.writeUInt16LE(16, 34);
+  output.write("data", 36, "ascii");
+  output.writeUInt32LE(sampleCount * 2, 40);
+  return output;
+}
 
 for (const frameCount of [60, 600]) {
   test(`executes ${frameCount} CNA-owned frames with graphics resources`, async () => {
