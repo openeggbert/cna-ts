@@ -5,18 +5,23 @@
 the package build emits the JavaScript used by both languages and the declarations used by
 TypeScript.
 
-> Status: the selected XNA 4.0 Windows runtime projection is strict-zero complete: all 271 mapped
-> target types are present, with zero missing members, signature mismatches, runtime-symbol
-> differences, internal leaks, or allowlist entries. The real graphics/content slice includes typed
-> Texture2D transfer and encoded streams, public SpriteBatch drawing, Effect reflection and stock
-> effect state, managed uncompressed/LZX XNB readers, external-reference resolution,
-> SpriteFont/DrawString, Model graphs, GraphicsDevice state/buffer/render-target binding, typed
-> bound/user/instanced draw dispatch, dynamic buffers, render targets, advanced non-effect
-> SpriteBatch Begin, title storage, GameWindow routing, and OcclusionQuery lifecycle. Audio,
-> XACT, Media, Video, and Storage now have typed runtime routes where CNA exposes them. An opt-in
-> Node-API bridge executes CNA ABI 0.7.0 on Linux HEADLESS/NULL audio; no native binary or CNA
-> library is bundled. Without an explicitly loaded backend, native operations fail rather than
-> simulating execution.
+> Status: the complete XNA 4.0 **runtime** surface is projected and verified. Two strict profiles
+> hold at zero differences — the seven-assembly Windows runtime (257 reference types, 2,964 members)
+> and the GamerServices/Net/Avatar set (74 types, 676 members) — which together with the Xbox 360
+> contract is 331 of 331 runtime types, with zero missing members, signature mismatches,
+> runtime-symbol differences, internal leaks or allowlist entries. What is deliberately not
+> projected is the 128-type content pipeline, which runs in the content build rather than in a game.
+>
+> Two real backends run the same public API. An opt-in Node-API bridge executes CNA C ABI 0.20.0 on
+> Linux HEADLESS with NULL audio through 398 imported routes; a WebAssembly backend runs the same
+> `Game`, `GraphicsDeviceManager`, `Texture2D` and `SpriteBatch` for 60 and 600 real frames in a
+> browser on a WebGL2 context. No native binary and no CNA library is bundled, and without an
+> explicitly loaded backend native operations fail rather than simulating execution.
+>
+> Gamer services and networking are declaration-complete and refuse at runtime with
+> `GamerServicesNotAvailableException`, the exception XNA itself raises where the platform is
+> absent. Modern CNA surface outside XNA lives under `cna-ts/extensions`; the first family —
+> platform identity, renderer selection and the runtime log — is verified on both backends.
 
 ## One package for both languages
 

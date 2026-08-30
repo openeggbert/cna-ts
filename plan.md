@@ -1,10 +1,10 @@
 # CNA-TS implementation plan
 
-Status date: 2026-08-23
+Status date: 2026-08-30
 
-Selected profile: XNA 4.0 Windows runtime
+Selected profiles: XNA 4.0 Windows runtime and XNA 4.0 Windows LIVE (GamerServices, Net, Avatar)
 
-Package: `cna-ts` 0.1.x; selected-profile strict API projection complete
+Package: `cna-ts` 0.1.x; the complete XNA 4.0 runtime surface is projected at zero differences
 
 This is the normative roadmap. A checkbox means the named evidence exists; it never means a larger
 phase is complete. API completeness can only be claimed from a reproducible strict verifier run.
@@ -14,15 +14,27 @@ phase is complete. API completeness can only be claimed from a reproducible stri
 - [x] `src/` contains canonical TypeScript implementation only.
 - [x] TypeScript 5.9.2 generates ESM JavaScript, declarations, declaration maps, and source maps in
   `dist/` under strict NodeNext settings.
-- [x] Root, `xna`, `extensions`, and `runtime` package exports resolve in compile probes.
-- [x] Node baseline is 20+; local verification currently uses checksum-verified Node 22.14.0.
-- [x] The strict target has all 271 mapped types, including the complete selected-profile
-  Audio/XACT, Media/Video, Storage, Design, and GamerServices families.
-- [x] `Game` drives its managed pipeline from real CNA lifecycle callbacks when the opt-in Node
-  backend is loaded; the default/backendless path remains explicitly unavailable.
-- [x] Linux x86-64 HEADLESS Node execution is verified through an existing exact CNA ABI-0.7
-  artifact; no native artifact is bundled and WebAssembly remains unavailable.
-- [x] The XNA structural difference count is zero with no missing members or allowlist.
+- [x] Root, `xna`, `extensions`, `extensions/runtime` and `runtime` package exports resolve in
+  compile probes; internal paths, including the WebAssembly internals, do not.
+- [x] Node baseline is 20+.
+- [x] Both strict profiles hold at zero differences: the Windows runtime (257 reference types,
+  2,964 members) and the LIVE set (74 types, 676 members).
+- [x] The runtime superset — the union of the profiles a game runs against, Xbox 360 included — is
+  331 types, all projected. The 128-type content pipeline is deliberately not projected: it runs in
+  the content build rather than in a game.
+- [x] `Game` drives its managed pipeline from real CNA lifecycle callbacks on both backends; the
+  default/backendless path remains explicitly unavailable.
+- [x] Linux x86-64 HEADLESS Node execution is verified against a CNA C ABI 0.20.0 artifact built
+  out of tree from `cnanext` against `sharp-runtimenext`.
+- [x] A WebAssembly backend runs the same public XNA API for 60 and 600 real frames in headless
+  Chromium on a WebGL2 context.
+- [x] The XNA structural difference count is zero on both profiles, with no missing members and an
+  empty allowlist.
+- [x] The CNA enum boundary is proved member by member against the canonical headers by generated
+  `_Static_assert`s, with mutation controls that prove the check can fail.
+- [x] Every public CNA C API declaration is classified; `UNEXPLAINED` is zero.
+- [x] Every runtime-capability row carries machine-checkable proof, and the generator refuses to
+  write the document when a claim does not hold.
 
 ## Canonical JavaScript/TypeScript consolidation
 
@@ -39,8 +51,11 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   overloads, generics, events, `ref/out`, `TimeSpan`, enums, and lifecycle adaptation.
 - [x] Actual seven-assembly metadata measures 257 visible types and 2,964 declared visible members.
 - [x] Current language rules are represented in `mapping-rules.json`; its allowlist is empty.
-- [ ] Later profiles separately inventory GamerServices, Net, Avatar, Xbox/Phone, and Content
-  Pipeline assemblies.
+- [x] Later profiles separately inventory GamerServices, Net, Avatar, Xbox 360 and Content
+  Pipeline assemblies; `docs/xna-profile-inventory.md` records each with its exact hashes.
+- [x] GamerServices, Net and Avatar are a projected strict profile of their own.
+- [ ] No Windows Phone reference corpus is retained on this host; that profile stays unmeasured
+  until one is.
 
 ## Strict verifier baseline
 

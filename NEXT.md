@@ -1444,3 +1444,184 @@ TEMPLATE_NATIVE_600=PASS
 Final verification passed the complete requested gate list, the exact ABI-0.7 native integration
 suite at 60/600 frames, both packed generated consumers, both package reproducibility checks, and
 `git diff --check` in CNA-TS and the unchanged sibling template.
+
+## 2026-08-30: live cnanext, ABI 0.20, a browser backend and the complete XNA runtime surface
+
+This session moved the binding's dependency from the older `cna` checkout at ABI 0.7 to the live
+`cnanext` at ABI 0.20, gave it a second real backend, completed the XNA 4.0 runtime surface, and
+started the modern CNA extension API. Eleven local commits; nothing pushed.
+
+### Repository invariants
+
+```text
+CNA_TS_START=a0141809b7457047e911e7a7590c675916bd0ca0 (clean, == origin/develop)
+CNA_TS_TEMPLATE_START=49620019729ae87208ea67d84504b568e8b08b0b (clean, == origin/develop)
+CNANEXT_HEAD=17b5a90a0878f3f44c23bc8e3197d5d30373dc72
+SHARP_RUNTIMENEXT_HEAD=eebebd862121953538e3b84d43384d70a8a1728d
+CNANEXT_MODIFIED=0
+SHARP_RUNTIMENEXT_MODIFIED=0
+```
+
+Neither dependency was modified. Both were dirty with another session's work when the session
+started and were committed by that session while the build ran; the HEADs above are the ones the
+artifacts were built from and were re-verified afterwards.
+
+### Live CNA build
+
+```text
+BUILD_DIRECTORY=/rv/data/development/github.com/openeggbert/cnanext/cmake-build-tsnext
+GENERATOR=Ninja   CMAKE_BUILD_TYPE=Debug   COMPILER=gcc (Debian 14.2.0-19) 14.2.0
+CNA_PLATFORM=HEADLESS   CNA_GRAPHICS_RENDERER=HEADLESS   CNA_AUDIO_PLATFORM=NULL
+CNA_BUILD_C_API=ON   CNA_CNAEXT=ON   CNA_DEVICES=ON   CNA_ENABLE_NET=ON
+CNA_SHARP_RUNTIME_ROOT=/rv/data/development/github.com/openeggbert/sharp-runtimenext
+LIBRARY=/rv/data/development/github.com/openeggbert/cnanext/cmake-build-tsnext/modules/c-api/libcna_c_api.so
+SHA256=53f513af7a81745df49e9214a9d93aa6e4487b8514891f75ebecab5d8c348fba
+REPORTED_ABI=0.20.0   EXPORTED_CNA_SYMBOLS=4051
+CAPI_CTEST=86/92 PASS
+```
+
+The six failures are configuration effects of this option combination, recorded with their causes
+in `docs/cna-abi-audit.md`; none touches a route the binding imports, and `CApi_LifecycleSmoke`
+— game create/run/destroy with update, draw and texture readback — passes.
+
+A second artifact was built with Emscripten:
+
+```text
+BUILD_DIRECTORY=/rv/data/development/github.com/openeggbert/cnanext/cmake-build-tswasm
+CMAKE_BUILD_TYPE=Release   CNA_GRAPHICS_RENDERER=WEBGL2   EMCC=6.0.3
+MODULE=/rv/data/development/github.com/openeggbert/cnanext/cmake-build-tswasm/modules/c-api/cna_c_api.mjs
+WASM=/rv/data/development/github.com/openeggbert/cnanext/cmake-build-tswasm/modules/c-api/cna_c_api.wasm
+WASM_SHA256=1ae95cc266add93a8b956d6267e7bbd88c55c73c5a64ea948f51161e733f59d1
+REPORTED_ABI=0.20.0
+EXTRA_LINK_SETTINGS=-sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2 -sASYNCIFY=0
+CApi_WasmModuleSmoke=PASS   CApi_WasmBrowserProbe=PASS
+```
+
+Both extra link settings exist because of measured upstream gaps; see the blockers below.
+
+### ABI migration
+
+```text
+PREVIOUS_TARGET_ABI=0.7.0        LIVE_TARGET_ABI=0.20.0
+PREVIOUS_CANONICAL_DECLARATIONS=2861   LIVE_CANONICAL_DECLARATIONS=4051
+IMPORTED_SYMBOLS_BEFORE=360      IMPORTED_SYMBOLS_AFTER=398
+RETAINED=360   REMOVED=0   RENAMED=0   ADDED=38
+NODE_BRIDGE_SIGNATURES_VERIFIED=398   SIGNATURE_MISMATCHES=0
+MISSING_NODE_BRIDGE_SYMBOLS=0   MISSING_QUALIFIED_LIBRARY_IMPORTS=0
+UNEXPLAINED_IMPORTED_SYMBOL_GAPS=0
+```
+
+Every 0.7 route survives 0.20 unchanged, and the whole import list recompiles against the live
+headers under `-Wall -Wextra -Werror` with each symbol assigned to its declared function-pointer
+type. What actually moved was the acceptance policy, one removed limitation
+(`cna_vertex_buffer_set_data_raw_at_with_options`, ABI 0.16), one changed contract
+(`SoundEffectInstance.Apply3D`, ABI 0.9) and four stale version attributions.
+
+### The enum boundary, which nothing had been checking
+
+```text
+ENUM_MEMBER_CLAIMS=752   IDENTICAL=749   TRANSLATED=3
+SCALAR_ASSERTIONS=6   RESULT_CODE_ASSERTIONS=15   STRUCT_VERSION_ASSERTIONS=6
+STATIC_ASSERTIONS_COMPILED=PASS   DIAGNOSTICS=0
+MUTATION_CONTROLS=13
+```
+
+`npm run verify:cna-contract` generates a C translation unit from
+`tools/cna-abi/contract.json` and compiles it against the canonical headers, so every claim is a
+`_Static_assert`. It found that **`BlendFunction.Min` and `Max` were exchanged on every native
+path**: XNA numbers Min=3/Max=4 and the C ABI numbers MAX=3/MIN=4, so a game asking for a minimum
+blend got a maximum through `GraphicsDevice.BlendState` and both `SpriteBatch.Begin` overloads
+carrying one.
+
+### CNA C API coverage
+
+```text
+TOTAL_C_API_FUNCTIONS=4051
+NODE_IMPORTED_TOTAL=398   WASM_IMPORTED_TOTAL=79   IMPORTED_BY_BOTH=79
+XNA_BACKING=551   CNA_EXTENSION_BACKING=1690   MANAGED_BY_DESIGN=457
+TOOLING_ONLY=31   INTENTIONALLY_DEFERRED=924   UPSTREAM_RUNTIME_UNAVAILABLE=0
+UNEXPLAINED=0
+```
+
+### XNA profiles
+
+```text
+xna40-windows-runtime          TARGET      7 assemblies  257 types  2964 members  0 differences
+xna40-windows-live             TARGET      3 assemblies   74 types   676 members  0 differences
+xna40-xbox360                  INVENTORY  10 assemblies  318 types  3577 members  318 projected
+xna40-windows-content-pipeline INVENTORY   7 assemblies  128 types   743 members    0 projected
+xna40-windows-full             INVENTORY  17 assemblies  459 types  4383 members  331 projected
+
+RUNTIME_SUPERSET_TYPES=331   PROJECTED=331   UNPROJECTED=0
+TYPESCRIPT_PROJECTED_TYPES=348   RUNTIME_SYMBOL_DIFFERENCES=0   INTERNAL_LEAK=0
+```
+
+Every retained Microsoft assembly is admitted by exact SHA-256 and none is committed or packaged.
+The Xbox 360 contract differs from the Windows runtime by exactly thirteen
+`Microsoft.Xna.Framework.Design` type converters, which the Compact Framework has no
+`TypeConverter` to derive from.
+
+### Backends
+
+```text
+NODE_NATIVE_60=PASS   NODE_NATIVE_600=PASS   NATIVE_SCENARIO_GROUPS=7
+BROWSER_WASM_60=PASS  BROWSER_WASM_600=PASS  UNCAUGHT_PAGE_ERRORS=0
+BROWSER=headless Chromium (Playwright), SwiftShader, WebGL 2.0, CNA renderer WEBGL2
+WASM_ROUTES=79   WASM_VERTICAL_SLICE=game, device, Clear, Texture2D, SpriteBatch, input
+```
+
+`src/internal/backend-base.ts` and `src/internal/wasm/layout.ts` are generated — the first from
+the backend interfaces, the second from a probe compiled by the same Emscripten toolchain — so a
+partial backend refuses unimplemented members by name and no wasm32 offset is written by hand.
+Reading the sprite-command stride from the measurement rather than restating it caught an assumed
+80 against a measured 72.
+
+### Modern CNA extensions
+
+`cna-ts/extensions/runtime` is the first family: platform identity, renderer selection with its
+availability set, fallback chain and recorded reasons, the runtime log, and the extended
+graphics-layer availability probe. 37 handle-free routes, implemented on both backends, nine native
+assertions and a browser assertion. Running one API on two backends is what surfaced the
+pre-latch and non-desktop refusals CNA reports as state rather than failure.
+
+### Capability inventory
+
+```text
+ENTRIES=82   PROVED=64   CONSISTENCY_GATE=PASS   MUTATION_CONTROLS=8
+VERIFIED_MANAGED=20   VERIFIED_NATIVE=33   VERIFIED_WEBASSEMBLY=3
+UPSTREAM_CNA_BLOCKED=0   UNIMPLEMENTED_CNA_TS=8
+FIXTURE_PENDING=3   HARDWARE_PENDING=4   PLATFORM_PENDING=3
+LANGUAGE_MAPPING_LIMITATION=3   NOT_APPLICABLE=1
+```
+
+Every row now carries machine-checkable proof and the generator refuses to write the document when
+a claim does not hold. `UPSTREAM_CNA_BLOCKED` went from five to zero: every gap the previous
+session recorded against CNA has since been closed upstream and is now honestly CNA-TS work.
+
+### Upstream blockers
+
+Two, both in `cnanext` and both worked around in build configuration rather than by editing it:
+
+1. `cna_c_api_wasm` does not pin `MIN/MAX_WEBGL_VERSION`, so Emscripten negotiates WebGL 1 while
+   EasyGL asks for GLES 3 and its GLSL ES 3.00 shaders fail to compile. The examples already set
+   the pair.
+2. `-sASYNCIFY=1` makes every route unrewindable. SDL3's Emscripten swap calls
+   `emscripten_sleep(0)` on each present, Asyncify re-enters the bottom export with no arguments,
+   and under `WASM_BIGINT` an `i64` parameter given `undefined` throws. Every route in this ABI
+   takes a `CNA_Handle`.
+
+Both are written up with proposed changes in `docs/wasm-backend.md`.
+
+### Package and template
+
+```text
+PACKED_FILES=792   PACKED_BYTES=609121
+DIST_BYTE_IDENTICAL=PASS   PACKAGE_BYTE_IDENTICAL=PASS
+TAR_PAYLOAD_IDENTICAL=PASS  FILE_LIST_IDENTICAL=PASS
+PACKED_TYPESCRIPT_CONSUMER=PASS   PACKED_JAVASCRIPT_CONSUMER=PASS
+INTERNAL_EXPORT_BLOCK=PASS
+TEMPLATE_TYPESCRIPT_BUILD=PASS   TEMPLATE_JAVASCRIPT_BUILD=PASS
+TEMPLATE_NATIVE_60=PASS   TEMPLATE_NATIVE_600=PASS
+TEMPLATE_BROWSER_WASM_60=PASS   TEMPLATE_BROWSER_WASM_600=PASS
+TEMPLATE_EXTENSIONS_SMOKE=PASS
+```
