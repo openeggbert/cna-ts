@@ -335,6 +335,13 @@ typedef CNA_Result (*HandleU32Fn)(CNA_Handle, uint32_t);
 
 typedef CNA_Result (*VideoPlayerFrameFn)(CNA_VideoPlayerHandle, CNA_VideoFrameEXT*);
 
+/* --- the extended device layer ---------------------------------------------------------------- */
+typedef CNA_Result (*DevicesLocaleCopyFn)(CNA_Handle, uint64_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*DevicesIndexSizeFn)(CNA_Handle, uint64_t, uint64_t*);
+typedef CNA_Result (*DevicesCameraInfoFn)(CNA_Handle, uint64_t, CNA_CameraDeviceInfo*);
+typedef CNA_Result (*DevicesCameraInfoInitFn)(CNA_CameraDeviceInfo*);
+typedef CNA_Result (*DevicesClipboardFn)(CNA_Handle, CNA_StringView, CNA_Bool*);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -886,6 +893,26 @@ typedef struct Api {
   PostProcessChainTimingFn post_process_chain_get_pass_timing;
   PostProcessChainTimingNameFn post_process_chain_copy_pass_timing_name;
   VideoPlayerFrameFn video_player_get_frame;
+  BoolOutFn devices_ext_is_available;
+  HandleI32OutFn system_info_cpu_cores;
+  HandleI32OutFn system_info_ram_megabytes;
+  GameU32OutFn power_get_state;
+  HandleI32OutFn power_get_battery_percent;
+  HandleI32OutFn power_get_seconds_remaining;
+  HandleFloatOutFn display_get_content_scale;
+  HandleRectangleOutFn display_get_safe_area;
+  HandleU64OutFn locale_get_count;
+  DevicesIndexSizeFn locale_get_language_size;
+  DevicesLocaleCopyFn locale_copy_language;
+  DevicesIndexSizeFn locale_get_country_size;
+  DevicesLocaleCopyFn locale_copy_country;
+  DevicesClipboardFn devices_clipboard_set_text;
+  BoolGetFn camera_get_is_supported;
+  HandleU64OutFn camera_get_count;
+  DevicesIndexSizeFn camera_get_name_size;
+  DevicesLocaleCopyFn camera_copy_name;
+  DevicesCameraInfoFn camera_get_info;
+  DevicesCameraInfoInitFn camera_device_info_init;
 } Api;
 
 typedef struct GameContext {
@@ -1749,6 +1776,27 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(post_process_chain_get_pass_timing_count, HandleU64OutFn, "cna_post_process_chain_get_pass_timing_count");
   LOAD_REQUIRED(post_process_chain_get_pass_timing, PostProcessChainTimingFn, "cna_post_process_chain_get_pass_timing");
   LOAD_REQUIRED(post_process_chain_copy_pass_timing_name, PostProcessChainTimingNameFn, "cna_post_process_chain_copy_pass_timing_name");
+
+  LOAD_REQUIRED(devices_ext_is_available, BoolOutFn, "cna_devices_ext_is_available");
+  LOAD_REQUIRED(system_info_cpu_cores, HandleI32OutFn, "cna_system_info_get_logical_cpu_core_count_ext");
+  LOAD_REQUIRED(system_info_ram_megabytes, HandleI32OutFn, "cna_system_info_get_system_ram_megabytes_ext");
+  LOAD_REQUIRED(power_get_state, GameU32OutFn, "cna_power_get_state_ext");
+  LOAD_REQUIRED(power_get_battery_percent, HandleI32OutFn, "cna_power_get_battery_percent_ext");
+  LOAD_REQUIRED(power_get_seconds_remaining, HandleI32OutFn, "cna_power_get_seconds_remaining_ext");
+  LOAD_REQUIRED(display_get_content_scale, HandleFloatOutFn, "cna_display_info_get_content_scale_ext");
+  LOAD_REQUIRED(display_get_safe_area, HandleRectangleOutFn, "cna_display_info_get_safe_area_ext");
+  LOAD_REQUIRED(locale_get_count, HandleU64OutFn, "cna_locale_get_preferred_count_ext");
+  LOAD_REQUIRED(locale_get_language_size, DevicesIndexSizeFn, "cna_locale_get_language_size_at_ext");
+  LOAD_REQUIRED(locale_copy_language, DevicesLocaleCopyFn, "cna_locale_copy_language_at_ext");
+  LOAD_REQUIRED(locale_get_country_size, DevicesIndexSizeFn, "cna_locale_get_country_size_at_ext");
+  LOAD_REQUIRED(locale_copy_country, DevicesLocaleCopyFn, "cna_locale_copy_country_at_ext");
+  LOAD_REQUIRED(devices_clipboard_set_text, DevicesClipboardFn, "cna_devices_clipboard_set_text_ext");
+  LOAD_REQUIRED(camera_get_is_supported, BoolGetFn, "cna_camera_get_is_supported_ext");
+  LOAD_REQUIRED(camera_get_count, HandleU64OutFn, "cna_camera_get_count_ext");
+  LOAD_REQUIRED(camera_get_name_size, DevicesIndexSizeFn, "cna_camera_get_name_size_at_ext");
+  LOAD_REQUIRED(camera_copy_name, DevicesLocaleCopyFn, "cna_camera_copy_name_at_ext");
+  LOAD_REQUIRED(camera_get_info, DevicesCameraInfoFn, "cna_camera_get_info_at_ext");
+  LOAD_REQUIRED(camera_device_info_init, DevicesCameraInfoInitFn, "cna_camera_device_info_init");
 
   napi_value undefined;
   NAPI_OR_RETURN(env, napi_get_undefined(env, &undefined), "load result");
@@ -8844,6 +8892,198 @@ static napi_value get_video_player_frame(napi_env env, napi_callback_info info) 
   return output;
 }
 
+/* --- the extended device layer ---------------------------------------------------------------- */
+/*
+ * Host facts a game reads once at startup: how many cores it has, how much memory, whether it is on
+ * a battery, what the display's scale and safe area are, which languages the user prefers, and
+ * which cameras exist. Every one of these is exported in both build states and answers
+ * NOT_SUPPORTED where the extension layer is compiled out, so availability is asked rather than
+ * inferred from a refusal.
+ */
+
+static napi_value devices_ext_available(napi_env env, napi_callback_info info) {
+  (void) info;
+  napi_value output;
+  CNA_Bool available = CNA_FALSE;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.devices_ext_is_available(&available);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_devices_ext_is_available", result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, available != CNA_FALSE, &output), "device layer");
+  return output;
+}
+
+static napi_value device_indexed_text(
+  napi_env env, CNA_Handle game, uint64_t index,
+  DevicesIndexSizeFn size_route, DevicesLocaleCopyFn copy_route,
+  const char* size_name, const char* copy_name
+) {
+  uint64_t length = 0;
+  CNA_Result result = size_route(game, index, &length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, size_name, result);
+  if (length > SIZE_MAX - 1) return throw_message(env, "a device name exceeds the address space");
+  char* text = (char*) malloc((size_t) length + 1);
+  if (!text) return throw_message(env, "device-name allocation failed");
+  uint64_t copied = 0;
+  result = copy_route(game, index, text, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(text);
+    return throw_result(env, copy_name, result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  text[length] = '\0';
+  napi_value output;
+  const napi_status status = napi_create_string_utf8(env, text, (size_t) length, &output);
+  free(text);
+  if (status != napi_ok) return throw_napi(env, copy_name);
+  return output;
+}
+
+static napi_value get_host_device_info(napi_env env, napi_callback_info info) {
+  napi_value args[1], output, safe_area;
+  CNA_Handle game = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  int32_t cores = 0, ram = 0, battery = 0, seconds = 0;
+  uint32_t power = 0;
+  float scale = 0;
+  CNA_Rectangle area;
+  memset(&area, 0, sizeof(area));
+  CNA_Result result = g_api.system_info_cpu_cores(game, &cores);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_system_info_get_logical_cpu_core_count_ext", result);
+  }
+  result = g_api.system_info_ram_megabytes(game, &ram);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_system_info_get_system_ram_megabytes_ext", result);
+  }
+  result = g_api.power_get_state(game, &power);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_power_get_state_ext", result);
+  result = g_api.power_get_battery_percent(game, &battery);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_power_get_battery_percent_ext", result);
+  }
+  result = g_api.power_get_seconds_remaining(game, &seconds);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_power_get_seconds_remaining_ext", result);
+  }
+  result = g_api.display_get_content_scale(game, &scale);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_display_info_get_content_scale_ext", result);
+  }
+  result = g_api.display_get_safe_area(game, &area);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_display_info_get_safe_area_ext", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "host device info");
+  NAPI_OR_RETURN(env, napi_create_object(env, &safe_area), "host device info");
+  if (!set_i32_property(env, output, "LogicalCpuCoreCount", cores) ||
+      !set_i32_property(env, output, "SystemRamMegabytes", ram) ||
+      !set_u32_property(env, output, "PowerState", power) ||
+      !set_i32_property(env, output, "BatteryPercent", battery) ||
+      !set_i32_property(env, output, "SecondsRemaining", seconds) ||
+      !set_double_property(env, output, "ContentScale", (double) scale) ||
+      !set_i32_property(env, safe_area, "X", area.x) ||
+      !set_i32_property(env, safe_area, "Y", area.y) ||
+      !set_i32_property(env, safe_area, "Width", area.width) ||
+      !set_i32_property(env, safe_area, "Height", area.height) ||
+      napi_set_named_property(env, output, "SafeArea", safe_area) != napi_ok) {
+    return throw_napi(env, "host device info");
+  }
+  return output;
+}
+
+static napi_value get_preferred_locales(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  uint64_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.locale_get_count(game, &count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_locale_get_preferred_count_ext", result);
+  }
+  if (count > UINT32_MAX) return throw_message(env, "too many preferred locales");
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, (size_t) count, &output), "locales");
+  for (uint64_t index = 0; index < count; index += 1) {
+    napi_value entry;
+    napi_value language = device_indexed_text(
+      env, game, index, g_api.locale_get_language_size, g_api.locale_copy_language,
+      "cna_locale_get_language_size_at_ext", "cna_locale_copy_language_at_ext");
+    if (!language) return NULL;
+    napi_value country = device_indexed_text(
+      env, game, index, g_api.locale_get_country_size, g_api.locale_copy_country,
+      "cna_locale_get_country_size_at_ext", "cna_locale_copy_country_at_ext");
+    if (!country) return NULL;
+    if (napi_create_object(env, &entry) != napi_ok ||
+        napi_set_named_property(env, entry, "Language", language) != napi_ok ||
+        napi_set_named_property(env, entry, "Country", country) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      return throw_napi(env, "locales");
+    }
+  }
+  return output;
+}
+
+static napi_value set_clipboard_text(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle game = 0;
+  char* text = NULL;
+  size_t length = 0;
+  CNA_Bool accepted = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      !read_utf8(env, args[1], &text, &length)) return NULL;
+  const CNA_StringView view = {text, length};
+  const CNA_Result result = g_api.devices_clipboard_set_text(game, view, &accepted);
+  free(text);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_devices_clipboard_set_text_ext", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, accepted != CNA_FALSE, &output), "clipboard");
+  return output;
+}
+
+static napi_value get_cameras(napi_env env, napi_callback_info info) {
+  napi_value args[1], output, list;
+  CNA_Handle game = 0;
+  CNA_Bool supported = CNA_FALSE;
+  uint64_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  CNA_Result result = g_api.camera_get_is_supported(game, &supported);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_camera_get_is_supported_ext", result);
+  result = g_api.camera_get_count(game, &count);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_camera_get_count_ext", result);
+  if (count > UINT32_MAX) return throw_message(env, "too many cameras");
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "cameras");
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, (size_t) count, &list), "cameras");
+  for (uint64_t index = 0; index < count; index += 1) {
+    CNA_CameraDeviceInfo camera;
+    memset(&camera, 0, sizeof(camera));
+    result = g_api.camera_device_info_init(&camera);
+    if (result != CNA_RESULT_SUCCESS) {
+      return throw_result(env, "cna_camera_device_info_init", result);
+    }
+    result = g_api.camera_get_info(game, index, &camera);
+    if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_camera_get_info_at_ext", result);
+    napi_value name = device_indexed_text(
+      env, game, index, g_api.camera_get_name_size, g_api.camera_copy_name,
+      "cna_camera_get_name_size_at_ext", "cna_camera_copy_name_at_ext");
+    if (!name) return NULL;
+    napi_value entry;
+    if (napi_create_object(env, &entry) != napi_ok ||
+        !set_u32_property(env, entry, "Position", camera.position) ||
+        napi_set_named_property(env, entry, "Name", name) != napi_ok ||
+        napi_set_element(env, list, (uint32_t) index, entry) != napi_ok) {
+      return throw_napi(env, "cameras");
+    }
+  }
+  if (!set_bool_property(env, output, "IsSupported", supported) ||
+      napi_set_named_property(env, output, "Devices", list) != napi_ok) {
+    return throw_napi(env, "cameras");
+  }
+  return output;
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
@@ -9228,6 +9468,11 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "applyPostProcessChain", NULL, post_process_chain_apply, NULL, NULL, NULL, napi_default, NULL },
     { "getPostProcessChainPassTimings", NULL, post_process_chain_timings, NULL, NULL, NULL, napi_default, NULL },
     { "getVideoPlayerFrame", NULL, get_video_player_frame, NULL, NULL, NULL, napi_default, NULL },
+    { "isDeviceExtensionLayerAvailable", NULL, devices_ext_available, NULL, NULL, NULL, napi_default, NULL },
+    { "getHostDeviceInfo", NULL, get_host_device_info, NULL, NULL, NULL, napi_default, NULL },
+    { "getPreferredLocales", NULL, get_preferred_locales, NULL, NULL, NULL, napi_default, NULL },
+    { "setClipboardText", NULL, set_clipboard_text, NULL, NULL, NULL, napi_default, NULL },
+    { "getCameras", NULL, get_cameras, NULL, NULL, NULL, napi_default, NULL },
     { "openStorageFile", NULL, open_storage_file, NULL, NULL, NULL, napi_default, NULL },
   };
   if (napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties) != napi_ok) {

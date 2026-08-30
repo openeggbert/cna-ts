@@ -26,6 +26,10 @@
       "types": "./dist/extensions/content/index.d.ts",
       "import": "./dist/extensions/content/index.js"
     },
+    "./extensions/devices": {
+      "types": "./dist/extensions/devices/index.d.ts",
+      "import": "./dist/extensions/devices/index.js"
+    },
     "./extensions/graphics": {
       "types": "./dist/extensions/graphics/index.d.ts",
       "import": "./dist/extensions/graphics/index.js"

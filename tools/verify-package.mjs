@@ -105,6 +105,7 @@ try {
       `import { GetPlatformInfo, GraphicsRendererType, RendererSelection } from "cna-ts/extensions/runtime";\n` +
       `import { CreatePbrMaterial, RenderPipeline, TonemappingMode } from "cna-ts/extensions/graphics";\n` +
       `import { CnbAssetType, CnbDocument, CnbFormat } from "cna-ts/extensions/content";\n` +
+      `import { CnaDevices, PowerState } from "cna-ts/extensions/devices";\n` +
       `import { NativeUnavailableError } from "cna-ts/runtime";\n` +
       `assert.equal(Vector2.Add(new Vector2(1, 2), new Vector2(3, 4)).X, 4);\n` +
       `assert.equal(new Vector3(1).Z, 1);\n` +
@@ -121,6 +122,8 @@ try {
       `assert.equal(CnbAssetType.SpriteFont, 4);\n` +
       `assert.throws(() => CnbFormat.HasMagic(new Uint8Array(4)), NativeUnavailableError);\n` +
       `assert.throws(() => CnbDocument.Parse(new Uint8Array(4)), NativeUnavailableError);\n` +
+      `assert.equal(PowerState.OnBattery, 2);\n` +
+      `assert.throws(() => CnaDevices.GetHostInfo(), NativeUnavailableError);\n` +
       `await assert.rejects(import("cna-ts/internal/backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n` +
       `await assert.rejects(import("cna-ts/internal/wasm/wasm-backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n`,
   );
@@ -153,6 +156,7 @@ try {
       `import type { CnaPlatformInfo, RendererIdentity } from "cna-ts/extensions/runtime";\n` +
       `import type { PbrMaterial, RenderPipelineSettings } from "cna-ts/extensions/graphics";\n` +
       `import type { CnbChunk, CnbMetadata } from "cna-ts/extensions/content";\n` +
+      `import type { CameraInventory, HostInfo } from "cna-ts/extensions/devices";\n` +
       `import type { RuntimeStatus } from "cna-ts/runtime";\n` +
       `const vector: Vector2 = Vector2.Transform(Vector2.One, Matrix.Identity);\n` +
       `const color: Color = Microsoft.Xna.Framework.Color.White;\n` +
@@ -165,7 +169,10 @@ try {
       `const pipeline: RenderPipelineSettings | undefined = undefined;\n` +
       `const chunk: CnbChunk | undefined = undefined;\n` +
       `const metadata: CnbMetadata | undefined = undefined;\n` +
-      `void [vector, color, vector3, status, renderer, platform, identity, material, pipeline, chunk, metadata];\n`,
+      `const host: HostInfo | undefined = undefined;\n` +
+      `const cameras: CameraInventory | undefined = undefined;\n` +
+      `void [vector, color, vector3, status, renderer, platform, identity, material, pipeline,\n` +
+      `  chunk, metadata, host, cameras];\n`,
   );
   installTarball(typescript, tarball);
   run(

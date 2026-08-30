@@ -284,8 +284,13 @@ Electron, or mobile support.
   the reader is proved against the writer instead of against itself.
 - [ ] CNB's model, sound-effect, song, video, curve and animation-clip schemas, its bounded byte
   cursor, its loader registry and the `.cnj` compile path are measured and unprojected.
-- [ ] `extensions/devices`, `extensions/input` and `extensions/sensors` are measured and
-  unprojected.
+- [x] `cna-ts/extensions/devices` projects CNA's extended device layer: the host's cores and
+  memory, its power state with absences reported as absences, the display's content scale and safe
+  area, the user's preferred locales, the clipboard, and camera enumeration that keeps "no camera
+  support" apart from "no cameras attached". Availability is asked before any reader is offered,
+  because every route exists in both build states.
+- [ ] `extensions/input` and `extensions/sensors` — sensors, haptics, joysticks, the cursor/text
+  families and camera frame capture — are measured and unprojected.
 
 ## Runtime capability inventory
 
@@ -293,7 +298,7 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 92 operation families: 20 verified managed, 42 verified native, five
+- [x] Current baseline is 93 operation families: 20 verified managed, 43 verified native, five
   verified WebAssembly, five explicitly unavailable on the qualified backend, one upstream-CNA
   blocked, three fixture pending, four hardware pending, three platform pending, five unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.

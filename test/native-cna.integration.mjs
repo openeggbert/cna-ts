@@ -28,6 +28,7 @@ import {
 import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../dist/internal/abi.js";
 import * as renderPipelineModule from "../dist/extensions/graphics/index.js";
 import * as extensionsModule from "../dist/extensions/index.js";
+import * as devicesModule from "../dist/extensions/devices/index.js";
 import { getBackend } from "../dist/internal/backend.js";
 import {
   getVertexBufferRawForInternalUse,
@@ -932,6 +933,116 @@ test("handing a pass to a chain consumes it, and leaks CNA's owned-resource coun
   // fails here rather than passing silently.
   assert.equal(evidence.gameDisposed, false, "UPSTREAM: add_owned_pass no longer leaks the count");
   assert.match(evidence.gameDisposeError, /All owned C child resources must be destroyed/);
+});
+
+class HostDeviceProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    // Availability first. Every route in this family exists in every CNA build and refuses where
+    // the extension layer is compiled out, so a refusal is about the build rather than about the
+    // machine -- and reading it the other way is exactly the mistake this question prevents.
+    this.evidence.layerAvailable = devicesModule.CnaDevices.IsAvailable();
+    if (!this.evidence.layerAvailable) {
+      try {
+        devicesModule.CnaDevices.GetHostInfo();
+        this.evidence.refusedWithoutLayer = null;
+      } catch (error) {
+        this.evidence.refusedWithoutLayer = error.cnaResult;
+      }
+      this.Exit();
+      super.LoadContent();
+      return;
+    }
+
+    const host = devicesModule.CnaDevices.GetHostInfo();
+    this.evidence.host = {
+      cores: host.LogicalCpuCoreCount,
+      ram: host.SystemRamMegabytes,
+      powerState: host.Power.State,
+      batteryPercent: host.Power.BatteryPercent,
+      secondsRemaining: host.Power.SecondsRemaining,
+      contentScale: host.Display.ContentScale,
+      safeArea: [
+        host.Display.SafeArea.X, host.Display.SafeArea.Y,
+        host.Display.SafeArea.Width, host.Display.SafeArea.Height,
+      ],
+    };
+    this.evidence.locales = devicesModule.CnaDevices.GetPreferredLocales()
+      .map((locale) => ({ language: locale.Language, country: locale.Country }));
+    this.evidence.clipboardAccepted = devicesModule.CnaDevices.SetClipboardText("cna-ts");
+    const cameras = devicesModule.CnaDevices.GetCameras();
+    this.evidence.cameras = {
+      supported: cameras.IsSupported,
+      count: cameras.Devices.length,
+      names: cameras.Devices.map((camera) => camera.Name),
+    };
+    this.Exit();
+    super.LoadContent();
+  }
+}
+
+test("the extended device layer reports the host truthfully, absences included", async () => {
+  const game = new HostDeviceProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+  assert.equal(typeof evidence.layerAvailable, "boolean");
+  if (!evidence.layerAvailable) {
+    assert.equal(evidence.refusedWithoutLayer, 6, "NOT_SUPPORTED without the device layer");
+    return;
+  }
+
+  // A fact about this machine, not a placeholder, and checked against an independent count.
+  assert.ok(evidence.host.cores >= 1, `expected at least one core, saw ${evidence.host.cores}`);
+  assert.equal(evidence.host.cores, os.cpus().length, "CNA counts the same cores Node does");
+
+  // Memory is a different story on this build and the honest number is zero. SDL answers it, and
+  // the HEADLESS platform initialises no SDL subsystem to answer with, so CNA reports none. That
+  // is recorded rather than asserted away: a windowed build reports the real figure, and this
+  // assertion accepts either without inventing one.
+  assert.ok(evidence.host.ram >= 0, `expected a non-negative memory figure, saw ${evidence.host.ram}`);
+  assert.equal(evidence.host.ram, 0, "HEADLESS has no SDL platform to ask for system memory");
+
+  // The power state is one of CNA's six identities. Which one depends on the machine, so the
+  // assertion is the range rather than a value this host happens to have today.
+  assert.ok(
+    Object.values(devicesModule.PowerState).includes(evidence.host.powerState),
+    `unexpected power state ${evidence.host.powerState}`,
+  );
+  // An absent charge is null, never a number: a consumer comparing a percentage against a low
+  // threshold must not read "no battery fitted" as "nearly flat".
+  for (const value of [evidence.host.batteryPercent, evidence.host.secondsRemaining]) {
+    assert.ok(value === null || value >= 0, `expected null or a non-negative value, saw ${value}`);
+  }
+  if (evidence.host.powerState === devicesModule.PowerState.NoBattery) {
+    assert.equal(evidence.host.batteryPercent, null, "no battery has no charge to report");
+  }
+
+  // HEADLESS has no native window, so CNA answers a zero content scale and an empty safe area.
+  // That is its documented answer for a windowless session rather than a failure to read one.
+  assert.equal(evidence.host.contentScale, 0, "a windowless session has no content scale");
+  assert.deepEqual(evidence.host.safeArea, [0, 0, 0, 0]);
+
+  // Locales come back as language/country pairs in the platform's own preference order.
+  assert.ok(Array.isArray(evidence.locales));
+  for (const locale of evidence.locales) {
+    assert.match(locale.language, /^[a-z]{2,3}$/i, `unexpected language ${locale.language}`);
+    assert.equal(typeof locale.country, "string");
+  }
+
+  // A platform with no clipboard answers false. Either answer is truthful; a throw would not be.
+  assert.equal(typeof evidence.clipboardAccepted, "boolean");
+
+  // "The platform has no cameras" and "the platform has camera support and none attached" are
+  // different situations, and the inventory keeps them apart.
+  assert.equal(typeof evidence.cameras.supported, "boolean");
+  assert.equal(evidence.cameras.names.length, evidence.cameras.count);
+  if (!evidence.cameras.supported) assert.equal(evidence.cameras.count, 0);
 });
 
 class NativeAudioProbeGame extends Game {

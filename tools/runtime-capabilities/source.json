@@ -807,12 +807,13 @@
       ]
     },
     {
-      "operation": "Modern CNA device and sensor extensions",
+      "operation": "Modern CNA sensors, haptics, joysticks, camera capture and the cursor/text input families",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "devices.h, sensors.h and the haptics/joystick/cursor/text input families are classified as extension backing and none is projected yet",
+      "evidence": "the extended device layer's host, power, display, locale, clipboard and camera-enumeration readers are projected and verified above; sensors.h, input_haptics.h, input_joystick.h, input_cursor.h, input_text.h and camera frame acquisition are measured and unprojected",
       "proof": [
-        "absentRoute:cna_devices_ext_is_available",
+        "absentRoute:cna_accelerometer_create",
+        "absentRoute:cna_joysticks_get_count",
         "absentRoute:cna_camera_create"
       ]
     },
@@ -907,6 +908,21 @@
         "route:cna_tonemap_pass_set_mode",
         "route:cna_ssao_pass_set_sample_count",
         "route:cna_post_process_pass_is_supported",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Modern CNA device layer: host CPU/memory, power, display scale and safe area, locales, clipboard, cameras",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/devices",
+      "evidence": "the layer's availability is asked before any reader is offered, CNA's logical core count matches Node's independently, an absent battery charge reads as null rather than zero so a low-charge comparison cannot misfire, a windowless session's zero content scale and empty safe area are recorded as CNA's own answers, locales come back as language/country pairs, the clipboard reports acceptance rather than throwing where there is none, and camera support is kept distinct from camera count",
+      "proof": [
+        "route:cna_devices_ext_is_available",
+        "route:cna_system_info_get_logical_cpu_core_count_ext",
+        "route:cna_power_get_state_ext",
+        "route:cna_display_info_get_safe_area_ext",
+        "route:cna_locale_get_preferred_count_ext",
+        "route:cna_camera_get_info_at_ext",
         "test:test/native-cna.integration.mjs"
       ]
     },

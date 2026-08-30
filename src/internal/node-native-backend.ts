@@ -11,6 +11,10 @@ import type {
   BackendRendererInfo,
   CnaGraphicsExtensionBackend,
   CnaContentBackend,
+  CnaDeviceBackend,
+  CameraInventorySnapshot,
+  HostDeviceSnapshot,
+  PreferredLocaleSnapshot,
   PassTimingSnapshot,
   PostProcessFrameSnapshot,
   CnbChunkEntrySnapshot,
@@ -466,6 +470,11 @@ interface NativeBridge {
   setPostProcessChainGpuTimingEnabled(chain: bigint, value: boolean): void;
   applyPostProcessChain(chain: bigint, frame: PostProcessFrameSnapshot): void;
   getPostProcessChainPassTimings(chain: bigint): PassTimingSnapshot[];
+  isDeviceExtensionLayerAvailable(): boolean;
+  getHostDeviceInfo(game: bigint): HostDeviceSnapshot;
+  getPreferredLocales(game: bigint): PreferredLocaleSnapshot[];
+  setClipboardText(game: bigint, text: string): boolean;
+  getCameras(game: bigint): CameraInventorySnapshot;
   openTitleStream(game: bigint, name: string): Uint8Array;
   getGameWindowAllowUserResizing(game: bigint): boolean;
   setGameWindowAllowUserResizing(game: bigint, value: boolean): void;
@@ -628,7 +637,8 @@ interface NativeBridge {
 
 export class NodeNativeBackend
   implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend,
-    CnaRuntimeServicesBackend, CnaGraphicsExtensionBackend, CnaContentBackend {
+    CnaRuntimeServicesBackend, CnaGraphicsExtensionBackend, CnaContentBackend,
+    CnaDeviceBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
   public readonly AbiVersion: string;
@@ -646,6 +656,7 @@ export class NodeNativeBackend
   public readonly RuntimeServices: CnaRuntimeServicesBackend = this;
   public readonly GraphicsExtensions: CnaGraphicsExtensionBackend = this;
   public readonly Content: CnaContentBackend = this;
+  public readonly Devices: CnaDeviceBackend = this;
   readonly #bridge: NativeBridge;
   #activeGame: NativeHandle | null = null;
   #boundGameLifetime: NativeResourceLifetime | null = null;
@@ -1392,6 +1403,20 @@ export class NodeNativeBackend
   public getPostProcessChainPassTimings(chain: NativeHandle): readonly PassTimingSnapshot[] {
     return this.#bridge.getPostProcessChainPassTimings(chain);
   }
+
+  // The extended device layer. Each of these needs the active game handle, because CNA addresses
+  // the host's window and power through it -- this ABI has no window handle of its own.
+  public isDeviceExtensionLayerAvailable(): boolean {
+    return this.#bridge.isDeviceExtensionLayerAvailable();
+  }
+  public getHostDeviceInfo(): HostDeviceSnapshot { return this.#bridge.getHostDeviceInfo(this.#game()); }
+  public getPreferredLocales(): readonly PreferredLocaleSnapshot[] {
+    return this.#bridge.getPreferredLocales(this.#game());
+  }
+  public setClipboardText(text: string): boolean {
+    return this.#bridge.setClipboardText(this.#game(), text);
+  }
+  public getCameras(): CameraInventorySnapshot { return this.#bridge.getCameras(this.#game()); }
 
   public openTitleStream(name: string): Uint8Array {
     return new Uint8Array(this.#bridge.openTitleStream(this.#game(), name));

@@ -26,7 +26,9 @@ TypeScript.
 > the post-process chain — bloom, tonemapping, FXAA, SSAO and screen-space reflections — verified
 > against a build with CNA's extended graphics layer compiled in and reporting the truthful
 > not-supported branch where it is not; and `extensions/content` reads `.cnb`, CNA's own compiled
-> content format, ending in an ordinary `Texture2D` or `SpriteFont`.
+> content format, ending in an ordinary `Texture2D` or `SpriteFont`; and `extensions/devices`
+> reports the host itself — cores, memory, power, display safe area, locales, clipboard and
+> cameras — which XNA had no way to ask about at all.
 
 ## One package for both languages
 

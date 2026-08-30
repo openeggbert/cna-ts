@@ -85,6 +85,7 @@
       "CNA_BLEND_STATE_PRESET_NON_PREMULTIPLIED",
       "CNA_BLEND_STATE_PRESET_OPAQUE",
       "CNA_BLEND_STATE_TYPE_NAME",
+      "CNA_CAMERA_POSITION_MAXIMUM",
       "CNA_CNB_ASSET_TYPE_CUSTOM_RANGE_FIRST",
       "CNA_CNB_ASSET_TYPE_EFFECT",
       "CNA_CNB_ASSET_TYPE_RESERVED_RANGE_FIRST",
@@ -131,6 +132,7 @@
       "CNA_MESSAGE_BOX_ICON_MAXIMUM",
       "CNA_MICROPHONE_STATE_MAXIMUM",
       "CNA_NOTIFICATION_POSITION_MAXIMUM",
+      "CNA_POWER_STATE_MAXIMUM",
       "CNA_PRIMITIVE_POINT_LIST_EXT",
       "CNA_RACING_CAMERA_ANGLE_MAXIMUM",
       "CNA_SURFACE_FORMAT_BC7_EXT",
@@ -617,6 +619,14 @@
     {
       "typeScriptEnum": "CnbTextureFormat",
       "cnaPrefix": "CNA_CNB_TEXTURE_FORMAT"
+    },
+    {
+      "typeScriptEnum": "PowerState",
+      "cnaPrefix": "CNA_POWER_STATE"
+    },
+    {
+      "typeScriptEnum": "CameraPosition",
+      "cnaPrefix": "CNA_CAMERA_POSITION"
     }
   ]
 }

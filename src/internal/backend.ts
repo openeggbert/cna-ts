@@ -1031,6 +1031,47 @@ export interface CnaContentBackend {
   cnbEncodeSpriteFont(font: NativeHandle, contentName: string): Uint8Array;
 }
 
+
+/** Host facts a game reads once, from CNA's extended device layer. */
+export interface HostDeviceSnapshot {
+  readonly LogicalCpuCoreCount: number;
+  readonly SystemRamMegabytes: number;
+  readonly PowerState: number;
+  readonly BatteryPercent: number;
+  readonly SecondsRemaining: number;
+  readonly ContentScale: number;
+  readonly SafeArea: {
+    readonly X: number; readonly Y: number; readonly Width: number; readonly Height: number;
+  };
+}
+
+/** One entry of the user's preferred-locale list, in preference order. */
+export interface PreferredLocaleSnapshot {
+  readonly Language: string;
+  readonly Country: string;
+}
+
+/** What the host's cameras are, and whether the platform has any camera concept at all. */
+export interface CameraInventorySnapshot {
+  readonly IsSupported: boolean;
+  readonly Devices: readonly { readonly Name: string; readonly Position: number }[];
+}
+
+/**
+ * CNA's extended device layer: the host itself rather than anything XNA modelled.
+ *
+ * Every route is exported in both build states and answers `NOT_SUPPORTED` where the layer is
+ * compiled out, so {@link isDeviceExtensionLayerAvailable} is asked first rather than a refusal
+ * being read as a device that is missing.
+ */
+export interface CnaDeviceBackend {
+  isDeviceExtensionLayerAvailable(): boolean;
+  getHostDeviceInfo(): HostDeviceSnapshot;
+  getPreferredLocales(): readonly PreferredLocaleSnapshot[];
+  setClipboardText(text: string): boolean;
+  getCameras(): CameraInventorySnapshot;
+}
+
 export interface CnaBackend {
   readonly Kind: BackendKind;
   readonly IsAvailable: boolean;
@@ -1047,6 +1088,7 @@ export interface CnaBackend {
   readonly RuntimeServices?: CnaRuntimeServicesBackend;
   readonly GraphicsExtensions?: CnaGraphicsExtensionBackend;
   readonly Content?: CnaContentBackend;
+  readonly Devices?: CnaDeviceBackend;
   openTitleStream?(name: string): Uint8Array;
 
   initialize(): Promise<void>;

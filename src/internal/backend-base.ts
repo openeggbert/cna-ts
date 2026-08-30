@@ -23,9 +23,11 @@ import type {
   BackendKind,
   BackendRendererInfo,
   BlendStateSnapshot,
+  CameraInventorySnapshot,
   CnaAudioBackend,
   CnaBackend,
   CnaContentBackend,
+  CnaDeviceBackend,
   CnaEffectBackend,
   CnaGameCallbacks,
   CnaGameConfiguration,
@@ -49,6 +51,7 @@ import type {
   DepthStencilStateSnapshot,
   GameWindowBoundsSnapshot,
   GraphicsManagerConfiguration,
+  HostDeviceSnapshot,
   MediaSongPlaybackSnapshot,
   MediaSourceSnapshot,
   MicrophoneSnapshot,
@@ -59,6 +62,7 @@ import type {
   PbrMaterialDefaults,
   PlatformSnapshot,
   PostProcessFrameSnapshot,
+  PreferredLocaleSnapshot,
   RasterizerStateSnapshot,
   RenderPipelineSettingsDefaults,
   RenderPipelineStatisticsSnapshot,
@@ -1219,6 +1223,19 @@ export abstract class CnaContentBackendBase implements CnaContentBackend {
     _font: NativeHandle,
     _contentName: string,
   ): Uint8Array { return this.unsupported("cnbEncodeSpriteFont"); }
+}
+
+/** Refusing base for {@link CnaDeviceBackend}. */
+export abstract class CnaDeviceBackendBase implements CnaDeviceBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public isDeviceExtensionLayerAvailable(
+  ): boolean { return this.unsupported("isDeviceExtensionLayerAvailable"); }
+  public getHostDeviceInfo(): HostDeviceSnapshot { return this.unsupported("getHostDeviceInfo"); }
+  public getPreferredLocales(
+  ): readonly PreferredLocaleSnapshot[] { return this.unsupported("getPreferredLocales"); }
+  public setClipboardText(_text: string): boolean { return this.unsupported("setClipboardText"); }
+  public getCameras(): CameraInventorySnapshot { return this.unsupported("getCameras"); }
 }
 
 /** Refusing base for {@link CnaBackend}. */
