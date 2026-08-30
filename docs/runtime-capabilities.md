@@ -2,7 +2,7 @@
 
 Profile: **XNA 4.0 Windows runtime**
 
-Selected evidence environment: **Linux x86-64 Node, CNA ABI 0.7.0, HEADLESS renderer, NULL audio**
+Selected evidence environment: **Linux x86-64 Node with CNA ABI 0.20.0 HEADLESS renderer and NULL audio, plus headless Chromium with the CNA ABI 0.20.0 WEBGL2 WebAssembly artifact**
 
 Each row is a reviewed operation family; overloads with the same implementation and evidence share a row.
 This inventory is independent of the strict API verifier: API shape completeness does not imply runtime capability.
@@ -11,7 +11,7 @@ This inventory is independent of the strict API verifier: API shape completeness
 
 All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family.
 
-- NativeUnavailableError construction sites: 63
+- NativeUnavailableError construction sites: 62
 - NotSupportedException construction sites: 6
 - Framework files containing those sites: 23
 
@@ -20,13 +20,14 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Category | Operation families |
 | --- | ---: |
 | VERIFIED_MANAGED | 19 |
-| VERIFIED_NATIVE | 30 |
+| VERIFIED_NATIVE | 33 |
+| VERIFIED_WEBASSEMBLY | 3 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 4 |
-| UPSTREAM_CNA_BLOCKED | 5 |
+| UPSTREAM_CNA_BLOCKED | 0 |
 | FIXTURE_PENDING | 3 |
 | HARDWARE_PENDING | 4 |
 | PLATFORM_PENDING | 3 |
-| UNIMPLEMENTED_CNA_TS | 0 |
+| UNIMPLEMENTED_CNA_TS | 8 |
 | LANGUAGE_MAPPING_LIMITATION | 3 |
 | NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT | 1 |
 
@@ -65,6 +66,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | DynamicSoundEffectInstance submit, pending buffers and managed refill pump | CNA-TS + CNA | qualified native integration with reentrant/self-removing/throwing callback tests |
 | DynamicVertexBuffer and DynamicIndexBuffer creation, typed transfer, readback and IsContentLost query | CNA-TS + CNA | qualified integration covers Discard/NoOverwrite, built-in vertex and 16-bit index round trips, double disposal and parent shutdown |
 | Effect and EffectPass ABI-0.7 apply dispatch with native technique/pass reflection identity | CNA-TS + CNA | qualified integration executes cna_effect_apply and cna_effect_pass_apply on effect-owned stock passes; managed/native ownership tests retain the parent, destroy owned views, reject disposed parents and expose no raw handles |
+| Extended graphics layer availability probe | cna-ts/extensions/runtime | cna_graphics_ext_is_available answers true on a CNA_CNAEXT=ON build and false on the WEBGL2 artifact, so structural presence is never reported as availability |
 | FrameworkDispatcher.Update canonical native pump | CNA-TS + CNA | native lifecycle and dynamic/media pump integration |
 | Game create, callbacks, one-frame/run/exit/destroy lifecycle | CNA-TS + CNA | qualified ABI-0.7 integration covers seven real game lifetimes and 60/600 frames |
 | GameWindow stable facade, borrowed handle/state and removable event registrations | CNA-TS + CNA | qualified integration verifies stable Game.Window identity, zero HEADLESS handle, title/state queries, callback registration cleanup and repeated game lifetimes |
@@ -76,6 +78,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Keyboard, Mouse, GamePad and Touch polling routes | CNA-TS + CNA | qualified HEADLESS native integration; physical device behavior is separate |
 | MediaPlayer source/song creation, queue controls, position and visualization | CNA-TS + CNA | generated legal silent WAV under qualified NULL-audio integration |
 | Model.Draw effect/pass/indexed-draw pipeline | CNA-TS + CNA | qualified HEADLESS Model XNB executes buffer/index binding, BasicEffect matrices, real EffectPass.Apply and DrawIndexedPrimitives without a special native model renderer |
+| Modern CNA platform identity, renderer selection and runtime log | cna-ts/extensions/runtime | nine native integration assertions over 37 handle-free routes, including the pre-latch and non-desktop refusals CNA reports as state |
 | OcclusionQuery construction, ordering, reuse, completion/result dispatch and disposal | CNA-TS + CNA | qualified integration executes the real query state machine without fabricating PixelCount; managed suite covers completion and exact result identity |
 | RenderTarget2D/Cube construction, metadata, binding and inherited exact transfer routes | CNA-TS + CNA | qualified HEADLESS integration verifies RenderTarget2D and RenderTargetCube creation, metadata, 2D/cube-face bind/unbind identity, bound-destroy rejection and parent shutdown; managed backend covers cube metadata, face identity and duplicate validation |
 | SoundEffect PCM creation, instances, controls, Apply3D and disposal | CNA-TS + CNA | qualified NULL-audio integration; no audibility claim |
@@ -85,9 +88,18 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | StorageDevice selector, StorageContainer and stream CRUD | CNA-TS + CNA | qualified native integration in isolated XDG storage |
 | Texture2D create, Color transfer, regions/mips, FromStream and PNG encoding | CNA-TS + CNA | qualified native integration with deterministic pixel checks |
 | TitleContainer.OpenStream and default ContentManager title-storage acquisition | CNA-TS + CNA | qualified integration reads package.json through the CNA title-storage count/copy route; CNA-TS rejects absolute/traversal host paths and default ContentManager appends RootDirectory plus .xnb |
+| VertexBuffer windowed upload with Discard or NoOverwrite | CNA-TS | ABI 0.16 added cna_vertex_buffer_set_data_raw_at_with_options; the adapter routes non-None options through it and keeps the plain route for None |
 | VertexBuffer/IndexBuffer mapped public value transfer | CNA-TS + CNA | qualified integration verifies four exact built-in vertex codecs and 16-bit index transfer; no JavaScript object serialization or layout guessing is used |
 | VertexDeclaration, VertexBuffer and IndexBuffer resource construction/readback used by Model XNB | CNA-TS + CNA | qualified native Model reader integration |
 | VideoPlayer construction and control/cached-property state without decoded frames | CNA-TS + CNA | qualified native control-state integration |
+
+## VERIFIED_WEBASSEMBLY
+
+| Operation family | Owner/boundary | Evidence |
+| --- | --- | --- |
+| Browser/Wasm CNA runtime | CNA-TS | 60 and 600 real frames of the public XNA Game/GraphicsDeviceManager/Texture2D/SpriteBatch path in headless Chromium on a WebGL2 context, ABI 0.20.0, no uncaught page error |
+| Modern CNA runtime services over WebAssembly | cna-ts/extensions/runtime | the browser harness reads platform, renderer selection and available renderers, and round-trips two by-value CNA_StringView routes |
+| WebAssembly game lifecycle, device creation, Clear, Texture2D transfer, SpriteBatch and input snapshots | CNA-TS | test/wasm-browser.mjs drives the first vertical slice through the same public XNA classes the Node backend serves |
 
 ## EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND
 
@@ -102,11 +114,6 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
-| Browser/Wasm CNA runtime | CNA artifact packaging | no provenance-verifiable C-ABI ESM/Wasm artifact exists |
-| Direct standalone GraphicsDevice construction | CNA C ABI | ABI 0.7 exposes only a game-owned callback-scoped borrowed device; disposal explicitly rejects ownership by the binding |
-| Dynamic buffer ContentLost event signaling | CNA C ABI | creation, transfer and IsContentLost queries are implemented, but ABI 0.7 exposes no loss/recreation callback and CNA currently reports no loss |
-| RenderTarget ContentLost event signaling | CNA C ABI | construction, metadata and binding are implemented, but ABI 0.7 exposes no target loss/recreation callback |
-| VideoPlayer.GetTexture transient frame projection | CNA C ABI | CNA returns a player-owned transient texture; no borrowed-frame lifetime contract can be projected safely |
 
 ## FIXTURE_PENDING
 
@@ -137,6 +144,14 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
+| Direct standalone GraphicsDevice construction | CNA-TS | ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime the projection needs now exists upstream; CNA-TS still projects only the game-owned borrowed device |
+| Dynamic buffer ContentLost event signaling | CNA-TS | cna_vertex_buffer_subscribe_content_lost and cna_index_buffer_subscribe_content_lost exist and ABI 0.9 states the event is raised for real on renderers whose API can lose a device; CNA-TS imports neither |
+| Microsoft.Xna.Framework.GamerServices and .Net profiles | CNA-TS | docs/xna-profile-inventory.md measures the complete remaining XNA 4.0 runtime gap as 74 types; 436 backing C routes exist and none is imported |
+| Modern CNA binary content: .cnb container, schemas and compilation front ends | CNA-TS | 272 cnb.h routes are classified as extension backing and none is projected yet |
+| Modern CNA device and sensor extensions | CNA-TS | devices.h, sensors.h and the haptics/joystick/cursor/text input families are classified as extension backing and none is projected yet |
+| Modern CNA engine layer: PBR materials, render pipeline, post-process, lighting and shadows | CNA-TS | 857 engine_layer.h routes are classified as extension backing in docs/cna-api-coverage.md and none is projected yet |
+| RenderTarget ContentLost event signaling | CNA-TS | ABI 0.9 added cna_render_target_subscribe_content_lost and its registration handle, and made the flag clear again on binding; CNA-TS imports neither route |
+| VideoPlayer.GetTexture transient frame projection | CNA-TS | ABI 0.9 added cna_video_player_get_frame_ext with CNA_VideoFrameEXT and a monotonic frame generation, which is the borrowed-frame identity the projection was missing; CNA-TS has not adopted it |
 
 ## LANGUAGE_MAPPING_LIMITATION
 

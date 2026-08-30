@@ -2,24 +2,25 @@
   "schemaVersion": 1,
   "generatedFrom": "tools/runtime-capabilities/source.json",
   "profile": "XNA 4.0 Windows runtime",
-  "environment": "Linux x86-64 Node, CNA ABI 0.7.0, HEADLESS renderer, NULL audio",
+  "environment": "Linux x86-64 Node with CNA ABI 0.20.0 HEADLESS renderer and NULL audio, plus headless Chromium with the CNA ABI 0.20.0 WEBGL2 WebAssembly artifact",
   "granularity": "Each row is a reviewed operation family; overloads with the same implementation and evidence share a row.",
   "sourceAudit": {
     "root": "src/Microsoft/Xna/Framework",
-    "nativeUnavailableErrorSites": 63,
+    "nativeUnavailableErrorSites": 62,
     "notSupportedExceptionSites": 6,
     "filesWithExplicitFailureSites": 23,
     "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family."
   },
   "counts": {
     "VERIFIED_MANAGED": 19,
-    "VERIFIED_NATIVE": 30,
+    "VERIFIED_NATIVE": 33,
+    "VERIFIED_WEBASSEMBLY": 3,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 4,
-    "UPSTREAM_CNA_BLOCKED": 5,
+    "UPSTREAM_CNA_BLOCKED": 0,
     "FIXTURE_PENDING": 3,
     "HARDWARE_PENDING": 4,
     "PLATFORM_PENDING": 3,
-    "UNIMPLEMENTED_CNA_TS": 0,
+    "UNIMPLEMENTED_CNA_TS": 8,
     "LANGUAGE_MAPPING_LIMITATION": 3,
     "NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT": 1
   },
@@ -133,328 +134,658 @@
       "evidence": "no qualified artifact/job on either OS"
     },
     {
-      "operation": "Browser/Wasm CNA runtime",
-      "category": "UPSTREAM_CNA_BLOCKED",
-      "owner": "CNA artifact packaging",
-      "evidence": "no provenance-verifiable C-ABI ESM/Wasm artifact exists"
-    },
-    {
       "operation": "Direct standalone GraphicsDevice construction",
-      "category": "UPSTREAM_CNA_BLOCKED",
-      "owner": "CNA C ABI",
-      "evidence": "ABI 0.7 exposes only a game-owned callback-scoped borrowed device; disposal explicitly rejects ownership by the binding"
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime the projection needs now exists upstream; CNA-TS still projects only the game-owned borrowed device",
+      "proof": [
+        "absentRoute:cna_graphics_device_create",
+        "absentRoute:cna_graphics_device_destroy"
+      ]
     },
     {
       "operation": "Dynamic buffer ContentLost event signaling",
-      "category": "UPSTREAM_CNA_BLOCKED",
-      "owner": "CNA C ABI",
-      "evidence": "creation, transfer and IsContentLost queries are implemented, but ABI 0.7 exposes no loss/recreation callback and CNA currently reports no loss"
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "cna_vertex_buffer_subscribe_content_lost and cna_index_buffer_subscribe_content_lost exist and ABI 0.9 states the event is raised for real on renderers whose API can lose a device; CNA-TS imports neither",
+      "proof": [
+        "absentRoute:cna_vertex_buffer_subscribe_content_lost",
+        "absentRoute:cna_index_buffer_subscribe_content_lost"
+      ]
+    },
+    {
+      "operation": "Microsoft.Xna.Framework.GamerServices and .Net profiles",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "docs/xna-profile-inventory.md measures the complete remaining XNA 4.0 runtime gap as 74 types; 436 backing C routes exist and none is imported",
+      "proof": [
+        "absentRoute:cna_gamer_services_dispatcher_update",
+        "absentRoute:cna_network_session_create"
+      ]
+    },
+    {
+      "operation": "Modern CNA binary content: .cnb container, schemas and compilation front ends",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "272 cnb.h routes are classified as extension backing and none is projected yet",
+      "proof": [
+        "absentRoute:cna_cnb_document_parse",
+        "absentRoute:cna_cnb_document_open_chunk"
+      ]
+    },
+    {
+      "operation": "Modern CNA device and sensor extensions",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "devices.h, sensors.h and the haptics/joystick/cursor/text input families are classified as extension backing and none is projected yet",
+      "proof": [
+        "absentRoute:cna_devices_ext_is_available",
+        "absentRoute:cna_camera_create"
+      ]
+    },
+    {
+      "operation": "Modern CNA engine layer: PBR materials, render pipeline, post-process, lighting and shadows",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "857 engine_layer.h routes are classified as extension backing in docs/cna-api-coverage.md and none is projected yet",
+      "proof": [
+        "absentRoute:cna_pbr_material_init",
+        "absentRoute:cna_render_pipeline_settings_init"
+      ]
     },
     {
       "operation": "RenderTarget ContentLost event signaling",
-      "category": "UPSTREAM_CNA_BLOCKED",
-      "owner": "CNA C ABI",
-      "evidence": "construction, metadata and binding are implemented, but ABI 0.7 exposes no target loss/recreation callback"
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "ABI 0.9 added cna_render_target_subscribe_content_lost and its registration handle, and made the flag clear again on binding; CNA-TS imports neither route",
+      "proof": [
+        "absentRoute:cna_render_target_subscribe_content_lost"
+      ]
     },
     {
       "operation": "VideoPlayer.GetTexture transient frame projection",
-      "category": "UPSTREAM_CNA_BLOCKED",
-      "owner": "CNA C ABI",
-      "evidence": "CNA returns a player-owned transient texture; no borrowed-frame lifetime contract can be projected safely"
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "ABI 0.9 added cna_video_player_get_frame_ext with CNA_VideoFrameEXT and a monotonic frame generation, which is the borrowed-frame identity the projection was missing; CNA-TS has not adopted it",
+      "proof": [
+        "absentRoute:cna_video_player_get_frame_ext"
+      ]
     },
     {
       "operation": "Audio enums, listener/emitter values and SoundEffect duration/size arithmetic",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "47 deterministic XNA differential observations"
+      "evidence": "47 deterministic XNA differential observations",
+      "proof": [
+        "test:test/differential-xna.test.mjs"
+      ]
     },
     {
       "operation": "BlendState, DepthStencilState, RasterizerState and SamplerState managed values/presets",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "graphics-foundation unit suite verifies snapshots, defaults and disposal"
+      "evidence": "graphics-foundation unit suite verifies snapshots, defaults and disposal",
+      "proof": [
+        "test:test/graphics-foundation.test.mjs"
+      ]
     },
     {
       "operation": "Content cache, failure cleanup, dependency-ordered Unload and Dispose",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "content and content-xnb lifecycle tests including failed nested construction and native Effect-to-texture retention"
+      "evidence": "content and content-xnb lifecycle tests including failed nested construction and native Effect-to-texture retention",
+      "proof": [
+        "test:test/content.test.mjs"
+      ]
     },
     {
       "operation": "ContentManager LZX-compressed XNB framing and decompression",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "synthetic single/multi-frame tests plus exact independent 16,561/44,032-byte fixture comparison"
+      "evidence": "synthetic single/multi-frame tests plus exact independent 16,561/44,032-byte fixture comparison",
+      "proof": [
+        "test:test/content-xnb.test.mjs"
+      ]
     },
     {
       "operation": "ContentManager uncompressed XNB framing, reader tables, object dispatch and shared resources",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "deterministic synthetic content-xnb fixtures"
+      "evidence": "deterministic synthetic content-xnb fixtures",
+      "proof": [
+        "test:test/content-xnb.test.mjs"
+      ]
     },
     {
       "operation": "ContentReader.ReadExternalReference and nested ContentManager resolution",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "relative/nested/repeated/circular/missing/malformed/compressed reference tests"
+      "evidence": "relative/nested/repeated/circular/missing/malformed/compressed reference tests",
+      "proof": [
+        "test:test/content.test.mjs"
+      ]
     },
     {
       "operation": "Design TypeConverter projections and GamerServicesComponent lifecycle",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "design and framework unit suites"
+      "evidence": "design and framework unit suites",
+      "proof": [
+        "test:test/framework-components.test.mjs"
+      ]
     },
     {
       "operation": "Effect reflection, parameter values, techniques and managed stock-effect state",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "graphics/content differential observations and graphics-foundation tests"
+      "evidence": "graphics/content differential observations and graphics-foundation tests",
+      "proof": [
+        "test:test/graphics-foundation.test.mjs"
+      ]
     },
     {
       "operation": "Framework math, geometry, curves, packed vectors, TimeSpan, Color and value contracts",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "83 deterministic XNA differential observations plus math/geometry/graphics-value unit suites"
+      "evidence": "83 deterministic XNA differential observations plus math/geometry/graphics-value unit suites",
+      "proof": [
+        "test:test/differential-xna.test.mjs",
+        "test:test/math.test.mjs",
+        "test:test/geometry.test.mjs"
+      ]
     },
     {
       "operation": "GameComponent, DrawableGameComponent, collections, services and managed events",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "framework-components unit suite covers ordering, mutation, filtering, services and disposal"
+      "evidence": "framework-components unit suite covers ordering, mutation, filtering, services and disposal",
+      "proof": [
+        "test:test/framework-components.test.mjs"
+      ]
     },
     {
       "operation": "Graphics presentation, viewport, display, vertex and render-target value objects",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "graphics-foundation and graphics-values unit suites"
+      "evidence": "graphics-foundation and graphics-values unit suites",
+      "proof": [
+        "test:test/graphics-values.test.mjs"
+      ]
     },
     {
       "operation": "KeyboardState, MouseState, GamePad values and Touch values/collections",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "23 deterministic XNA differential observations and input unit suite"
+      "evidence": "23 deterministic XNA differential observations and input unit suite",
+      "proof": [
+        "test:test/input.test.mjs",
+        "test:test/differential-xna.test.mjs"
+      ]
     },
     {
       "operation": "Media collections, queue identity and MediaPlayer managed settings/events",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "deterministic subsystem differential observations"
+      "evidence": "deterministic subsystem differential observations",
+      "proof": [
+        "test:test/audio-media-storage-design.test.mjs"
+      ]
     },
     {
       "operation": "Model graph collections, parent/child identity and absolute transforms",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "graphics/content differential observation and managed Model tests"
+      "evidence": "graphics/content differential observation and managed Model tests",
+      "proof": [
+        "test:test/content-xnb.test.mjs"
+      ]
     },
     {
       "operation": "SoundEffectInstance managed lifecycle state and disposal guards",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "differential and audio/media/storage design suites"
+      "evidence": "differential and audio/media/storage design suites",
+      "proof": [
+        "test:test/audio-media-storage-design.test.mjs"
+      ]
     },
     {
       "operation": "SpriteBatch argument and Begin/End validation",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "graphics/content differential observation and graphics-foundation tests"
+      "evidence": "graphics/content differential observation and graphics-foundation tests",
+      "proof": [
+        "test:test/graphics-foundation.test.mjs"
+      ]
     },
     {
       "operation": "Storage path validation and isolated managed-directory adapter",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "deterministic storage differential observation and design suite"
+      "evidence": "deterministic storage differential observation and design suite",
+      "proof": [
+        "test:test/audio-media-storage-design.test.mjs"
+      ]
     },
     {
       "operation": "Texture2D, SpriteFont and Model managed XNB reader graphs",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "uncompressed and compressed synthetic reader-graph tests"
+      "evidence": "uncompressed and compressed synthetic reader-graph tests",
+      "proof": [
+        "test:test/spritefont-xnb.test.mjs",
+        "test:test/content-xnb.test.mjs"
+      ]
     },
     {
       "operation": "Texture3D/TextureCube exact Color codec, bounds and CNA dispatch projection",
       "category": "VERIFIED_MANAGED",
       "owner": "CNA-TS",
-      "evidence": "managed native-shaped backend verifies boxes, faces and exact packed Color round trips; all ABI signatures are compiler-audited and the qualified HEADLESS artifact returns documented NOT_SUPPORTED at creation"
+      "evidence": "managed native-shaped backend verifies boxes, faces and exact packed Color round trips; all ABI signatures are compiler-audited and the qualified HEADLESS artifact returns documented NOT_SUPPORTED at creation",
+      "proof": [
+        "test:test/graphics-foundation.test.mjs"
+      ]
     },
     {
       "operation": "BasicEffect, AlphaTestEffect, DualTextureEffect, EnvironmentMapEffect and SkinnedEffect native construction",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "all five distinct ABI-0.7 constructors return owned effects with real technique/pass views under qualified HEADLESS integration"
+      "evidence": "all five distinct ABI-0.7 constructors return owned effects with real technique/pass views under qualified HEADLESS integration",
+      "proof": [
+        "route:cna_basic_effect_create",
+        "route:cna_alpha_test_effect_create",
+        "route:cna_dual_texture_effect_create",
+        "route:cna_environment_map_effect_create",
+        "route:cna_skinned_effect_create"
+      ]
     },
     {
       "operation": "BasicEffect, AlphaTestEffect, DualTextureEffect, EnvironmentMapEffect and SkinnedEffect native state/apply execution",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified HEADLESS integration synchronizes dependency-complete stock state, applies every stock effect and verifies clone, texture retention and deterministic disposal"
+      "evidence": "qualified HEADLESS integration synchronizes dependency-complete stock state, applies every stock effect and verifies clone, texture retention and deterministic disposal",
+      "proof": [
+        "route:cna_basic_effect_set_diffuse_color",
+        "route:cna_skinned_effect_set_bone_transforms",
+        "route:cna_effect_matrices_set_world",
+        "route:cna_effect_apply"
+      ]
     },
     {
       "operation": "CNA renderer identity and capability query extension",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified artifact reports HEADLESS/custom-effects/compiled-effects capability bits"
+      "evidence": "qualified artifact reports HEADLESS/custom-effects/compiled-effects capability bits",
+      "proof": [
+        "route:cna_graphics_device_get_renderer_info",
+        "route:cna_graphics_device_copy_renderer_name"
+      ]
     },
     {
       "operation": "Compiled Effect creation binding route",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "exact byte payload reaches cna_effect_create_compiled with compiler-verified ABI; three legal conformance-FXB attempts deterministically return the qualified HEADLESS result 6 with invalid output and no shader-execution claim"
+      "evidence": "exact byte payload reaches cna_effect_create_compiled with compiler-verified ABI; three legal conformance-FXB attempts deterministically return the qualified HEADLESS result 6 with invalid output and no shader-execution claim",
+      "proof": [
+        "route:cna_effect_create_compiled"
+      ]
     },
     {
       "operation": "DynamicSoundEffectInstance submit, pending buffers and managed refill pump",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified native integration with reentrant/self-removing/throwing callback tests"
+      "evidence": "qualified native integration with reentrant/self-removing/throwing callback tests",
+      "proof": [
+        "route:cna_dynamic_sound_effect_instance_create",
+        "route:cna_dynamic_sound_effect_instance_submit_buffer",
+        "route:cna_dynamic_sound_effect_instance_get_pending_buffer_count"
+      ]
     },
     {
       "operation": "DynamicVertexBuffer and DynamicIndexBuffer creation, typed transfer, readback and IsContentLost query",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified integration covers Discard/NoOverwrite, built-in vertex and 16-bit index round trips, double disposal and parent shutdown"
+      "evidence": "qualified integration covers Discard/NoOverwrite, built-in vertex and 16-bit index round trips, double disposal and parent shutdown",
+      "proof": [
+        "route:cna_vertex_buffer_set_data",
+        "route:cna_index_buffer_set_data",
+        "route:cna_vertex_buffer_get_info",
+        "route:cna_index_buffer_get_info"
+      ]
     },
     {
       "operation": "Effect and EffectPass ABI-0.7 apply dispatch with native technique/pass reflection identity",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified integration executes cna_effect_apply and cna_effect_pass_apply on effect-owned stock passes; managed/native ownership tests retain the parent, destroy owned views, reject disposed parents and expose no raw handles"
+      "evidence": "qualified integration executes cna_effect_apply and cna_effect_pass_apply on effect-owned stock passes; managed/native ownership tests retain the parent, destroy owned views, reject disposed parents and expose no raw handles",
+      "proof": [
+        "route:cna_effect_apply",
+        "route:cna_effect_pass_apply",
+        "route:cna_effect_get_techniques",
+        "route:cna_effect_technique_get_passes"
+      ]
+    },
+    {
+      "operation": "Extended graphics layer availability probe",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/runtime",
+      "evidence": "cna_graphics_ext_is_available answers true on a CNA_CNAEXT=ON build and false on the WEBGL2 artifact, so structural presence is never reported as availability",
+      "proof": [
+        "route:cna_graphics_ext_is_available"
+      ]
     },
     {
       "operation": "FrameworkDispatcher.Update canonical native pump",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "native lifecycle and dynamic/media pump integration"
+      "evidence": "native lifecycle and dynamic/media pump integration",
+      "proof": [
+        "route:cna_framework_dispatcher_update"
+      ]
     },
     {
       "operation": "Game create, callbacks, one-frame/run/exit/destroy lifecycle",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified ABI-0.7 integration covers seven real game lifetimes and 60/600 frames"
+      "evidence": "qualified ABI-0.7 integration covers seven real game lifetimes and 60/600 frames",
+      "proof": [
+        "route:cna_game_create",
+        "route:cna_game_run_one_frame",
+        "route:cna_game_destroy",
+        "route:cna_game_set_frame_hooks_ext"
+      ]
     },
     {
       "operation": "GameWindow stable facade, borrowed handle/state and removable event registrations",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified integration verifies stable Game.Window identity, zero HEADLESS handle, title/state queries, callback registration cleanup and repeated game lifetimes"
+      "evidence": "qualified integration verifies stable Game.Window identity, zero HEADLESS handle, title/state queries, callback registration cleanup and repeated game lifetimes",
+      "proof": [
+        "route:cna_game_window_get_client_bounds",
+        "route:cna_game_window_subscribe",
+        "route:cna_game_unsubscribe"
+      ]
     },
     {
       "operation": "GraphicsDevice bound, indexed, instanced and four-codec user draw dispatch",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "360-symbol bridge dispatch and argument layouts are signature-audited; qualified HEADLESS calls reach CNA; no visible-output claim"
+      "evidence": "360-symbol bridge dispatch and argument layouts are signature-audited; qualified HEADLESS calls reach CNA; no visible-output claim",
+      "proof": [
+        "route:cna_graphics_device_draw_primitives",
+        "route:cna_graphics_device_draw_indexed_primitives",
+        "route:cna_graphics_device_draw_instanced_primitives",
+        "route:cna_graphics_device_draw_user_primitives",
+        "route:cna_graphics_device_draw_user_indexed_primitives"
+      ]
     },
     {
       "operation": "GraphicsDevice copied state, scalar state, sampler/texture, buffer and render-target binding routes",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified ABI-0.7 integration verifies successful assignment, null/unbind, stable read-after-write facade identity and render-target state; managed suite covers bounds, disposed, duplicate, wrong-device and rollback validation"
+      "evidence": "qualified ABI-0.7 integration verifies successful assignment, null/unbind, stable read-after-write facade identity and render-target state; managed suite covers bounds, disposed, duplicate, wrong-device and rollback validation",
+      "proof": [
+        "route:cna_graphics_device_set_blend_state",
+        "route:cna_graphics_device_set_sampler_state",
+        "route:cna_graphics_device_set_texture",
+        "route:cna_graphics_device_set_render_targets"
+      ]
     },
     {
       "operation": "GraphicsDevice status query",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified HEADLESS device reports the canonical Normal status through cna_graphics_device_get_status"
+      "evidence": "qualified HEADLESS device reports the canonical Normal status through cna_graphics_device_get_status",
+      "proof": [
+        "route:cna_graphics_device_get_status"
+      ]
     },
     {
       "operation": "GraphicsDevice.Clear and Present",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "60/600-frame qualified native integration"
+      "evidence": "60/600-frame qualified native integration",
+      "proof": [
+        "route:cna_graphics_device_clear_rgba",
+        "route:cna_graphics_device_present"
+      ]
     },
     {
       "operation": "GraphicsDeviceManager create/configure/apply and callback-scoped device borrowing",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified native integration and ownership tests"
+      "evidence": "qualified native integration and ownership tests",
+      "proof": [
+        "route:cna_graphics_device_manager_create",
+        "route:cna_graphics_device_manager_apply_changes",
+        "route:cna_graphics_device_manager_get_graphics_device"
+      ]
     },
     {
       "operation": "Keyboard, Mouse, GamePad and Touch polling routes",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified HEADLESS native integration; physical device behavior is separate"
+      "evidence": "qualified HEADLESS native integration; physical device behavior is separate",
+      "proof": [
+        "route:cna_keyboard_get_state",
+        "route:cna_mouse_get_state",
+        "route:cna_gamepad_get_state_with_dead_zone",
+        "route:cna_touch_get_state"
+      ]
     },
     {
       "operation": "MediaPlayer source/song creation, queue controls, position and visualization",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "generated legal silent WAV under qualified NULL-audio integration"
+      "evidence": "generated legal silent WAV under qualified NULL-audio integration",
+      "proof": [
+        "route:cna_media_player_play_songs_from",
+        "route:cna_song_create_from_uri",
+        "route:cna_media_player_get_visualization_data"
+      ]
     },
     {
       "operation": "Model.Draw effect/pass/indexed-draw pipeline",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified HEADLESS Model XNB executes buffer/index binding, BasicEffect matrices, real EffectPass.Apply and DrawIndexedPrimitives without a special native model renderer"
+      "evidence": "qualified HEADLESS Model XNB executes buffer/index binding, BasicEffect matrices, real EffectPass.Apply and DrawIndexedPrimitives without a special native model renderer",
+      "proof": [
+        "route:cna_effect_pass_apply",
+        "route:cna_graphics_device_draw_indexed_primitives"
+      ]
+    },
+    {
+      "operation": "Modern CNA platform identity, renderer selection and runtime log",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/runtime",
+      "evidence": "nine native integration assertions over 37 handle-free routes, including the pre-latch and non-desktop refusals CNA reports as state",
+      "proof": [
+        "route:cna_platform_get_current",
+        "route:cna_graphics_renderer_get_selected_ext",
+        "route:cna_graphics_renderer_copy_available_ext",
+        "route:cna_logger_log"
+      ]
     },
     {
       "operation": "OcclusionQuery construction, ordering, reuse, completion/result dispatch and disposal",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified integration executes the real query state machine without fabricating PixelCount; managed suite covers completion and exact result identity"
+      "evidence": "qualified integration executes the real query state machine without fabricating PixelCount; managed suite covers completion and exact result identity",
+      "proof": [
+        "route:cna_occlusion_query_create",
+        "route:cna_occlusion_query_begin",
+        "route:cna_occlusion_query_end",
+        "route:cna_occlusion_query_get_is_complete"
+      ]
     },
     {
       "operation": "RenderTarget2D/Cube construction, metadata, binding and inherited exact transfer routes",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified HEADLESS integration verifies RenderTarget2D and RenderTargetCube creation, metadata, 2D/cube-face bind/unbind identity, bound-destroy rejection and parent shutdown; managed backend covers cube metadata, face identity and duplicate validation"
+      "evidence": "qualified HEADLESS integration verifies RenderTarget2D and RenderTargetCube creation, metadata, 2D/cube-face bind/unbind identity, bound-destroy rejection and parent shutdown; managed backend covers cube metadata, face identity and duplicate validation",
+      "proof": [
+        "route:cna_render_target2d_create",
+        "route:cna_render_target_cube_create",
+        "route:cna_render_target_get_info",
+        "route:cna_render_target_destroy"
+      ]
     },
     {
       "operation": "SoundEffect PCM creation, instances, controls, Apply3D and disposal",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified NULL-audio integration; no audibility claim"
+      "evidence": "qualified NULL-audio integration; no audibility claim",
+      "proof": [
+        "route:cna_sound_effect_create_pcm16_range_ext",
+        "route:cna_sound_effect_create_instance",
+        "route:cna_sound_effect_instance_apply_3d_multi_ext",
+        "route:cna_sound_effect_destroy"
+      ]
     },
     {
       "operation": "SpriteBatch create, Begin, Draw/DrawString submission, End and destroy",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified native integration and template 60/600 frames"
+      "evidence": "qualified native integration and template 60/600 frames",
+      "proof": [
+        "route:cna_sprite_batch_create",
+        "route:cna_sprite_batch_begin",
+        "route:cna_sprite_batch_submit_scaled_many",
+        "route:cna_sprite_batch_end",
+        "route:cna_sprite_batch_destroy"
+      ]
     },
     {
       "operation": "SpriteBatch Effect-bearing Begin",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified HEADLESS integration executes cna_sprite_batch_begin_with_effect with a real BasicEffect; managed lifetime lease, device checks, null behavior, disposal guard and native-failure rollback are covered"
+      "evidence": "qualified HEADLESS integration executes cna_sprite_batch_begin_with_effect with a real BasicEffect; managed lifetime lease, device checks, null behavior, disposal guard and native-failure rollback are covered",
+      "proof": [
+        "route:cna_sprite_batch_begin_with_effect"
+      ]
     },
     {
       "operation": "SpriteBatch explicit render-state and transform Begin",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified integration executes copied Blend/Sampler/DepthStencil/Rasterizer descriptors; managed tests verify identity, wrong-device checks and post-success immutability"
+      "evidence": "qualified integration executes copied Blend/Sampler/DepthStencil/Rasterizer descriptors; managed tests verify identity, wrong-device checks and post-success immutability",
+      "proof": [
+        "route:cna_sprite_batch_begin_with_states"
+      ]
     },
     {
       "operation": "StorageDevice selector, StorageContainer and stream CRUD",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified native integration in isolated XDG storage"
+      "evidence": "qualified native integration in isolated XDG storage",
+      "proof": [
+        "route:cna_storage_device_show_selector",
+        "route:cna_storage_container_open",
+        "route:cna_storage_container_create_file",
+        "route:cna_storage_stream_read"
+      ]
     },
     {
       "operation": "Texture2D create, Color transfer, regions/mips, FromStream and PNG encoding",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified native integration with deterministic pixel checks"
+      "evidence": "qualified native integration with deterministic pixel checks",
+      "proof": [
+        "route:cna_texture2d_create",
+        "route:cna_texture2d_set_data",
+        "route:cna_texture2d_get_data",
+        "route:cna_texture2d_create_from_encoded_memory",
+        "route:cna_texture2d_copy_encoded"
+      ]
     },
     {
       "operation": "TitleContainer.OpenStream and default ContentManager title-storage acquisition",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified integration reads package.json through the CNA title-storage count/copy route; CNA-TS rejects absolute/traversal host paths and default ContentManager appends RootDirectory plus .xnb"
+      "evidence": "qualified integration reads package.json through the CNA title-storage count/copy route; CNA-TS rejects absolute/traversal host paths and default ContentManager appends RootDirectory plus .xnb",
+      "proof": [
+        "route:cna_title_container_read_ext"
+      ]
+    },
+    {
+      "operation": "VertexBuffer windowed upload with Discard or NoOverwrite",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "ABI 0.16 added cna_vertex_buffer_set_data_raw_at_with_options; the adapter routes non-None options through it and keeps the plain route for None",
+      "proof": [
+        "route:cna_vertex_buffer_set_data_raw_at_with_options"
+      ]
     },
     {
       "operation": "VertexBuffer/IndexBuffer mapped public value transfer",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified integration verifies four exact built-in vertex codecs and 16-bit index transfer; no JavaScript object serialization or layout guessing is used"
+      "evidence": "qualified integration verifies four exact built-in vertex codecs and 16-bit index transfer; no JavaScript object serialization or layout guessing is used",
+      "proof": [
+        "route:cna_vertex_buffer_set_data_raw",
+        "route:cna_index_buffer_set_data_at"
+      ]
     },
     {
       "operation": "VertexDeclaration, VertexBuffer and IndexBuffer resource construction/readback used by Model XNB",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified native Model reader integration"
+      "evidence": "qualified native Model reader integration",
+      "proof": [
+        "route:cna_vertex_declaration_create_with_stride",
+        "route:cna_vertex_buffer_create",
+        "route:cna_index_buffer_create",
+        "route:cna_vertex_buffer_get_data_raw"
+      ]
     },
     {
       "operation": "VideoPlayer construction and control/cached-property state without decoded frames",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "qualified native control-state integration"
+      "evidence": "qualified native control-state integration",
+      "proof": [
+        "route:cna_video_player_create",
+        "route:cna_video_player_play",
+        "route:cna_video_player_get_state"
+      ]
+    },
+    {
+      "operation": "Browser/Wasm CNA runtime",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "60 and 600 real frames of the public XNA Game/GraphicsDeviceManager/Texture2D/SpriteBatch path in headless Chromium on a WebGL2 context, ABI 0.20.0, no uncaught page error",
+      "proof": [
+        "wasmRoute:cna_game_create",
+        "wasmRoute:cna_game_run_one_frame",
+        "wasmRoute:cna_game_destroy",
+        "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "Modern CNA runtime services over WebAssembly",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "cna-ts/extensions/runtime",
+      "evidence": "the browser harness reads platform, renderer selection and available renderers, and round-trips two by-value CNA_StringView routes",
+      "proof": [
+        "wasmRoute:cna_platform_get_current",
+        "wasmRoute:cna_graphics_renderer_try_parse_name_ext",
+        "wasmRoute:cna_graphics_renderer_copy_available_ext",
+        "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "WebAssembly game lifecycle, device creation, Clear, Texture2D transfer, SpriteBatch and input snapshots",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "test/wasm-browser.mjs drives the first vertical slice through the same public XNA classes the Node backend serves",
+      "proof": [
+        "wasmRoute:cna_graphics_device_manager_create_device",
+        "wasmRoute:cna_graphics_device_clear_rgba",
+        "wasmRoute:cna_texture2d_set_data",
+        "wasmRoute:cna_sprite_batch_submit_scaled_many",
+        "wasmRoute:cna_keyboard_get_state",
+        "test:test/wasm-browser.mjs"
+      ]
     }
   ]
 }
