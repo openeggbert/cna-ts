@@ -21,10 +21,11 @@ TypeScript.
 > Gamer services and networking are declaration-complete and refuse at runtime with
 > `GamerServicesNotAvailableException`, the exception XNA itself raises where the platform is
 > absent. Modern CNA surface outside XNA lives under `cna-ts/extensions`: `extensions/runtime`
-> carries platform identity, renderer selection and the runtime log, verified on both backends, and
+> carries platform identity, renderer selection and the runtime log, verified on both backends;
 > `extensions/graphics` carries the PBR material, the render pipeline and its frame statistics,
 > verified against a build with CNA's extended graphics layer compiled in and reporting the
-> truthful not-supported branch where it is not.
+> truthful not-supported branch where it is not; and `extensions/content` reads `.cnb`, CNA's own
+> compiled content format, ending in an ordinary `Texture2D` or `SpriteFont`.
 
 ## One package for both languages
 
@@ -88,6 +89,36 @@ backend's documented result 6 because this renderer reports no compiled-effects 
 compiled shader or visible-output claim is made. Texture3D/Cube creation is also explicitly unsupported by this artifact even
 though its exact ABI binding and Color codecs are implemented. Linux HEADLESS evidence is not a Windows, visible-GPU,
 Electron, browser, or mobile support claim.
+
+## CNB, beside XNB
+
+`.cnb` is CNA's own compiled content format. It is not `.xnb` and this package does not pretend
+otherwise: XNB is Microsoft's, `ContentManager.Load` reads it, and CNB lives on its own subpath
+because it carries asset types XNA never had and containers that are checksummed, versioned and
+self-describing in ways XNB is not.
+
+```ts
+import { CnbDocument, CreateTexture2DFromCnb } from "cna-ts/extensions/content";
+
+const document = CnbDocument.Parse(bytes, "Textures/Atlas.cnb");
+try {
+  const atlas = CreateTexture2DFromCnb(GraphicsDevice, document);
+} finally {
+  document.Dispose();
+}
+```
+
+A parsed document is a container that is already structurally sound — magic, versions, both
+structural checksums, every chunk checksum, alignment, table-of-contents ordering and exact
+non-overlapping coverage are all applied before an accessor hands out a byte. What it exposes is a
+copied immutable view: the table of contents, the `CMET` metadata, the `XREF` external references
+and any chunk's logical bytes. `CreateTexture2DFromCnb` and `CreateSpriteFontFromCnb` turn a
+document into ordinary owned XNA resources; `CnbTextureData` and `CnbSpriteFontData` also encode,
+so a Node build script can compile content as well as read it.
+
+The three objects that own native memory — the document and the two decoded descriptions — are
+explicit `Dispose()`. Everything else is copied, because a small payload is safer as a JavaScript
+copy than as a view into memory a `Dispose()` can take away.
 
 XNB framing, reader tables/versions, shared resources, disposal tracking, and custom reader
 dispatch are implemented in TypeScript. Windows XNB v5 supports uncompressed streams and the XNA

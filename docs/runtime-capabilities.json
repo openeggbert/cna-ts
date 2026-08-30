@@ -7,13 +7,13 @@
   "sourceAudit": {
     "root": "src/Microsoft/Xna/Framework",
     "nativeUnavailableErrorSites": 62,
-    "notSupportedExceptionSites": 6,
+    "notSupportedExceptionSites": 7,
     "filesWithExplicitFailureSites": 23,
-    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family."
+    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it."
   },
   "counts": {
     "VERIFIED_MANAGED": 20,
-    "VERIFIED_NATIVE": 37,
+    "VERIFIED_NATIVE": 40,
     "VERIFIED_WEBASSEMBLY": 5,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 0,
@@ -140,6 +140,19 @@
       "evidence": "no qualified artifact/job on either OS"
     },
     {
+      "operation": "CNB model, audio, media, curve and clip schemas, and the compilation front ends",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "the container, the Texture2D schema and the SpriteFont schema are projected and verified above; the remaining cnb.h families -- the model graph, sound effects, songs, videos, curves, animation clips, the bounded byte cursor, the loader registry and the .cnj compile path -- are measured and unprojected",
+      "proof": [
+        "absentRoute:cna_cnb_decode_model",
+        "absentRoute:cna_cnb_decode_sound_effect",
+        "absentRoute:cna_cnb_compile_cnj",
+        "absentRoute:cna_cnb_loader_registry_register",
+        "absentRoute:cna_cnb_document_open_chunk"
+      ]
+    },
+    {
       "operation": "Direct standalone GraphicsDevice construction",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
@@ -157,16 +170,6 @@
       "proof": [
         "absentRoute:cna_gamer_services_dispatcher_update",
         "absentRoute:cna_network_session_create"
-      ]
-    },
-    {
-      "operation": "Modern CNA binary content: .cnb container, schemas and compilation front ends",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "272 cnb.h routes are classified as extension backing and none is projected yet",
-      "proof": [
-        "absentRoute:cna_cnb_document_parse",
-        "absentRoute:cna_cnb_document_open_chunk"
       ]
     },
     {
@@ -415,6 +418,46 @@
       "proof": [
         "route:cna_graphics_device_get_renderer_info",
         "route:cna_graphics_device_copy_renderer_name"
+      ]
+    },
+    {
+      "operation": "CNB container: parse, validate, walk the table of contents and read chunk bytes",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/content",
+      "evidence": "a container encoded by CNA's own writer parses back with its container version, asset type, schema version, CMET metadata and chunk order; a chunk's bytes are exact and its CRC-32C recomputes to the table-of-contents value; truncation, a flipped payload byte and an XNB are each refused with CNA_RESULT_IO, and an unknown mandatory chunk refuses the whole file",
+      "proof": [
+        "route:cna_cnb_document_parse",
+        "route:cna_cnb_document_get_chunk",
+        "route:cna_cnb_document_copy_chunk_data",
+        "route:cna_cnb_document_require_mandatory_chunks_understood",
+        "route:cna_cnb_crc32c",
+        "test:test/cnb-content.integration.mjs"
+      ]
+    },
+    {
+      "operation": "CNB SpriteFont: decode a compiled font with its embedded atlas into a drawable SpriteFont",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/content",
+      "evidence": "a font CNA encoded decodes with its metrics, its ascending character map and its per-glyph rectangles and kerning; CreateSpriteFontFromCnb builds a SpriteFont whose MeasureString is exact, the copied atlas outlives the font it came from, an unsorted character map is refused at encode time, and an absent fallback character reads as null rather than U+0000",
+      "proof": [
+        "route:cna_cnb_decode_sprite_font",
+        "route:cna_cnb_sprite_font_data_get_glyph",
+        "route:cna_cnb_sprite_font_data_copy_atlas",
+        "route:cna_cnb_encode_sprite_font",
+        "test:test/cnb-content.integration.mjs"
+      ]
+    },
+    {
+      "operation": "CNB Texture2D: decode a compiled texture and upload it as a real XNA resource",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/content",
+      "evidence": "a texture description CNA encoded decodes to the same shape, representation format and level bytes, and CreateTexture2DFromCnb produces a Texture2D whose four readback texels are exactly the RGBA the encoder was given; representation selection reports an unsupported format as absence rather than failure",
+      "proof": [
+        "route:cna_cnb_decode_texture2d",
+        "route:cna_cnb_texture_data_copy_level",
+        "route:cna_cnb_texture_data_get_info",
+        "route:cna_cnb_encode_texture2d",
+        "test:test/cnb-content.integration.mjs"
       ]
     },
     {

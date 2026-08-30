@@ -2,11 +2,13 @@ import {
   ArgumentException,
   ArgumentNullException,
   ArgumentOutOfRangeException,
+  NotSupportedException,
 } from "../../../../internal/exceptions.js";
 import type { CnaBackend, Texture2DTransfer } from "../../../../internal/backend.js";
 import { NativeUnavailableError } from "../../../../internal/native-error.js";
 import { NativeResourceLifetime, type NativeHandle } from "../../../../internal/ownership.js";
 import {
+  canonicalTextureCodecFor,
   decodeTextureTransfer,
   encodeTextureTransfer,
   resolveTextureElementCodec,
@@ -255,6 +257,51 @@ export class Texture2D extends Texture {
 
 export function resolveTexture2DHandleForInternalUse(texture: Texture2D): NativeHandle {
   return stateOf(texture).Lifetime.Handle;
+}
+
+/**
+ * Uploads one whole mip level from bytes already laid out in the texture's own surface format.
+ *
+ * XNA's `SetData<T>` is typed for element arrays, and widening it to accept a byte view would
+ * change a strictly projected signature. A decoded content payload -- CNB hands one back per level
+ * -- is already exactly those bytes, so this goes through the same transfer preparation and the
+ * same element-codec resolution (which picks the byte codec for a `Uint8Array`) without touching
+ * the public shape.
+ */
+export function setTexture2DLevelBytesForInternalUse(
+  texture: Texture2D, level: number, bytes: Uint8Array,
+): void {
+  if (bytes == null) throw new ArgumentNullException("bytes");
+  const state = stateOf(texture);
+  if (!Number.isInteger(level) || level < 0 || level >= state.LevelCount) {
+    throw new ArgumentOutOfRangeException("level");
+  }
+  const width = Math.max(1, state.Width >> level);
+  const height = Math.max(1, state.Height >> level);
+  const required = textureRegionByteCount(texture.Format, width, height);
+  if (bytes.byteLength !== required) {
+    throw new ArgumentException(
+      `mip level ${level} of this texture is ${required} bytes; ${bytes.byteLength} were supplied`,
+    );
+  }
+  // The bytes go through unchanged; what the descriptor says is how CNA should *read* them. That
+  // has to be the format's canonical element type rather than the byte one -- CNA refuses byte data
+  // for anything but a ByteEXT surface, which is right: a byte count carries no evidence about the
+  // layout it describes.
+  const codec = canonicalTextureCodecFor(texture.Format);
+  if (codec == null) {
+    throw new NotSupportedException(`SurfaceFormat ${texture.Format} has no element representation`);
+  }
+  const transfer: Texture2DTransfer = {
+    DataType: codec.DataType,
+    ElementSize: codec.ElementSize,
+    Level: level,
+    Rectangle: null,
+    StartIndex: 0,
+    ElementCount: required / codec.ElementSize,
+    Capacity: required / codec.ElementSize,
+  };
+  state.Backend.setTexture2DData(state.Lifetime.Handle, transfer, bytes);
 }
 
 type TransferRequest = {

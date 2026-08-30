@@ -9,10 +9,10 @@ This inventory is independent of the strict API verifier: API shape completeness
 
 ## Explicit failure-site audit
 
-All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family.
+All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it.
 
 - NativeUnavailableError construction sites: 62
-- NotSupportedException construction sites: 6
+- NotSupportedException construction sites: 7
 - Framework files containing those sites: 23
 
 ## Counts
@@ -20,7 +20,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Category | Operation families |
 | --- | ---: |
 | VERIFIED_MANAGED | 20 |
-| VERIFIED_NATIVE | 37 |
+| VERIFIED_NATIVE | 40 |
 | VERIFIED_WEBASSEMBLY | 5 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 5 |
 | UPSTREAM_CNA_BLOCKED | 0 |
@@ -63,6 +63,9 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | BasicEffect, AlphaTestEffect, DualTextureEffect, EnvironmentMapEffect and SkinnedEffect native construction | CNA-TS + CNA | all five distinct ABI-0.7 constructors return owned effects with real technique/pass views under qualified HEADLESS integration |
 | BasicEffect, AlphaTestEffect, DualTextureEffect, EnvironmentMapEffect and SkinnedEffect native state/apply execution | CNA-TS + CNA | qualified HEADLESS integration synchronizes dependency-complete stock state, applies every stock effect and verifies clone, texture retention and deterministic disposal |
 | CNA renderer identity and capability query extension | CNA-TS + CNA | qualified artifact reports HEADLESS/custom-effects/compiled-effects capability bits |
+| CNB container: parse, validate, walk the table of contents and read chunk bytes | cna-ts/extensions/content | a container encoded by CNA's own writer parses back with its container version, asset type, schema version, CMET metadata and chunk order; a chunk's bytes are exact and its CRC-32C recomputes to the table-of-contents value; truncation, a flipped payload byte and an XNB are each refused with CNA_RESULT_IO, and an unknown mandatory chunk refuses the whole file |
+| CNB SpriteFont: decode a compiled font with its embedded atlas into a drawable SpriteFont | cna-ts/extensions/content | a font CNA encoded decodes with its metrics, its ascending character map and its per-glyph rectangles and kerning; CreateSpriteFontFromCnb builds a SpriteFont whose MeasureString is exact, the copied atlas outlives the font it came from, an unsorted character map is refused at encode time, and an absent fallback character reads as null rather than U+0000 |
+| CNB Texture2D: decode a compiled texture and upload it as a real XNA resource | cna-ts/extensions/content | a texture description CNA encoded decodes to the same shape, representation format and level bytes, and CreateTexture2DFromCnb produces a Texture2D whose four readback texels are exactly the RGBA the encoder was given; representation selection reports an unsupported format as absence rather than failure |
 | Compiled Effect creation binding route | CNA-TS + CNA | exact byte payload reaches cna_effect_create_compiled with compiler-verified ABI; three legal conformance-FXB attempts deterministically return the qualified HEADLESS result 6 with invalid output and no shader-execution claim |
 | Dynamic buffer ContentLost subscription and deterministic release | CNA-TS | the declared events now have a real CNA producer behind them: both subscriptions execute on the qualified artifact, the registration is released with the resource, and disposing twice with a live registration stays harmless |
 | DynamicSoundEffectInstance submit, pending buffers and managed refill pump | CNA-TS + CNA | qualified native integration with reentrant/self-removing/throwing callback tests |
@@ -152,9 +155,9 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
+| CNB model, audio, media, curve and clip schemas, and the compilation front ends | CNA-TS | the container, the Texture2D schema and the SpriteFont schema are projected and verified above; the remaining cnb.h families -- the model graph, sound effects, songs, videos, curves, animation clips, the bounded byte cursor, the loader registry and the .cnj compile path -- are measured and unprojected |
 | Direct standalone GraphicsDevice construction | CNA-TS | ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime exists upstream. The qualified HEADLESS artifact reports no graphics adapter, so GraphicsAdapter.DefaultAdapter has nothing to return and the XNA constructor has no argument to be given; implementing the route here would be unexercisable on any backend this session can build |
 | Microsoft.Xna.Framework.GamerServices and .Net platform operations | CNA-TS | the 74 declarations are projected and the xna40-windows-live profile holds at zero differences, but every operation that needs a gamer-services platform refuses with GamerServicesNotAvailableException; 436 backing C routes exist and none is imported |
-| Modern CNA binary content: .cnb container, schemas and compilation front ends | CNA-TS | 272 cnb.h routes are classified as extension backing and none is projected yet |
 | Modern CNA device and sensor extensions | CNA-TS | devices.h, sensors.h and the haptics/joystick/cursor/text input families are classified as extension backing and none is projected yet |
 | Modern CNA engine layer beyond the render pipeline: lighting, shadows, post-process passes, particles and compute | CNA-TS | 857 engine_layer.h routes are classified as extension backing in docs/cna-api-coverage.md; the render-pipeline object and the PBR/pipeline value defaults are projected, the rest is not |
 | VideoPlayer.GetTexture transient frame projection | CNA-TS | ABI 0.9 added cna_video_player_get_frame_ext with CNA_VideoFrameEXT and a monotonic frame generation, which is the borrowed-frame identity the projection was missing; CNA-TS has not adopted it |

@@ -14,8 +14,9 @@ phase is complete. API completeness can only be claimed from a reproducible stri
 - [x] `src/` contains canonical TypeScript implementation only.
 - [x] TypeScript 5.9.2 generates ESM JavaScript, declarations, declaration maps, and source maps in
   `dist/` under strict NodeNext settings.
-- [x] Root, `xna`, `extensions`, `extensions/runtime` and `runtime` package exports resolve in
-  compile probes; internal paths, including the WebAssembly internals, do not.
+- [x] Root, `xna`, `extensions`, `extensions/runtime`, `extensions/graphics`, `extensions/content`
+  and `runtime` package exports resolve in compile probes; internal paths, including the
+  WebAssembly internals, do not.
 - [x] Node baseline is 20+.
 - [x] Both strict profiles hold at zero differences: the Windows runtime (257 reference types,
   2,964 members) and the LIVE set (74 types, 676 members).
@@ -266,8 +267,15 @@ Electron, or mobile support.
   availability set, fallback chain and recorded reasons, and the runtime log, over both backends.
 - [x] `cna-ts/extensions/graphics` projects the PBR material, the render pipeline and its frame
   statistics, and reports the truthful not-supported branch where the extended layer is absent.
-- [ ] `cna-ts/extensions/content` for CNB, `extensions/devices`, `extensions/input` and
-  `extensions/sensors` are measured and unprojected.
+- [x] `cna-ts/extensions/content` projects CNB, CNA's own compiled content format: the validated
+  container with its table of contents, metadata, external references and chunk bytes; the texture
+  schema, ending in a real `Texture2D`; and the sprite-font schema with its embedded atlas, ending
+  in a drawable `SpriteFont`. Fixtures are built with CNA's own encoder rather than hand-rolled, so
+  the reader is proved against the writer instead of against itself.
+- [ ] CNB's model, sound-effect, song, video, curve and animation-clip schemas, its bounded byte
+  cursor, its loader registry and the `.cnj` compile path are measured and unprojected.
+- [ ] `extensions/devices`, `extensions/input` and `extensions/sensors` are measured and
+  unprojected.
 
 ## Runtime capability inventory
 
@@ -275,7 +283,7 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 85 operation families: 20 verified managed, 37 verified native, three
+- [x] Current baseline is 90 operation families: 20 verified managed, 40 verified native, five
   verified WebAssembly, five explicitly unavailable on the qualified backend, zero upstream-CNA
   blocked, three fixture pending, four hardware pending, three platform pending, six unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.

@@ -273,6 +273,51 @@ typedef CNA_Result (*LightVector3Fn)(CNA_DirectionalLightHandle, CNA_Vector3);
 typedef CNA_Result (*LightBoolFn)(CNA_DirectionalLightHandle, CNA_Bool);
 typedef CNA_Result (*EffectMatricesFn)(CNA_EffectHandle, const CNA_Matrix*, uint64_t);
 
+/* --- CNB: CNA's own compiled content format ------------------------------------------------- */
+typedef CNA_Result (*CnbHasMagicFn)(const uint8_t*, uint64_t, CNA_Bool*);
+typedef CNA_Result (*CnbCopyMagicFn)(uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbCrc32cFn)(const uint8_t*, uint64_t, uint32_t*);
+typedef CNA_Result (*CnbStringViewToU32Fn)(CNA_StringView, uint32_t*);
+typedef CNA_Result (*CnbMakeChunkIdFn)(uint8_t, uint8_t, uint8_t, uint8_t, CNA_CnbChunkId*);
+typedef CNA_Result (*CnbLevelByteSizeFn)(CNA_CnbTextureFormat, uint32_t, uint32_t, uint32_t, uint64_t*);
+typedef CNA_Result (*CnbDocumentParseFn)(
+  const uint8_t*, uint64_t, CNA_StringView, const CNA_CnbReadLimits*, CNA_CnbDocumentHandle*);
+typedef CNA_Result (*CnbDocumentU16OutFn)(CNA_CnbDocumentHandle, uint16_t*);
+typedef CNA_Result (*CnbDocumentChunkFn)(CNA_CnbDocumentHandle, uint64_t, CNA_CnbChunkEntry*);
+typedef CNA_Result (*CnbDocumentCopyChunkFn)(CNA_CnbDocumentHandle, uint64_t, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbDocumentFindAllFn)(CNA_CnbDocumentHandle, CNA_CnbChunkId, uint64_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbDocumentMandatoryFn)(CNA_CnbDocumentHandle, const CNA_CnbChunkId*, uint64_t);
+typedef CNA_Result (*CnbDocumentMetadataFn)(CNA_CnbDocumentHandle, CNA_CnbMetadata*);
+typedef CNA_Result (*CnbDocumentExternalFn)(
+  CNA_CnbDocumentHandle, uint64_t, CNA_StringView, CNA_CnbExternalReference*);
+typedef CNA_Result (*CnbDocumentIndexSizeFn)(CNA_CnbDocumentHandle, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbDocumentIndexCopyTextFn)(CNA_CnbDocumentHandle, uint64_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbTextureInfoFn)(CNA_CnbTextureDataHandle, CNA_CnbTextureInfo*);
+typedef CNA_Result (*CnbTextureLevelDimensionsFn)(
+  CNA_CnbTextureDataHandle, uint32_t, uint32_t*, uint32_t*, uint32_t*);
+typedef CNA_Result (*CnbTextureRepresentationFormatFn)(CNA_CnbTextureDataHandle, uint64_t, CNA_CnbTextureFormat*);
+typedef CNA_Result (*CnbTextureLevelCountFn)(CNA_CnbTextureDataHandle, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbTextureCopyLevelFn)(
+  CNA_CnbTextureDataHandle, uint64_t, uint64_t, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbTextureCreateFn)(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, CNA_CnbTextureDataHandle*);
+typedef CNA_Result (*CnbTextureCreateRgba8Fn)(uint32_t, uint32_t, const uint8_t*, uint64_t, CNA_CnbTextureDataHandle*);
+typedef CNA_Result (*CnbTextureAddRepresentationFn)(CNA_CnbTextureDataHandle, CNA_CnbTextureFormat, uint64_t*);
+typedef CNA_Result (*CnbTextureSetLevelFn)(CNA_CnbTextureDataHandle, uint64_t, uint64_t, const uint8_t*, uint64_t);
+typedef CNA_Result (*CnbEncodeTextureFn)(CNA_CnbTextureDataHandle, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbDecodeTextureFn)(CNA_CnbDocumentHandle, CNA_CnbTextureDataHandle*);
+typedef CNA_Result (*CnbDecodeSpriteFontFn)(CNA_CnbDocumentHandle, CNA_CnbSpriteFontDataHandle*);
+typedef CNA_Result (*CnbSpriteFontCreateFn)(CNA_CnbSpriteFontDataHandle*);
+typedef CNA_Result (*CnbSpriteFontDestroyFn)(CNA_CnbSpriteFontDataHandle);
+typedef CNA_Result (*CnbSpriteFontInfoFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbSpriteFontInfo*);
+typedef CNA_Result (*CnbSpriteFontSetInfoFn)(CNA_CnbSpriteFontDataHandle, const CNA_CnbSpriteFontInfo*);
+typedef CNA_Result (*CnbSpriteFontGetGlyphFn)(CNA_CnbSpriteFontDataHandle, uint64_t, CNA_SpriteFontGlyph*);
+typedef CNA_Result (*CnbSpriteFontAddGlyphFn)(CNA_CnbSpriteFontDataHandle, const CNA_SpriteFontGlyph*, uint64_t*);
+typedef CNA_Result (*CnbSpriteFontSetAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle);
+typedef CNA_Result (*CnbSpriteFontCopyAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle*);
+typedef CNA_Result (*CnbEncodeSpriteFontFn)(CNA_CnbSpriteFontDataHandle, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbTextureDataDestroyFn)(CNA_CnbTextureDataHandle);
+typedef CNA_Result (*CnbDocumentDestroyFn)(CNA_CnbDocumentHandle);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -688,6 +733,71 @@ typedef struct Api {
   GameWindowEndFn window_end_screen_change;
   GameWindowSubscribeFn window_subscribe;
   GameHandleFn game_unsubscribe;
+
+  CnbHasMagicFn cnb_has_magic;
+  CnbCopyMagicFn cnb_copy_format_magic;
+  CnbCrc32cFn cnb_crc32c;
+  U32ToBoolFn cnb_is_compression_supported;
+  U32SizeOutFn cnb_get_compression_name_size;
+  U32CopyTextFn cnb_copy_compression_name;
+  U32SizeOutFn cnb_get_asset_type_name_size;
+  U32CopyTextFn cnb_copy_asset_type_name;
+  CnbStringViewToU32Fn cnb_asset_type_id_from_name;
+  U32ToBoolFn cnb_is_custom_asset_type_id;
+  CnbMakeChunkIdFn cnb_make_chunk_id;
+  U32SizeOutFn cnb_get_chunk_id_string_size;
+  U32CopyTextFn cnb_copy_chunk_id_string;
+  U32ToBoolFn cnb_is_well_formed_chunk_id;
+  U32SizeOutFn cnb_get_texture_format_name_size;
+  U32CopyTextFn cnb_copy_texture_format_name;
+  U32ToBoolFn cnb_is_block_compressed_texture_format;
+  U32ToU32Fn cnb_get_texture_format_unit_bytes;
+  CnbLevelByteSizeFn cnb_get_texture_level_byte_size;
+  U32ToU32Fn cnb_texture_format_to_surface_format;
+  CnbDocumentParseFn cnb_document_parse;
+  CnbDocumentDestroyFn cnb_document_destroy;
+  HandleU64OutFn cnb_document_get_origin_size;
+  HandleCopyStringFn cnb_document_copy_origin;
+  CnbDocumentU16OutFn cnb_document_get_container_major;
+  CnbDocumentU16OutFn cnb_document_get_container_minor;
+  GameU32OutFn cnb_document_get_asset_type_id;
+  GameU32OutFn cnb_document_get_asset_schema_version;
+  HandleU64OutFn cnb_document_get_chunk_count;
+  CnbDocumentChunkFn cnb_document_get_chunk;
+  CnbDocumentCopyChunkFn cnb_document_copy_chunk_data;
+  CnbDocumentFindAllFn cnb_document_find_all;
+  CnbDocumentMandatoryFn cnb_document_require_mandatory;
+  CnbDocumentMetadataFn cnb_document_get_metadata;
+  HandleU64OutFn cnb_document_get_metadata_asset_type_name_size;
+  HandleCopyStringFn cnb_document_copy_metadata_asset_type_name;
+  HandleU64OutFn cnb_document_get_metadata_content_name_size;
+  HandleCopyStringFn cnb_document_copy_metadata_content_name;
+  HandleU64OutFn cnb_document_get_external_reference_count;
+  CnbDocumentExternalFn cnb_document_get_external_reference;
+  CnbDocumentIndexSizeFn cnb_document_get_external_reference_name_size;
+  CnbDocumentIndexCopyTextFn cnb_document_copy_external_reference_name;
+  CnbDecodeTextureFn cnb_decode_texture2d;
+  CnbTextureDataDestroyFn cnb_texture_data_destroy;
+  CnbTextureInfoFn cnb_texture_data_get_info;
+  CnbTextureLevelDimensionsFn cnb_texture_data_get_level_dimensions;
+  CnbTextureRepresentationFormatFn cnb_texture_data_get_representation_format;
+  CnbTextureLevelCountFn cnb_texture_data_get_level_count;
+  CnbTextureCopyLevelFn cnb_texture_data_copy_level;
+  CnbTextureCreateFn cnb_texture_data_create;
+  CnbTextureCreateRgba8Fn cnb_texture_data_create_rgba8;
+  CnbTextureAddRepresentationFn cnb_texture_data_add_representation;
+  CnbTextureSetLevelFn cnb_texture_data_set_level;
+  CnbEncodeTextureFn cnb_encode_texture2d;
+  CnbDecodeSpriteFontFn cnb_decode_sprite_font;
+  CnbSpriteFontCreateFn cnb_sprite_font_data_create;
+  CnbSpriteFontDestroyFn cnb_sprite_font_data_destroy;
+  CnbSpriteFontInfoFn cnb_sprite_font_data_get_info;
+  CnbSpriteFontSetInfoFn cnb_sprite_font_data_set_info;
+  CnbSpriteFontGetGlyphFn cnb_sprite_font_data_get_glyph;
+  CnbSpriteFontAddGlyphFn cnb_sprite_font_data_add_glyph;
+  CnbSpriteFontSetAtlasFn cnb_sprite_font_data_set_atlas;
+  CnbSpriteFontCopyAtlasFn cnb_sprite_font_data_copy_atlas;
+  CnbEncodeSpriteFontFn cnb_encode_sprite_font;
 } Api;
 
 typedef struct GameContext {
@@ -1414,6 +1524,71 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(storage_stream_get_length, HandleInt64OutFn, "cna_storage_stream_get_length");
   LOAD_REQUIRED(storage_stream_read, StorageStreamReadFn, "cna_storage_stream_read");
   LOAD_REQUIRED(storage_stream_close, GameHandleFn, "cna_storage_stream_close");
+
+  LOAD_REQUIRED(cnb_has_magic, CnbHasMagicFn, "cna_cnb_has_magic");
+  LOAD_REQUIRED(cnb_copy_format_magic, CnbCopyMagicFn, "cna_cnb_copy_format_magic");
+  LOAD_REQUIRED(cnb_crc32c, CnbCrc32cFn, "cna_cnb_crc32c");
+  LOAD_REQUIRED(cnb_is_compression_supported, U32ToBoolFn, "cna_cnb_is_compression_supported");
+  LOAD_REQUIRED(cnb_get_compression_name_size, U32SizeOutFn, "cna_cnb_get_compression_name_size");
+  LOAD_REQUIRED(cnb_copy_compression_name, U32CopyTextFn, "cna_cnb_copy_compression_name");
+  LOAD_REQUIRED(cnb_get_asset_type_name_size, U32SizeOutFn, "cna_cnb_get_asset_type_name_size");
+  LOAD_REQUIRED(cnb_copy_asset_type_name, U32CopyTextFn, "cna_cnb_copy_asset_type_name");
+  LOAD_REQUIRED(cnb_asset_type_id_from_name, CnbStringViewToU32Fn, "cna_cnb_asset_type_id_from_name");
+  LOAD_REQUIRED(cnb_is_custom_asset_type_id, U32ToBoolFn, "cna_cnb_is_custom_asset_type_id");
+  LOAD_REQUIRED(cnb_make_chunk_id, CnbMakeChunkIdFn, "cna_cnb_make_chunk_id");
+  LOAD_REQUIRED(cnb_get_chunk_id_string_size, U32SizeOutFn, "cna_cnb_get_chunk_id_string_size");
+  LOAD_REQUIRED(cnb_copy_chunk_id_string, U32CopyTextFn, "cna_cnb_copy_chunk_id_string");
+  LOAD_REQUIRED(cnb_is_well_formed_chunk_id, U32ToBoolFn, "cna_cnb_is_well_formed_chunk_id");
+  LOAD_REQUIRED(cnb_get_texture_format_name_size, U32SizeOutFn, "cna_cnb_get_texture_format_name_size");
+  LOAD_REQUIRED(cnb_copy_texture_format_name, U32CopyTextFn, "cna_cnb_copy_texture_format_name");
+  LOAD_REQUIRED(cnb_is_block_compressed_texture_format, U32ToBoolFn, "cna_cnb_is_block_compressed_texture_format");
+  LOAD_REQUIRED(cnb_get_texture_format_unit_bytes, U32ToU32Fn, "cna_cnb_get_texture_format_unit_bytes");
+  LOAD_REQUIRED(cnb_get_texture_level_byte_size, CnbLevelByteSizeFn, "cna_cnb_get_texture_level_byte_size");
+  LOAD_REQUIRED(cnb_texture_format_to_surface_format, U32ToU32Fn, "cna_cnb_texture_format_to_surface_format");
+  LOAD_REQUIRED(cnb_document_parse, CnbDocumentParseFn, "cna_cnb_document_parse");
+  LOAD_REQUIRED(cnb_document_destroy, CnbDocumentDestroyFn, "cna_cnb_document_destroy");
+  LOAD_REQUIRED(cnb_document_get_origin_size, HandleU64OutFn, "cna_cnb_document_get_origin_size");
+  LOAD_REQUIRED(cnb_document_copy_origin, HandleCopyStringFn, "cna_cnb_document_copy_origin");
+  LOAD_REQUIRED(cnb_document_get_container_major, CnbDocumentU16OutFn, "cna_cnb_document_get_container_major");
+  LOAD_REQUIRED(cnb_document_get_container_minor, CnbDocumentU16OutFn, "cna_cnb_document_get_container_minor");
+  LOAD_REQUIRED(cnb_document_get_asset_type_id, GameU32OutFn, "cna_cnb_document_get_asset_type_id");
+  LOAD_REQUIRED(cnb_document_get_asset_schema_version, GameU32OutFn, "cna_cnb_document_get_asset_schema_version");
+  LOAD_REQUIRED(cnb_document_get_chunk_count, HandleU64OutFn, "cna_cnb_document_get_chunk_count");
+  LOAD_REQUIRED(cnb_document_get_chunk, CnbDocumentChunkFn, "cna_cnb_document_get_chunk");
+  LOAD_REQUIRED(cnb_document_copy_chunk_data, CnbDocumentCopyChunkFn, "cna_cnb_document_copy_chunk_data");
+  LOAD_REQUIRED(cnb_document_find_all, CnbDocumentFindAllFn, "cna_cnb_document_find_all");
+  LOAD_REQUIRED(cnb_document_require_mandatory, CnbDocumentMandatoryFn, "cna_cnb_document_require_mandatory_chunks_understood");
+  LOAD_REQUIRED(cnb_document_get_metadata, CnbDocumentMetadataFn, "cna_cnb_document_get_metadata");
+  LOAD_REQUIRED(cnb_document_get_metadata_asset_type_name_size, HandleU64OutFn, "cna_cnb_document_get_metadata_asset_type_name_size");
+  LOAD_REQUIRED(cnb_document_copy_metadata_asset_type_name, HandleCopyStringFn, "cna_cnb_document_copy_metadata_asset_type_name");
+  LOAD_REQUIRED(cnb_document_get_metadata_content_name_size, HandleU64OutFn, "cna_cnb_document_get_metadata_content_name_size");
+  LOAD_REQUIRED(cnb_document_copy_metadata_content_name, HandleCopyStringFn, "cna_cnb_document_copy_metadata_content_name");
+  LOAD_REQUIRED(cnb_document_get_external_reference_count, HandleU64OutFn, "cna_cnb_document_get_external_reference_count");
+  LOAD_REQUIRED(cnb_document_get_external_reference, CnbDocumentExternalFn, "cna_cnb_document_get_external_reference");
+  LOAD_REQUIRED(cnb_document_get_external_reference_name_size, CnbDocumentIndexSizeFn, "cna_cnb_document_get_external_reference_name_size");
+  LOAD_REQUIRED(cnb_document_copy_external_reference_name, CnbDocumentIndexCopyTextFn, "cna_cnb_document_copy_external_reference_name");
+  LOAD_REQUIRED(cnb_decode_texture2d, CnbDecodeTextureFn, "cna_cnb_decode_texture2d");
+  LOAD_REQUIRED(cnb_texture_data_destroy, CnbTextureDataDestroyFn, "cna_cnb_texture_data_destroy");
+  LOAD_REQUIRED(cnb_texture_data_get_info, CnbTextureInfoFn, "cna_cnb_texture_data_get_info");
+  LOAD_REQUIRED(cnb_texture_data_get_level_dimensions, CnbTextureLevelDimensionsFn, "cna_cnb_texture_data_get_level_dimensions");
+  LOAD_REQUIRED(cnb_texture_data_get_representation_format, CnbTextureRepresentationFormatFn, "cna_cnb_texture_data_get_representation_format");
+  LOAD_REQUIRED(cnb_texture_data_get_level_count, CnbTextureLevelCountFn, "cna_cnb_texture_data_get_level_count");
+  LOAD_REQUIRED(cnb_texture_data_copy_level, CnbTextureCopyLevelFn, "cna_cnb_texture_data_copy_level");
+  LOAD_REQUIRED(cnb_texture_data_create, CnbTextureCreateFn, "cna_cnb_texture_data_create");
+  LOAD_REQUIRED(cnb_texture_data_create_rgba8, CnbTextureCreateRgba8Fn, "cna_cnb_texture_data_create_rgba8");
+  LOAD_REQUIRED(cnb_texture_data_add_representation, CnbTextureAddRepresentationFn, "cna_cnb_texture_data_add_representation");
+  LOAD_REQUIRED(cnb_texture_data_set_level, CnbTextureSetLevelFn, "cna_cnb_texture_data_set_level");
+  LOAD_REQUIRED(cnb_encode_texture2d, CnbEncodeTextureFn, "cna_cnb_encode_texture2d");
+  LOAD_REQUIRED(cnb_decode_sprite_font, CnbDecodeSpriteFontFn, "cna_cnb_decode_sprite_font");
+  LOAD_REQUIRED(cnb_sprite_font_data_create, CnbSpriteFontCreateFn, "cna_cnb_sprite_font_data_create");
+  LOAD_REQUIRED(cnb_sprite_font_data_destroy, CnbSpriteFontDestroyFn, "cna_cnb_sprite_font_data_destroy");
+  LOAD_REQUIRED(cnb_sprite_font_data_get_info, CnbSpriteFontInfoFn, "cna_cnb_sprite_font_data_get_info");
+  LOAD_REQUIRED(cnb_sprite_font_data_set_info, CnbSpriteFontSetInfoFn, "cna_cnb_sprite_font_data_set_info");
+  LOAD_REQUIRED(cnb_sprite_font_data_get_glyph, CnbSpriteFontGetGlyphFn, "cna_cnb_sprite_font_data_get_glyph");
+  LOAD_REQUIRED(cnb_sprite_font_data_add_glyph, CnbSpriteFontAddGlyphFn, "cna_cnb_sprite_font_data_add_glyph");
+  LOAD_REQUIRED(cnb_sprite_font_data_set_atlas, CnbSpriteFontSetAtlasFn, "cna_cnb_sprite_font_data_set_atlas");
+  LOAD_REQUIRED(cnb_sprite_font_data_copy_atlas, CnbSpriteFontCopyAtlasFn, "cna_cnb_sprite_font_data_copy_atlas");
+  LOAD_REQUIRED(cnb_encode_sprite_font, CnbEncodeSpriteFontFn, "cna_cnb_encode_sprite_font");
 
   napi_value undefined;
   NAPI_OR_RETURN(env, napi_get_undefined(env, &undefined), "load result");
@@ -6834,6 +7009,1035 @@ static napi_value get_render_pipeline_statistics(napi_env env, napi_callback_inf
   return output;
 }
 
+/* --- CNB: the container, its texture schema and its sprite-font schema ---------------------- */
+/*
+ * CNB is CNA's own compiled content format, beside `.xnb`, and none of it has an XNA counterpart.
+ * The family is unusual for this ABI in that most of it is pure functions over caller-owned bytes;
+ * only the document and the two decoded descriptions own anything, and each of those is an ordinary
+ * owned handle with one `_destroy`.
+ */
+
+static napi_value cnb_u32_text(
+  napi_env env, napi_callback_info info,
+  U32SizeOutFn size_route, U32CopyTextFn copy_route,
+  const char* size_name, const char* copy_name
+) {
+  napi_value args[1];
+  uint32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &value) != napi_ok) {
+    return throw_message(env, "expected an unsigned 32-bit identity");
+  }
+  uint64_t length = 0;
+  CNA_Result result = size_route(value, &length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, size_name, result);
+  if (length > SIZE_MAX - 1) return throw_message(env, "CNB name exceeds the Node address space");
+  char* text = (char*) malloc((size_t) length + 1);
+  if (!text) return throw_message(env, "CNB name allocation failed");
+  uint64_t copied = 0;
+  result = copy_route(value, text, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(text);
+    return throw_result(env, copy_name, result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  text[length] = '\0';
+  napi_value output;
+  const napi_status status = napi_create_string_utf8(env, text, (size_t) length, &output);
+  free(text);
+  if (status != napi_ok) return throw_napi(env, copy_name);
+  return output;
+}
+
+static napi_value cnb_handle_text(
+  napi_env env, CNA_Handle handle,
+  HandleU64OutFn size_route, HandleCopyStringFn copy_route,
+  const char* size_name, const char* copy_name
+) {
+  uint64_t length = 0;
+  CNA_Result result = size_route(handle, &length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, size_name, result);
+  if (length > SIZE_MAX - 1) return throw_message(env, "CNB text exceeds the Node address space");
+  char* text = (char*) malloc((size_t) length + 1);
+  if (!text) return throw_message(env, "CNB text allocation failed");
+  uint64_t copied = 0;
+  result = copy_route(handle, text, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(text);
+    return throw_result(env, copy_name, result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  text[length] = '\0';
+  napi_value output;
+  const napi_status status = napi_create_string_utf8(env, text, (size_t) length, &output);
+  free(text);
+  if (status != napi_ok) return throw_napi(env, copy_name);
+  return output;
+}
+
+static int set_double_property(napi_env env, napi_value object, const char* name, double value) {
+  napi_value entry;
+  return napi_create_double(env, value, &entry) == napi_ok &&
+    napi_set_named_property(env, object, name, entry) == napi_ok;
+}
+
+static int set_i32_property(napi_env env, napi_value object, const char* name, int32_t value) {
+  napi_value entry;
+  return napi_create_int32(env, value, &entry) == napi_ok &&
+    napi_set_named_property(env, object, name, entry) == napi_ok;
+}
+
+static int set_rectangle_property(
+  napi_env env, napi_value object, const char* name, const CNA_Rectangle* rectangle
+) {
+  napi_value entry;
+  if (napi_create_object(env, &entry) != napi_ok) return 0;
+  if (!set_i32_property(env, entry, "X", rectangle->x) ||
+      !set_i32_property(env, entry, "Y", rectangle->y) ||
+      !set_i32_property(env, entry, "Width", rectangle->width) ||
+      !set_i32_property(env, entry, "Height", rectangle->height)) {
+    return 0;
+  }
+  return napi_set_named_property(env, object, name, entry) == napi_ok;
+}
+
+static napi_value cnb_has_magic(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  const uint8_t* bytes = NULL;
+  size_t length = 0;
+  CNA_Bool present = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_byte_view(env, args[0], &bytes, &length)) return NULL;
+  const CNA_Result result = g_api.cnb_has_magic(bytes, (uint64_t) length, &present);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_has_magic", result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, present != CNA_FALSE, &output), "CNB magic");
+  return output;
+}
+
+static napi_value cnb_format_magic(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  uint8_t magic[16];
+  uint64_t written = 0;
+  const CNA_Result result = g_api.cnb_copy_format_magic(magic, sizeof(magic), &written);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_copy_format_magic", result);
+  return copy_bytes(env, magic, (size_t) written, "CNB magic copy");
+}
+
+static napi_value cnb_crc32c(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  const uint8_t* bytes = NULL;
+  size_t length = 0;
+  uint32_t checksum = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_byte_view(env, args[0], &bytes, &length)) return NULL;
+  const CNA_Result result = g_api.cnb_crc32c(bytes, (uint64_t) length, &checksum);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_crc32c", result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, checksum, &output), "CNB checksum");
+  return output;
+}
+
+static napi_value cnb_u32_bool(
+  napi_env env, napi_callback_info info, U32ToBoolFn route, const char* name
+) {
+  napi_value args[1], output;
+  uint32_t value = 0;
+  CNA_Bool answer = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &value) != napi_ok) {
+    return throw_message(env, "expected an unsigned 32-bit identity");
+  }
+  const CNA_Result result = route(value, &answer);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, answer != CNA_FALSE, &output), name);
+  return output;
+}
+
+static napi_value cnb_is_compression_supported(napi_env env, napi_callback_info info) {
+  return cnb_u32_bool(env, info, g_api.cnb_is_compression_supported, "cna_cnb_is_compression_supported");
+}
+
+static napi_value cnb_is_custom_asset_type_id(napi_env env, napi_callback_info info) {
+  return cnb_u32_bool(env, info, g_api.cnb_is_custom_asset_type_id, "cna_cnb_is_custom_asset_type_id");
+}
+
+static napi_value cnb_is_well_formed_chunk_id(napi_env env, napi_callback_info info) {
+  return cnb_u32_bool(env, info, g_api.cnb_is_well_formed_chunk_id, "cna_cnb_is_well_formed_chunk_id");
+}
+
+static napi_value cnb_is_block_compressed_texture_format(napi_env env, napi_callback_info info) {
+  return cnb_u32_bool(
+    env, info, g_api.cnb_is_block_compressed_texture_format,
+    "cna_cnb_is_block_compressed_texture_format");
+}
+
+static napi_value cnb_compression_name(napi_env env, napi_callback_info info) {
+  return cnb_u32_text(
+    env, info, g_api.cnb_get_compression_name_size, g_api.cnb_copy_compression_name,
+    "cna_cnb_get_compression_name_size", "cna_cnb_copy_compression_name");
+}
+
+static napi_value cnb_asset_type_name(napi_env env, napi_callback_info info) {
+  return cnb_u32_text(
+    env, info, g_api.cnb_get_asset_type_name_size, g_api.cnb_copy_asset_type_name,
+    "cna_cnb_get_asset_type_name_size", "cna_cnb_copy_asset_type_name");
+}
+
+static napi_value cnb_chunk_id_string(napi_env env, napi_callback_info info) {
+  return cnb_u32_text(
+    env, info, g_api.cnb_get_chunk_id_string_size, g_api.cnb_copy_chunk_id_string,
+    "cna_cnb_get_chunk_id_string_size", "cna_cnb_copy_chunk_id_string");
+}
+
+static napi_value cnb_texture_format_name(napi_env env, napi_callback_info info) {
+  return cnb_u32_text(
+    env, info, g_api.cnb_get_texture_format_name_size, g_api.cnb_copy_texture_format_name,
+    "cna_cnb_get_texture_format_name_size", "cna_cnb_copy_texture_format_name");
+}
+
+static napi_value cnb_asset_type_id_from_name(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  char* name = NULL;
+  size_t length = 0;
+  uint32_t id = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_utf8(env, args[0], &name, &length)) return NULL;
+  const CNA_StringView view = {name, length};
+  const CNA_Result result = g_api.cnb_asset_type_id_from_name(view, &id);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_asset_type_id_from_name", result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, id, &output), "CNB asset type identity");
+  return output;
+}
+
+static napi_value cnb_make_chunk_id(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  uint32_t bytes[4] = {0, 0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 4, args)) return NULL;
+  for (size_t index = 0; index < 4; index += 1) {
+    if (napi_get_value_uint32(env, args[index], &bytes[index]) != napi_ok || bytes[index] > 0xFF) {
+      return throw_message(env, "a CNB chunk identifier is four bytes");
+    }
+  }
+  CNA_CnbChunkId id = 0;
+  const CNA_Result result = g_api.cnb_make_chunk_id(
+    (uint8_t) bytes[0], (uint8_t) bytes[1], (uint8_t) bytes[2], (uint8_t) bytes[3], &id);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_make_chunk_id", result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, id, &output), "CNB chunk identity");
+  return output;
+}
+
+static napi_value cnb_texture_format_unit_bytes(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  uint32_t format = 0, unit = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &format) != napi_ok) {
+    return throw_message(env, "expected a CNB texture format");
+  }
+  const CNA_Result result = g_api.cnb_get_texture_format_unit_bytes(format, &unit);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_get_texture_format_unit_bytes", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_uint32(env, unit, &output), "CNB texture unit size");
+  return output;
+}
+
+static napi_value cnb_texture_format_to_surface_format(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  uint32_t format = 0, surface = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &format) != napi_ok) {
+    return throw_message(env, "expected a CNB texture format");
+  }
+  const CNA_Result result = g_api.cnb_texture_format_to_surface_format(format, &surface);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_texture_format_to_surface_format", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_uint32(env, surface, &output), "CNB surface format");
+  return output;
+}
+
+static napi_value cnb_texture_level_byte_size(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  uint32_t format = 0, width = 0, height = 0, depth = 0;
+  uint64_t size = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      napi_get_value_uint32(env, args[0], &format) != napi_ok ||
+      napi_get_value_uint32(env, args[1], &width) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &height) != napi_ok ||
+      napi_get_value_uint32(env, args[3], &depth) != napi_ok) {
+    return throw_message(env, "expected a CNB texture format and three dimensions");
+  }
+  const CNA_Result result = g_api.cnb_get_texture_level_byte_size(format, width, height, depth, &size);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_get_texture_level_byte_size", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) size, &output), "CNB level size");
+  return output;
+}
+
+static napi_value cnb_document_parse(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  const uint8_t* bytes = NULL;
+  size_t length = 0;
+  char* origin = NULL;
+  size_t origin_length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_byte_view(env, args[0], &bytes, &length) ||
+      !read_utf8(env, args[1], &origin, &origin_length)) return NULL;
+  const CNA_StringView view = {origin, origin_length};
+  CNA_CnbDocumentHandle document = 0;
+  /* Null limits asks for CNA's defaults, which is what a consumer with no reason to narrow them
+     wants; a narrowed set would be a separate, deliberate API rather than a silent default. */
+  const CNA_Result result = g_api.cnb_document_parse(bytes, (uint64_t) length, view, NULL, &document);
+  free(origin);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_document_parse", result);
+  return make_handle(env, document);
+}
+
+static napi_value cnb_document_destroy(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle document = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &document)) return NULL;
+  const CNA_Result result = g_api.cnb_document_destroy(document);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_document_destroy", result);
+  return undefined_result(env, "CNB document destruction");
+}
+
+static napi_value cnb_document_get_info(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle document = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &document)) return NULL;
+  uint16_t major = 0, minor = 0;
+  uint32_t asset_type = 0, schema = 0;
+  uint64_t chunks = 0, externals = 0;
+  CNA_CnbMetadata metadata;
+  memset(&metadata, 0, sizeof(metadata));
+  metadata.struct_size = sizeof(metadata);
+  metadata.struct_version = CNA_CNB_METADATA_STRUCT_VERSION;
+  CNA_Result result = g_api.cnb_document_get_container_major(document, &major);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_document_get_container_major", result);
+  result = g_api.cnb_document_get_container_minor(document, &minor);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_document_get_container_minor", result);
+  result = g_api.cnb_document_get_asset_type_id(document, &asset_type);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_document_get_asset_type_id", result);
+  result = g_api.cnb_document_get_asset_schema_version(document, &schema);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_document_get_asset_schema_version", result);
+  result = g_api.cnb_document_get_chunk_count(document, &chunks);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_document_get_chunk_count", result);
+  result = g_api.cnb_document_get_external_reference_count(document, &externals);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_document_get_external_reference_count", result);
+  }
+  result = g_api.cnb_document_get_metadata(document, &metadata);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_document_get_metadata", result);
+
+  napi_value origin = cnb_handle_text(
+    env, document, g_api.cnb_document_get_origin_size, g_api.cnb_document_copy_origin,
+    "cna_cnb_document_get_origin_size", "cna_cnb_document_copy_origin");
+  if (!origin) return NULL;
+  napi_value asset_type_name = cnb_handle_text(
+    env, document,
+    g_api.cnb_document_get_metadata_asset_type_name_size,
+    g_api.cnb_document_copy_metadata_asset_type_name,
+    "cna_cnb_document_get_metadata_asset_type_name_size",
+    "cna_cnb_document_copy_metadata_asset_type_name");
+  if (!asset_type_name) return NULL;
+  napi_value content_name = cnb_handle_text(
+    env, document,
+    g_api.cnb_document_get_metadata_content_name_size,
+    g_api.cnb_document_copy_metadata_content_name,
+    "cna_cnb_document_get_metadata_content_name_size",
+    "cna_cnb_document_copy_metadata_content_name");
+  if (!content_name) return NULL;
+
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB document info");
+  if (!set_u32_property(env, output, "ContainerMajor", major) ||
+      !set_u32_property(env, output, "ContainerMinor", minor) ||
+      !set_u32_property(env, output, "AssetTypeId", asset_type) ||
+      !set_u32_property(env, output, "AssetSchemaVersion", schema) ||
+      !set_double_property(env, output, "ChunkCount", (double) chunks) ||
+      !set_double_property(env, output, "ExternalReferenceCount", (double) externals) ||
+      !set_bool_property(env, output, "MetadataPresent", metadata.present) ||
+      !set_u32_property(env, output, "MetadataFlags", metadata.flags) ||
+      napi_set_named_property(env, output, "Origin", origin) != napi_ok ||
+      napi_set_named_property(env, output, "MetadataAssetTypeName", asset_type_name) != napi_ok ||
+      napi_set_named_property(env, output, "MetadataContentName", content_name) != napi_ok) {
+    return throw_napi(env, "CNB document info");
+  }
+  return output;
+}
+
+static napi_value cnb_document_get_chunk(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle document = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &document) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB document and a chunk index");
+  }
+  CNA_CnbChunkEntry entry;
+  memset(&entry, 0, sizeof(entry));
+  entry.struct_size = sizeof(entry);
+  entry.struct_version = CNA_CNB_CHUNK_ENTRY_STRUCT_VERSION;
+  const CNA_Result result = g_api.cnb_document_get_chunk(document, index, &entry);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_document_get_chunk", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB chunk entry");
+  if (!set_double_property(env, output, "Offset", (double) entry.offset) ||
+      !set_double_property(env, output, "StoredByteLength", (double) entry.stored_size) ||
+      !set_double_property(env, output, "ByteLength", (double) entry.uncompressed_size) ||
+      !set_u32_property(env, output, "Type", entry.type) ||
+      !set_u32_property(env, output, "Flags", entry.flags) ||
+      !set_u32_property(env, output, "Checksum", entry.checksum) ||
+      !set_u32_property(env, output, "Compression", entry.compression) ||
+      !set_u32_property(env, output, "Alignment", entry.alignment)) {
+    return throw_napi(env, "CNB chunk entry");
+  }
+  return output;
+}
+
+static napi_value cnb_document_copy_chunk_data(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle document = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &document) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB document and a chunk index");
+  }
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_document_copy_chunk_data(document, index, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_cnb_document_copy_chunk_data", result);
+  }
+  if (required > SIZE_MAX) return throw_message(env, "CNB chunk exceeds the Node address space");
+  uint8_t* bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) return throw_message(env, "CNB chunk allocation failed");
+  uint64_t copied = 0;
+  result = g_api.cnb_document_copy_chunk_data(document, index, bytes, required, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != required) {
+    free(bytes);
+    return throw_result(
+      env, "cna_cnb_document_copy_chunk_data",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) copied, "CNB chunk copy");
+  free(bytes);
+  return output;
+}
+
+static napi_value cnb_document_find_all(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle document = 0;
+  uint32_t type = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &document) ||
+      napi_get_value_uint32(env, args[1], &type) != napi_ok) {
+    return throw_message(env, "expected a CNB document and a chunk identity");
+  }
+  uint64_t count = 0;
+  CNA_Result result = g_api.cnb_document_find_all(document, type, NULL, 0, &count);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_cnb_document_find_all", result);
+  }
+  if (count > SIZE_MAX / sizeof(uint64_t)) return throw_message(env, "CNB chunk list is too large");
+  uint64_t* indices = count == 0 ? NULL : (uint64_t*) malloc((size_t) count * sizeof(uint64_t));
+  if (count != 0 && !indices) return throw_message(env, "CNB chunk list allocation failed");
+  uint64_t written = 0;
+  result = g_api.cnb_document_find_all(document, type, indices, count, &written);
+  if (result != CNA_RESULT_SUCCESS || written != count) {
+    free(indices);
+    return throw_result(
+      env, "cna_cnb_document_find_all", result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  if (napi_create_array_with_length(env, (size_t) count, &output) != napi_ok) {
+    free(indices);
+    return throw_napi(env, "CNB chunk list");
+  }
+  for (uint64_t index = 0; index < count; index += 1) {
+    napi_value entry;
+    if (napi_create_double(env, (double) indices[index], &entry) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      free(indices);
+      return throw_napi(env, "CNB chunk list");
+    }
+  }
+  free(indices);
+  return output;
+}
+
+static napi_value cnb_document_require_mandatory_chunks_understood(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2];
+  CNA_Handle document = 0;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &document) ||
+      napi_get_array_length(env, args[1], &count) != napi_ok) {
+    return throw_message(env, "expected a CNB document and an array of chunk identities");
+  }
+  CNA_CnbChunkId* known = count == 0 ? NULL : (CNA_CnbChunkId*) malloc(count * sizeof(CNA_CnbChunkId));
+  if (count != 0 && !known) return throw_message(env, "CNB chunk identity allocation failed");
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value entry;
+    uint32_t value = 0;
+    if (napi_get_element(env, args[1], index, &entry) != napi_ok ||
+        napi_get_value_uint32(env, entry, &value) != napi_ok) {
+      free(known);
+      return throw_message(env, "a CNB chunk identity is an unsigned 32-bit value");
+    }
+    known[index] = value;
+  }
+  const CNA_Result result = g_api.cnb_document_require_mandatory(document, known, count);
+  free(known);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_document_require_mandatory_chunks_understood", result);
+  }
+  return undefined_result(env, "CNB mandatory chunk check");
+}
+
+static napi_value cnb_document_get_external_reference(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle document = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &document) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB document and an external-reference index");
+  }
+  CNA_CnbExternalReference reference;
+  memset(&reference, 0, sizeof(reference));
+  reference.struct_size = sizeof(reference);
+  reference.struct_version = CNA_CNB_EXTERNAL_REFERENCE_STRUCT_VERSION;
+  static const char kDiagnostic[] = "cna-ts external reference";
+  const CNA_StringView what = {kDiagnostic, sizeof(kDiagnostic) - 1};
+  CNA_Result result = g_api.cnb_document_get_external_reference(document, index, what, &reference);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_document_get_external_reference", result);
+  }
+  uint64_t length = 0;
+  result = g_api.cnb_document_get_external_reference_name_size(document, index, &length);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_document_get_external_reference_name_size", result);
+  }
+  if (length > SIZE_MAX - 1) return throw_message(env, "CNB reference name exceeds the address space");
+  char* name = (char*) malloc((size_t) length + 1);
+  if (!name) return throw_message(env, "CNB reference name allocation failed");
+  uint64_t copied = 0;
+  result = g_api.cnb_document_copy_external_reference_name(document, index, name, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(name);
+    return throw_result(
+      env, "cna_cnb_document_copy_external_reference_name",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  name[length] = '\0';
+  napi_value name_value;
+  const napi_status status = napi_create_string_utf8(env, name, (size_t) length, &name_value);
+  free(name);
+  if (status != napi_ok) return throw_napi(env, "CNB reference name");
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB external reference");
+  if (!set_u32_property(env, output, "Flags", reference.flags) ||
+      !set_u32_property(env, output, "ExpectedAssetTypeId", reference.expected_asset_type_id) ||
+      napi_set_named_property(env, output, "Name", name_value) != napi_ok) {
+    return throw_napi(env, "CNB external reference");
+  }
+  return output;
+}
+
+static napi_value cnb_decode_texture2d(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle document = 0;
+  CNA_CnbTextureDataHandle texture = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &document)) return NULL;
+  const CNA_Result result = g_api.cnb_decode_texture2d(document, &texture);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_decode_texture2d", result);
+  return make_handle(env, texture);
+}
+
+static napi_value cnb_texture_data_destroy(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle texture = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &texture)) return NULL;
+  const CNA_Result result = g_api.cnb_texture_data_destroy(texture);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_texture_data_destroy", result);
+  return undefined_result(env, "CNB texture destruction");
+}
+
+static napi_value cnb_texture_data_get_info(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle texture = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &texture)) return NULL;
+  CNA_CnbTextureInfo shape;
+  memset(&shape, 0, sizeof(shape));
+  shape.struct_size = sizeof(shape);
+  shape.struct_version = CNA_CNB_TEXTURE_INFO_STRUCT_VERSION;
+  const CNA_Result result = g_api.cnb_texture_data_get_info(texture, &shape);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_texture_data_get_info", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB texture info");
+  if (!set_u32_property(env, output, "Width", shape.width) ||
+      !set_u32_property(env, output, "Height", shape.height) ||
+      !set_u32_property(env, output, "Depth", shape.depth) ||
+      !set_u32_property(env, output, "FaceCount", shape.face_count) ||
+      !set_u32_property(env, output, "MipCount", shape.mip_count) ||
+      !set_u32_property(env, output, "RepresentationCount", shape.representation_count)) {
+    return throw_napi(env, "CNB texture info");
+  }
+  return output;
+}
+
+static napi_value cnb_texture_data_get_level_dimensions(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle texture = 0;
+  uint32_t level = 0, width = 0, height = 0, depth = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &texture) ||
+      napi_get_value_uint32(env, args[1], &level) != napi_ok) {
+    return throw_message(env, "expected a CNB texture and a mip level");
+  }
+  const CNA_Result result =
+    g_api.cnb_texture_data_get_level_dimensions(texture, level, &width, &height, &depth);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_texture_data_get_level_dimensions", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB level dimensions");
+  if (!set_u32_property(env, output, "Width", width) ||
+      !set_u32_property(env, output, "Height", height) ||
+      !set_u32_property(env, output, "Depth", depth)) {
+    return throw_napi(env, "CNB level dimensions");
+  }
+  return output;
+}
+
+static napi_value cnb_texture_data_get_representation_format(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle texture = 0;
+  uint32_t representation = 0, format = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &texture) ||
+      napi_get_value_uint32(env, args[1], &representation) != napi_ok) {
+    return throw_message(env, "expected a CNB texture and a representation index");
+  }
+  const CNA_Result result =
+    g_api.cnb_texture_data_get_representation_format(texture, representation, &format);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_texture_data_get_representation_format", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_uint32(env, format, &output), "CNB representation format");
+  return output;
+}
+
+static napi_value cnb_texture_data_get_level_count(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle texture = 0;
+  uint32_t representation = 0;
+  uint64_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &texture) ||
+      napi_get_value_uint32(env, args[1], &representation) != napi_ok) {
+    return throw_message(env, "expected a CNB texture and a representation index");
+  }
+  const CNA_Result result = g_api.cnb_texture_data_get_level_count(texture, representation, &count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_texture_data_get_level_count", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) count, &output), "CNB level count");
+  return output;
+}
+
+static napi_value cnb_texture_data_copy_level(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle texture = 0;
+  uint32_t representation = 0, level = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &texture) ||
+      napi_get_value_uint32(env, args[1], &representation) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &level) != napi_ok) {
+    return throw_message(env, "expected a CNB texture, a representation and a level");
+  }
+  uint64_t required = 0;
+  CNA_Result result =
+    g_api.cnb_texture_data_copy_level(texture, representation, level, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_cnb_texture_data_copy_level", result);
+  }
+  if (required > SIZE_MAX) return throw_message(env, "CNB level exceeds the Node address space");
+  uint8_t* bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) return throw_message(env, "CNB level allocation failed");
+  uint64_t copied = 0;
+  result = g_api.cnb_texture_data_copy_level(texture, representation, level, bytes, required, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != required) {
+    free(bytes);
+    return throw_result(
+      env, "cna_cnb_texture_data_copy_level",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) copied, "CNB level copy");
+  free(bytes);
+  return output;
+}
+
+static napi_value cnb_texture_data_create(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  uint32_t width = 0, height = 0, depth = 0, faces = 0, mips = 0;
+  CNA_CnbTextureDataHandle texture = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      napi_get_value_uint32(env, args[0], &width) != napi_ok ||
+      napi_get_value_uint32(env, args[1], &height) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &depth) != napi_ok ||
+      napi_get_value_uint32(env, args[3], &faces) != napi_ok ||
+      napi_get_value_uint32(env, args[4], &mips) != napi_ok) {
+    return throw_message(env, "expected five CNB texture dimensions");
+  }
+  const CNA_Result result =
+    g_api.cnb_texture_data_create(width, height, depth, faces, mips, &texture);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_texture_data_create", result);
+  return make_handle(env, texture);
+}
+
+static napi_value cnb_texture_data_create_rgba8(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  uint32_t width = 0, height = 0;
+  const uint8_t* rgba = NULL;
+  size_t length = 0;
+  CNA_CnbTextureDataHandle texture = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      napi_get_value_uint32(env, args[0], &width) != napi_ok ||
+      napi_get_value_uint32(env, args[1], &height) != napi_ok ||
+      !read_byte_view(env, args[2], &rgba, &length)) {
+    return throw_message(env, "expected CNB texture dimensions and RGBA bytes");
+  }
+  const CNA_Result result =
+    g_api.cnb_texture_data_create_rgba8(width, height, rgba, (uint64_t) length, &texture);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_texture_data_create_rgba8", result);
+  }
+  return make_handle(env, texture);
+}
+
+static napi_value cnb_texture_data_add_representation(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle texture = 0;
+  uint32_t format = 0;
+  uint64_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &texture) ||
+      napi_get_value_uint32(env, args[1], &format) != napi_ok) {
+    return throw_message(env, "expected a CNB texture and a format");
+  }
+  const CNA_Result result = g_api.cnb_texture_data_add_representation(texture, format, &index);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_texture_data_add_representation", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) index, &output), "CNB representation index");
+  return output;
+}
+
+static napi_value cnb_texture_data_set_level(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle texture = 0;
+  uint32_t representation = 0, level = 0;
+  const uint8_t* bytes = NULL;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &texture) ||
+      napi_get_value_uint32(env, args[1], &representation) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &level) != napi_ok ||
+      !read_byte_view(env, args[3], &bytes, &length)) {
+    return throw_message(env, "expected a CNB texture, indices and level bytes");
+  }
+  const CNA_Result result =
+    g_api.cnb_texture_data_set_level(texture, representation, level, bytes, (uint64_t) length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_texture_data_set_level", result);
+  return undefined_result(env, "CNB level write");
+}
+
+static napi_value cnb_encode_texture2d(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle texture = 0;
+  char* name = NULL;
+  size_t name_length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &texture) ||
+      !read_utf8(env, args[1], &name, &name_length)) return NULL;
+  const CNA_StringView view = {name, name_length};
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_encode_texture2d(texture, view, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    free(name);
+    return throw_result(env, "cna_cnb_encode_texture2d", result);
+  }
+  if (required > SIZE_MAX) {
+    free(name);
+    return throw_message(env, "CNB image exceeds the Node address space");
+  }
+  uint8_t* bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) {
+    free(name);
+    return throw_message(env, "CNB image allocation failed");
+  }
+  uint64_t written = 0;
+  result = g_api.cnb_encode_texture2d(texture, view, bytes, required, &written);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS || written != required) {
+    free(bytes);
+    return throw_result(
+      env, "cna_cnb_encode_texture2d", result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) written, "CNB image copy");
+  free(bytes);
+  return output;
+}
+
+static napi_value cnb_decode_sprite_font(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle document = 0;
+  CNA_CnbSpriteFontDataHandle font = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &document)) return NULL;
+  const CNA_Result result = g_api.cnb_decode_sprite_font(document, &font);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_decode_sprite_font", result);
+  return make_handle(env, font);
+}
+
+static napi_value cnb_sprite_font_data_create(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  CNA_CnbSpriteFontDataHandle font = 0;
+  const CNA_Result result = g_api.cnb_sprite_font_data_create(&font);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_sprite_font_data_create", result);
+  return make_handle(env, font);
+}
+
+static napi_value cnb_sprite_font_data_destroy(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle font = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &font)) return NULL;
+  const CNA_Result result = g_api.cnb_sprite_font_data_destroy(font);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_sprite_font_data_destroy", result);
+  }
+  return undefined_result(env, "CNB sprite font destruction");
+}
+
+static napi_value cnb_sprite_font_data_get_info(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle font = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &font)) return NULL;
+  CNA_CnbSpriteFontInfo shape;
+  memset(&shape, 0, sizeof(shape));
+  shape.struct_size = sizeof(shape);
+  shape.struct_version = CNA_CNB_SPRITE_FONT_INFO_STRUCT_VERSION;
+  const CNA_Result result = g_api.cnb_sprite_font_data_get_info(font, &shape);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_sprite_font_data_get_info", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB sprite font info");
+  if (!set_double_property(env, output, "GlyphCount", (double) shape.glyph_count) ||
+      !set_i32_property(env, output, "LineSpacing", shape.line_spacing) ||
+      !set_double_property(env, output, "Spacing", (double) shape.spacing) ||
+      !set_u32_property(env, output, "DefaultCharacter", shape.default_character) ||
+      !set_bool_property(env, output, "HasDefaultCharacter", shape.has_default_character)) {
+    return throw_napi(env, "CNB sprite font info");
+  }
+  return output;
+}
+
+static napi_value cnb_sprite_font_data_set_info(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle font = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &font)) return NULL;
+  CNA_CnbSpriteFontInfo shape;
+  memset(&shape, 0, sizeof(shape));
+  shape.struct_size = sizeof(shape);
+  shape.struct_version = CNA_CNB_SPRITE_FONT_INFO_STRUCT_VERSION;
+  int32_t line_spacing = 0;
+  double spacing = 0;
+  uint32_t default_character = 0;
+  bool has_default = false;
+  napi_value entry;
+  if (napi_get_named_property(env, args[1], "LineSpacing", &entry) != napi_ok ||
+      napi_get_value_int32(env, entry, &line_spacing) != napi_ok ||
+      napi_get_named_property(env, args[1], "Spacing", &entry) != napi_ok ||
+      napi_get_value_double(env, entry, &spacing) != napi_ok ||
+      napi_get_named_property(env, args[1], "DefaultCharacter", &entry) != napi_ok ||
+      napi_get_value_uint32(env, entry, &default_character) != napi_ok ||
+      napi_get_named_property(env, args[1], "HasDefaultCharacter", &entry) != napi_ok ||
+      napi_get_value_bool(env, entry, &has_default) != napi_ok) {
+    return throw_message(env, "expected CNB sprite font metrics");
+  }
+  shape.line_spacing = line_spacing;
+  shape.spacing = (float) spacing;
+  shape.default_character = (CNA_Char16) default_character;
+  shape.has_default_character = has_default ? CNA_TRUE : CNA_FALSE;
+  const CNA_Result result = g_api.cnb_sprite_font_data_set_info(font, &shape);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_sprite_font_data_set_info", result);
+  }
+  return undefined_result(env, "CNB sprite font metrics");
+}
+
+static int read_glyph(napi_env env, napi_value value, CNA_SpriteFontGlyph* glyph) {
+  memset(glyph, 0, sizeof(*glyph));
+  glyph->struct_size = sizeof(*glyph);
+  glyph->struct_version = 1;
+  napi_value bounds, cropping, entry;
+  uint32_t character = 0;
+  double kerning[3] = {0, 0, 0};
+  static const char* const fields[] = {"X", "Y", "Width", "Height"};
+  int32_t* const bounds_fields[] = {
+    &glyph->glyph_bounds.x, &glyph->glyph_bounds.y,
+    &glyph->glyph_bounds.width, &glyph->glyph_bounds.height};
+  int32_t* const cropping_fields[] = {
+    &glyph->cropping.x, &glyph->cropping.y, &glyph->cropping.width, &glyph->cropping.height};
+  if (napi_get_named_property(env, value, "Bounds", &bounds) != napi_ok ||
+      napi_get_named_property(env, value, "Cropping", &cropping) != napi_ok) {
+    throw_message(env, "a CNB glyph needs Bounds and Cropping rectangles");
+    return 0;
+  }
+  for (size_t index = 0; index < 4; index += 1) {
+    if (napi_get_named_property(env, bounds, fields[index], &entry) != napi_ok ||
+        napi_get_value_int32(env, entry, bounds_fields[index]) != napi_ok ||
+        napi_get_named_property(env, cropping, fields[index], &entry) != napi_ok ||
+        napi_get_value_int32(env, entry, cropping_fields[index]) != napi_ok) {
+      throw_message(env, "a CNB glyph rectangle needs X, Y, Width and Height");
+      return 0;
+    }
+  }
+  static const char* const kerning_fields[] = {"KerningLeft", "KerningWidth", "KerningRight"};
+  for (size_t index = 0; index < 3; index += 1) {
+    if (napi_get_named_property(env, value, kerning_fields[index], &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &kerning[index]) != napi_ok) {
+      throw_message(env, "a CNB glyph needs three kerning values");
+      return 0;
+    }
+  }
+  if (napi_get_named_property(env, value, "Character", &entry) != napi_ok ||
+      napi_get_value_uint32(env, entry, &character) != napi_ok) {
+    throw_message(env, "a CNB glyph needs a UTF-16 character");
+    return 0;
+  }
+  glyph->character = (CNA_Char16) character;
+  glyph->kerning.x = (float) kerning[0];
+  glyph->kerning.y = (float) kerning[1];
+  glyph->kerning.z = (float) kerning[2];
+  return 1;
+}
+
+static napi_value cnb_sprite_font_data_add_glyph(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle font = 0;
+  CNA_SpriteFontGlyph glyph;
+  uint64_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &font) || !read_glyph(env, args[1], &glyph)) return NULL;
+  const CNA_Result result = g_api.cnb_sprite_font_data_add_glyph(font, &glyph, &index);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_sprite_font_data_add_glyph", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) index, &output), "CNB glyph index");
+  return output;
+}
+
+static napi_value cnb_sprite_font_data_get_glyph(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle font = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &font) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB sprite font and a glyph index");
+  }
+  CNA_SpriteFontGlyph glyph;
+  memset(&glyph, 0, sizeof(glyph));
+  glyph.struct_size = sizeof(glyph);
+  glyph.struct_version = 1;
+  const CNA_Result result = g_api.cnb_sprite_font_data_get_glyph(font, index, &glyph);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_sprite_font_data_get_glyph", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB glyph");
+  if (!set_rectangle_property(env, output, "Bounds", &glyph.glyph_bounds) ||
+      !set_rectangle_property(env, output, "Cropping", &glyph.cropping) ||
+      !set_u32_property(env, output, "Character", glyph.character) ||
+      !set_double_property(env, output, "KerningLeft", (double) glyph.kerning.x) ||
+      !set_double_property(env, output, "KerningWidth", (double) glyph.kerning.y) ||
+      !set_double_property(env, output, "KerningRight", (double) glyph.kerning.z)) {
+    return throw_napi(env, "CNB glyph");
+  }
+  return output;
+}
+
+static napi_value cnb_sprite_font_data_set_atlas(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle font = 0, atlas = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &font) || !read_handle(env, args[1], &atlas)) return NULL;
+  const CNA_Result result = g_api.cnb_sprite_font_data_set_atlas(font, atlas);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_sprite_font_data_set_atlas", result);
+  }
+  return undefined_result(env, "CNB atlas assignment");
+}
+
+static napi_value cnb_sprite_font_data_copy_atlas(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle font = 0;
+  CNA_CnbTextureDataHandle atlas = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &font)) return NULL;
+  const CNA_Result result = g_api.cnb_sprite_font_data_copy_atlas(font, &atlas);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_sprite_font_data_copy_atlas", result);
+  }
+  return make_handle(env, atlas);
+}
+
+static napi_value cnb_encode_sprite_font(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle font = 0;
+  char* name = NULL;
+  size_t name_length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &font) ||
+      !read_utf8(env, args[1], &name, &name_length)) return NULL;
+  const CNA_StringView view = {name, name_length};
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_encode_sprite_font(font, view, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    free(name);
+    return throw_result(env, "cna_cnb_encode_sprite_font", result);
+  }
+  if (required > SIZE_MAX) {
+    free(name);
+    return throw_message(env, "CNB image exceeds the Node address space");
+  }
+  uint8_t* bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) {
+    free(name);
+    return throw_message(env, "CNB image allocation failed");
+  }
+  uint64_t written = 0;
+  result = g_api.cnb_encode_sprite_font(font, view, bytes, required, &written);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS || written != required) {
+    free(bytes);
+    return throw_result(
+      env, "cna_cnb_encode_sprite_font", result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) written, "CNB image copy");
+  free(bytes);
+  return output;
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
@@ -7105,6 +8309,52 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "storageFileExists", NULL, storage_file_exists, NULL, NULL, NULL, napi_default, NULL },
     { "deleteStorageFile", NULL, delete_storage_file, NULL, NULL, NULL, napi_default, NULL },
     { "getStorageFileNames", NULL, get_storage_file_names, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbHasMagic", NULL, cnb_has_magic, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbFormatMagic", NULL, cnb_format_magic, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbCrc32c", NULL, cnb_crc32c, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbIsCompressionSupported", NULL, cnb_is_compression_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbCompressionName", NULL, cnb_compression_name, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbAssetTypeName", NULL, cnb_asset_type_name, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbAssetTypeIdFromName", NULL, cnb_asset_type_id_from_name, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbIsCustomAssetTypeId", NULL, cnb_is_custom_asset_type_id, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbMakeChunkId", NULL, cnb_make_chunk_id, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbChunkIdString", NULL, cnb_chunk_id_string, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbIsWellFormedChunkId", NULL, cnb_is_well_formed_chunk_id, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureFormatName", NULL, cnb_texture_format_name, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbIsBlockCompressedTextureFormat", NULL, cnb_is_block_compressed_texture_format, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureFormatUnitBytes", NULL, cnb_texture_format_unit_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureLevelByteSize", NULL, cnb_texture_level_byte_size, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureFormatToSurfaceFormat", NULL, cnb_texture_format_to_surface_format, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDocumentParse", NULL, cnb_document_parse, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDocumentDestroy", NULL, cnb_document_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDocumentGetInfo", NULL, cnb_document_get_info, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDocumentGetChunk", NULL, cnb_document_get_chunk, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDocumentCopyChunkData", NULL, cnb_document_copy_chunk_data, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDocumentFindAll", NULL, cnb_document_find_all, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDocumentRequireMandatoryChunksUnderstood", NULL, cnb_document_require_mandatory_chunks_understood, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDocumentGetExternalReference", NULL, cnb_document_get_external_reference, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeTexture2D", NULL, cnb_decode_texture2d, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureDataDestroy", NULL, cnb_texture_data_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureDataGetInfo", NULL, cnb_texture_data_get_info, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureDataGetLevelDimensions", NULL, cnb_texture_data_get_level_dimensions, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureDataGetRepresentationFormat", NULL, cnb_texture_data_get_representation_format, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureDataGetLevelCount", NULL, cnb_texture_data_get_level_count, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureDataCopyLevel", NULL, cnb_texture_data_copy_level, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureDataCreate", NULL, cnb_texture_data_create, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureDataCreateRgba8", NULL, cnb_texture_data_create_rgba8, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureDataAddRepresentation", NULL, cnb_texture_data_add_representation, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbTextureDataSetLevel", NULL, cnb_texture_data_set_level, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbEncodeTexture2D", NULL, cnb_encode_texture2d, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeSpriteFont", NULL, cnb_decode_sprite_font, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSpriteFontDataCreate", NULL, cnb_sprite_font_data_create, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSpriteFontDataDestroy", NULL, cnb_sprite_font_data_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSpriteFontDataGetInfo", NULL, cnb_sprite_font_data_get_info, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSpriteFontDataSetInfo", NULL, cnb_sprite_font_data_set_info, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSpriteFontDataGetGlyph", NULL, cnb_sprite_font_data_get_glyph, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSpriteFontDataAddGlyph", NULL, cnb_sprite_font_data_add_glyph, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSpriteFontDataSetAtlas", NULL, cnb_sprite_font_data_set_atlas, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSpriteFontDataCopyAtlas", NULL, cnb_sprite_font_data_copy_atlas, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbEncodeSpriteFont", NULL, cnb_encode_sprite_font, NULL, NULL, NULL, napi_default, NULL },
     { "openStorageFile", NULL, open_storage_file, NULL, NULL, NULL, napi_default, NULL },
   };
   if (napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties) != napi_ok) {

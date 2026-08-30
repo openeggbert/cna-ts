@@ -25,6 +25,7 @@ import type {
   BlendStateSnapshot,
   CnaAudioBackend,
   CnaBackend,
+  CnaContentBackend,
   CnaEffectBackend,
   CnaGameCallbacks,
   CnaGameConfiguration,
@@ -37,6 +38,12 @@ import type {
   CnaStorageBackend,
   CnaVideoBackend,
   CnaXactBackend,
+  CnbChunkEntrySnapshot,
+  CnbDocumentSnapshot,
+  CnbExternalReferenceSnapshot,
+  CnbGlyphSnapshot,
+  CnbSpriteFontInfoSnapshot,
+  CnbTextureInfoSnapshot,
   ContentLostResourceKind,
   CueSnapshot,
   DepthStencilStateSnapshot,
@@ -864,6 +871,170 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public getRenderPipelineStatistics(
     _pipeline: NativeHandle,
   ): RenderPipelineStatisticsSnapshot { return this.unsupported("getRenderPipelineStatistics"); }
+}
+
+/** Refusing base for {@link CnaContentBackend}. */
+export abstract class CnaContentBackendBase implements CnaContentBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public cnbHasMagic(_bytes: Uint8Array): boolean { return this.unsupported("cnbHasMagic"); }
+  public cnbFormatMagic(): Uint8Array { return this.unsupported("cnbFormatMagic"); }
+  public cnbCrc32c(_bytes: Uint8Array): number { return this.unsupported("cnbCrc32c"); }
+  public cnbIsCompressionSupported(
+    _codec: number,
+  ): boolean { return this.unsupported("cnbIsCompressionSupported"); }
+  public cnbCompressionName(_codec: number): string { return this.unsupported("cnbCompressionName"); }
+  public cnbAssetTypeName(_assetTypeId: number): string { return this.unsupported("cnbAssetTypeName"); }
+  public cnbAssetTypeIdFromName(_name: string): number { return this.unsupported("cnbAssetTypeIdFromName"); }
+  public cnbIsCustomAssetTypeId(
+    _assetTypeId: number,
+  ): boolean { return this.unsupported("cnbIsCustomAssetTypeId"); }
+  public cnbMakeChunkId(
+    _a: number,
+    _b: number,
+    _c: number,
+    _d: number,
+  ): number { return this.unsupported("cnbMakeChunkId"); }
+  public cnbChunkIdString(_id: number): string { return this.unsupported("cnbChunkIdString"); }
+  public cnbIsWellFormedChunkId(_id: number): boolean { return this.unsupported("cnbIsWellFormedChunkId"); }
+  public cnbTextureFormatName(_format: number): string { return this.unsupported("cnbTextureFormatName"); }
+  public cnbIsBlockCompressedTextureFormat(
+    _format: number,
+  ): boolean { return this.unsupported("cnbIsBlockCompressedTextureFormat"); }
+  public cnbTextureFormatUnitBytes(
+    _format: number,
+  ): number { return this.unsupported("cnbTextureFormatUnitBytes"); }
+  public cnbTextureLevelByteSize(
+    _format: number,
+    _width: number,
+    _height: number,
+    _depth: number,
+  ): number { return this.unsupported("cnbTextureLevelByteSize"); }
+  public cnbTextureFormatToSurfaceFormat(
+    _format: number,
+  ): number { return this.unsupported("cnbTextureFormatToSurfaceFormat"); }
+  public cnbDocumentParse(
+    _bytes: Uint8Array,
+    _origin: string,
+  ): NativeHandle { return this.unsupported("cnbDocumentParse"); }
+  public cnbDocumentDestroy(_document: NativeHandle): void { return this.unsupported("cnbDocumentDestroy"); }
+  public cnbDocumentGetInfo(
+    _document: NativeHandle,
+  ): CnbDocumentSnapshot { return this.unsupported("cnbDocumentGetInfo"); }
+  public cnbDocumentGetChunk(
+    _document: NativeHandle,
+    _index: number,
+  ): CnbChunkEntrySnapshot { return this.unsupported("cnbDocumentGetChunk"); }
+  public cnbDocumentCopyChunkData(
+    _document: NativeHandle,
+    _index: number,
+  ): Uint8Array { return this.unsupported("cnbDocumentCopyChunkData"); }
+  public cnbDocumentFindAll(
+    _document: NativeHandle,
+    _type: number,
+  ): readonly number[] { return this.unsupported("cnbDocumentFindAll"); }
+  public cnbDocumentRequireMandatoryChunksUnderstood(
+    _document: NativeHandle,
+    _known: readonly number[],
+  ): void { return this.unsupported("cnbDocumentRequireMandatoryChunksUnderstood"); }
+  public cnbDocumentGetExternalReference(
+    _document: NativeHandle,
+    _index: number,
+  ): CnbExternalReferenceSnapshot { return this.unsupported("cnbDocumentGetExternalReference"); }
+  public cnbDecodeTexture2D(
+    _document: NativeHandle,
+  ): NativeHandle { return this.unsupported("cnbDecodeTexture2D"); }
+  public cnbTextureDataDestroy(
+    _texture: NativeHandle,
+  ): void { return this.unsupported("cnbTextureDataDestroy"); }
+  public cnbTextureDataGetInfo(
+    _texture: NativeHandle,
+  ): CnbTextureInfoSnapshot { return this.unsupported("cnbTextureDataGetInfo"); }
+  public cnbTextureDataGetLevelDimensions(
+    _texture: NativeHandle,
+    _level: number,
+  ): {
+    readonly Width: number;
+    readonly Height: number;
+    readonly Depth: number;
+} { return this.unsupported("cnbTextureDataGetLevelDimensions"); }
+  public cnbTextureDataGetRepresentationFormat(
+    _texture: NativeHandle,
+    _representation: number,
+  ): number { return this.unsupported("cnbTextureDataGetRepresentationFormat"); }
+  public cnbTextureDataGetLevelCount(
+    _texture: NativeHandle,
+    _representation: number,
+  ): number { return this.unsupported("cnbTextureDataGetLevelCount"); }
+  public cnbTextureDataCopyLevel(
+    _texture: NativeHandle,
+    _representation: number,
+    _level: number,
+  ): Uint8Array { return this.unsupported("cnbTextureDataCopyLevel"); }
+  public cnbTextureDataCreate(
+    _width: number,
+    _height: number,
+    _depth: number,
+    _faceCount: number,
+    _mipCount: number,
+  ): NativeHandle { return this.unsupported("cnbTextureDataCreate"); }
+  public cnbTextureDataCreateRgba8(
+    _width: number,
+    _height: number,
+    _rgba: Uint8Array,
+  ): NativeHandle { return this.unsupported("cnbTextureDataCreateRgba8"); }
+  public cnbTextureDataAddRepresentation(
+    _texture: NativeHandle,
+    _format: number,
+  ): number { return this.unsupported("cnbTextureDataAddRepresentation"); }
+  public cnbTextureDataSetLevel(
+    _texture: NativeHandle,
+    _representation: number,
+    _level: number,
+    _bytes: Uint8Array,
+  ): void { return this.unsupported("cnbTextureDataSetLevel"); }
+  public cnbEncodeTexture2D(
+    _texture: NativeHandle,
+    _contentName: string,
+  ): Uint8Array { return this.unsupported("cnbEncodeTexture2D"); }
+  public cnbDecodeSpriteFont(
+    _document: NativeHandle,
+  ): NativeHandle { return this.unsupported("cnbDecodeSpriteFont"); }
+  public cnbSpriteFontDataCreate(): NativeHandle { return this.unsupported("cnbSpriteFontDataCreate"); }
+  public cnbSpriteFontDataDestroy(
+    _font: NativeHandle,
+  ): void { return this.unsupported("cnbSpriteFontDataDestroy"); }
+  public cnbSpriteFontDataGetInfo(
+    _font: NativeHandle,
+  ): CnbSpriteFontInfoSnapshot { return this.unsupported("cnbSpriteFontDataGetInfo"); }
+  public cnbSpriteFontDataSetInfo(
+    _font: NativeHandle,
+    _info: {
+    readonly LineSpacing: number;
+    readonly Spacing: number;
+    readonly DefaultCharacter: number;
+    readonly HasDefaultCharacter: boolean;
+},
+  ): void { return this.unsupported("cnbSpriteFontDataSetInfo"); }
+  public cnbSpriteFontDataGetGlyph(
+    _font: NativeHandle,
+    _index: number,
+  ): CnbGlyphSnapshot { return this.unsupported("cnbSpriteFontDataGetGlyph"); }
+  public cnbSpriteFontDataAddGlyph(
+    _font: NativeHandle,
+    _glyph: CnbGlyphSnapshot,
+  ): number { return this.unsupported("cnbSpriteFontDataAddGlyph"); }
+  public cnbSpriteFontDataSetAtlas(
+    _font: NativeHandle,
+    _atlas: NativeHandle,
+  ): void { return this.unsupported("cnbSpriteFontDataSetAtlas"); }
+  public cnbSpriteFontDataCopyAtlas(
+    _font: NativeHandle,
+  ): NativeHandle { return this.unsupported("cnbSpriteFontDataCopyAtlas"); }
+  public cnbEncodeSpriteFont(
+    _font: NativeHandle,
+    _contentName: string,
+  ): Uint8Array { return this.unsupported("cnbEncodeSpriteFont"); }
 }
 
 /** Refusing base for {@link CnaBackend}. */

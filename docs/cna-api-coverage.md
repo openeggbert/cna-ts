@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=414
+REACHABLE_NODE=478
 REACHABLE_WASM=85
-REACHABLE_BY_ANY_BACKEND=414
+REACHABLE_BY_ANY_BACKEND=478
 REACHABLE_BY_EVERY_BACKEND=85
-REACHABLE_NODE_ONLY=329
+REACHABLE_NODE_ONLY=393
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -35,7 +35,7 @@ What each backend reaches, by what the routes are for:
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
 | `XNA_BACKING` | 902 | 357 | 45 |
-| `CNA_EXTENSION_BACKING` | 1736 | 56 | 39 |
+| `CNA_EXTENSION_BACKING` | 1736 | 120 | 39 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 457 | 0 | 0 |
 | `TOOLING_ONLY` | 31 | 0 | 0 |
@@ -47,7 +47,7 @@ What each backend reaches, by what the routes are for:
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `abi.h` | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
 | `audio.h` | 43 | 0 | 63 | 11 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `cnb.h` | 0 | 0 | 0 | 272 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `cnb.h` | 64 | 0 | 0 | 272 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `color.h` | 0 | 0 | 0 | 0 | 0 | 24 | 0 | 0 | 0 | 0 |
 | `content_readers.h` | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 59 | 0 | 0 |
 | `content.h` | 0 | 0 | 0 | 4 | 0 | 0 | 0 | 28 | 0 | 0 |

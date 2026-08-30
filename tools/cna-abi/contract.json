@@ -85,6 +85,11 @@
       "CNA_BLEND_STATE_PRESET_NON_PREMULTIPLIED",
       "CNA_BLEND_STATE_PRESET_OPAQUE",
       "CNA_BLEND_STATE_TYPE_NAME",
+      "CNA_CNB_ASSET_TYPE_CUSTOM_RANGE_FIRST",
+      "CNA_CNB_ASSET_TYPE_EFFECT",
+      "CNA_CNB_ASSET_TYPE_RESERVED_RANGE_FIRST",
+      "CNA_CNB_COMPRESSION_MAXIMUM",
+      "CNA_CNB_TEXTURE_FORMAT_MAXIMUM",
       "CNA_CONTROLLER_SENSITIVITY_MAXIMUM",
       "CNA_GAMEPAD_BUTTON_ALL",
       "CNA_GAMEPAD_BUTTON_LABEL_A",
@@ -596,6 +601,22 @@
         "Mask": "MASK_EXT",
         "Blend": "BLEND_EXT"
       }
+    },
+    {
+      "typeScriptEnum": "CnbAssetType",
+      "cnaPrefix": "CNA_CNB_ASSET_TYPE",
+      "suffixOverrides": {
+        "Texture2D": "TEXTURE2D",
+        "Texture3D": "TEXTURE3D"
+      }
+    },
+    {
+      "typeScriptEnum": "CnbCompression",
+      "cnaPrefix": "CNA_CNB_COMPRESSION"
+    },
+    {
+      "typeScriptEnum": "CnbTextureFormat",
+      "cnaPrefix": "CNA_CNB_TEXTURE_FORMAT"
     }
   ]
 }

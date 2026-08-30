@@ -191,6 +191,18 @@ function numericArrayCodec(
   );
 }
 
+/**
+ * The element representation a surface format is written and read as.
+ *
+ * Public `SetData<T>`/`GetData<T>` require exactly this codec, which is what stops an XNA consumer
+ * reinterpreting a surface by handing it the wrong array type. A decoded content payload has no
+ * element type of its own -- it is already the surface's bytes -- so the internal upload path uses
+ * this to say *how* CNA should read them rather than to check what it was given.
+ */
+export function canonicalTextureCodecFor(format: SurfaceFormat): TextureElementCodec | undefined {
+  return CANONICAL_BY_FORMAT.get(format);
+}
+
 export function resolveTextureElementCodec(
   data: unknown,
   startIndex: number,

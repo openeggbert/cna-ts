@@ -795,6 +795,138 @@ export interface CnaGraphicsExtensionBackend {
   getRenderPipelineStatistics(pipeline: NativeHandle): RenderPipelineStatisticsSnapshot;
 }
 
+
+/** One parsed `.cnb` table-of-contents entry, exactly as CNA reports it. */
+export interface CnbChunkEntrySnapshot {
+  readonly Offset: number;
+  readonly StoredByteLength: number;
+  readonly ByteLength: number;
+  readonly Type: number;
+  readonly Flags: number;
+  readonly Checksum: number;
+  readonly Compression: number;
+  readonly Alignment: number;
+}
+
+/** A `.cnb` container's identities, counts and `CMET` metadata in one read. */
+export interface CnbDocumentSnapshot {
+  readonly ContainerMajor: number;
+  readonly ContainerMinor: number;
+  readonly AssetTypeId: number;
+  readonly AssetSchemaVersion: number;
+  readonly ChunkCount: number;
+  readonly ExternalReferenceCount: number;
+  readonly Origin: string;
+  readonly MetadataPresent: boolean;
+  readonly MetadataFlags: number;
+  readonly MetadataAssetTypeName: string;
+  readonly MetadataContentName: string;
+}
+
+/** One `XREF` entry: the logical name of an asset this file refers to but does not embed. */
+export interface CnbExternalReferenceSnapshot {
+  readonly Name: string;
+  readonly Flags: number;
+  readonly ExpectedAssetTypeId: number;
+}
+
+/** A decoded texture's shape, independent of any GPU object. */
+export interface CnbTextureInfoSnapshot {
+  readonly Width: number;
+  readonly Height: number;
+  readonly Depth: number;
+  readonly FaceCount: number;
+  readonly MipCount: number;
+  readonly RepresentationCount: number;
+}
+
+/** One glyph of a compiled font, in the shape the sprite-font family already publishes. */
+export interface CnbGlyphSnapshot {
+  readonly Bounds: { readonly X: number; readonly Y: number; readonly Width: number; readonly Height: number };
+  readonly Cropping: { readonly X: number; readonly Y: number; readonly Width: number; readonly Height: number };
+  readonly Character: number;
+  readonly KerningLeft: number;
+  readonly KerningWidth: number;
+  readonly KerningRight: number;
+}
+
+/** A compiled font's whole-font metrics. */
+export interface CnbSpriteFontInfoSnapshot {
+  readonly GlyphCount: number;
+  readonly LineSpacing: number;
+  readonly Spacing: number;
+  readonly DefaultCharacter: number;
+  readonly HasDefaultCharacter: boolean;
+}
+
+/**
+ * CNB, CNA's own compiled content format.
+ *
+ * Unlike the rest of this boundary, most of the family is pure functions over caller-owned bytes.
+ * Three things own something and are handles with one release each: the parsed document, a decoded
+ * texture description and a decoded font description. Nothing here touches a `GraphicsDevice` --
+ * turning a description into a real resource is the extension layer's job, above this line.
+ */
+export interface CnaContentBackend {
+  cnbHasMagic(bytes: Uint8Array): boolean;
+  cnbFormatMagic(): Uint8Array;
+  cnbCrc32c(bytes: Uint8Array): number;
+  cnbIsCompressionSupported(codec: number): boolean;
+  cnbCompressionName(codec: number): string;
+  cnbAssetTypeName(assetTypeId: number): string;
+  cnbAssetTypeIdFromName(name: string): number;
+  cnbIsCustomAssetTypeId(assetTypeId: number): boolean;
+  cnbMakeChunkId(a: number, b: number, c: number, d: number): number;
+  cnbChunkIdString(id: number): string;
+  cnbIsWellFormedChunkId(id: number): boolean;
+  cnbTextureFormatName(format: number): string;
+  cnbIsBlockCompressedTextureFormat(format: number): boolean;
+  cnbTextureFormatUnitBytes(format: number): number;
+  cnbTextureLevelByteSize(format: number, width: number, height: number, depth: number): number;
+  cnbTextureFormatToSurfaceFormat(format: number): number;
+  cnbDocumentParse(bytes: Uint8Array, origin: string): NativeHandle;
+  cnbDocumentDestroy(document: NativeHandle): void;
+  cnbDocumentGetInfo(document: NativeHandle): CnbDocumentSnapshot;
+  cnbDocumentGetChunk(document: NativeHandle, index: number): CnbChunkEntrySnapshot;
+  cnbDocumentCopyChunkData(document: NativeHandle, index: number): Uint8Array;
+  cnbDocumentFindAll(document: NativeHandle, type: number): readonly number[];
+  cnbDocumentRequireMandatoryChunksUnderstood(document: NativeHandle, known: readonly number[]): void;
+  cnbDocumentGetExternalReference(document: NativeHandle, index: number): CnbExternalReferenceSnapshot;
+  cnbDecodeTexture2D(document: NativeHandle): NativeHandle;
+  cnbTextureDataDestroy(texture: NativeHandle): void;
+  cnbTextureDataGetInfo(texture: NativeHandle): CnbTextureInfoSnapshot;
+  cnbTextureDataGetLevelDimensions(
+    texture: NativeHandle, level: number,
+  ): { readonly Width: number; readonly Height: number; readonly Depth: number };
+  cnbTextureDataGetRepresentationFormat(texture: NativeHandle, representation: number): number;
+  cnbTextureDataGetLevelCount(texture: NativeHandle, representation: number): number;
+  cnbTextureDataCopyLevel(texture: NativeHandle, representation: number, level: number): Uint8Array;
+  cnbTextureDataCreate(
+    width: number, height: number, depth: number, faceCount: number, mipCount: number,
+  ): NativeHandle;
+  cnbTextureDataCreateRgba8(width: number, height: number, rgba: Uint8Array): NativeHandle;
+  cnbTextureDataAddRepresentation(texture: NativeHandle, format: number): number;
+  cnbTextureDataSetLevel(
+    texture: NativeHandle, representation: number, level: number, bytes: Uint8Array,
+  ): void;
+  cnbEncodeTexture2D(texture: NativeHandle, contentName: string): Uint8Array;
+  cnbDecodeSpriteFont(document: NativeHandle): NativeHandle;
+  cnbSpriteFontDataCreate(): NativeHandle;
+  cnbSpriteFontDataDestroy(font: NativeHandle): void;
+  cnbSpriteFontDataGetInfo(font: NativeHandle): CnbSpriteFontInfoSnapshot;
+  cnbSpriteFontDataSetInfo(font: NativeHandle, info: {
+    readonly LineSpacing: number;
+    readonly Spacing: number;
+    readonly DefaultCharacter: number;
+    readonly HasDefaultCharacter: boolean;
+  }): void;
+  cnbSpriteFontDataGetGlyph(font: NativeHandle, index: number): CnbGlyphSnapshot;
+  cnbSpriteFontDataAddGlyph(font: NativeHandle, glyph: CnbGlyphSnapshot): number;
+  cnbSpriteFontDataSetAtlas(font: NativeHandle, atlas: NativeHandle): void;
+  cnbSpriteFontDataCopyAtlas(font: NativeHandle): NativeHandle;
+  cnbEncodeSpriteFont(font: NativeHandle, contentName: string): Uint8Array;
+}
+
 export interface CnaBackend {
   readonly Kind: BackendKind;
   readonly IsAvailable: boolean;
@@ -810,6 +942,7 @@ export interface CnaBackend {
   readonly Window?: CnaGameWindowBackend;
   readonly RuntimeServices?: CnaRuntimeServicesBackend;
   readonly GraphicsExtensions?: CnaGraphicsExtensionBackend;
+  readonly Content?: CnaContentBackend;
   openTitleStream?(name: string): Uint8Array;
 
   initialize(): Promise<void>;

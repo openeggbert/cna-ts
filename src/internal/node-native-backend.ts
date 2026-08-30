@@ -10,6 +10,13 @@ import type {
   CnaGameWindowBackend,
   BackendRendererInfo,
   CnaGraphicsExtensionBackend,
+  CnaContentBackend,
+  CnbChunkEntrySnapshot,
+  CnbDocumentSnapshot,
+  CnbExternalReferenceSnapshot,
+  CnbGlyphSnapshot,
+  CnbSpriteFontInfoSnapshot,
+  CnbTextureInfoSnapshot,
   ContentLostResourceKind,
   PbrMaterialDefaults,
   PlatformSnapshot,
@@ -335,6 +342,61 @@ interface NativeBridge {
   getOcclusionQueryIsComplete(query: bigint): boolean;
   getOcclusionQueryPixelCount(query: bigint): number;
   destroyOcclusionQuery(query: bigint): void;
+  cnbHasMagic(bytes: Uint8Array): boolean;
+  cnbFormatMagic(): Uint8Array;
+  cnbCrc32c(bytes: Uint8Array): number;
+  cnbIsCompressionSupported(codec: number): boolean;
+  cnbCompressionName(codec: number): string;
+  cnbAssetTypeName(assetTypeId: number): string;
+  cnbAssetTypeIdFromName(name: string): number;
+  cnbIsCustomAssetTypeId(assetTypeId: number): boolean;
+  cnbMakeChunkId(a: number, b: number, c: number, d: number): number;
+  cnbChunkIdString(id: number): string;
+  cnbIsWellFormedChunkId(id: number): boolean;
+  cnbTextureFormatName(format: number): string;
+  cnbIsBlockCompressedTextureFormat(format: number): boolean;
+  cnbTextureFormatUnitBytes(format: number): number;
+  cnbTextureLevelByteSize(format: number, width: number, height: number, depth: number): number;
+  cnbTextureFormatToSurfaceFormat(format: number): number;
+  cnbDocumentParse(bytes: Uint8Array, origin: string): bigint;
+  cnbDocumentDestroy(document: bigint): void;
+  cnbDocumentGetInfo(document: bigint): CnbDocumentSnapshot;
+  cnbDocumentGetChunk(document: bigint, index: number): CnbChunkEntrySnapshot;
+  cnbDocumentCopyChunkData(document: bigint, index: number): Uint8Array;
+  cnbDocumentFindAll(document: bigint, type: number): number[];
+  cnbDocumentRequireMandatoryChunksUnderstood(document: bigint, known: readonly number[]): void;
+  cnbDocumentGetExternalReference(document: bigint, index: number): CnbExternalReferenceSnapshot;
+  cnbDecodeTexture2D(document: bigint): bigint;
+  cnbTextureDataDestroy(texture: bigint): void;
+  cnbTextureDataGetInfo(texture: bigint): CnbTextureInfoSnapshot;
+  cnbTextureDataGetLevelDimensions(
+    texture: bigint, level: number,
+  ): { readonly Width: number; readonly Height: number; readonly Depth: number };
+  cnbTextureDataGetRepresentationFormat(texture: bigint, representation: number): number;
+  cnbTextureDataGetLevelCount(texture: bigint, representation: number): number;
+  cnbTextureDataCopyLevel(texture: bigint, representation: number, level: number): Uint8Array;
+  cnbTextureDataCreate(
+    width: number, height: number, depth: number, faceCount: number, mipCount: number,
+  ): bigint;
+  cnbTextureDataCreateRgba8(width: number, height: number, rgba: Uint8Array): bigint;
+  cnbTextureDataAddRepresentation(texture: bigint, format: number): number;
+  cnbTextureDataSetLevel(texture: bigint, representation: number, level: number, bytes: Uint8Array): void;
+  cnbEncodeTexture2D(texture: bigint, contentName: string): Uint8Array;
+  cnbDecodeSpriteFont(document: bigint): bigint;
+  cnbSpriteFontDataCreate(): bigint;
+  cnbSpriteFontDataDestroy(font: bigint): void;
+  cnbSpriteFontDataGetInfo(font: bigint): CnbSpriteFontInfoSnapshot;
+  cnbSpriteFontDataSetInfo(font: bigint, info: {
+    readonly LineSpacing: number;
+    readonly Spacing: number;
+    readonly DefaultCharacter: number;
+    readonly HasDefaultCharacter: boolean;
+  }): void;
+  cnbSpriteFontDataGetGlyph(font: bigint, index: number): CnbGlyphSnapshot;
+  cnbSpriteFontDataAddGlyph(font: bigint, glyph: CnbGlyphSnapshot): number;
+  cnbSpriteFontDataSetAtlas(font: bigint, atlas: bigint): void;
+  cnbSpriteFontDataCopyAtlas(font: bigint): bigint;
+  cnbEncodeSpriteFont(font: bigint, contentName: string): Uint8Array;
   openTitleStream(game: bigint, name: string): Uint8Array;
   getGameWindowAllowUserResizing(game: bigint): boolean;
   setGameWindowAllowUserResizing(game: bigint, value: boolean): void;
@@ -496,7 +558,7 @@ interface NativeBridge {
 
 export class NodeNativeBackend
   implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend,
-    CnaRuntimeServicesBackend, CnaGraphicsExtensionBackend {
+    CnaRuntimeServicesBackend, CnaGraphicsExtensionBackend, CnaContentBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
   public readonly AbiVersion: string;
@@ -513,6 +575,7 @@ export class NodeNativeBackend
   public readonly Window: CnaGameWindowBackend = this;
   public readonly RuntimeServices: CnaRuntimeServicesBackend = this;
   public readonly GraphicsExtensions: CnaGraphicsExtensionBackend = this;
+  public readonly Content: CnaContentBackend = this;
   readonly #bridge: NativeBridge;
   #activeGame: NativeHandle | null = null;
   #boundGameLifetime: NativeResourceLifetime | null = null;
@@ -1005,6 +1068,148 @@ export class NodeNativeBackend
     return this.#bridge.getOcclusionQueryPixelCount(query);
   }
   public destroyOcclusionQuery(query: NativeHandle): void { this.#bridge.destroyOcclusionQuery(query); }
+  // CNB, CNA's own compiled content format. Every member here is a direct delegation: the family is
+  // pure functions plus three owned handles, so there is nothing for this layer to decide.
+  public cnbHasMagic(bytes: Uint8Array): boolean { return this.#bridge.cnbHasMagic(bytes); }
+  public cnbFormatMagic(): Uint8Array { return new Uint8Array(this.#bridge.cnbFormatMagic()); }
+  public cnbCrc32c(bytes: Uint8Array): number { return this.#bridge.cnbCrc32c(bytes); }
+  public cnbIsCompressionSupported(codec: number): boolean {
+    return this.#bridge.cnbIsCompressionSupported(codec);
+  }
+  public cnbCompressionName(codec: number): string { return this.#bridge.cnbCompressionName(codec); }
+  public cnbAssetTypeName(assetTypeId: number): string {
+    return this.#bridge.cnbAssetTypeName(assetTypeId);
+  }
+  public cnbAssetTypeIdFromName(name: string): number {
+    return this.#bridge.cnbAssetTypeIdFromName(name);
+  }
+  public cnbIsCustomAssetTypeId(assetTypeId: number): boolean {
+    return this.#bridge.cnbIsCustomAssetTypeId(assetTypeId);
+  }
+  public cnbMakeChunkId(a: number, b: number, c: number, d: number): number {
+    return this.#bridge.cnbMakeChunkId(a, b, c, d);
+  }
+  public cnbChunkIdString(id: number): string { return this.#bridge.cnbChunkIdString(id); }
+  public cnbIsWellFormedChunkId(id: number): boolean { return this.#bridge.cnbIsWellFormedChunkId(id); }
+  public cnbTextureFormatName(format: number): string {
+    return this.#bridge.cnbTextureFormatName(format);
+  }
+  public cnbIsBlockCompressedTextureFormat(format: number): boolean {
+    return this.#bridge.cnbIsBlockCompressedTextureFormat(format);
+  }
+  public cnbTextureFormatUnitBytes(format: number): number {
+    return this.#bridge.cnbTextureFormatUnitBytes(format);
+  }
+  public cnbTextureLevelByteSize(format: number, width: number, height: number, depth: number): number {
+    return this.#bridge.cnbTextureLevelByteSize(format, width, height, depth);
+  }
+  public cnbTextureFormatToSurfaceFormat(format: number): number {
+    return this.#bridge.cnbTextureFormatToSurfaceFormat(format);
+  }
+  public cnbDocumentParse(bytes: Uint8Array, origin: string): NativeHandle {
+    return this.#bridge.cnbDocumentParse(bytes, origin);
+  }
+  public cnbDocumentDestroy(document: NativeHandle): void { this.#bridge.cnbDocumentDestroy(document); }
+  public cnbDocumentGetInfo(document: NativeHandle): CnbDocumentSnapshot {
+    return this.#bridge.cnbDocumentGetInfo(document);
+  }
+  public cnbDocumentGetChunk(document: NativeHandle, index: number): CnbChunkEntrySnapshot {
+    return this.#bridge.cnbDocumentGetChunk(document, index);
+  }
+  public cnbDocumentCopyChunkData(document: NativeHandle, index: number): Uint8Array {
+    return new Uint8Array(this.#bridge.cnbDocumentCopyChunkData(document, index));
+  }
+  public cnbDocumentFindAll(document: NativeHandle, type: number): readonly number[] {
+    return this.#bridge.cnbDocumentFindAll(document, type);
+  }
+  public cnbDocumentRequireMandatoryChunksUnderstood(
+    document: NativeHandle, known: readonly number[],
+  ): void {
+    this.#bridge.cnbDocumentRequireMandatoryChunksUnderstood(document, known);
+  }
+  public cnbDocumentGetExternalReference(
+    document: NativeHandle, index: number,
+  ): CnbExternalReferenceSnapshot {
+    return this.#bridge.cnbDocumentGetExternalReference(document, index);
+  }
+  public cnbDecodeTexture2D(document: NativeHandle): NativeHandle {
+    return this.#bridge.cnbDecodeTexture2D(document);
+  }
+  public cnbTextureDataDestroy(texture: NativeHandle): void {
+    this.#bridge.cnbTextureDataDestroy(texture);
+  }
+  public cnbTextureDataGetInfo(texture: NativeHandle): CnbTextureInfoSnapshot {
+    return this.#bridge.cnbTextureDataGetInfo(texture);
+  }
+  public cnbTextureDataGetLevelDimensions(
+    texture: NativeHandle, level: number,
+  ): { readonly Width: number; readonly Height: number; readonly Depth: number } {
+    return this.#bridge.cnbTextureDataGetLevelDimensions(texture, level);
+  }
+  public cnbTextureDataGetRepresentationFormat(texture: NativeHandle, representation: number): number {
+    return this.#bridge.cnbTextureDataGetRepresentationFormat(texture, representation);
+  }
+  public cnbTextureDataGetLevelCount(texture: NativeHandle, representation: number): number {
+    return this.#bridge.cnbTextureDataGetLevelCount(texture, representation);
+  }
+  public cnbTextureDataCopyLevel(
+    texture: NativeHandle, representation: number, level: number,
+  ): Uint8Array {
+    return new Uint8Array(this.#bridge.cnbTextureDataCopyLevel(texture, representation, level));
+  }
+  public cnbTextureDataCreate(
+    width: number, height: number, depth: number, faceCount: number, mipCount: number,
+  ): NativeHandle {
+    return this.#bridge.cnbTextureDataCreate(width, height, depth, faceCount, mipCount);
+  }
+  public cnbTextureDataCreateRgba8(width: number, height: number, rgba: Uint8Array): NativeHandle {
+    return this.#bridge.cnbTextureDataCreateRgba8(width, height, rgba);
+  }
+  public cnbTextureDataAddRepresentation(texture: NativeHandle, format: number): number {
+    return this.#bridge.cnbTextureDataAddRepresentation(texture, format);
+  }
+  public cnbTextureDataSetLevel(
+    texture: NativeHandle, representation: number, level: number, bytes: Uint8Array,
+  ): void {
+    this.#bridge.cnbTextureDataSetLevel(texture, representation, level, bytes);
+  }
+  public cnbEncodeTexture2D(texture: NativeHandle, contentName: string): Uint8Array {
+    return new Uint8Array(this.#bridge.cnbEncodeTexture2D(texture, contentName));
+  }
+  public cnbDecodeSpriteFont(document: NativeHandle): NativeHandle {
+    return this.#bridge.cnbDecodeSpriteFont(document);
+  }
+  public cnbSpriteFontDataCreate(): NativeHandle { return this.#bridge.cnbSpriteFontDataCreate(); }
+  public cnbSpriteFontDataDestroy(font: NativeHandle): void {
+    this.#bridge.cnbSpriteFontDataDestroy(font);
+  }
+  public cnbSpriteFontDataGetInfo(font: NativeHandle): CnbSpriteFontInfoSnapshot {
+    return this.#bridge.cnbSpriteFontDataGetInfo(font);
+  }
+  public cnbSpriteFontDataSetInfo(font: NativeHandle, info: {
+    readonly LineSpacing: number;
+    readonly Spacing: number;
+    readonly DefaultCharacter: number;
+    readonly HasDefaultCharacter: boolean;
+  }): void {
+    this.#bridge.cnbSpriteFontDataSetInfo(font, info);
+  }
+  public cnbSpriteFontDataGetGlyph(font: NativeHandle, index: number): CnbGlyphSnapshot {
+    return this.#bridge.cnbSpriteFontDataGetGlyph(font, index);
+  }
+  public cnbSpriteFontDataAddGlyph(font: NativeHandle, glyph: CnbGlyphSnapshot): number {
+    return this.#bridge.cnbSpriteFontDataAddGlyph(font, glyph);
+  }
+  public cnbSpriteFontDataSetAtlas(font: NativeHandle, atlas: NativeHandle): void {
+    this.#bridge.cnbSpriteFontDataSetAtlas(font, atlas);
+  }
+  public cnbSpriteFontDataCopyAtlas(font: NativeHandle): NativeHandle {
+    return this.#bridge.cnbSpriteFontDataCopyAtlas(font);
+  }
+  public cnbEncodeSpriteFont(font: NativeHandle, contentName: string): Uint8Array {
+    return new Uint8Array(this.#bridge.cnbEncodeSpriteFont(font, contentName));
+  }
+
   public openTitleStream(name: string): Uint8Array {
     return new Uint8Array(this.#bridge.openTitleStream(this.#game(), name));
   }
