@@ -33,6 +33,7 @@ import type {
   CnaGameConfiguration,
   CnaGameTimeSnapshot,
   CnaGameWindowBackend,
+  CnaGamerServicesBackend,
   CnaGraphicsBackend,
   CnaGraphicsExtensionBackend,
   CnaMediaBackend,
@@ -1236,6 +1237,34 @@ export abstract class CnaDeviceBackendBase implements CnaDeviceBackend {
   ): readonly PreferredLocaleSnapshot[] { return this.unsupported("getPreferredLocales"); }
   public setClipboardText(_text: string): boolean { return this.unsupported("setClipboardText"); }
   public getCameras(): CameraInventorySnapshot { return this.unsupported("getCameras"); }
+}
+
+/** Refusing base for {@link CnaGamerServicesBackend}. */
+export abstract class CnaGamerServicesBackendBase implements CnaGamerServicesBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public initializeGamerServices(): void { return this.unsupported("initializeGamerServices"); }
+  public getGamerServicesIsInitialized(
+  ): boolean { return this.unsupported("getGamerServicesIsInitialized"); }
+  public updateGamerServices(): void { return this.unsupported("updateGamerServices"); }
+  public getGamerServicesWindowHandle(): bigint { return this.unsupported("getGamerServicesWindowHandle"); }
+  public setGamerServicesWindowHandle(
+    _handle: bigint,
+  ): void { return this.unsupported("setGamerServicesWindowHandle"); }
+  public getGuideIsVisible(): boolean { return this.unsupported("getGuideIsVisible"); }
+  public getGuideIsTrialMode(): boolean { return this.unsupported("getGuideIsTrialMode"); }
+  public getGuideSimulateTrialMode(): boolean { return this.unsupported("getGuideSimulateTrialMode"); }
+  public setGuideSimulateTrialMode(
+    _value: boolean,
+  ): void { return this.unsupported("setGuideSimulateTrialMode"); }
+  public getGuideIsScreenSaverEnabled(): boolean { return this.unsupported("getGuideIsScreenSaverEnabled"); }
+  public setGuideIsScreenSaverEnabled(
+    _value: boolean,
+  ): void { return this.unsupported("setGuideIsScreenSaverEnabled"); }
+  public getGuideNotificationPosition(): number { return this.unsupported("getGuideNotificationPosition"); }
+  public setGuideNotificationPosition(
+    _position: number,
+  ): void { return this.unsupported("setGuideNotificationPosition"); }
 }
 
 /** Refusing base for {@link CnaBackend}. */

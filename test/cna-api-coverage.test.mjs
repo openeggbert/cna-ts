@@ -67,20 +67,21 @@ test("a route no rule claims is reported as UNEXPLAINED", () => {
 });
 
 test("a deferred route a backend imports is reported rather than absorbed", () => {
-  // gamer_services.h is ruled INTENTIONALLY_DEFERRED as a whole family. Importing one of its
-  // routes without moving the rule would publish reachable surface as unbound.
-  const declarations = new Map([["cna_gamer_services_initialize", "gamer_services.h"]]);
+  // net_sessions.h is ruled INTENTIONALLY_DEFERRED as a whole family. Importing one of its routes
+  // without moving the rule would publish reachable surface as unbound -- which is exactly what
+  // happened to gamer_services.h when the dispatcher was bound, and exactly what this caught.
+  const declarations = new Map([["cna_network_session_create", "net_sessions.h"]]);
   const deferred = classify(declarations, rules, { NODE: new Set(), WASM: new Set() });
   assert.equal(deferred[0].category, "INTENTIONALLY_DEFERRED");
   assert.deepEqual(findReachableButDeferred(deferred), []);
 
   const imported = classify(declarations, rules, {
-    NODE: new Set(["cna_gamer_services_initialize"]),
+    NODE: new Set(["cna_network_session_create"]),
     WASM: new Set(),
   });
   assert.equal(imported[0].category, "INTENTIONALLY_DEFERRED");
   assert.deepEqual(imported[0].backends, ["NODE"]);
-  assert.deepEqual(findReachableButDeferred(imported), ["gamer_services.h:cna_gamer_services_initialize"]);
+  assert.deepEqual(findReachableButDeferred(imported), ["net_sessions.h:cna_network_session_create"]);
 });
 
 test("a header no backend reaches defers its whole family, and one imported route lifts it", () => {

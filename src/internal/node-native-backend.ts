@@ -12,6 +12,7 @@ import type {
   CnaGraphicsExtensionBackend,
   CnaContentBackend,
   CnaDeviceBackend,
+  CnaGamerServicesBackend,
   CameraInventorySnapshot,
   HostDeviceSnapshot,
   PreferredLocaleSnapshot,
@@ -470,6 +471,19 @@ interface NativeBridge {
   setPostProcessChainGpuTimingEnabled(chain: bigint, value: boolean): void;
   applyPostProcessChain(chain: bigint, frame: PostProcessFrameSnapshot): void;
   getPostProcessChainPassTimings(chain: bigint): PassTimingSnapshot[];
+  initializeGamerServices(game: bigint): void;
+  getGamerServicesIsInitialized(): boolean;
+  updateGamerServices(): void;
+  getGamerServicesWindowHandle(): bigint;
+  setGamerServicesWindowHandle(handle: bigint): void;
+  getGuideIsVisible(): boolean;
+  getGuideIsTrialMode(): boolean;
+  getGuideSimulateTrialMode(): boolean;
+  setGuideSimulateTrialMode(value: boolean): void;
+  getGuideIsScreenSaverEnabled(): boolean;
+  setGuideIsScreenSaverEnabled(value: boolean): void;
+  getGuideNotificationPosition(): number;
+  setGuideNotificationPosition(position: number): void;
   isDeviceExtensionLayerAvailable(): boolean;
   getHostDeviceInfo(game: bigint): HostDeviceSnapshot;
   getPreferredLocales(game: bigint): PreferredLocaleSnapshot[];
@@ -638,7 +652,7 @@ interface NativeBridge {
 export class NodeNativeBackend
   implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend,
     CnaRuntimeServicesBackend, CnaGraphicsExtensionBackend, CnaContentBackend,
-    CnaDeviceBackend {
+    CnaDeviceBackend, CnaGamerServicesBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
   public readonly AbiVersion: string;
@@ -657,6 +671,7 @@ export class NodeNativeBackend
   public readonly GraphicsExtensions: CnaGraphicsExtensionBackend = this;
   public readonly Content: CnaContentBackend = this;
   public readonly Devices: CnaDeviceBackend = this;
+  public readonly GamerServices: CnaGamerServicesBackend = this;
   readonly #bridge: NativeBridge;
   #activeGame: NativeHandle | null = null;
   #boundGameLifetime: NativeResourceLifetime | null = null;
@@ -1402,6 +1417,33 @@ export class NodeNativeBackend
   }
   public getPostProcessChainPassTimings(chain: NativeHandle): readonly PassTimingSnapshot[] {
     return this.#bridge.getPostProcessChainPassTimings(chain);
+  }
+
+  // Gamer services, in the two shapes a host with no platform services can answer.
+  public initializeGamerServices(): void { this.#bridge.initializeGamerServices(this.#game()); }
+  public getGamerServicesIsInitialized(): boolean {
+    return this.#bridge.getGamerServicesIsInitialized();
+  }
+  public updateGamerServices(): void { this.#bridge.updateGamerServices(); }
+  public getGamerServicesWindowHandle(): bigint { return this.#bridge.getGamerServicesWindowHandle(); }
+  public setGamerServicesWindowHandle(handle: bigint): void {
+    this.#bridge.setGamerServicesWindowHandle(handle);
+  }
+  public getGuideIsVisible(): boolean { return this.#bridge.getGuideIsVisible(); }
+  public getGuideIsTrialMode(): boolean { return this.#bridge.getGuideIsTrialMode(); }
+  public getGuideSimulateTrialMode(): boolean { return this.#bridge.getGuideSimulateTrialMode(); }
+  public setGuideSimulateTrialMode(value: boolean): void {
+    this.#bridge.setGuideSimulateTrialMode(value);
+  }
+  public getGuideIsScreenSaverEnabled(): boolean {
+    return this.#bridge.getGuideIsScreenSaverEnabled();
+  }
+  public setGuideIsScreenSaverEnabled(value: boolean): void {
+    this.#bridge.setGuideIsScreenSaverEnabled(value);
+  }
+  public getGuideNotificationPosition(): number { return this.#bridge.getGuideNotificationPosition(); }
+  public setGuideNotificationPosition(position: number): void {
+    this.#bridge.setGuideNotificationPosition(position);
   }
 
   // The extended device layer. Each of these needs the active game handle, because CNA addresses

@@ -19,7 +19,9 @@ import {
   Media,
   PlayerIndex,
   Rectangle,
+  GamerServices,
   Storage,
+  TimeSpan,
   TitleContainer,
   Matrix,
   Vector2,
@@ -1043,6 +1045,122 @@ test("the extended device layer reports the host truthfully, absences included",
   assert.equal(typeof evidence.cameras.supported, "boolean");
   assert.equal(evidence.cameras.names.length, evidence.cameras.count);
   if (!evidence.cameras.supported) assert.equal(evidence.cameras.count, 0);
+});
+
+class GamerServicesProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const gs = GamerServices;
+    // Before Initialize, CNA already knows the dispatcher is not initialised. It does *not* refuse
+    // the pump, though -- measured, not assumed -- so the ordering rule XNA enforces is enforced
+    // here, which is where a projection's job is.
+    this.evidence.initializedBefore = gs.GamerServicesDispatcher.IsInitialized;
+    try {
+      gs.GamerServicesDispatcher.Update();
+      this.evidence.updateBeforeInitialize = "allowed";
+    } catch (error) {
+      this.evidence.updateBeforeInitialize = error.cnaResult ?? error.constructor.name;
+    }
+
+    gs.GamerServicesDispatcher.Initialize(this.Services);
+    this.evidence.initializedAfter = gs.GamerServicesDispatcher.IsInitialized;
+    gs.GamerServicesDispatcher.Update();
+    this.evidence.updateAfterInitialize = "SUCCESS";
+
+    // A platform window handle, not a CNA handle: CNA stores it verbatim and nothing dereferences
+    // it. It round-trips as a bigint so a high address cannot be rounded on the way through.
+    const handle = 0x1234_5678_9abc_def0n;
+    gs.GamerServicesDispatcher.WindowHandle = handle;
+    this.evidence.windowHandle = gs.GamerServicesDispatcher.WindowHandle;
+    this.evidence.windowHandleIsBigInt = typeof this.evidence.windowHandle === "bigint";
+
+    // Guide state now lives in CNA, so a native gamer-services component and this class cannot
+    // disagree. Each value is written and read back through the runtime rather than a local field.
+    this.evidence.guideVisible = gs.Guide.IsVisible;
+    this.evidence.trialBefore = gs.Guide.IsTrialMode;
+    gs.Guide.SimulateTrialMode = true;
+    this.evidence.simulateAfterSet = gs.Guide.SimulateTrialMode;
+    this.evidence.trialAfterSimulating = gs.Guide.IsTrialMode;
+    gs.Guide.SimulateTrialMode = false;
+    this.evidence.trialAfterClearing = gs.Guide.IsTrialMode;
+
+    // The screen saver is a *platform display* property in CNA, not title state: with no platform
+    // displays the getter answers true and the setter does nothing. Recording that is the point --
+    // a projection that cached the write locally would report a screen saver it had not disabled.
+    gs.Guide.IsScreenSaverEnabled = false;
+    this.evidence.screenSaverAfterDisable = gs.Guide.IsScreenSaverEnabled;
+    gs.Guide.IsScreenSaverEnabled = true;
+    this.evidence.screenSaverAfterEnable = gs.Guide.IsScreenSaverEnabled;
+
+    gs.Guide.NotificationPosition = gs.NotificationPosition.TopLeft;
+    this.evidence.notificationPosition = gs.Guide.NotificationPosition;
+    gs.Guide.NotificationPosition = gs.NotificationPosition.BottomCenter;
+    this.evidence.notificationPositionRestored = gs.Guide.NotificationPosition;
+
+    // Everything that needs a real signed-in user still refuses. A fabricated gamer would be worse
+    // than the exception XNA itself raises where the platform is absent.
+    // Nobody is signed in, and nobody is invented: the collection is empty rather than holding a
+    // placeholder gamer, which is what "do not fabricate a signed-in user" looks like in practice.
+    this.evidence.signedInGamerCount = gs.Gamer.SignedInGamers.Count;
+    for (const [name, call] of [
+      ["ShowSignIn", () => gs.Guide.ShowSignIn(1, false)],
+      ["DelayNotifications", () => gs.Guide.DelayNotifications(TimeSpan.Zero)],
+      ["ShowMessageBox", () => gs.Guide.BeginShowMessageBox("t", "m", ["a"], 0, gs.MessageBoxIcon.None, null, null)],
+    ]) {
+      try {
+        call();
+        this.evidence[`${name}Refusal`] = "allowed";
+      } catch (error) {
+        this.evidence[`${name}Refusal`] = error.constructor.name;
+      }
+    }
+    this.Exit();
+    super.LoadContent();
+  }
+}
+
+test("gamer services has a real dispatcher and Guide state, and still refuses a fabricated gamer", async () => {
+  const game = new GamerServicesProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  assert.equal(evidence.initializedBefore, false);
+  // XNA raises InvalidOperationException for a pump before Initialize; CNA accepts one, so the
+  // projection is what holds the line. Reading CNA's own IsInitialized rather than a mirrored flag
+  // keeps the guard honest: it refuses because the runtime says it is not initialised.
+  assert.equal(evidence.updateBeforeInitialize, "InvalidOperationException");
+  assert.equal(evidence.initializedAfter, true);
+  assert.equal(evidence.updateAfterInitialize, "SUCCESS");
+
+  assert.equal(evidence.windowHandleIsBigInt, true);
+  assert.equal(evidence.windowHandle, 0x1234_5678_9abc_def0n, "a 64-bit handle survives the round trip");
+
+  assert.equal(evidence.guideVisible, false, "no guide screen is in front of anyone here");
+  assert.equal(evidence.trialBefore, false);
+  assert.equal(evidence.simulateAfterSet, true);
+  // CNA keeps IsTrialMode and SimulateTrialMode apart; XNA's IsTrialMode is the disjunction,
+  // because simulating a trial exists precisely so a full title reports one. The projection
+  // combines them, and this is the assertion that would notice if it stopped.
+  assert.equal(evidence.trialAfterSimulating, true, "simulating a trial changes what a game branches on");
+  assert.equal(evidence.trialAfterClearing, false);
+  // HEADLESS has no platform displays, so CNA's screen-saver flag is read-only in effect: the
+  // getter answers true and the setter is a no-op. The projection reports what the platform says
+  // rather than what it was told, which is the whole reason this state moved into CNA.
+  assert.equal(evidence.screenSaverAfterDisable, true, "no platform displays: the write cannot take");
+  assert.equal(evidence.screenSaverAfterEnable, true);
+  assert.equal(evidence.notificationPosition, GamerServices.NotificationPosition.TopLeft);
+  assert.equal(evidence.notificationPositionRestored, GamerServices.NotificationPosition.BottomCenter);
+
+  assert.equal(evidence.signedInGamerCount, 0, "no gamer is fabricated where none is signed in");
+  assert.equal(evidence.ShowSignInRefusal, "GamerServicesNotAvailableException");
+  assert.equal(evidence.DelayNotificationsRefusal, "GamerServicesNotAvailableException");
+  assert.equal(evidence.ShowMessageBoxRefusal, "GamerServicesNotAvailableException");
 });
 
 class NativeAudioProbeGame extends Game {

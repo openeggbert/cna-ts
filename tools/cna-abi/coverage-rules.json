@@ -53,13 +53,22 @@
     },
     {
       "headers": [
-        "gamer_services.h",
         "net.h",
         "net_gamers.h",
         "net_sessions.h"
       ],
       "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs the 74 Microsoft.Xna.Framework.GamerServices and .Net types docs/xna-profile-inventory.md measures as the complete remaining XNA 4.0 runtime gap; the profile is inventoried and not yet projected"
+      "reason": "backs the Microsoft.Xna.Framework.Net session surface, which is projected at zero structural differences and refuses at runtime: a NetworkSession needs a signed-in gamer and a peer, and fabricating either would be worse than the exception XNA raises where the platform is absent"
+    },
+    {
+      "headers": [
+        "gamer_services.h"
+      ],
+      "category": "XNA_BACKING",
+      "requireHeaderReached": true,
+      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "unreachedCategory": "INTENTIONALLY_DEFERRED",
+      "unreachedReason": "backs projected GamerServices surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered"
     },
     {
       "namePattern": "_ext$",

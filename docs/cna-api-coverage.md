@@ -8,12 +8,12 @@ C source and the WebAssembly backend's route table rather than declared.
 ```text
 TOTAL_C_API_FUNCTIONS=4051
 PUBLIC_HEADERS=57
-XNA_BACKING=902
+XNA_BACKING=1152
 CNA_EXTENSION_BACKING=1736
 INTERNAL_RUNTIME_ONLY=1
 MANAGED_BY_DESIGN=457
 TOOLING_ONLY=31
-INTENTIONALLY_DEFERRED=924
+INTENTIONALLY_DEFERRED=674
 UPSTREAM_RUNTIME_UNAVAILABLE=0
 UNEXPLAINED=0
 ```
@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=568
+REACHABLE_NODE=581
 REACHABLE_WASM=85
-REACHABLE_BY_ANY_BACKEND=568
+REACHABLE_BY_ANY_BACKEND=581
 REACHABLE_BY_EVERY_BACKEND=85
-REACHABLE_NODE_ONLY=483
+REACHABLE_NODE_ONLY=496
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -34,12 +34,12 @@ What each backend reaches, by what the routes are for:
 
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
-| `XNA_BACKING` | 902 | 357 | 45 |
+| `XNA_BACKING` | 1152 | 370 | 45 |
 | `CNA_EXTENSION_BACKING` | 1736 | 210 | 39 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 457 | 0 | 0 |
 | `TOOLING_ONLY` | 31 | 0 | 0 |
-| `INTENTIONALLY_DEFERRED` | 924 | 0 | 0 |
+| `INTENTIONALLY_DEFERRED` | 674 | 0 | 0 |
 
 ## By header
 
@@ -58,7 +58,7 @@ What each backend reaches, by what the routes are for:
 | `display.h` | 0 | 0 | 0 | 22 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `effects.h` | 80 | 0 | 255 | 35 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `engine_layer.h` | 77 | 0 | 0 | 857 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `gamer_services.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 250 | 0 | 0 |
+| `gamer_services.h` | 13 | 0 | 250 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `geometry.h` | 0 | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 | 0 |
 | `graphics_device.h` | 22 | 2 | 73 | 14 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `graphics_ext.h` | 3 | 1 | 0 | 28 | 0 | 0 | 0 | 0 | 0 | 0 |

@@ -342,6 +342,10 @@ typedef CNA_Result (*DevicesCameraInfoFn)(CNA_Handle, uint64_t, CNA_CameraDevice
 typedef CNA_Result (*DevicesCameraInfoInitFn)(CNA_CameraDeviceInfo*);
 typedef CNA_Result (*DevicesClipboardFn)(CNA_Handle, CNA_StringView, CNA_Bool*);
 
+/* --- gamer services: the dispatcher's lifetime and the Guide's state -------------------------- */
+typedef CNA_Result (*GamerServicesVoidFn)(void);
+typedef CNA_Result (*GamerServicesU64InFn)(uint64_t);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -913,6 +917,19 @@ typedef struct Api {
   DevicesLocaleCopyFn camera_copy_name;
   DevicesCameraInfoFn camera_get_info;
   DevicesCameraInfoInitFn camera_device_info_init;
+  GameHandleFn gamer_services_initialize;
+  BoolOutFn gamer_services_is_initialized;
+  GamerServicesVoidFn gamer_services_update;
+  SizeOutFn gamer_services_get_window_handle;
+  GamerServicesU64InFn gamer_services_set_window_handle;
+  BoolOutFn guide_get_is_visible;
+  BoolOutFn guide_get_is_trial_mode;
+  BoolOutFn guide_get_simulate_trial_mode;
+  BoolInFn guide_set_simulate_trial_mode;
+  BoolOutFn guide_get_is_screen_saver_enabled;
+  BoolInFn guide_set_is_screen_saver_enabled;
+  U32OutFn guide_get_notification_position;
+  U32InFn guide_set_notification_position;
 } Api;
 
 typedef struct GameContext {
@@ -1797,6 +1814,20 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(camera_copy_name, DevicesLocaleCopyFn, "cna_camera_copy_name_at_ext");
   LOAD_REQUIRED(camera_get_info, DevicesCameraInfoFn, "cna_camera_get_info_at_ext");
   LOAD_REQUIRED(camera_device_info_init, DevicesCameraInfoInitFn, "cna_camera_device_info_init");
+
+  LOAD_REQUIRED(gamer_services_initialize, GameHandleFn, "cna_gamer_services_dispatcher_initialize");
+  LOAD_REQUIRED(gamer_services_is_initialized, BoolOutFn, "cna_gamer_services_dispatcher_get_is_initialized");
+  LOAD_REQUIRED(gamer_services_update, GamerServicesVoidFn, "cna_gamer_services_dispatcher_update");
+  LOAD_REQUIRED(gamer_services_get_window_handle, SizeOutFn, "cna_gamer_services_dispatcher_get_window_handle");
+  LOAD_REQUIRED(gamer_services_set_window_handle, GamerServicesU64InFn, "cna_gamer_services_dispatcher_set_window_handle");
+  LOAD_REQUIRED(guide_get_is_visible, BoolOutFn, "cna_guide_get_is_visible");
+  LOAD_REQUIRED(guide_get_is_trial_mode, BoolOutFn, "cna_guide_get_is_trial_mode");
+  LOAD_REQUIRED(guide_get_simulate_trial_mode, BoolOutFn, "cna_guide_get_simulate_trial_mode");
+  LOAD_REQUIRED(guide_set_simulate_trial_mode, BoolInFn, "cna_guide_set_simulate_trial_mode");
+  LOAD_REQUIRED(guide_get_is_screen_saver_enabled, BoolOutFn, "cna_guide_get_is_screen_saver_enabled");
+  LOAD_REQUIRED(guide_set_is_screen_saver_enabled, BoolInFn, "cna_guide_set_is_screen_saver_enabled");
+  LOAD_REQUIRED(guide_get_notification_position, U32OutFn, "cna_guide_get_notification_position");
+  LOAD_REQUIRED(guide_set_notification_position, U32InFn, "cna_guide_set_notification_position");
 
   napi_value undefined;
   NAPI_OR_RETURN(env, napi_get_undefined(env, &undefined), "load result");
@@ -9084,6 +9115,149 @@ static napi_value get_cameras(napi_env env, napi_callback_info info) {
   return output;
 }
 
+/* --- gamer services: the dispatcher's lifetime and the Guide's state -------------------------- */
+/*
+ * Only the parts a HEADLESS Linux host can answer honestly. The dispatcher's own lifetime and the
+ * Guide's state are real CNA state that any native component would see; everything that needs a
+ * signed-in user, a friends list or a platform overlay stays refused above this line, because a
+ * fabricated gamer is worse than a truthful GamerServicesNotAvailableException.
+ */
+
+static napi_value gs_bool_out(
+  napi_env env, napi_callback_info info, BoolOutFn route, const char* name
+) {
+  (void) info;
+  napi_value output;
+  CNA_Bool value = CNA_FALSE;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = route(&value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, value != CNA_FALSE, &output), name);
+  return output;
+}
+
+static napi_value gs_bool_in(
+  napi_env env, napi_callback_info info, BoolInFn route, const char* name
+) {
+  napi_value args[1];
+  bool value = false;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_bool(env, args[0], &value) != napi_ok) {
+    return throw_message(env, "expected a boolean");
+  }
+  const CNA_Result result = route(value ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value initialize_gamer_services(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle game = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.gamer_services_initialize(game);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gamer_services_dispatcher_initialize", result);
+  }
+  return undefined_result(env, "gamer services initialization");
+}
+
+static napi_value gamer_services_is_initialized(napi_env env, napi_callback_info info) {
+  return gs_bool_out(
+    env, info, g_api.gamer_services_is_initialized,
+    "cna_gamer_services_dispatcher_get_is_initialized");
+}
+
+static napi_value update_gamer_services(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.gamer_services_update();
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gamer_services_dispatcher_update", result);
+  }
+  return undefined_result(env, "gamer services update");
+}
+
+static napi_value get_gamer_services_window_handle(napi_env env, napi_callback_info info) {
+  (void) info;
+  uint64_t handle = 0;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.gamer_services_get_window_handle(&handle);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gamer_services_dispatcher_get_window_handle", result);
+  }
+  /* A platform window handle, and a bigint on the way out: it is 64 bits wide and a Number would
+     round one on a host that hands out high addresses. */
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_bigint_uint64(env, handle, &output), "window handle");
+  return output;
+}
+
+static napi_value set_gamer_services_window_handle(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle handle = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle_allow_zero(env, args[0], &handle)) return NULL;
+  const CNA_Result result = g_api.gamer_services_set_window_handle(handle);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gamer_services_dispatcher_set_window_handle", result);
+  }
+  return undefined_result(env, "window handle");
+}
+
+static napi_value guide_is_visible(napi_env env, napi_callback_info info) {
+  return gs_bool_out(env, info, g_api.guide_get_is_visible, "cna_guide_get_is_visible");
+}
+
+static napi_value guide_is_trial_mode(napi_env env, napi_callback_info info) {
+  return gs_bool_out(env, info, g_api.guide_get_is_trial_mode, "cna_guide_get_is_trial_mode");
+}
+
+static napi_value guide_get_simulate_trial(napi_env env, napi_callback_info info) {
+  return gs_bool_out(env, info, g_api.guide_get_simulate_trial_mode, "cna_guide_get_simulate_trial_mode");
+}
+
+static napi_value guide_set_simulate_trial(napi_env env, napi_callback_info info) {
+  return gs_bool_in(env, info, g_api.guide_set_simulate_trial_mode, "cna_guide_set_simulate_trial_mode");
+}
+
+static napi_value guide_get_screen_saver(napi_env env, napi_callback_info info) {
+  return gs_bool_out(
+    env, info, g_api.guide_get_is_screen_saver_enabled, "cna_guide_get_is_screen_saver_enabled");
+}
+
+static napi_value guide_set_screen_saver(napi_env env, napi_callback_info info) {
+  return gs_bool_in(
+    env, info, g_api.guide_set_is_screen_saver_enabled, "cna_guide_set_is_screen_saver_enabled");
+}
+
+static napi_value guide_get_notification_position(napi_env env, napi_callback_info info) {
+  (void) info;
+  napi_value output;
+  uint32_t position = 0;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.guide_get_notification_position(&position);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_guide_get_notification_position", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_uint32(env, position, &output), "notification position");
+  return output;
+}
+
+static napi_value guide_set_notification_position(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  uint32_t position = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &position) != napi_ok) {
+    return throw_message(env, "expected a notification position");
+  }
+  const CNA_Result result = g_api.guide_set_notification_position(position);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_guide_set_notification_position", result);
+  }
+  return undefined_result(env, "notification position");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
@@ -9473,6 +9647,19 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getPreferredLocales", NULL, get_preferred_locales, NULL, NULL, NULL, napi_default, NULL },
     { "setClipboardText", NULL, set_clipboard_text, NULL, NULL, NULL, napi_default, NULL },
     { "getCameras", NULL, get_cameras, NULL, NULL, NULL, napi_default, NULL },
+    { "initializeGamerServices", NULL, initialize_gamer_services, NULL, NULL, NULL, napi_default, NULL },
+    { "getGamerServicesIsInitialized", NULL, gamer_services_is_initialized, NULL, NULL, NULL, napi_default, NULL },
+    { "updateGamerServices", NULL, update_gamer_services, NULL, NULL, NULL, napi_default, NULL },
+    { "getGamerServicesWindowHandle", NULL, get_gamer_services_window_handle, NULL, NULL, NULL, napi_default, NULL },
+    { "setGamerServicesWindowHandle", NULL, set_gamer_services_window_handle, NULL, NULL, NULL, napi_default, NULL },
+    { "getGuideIsVisible", NULL, guide_is_visible, NULL, NULL, NULL, napi_default, NULL },
+    { "getGuideIsTrialMode", NULL, guide_is_trial_mode, NULL, NULL, NULL, napi_default, NULL },
+    { "getGuideSimulateTrialMode", NULL, guide_get_simulate_trial, NULL, NULL, NULL, napi_default, NULL },
+    { "setGuideSimulateTrialMode", NULL, guide_set_simulate_trial, NULL, NULL, NULL, napi_default, NULL },
+    { "getGuideIsScreenSaverEnabled", NULL, guide_get_screen_saver, NULL, NULL, NULL, napi_default, NULL },
+    { "setGuideIsScreenSaverEnabled", NULL, guide_set_screen_saver, NULL, NULL, NULL, napi_default, NULL },
+    { "getGuideNotificationPosition", NULL, guide_get_notification_position, NULL, NULL, NULL, napi_default, NULL },
+    { "setGuideNotificationPosition", NULL, guide_set_notification_position, NULL, NULL, NULL, napi_default, NULL },
     { "openStorageFile", NULL, open_storage_file, NULL, NULL, NULL, napi_default, NULL },
   };
   if (napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties) != napi_ok) {

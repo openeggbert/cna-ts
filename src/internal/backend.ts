@@ -1072,6 +1072,31 @@ export interface CnaDeviceBackend {
   getCameras(): CameraInventorySnapshot;
 }
 
+
+/**
+ * The parts of gamer services a host without platform services can answer honestly.
+ *
+ * The dispatcher's own lifetime and the Guide's state are real CNA state that any native component
+ * would see. Everything that needs a signed-in user, a friends list or a platform overlay is
+ * deliberately absent: a fabricated gamer would be worse than the
+ * `GamerServicesNotAvailableException` XNA itself raises where the platform is missing.
+ */
+export interface CnaGamerServicesBackend {
+  initializeGamerServices(): void;
+  getGamerServicesIsInitialized(): boolean;
+  updateGamerServices(): void;
+  getGamerServicesWindowHandle(): bigint;
+  setGamerServicesWindowHandle(handle: bigint): void;
+  getGuideIsVisible(): boolean;
+  getGuideIsTrialMode(): boolean;
+  getGuideSimulateTrialMode(): boolean;
+  setGuideSimulateTrialMode(value: boolean): void;
+  getGuideIsScreenSaverEnabled(): boolean;
+  setGuideIsScreenSaverEnabled(value: boolean): void;
+  getGuideNotificationPosition(): number;
+  setGuideNotificationPosition(position: number): void;
+}
+
 export interface CnaBackend {
   readonly Kind: BackendKind;
   readonly IsAvailable: boolean;
@@ -1089,6 +1114,7 @@ export interface CnaBackend {
   readonly GraphicsExtensions?: CnaGraphicsExtensionBackend;
   readonly Content?: CnaContentBackend;
   readonly Devices?: CnaDeviceBackend;
+  readonly GamerServices?: CnaGamerServicesBackend;
   openTitleStream?(name: string): Uint8Array;
 
   initialize(): Promise<void>;
