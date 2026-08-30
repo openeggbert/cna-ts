@@ -743,6 +743,58 @@ export interface CnaRuntimeServicesBackend {
   isGraphicsExtensionLayerAvailable(): boolean;
 }
 
+/** CNA's default PBR material, as the runtime seeds it. */
+export interface PbrMaterialDefaults {
+  readonly MetallicFactor: number;
+  readonly RoughnessFactor: number;
+  readonly NormalScale: number;
+  readonly OcclusionStrength: number;
+  readonly AlphaCutoff: number;
+  readonly AlphaBlendEnabled: boolean;
+  readonly AlbedoColor: number;
+  readonly EmissiveColor: number;
+}
+
+/** CNA's default render-pipeline settings, as the runtime seeds them. */
+export interface RenderPipelineSettingsDefaults {
+  readonly Exposure: number;
+  readonly Gamma: number;
+  readonly BloomIntensity: number;
+  readonly TonemappingMode: number;
+  readonly RenderQuality: number;
+  readonly ShadowQuality: number;
+  readonly HdrEnabled: boolean;
+  readonly BloomEnabled: boolean;
+  readonly SsaoEnabled: boolean;
+  readonly ShadowsEnabled: boolean;
+}
+
+/** What one render-pipeline frame did. */
+export interface RenderPipelineStatisticsSnapshot {
+  readonly PassesRun: number;
+  readonly TargetSwitches: number;
+  readonly LastFramePassCount: number;
+  readonly UsedSceneTarget: boolean;
+  readonly DrewSkybox: boolean;
+  readonly GpuMemoryEstimateBytes: bigint;
+}
+
+/**
+ * CNA's extended graphics layer. The two default-value routes are pure value operations and answer
+ * in every build; everything that needs a native pipeline object answers `NOT_SUPPORTED` where the
+ * layer was compiled out, which is why the facade asks before offering the feature.
+ */
+export interface CnaGraphicsExtensionBackend {
+  getDefaultPbrMaterial(): PbrMaterialDefaults;
+  getDefaultRenderPipelineSettings(): RenderPipelineSettingsDefaults;
+  createRenderPipeline(device: NativeHandle): NativeHandle;
+  destroyRenderPipeline(pipeline: NativeHandle): void;
+  resizeRenderPipeline(pipeline: NativeHandle, width: number, height: number): void;
+  beginRenderPipeline(pipeline: NativeHandle, packedClearColor: number): void;
+  endRenderPipeline(pipeline: NativeHandle): void;
+  getRenderPipelineStatistics(pipeline: NativeHandle): RenderPipelineStatisticsSnapshot;
+}
+
 export interface CnaBackend {
   readonly Kind: BackendKind;
   readonly IsAvailable: boolean;
@@ -757,6 +809,7 @@ export interface CnaBackend {
   readonly Effects?: CnaEffectBackend;
   readonly Window?: CnaGameWindowBackend;
   readonly RuntimeServices?: CnaRuntimeServicesBackend;
+  readonly GraphicsExtensions?: CnaGraphicsExtensionBackend;
   openTitleStream?(name: string): Uint8Array;
 
   initialize(): Promise<void>;

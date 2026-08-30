@@ -70,6 +70,7 @@
   "expectedCnaOnlyConstants": {
     "reason": "constants that share a mapped family's prefix but have no XNA counterpart: MAXIMUM sentinels, _EXT extensions beyond XNA 4.0, state presets and type names, and sub-families that merely share a prefix. Listing them means a newly added one arrives as a diagnostic instead of passing unnoticed.",
     "constants": [
+      "CNA_ALPHA_MODE_MAXIMUM_EXT",
       "CNA_AUDIO_STOP_OPTIONS_MAXIMUM",
       "CNA_AVATAR_ANIMATION_PRESET_MAXIMUM",
       "CNA_AVATAR_BODY_TYPE_MAXIMUM",
@@ -570,6 +571,31 @@
     {
       "typeScriptEnum": "SendDataOptions",
       "cnaPrefix": "CNA_SEND_DATA_OPTIONS"
+    },
+    {
+      "typeScriptEnum": "TonemappingMode",
+      "cnaPrefix": "CNA_TONEMAPPING_MODE",
+      "suffixOverrides": {
+        "Aces": "ACES",
+        "Uncharted2": "UNCHARTED2"
+      }
+    },
+    {
+      "typeScriptEnum": "RenderQuality",
+      "cnaPrefix": "CNA_RENDER_QUALITY"
+    },
+    {
+      "typeScriptEnum": "ShadowQuality",
+      "cnaPrefix": "CNA_SHADOW_QUALITY"
+    },
+    {
+      "typeScriptEnum": "AlphaMode",
+      "cnaPrefix": "CNA_ALPHA_MODE",
+      "suffixOverrides": {
+        "Opaque": "OPAQUE_EXT",
+        "Mask": "MASK_EXT",
+        "Blend": "BLEND_EXT"
+      }
     }
   ]
 }

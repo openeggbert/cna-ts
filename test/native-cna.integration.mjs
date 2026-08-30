@@ -25,6 +25,7 @@ import {
   Vector3,
 } from "../dist/index.js";
 import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../dist/internal/abi.js";
+import * as renderPipelineModule from "../dist/extensions/graphics/index.js";
 import { getBackend } from "../dist/internal/backend.js";
 import {
   getVertexBufferRawForInternalUse,
@@ -616,6 +617,58 @@ test("ContentLost subscriptions reach CNA and release with their resource", asyn
   // HEADLESS cannot lose a device, so the producer never runs here. This asserts the honest
   // number rather than pretending a renderer raised an event it has no way to raise.
   assert.equal(evidence.raised, 0);
+});
+
+class RenderPipelineProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    // The extended graphics layer is an opt-in CNA build option. Where it is compiled in the
+    // pipeline is a real native object; where it is not, construction refuses with
+    // CNA_RESULT_NOT_SUPPORTED. Both are recorded rather than one being assumed.
+    this.evidence.layerAvailable = renderPipelineModule.IsGraphicsExtensionLayerAvailable();
+    try {
+      const pipeline = new renderPipelineModule.RenderPipeline(this.GraphicsDevice);
+      this.evidence.created = true;
+      pipeline.Resize(320, 240);
+      pipeline.Begin(Color.CornflowerBlue);
+      pipeline.End();
+      const statistics = pipeline.GetStatistics();
+      this.evidence.statisticsShape =
+        typeof statistics.PassesRun === "number" &&
+        typeof statistics.UsedSceneTarget === "boolean" &&
+        typeof statistics.GpuMemoryEstimateBytes === "bigint";
+      pipeline.Dispose();
+      pipeline.Dispose();
+      this.evidence.disposedTwice = pipeline.IsDisposed;
+    } catch (error) {
+      this.evidence.created = false;
+      this.evidence.cnaResult = error.cnaResult;
+    }
+    this.Exit();
+    super.LoadContent();
+  }
+}
+
+test("the CNA render pipeline is a real owned object where the layer is compiled in", async () => {
+  const game = new RenderPipelineProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+  assert.equal(typeof evidence.layerAvailable, "boolean");
+  if (evidence.layerAvailable) {
+    assert.equal(evidence.created, true);
+    assert.equal(evidence.statisticsShape, true);
+    assert.equal(evidence.disposedTwice, true);
+  } else {
+    // NOT_SUPPORTED is a real answer, not a failure to record.
+    assert.equal(evidence.created, false);
+    assert.equal(evidence.cnaResult, 6);
+  }
 });
 
 class NativeAudioProbeGame extends Game {

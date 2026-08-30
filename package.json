@@ -22,6 +22,10 @@
       "types": "./dist/extensions/runtime/index.d.ts",
       "import": "./dist/extensions/runtime/index.js"
     },
+    "./extensions/graphics": {
+      "types": "./dist/extensions/graphics/index.d.ts",
+      "import": "./dist/extensions/graphics/index.js"
+    },
     "./runtime": {
       "types": "./dist/runtime/index.d.ts",
       "import": "./dist/runtime/index.js"

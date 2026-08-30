@@ -1,17 +1,21 @@
 {
   "contract": "tools/cna-abi/contract.json",
   "cnaRoot": "/rv/data/development/github.com/openeggbert/cnanext",
-  "typeScriptEnums": 82,
-  "verifiedFamilies": 81,
+  "typeScriptEnums": 86,
+  "verifiedFamilies": 85,
   "managedEnums": 1,
-  "claims": 752,
-  "identicalClaims": 749,
+  "claims": 769,
+  "identicalClaims": 766,
   "translatedClaims": 3,
   "scalarAssertions": 6,
   "resultCodeAssertions": 15,
   "structVersionAssertions": 6,
   "staticAssertionsCompiled": true,
   "cnaOnlyFamilyConstants": [
+    {
+      "family": "AlphaMode",
+      "constant": "CNA_ALPHA_MODE_MAXIMUM_EXT"
+    },
     {
       "family": "AudioStopOptions",
       "constant": "CNA_AUDIO_STOP_OPTIONS_MAXIMUM"
@@ -277,7 +281,7 @@
       "constant": "CNA_VIDEO_SOUNDTRACK_TYPE_MAXIMUM"
     }
   ],
-  "declaredCnaOnlyConstants": 65,
+  "declaredCnaOnlyConstants": 66,
   "diagnostics": [],
   "translations": [
     {

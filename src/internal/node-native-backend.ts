@@ -9,8 +9,12 @@ import type {
   CnaEffectBackend,
   CnaGameWindowBackend,
   BackendRendererInfo,
+  CnaGraphicsExtensionBackend,
   ContentLostResourceKind,
+  PbrMaterialDefaults,
   PlatformSnapshot,
+  RenderPipelineSettingsDefaults,
+  RenderPipelineStatisticsSnapshot,
   RendererFallbackSnapshot,
   RendererIdentitySnapshot,
   RendererSelectionSnapshot,
@@ -106,6 +110,14 @@ interface NativeBridge {
   setMinimumLogLevel(level: number): void;
   writeLog(level: number, category: number, message: string): void;
   isGraphicsExtensionLayerAvailable(): boolean;
+  getDefaultPbrMaterial(): PbrMaterialDefaults;
+  getDefaultRenderPipelineSettings(): RenderPipelineSettingsDefaults;
+  createRenderPipeline(device: bigint): bigint;
+  destroyRenderPipeline(pipeline: bigint): void;
+  resizeRenderPipeline(pipeline: bigint, width: number, height: number): void;
+  beginRenderPipeline(pipeline: bigint, packedClearColor: number): void;
+  endRenderPipeline(pipeline: bigint): void;
+  getRenderPipelineStatistics(pipeline: bigint): RenderPipelineStatisticsSnapshot;
   importedSymbolCount(): number;
   getLastError(): string | null;
   createGame(fixedTimeStep: boolean, targetElapsedTicks: bigint, callbacks: CnaGameCallbacks): bigint;
@@ -484,7 +496,7 @@ interface NativeBridge {
 
 export class NodeNativeBackend
   implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend,
-    CnaRuntimeServicesBackend {
+    CnaRuntimeServicesBackend, CnaGraphicsExtensionBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
   public readonly AbiVersion: string;
@@ -500,6 +512,7 @@ export class NodeNativeBackend
   public readonly Effects: CnaEffectBackend = this;
   public readonly Window: CnaGameWindowBackend = this;
   public readonly RuntimeServices: CnaRuntimeServicesBackend = this;
+  public readonly GraphicsExtensions: CnaGraphicsExtensionBackend = this;
   readonly #bridge: NativeBridge;
   #activeGame: NativeHandle | null = null;
   #boundGameLifetime: NativeResourceLifetime | null = null;
@@ -1435,6 +1448,34 @@ export class NodeNativeBackend
   }
   public isGraphicsExtensionLayerAvailable(): boolean {
     return this.#bridge.isGraphicsExtensionLayerAvailable();
+  }
+
+
+  // ---- CNA extended graphics layer ------------------------------------------------------------
+
+  public getDefaultPbrMaterial(): PbrMaterialDefaults {
+    return Object.freeze(this.#bridge.getDefaultPbrMaterial());
+  }
+  public getDefaultRenderPipelineSettings(): RenderPipelineSettingsDefaults {
+    return Object.freeze(this.#bridge.getDefaultRenderPipelineSettings());
+  }
+  public createRenderPipeline(device: NativeHandle): NativeHandle {
+    return this.#bridge.createRenderPipeline(device);
+  }
+  public destroyRenderPipeline(pipeline: NativeHandle): void {
+    this.#bridge.destroyRenderPipeline(pipeline);
+  }
+  public resizeRenderPipeline(pipeline: NativeHandle, width: number, height: number): void {
+    this.#bridge.resizeRenderPipeline(pipeline, width, height);
+  }
+  public beginRenderPipeline(pipeline: NativeHandle, packedClearColor: number): void {
+    this.#bridge.beginRenderPipeline(pipeline, packedClearColor);
+  }
+  public endRenderPipeline(pipeline: NativeHandle): void {
+    this.#bridge.endRenderPipeline(pipeline);
+  }
+  public getRenderPipelineStatistics(pipeline: NativeHandle): RenderPipelineStatisticsSnapshot {
+    return Object.freeze(this.#bridge.getRenderPipelineStatistics(pipeline));
   }
 
 }

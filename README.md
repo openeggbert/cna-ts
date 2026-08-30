@@ -20,8 +20,11 @@ TypeScript.
 >
 > Gamer services and networking are declaration-complete and refuse at runtime with
 > `GamerServicesNotAvailableException`, the exception XNA itself raises where the platform is
-> absent. Modern CNA surface outside XNA lives under `cna-ts/extensions`; the first family —
-> platform identity, renderer selection and the runtime log — is verified on both backends.
+> absent. Modern CNA surface outside XNA lives under `cna-ts/extensions`: `extensions/runtime`
+> carries platform identity, renderer selection and the runtime log, verified on both backends, and
+> `extensions/graphics` carries the PBR material, the render pipeline and its frame statistics,
+> verified against a build with CNA's extended graphics layer compiled in and reporting the
+> truthful not-supported branch where it is not.
 
 ## One package for both languages
 

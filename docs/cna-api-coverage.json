@@ -1,15 +1,15 @@
 {
   "cnaRoot": "/rv/data/development/github.com/openeggbert/cnanext",
   "headers": 57,
-  "nodeImportedTotal": 404,
+  "nodeImportedTotal": 414,
   "wasmImportedTotal": 79,
   "importedByBothBackends": 79,
   "totalFunctions": 4051,
   "totals": {
-    "NODE_IMPORTED": 404,
+    "NODE_IMPORTED": 414,
     "WASM_IMPORTED": 0,
     "XNA_BACKING": 545,
-    "CNA_EXTENSION_BACKING": 1690,
+    "CNA_EXTENSION_BACKING": 1680,
     "INTERNAL_RUNTIME_ONLY": 0,
     "MANAGED_BY_DESIGN": 457,
     "TOOLING_ONLY": 31,
@@ -65,7 +65,8 @@
       "CNA_EXTENSION_BACKING": 34
     },
     "engine_layer.h": {
-      "CNA_EXTENSION_BACKING": 857
+      "CNA_EXTENSION_BACKING": 849,
+      "NODE_IMPORTED": 8
     },
     "gamer_services.h": {
       "INTENTIONALLY_DEFERRED": 250
@@ -79,8 +80,8 @@
       "CNA_EXTENSION_BACKING": 14
     },
     "graphics_ext.h": {
-      "CNA_EXTENSION_BACKING": 27,
-      "NODE_IMPORTED": 1
+      "CNA_EXTENSION_BACKING": 25,
+      "NODE_IMPORTED": 3
     },
     "graphics_resource.h": {
       "INTENTIONALLY_DEFERRED": 12
@@ -17932,8 +17933,8 @@
     {
       "name": "cna_pbr_material_init",
       "header": "graphics_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_picture_album_collection_copy_type_name",
@@ -19366,8 +19367,8 @@
     {
       "name": "cna_render_pipeline_begin",
       "header": "engine_layer.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_render_pipeline_clear_user_passes",
@@ -19390,14 +19391,14 @@
     {
       "name": "cna_render_pipeline_create",
       "header": "engine_layer.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_render_pipeline_destroy",
       "header": "engine_layer.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_render_pipeline_did_shadow_pass_run",
@@ -19414,20 +19415,20 @@
     {
       "name": "cna_render_pipeline_end",
       "header": "engine_layer.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_render_pipeline_get_gpu_memory_estimate_bytes",
       "header": "engine_layer.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_render_pipeline_get_last_frame_pass_count",
       "header": "engine_layer.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_render_pipeline_get_pass_timing_count_ext",
@@ -19474,8 +19475,8 @@
     {
       "name": "cna_render_pipeline_get_statistics",
       "header": "engine_layer.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_render_pipeline_is_gpu_timing_enabled_ext",
@@ -19498,8 +19499,8 @@
     {
       "name": "cna_render_pipeline_resize",
       "header": "engine_layer.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_render_pipeline_set_camera",
@@ -19582,8 +19583,8 @@
     {
       "name": "cna_render_pipeline_settings_init",
       "header": "graphics_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_render_target_cube_create",

@@ -103,6 +103,7 @@ try {
       `import { Vector3 } from "cna-ts/xna";\n` +
       `import { GetRendererInfo } from "cna-ts/extensions";\n` +
       `import { GetPlatformInfo, GraphicsRendererType, RendererSelection } from "cna-ts/extensions/runtime";\n` +
+      `import { CreatePbrMaterial, RenderPipeline, TonemappingMode } from "cna-ts/extensions/graphics";\n` +
       `import { NativeUnavailableError } from "cna-ts/runtime";\n` +
       `assert.equal(Vector2.Add(new Vector2(1, 2), new Vector2(3, 4)).X, 4);\n` +
       `assert.equal(new Vector3(1).Z, 1);\n` +
@@ -113,6 +114,9 @@ try {
       `assert.equal(GraphicsRendererType.WebGL2, 6);\n` +
       `assert.throws(() => GetPlatformInfo(), NativeUnavailableError);\n` +
       `assert.throws(() => RendererSelection.GetState(), NativeUnavailableError);\n` +
+      `assert.equal(TonemappingMode.Aces, 3);\n` +
+      `assert.throws(() => CreatePbrMaterial(), NativeUnavailableError);\n` +
+      `assert.throws(() => new RenderPipeline({}), NativeUnavailableError);\n` +
       `await assert.rejects(import("cna-ts/internal/backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n` +
       `await assert.rejects(import("cna-ts/internal/wasm/wasm-backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n`,
   );
@@ -143,6 +147,7 @@ try {
       `import { Matrix, Vector3 } from "cna-ts/xna";\n` +
       `import type { RendererInfo } from "cna-ts/extensions";\n` +
       `import type { CnaPlatformInfo, RendererIdentity } from "cna-ts/extensions/runtime";\n` +
+      `import type { PbrMaterial, RenderPipelineSettings } from "cna-ts/extensions/graphics";\n` +
       `import type { RuntimeStatus } from "cna-ts/runtime";\n` +
       `const vector: Vector2 = Vector2.Transform(Vector2.One, Matrix.Identity);\n` +
       `const color: Color = Microsoft.Xna.Framework.Color.White;\n` +
@@ -151,7 +156,9 @@ try {
       `const renderer: RendererInfo | undefined = undefined;\n` +
       `const platform: CnaPlatformInfo | undefined = undefined;\n` +
       `const identity: RendererIdentity | undefined = undefined;\n` +
-      `void [vector, color, vector3, status, renderer, platform, identity];\n`,
+      `const material: PbrMaterial | undefined = undefined;\n` +
+      `const pipeline: RenderPipelineSettings | undefined = undefined;\n` +
+      `void [vector, color, vector3, status, renderer, platform, identity, material, pipeline];\n`,
   );
   installTarball(typescript, tarball);
   run(

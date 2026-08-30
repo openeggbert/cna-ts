@@ -26,6 +26,16 @@ typedef void* LibraryHandle;
 #endif
 
 typedef uint32_t (*GetAbiVersionFn)(void);
+typedef CNA_Result (*PbrMaterialInitFn)(CNA_PbrMaterial*);
+typedef CNA_Result (*RenderPipelineSettingsInitFn)(CNA_RenderPipelineSettings*);
+typedef CNA_Result (*RenderPipelineCreateFn)(CNA_Handle, CNA_RenderPipelineHandle*);
+typedef CNA_Result (*RenderPipelineHandleFn)(CNA_RenderPipelineHandle);
+typedef CNA_Result (*RenderPipelineResizeFn)(CNA_RenderPipelineHandle, int32_t, int32_t);
+typedef CNA_Result (*RenderPipelineBeginFn)(CNA_RenderPipelineHandle, const CNA_Color*);
+typedef CNA_Result (*RenderPipelinePassCountFn)(CNA_RenderPipelineHandle, int32_t*);
+typedef CNA_Result (*RenderPipelineMemoryFn)(CNA_RenderPipelineHandle, uint64_t*);
+typedef CNA_Result (*RenderPipelineStatisticsFn)(
+  CNA_RenderPipelineHandle, CNA_RenderPipelineFrameStatisticsEXT*);
 typedef CNA_Result (*RenderTargetSubscribeFn)(
   CNA_Handle, CNA_RenderTargetContentLostCallback, void*, CNA_RenderTargetEventRegistrationHandle*);
 typedef CNA_Result (*RenderTargetUnsubscribeFn)(CNA_RenderTargetEventRegistrationHandle);
@@ -265,6 +275,16 @@ typedef CNA_Result (*EffectMatricesFn)(CNA_EffectHandle, const CNA_Matrix*, uint
 
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
+  PbrMaterialInitFn pbr_material_init;
+  RenderPipelineSettingsInitFn render_pipeline_settings_init;
+  RenderPipelineCreateFn render_pipeline_create;
+  RenderPipelineHandleFn render_pipeline_destroy;
+  RenderPipelineResizeFn render_pipeline_resize;
+  RenderPipelineBeginFn render_pipeline_begin;
+  RenderPipelineHandleFn render_pipeline_end;
+  RenderPipelinePassCountFn render_pipeline_pass_count;
+  RenderPipelineMemoryFn render_pipeline_memory;
+  RenderPipelineStatisticsFn render_pipeline_statistics;
   RenderTargetSubscribeFn render_target_subscribe_content_lost;
   RenderTargetUnsubscribeFn render_target_unsubscribe_content_lost;
   VertexBufferSubscribeFn vertex_buffer_subscribe_content_lost;
@@ -967,6 +987,16 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   g_imported_symbols = 0;
 
   LOAD_REQUIRED(get_abi_version, GetAbiVersionFn, "cna_get_abi_version");
+  LOAD_REQUIRED(pbr_material_init, PbrMaterialInitFn, "cna_pbr_material_init");
+  LOAD_REQUIRED(render_pipeline_settings_init, RenderPipelineSettingsInitFn, "cna_render_pipeline_settings_init");
+  LOAD_REQUIRED(render_pipeline_create, RenderPipelineCreateFn, "cna_render_pipeline_create");
+  LOAD_REQUIRED(render_pipeline_destroy, RenderPipelineHandleFn, "cna_render_pipeline_destroy");
+  LOAD_REQUIRED(render_pipeline_resize, RenderPipelineResizeFn, "cna_render_pipeline_resize");
+  LOAD_REQUIRED(render_pipeline_begin, RenderPipelineBeginFn, "cna_render_pipeline_begin");
+  LOAD_REQUIRED(render_pipeline_end, RenderPipelineHandleFn, "cna_render_pipeline_end");
+  LOAD_REQUIRED(render_pipeline_pass_count, RenderPipelinePassCountFn, "cna_render_pipeline_get_last_frame_pass_count");
+  LOAD_REQUIRED(render_pipeline_memory, RenderPipelineMemoryFn, "cna_render_pipeline_get_gpu_memory_estimate_bytes");
+  LOAD_REQUIRED(render_pipeline_statistics, RenderPipelineStatisticsFn, "cna_render_pipeline_get_statistics");
   LOAD_REQUIRED(render_target_subscribe_content_lost, RenderTargetSubscribeFn, "cna_render_target_subscribe_content_lost");
   LOAD_REQUIRED(render_target_unsubscribe_content_lost, RenderTargetUnsubscribeFn, "cna_render_target_unsubscribe_content_lost");
   LOAD_REQUIRED(vertex_buffer_subscribe_content_lost, VertexBufferSubscribeFn, "cna_vertex_buffer_subscribe_content_lost");
@@ -1525,6 +1555,8 @@ GAME_METHOD(destroy_render_target, render_target_destroy, "cna_render_target_des
 GAME_METHOD(begin_occlusion_query, occlusion_begin, "cna_occlusion_query_begin")
 GAME_METHOD(end_occlusion_query, occlusion_end, "cna_occlusion_query_end")
 GAME_METHOD(destroy_occlusion_query, occlusion_destroy, "cna_occlusion_query_destroy")
+GAME_METHOD(destroy_render_pipeline, render_pipeline_destroy, "cna_render_pipeline_destroy")
+GAME_METHOD(end_render_pipeline, render_pipeline_end, "cna_render_pipeline_end")
 
 static napi_value destroy_game(napi_env env, napi_callback_info info) {
   if (!require_loaded(env)) return NULL;
@@ -6661,10 +6693,159 @@ static napi_value unsubscribe_content_lost(napi_env env, napi_callback_info info
   return undefined_result(env, "ContentLost unsubscribe result");
 }
 
+/* ---- Modern CNA graphics: PBR material and render-pipeline defaults, and the pipeline object ---
+   The two *_init routes are pure value operations and answer in every build; the pipeline object
+   needs the CNA_CNAEXT layer and answers CNA_RESULT_NOT_SUPPORTED where it was compiled out. */
+
+/** The packed RGBA a CNA_Color carries, in the order Color.PackedValue uses. */
+static uint32_t pack_color(CNA_Color value) {
+  return ((uint32_t) value.r) | (((uint32_t) value.g) << 8) |
+    (((uint32_t) value.b) << 16) | (((uint32_t) value.a) << 24);
+}
+
+static int set_f32_property(napi_env env, napi_value object, const char* name, float value) {
+  napi_value entry;
+  return napi_create_double(env, (double) value, &entry) == napi_ok &&
+    napi_set_named_property(env, object, name, entry) == napi_ok;
+}
+
+static napi_value default_pbr_material(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  CNA_PbrMaterial material;
+  memset(&material, 0, sizeof(material));
+  CNA_Result result = g_api.pbr_material_init(&material);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_pbr_material_init", result);
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "PBR material defaults");
+  if (!set_f32_property(env, output, "MetallicFactor", material.metallic_factor) ||
+      !set_f32_property(env, output, "RoughnessFactor", material.roughness_factor) ||
+      !set_f32_property(env, output, "NormalScale", material.normal_scale) ||
+      !set_f32_property(env, output, "OcclusionStrength", material.occlusion_strength) ||
+      !set_f32_property(env, output, "AlphaCutoff", material.alpha_cutoff) ||
+      !set_bool_property(env, output, "AlphaBlendEnabled", material.alpha_blend_enabled) ||
+      !set_u32_property(env, output, "AlbedoColor", pack_color(material.albedo_color)) ||
+      !set_u32_property(env, output, "EmissiveColor", pack_color(material.emissive_color))) {
+    return throw_napi(env, "PBR material defaults");
+  }
+  return output;
+}
+
+static napi_value default_render_pipeline_settings(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  CNA_RenderPipelineSettings settings;
+  memset(&settings, 0, sizeof(settings));
+  CNA_Result result = g_api.render_pipeline_settings_init(&settings);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_settings_init", result);
+  }
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "render pipeline defaults");
+  if (!set_f32_property(env, output, "Exposure", settings.exposure) ||
+      !set_f32_property(env, output, "Gamma", settings.gamma) ||
+      !set_f32_property(env, output, "BloomIntensity", settings.bloom_intensity) ||
+      !set_u32_property(env, output, "TonemappingMode", settings.tonemapping_mode) ||
+      !set_u32_property(env, output, "RenderQuality", settings.render_quality) ||
+      !set_u32_property(env, output, "ShadowQuality", settings.shadow_quality) ||
+      !set_bool_property(env, output, "HdrEnabled", settings.hdr_enabled) ||
+      !set_bool_property(env, output, "BloomEnabled", settings.bloom_enabled) ||
+      !set_bool_property(env, output, "SsaoEnabled", settings.ssao_enabled) ||
+      !set_bool_property(env, output, "ShadowsEnabled", settings.shadows_enabled)) {
+    return throw_napi(env, "render pipeline defaults");
+  }
+  return output;
+}
+
+static napi_value create_render_pipeline(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  CNA_Handle device = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &device)) return NULL;
+  CNA_RenderPipelineHandle pipeline = 0;
+  CNA_Result result = g_api.render_pipeline_create(device, &pipeline);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_render_pipeline_create", result);
+  return make_handle(env, pipeline);
+}
+
+static napi_value resize_render_pipeline(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle pipeline = 0;
+  int32_t width = 0, height = 0;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &pipeline) ||
+      napi_get_value_int32(env, args[1], &width) != napi_ok ||
+      napi_get_value_int32(env, args[2], &height) != napi_ok) return NULL;
+  CNA_Result result = g_api.render_pipeline_resize(pipeline, width, height);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_render_pipeline_resize", result);
+  return undefined_result(env, "render pipeline resize result");
+}
+
+static napi_value begin_render_pipeline(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle pipeline = 0;
+  uint32_t packed = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &pipeline) ||
+      napi_get_value_uint32(env, args[1], &packed) != napi_ok) return NULL;
+  const CNA_Color clear = {
+    (uint8_t) (packed & 0xFFu), (uint8_t) ((packed >> 8) & 0xFFu),
+    (uint8_t) ((packed >> 16) & 0xFFu), (uint8_t) ((packed >> 24) & 0xFFu)
+  };
+  CNA_Result result = g_api.render_pipeline_begin(pipeline, &clear);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_render_pipeline_begin", result);
+  return undefined_result(env, "render pipeline begin result");
+}
+
+static napi_value get_render_pipeline_statistics(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  CNA_Handle pipeline = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &pipeline)) return NULL;
+  CNA_RenderPipelineFrameStatisticsEXT statistics;
+  memset(&statistics, 0, sizeof(statistics));
+  statistics.struct_size = sizeof(statistics);
+  statistics.struct_version = 1;
+  CNA_Result result = g_api.render_pipeline_statistics(pipeline, &statistics);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_get_statistics", result);
+  }
+  int32_t passes = 0;
+  uint64_t memory = 0;
+  result = g_api.render_pipeline_pass_count(pipeline, &passes);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_get_last_frame_pass_count", result);
+  }
+  result = g_api.render_pipeline_memory(pipeline, &memory);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_get_gpu_memory_estimate_bytes", result);
+  }
+  napi_value output, memory_value;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "render pipeline statistics");
+  NAPI_OR_RETURN(env, napi_create_bigint_uint64(env, memory, &memory_value), "render pipeline statistics");
+  if (!set_u32_property(env, output, "PassesRun", (uint32_t) statistics.passes_run) ||
+      !set_u32_property(env, output, "TargetSwitches", (uint32_t) statistics.target_switches) ||
+      !set_u32_property(env, output, "LastFramePassCount", (uint32_t) passes) ||
+      !set_bool_property(env, output, "UsedSceneTarget", statistics.used_scene_target) ||
+      !set_bool_property(env, output, "DrewSkybox", statistics.drew_skybox) ||
+      napi_set_named_property(env, output, "GpuMemoryEstimateBytes", memory_value) != napi_ok) {
+    return throw_napi(env, "render pipeline statistics");
+  }
+  return output;
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultPbrMaterial", NULL, default_pbr_material, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultRenderPipelineSettings", NULL, default_render_pipeline_settings, NULL, NULL, NULL, napi_default, NULL },
+    { "createRenderPipeline", NULL, create_render_pipeline, NULL, NULL, NULL, napi_default, NULL },
+    { "resizeRenderPipeline", NULL, resize_render_pipeline, NULL, NULL, NULL, napi_default, NULL },
+    { "beginRenderPipeline", NULL, begin_render_pipeline, NULL, NULL, NULL, napi_default, NULL },
+    { "endRenderPipeline", NULL, end_render_pipeline, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyRenderPipeline", NULL, destroy_render_pipeline, NULL, NULL, NULL, napi_default, NULL },
+    { "getRenderPipelineStatistics", NULL, get_render_pipeline_statistics, NULL, NULL, NULL, napi_default, NULL },
     { "getPlatformSnapshot", NULL, get_platform_snapshot, NULL, NULL, NULL, napi_default, NULL },
     { "getRendererSelection", NULL, get_renderer_selection, NULL, NULL, NULL, napi_default, NULL },
     { "getAvailableRendererTypes", NULL, get_available_renderer_types, NULL, NULL, NULL, napi_default, NULL },

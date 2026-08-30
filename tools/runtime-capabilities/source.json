@@ -581,7 +581,7 @@
       "operation": "Direct standalone GraphicsDevice construction",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime the projection needs now exists upstream; CNA-TS still projects only the game-owned borrowed device",
+      "evidence": "ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime exists upstream. The qualified HEADLESS artifact reports no graphics adapter, so GraphicsAdapter.DefaultAdapter has nothing to return and the XNA constructor has no argument to be given; implementing the route here would be unexercisable on any backend this session can build",
       "proof": [
         "absentRoute:cna_graphics_device_create",
         "absentRoute:cna_graphics_device_destroy"
@@ -750,13 +750,13 @@
       ]
     },
     {
-      "operation": "Modern CNA engine layer: PBR materials, render pipeline, post-process, lighting and shadows",
+      "operation": "Modern CNA engine layer beyond the render pipeline: lighting, shadows, post-process passes, particles and compute",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "857 engine_layer.h routes are classified as extension backing in docs/cna-api-coverage.md and none is projected yet",
+      "evidence": "857 engine_layer.h routes are classified as extension backing in docs/cna-api-coverage.md; the render-pipeline object and the PBR/pipeline value defaults are projected, the rest is not",
       "proof": [
-        "absentRoute:cna_pbr_material_init",
-        "absentRoute:cna_render_pipeline_settings_init"
+        "absentRoute:cna_clustered_light_grid_create",
+        "absentRoute:cna_post_process_chain_create"
       ]
     },
     {
@@ -803,6 +803,30 @@
       "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
       "owner": "current qualified backend",
       "evidence": "ABI 0.9 raises the event for real on the renderers whose API can lose a device (DirectX9, Direct2D, Skia); HEADLESS has no device to lose, so the producer never runs and the native suite asserts zero raises rather than pretending otherwise"
+    },
+    {
+      "operation": "Modern CNA PBR material and render-pipeline value defaults",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "cna_pbr_material_init and cna_render_pipeline_settings_init are pure value operations CNA documents as answering in either build, and they do on the qualified artifact; the facade seeds its value objects from them rather than from numbers written in TypeScript",
+      "proof": [
+        "route:cna_pbr_material_init",
+        "route:cna_render_pipeline_settings_init"
+      ]
+    },
+    {
+      "operation": "Modern CNA render pipeline object lifetime, resize, frame and statistics",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "on a CNA_CNAEXT=ON artifact a pipeline is created, resized, begun, ended, queried for statistics and disposed twice safely; where the layer is compiled out construction reports CNA_RESULT_NOT_SUPPORTED and the native suite asserts that branch instead",
+      "proof": [
+        "route:cna_render_pipeline_create",
+        "route:cna_render_pipeline_destroy",
+        "route:cna_render_pipeline_resize",
+        "route:cna_render_pipeline_begin",
+        "route:cna_render_pipeline_end",
+        "route:cna_render_pipeline_get_statistics"
+      ]
     }
   ]
 }

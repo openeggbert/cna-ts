@@ -31,6 +31,7 @@ import type {
   CnaGameTimeSnapshot,
   CnaGameWindowBackend,
   CnaGraphicsBackend,
+  CnaGraphicsExtensionBackend,
   CnaMediaBackend,
   CnaRuntimeServicesBackend,
   CnaStorageBackend,
@@ -47,8 +48,11 @@ import type {
   NativeEffectPassSnapshot,
   NativeEffectReflectionSnapshot,
   NativeEffectTechniqueSnapshot,
+  PbrMaterialDefaults,
   PlatformSnapshot,
   RasterizerStateSnapshot,
+  RenderPipelineSettingsDefaults,
+  RenderPipelineStatisticsSnapshot,
   RenderTargetBindingSnapshot,
   RenderTargetInfo,
   RendererDetailSnapshot,
@@ -832,6 +836,34 @@ export abstract class CnaRuntimeServicesBackendBase implements CnaRuntimeService
   ): void { return this.unsupported("writeLog"); }
   public isGraphicsExtensionLayerAvailable(
   ): boolean { return this.unsupported("isGraphicsExtensionLayerAvailable"); }
+}
+
+/** Refusing base for {@link CnaGraphicsExtensionBackend}. */
+export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExtensionBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public getDefaultPbrMaterial(): PbrMaterialDefaults { return this.unsupported("getDefaultPbrMaterial"); }
+  public getDefaultRenderPipelineSettings(
+  ): RenderPipelineSettingsDefaults { return this.unsupported("getDefaultRenderPipelineSettings"); }
+  public createRenderPipeline(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createRenderPipeline"); }
+  public destroyRenderPipeline(
+    _pipeline: NativeHandle,
+  ): void { return this.unsupported("destroyRenderPipeline"); }
+  public resizeRenderPipeline(
+    _pipeline: NativeHandle,
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("resizeRenderPipeline"); }
+  public beginRenderPipeline(
+    _pipeline: NativeHandle,
+    _packedClearColor: number,
+  ): void { return this.unsupported("beginRenderPipeline"); }
+  public endRenderPipeline(_pipeline: NativeHandle): void { return this.unsupported("endRenderPipeline"); }
+  public getRenderPipelineStatistics(
+    _pipeline: NativeHandle,
+  ): RenderPipelineStatisticsSnapshot { return this.unsupported("getRenderPipelineStatistics"); }
 }
 
 /** Refusing base for {@link CnaBackend}. */
