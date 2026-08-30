@@ -940,6 +940,19 @@
       ]
     },
     {
+      "operation": "Windowed Linux qualification: real GPU pixels through the public XNA drawing path",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "against an OPENGLES3/SDL3 CNA library under Xvfb, a RenderTarget2D cleared to (12, 34, 56, 255) through GraphicsDevice.Clear reads back all sixteen texels exactly, the renderer reports itself as OPENGLES3 with a 16384-texel limit and 0x7ffff capability flags, a stock BasicEffect pass applies for real rather than returning the HEADLESS not-supported branch, and 60 and 600 SpriteBatch frames run without drift. Opt-in through CNA_WINDOWED_LIBRARY, and it skips with a reason where no windowed library or display exists",
+      "proof": [
+        "route:cna_graphics_device_clear_rgba",
+        "route:cna_render_target2d_create",
+        "route:cna_texture2d_get_data",
+        "route:cna_effect_pass_apply",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
       "operation": "Handing a post-process pass to a chain with PostProcessChain.AddOwned",
       "category": "UPSTREAM_CNA_BLOCKED",
       "owner": "cna-ts/extensions/graphics",

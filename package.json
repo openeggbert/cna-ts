@@ -58,6 +58,7 @@
     "test:native": "npm run build:native-bridge && npm run build && node --test test/native-cna.integration.mjs",
     "test:extensions": "npm run build && node --test test/extensions-runtime.integration.mjs",
     "test:cnb": "npm run build && node --test test/cnb-content.integration.mjs",
+    "test:windowed": "npm run build && node --test test/windowed-renderer.integration.mjs",
     "test:wasm-browser": "npm run build && node --test test/wasm-browser.mjs",
     "audit:cna-abi": "node tools/audit-cna-abi.mjs",
     "verify:cna-contract": "node tools/cna-abi/verify-contract.mjs",

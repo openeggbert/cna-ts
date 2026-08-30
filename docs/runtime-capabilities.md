@@ -20,7 +20,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Category | Operation families |
 | --- | ---: |
 | VERIFIED_MANAGED | 20 |
-| VERIFIED_NATIVE | 44 |
+| VERIFIED_NATIVE | 45 |
 | VERIFIED_WEBASSEMBLY | 5 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 5 |
 | UPSTREAM_CNA_BLOCKED | 1 |
@@ -104,6 +104,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | VertexDeclaration, VertexBuffer and IndexBuffer resource construction/readback used by Model XNB | CNA-TS + CNA | qualified native Model reader integration |
 | VideoPlayer construction and control/cached-property state without decoded frames | CNA-TS + CNA | qualified native control-state integration |
 | VideoPlayer.GetTexture borrowed frame projection and its decode identity | CNA-TS | cna_video_player_get_frame_ext's monotonic decode generation is what made a safe projection possible: GetTexture now hands back a non-owning Texture2D over the player's own frame, returns the same object while the generation is unchanged, and retires it the moment anything else touches the player -- the exact window CNA says the handle is valid for. Before any decode the identity reads absent with generation zero and a negative presentation time, reading it twice does not advance the count, and neither path fabricates a texture. Frame progression across a real decode stays fixture-pending |
+| Windowed Linux qualification: real GPU pixels through the public XNA drawing path | CNA-TS | against an OPENGLES3/SDL3 CNA library under Xvfb, a RenderTarget2D cleared to (12, 34, 56, 255) through GraphicsDevice.Clear reads back all sixteen texels exactly, the renderer reports itself as OPENGLES3 with a 16384-texel limit and 0x7ffff capability flags, a stock BasicEffect pass applies for real rather than returning the HEADLESS not-supported branch, and 60 and 600 SpriteBatch frames run without drift. Opt-in through CNA_WINDOWED_LIBRARY, and it skips with a reason where no windowed library or display exists |
 
 ## VERIFIED_WEBASSEMBLY
 

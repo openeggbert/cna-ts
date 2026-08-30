@@ -27,6 +27,10 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   default/backendless path remains explicitly unavailable.
 - [x] Linux x86-64 HEADLESS Node execution is verified against a CNA C ABI 0.20.0 artifact built
   out of tree from `cnanext` against `sharp-runtimenext`.
+- [x] A windowed Linux qualification exists beside it: against an OPENGLES3/SDL3 CNA library under
+  Xvfb, a `RenderTarget2D` cleared through the public API reads back all sixteen texels exactly and
+  a stock `BasicEffect` pass applies for real. It is opt-in through `CNA_WINDOWED_LIBRARY` and
+  skips with a reason where no windowed library or display exists.
 - [x] A WebAssembly backend runs the same public XNA API for 60 and 600 real frames in headless
   Chromium on a WebGL2 context.
 - [x] The XNA structural difference count is zero on both profiles, with no missing members and an

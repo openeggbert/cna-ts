@@ -13,7 +13,9 @@ TypeScript.
 > projected is the 128-type content pipeline, which runs in the content build rather than in a game.
 >
 > Two real backends run the same public API. An opt-in Node-API bridge executes CNA C ABI 0.20.0 on
-> Linux HEADLESS with NULL audio through 414 imported routes; a WebAssembly backend runs the same
+> Linux HEADLESS with NULL audio through 581 imported routes, and against a windowed OPENGLES3
+> library under Xvfb it draws real pixels — a render target cleared through the public API reads
+> back exactly; a WebAssembly backend runs the same
 > `Game`, `GraphicsDeviceManager`, `Texture2D` and `SpriteBatch` for 60 and 600 real frames in a
 > browser on a WebGL2 context. No native binary and no CNA library is bundled, and without an
 > explicitly loaded backend native operations fail rather than simulating execution.
@@ -71,7 +73,7 @@ await LoadNodeNativeBackend({
 });
 ```
 
-The adapter enforces the ABI 0.20 window and uses exactly 414 audited symbols. Every one of them
+The adapter enforces the ABI 0.20 window and uses exactly 581 audited symbols. Every one of them
 has its declared function-pointer type checked against the canonical headers under
 `-Wall -Wextra -Werror`, so a route whose signature moves is a build failure rather than a runtime
 surprise. Current native evidence
