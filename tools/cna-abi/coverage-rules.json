@@ -1,0 +1,120 @@
+{
+  "description": "Classifies every public CNA C API declaration. Rules are matched in order against a declaration's header and name; the first match wins, except that a route the Node or WebAssembly adapter actually imports is classified by that fact regardless of any rule. UNEXPLAINED must stay at zero: a route with no rule is a route nobody has decided about.",
+  "categories": {
+    "NODE_IMPORTED": "imported by native/cna_node_bridge.c and reachable from the public API",
+    "WASM_IMPORTED": "imported by the WebAssembly backend",
+    "XNA_BACKING": "backs an XNA 4.0 member this package projects, reached through a different route or an exact managed implementation",
+    "CNA_EXTENSION_BACKING": "modern CNA surface outside Microsoft.Xna.Framework, the target of cna-ts/extensions",
+    "INTERNAL_RUNTIME_ONLY": "runtime plumbing the binding never exposes as public API",
+    "MANAGED_BY_DESIGN": "XNA value semantics kept exact in TypeScript; routing them through native would add ownership and error paths XNA does not have",
+    "TOOLING_ONLY": "test, diagnostic and fuzzing hooks that are not application surface",
+    "INTENTIONALLY_DEFERRED": "real XNA 4.0 surface this package has measured and not yet projected",
+    "UPSTREAM_RUNTIME_UNAVAILABLE": "declared by the ABI but with no runtime that answers it on a locally buildable backend",
+    "UNEXPLAINED": "no rule claims this route"
+  },
+  "rules": [
+    {
+      "namePattern": "_for_tests_ext$",
+      "category": "TOOLING_ONLY",
+      "reason": "an explicitly test-only extension hook"
+    },
+    {
+      "headers": [
+        "vectors.h",
+        "matrix.h",
+        "quaternion.h",
+        "math.h",
+        "math_values.h",
+        "geometry.h",
+        "curve.h",
+        "color.h",
+        "named_colors.h",
+        "packed_vectors.h",
+        "vertex_values.h",
+        "graphics3d.h"
+      ],
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "XNA's math, geometry, curve, colour and packed-value semantics are deterministic and are implemented exactly in TypeScript; the differential corpus pins them against the reference implementation. Calling native for them would add a handle, an error path and a backend dependency to operations XNA performs with no failure mode at all."
+    },
+    {
+      "headers": [
+        "engine_layer.h",
+        "graphics_ext.h",
+        "core_ext.h",
+        "cnb.h",
+        "sensors.h",
+        "devices.h",
+        "input_haptics.h",
+        "input_joystick.h",
+        "input_cursor.h",
+        "input_text.h",
+        "display.h"
+      ],
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+    },
+    {
+      "headers": [
+        "gamer_services.h",
+        "net.h",
+        "net_gamers.h",
+        "net_sessions.h"
+      ],
+      "category": "INTENTIONALLY_DEFERRED",
+      "reason": "backs the 74 Microsoft.Xna.Framework.GamerServices and .Net types docs/xna-profile-inventory.md measures as the complete remaining XNA 4.0 runtime gap; the profile is inventoried and not yet projected"
+    },
+    {
+      "namePattern": "_ext$",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "an _ext route is CNA surface beyond XNA 4.0 by the ABI's own naming rule"
+    },
+    {
+      "headers": [
+        "abi.h"
+      ],
+      "category": "NODE_IMPORTED",
+      "reason": "the ABI version query is the first route the adapter loads"
+    },
+    {
+      "headers": [
+        "core.h",
+        "runtime.h",
+        "runtime_components.h",
+        "runtime_graphics_manager.h",
+        "runtime_window.h",
+        "content_readers.h",
+        "models.h",
+        "effects.h",
+        "media_library.h",
+        "media_player.h",
+        "media.h",
+        "video.h",
+        "xact.h",
+        "audio.h",
+        "storage.h",
+        "content.h",
+        "graphics.h",
+        "graphics_device.h",
+        "graphics_resource.h",
+        "graphics_state.h",
+        "render_target.h",
+        "texture.h",
+        "texture_volume.h",
+        "sprite_font.h",
+        "vertex_resources.h",
+        "index_resources.h",
+        "input.h",
+        "input_keyboard.h",
+        "input_mouse.h",
+        "input_gamepad.h",
+        "input_touch.h",
+        "input_devices.h"
+      ],
+      "category": "XNA_BACKING",
+      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "requireHeaderReached": true,
+      "unreachedCategory": "INTENTIONALLY_DEFERRED",
+      "unreachedReason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered"
+    }
+  ]
+}
