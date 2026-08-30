@@ -1641,7 +1641,7 @@ desktop renderer. Twelve local commits here and one in the template; nothing pus
 
 ```text
 CNA_TS_START=005edf8a330d0257565c70f527d749ba611f56f4 (clean, == origin/develop)
-CNA_TS_END=81e6dbe
+CNA_TS_END=4be530e (16 local commits)
 CNA_TS_TEMPLATE_START=dfd9e14b18b143b6b33b829f5d63b6fe55b90fb7 (clean, == origin/develop)
 CNA_TS_TEMPLATE_END=2ea39870941d0520c7599afd9455efda9cea4c6b
 CNANEXT_ARTIFACT_HEAD=17b5a90a0878f3f44c23bc8e3197d5d30373dc72
@@ -1691,8 +1691,8 @@ MANAGED_BY_DESIGN       457               457
 TOOLING_ONLY            31                31
 INTENTIONALLY_DEFERRED  924               674
 UNEXPLAINED             0                 0
-REACHABLE_NODE          414               581
-REACHABLE_WASM          79                105
+REACHABLE_NODE          414               594
+REACHABLE_WASM          79                169
 REACHABLE_BUT_DEFERRED  n/a               0
 ```
 
@@ -1773,10 +1773,15 @@ applies for real. It is opt-in through `CNA_WINDOWED_LIBRARY` and skips with a r
 ### The browser slice
 
 ```text
-WASM_BACKEND_ROUTES=105 (was 79)   MISSING_WASM_BACKEND_EXPORTS=0
-ADDED: title storage and the whole managed content stack, render targets, sound effects
+WASM_BACKEND_ROUTES=169 (was 79)   MISSING_WASM_BACKEND_EXPORTS=0
+ADDED: title storage and the whole managed content stack, render targets, sound effects, CNB
 BROWSER_60=PASS BROWSER_600=PASS UNCAUGHT_PAGE_ERRORS=0
 ```
+
+CNB crossing to the browser needed no public API at all, which is what a backend-neutral design is
+supposed to buy: the browser test makes the same exact-texel assertion the Node suite makes, through
+the same `CnbDocument` and `CreateTexture2DFromCnb`. Seven more structures joined the Emscripten
+layout probe for it, none of their offsets written by hand.
 
 Title storage is the one route the managed content stack was missing: XNB framing, the reader table,
 the LZX decompressor and every built-in reader graph are TypeScript that already ran on Node, so a
@@ -1802,25 +1807,54 @@ for byte — a gate that could only ever fail. The ABI and contract reports carr
 paths and the dependency's git HEAD, so neither could be reproduced from a pinned checkout. All
 three are portable now, and every `cmp` the workflow performs was replayed locally.
 
+### Sensors, and the Content Pipeline boundary
+
+`cna-ts/extensions/sensors` projects the platform's sensor support and the accelerometer around one
+rule: **a missing sensor is not a sensor reading zero**. `NotSupported`, `NoPermissions`, `Disabled`
+and `NoData` stay distinct — "cannot" and "not yet" are different answers a game acts on differently
+— and `CurrentValue` refuses rather than inventing a measurement. This host has no accelerometer,
+and the test asserts the whole family agreeing about that end to end.
+
+`docs/content-pipeline-boundary.md` measures the question the plan had left open and decides it: the
+128 content-pipeline types stay unprojected, because four of the pipeline's load-bearing mechanisms
+— attribute-driven importer discovery, a reflection-based `IntermediateSerializer`, four MSBuild
+tasks, and XNB output CNA does not produce — have no counterpart here. Projecting them would be the
+first place in this package where a shape was published without the behaviour behind it, and a
+strict verifier reporting zero differences would make that look fine. Content authoring belongs to a
+separate build-time package over CNA's own compiler, whose write half already exists and is
+backend-neutral.
+
 ### Final qualification
 
 ```text
 npm ci PASS   npm run check PASS   npm test 304/304   test:differential 182/182
 api:verify TOTAL_DIFFERENCES=0    api:verify:live TOTAL_DIFFERENCES=0
 verify:runtime RUNTIME_DIFFERENCES=0   verify:leaks INTERNAL_LEAK=0   ALLOWLIST_SIZE=0
-audit:cna-abi ABI=0.20.0 HEADERS=61 EXPORTS=4051 IMPORTS=581 SIGNATURE_MISMATCHES=0
-verify:cna-contract ENUM_CLAIMS=821 TRANSLATED=3 DIAGNOSTICS=0 STATIC_ASSERTIONS_COMPILED=PASS
-coverage:cna-abi UNEXPLAINED=0 REACHABLE_BUT_DEFERRED=0
-runtime:inventory ENTRIES=96 CONSISTENCY_GATE=PASS PROVED=77
-test:native 13/13   test:extensions 10/10   test:cnb 11/11
-test:wasm-browser 6/6   test:windowed 2/2
+audit:cna-abi ABI=0.20.0 HEADERS=61 EXPORTS=4051 IMPORTS=594 SIGNATURE_MISMATCHES=0
+                MISSING_QUALIFIED_LIBRARY_IMPORTS=0 WASM_ROUTES=169 MISSING_WASM_EXPORTS=0
+verify:cna-contract ENUM_CLAIMS=827 TRANSLATED=3 DIAGNOSTICS=0 STATIC_ASSERTIONS_COMPILED=PASS
+coverage:cna-abi UNEXPLAINED=0 REACHABLE_BUT_DEFERRED=0 NODE=594 WASM=169
+runtime:inventory ENTRIES=98 CONSISTENCY_GATE=PASS PROVED=79
+test:native 14/14   test:extensions 10/10   test:cnb 11/11
+test:wasm-browser 7/7   test:windowed 2/2 (OPENGLES3, readback EXACT, stock effect SUCCESS)
 verify:package PASS   build reproducibility PASS   package reproducibility PASS
-PACKED_SHA256=f08f69451b23d50372a17c48763a5e08367570e3b784549a9a759ffcf9e93e36
-PACKED_FILES=821  PACKED_BYTES=727757
+PACKED_SHA256=d2fd57d1dca7cda22d9bdb0d1aaec3f6bab8248002316203e298253362070913
+PACKED_FILES=830  PACKED_BYTES=749737
 
 TEMPLATE  build PASS  native 60/600 PASS  browser 60/600 PASS  extensions PASS
           generated TypeScript/JavaScript PASS  LEGACY_OR_SIBLING_REFERENCES=0
 ```
+
+### Public package subpaths
+
+```text
+.  /xna  /runtime  /extensions
+/extensions/runtime  /extensions/graphics  /extensions/content  /extensions/devices
+/extensions/sensors
+```
+
+Three of those five extension subpaths are new this session, and every one of them is proved blocked
+from reaching `src/internal` by a fresh consumer install.
 
 ### Upstream status
 
