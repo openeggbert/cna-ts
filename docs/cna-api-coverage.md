@@ -22,10 +22,10 @@ UNEXPLAINED=0
 
 ```text
 REACHABLE_NODE=414
-REACHABLE_WASM=79
+REACHABLE_WASM=85
 REACHABLE_BY_ANY_BACKEND=414
-REACHABLE_BY_EVERY_BACKEND=79
-REACHABLE_NODE_ONLY=335
+REACHABLE_BY_EVERY_BACKEND=85
+REACHABLE_NODE_ONLY=329
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -34,8 +34,8 @@ What each backend reaches, by what the routes are for:
 
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
-| `XNA_BACKING` | 902 | 357 | 40 |
-| `CNA_EXTENSION_BACKING` | 1736 | 56 | 38 |
+| `XNA_BACKING` | 902 | 357 | 45 |
+| `CNA_EXTENSION_BACKING` | 1736 | 56 | 39 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 457 | 0 | 0 |
 | `TOOLING_ONLY` | 31 | 0 | 0 |
@@ -87,11 +87,11 @@ What each backend reaches, by what the routes are for:
 | `net.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 50 | 0 | 0 |
 | `packed_vectors.h` | 0 | 0 | 0 | 0 | 0 | 7 | 0 | 0 | 0 | 0 |
 | `quaternion.h` | 0 | 0 | 0 | 0 | 0 | 28 | 0 | 0 | 0 | 0 |
-| `render_target.h` | 7 | 0 | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `render_target.h` | 7 | 5 | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `runtime_components.h` | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 37 | 0 | 0 |
 | `runtime_graphics_manager.h` | 17 | 16 | 35 | 3 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `runtime_window.h` | 12 | 0 | 14 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `runtime.h` | 10 | 5 | 33 | 9 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `runtime.h` | 10 | 6 | 33 | 9 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `sensors.h` | 0 | 0 | 0 | 120 | 0 | 0 | 24 | 0 | 0 | 0 |
 | `sprite_font.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
 | `storage.h` | 27 | 0 | 46 | 3 | 0 | 0 | 0 | 0 | 0 | 0 |

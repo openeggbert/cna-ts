@@ -136,6 +136,48 @@
       "struct_version",
       "type",
       "reason"
+    ],
+    "CNA_RenderTarget2DCreateInfo": [
+      "struct_size",
+      "struct_version",
+      "width",
+      "height",
+      "mip_map",
+      "format",
+      "depth_format",
+      "multi_sample_count",
+      "usage"
+    ],
+    "CNA_RenderTargetCubeCreateInfo": [
+      "struct_size",
+      "struct_version",
+      "size",
+      "mip_map",
+      "format",
+      "depth_format",
+      "multi_sample_count",
+      "usage"
+    ],
+    "CNA_RenderTargetInfo": [
+      "struct_size",
+      "struct_version",
+      "kind",
+      "width",
+      "height",
+      "level_count",
+      "format",
+      "depth_format",
+      "multi_sample_count",
+      "usage",
+      "is_content_lost",
+      "renderer_available"
+    ],
+    "CNA_RenderTargetBinding": [
+      "struct_size",
+      "struct_version",
+      "render_target",
+      "array_slice",
+      "cube_map_face"
     ]
   },
   "callbacks": {

@@ -14,7 +14,7 @@
   "counts": {
     "VERIFIED_MANAGED": 20,
     "VERIFIED_NATIVE": 37,
-    "VERIFIED_WEBASSEMBLY": 3,
+    "VERIFIED_WEBASSEMBLY": 5,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 0,
     "FIXTURE_PENDING": 3,
@@ -789,6 +789,29 @@
         "route:cna_video_player_create",
         "route:cna_video_player_play",
         "route:cna_video_player_get_state"
+      ]
+    },
+    {
+      "operation": "Browser off-screen rendering with exact pixel readback",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "a RenderTarget2D is created, bound, cleared to an exact colour and read back through Texture2D.GetData in headless Chromium on WebGL2; all sixteen texels equal the cleared value, and disposing a still-bound target is refused",
+      "proof": [
+        "wasmRoute:cna_render_target2d_create",
+        "wasmRoute:cna_graphics_device_set_render_targets",
+        "wasmRoute:cna_render_target_get_info",
+        "wasmRoute:cna_render_target_destroy",
+        "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "Browser title storage and ContentManager XNB loading",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "the browser harness writes assets into the module filesystem, reads exact title bytes back through TitleContainer.OpenStream, and loads an uncompressed Texture2D XNB and an LZX-compressed SpriteFont XNB through an ordinary ContentManager; a missing asset refuses with CNA_RESULT_IO rather than reading as empty",
+      "proof": [
+        "wasmRoute:cna_title_container_read_ext",
+        "test:test/wasm-browser.mjs"
       ]
     },
     {

@@ -18,22 +18,22 @@
   },
   "reachable": {
     "NODE": 414,
-    "WASM": 79
+    "WASM": 85
   },
   "reachableByAny": 414,
-  "reachableByAll": 79,
+  "reachableByAll": 85,
   "reachableExclusively": {
-    "NODE": 335,
+    "NODE": 329,
     "WASM": 0
   },
   "reachabilityByCategory": {
     "XNA_BACKING": {
       "NODE": 357,
-      "WASM": 40
+      "WASM": 45
     },
     "CNA_EXTENSION_BACKING": {
       "NODE": 56,
-      "WASM": 38
+      "WASM": 39
     },
     "INTERNAL_RUNTIME_ONLY": {
       "NODE": 1,
@@ -235,7 +235,8 @@
     },
     "render_target.h": {
       "XNA_BACKING": 12,
-      "REACHABLE_NODE": 7
+      "REACHABLE_NODE": 7,
+      "REACHABLE_WASM": 5
     },
     "runtime_components.h": {
       "INTENTIONALLY_DEFERRED": 37,
@@ -255,7 +256,7 @@
     "runtime.h": {
       "XNA_BACKING": 33,
       "REACHABLE_NODE": 10,
-      "REACHABLE_WASM": 5,
+      "REACHABLE_WASM": 6,
       "CNA_EXTENSION_BACKING": 9
     },
     "sensors.h": {
@@ -13440,7 +13441,8 @@
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -23478,7 +23480,8 @@
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -23487,7 +23490,8 @@
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -23496,7 +23500,8 @@
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -23572,7 +23577,8 @@
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -27093,7 +27099,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "an _ext route is CNA surface beyond XNA 4.0 by the ABI's own naming rule",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {

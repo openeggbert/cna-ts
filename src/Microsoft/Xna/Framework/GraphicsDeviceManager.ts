@@ -63,6 +63,15 @@ export class GraphicsDeviceManager implements IGraphicsDeviceService, IDisposabl
     if (game == null) throw new ArgumentNullException("game");
     this.#game = game;
     registerGraphicsDeviceManagerForInternalUse(game, this);
+    // XNA's constructor registers the manager in the game's services under
+    // `IGraphicsDeviceService` and `IGraphicsDeviceManager`, which is how `ContentManager` finds a
+    // device for a texture, font or model without being handed one. A TypeScript interface has no
+    // runtime token to key a service by, so the concrete class is the key -- the same substitution
+    // `docs/xna-typescript-mapping.md` records for every interface-typed service, and the one the
+    // built-in content readers already look for. Without it `Content.Load` inside an ordinary
+    // `Game` fails with "Texture content requires a GraphicsDevice service", which is a behavioural
+    // gap the structural verifier cannot see.
+    game.Services.AddService(GraphicsDeviceManager, this);
   }
 
   public get GraphicsDevice(): GraphicsDevice {
@@ -169,6 +178,9 @@ export class GraphicsDeviceManager implements IGraphicsDeviceService, IDisposabl
     this.#backend = null;
     this.#disposed = true;
     unregisterGraphicsDeviceManagerForInternalUse(this.#game, this);
+    if (this.#game.Services.GetService(GraphicsDeviceManager) === this) {
+      this.#game.Services.RemoveService(GraphicsDeviceManager);
+    }
     this.#disposedEvent.Dispatch(this, EventArgs.Empty);
   }
 

@@ -74,6 +74,44 @@ test("a wrong result code fails to compile", { skip }, () => {
   assert.ok(codes(report).has("STATIC_ASSERT_FAILED"));
 });
 
+/** Runs the verifier against a copy of `src/` with one file rewritten. */
+function withSource(relativePath, mutate) {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cna-ts-source-mutation-"));
+  scratch.push(directory);
+  const copy = path.join(directory, "src");
+  fs.cpSync(SOURCE_DIR, copy, { recursive: true });
+  const file = path.join(copy, relativePath);
+  fs.writeFileSync(file, mutate(fs.readFileSync(file, "utf8")));
+  return run({ cnaRoot: CNA_ROOT, contract: CONTRACT, sourceDir: copy, format: "json", output: null, reportOnly: true });
+}
+
+test("the package's own result-code table is proved against the headers", { skip }, () => {
+  const report = run({ cnaRoot: CNA_ROOT, contract: CONTRACT, sourceDir: SOURCE_DIR, format: "json", output: null, reportOnly: true });
+  assert.equal(report.typeScriptResultCodes, report.resultCodeAssertions);
+  assert.equal(report.staticAssertionsCompiled, true);
+});
+
+test("a wrong value in the package's result-code table fails to compile", { skip }, () => {
+  // The mistake this gate exists for: a backend branch comparing against BufferTooSmall = 6, which
+  // is NOT_SUPPORTED, so every unsupported answer would read as a size probe and be retried.
+  const report = withSource("internal/cna-results.ts", (source) => {
+    const mutated = source.replace("BufferTooSmall: 14,", "BufferTooSmall: 6,");
+    assert.notEqual(mutated, source, "the mutation did not apply");
+    return mutated;
+  });
+  assert.ok(codes(report).has("STATIC_ASSERT_FAILED"));
+});
+
+test("a result-code member with no named CNA constant is reported", { skip }, () => {
+  const report = withSource("internal/cna-results.ts", (source) => {
+    const mutated = source.replace('  Io: "CNA_RESULT_IO",\n', "");
+    assert.notEqual(mutated, source, "the mutation did not apply");
+    return mutated;
+  });
+  const found = report.diagnostics.filter((entry) => entry.code === "UNNAMED_RESULT_CODE");
+  assert.deepEqual(found.map((entry) => entry.subject), ["CnaResult.Io"]);
+});
+
 test("a wrong descriptor version fails to compile", { skip }, () => {
   const report = withContract((contract) => {
     contract.structVersions.declared.CNA_VIDEO_FRAME_EXT_STRUCT_VERSION = 2;

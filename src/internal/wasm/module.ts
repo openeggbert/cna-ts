@@ -182,3 +182,112 @@ export function route(module: CnaWasmModule, name: string): WasmExport {
   if (typeof exported !== "function") throw new WasmRouteMissingError(name);
   return exported as WasmExport;
 }
+
+/** Raised by a route that answered a nonzero CNA result, carrying the code. */
+export class WasmCnaError extends Error {
+  public readonly cnaResult: number;
+  public constructor(operation: string, result: number, detail: string | null) {
+    super(`${operation} failed with CNA result ${result}${detail ? `: ${detail}` : ""}`);
+    this.name = "WasmCnaError";
+    this.cnaResult = result;
+  }
+}
+
+const CNA_RESULT_SUCCESS = 0;
+
+/**
+ * The resolved routes of one module, and the four call shapes every CNA route reduces to.
+ *
+ * This is shared rather than owned by the backend class because the private boundary is several
+ * interfaces, not one: a facade implementing `CnaGraphicsBackend` calls the same module through the
+ * same resolved exports, and giving each facade its own copy of the resolution and error handling
+ * is how two of them drift apart.
+ */
+export class WasmRouteTable {
+  public readonly module: CnaWasmModule;
+  readonly #routes = new Map<string, WasmExport>();
+
+  public constructor(module: CnaWasmModule, names: readonly string[]) {
+    this.module = module;
+    // Resolved once, at construction: a module missing a route fails on load with the route's
+    // name rather than mid-frame with an undefined call.
+    for (const name of names) this.#routes.set(name, route(module, name));
+  }
+
+  public get size(): number { return this.#routes.size; }
+
+  public has(name: string): boolean { return this.#routes.has(name); }
+
+  public scope(): WasmScope { return new WasmScope(this.module); }
+
+  public view(): DataView { return new DataView(this.module.HEAPU8.buffer as ArrayBuffer); }
+
+  /** Calls a route and returns its raw `CNA_Result`. */
+  public call(name: string, ...args: readonly (number | bigint)[]): number {
+    const exported = this.#routes.get(name);
+    if (!exported) throw new WasmRouteMissingError(name);
+    return exported(...args);
+  }
+
+  /** Calls a route and throws unless it succeeded. */
+  public invoke(name: string, ...args: readonly (number | bigint)[]): void {
+    const result = this.call(name, ...args);
+    if (result === CNA_RESULT_SUCCESS) return;
+    throw new WasmCnaError(name, result, this.lastError());
+  }
+
+  /**
+   * Calls a route whose last parameter is a `CNA_Handle*` output.
+   *
+   * The handle is read as a `BigInt` and stays one: `CNA_Handle` is a `uint64_t`, and taking it
+   * through a JavaScript `Number` would silently round identities past 2^53.
+   */
+  public outHandle(name: string, ...args: readonly (number | bigint)[]): bigint {
+    const scope = this.scope();
+    try {
+      const out = scope.allocate(8);
+      this.invoke(name, ...args, out);
+      return this.view().getBigUint64(out, true);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /** Reads a count/copy string pair, which is how this ABI returns every string. */
+  public copyString(sizeRoute: string, copyRoute: string, ...args: readonly (number | bigint)[]): string {
+    const scope = this.scope();
+    try {
+      const sizePointer = scope.allocate(8);
+      this.invoke(sizeRoute, ...args, sizePointer);
+      const byteLength = Number(this.view().getBigUint64(sizePointer, true));
+      if (byteLength === 0) return "";
+      const buffer = scope.allocate(byteLength);
+      const writtenPointer = scope.allocate(8);
+      this.invoke(copyRoute, ...args, buffer, BigInt(byteLength), writtenPointer);
+      const written = Number(this.view().getBigUint64(writtenPointer, true));
+      return readUtf8(this.module, buffer, written);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /** CNA's last error message, or null. Never throws: it is called from a failure path. */
+  public lastError(): string | null {
+    const scope = this.scope();
+    try {
+      const sizePointer = scope.allocate(8);
+      if (this.call("cna_error_get_last_message_size", sizePointer) !== CNA_RESULT_SUCCESS) return null;
+      const byteLength = Number(this.view().getBigUint64(sizePointer, true));
+      if (byteLength === 0) return null;
+      const buffer = scope.allocate(byteLength);
+      const writtenPointer = scope.allocate(8);
+      if (this.call(
+        "cna_error_copy_last_message", buffer, BigInt(byteLength), writtenPointer,
+      ) !== CNA_RESULT_SUCCESS) return null;
+      const written = Number(this.view().getBigUint64(writtenPointer, true));
+      return readUtf8(this.module, buffer, written);
+    } finally {
+      scope.dispose();
+    }
+  }
+}

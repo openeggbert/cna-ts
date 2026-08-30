@@ -12,8 +12,10 @@
 
 import { CNA_ABI_MAJOR, CNA_ABI_MINOR, decodeAbiVersion, describeAbiWindow, isSupportedAbiVersion } from "../abi.js";
 import { CnaBackendBase } from "../backend-base.js";
+import { CnaResult } from "../cna-results.js";
 import type {
   BackendRendererInfo,
+  CnaGraphicsBackend,
   CnaRuntimeServicesBackend,
   PlatformSnapshot,
   RendererFallbackSnapshot,
@@ -37,15 +39,16 @@ import { WASM_CALLBACK_SIGNATURES, WASM_STRUCT_LAYOUTS } from "./layout.js";
 import {
   allocateStruct,
   readUtf8,
-  route,
+  WasmCnaError,
+  WasmRouteTable,
   WasmScope,
   WasmStruct,
   type CnaWasmModule,
-  type WasmExport,
 } from "./module.js";
+import { WasmGraphicsBackend } from "./graphics.js";
 
-const CNA_RESULT_SUCCESS = 0;
-const CNA_RESULT_INVALID_STATE = 3;
+const CNA_RESULT_SUCCESS = CnaResult.Success;
+const CNA_RESULT_INVALID_STATE = CnaResult.InvalidState;
 const MOUSE_BUTTON_LEFT = 1 << 0;
 const MOUSE_BUTTON_MIDDLE = 1 << 1;
 const MOUSE_BUTTON_RIGHT = 1 << 2;
@@ -133,6 +136,12 @@ const ROUTES = [
   "cna_logger_set_minimum_level",
   "cna_logger_log",
   "cna_graphics_ext_is_available",
+  "cna_title_container_read_ext",
+  "cna_render_target2d_create",
+  "cna_render_target_cube_create",
+  "cna_render_target_get_info",
+  "cna_render_target_destroy",
+  "cna_graphics_device_set_render_targets",
 ] as const;
 
 type RouteName = (typeof ROUTES)[number];
@@ -144,16 +153,6 @@ interface GameCallbackState {
   pendingError: unknown;
 }
 
-/** An error carrying the CNA result code that produced it, matching the Node adapter's shape. */
-export class WasmCnaError extends Error {
-  public readonly cnaResult: number;
-  public constructor(operation: string, result: number, detail: string | null) {
-    super(`${operation} failed with CNA result ${result}${detail ? `: ${detail}` : ""}`);
-    this.name = "WasmCnaError";
-    this.cnaResult = result;
-  }
-}
-
 export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBackend {
   public readonly Kind = "wasm" as const;
   public readonly IsAvailable = true;
@@ -163,17 +162,23 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
   /** Reported once the graphics device exists, matching the Node adapter's status shape. */
   public RendererInfo: BackendRendererInfo | null = null;
   public readonly RuntimeServices: CnaRuntimeServicesBackend = this;
+  /**
+   * The graphics boundary is a separate interface, so it is a separate object: everything it does
+   * not reach refuses through the generated `CnaGraphicsBackendBase` by its own member name rather
+   * than through this class's message about a different boundary.
+   */
+  public readonly Graphics: CnaGraphicsBackend;
 
   readonly #module: CnaWasmModule;
-  readonly #routes: Map<RouteName, WasmExport>;
+  readonly #routes: WasmRouteTable;
   #game: GameCallbackState | null = null;
   #activeGame: NativeHandle | null = null;
 
   public constructor(module: CnaWasmModule) {
     super();
     this.#module = module;
-    this.#routes = new Map();
-    for (const name of ROUTES) this.#routes.set(name, route(module, name));
+    this.#routes = new WasmRouteTable(module, ROUTES);
+    this.Graphics = new WasmGraphicsBackend(this.#routes);
     const version = decodeAbiVersion(Number(this.#call("cna_get_abi_version")));
     if (!isSupportedAbiVersion(version)) {
       throw new NativeUnavailableError(
@@ -195,42 +200,21 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
   }
 
   #call(name: RouteName, ...args: readonly (number | bigint)[]): number {
-    const exported = this.#routes.get(name);
-    if (!exported) throw new NativeUnavailableError(`unresolved CNA route ${name}`);
-    return exported(...args);
+    return this.#routes.call(name, ...args);
   }
 
   #check(name: RouteName, result: number): void {
-    if (result === CNA_RESULT_SUCCESS) return;
+    if (result === CnaResult.Success) return;
     throw new WasmCnaError(name, result, this.getLastError());
   }
 
   #invoke(name: RouteName, ...args: readonly (number | bigint)[]): void {
-    this.#check(name, this.#call(name, ...args));
+    this.#routes.invoke(name, ...args);
   }
 
   public override initialize(): Promise<void> { return Promise.resolve(); }
 
-  public override getLastError(): string | null {
-    const scope = new WasmScope(this.#module);
-    try {
-      const sizePointer = scope.allocate(8);
-      if (this.#call("cna_error_get_last_message_size", sizePointer) !== CNA_RESULT_SUCCESS) return null;
-      const byteLength = Number(new DataView(this.#module.HEAPU8.buffer as ArrayBuffer)
-        .getBigUint64(sizePointer, true));
-      if (byteLength === 0) return null;
-      const buffer = scope.allocate(byteLength);
-      const writtenPointer = scope.allocate(8);
-      if (this.#call(
-        "cna_error_copy_last_message", buffer, BigInt(byteLength), writtenPointer,
-      ) !== CNA_RESULT_SUCCESS) return null;
-      const written = Number(new DataView(this.#module.HEAPU8.buffer as ArrayBuffer)
-        .getBigUint64(writtenPointer, true));
-      return readUtf8(this.#module, buffer, written);
-    } finally {
-      scope.dispose();
-    }
-  }
+  public override getLastError(): string | null { return this.#routes.lastError(); }
 
   #gameTime(pointer: number): CnaGameTimeSnapshot {
     if (pointer === 0) {
@@ -388,14 +372,7 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
   }
 
   #outHandle(name: RouteName, ...args: readonly (number | bigint)[]): NativeHandle {
-    const scope = new WasmScope(this.#module);
-    try {
-      const out = scope.allocate(8);
-      this.#invoke(name, ...args, out);
-      return new DataView(this.#module.HEAPU8.buffer as ArrayBuffer).getBigUint64(out, true);
-    } finally {
-      scope.dispose();
-    }
+    return this.#routes.outHandle(name, ...args);
   }
 
   public override configureGraphicsDeviceManager(
@@ -651,6 +628,50 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
       throw new NativeUnavailableError("this operation requires an active native Game");
     }
     return this.#activeGame;
+  }
+
+  /**
+   * Reads a whole title asset, which is what a browser consumer needs to reach `ContentManager`.
+   *
+   * `TitleContainer` has no stream handle in this ABI -- the route is a count/copy pair delivering
+   * the complete file -- so the bytes are copied out of module memory and the allocation is
+   * released before returning. Nothing above this line ever holds a pointer into the heap, which
+   * `ALLOW_MEMORY_GROWTH` would invalidate on the next allocation anyway.
+   *
+   * Where the file comes from is the browser's business, not this backend's: the module's
+   * filesystem is what CNA reads, so a page writes its assets into it (from `fetch`, from a bundle,
+   * from `--preload-file`) and then loads them through the ordinary XNA API.
+   */
+  public openTitleStream(name: string): Uint8Array {
+    const scope = new WasmScope(this.#module);
+    try {
+      // The name is a CNA_StringView passed by value, which Emscripten lowers to a pointer to the
+      // structure in module memory -- the same convention the renderer-name routes pinned.
+      const text = scope.allocateUtf8(name);
+      const nameView = allocateStruct(this.#module, scope, "CNA_StringView", false);
+      nameView.setPointer("data", text.pointer).setU64("byte_length", BigInt(text.byteLength));
+      const sizePointer = scope.allocate(8);
+      const view = () => new DataView(this.#module.HEAPU8.buffer as ArrayBuffer);
+      // Capacity zero asks for the size; the route writes it before refusing for size, and a
+      // missing file is CNA_RESULT_IO, which must surface rather than read as an empty asset.
+      const probe = this.#call(
+        "cna_title_container_read_ext",
+        this.#requireGame(), nameView.pointer, 0, 0n, sizePointer,
+      );
+      if (probe !== CnaResult.Success && probe !== CnaResult.BufferTooSmall) {
+        throw new WasmCnaError("cna_title_container_read_ext", probe, this.getLastError());
+      }
+      const byteLength = Number(view().getBigUint64(sizePointer, true));
+      if (byteLength === 0) return new Uint8Array(0);
+      const destination = scope.allocate(byteLength);
+      this.#invoke(
+        "cna_title_container_read_ext",
+        this.#requireGame(), nameView.pointer, destination, BigInt(byteLength), sizePointer,
+      );
+      return new Uint8Array(this.#module.HEAPU8.subarray(destination, destination + byteLength));
+    } finally {
+      scope.dispose();
+    }
   }
 
   public override getKeyboardState(playerIndex: PlayerIndex | null): KeyboardState {

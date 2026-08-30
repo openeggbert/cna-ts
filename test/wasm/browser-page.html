@@ -21,14 +21,24 @@ window.addEventListener("unhandledrejection", (event) => result.errors.push(
 
 try {
   const {
-    Color, Game, GraphicsDeviceManager, Graphics, GetRuntimeStatus, LoadWasmBackend, Vector2,
+    Color, Content, Game, GraphicsDeviceManager, Graphics, GetRuntimeStatus, LoadWasmBackend,
+    TitleContainer, Vector2,
   } = await import("/cna-ts/index.js");
   const createCnaCApi = (await import("/wasm/cna_c_api.mjs")).default;
   const canvas = document.getElementById("canvas");
-  const status = await LoadWasmBackend({
-    Factory: createCnaCApi,
-    FactoryOptions: { canvas },
-  });
+
+  // The module is instantiated here rather than through LoadWasmBackend's Factory option because a
+  // browser game's assets have to reach the module's filesystem before CNA reads them. This is the
+  // ordinary browser shape: fetch the bytes, write them where the runtime looks, then load them
+  // through the same Content API a desktop consumer uses.
+  const module = await createCnaCApi({ canvas });
+  const fetchBytes = async (url) => new Uint8Array(await (await fetch(url)).arrayBuffer());
+  module.FS.writeFile("/title-note.txt", await fetchBytes("/fixtures/title-note.txt"));
+  module.FS.mkdir("/Content");
+  module.FS.writeFile("/Content/Atlas.xnb", await fetchBytes("/fixtures/Atlas.xnb"));
+  module.FS.writeFile("/Content/SyntheticFont.xnb", await fetchBytes("/fixtures/SyntheticFont.xnb"));
+
+  const status = await LoadWasmBackend({ Module: module });
   result.backend = status.Backend;
   result.abiVersion = status.AbiVersion;
   result.importedSymbolCount = status.ImportedSymbolCount;
@@ -67,6 +77,7 @@ try {
       this.updates = 0;
       this.draws = 0;
       this.texture = null;
+      this.font = null;
       this.spriteBatch = null;
     }
 
@@ -80,6 +91,66 @@ try {
       this.texture.SetData([Color.Red, Color.Green, Color.Blue, Color.White]);
       const info = this.texture.Width * 1000 + this.texture.Height;
       result.textureInfo = info;
+
+      // Title storage, read out of the module filesystem through the ordinary XNA entry point.
+      result.titleNote = new TextDecoder().decode(TitleContainer.OpenStream("title-note.txt"));
+      try {
+        TitleContainer.OpenStream("does-not-exist.txt");
+        result.titleMissing = "opened";
+      } catch (error) {
+        result.titleMissing = String(error && error.message ? error.message : error);
+      }
+
+      // The raw asset, before any XNB parsing: proves the count/copy pair agrees with itself and
+      // that the copy landed the file's real leading bytes rather than a zeroed buffer.
+      const atlasBytes = TitleContainer.OpenStream("Content/Atlas.xnb");
+      result.atlasProbe = { length: atlasBytes.length, head: [...atlasBytes.subarray(0, 12)] };
+
+      // A real ContentManager over that same title storage: XNB framing, the reader table and the
+      // Texture2D reader graph, all managed, ending in a native texture whose pixels are asserted.
+      this.content = new Content.ContentManager(this.Services, "Content");
+      this.atlas = this.content.Load(Graphics.Texture2D, "Atlas");
+      const loaded = new Array(4);
+      this.atlas.GetData(loaded);
+      result.contentTexture = {
+        width: this.atlas.Width,
+        height: this.atlas.Height,
+        format: this.atlas.Format,
+        pixels: loaded.map((color) => color.PackedValue),
+        cached: this.content.Load(Graphics.Texture2D, "Atlas") === this.atlas,
+      };
+      this.font = this.content.Load(Graphics.SpriteFont, "SyntheticFont");
+      const measured = this.font.MeasureString("A?");
+      result.contentFont = { width: measured.X, height: measured.Y, spacing: this.font.Spacing };
+
+      // Off-screen rendering, and the first pixels this project asserts out of a real GPU: clear a
+      // render target to an exact colour, restore the backbuffer, and read the target back.
+      this.target = new Graphics.RenderTarget2D(this.GraphicsDevice, 4, 4);
+      this.GraphicsDevice.SetRenderTarget(this.target);
+      result.boundTarget = this.GraphicsDevice.GetRenderTargets().length;
+      this.GraphicsDevice.Clear(new Color(12, 34, 56, 255));
+      this.GraphicsDevice.SetRenderTarget(null);
+      result.unboundTarget = this.GraphicsDevice.GetRenderTargets().length;
+      const readback = new Array(16);
+      this.target.GetData(readback);
+      result.renderTarget = {
+        width: this.target.Width,
+        height: this.target.Height,
+        depthFormat: this.target.DepthStencilFormat,
+        usage: this.target.RenderTargetUsage,
+        multiSampleCount: this.target.MultiSampleCount,
+        isContentLost: this.target.IsContentLost,
+        pixels: readback.map((color) => color.PackedValue),
+      };
+      try {
+        this.GraphicsDevice.SetRenderTarget(this.target);
+        this.target.Dispose();
+        result.boundDisposal = "disposed";
+      } catch (error) {
+        result.boundDisposal = String(error && error.message ? error.message : error);
+      } finally {
+        this.GraphicsDevice.SetRenderTarget(null);
+      }
       super.LoadContent();
     }
 
@@ -92,12 +163,17 @@ try {
       this.GraphicsDevice.Clear(Color.CornflowerBlue);
       this.spriteBatch.Begin();
       this.spriteBatch.Draw(this.texture, new Vector2(16, 16), Color.White);
+      this.spriteBatch.DrawString(this.font, "A?", new Vector2(32, 32), Color.White);
       this.spriteBatch.End();
       this.draws += 1;
       super.Draw(gameTime);
     }
 
     UnloadContent() {
+      this.target?.Dispose();
+      this.target = null;
+      this.content?.Dispose();
+      this.content = null;
       this.texture?.Dispose();
       this.texture = null;
       this.spriteBatch?.Dispose();
@@ -139,6 +215,9 @@ try {
 } catch (error) {
   result.status = "failed";
   result.error = String(error && error.stack ? error.stack : error);
+  if (error && error.cause) {
+    result.error += `\ncaused by: ${error.cause.stack ?? error.cause}`;
+  }
 }
 </script>
 </body>

@@ -16,6 +16,8 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { compressedXnb, spriteFontXnb, textureXnb } from "./fixtures/xnb.mjs";
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const WASM_DIR = process.env.CNA_WASM_ARTIFACT_DIR
   ? path.resolve(process.env.CNA_WASM_ARTIFACT_DIR)
@@ -65,6 +67,19 @@ async function importPlaywright() {
   return null;
 }
 
+/**
+ * The assets the page writes into the module filesystem, from the same generators the Node
+ * integration suite loads. A browser fetches its content; this server is where it fetches it from,
+ * so the bytes a browser loads and the bytes Node loads are the same bytes.
+ */
+const FIXTURES = new Map([
+  ["title-note.txt", new TextEncoder().encode("cna-ts title storage, read in a browser")],
+  // Uncompressed for the texture and LZX-compressed for the font, so the browser exercises both
+  // XNB framings rather than only the simple one.
+  ["Atlas.xnb", textureXnb()],
+  ["SyntheticFont.xnb", compressedXnb(spriteFontXnb())],
+]);
+
 function serve() {
   const server = http.createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
@@ -72,6 +87,14 @@ function serve() {
     if (url.pathname === "/" || url.pathname === "/index.html") file = PAGE;
     else if (url.pathname.startsWith("/cna-ts/")) file = path.join(DIST, url.pathname.slice("/cna-ts/".length));
     else if (url.pathname.startsWith("/wasm/")) file = path.join(WASM_DIR, url.pathname.slice("/wasm/".length));
+    else if (url.pathname.startsWith("/fixtures/")) {
+      const bytes = FIXTURES.get(url.pathname.slice("/fixtures/".length));
+      if (bytes) {
+        response.writeHead(200, { "content-type": "application/octet-stream", "cache-control": "no-store" });
+        response.end(Buffer.from(bytes));
+        return;
+      }
+    }
     if (file == null || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
       response.writeHead(404).end("not found");
       return;
@@ -156,6 +179,72 @@ test("the modern CNA runtime services answer over the same WebAssembly module", 
   assert.equal(extensions.fallbacks, 0);
   assert.equal(typeof extensions.logLevel, "number");
   assert.equal(extensions.graphicsExtensionLayer, false, "this artifact is built with CNA_CNAEXT off");
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("a browser loads real XNB content through the ordinary Content API", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+
+  // Title storage: exact bytes out of the module filesystem, and a real refusal for a missing file
+  // rather than an empty asset, which is what a size-probe route gets wrong when it swallows I/O.
+  assert.equal(result.titleNote, "cna-ts title storage, read in a browser");
+  assert.match(result.titleMissing, /cna_title_container_read_ext failed with CNA result 5/);
+  // The size probe and the copy must agree, and the copy must land the file's real first bytes:
+  // "XNBw", format 5, no flags, and a self-describing length equal to what was read.
+  assert.equal(result.atlasProbe.length, 126);
+  assert.deepEqual(result.atlasProbe.head.slice(0, 6), [0x58, 0x4e, 0x42, 0x77, 5, 0]);
+  assert.equal(
+    new DataView(Uint8Array.from(result.atlasProbe.head).buffer).getInt32(6, true),
+    result.atlasProbe.length,
+  );
+
+  // An uncompressed XNB read through ContentManager, ending in a native texture. The pixels are the
+  // fixture's, so a wrong reader, a wrong stride or a wrong upload all fail here.
+  const texture = result.contentTexture;
+  assert.ok(texture, "no content texture was produced");
+  assert.deepEqual([texture.width, texture.height], [2, 2]);
+  assert.equal(texture.format, 0, "SurfaceFormat.Color");
+  assert.deepEqual(texture.pixels, [
+    0xff0000ff, 0xff008000, 0xffff0000, 0xffffffff,
+  ], "red, green, blue and white as XNA packs them");
+  assert.equal(texture.cached, true, "the second Load returns the same instance");
+
+  // An LZX-compressed XNB through the same manager, decoded by the managed decompressor, and a
+  // measurement that depends on the glyph table having been read correctly.
+  assert.deepEqual(
+    [result.contentFont.width, result.contentFont.height, result.contentFont.spacing],
+    [9, 8, 1],
+  );
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("a browser renders to an off-screen target and reads its exact pixels back", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const target = result.renderTarget;
+  assert.ok(target, "no render target was produced");
+  assert.deepEqual([target.width, target.height], [4, 4]);
+  assert.equal(target.depthFormat, 0, "DepthFormat.None");
+  assert.equal(target.usage, 0, "RenderTargetUsage.DiscardContents");
+  assert.equal(target.multiSampleCount, 0);
+  assert.equal(target.isContentLost, false, "WebGL2 is not a device-losing renderer family");
+  assert.equal(result.boundTarget, 1);
+  assert.equal(result.unboundTarget, 0);
+
+  // The first GPU-produced pixels this project asserts. Clear wrote (12, 34, 56, 255) into the
+  // target; every one of its sixteen texels must be exactly that after the backbuffer is restored,
+  // which is only true if the bind, the clear, the unbind and the readback all reached real
+  // WebGL2 storage.
+  const expected = (255 << 24 >>> 0) + (56 << 16) + (34 << 8) + 12;
+  assert.equal(target.pixels.length, 16);
+  assert.deepEqual(target.pixels, new Array(16).fill(expected));
+
+  // A bound target cannot be disposed. XNA raises, CNA refuses, and the refusal must arrive as the
+  // managed exception rather than as a native abort.
+  assert.equal(result.boundDisposal, "A bound RenderTarget2D cannot be disposed");
   assert.deepEqual(result.errors, []);
   assert.deepEqual(consoleErrors, []);
 });

@@ -36,12 +36,66 @@ from `requestAnimationFrame`, and asserts the frame, update and draw counts, the
 created, deterministic disposal and an empty page-error list. A page that merely *builds* is not
 evidence of a runtime, so nothing here is claimed from a successful bundle.
 
-This is the **first vertical slice**. Every boundary member outside it refuses by name through the
-generated `CnaBackendBase` rather than pretending to work, so a consumer reaching past the slice
-gets a diagnostic naming the member instead of a silent wrong answer. In the slice: ABI query,
-initialization, game create/run-one-frame/exit/destroy, graphics-device-manager configuration and
-device creation, renderer identity, `Clear`, `Texture2D` create/upload/read/destroy, `SpriteBatch`
-begin/submit/end/destroy, keyboard and mouse snapshots.
+This is a **vertical slice**, not the whole boundary. Every member outside it refuses by name --
+through the generated `CnaBackendBase` for the game boundary and `CnaGraphicsBackendBase` for the
+device's own -- rather than pretending to work, so a consumer reaching past the slice gets a
+diagnostic naming the member instead of a silent wrong answer.
+
+In the slice: ABI query, initialization, game create/run-one-frame/exit/destroy,
+graphics-device-manager configuration and device creation, renderer identity, `Clear`, `Texture2D`
+create/upload/read/destroy, `SpriteBatch` begin/submit/end/destroy, keyboard and mouse snapshots,
+the modern runtime-services family, **title storage**, and **render targets**.
+
+## Content in a browser
+
+A browser game's assets have to reach the module's filesystem, because that is what CNA reads.
+`TitleContainer.OpenStream` and therefore `ContentManager.Load` work in a page once they are there:
+
+```js
+const module = await createCnaCApi({ canvas });
+module.FS.mkdir("/Content");
+module.FS.writeFile("/Content/Atlas.xnb", new Uint8Array(await (await fetch("/Atlas.xnb")).arrayBuffer()));
+await LoadWasmBackend({ Module: module });
+// ...then, inside the Game, the ordinary XNA call:
+const atlas = new Content.ContentManager(this.Services, "Content").Load(Graphics.Texture2D, "Atlas");
+```
+
+Nothing about `ContentManager` is browser-specific: XNB framing, the reader table, the LZX
+decompressor and every built-in reader graph are managed TypeScript and already ran on Node. What
+the browser needed was the one route underneath them. `cna_title_container_read_ext` is a
+count/copy pair delivering a whole file, so the backend probes for the size, copies once, and
+releases the module allocation before returning -- the bytes a consumer holds are a JavaScript copy,
+never a pointer into a heap that `ALLOW_MEMORY_GROWTH` can move. A missing asset is
+`CNA_RESULT_IO`, which surfaces as a failure rather than as an empty asset.
+
+Loading content inside a `Game` also needed a behavioural fix that had nothing to do with
+WebAssembly: `GraphicsDeviceManager`'s constructor now registers itself in `Game.Services`, as XNA's
+does under `IGraphicsDeviceService`/`IGraphicsDeviceManager`. The built-in texture, font and model
+readers look for exactly that, and without it `Content.Load` inside an ordinary `Game` failed on
+either backend. A TypeScript interface has no runtime token to key a service by, so the concrete
+class is the key.
+
+## Off-screen rendering, and the first asserted pixels
+
+`RenderTarget2D` is the whole reason the graphics boundary got its own facade here. A browser test
+can now clear a target to an exact colour and read every texel back:
+
+```text
+RENDER_TARGET=4x4 DepthFormat.None DiscardContents
+CLEAR=(12, 34, 56, 255)
+READBACK=16 of 16 texels exactly equal
+BOUND_DISPOSAL=refused ("A bound RenderTarget2D cannot be disposed")
+```
+
+That is the first evidence in this project that comes out of a GPU rather than out of a route
+returning success: the bind, the clear, the unbind and the readback all have to reach real WebGL2
+storage for those sixteen values to be right.
+
+`ContentLost` is deliberately **not** implemented on this backend. `render_target.h` says only the
+`DIRECTX9`, `DIRECT2D` and `SKIA` families can report a lost device, so a WebGL2 subscription would
+be valid and permanently silent. The managed helper already treats a refused subscription as "this
+renderer cannot lose a device", which is what XNA does, so the honest answer is to leave the event
+declared and unproduced rather than to register a producer that can never fire.
 
 ## Building the artifact
 

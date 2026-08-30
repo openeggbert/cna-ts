@@ -36,6 +36,9 @@ test("purpose and reachability are independent axes", { skip }, () => {
   // The bug this replaced: an imported route was classified by the import, so every route both
   // backends reached counted as Node's alone and the WebAssembly column was zero everywhere.
   assert.ok(report.reachable.WASM > 0, "the WebAssembly backend reaches routes");
+  // The browser slice is a subset of the Node adapter's: the two backends answer the same public
+  // API, so a route only the browser reaches would be a route the Node consumer cannot use for the
+  // same call. Node reaching more is expected; the reverse is a gap.
   assert.equal(report.reachableByAll, report.reachable.WASM, "this slice is a subset of Node's");
   assert.equal(report.reachableExclusively.WASM, 0);
   assert.equal(
