@@ -26,6 +26,13 @@
  * {@link PowerState.NoBattery} rather than nought per cent; a windowless session answers a zero
  * content scale and an empty safe area, which is CNA's own answer and not a failure.
  *
+ * ## These readers need a live `Game`
+ *
+ * CNA addresses the host's window, display and power through the game handle, because this ABI has
+ * no window handle of its own. So every reader below except {@link CnaDevices.IsAvailable} asks
+ * from inside a running game — which is where a game would ask anyway, in `LoadContent` or once per
+ * frame. With no active game they refuse rather than answering about a window that does not exist.
+ *
  * ## No raw handles
  *
  * Nothing here hands out a CNA handle, and nothing here is disposable: every reader returns a
