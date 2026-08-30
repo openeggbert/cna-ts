@@ -1628,3 +1628,208 @@ TEMPLATE_NATIVE_60=PASS   TEMPLATE_NATIVE_600=PASS
 TEMPLATE_BROWSER_WASM_60=PASS   TEMPLATE_BROWSER_WASM_600=PASS
 TEMPLATE_EXTENSIONS_SMOKE=PASS
 ```
+
+## 2026-08-31: CNB, the post-process chain, the host, the video frame, and pixels on two GPUs
+
+This session requalified everything against the live dependency state and then widened the binding
+along five fronts at once: CNA's compiled content format, the engine layer's post-process chain,
+the extended device layer, the VideoPlayer's borrowed frame, and real gamer-services backing. It
+also produced this project's first asserted GPU pixels — twice, once in a browser and once on a
+desktop renderer. Twelve local commits here and one in the template; nothing pushed.
+
+### Repository invariants
+
+```text
+CNA_TS_START=005edf8a330d0257565c70f527d749ba611f56f4 (clean, == origin/develop)
+CNA_TS_END=81e6dbe
+CNA_TS_TEMPLATE_START=dfd9e14b18b143b6b33b829f5d63b6fe55b90fb7 (clean, == origin/develop)
+CNA_TS_TEMPLATE_END=2ea39870941d0520c7599afd9455efda9cea4c6b
+CNANEXT_ARTIFACT_HEAD=17b5a90a0878f3f44c23bc8e3197d5d30373dc72
+SHARP_RUNTIMENEXT_ARTIFACT_HEAD=4a49afb0cfe6a41e6e0af0bb62dc5175976731bb
+CNANEXT_HEAD_AT_SESSION_END=a20130686f03d8e6bc1446fc070380169d926e76
+CNANEXT_MODIFIED_BY_THIS_SESSION=0
+SHARP_RUNTIMENEXT_MODIFIED_BY_THIS_SESSION=0
+```
+
+`cnanext` moved twice more while this ran (71576a7b, then a2013068) and was dirty with another
+session's work throughout. `git diff 17b5a90a..a2013068 -- modules/c-api/include` is empty, so the C
+contract did not move with it and the artifacts stayed valid — measured, not assumed from two
+unchanged numbers.
+
+### Requalification against live dependencies
+
+Both artifacts had been built from `cnanext` 72262a33, which had already moved, so neither could be
+trusted. Both were rebuilt.
+
+```text
+NATIVE=cmake-build-tsnext HEADLESS/HEADLESS/NULL, CNAEXT+DEVICES+NET on
+NATIVE_SHA256=c635aff6b3bbc5794ffd0a98c9a7193c375928b85d3451ece545a770e41e5c6d
+WASM=cmake-build-tswasm WEBGL2, Emscripten 6.0.3
+WASM_SHA256=6a5db6f6a6a3cc4e0906c0e108d31e850adf75b65ea805c1b8c99b7e30ff49f2
+CAPI_CTEST=86/92, the same six configuration failures as before
+NODE_60=PASS NODE_600=PASS BROWSER_60=PASS BROWSER_600=PASS
+```
+
+`git diff 72262a33..17b5a90a -- modules/c-api` was empty, so the ABI version, declaration set and
+export set were identical by measurement.
+
+### What the coverage report could not answer, and now can
+
+Classifying an imported route by the import, before any rule ran, made both of the report's
+questions unanswerable: every route both backends reached counted as Node's alone, so the
+WebAssembly column was zero for every header, and an imported route had no purpose at all, so
+`XNA_BACKING` counted only what the adapter does *not* import. Purpose and reachability are now
+independent axes.
+
+```text
+                        BEFORE            AFTER
+TOTAL_C_API_FUNCTIONS   4051              4051
+XNA_BACKING             545               1152
+CNA_EXTENSION_BACKING   1680              1736
+INTERNAL_RUNTIME_ONLY   0                 1
+MANAGED_BY_DESIGN       457               457
+TOOLING_ONLY            31                31
+INTENTIONALLY_DEFERRED  924               674
+UNEXPLAINED             0                 0
+REACHABLE_NODE          414               581
+REACHABLE_WASM          79                105
+REACHABLE_BUT_DEFERRED  n/a               0
+```
+
+`XNA_BACKING` reads 1152 rather than 545 for two reasons and neither is new binding: the axis split
+put imported XNA routes back into their purpose, and `gamer_services.h` moved out of
+`INTENTIONALLY_DEFERRED` once the dispatcher was bound. A new gate holds reachable-but-deferred at
+zero — binding one `gamer_services.h` route while the family was still ruled deferred is exactly
+what it caught, the moment it happened.
+
+### CNB, CNA's own compiled content format
+
+272 routes, none bound. `cna-ts/extensions/content` now projects three slices, each ending in
+something a game can use rather than in a handle:
+
+- the validated container — container version, asset type and schema version, `CMET` metadata,
+  `XREF` external references, the table of contents and any chunk's logical bytes;
+- the texture schema, ending in a real `Texture2D`;
+- the sprite-font schema with its embedded atlas, ending in a drawable `SpriteFont`.
+
+Fixtures are built with **CNA's own encoder**. A reader and a writer sharing one set of assumptions
+agree whether or not either is right. Assertions are values: a chunk's CRC-32C recomputed against
+its table-of-contents entry, four exact texels after a GPU round trip, `MeasureString` on a decoded
+font, and the block rule that makes a 1×1 BC7 level sixteen bytes. Truncation, a flipped payload
+byte and an XNB handed to `Parse` are each `CNA_RESULT_IO` rather than half-read.
+
+The contract verifier earned its keep twice: it caught `CnbAssetType`'s ordering — the obvious guess
+puts `SoundEffect` at 6 and CNB puts `AnimationClip` there — and refused three unclassified enums
+until each was proved member by member.
+
+### The engine layer's post-process chain
+
+Bloom, tonemapping, FXAA, SSAO and screen-space reflections, each its own class with named
+properties. Quality tiers come from CNA rather than from numbers written here. Every property
+round-trips at float precision, including `SsrPass.RoughnessBlur`, where 0.625 comes back as 0.25
+because CNA clamps it — recorded rather than avoided.
+
+`Add` borrows and `AddOwned` transfers, as separate methods rather than a flag, and the transfer
+found an upstream defect: `cna_post_process_chain_add_owned_pass` consumes the handle without the
+`RemoveOwnedGraphicsResourceFor` its sibling `_destroy` performs, so the game's owned-resource
+counter never falls and every later `cna_game_destroy` in the process refuses. One transfer poisons
+the whole runtime. It is characterised by a probe that runs in its own process for exactly that
+reason, and the suite asserts the defect as measured so a repaired upstream fails rather than
+passes silently.
+
+### The host, the frame, and the gamer
+
+- **`cna-ts/extensions/devices`** reports the machine: cores, memory, power, display scale and safe
+  area, locales, clipboard and cameras. Absences are absences — a missing battery charge is `null`,
+  not zero, so a low-charge branch cannot misfire; a windowless session's zero content scale is
+  CNA's answer, not a failure; system memory reads zero on HEADLESS because SDL answers it and
+  HEADLESS starts no SDL subsystem, and the test records the zero and says why. The core count is
+  checked against Node's own.
+- **`VideoPlayer.GetTexture`** projects CNA's player-owned frame as a **borrowed** `Texture2D`.
+  `cna_video_player_get_frame_ext`'s monotonic decode generation is what made it safe: the same
+  object comes back while the generation is unchanged, and the facade is retired the moment
+  anything else touches the player. Decode progression stays fixture-pending.
+- **`GamerServicesDispatcher` and `Guide`** are backed by real CNA state. Two XNA rules CNA does not
+  enforce are enforced in the projection and asserted: an un-initialised `Update` raises, and
+  `IsTrialMode` is the disjunction with `SimulateTrialMode`. One place CNA was right and the
+  projection was wrong: `IsScreenSaverEnabled` is a platform display property, so with no displays a
+  write does not take. Nothing fabricates a gamer.
+
+### Pixels, on two GPUs
+
+The first evidence in this project that comes out of a GPU rather than out of a route returning
+success — and it is the same assertion in both places:
+
+```text
+BROWSER  RenderTarget2D 4x4, Clear(12, 34, 56, 255), 16 of 16 texels exact, WebGL2/SwiftShader
+DESKTOP  RenderTarget2D 4x4, same clear, 16 of 16 texels exact, OPENGLES3 under Xvfb
+```
+
+The windowed qualification needed no new CNA build: an OPENGLES3/SDL3 library with the same ABI
+already existed in another session's tree and is consumed read-only. It also reaches what HEADLESS
+cannot — a 16384-texel limit, `0x7ffff` capability flags, and a stock `BasicEffect` pass that
+applies for real. It is opt-in through `CNA_WINDOWED_LIBRARY` and skips with a reason.
+
+### The browser slice
+
+```text
+WASM_BACKEND_ROUTES=105 (was 79)   MISSING_WASM_BACKEND_EXPORTS=0
+ADDED: title storage and the whole managed content stack, render targets, sound effects
+BROWSER_60=PASS BROWSER_600=PASS UNCAUGHT_PAGE_ERRORS=0
+```
+
+Title storage is the one route the managed content stack was missing: XNB framing, the reader table,
+the LZX decompressor and every built-in reader graph are TypeScript that already ran on Node, so a
+page that writes its assets into the module filesystem can call `ContentManager.Load`. That
+immediately exposed a behavioural gap on *both* backends, invisible to a structural verifier:
+XNA's `GraphicsDeviceManager` constructor registers itself in `Game.Services`, and ours did not, so
+`Content.Load` inside an ordinary `Game` failed everywhere.
+
+Sound is duration-exact (250 ms from a quarter second of 8 kHz mono) and state-machine-exact;
+audibility is deliberately not claimed, because a browser will not start a WebAudio context without
+a user gesture.
+
+### Result codes, and one gate that could not have caught anything
+
+The contract verifier proved the CNA result codes against the headers while the TypeScript that
+branches on them restated the numbers inline — so a wrong literal in a backend was invisible to it.
+The first draft of the browser title route spelled `BUFFER_TOO_SMALL` as 6, which is
+`NOT_SUPPORTED`. `src/internal/cna-results.ts` is now the one table, proved value by value with
+mutation controls for a wrong number and an unnamed member.
+
+`docs/internal-leak-report.json` was text despite the name while CI generated JSON and compared byte
+for byte — a gate that could only ever fail. The ABI and contract reports carried absolute host
+paths and the dependency's git HEAD, so neither could be reproduced from a pinned checkout. All
+three are portable now, and every `cmp` the workflow performs was replayed locally.
+
+### Final qualification
+
+```text
+npm ci PASS   npm run check PASS   npm test 304/304   test:differential 182/182
+api:verify TOTAL_DIFFERENCES=0    api:verify:live TOTAL_DIFFERENCES=0
+verify:runtime RUNTIME_DIFFERENCES=0   verify:leaks INTERNAL_LEAK=0   ALLOWLIST_SIZE=0
+audit:cna-abi ABI=0.20.0 HEADERS=61 EXPORTS=4051 IMPORTS=581 SIGNATURE_MISMATCHES=0
+verify:cna-contract ENUM_CLAIMS=821 TRANSLATED=3 DIAGNOSTICS=0 STATIC_ASSERTIONS_COMPILED=PASS
+coverage:cna-abi UNEXPLAINED=0 REACHABLE_BUT_DEFERRED=0
+runtime:inventory ENTRIES=96 CONSISTENCY_GATE=PASS PROVED=77
+test:native 13/13   test:extensions 10/10   test:cnb 11/11
+test:wasm-browser 6/6   test:windowed 2/2
+verify:package PASS   build reproducibility PASS   package reproducibility PASS
+PACKED_SHA256=f08f69451b23d50372a17c48763a5e08367570e3b784549a9a759ffcf9e93e36
+PACKED_FILES=821  PACKED_BYTES=727757
+
+TEMPLATE  build PASS  native 60/600 PASS  browser 60/600 PASS  extensions PASS
+          generated TypeScript/JavaScript PASS  LEGACY_OR_SIBLING_REFERENCES=0
+```
+
+### Upstream status
+
+```text
+add_owned_pass owned-resource leak       NEW, measured, characterised, not fixed here
+SDL3 mixer stderr notice on success      NEW, measured, classified in the harness
+cna_c_api_wasm MIN/MAX_WEBGL_VERSION     STILL PRESENT (verified in the live CMake source)
+-sASYNCIFY=1 on every Emscripten link    STILL PRESENT (verified in the live CMake source)
+```
+
+Neither Emscripten workaround was removed on the strength of the build merely continuing to
+succeed with it; both were re-read out of `cnanext`'s own CMake.
