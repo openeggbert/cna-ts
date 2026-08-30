@@ -58,6 +58,12 @@ phase is complete. API completeness can only be claimed from a reproducible stri
 - [x] Current language rules are represented in `mapping-rules.json`; its allowlist is empty.
 - [x] Later profiles separately inventory GamerServices, Net, Avatar, Xbox 360 and Content
   Pipeline assemblies; `docs/xna-profile-inventory.md` records each with its exact hashes.
+- [x] The Content Pipeline's product boundary is measured and decided in
+  `docs/content-pipeline-boundary.md`: its 128 types stay unprojected, because four of its
+  load-bearing mechanisms — attribute-driven discovery, reflection-based `IntermediateSerializer`,
+  MSBuild tasks and XNB output — have no JavaScript or CNA counterpart. Content authoring belongs
+  to a separate build-time package over CNA's own compiler, whose write half already exists in
+  `cna-ts/extensions/content`.
 - [x] GamerServices, Net and Avatar are a projected strict profile of their own.
 - [ ] No Windows Phone reference corpus is retained on this host; that profile stays unmeasured
   until one is.
