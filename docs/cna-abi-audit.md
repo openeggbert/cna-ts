@@ -64,6 +64,11 @@ npm run audit:cna-abi
 
 ## Migration result
 
+The 0.7 to 0.20 crossing itself, kept as the record of that event. The import count below is what
+it was at the end of that migration; the *current* one is in "The contract counts this audit holds"
+further down, and grew because later sessions bound more of the ABI, not because anything here
+changed.
+
 ```text
 PREVIOUS_TARGET_ABI=0.7.0
 LIVE_TARGET_ABI=0.20.0
@@ -161,12 +166,12 @@ it for a regression this binding caused.
 ABI_VERSION=0.20.0
 PUBLIC_HEADERS=61
 EXPORTED_FUNCTIONS=4051
-NODE_BRIDGE_IMPORTED_SYMBOLS=414
-NODE_BRIDGE_SIGNATURES_VERIFIED=414
+NODE_BRIDGE_IMPORTED_SYMBOLS=581
+NODE_BRIDGE_SIGNATURES_VERIFIED=581
 NODE_BRIDGE_SIGNATURE_MISMATCHES=0
 MISSING_QUALIFIED_LIBRARY_IMPORTS=0
 WASM_ARTIFACT_EXPORTED_FUNCTIONS=4053
-WASM_BACKEND_ROUTES=79
+WASM_BACKEND_ROUTES=105
 MISSING_WASM_BACKEND_EXPORTS=0
 BROWSER_ARTIFACT_STATUS=PRESENT_NOT_EXECUTION_VERIFIED
 ```
