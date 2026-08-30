@@ -1456,15 +1456,18 @@ started the modern CNA extension API. Eleven local commits; nothing pushed.
 ```text
 CNA_TS_START=a0141809b7457047e911e7a7590c675916bd0ca0 (clean, == origin/develop)
 CNA_TS_TEMPLATE_START=49620019729ae87208ea67d84504b568e8b08b0b (clean, == origin/develop)
-CNANEXT_HEAD=17b5a90a0878f3f44c23bc8e3197d5d30373dc72
-SHARP_RUNTIMENEXT_HEAD=eebebd862121953538e3b84d43384d70a8a1728d
-CNANEXT_MODIFIED=0
-SHARP_RUNTIMENEXT_MODIFIED=0
+CNANEXT_ARTIFACT_HEAD=72262a33ed5ae7657024c7f1251338748a3feee5
+SHARP_RUNTIMENEXT_ARTIFACT_HEAD=eebebd862121953538e3b84d43384d70a8a1728d
+CNANEXT_HEAD_AT_SESSION_END=17b5a90a0878f3f44c23bc8e3197d5d30373dc72
+CNANEXT_MODIFIED_BY_THIS_SESSION=0
+SHARP_RUNTIMENEXT_MODIFIED_BY_THIS_SESSION=0
 ```
 
-Neither dependency was modified. Both were dirty with another session's work when the session
-started and were committed by that session while the build ran; the HEADs above are the ones the
-artifacts were built from and were re-verified afterwards.
+Neither dependency was modified here. Both were dirty with another session's work when this one
+started, and that session kept committing while this one ran: the `ARTIFACT_HEAD` values are the
+revisions the two artifacts were actually built from, and `cnanext` has moved on since. Rebuilding
+against the newer revision is the first thing the next session should do before trusting any
+runtime number below.
 
 ### Live CNA build
 
