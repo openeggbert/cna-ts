@@ -13,7 +13,7 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 20,
-    "VERIFIED_NATIVE": 45,
+    "VERIFIED_NATIVE": 46,
     "VERIFIED_WEBASSEMBLY": 7,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 1,
@@ -140,6 +140,17 @@
       "evidence": "no qualified artifact/job on either OS"
     },
     {
+      "operation": "CNA compass, gyroscope and motion readings, haptics, joysticks, camera capture and the cursor/text input families",
+      "category": "UNIMPLEMENTED_CNA_TS",
+      "owner": "CNA-TS",
+      "evidence": "the extended device layer and the accelerometer are projected and verified above; the compass, gyroscope and motion sensors report support but have no reading projection, and input_haptics.h, input_joystick.h, input_cursor.h, input_text.h and camera frame acquisition are measured and unprojected",
+      "proof": [
+        "absentRoute:cna_compass_create",
+        "absentRoute:cna_joysticks_get_count",
+        "absentRoute:cna_camera_create"
+      ]
+    },
+    {
       "operation": "CNB model, audio, media, curve and clip schemas, and the compilation front ends",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
@@ -180,17 +191,6 @@
       "proof": [
         "absentRoute:cna_clustered_light_grid_create",
         "absentRoute:cna_compute_shader_create"
-      ]
-    },
-    {
-      "operation": "Modern CNA sensors, haptics, joysticks, camera capture and the cursor/text input families",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "the extended device layer's host, power, display, locale, clipboard and camera-enumeration readers are projected and verified above; sensors.h, input_haptics.h, input_joystick.h, input_cursor.h, input_text.h and camera frame acquisition are measured and unprojected",
-      "proof": [
-        "absentRoute:cna_accelerometer_create",
-        "absentRoute:cna_joysticks_get_count",
-        "absentRoute:cna_camera_create"
       ]
     },
     {
@@ -420,6 +420,19 @@
       "proof": [
         "route:cna_graphics_device_get_renderer_info",
         "route:cna_graphics_device_copy_renderer_name"
+      ]
+    },
+    {
+      "operation": "CNA sensors: support enumeration and the accelerometer's absence path",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/sensors",
+      "evidence": "the platform answers for all four sensor families, and on a host with no accelerometer the whole family agrees: the state is NotSupported, no data is valid, and CurrentValue refuses with InvalidOperationException rather than returning three zeroes a game would integrate into an orientation nothing measured. Start, Stop and the update interval report what the platform did rather than what was asked, disposal is idempotent, and a released sensor does not block the next one",
+      "proof": [
+        "route:cna_accelerometer_get_is_supported",
+        "route:cna_accelerometer_create",
+        "route:cna_accelerometer_get_state",
+        "route:cna_accelerometer_get_current_value",
+        "test:test/native-cna.integration.mjs"
       ]
     },
     {

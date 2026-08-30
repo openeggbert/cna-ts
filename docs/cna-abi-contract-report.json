@@ -1,10 +1,10 @@
 {
   "contract": "tools/cna-abi/contract.json",
-  "typeScriptEnums": 91,
-  "verifiedFamilies": 90,
+  "typeScriptEnums": 92,
+  "verifiedFamilies": 91,
   "managedEnums": 1,
-  "claims": 821,
-  "identicalClaims": 818,
+  "claims": 827,
+  "identicalClaims": 824,
   "translatedClaims": 3,
   "scalarAssertions": 6,
   "resultCodeAssertions": 15,
@@ -277,6 +277,10 @@
       "constant": "CNA_RACING_CAMERA_ANGLE_MAXIMUM"
     },
     {
+      "family": "SensorState",
+      "constant": "CNA_SENSOR_STATE_MAXIMUM"
+    },
+    {
       "family": "SurfaceFormat",
       "constant": "CNA_SURFACE_FORMAT_BC7_EXT"
     },
@@ -309,7 +313,7 @@
       "constant": "CNA_VIDEO_SOUNDTRACK_TYPE_MAXIMUM"
     }
   ],
-  "declaredCnaOnlyConstants": 73,
+  "declaredCnaOnlyConstants": 74,
   "diagnostics": [],
   "translations": [
     {

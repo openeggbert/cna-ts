@@ -30,7 +30,8 @@ TypeScript.
 > not-supported branch where it is not; and `extensions/content` reads `.cnb`, CNA's own compiled
 > content format, ending in an ordinary `Texture2D` or `SpriteFont`; and `extensions/devices`
 > reports the host itself — cores, memory, power, display safe area, locales, clipboard and
-> cameras — which XNA had no way to ask about at all.
+> cameras — which XNA had no way to ask about at all, with `extensions/sensors` beside it for the
+> accelerometer and what the platform says about the rest.
 
 ## One package for both languages
 

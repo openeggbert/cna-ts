@@ -346,6 +346,11 @@ typedef CNA_Result (*DevicesClipboardFn)(CNA_Handle, CNA_StringView, CNA_Bool*);
 typedef CNA_Result (*GamerServicesVoidFn)(void);
 typedef CNA_Result (*GamerServicesU64InFn)(uint64_t);
 
+/* --- sensors ---------------------------------------------------------------------------------- */
+typedef CNA_Result (*AccelerometerCreateFn)(CNA_Handle, CNA_AccelerometerHandle*);
+typedef CNA_Result (*AccelerometerReadingFn)(CNA_AccelerometerHandle, CNA_AccelerometerReading*);
+typedef CNA_Result (*AccelerometerTicksInFn)(CNA_AccelerometerHandle, int64_t);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -930,6 +935,19 @@ typedef struct Api {
   BoolInFn guide_set_is_screen_saver_enabled;
   U32OutFn guide_get_notification_position;
   U32InFn guide_set_notification_position;
+  BoolGetFn accelerometer_is_supported;
+  BoolGetFn compass_is_supported;
+  BoolGetFn gyroscope_is_supported;
+  BoolGetFn motion_is_supported;
+  AccelerometerCreateFn accelerometer_create;
+  GameHandleFn accelerometer_destroy;
+  GameHandleFn accelerometer_start;
+  GameHandleFn accelerometer_stop;
+  GameU32OutFn accelerometer_get_state;
+  BoolGetFn accelerometer_is_data_valid;
+  AccelerometerReadingFn accelerometer_get_current_value;
+  HandleInt64OutFn accelerometer_get_interval;
+  AccelerometerTicksInFn accelerometer_set_interval;
 } Api;
 
 typedef struct GameContext {
@@ -1828,6 +1846,20 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(guide_set_is_screen_saver_enabled, BoolInFn, "cna_guide_set_is_screen_saver_enabled");
   LOAD_REQUIRED(guide_get_notification_position, U32OutFn, "cna_guide_get_notification_position");
   LOAD_REQUIRED(guide_set_notification_position, U32InFn, "cna_guide_set_notification_position");
+
+  LOAD_REQUIRED(accelerometer_is_supported, BoolGetFn, "cna_accelerometer_get_is_supported");
+  LOAD_REQUIRED(compass_is_supported, BoolGetFn, "cna_compass_get_is_supported");
+  LOAD_REQUIRED(gyroscope_is_supported, BoolGetFn, "cna_gyroscope_get_is_supported");
+  LOAD_REQUIRED(motion_is_supported, BoolGetFn, "cna_motion_get_is_supported");
+  LOAD_REQUIRED(accelerometer_create, AccelerometerCreateFn, "cna_accelerometer_create");
+  LOAD_REQUIRED(accelerometer_destroy, GameHandleFn, "cna_accelerometer_destroy");
+  LOAD_REQUIRED(accelerometer_start, GameHandleFn, "cna_accelerometer_start");
+  LOAD_REQUIRED(accelerometer_stop, GameHandleFn, "cna_accelerometer_stop");
+  LOAD_REQUIRED(accelerometer_get_state, GameU32OutFn, "cna_accelerometer_get_state");
+  LOAD_REQUIRED(accelerometer_is_data_valid, BoolGetFn, "cna_accelerometer_get_is_data_valid");
+  LOAD_REQUIRED(accelerometer_get_current_value, AccelerometerReadingFn, "cna_accelerometer_get_current_value");
+  LOAD_REQUIRED(accelerometer_get_interval, HandleInt64OutFn, "cna_accelerometer_get_time_between_updates_ticks");
+  LOAD_REQUIRED(accelerometer_set_interval, AccelerometerTicksInFn, "cna_accelerometer_set_time_between_updates_ticks");
 
   napi_value undefined;
   NAPI_OR_RETURN(env, napi_get_undefined(env, &undefined), "load result");
@@ -9258,6 +9290,145 @@ static napi_value guide_set_notification_position(napi_env env, napi_callback_in
   return undefined_result(env, "notification position");
 }
 
+/* --- sensors ---------------------------------------------------------------------------------- */
+/*
+ * A sensor that is not there is not a sensor reading zero. Every route below reports the platform's
+ * own answer, and a host with no accelerometer says NOT_SUPPORTED rather than handing back three
+ * zeroes that a game would happily integrate into a wrong orientation.
+ */
+
+static napi_value get_sensor_support(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  CNA_Bool accelerometer = CNA_FALSE, compass = CNA_FALSE, gyroscope = CNA_FALSE, motion = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  CNA_Result result = g_api.accelerometer_is_supported(game, &accelerometer);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_accelerometer_get_is_supported", result);
+  result = g_api.compass_is_supported(game, &compass);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_compass_get_is_supported", result);
+  result = g_api.gyroscope_is_supported(game, &gyroscope);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_gyroscope_get_is_supported", result);
+  result = g_api.motion_is_supported(game, &motion);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_motion_get_is_supported", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "sensor support");
+  if (!set_bool_property(env, output, "Accelerometer", accelerometer) ||
+      !set_bool_property(env, output, "Compass", compass) ||
+      !set_bool_property(env, output, "Gyroscope", gyroscope) ||
+      !set_bool_property(env, output, "Motion", motion)) {
+    return throw_napi(env, "sensor support");
+  }
+  return output;
+}
+
+static napi_value create_accelerometer(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle game = 0, sensor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.accelerometer_create(game, &sensor);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_accelerometer_create", result);
+  return make_handle(env, sensor);
+}
+
+static napi_value accelerometer_handle_only(
+  napi_env env, napi_callback_info info, GameHandleFn route, const char* name
+) {
+  napi_value args[1];
+  CNA_Handle sensor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &sensor)) return NULL;
+  const CNA_Result result = route(sensor);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value destroy_accelerometer(napi_env env, napi_callback_info info) {
+  return accelerometer_handle_only(env, info, g_api.accelerometer_destroy, "cna_accelerometer_destroy");
+}
+
+static napi_value start_accelerometer(napi_env env, napi_callback_info info) {
+  return accelerometer_handle_only(env, info, g_api.accelerometer_start, "cna_accelerometer_start");
+}
+
+static napi_value stop_accelerometer(napi_env env, napi_callback_info info) {
+  return accelerometer_handle_only(env, info, g_api.accelerometer_stop, "cna_accelerometer_stop");
+}
+
+static napi_value get_accelerometer_state(napi_env env, napi_callback_info info) {
+  napi_value args[1], output, ticks_value;
+  CNA_Handle sensor = 0;
+  uint32_t state = 0;
+  CNA_Bool valid = CNA_FALSE;
+  int64_t ticks = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &sensor)) return NULL;
+  CNA_Result result = g_api.accelerometer_get_state(sensor, &state);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_accelerometer_get_state", result);
+  result = g_api.accelerometer_is_data_valid(sensor, &valid);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_accelerometer_get_is_data_valid", result);
+  }
+  result = g_api.accelerometer_get_interval(sensor, &ticks);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_accelerometer_get_time_between_updates_ticks", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "accelerometer state");
+  NAPI_OR_RETURN(env, napi_create_bigint_int64(env, ticks, &ticks_value), "accelerometer state");
+  if (!set_u32_property(env, output, "State", state) ||
+      !set_bool_property(env, output, "IsDataValid", valid) ||
+      napi_set_named_property(env, output, "TimeBetweenUpdatesTicks", ticks_value) != napi_ok) {
+    return throw_napi(env, "accelerometer state");
+  }
+  return output;
+}
+
+static napi_value set_accelerometer_interval(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle sensor = 0;
+  int64_t ticks = 0;
+  bool lossless = false;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &sensor) ||
+      napi_get_value_bigint_int64(env, args[1], &ticks, &lossless) != napi_ok || !lossless) {
+    return throw_message(env, "expected an accelerometer and a tick count as a bigint");
+  }
+  const CNA_Result result = g_api.accelerometer_set_interval(sensor, ticks);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_accelerometer_set_time_between_updates_ticks", result);
+  }
+  return undefined_result(env, "accelerometer interval");
+}
+
+static napi_value get_accelerometer_reading(napi_env env, napi_callback_info info) {
+  napi_value args[1], output, ticks_value, offset_value;
+  CNA_Handle sensor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &sensor)) return NULL;
+  CNA_AccelerometerReading reading;
+  memset(&reading, 0, sizeof(reading));
+  reading.struct_size = sizeof(reading);
+  reading.struct_version = 1;
+  const CNA_Result result = g_api.accelerometer_get_current_value(sensor, &reading);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_accelerometer_get_current_value", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "accelerometer reading");
+  /* Ticks since 0001-01-01, so a bigint: this does not fit a double without losing the last digits
+     of a real timestamp, and a reading's identity is its timestamp. */
+  NAPI_OR_RETURN(env, napi_create_bigint_int64(env, reading.timestamp.ticks, &ticks_value), "reading");
+  NAPI_OR_RETURN(
+    env, napi_create_bigint_int64(env, reading.timestamp.offset_ticks, &offset_value), "reading");
+  if (!set_double_property(env, output, "X", (double) reading.acceleration.x) ||
+      !set_double_property(env, output, "Y", (double) reading.acceleration.y) ||
+      !set_double_property(env, output, "Z", (double) reading.acceleration.z) ||
+      napi_set_named_property(env, output, "TimestampTicks", ticks_value) != napi_ok ||
+      napi_set_named_property(env, output, "TimestampOffsetTicks", offset_value) != napi_ok) {
+    return throw_napi(env, "accelerometer reading");
+  }
+  return output;
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
@@ -9660,6 +9831,14 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "setGuideIsScreenSaverEnabled", NULL, guide_set_screen_saver, NULL, NULL, NULL, napi_default, NULL },
     { "getGuideNotificationPosition", NULL, guide_get_notification_position, NULL, NULL, NULL, napi_default, NULL },
     { "setGuideNotificationPosition", NULL, guide_set_notification_position, NULL, NULL, NULL, napi_default, NULL },
+    { "getSensorSupport", NULL, get_sensor_support, NULL, NULL, NULL, napi_default, NULL },
+    { "createAccelerometer", NULL, create_accelerometer, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyAccelerometer", NULL, destroy_accelerometer, NULL, NULL, NULL, napi_default, NULL },
+    { "startAccelerometer", NULL, start_accelerometer, NULL, NULL, NULL, napi_default, NULL },
+    { "stopAccelerometer", NULL, stop_accelerometer, NULL, NULL, NULL, napi_default, NULL },
+    { "getAccelerometerState", NULL, get_accelerometer_state, NULL, NULL, NULL, napi_default, NULL },
+    { "setAccelerometerInterval", NULL, set_accelerometer_interval, NULL, NULL, NULL, napi_default, NULL },
+    { "getAccelerometerReading", NULL, get_accelerometer_reading, NULL, NULL, NULL, napi_default, NULL },
     { "openStorageFile", NULL, open_storage_file, NULL, NULL, NULL, napi_default, NULL },
   };
   if (napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties) != napi_ok) {

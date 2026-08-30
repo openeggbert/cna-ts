@@ -20,7 +20,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Category | Operation families |
 | --- | ---: |
 | VERIFIED_MANAGED | 20 |
-| VERIFIED_NATIVE | 45 |
+| VERIFIED_NATIVE | 46 |
 | VERIFIED_WEBASSEMBLY | 7 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 5 |
 | UPSTREAM_CNA_BLOCKED | 1 |
@@ -63,6 +63,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | BasicEffect, AlphaTestEffect, DualTextureEffect, EnvironmentMapEffect and SkinnedEffect native construction | CNA-TS + CNA | all five distinct ABI-0.7 constructors return owned effects with real technique/pass views under qualified HEADLESS integration |
 | BasicEffect, AlphaTestEffect, DualTextureEffect, EnvironmentMapEffect and SkinnedEffect native state/apply execution | CNA-TS + CNA | qualified HEADLESS integration synchronizes dependency-complete stock state, applies every stock effect and verifies clone, texture retention and deterministic disposal |
 | CNA renderer identity and capability query extension | CNA-TS + CNA | qualified artifact reports HEADLESS/custom-effects/compiled-effects capability bits |
+| CNA sensors: support enumeration and the accelerometer's absence path | cna-ts/extensions/sensors | the platform answers for all four sensor families, and on a host with no accelerometer the whole family agrees: the state is NotSupported, no data is valid, and CurrentValue refuses with InvalidOperationException rather than returning three zeroes a game would integrate into an orientation nothing measured. Start, Stop and the update interval report what the platform did rather than what was asked, disposal is idempotent, and a released sensor does not block the next one |
 | CNB container: parse, validate, walk the table of contents and read chunk bytes | cna-ts/extensions/content | a container encoded by CNA's own writer parses back with its container version, asset type, schema version, CMET metadata and chunk order; a chunk's bytes are exact and its CRC-32C recomputes to the table-of-contents value; truncation, a flipped payload byte and an XNB are each refused with CNA_RESULT_IO, and an unknown mandatory chunk refuses the whole file |
 | CNB SpriteFont: decode a compiled font with its embedded atlas into a drawable SpriteFont | cna-ts/extensions/content | a font CNA encoded decodes with its metrics, its ascending character map and its per-glyph rectangles and kerning; CreateSpriteFontFromCnb builds a SpriteFont whose MeasureString is exact, the copied atlas outlives the font it came from, an unsorted character map is refused at encode time, and an absent fallback character reads as null rather than U+0000 |
 | CNB Texture2D: decode a compiled texture and upload it as a real XNA resource | cna-ts/extensions/content | a texture description CNA encoded decodes to the same shape, representation format and level bytes, and CreateTexture2DFromCnb produces a Texture2D whose four readback texels are exactly the RGBA the encoder was given; representation selection reports an unsupported format as absence rather than failure |
@@ -163,11 +164,11 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
+| CNA compass, gyroscope and motion readings, haptics, joysticks, camera capture and the cursor/text input families | CNA-TS | the extended device layer and the accelerometer are projected and verified above; the compass, gyroscope and motion sensors report support but have no reading projection, and input_haptics.h, input_joystick.h, input_cursor.h, input_text.h and camera frame acquisition are measured and unprojected |
 | CNB model, audio, media, curve and clip schemas, and the compilation front ends | CNA-TS | the container, the Texture2D schema and the SpriteFont schema are projected and verified above; the remaining cnb.h families -- the model graph, sound effects, songs, videos, curves, animation clips, the bounded byte cursor, the loader registry and the .cnj compile path -- are measured and unprojected |
 | Direct standalone GraphicsDevice construction | CNA-TS | ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime exists upstream. The qualified HEADLESS artifact reports no graphics adapter, so GraphicsAdapter.DefaultAdapter has nothing to return and the XNA constructor has no argument to be given; implementing the route here would be unexercisable on any backend this session can build |
 | GamerServices sign-in, achievements, leaderboards, avatars and the whole .Net session surface | CNA-TS | the dispatcher's lifetime and the Guide's state are projected and verified above; everything that needs a signed-in user, a friends list, a platform overlay or a peer -- sign-in, achievements, leaderboards, presence, avatars and every NetworkSession operation -- still refuses with GamerServicesNotAvailableException, because a fabricated gamer or peer would be worse than the exception XNA itself raises where the platform is absent |
 | Modern CNA engine layer beyond the pipeline and its post-process chain: lighting, shadows, particles, decals, compute and clustered rendering | CNA-TS | the render pipeline and the post-process chain are projected and verified above; the rest of engine_layer.h -- clustered and cascaded lighting, shadow maps, particles, decals, LOD, compute and storage buffers, environment and atmospheric rendering -- is measured and unprojected |
-| Modern CNA sensors, haptics, joysticks, camera capture and the cursor/text input families | CNA-TS | the extended device layer's host, power, display, locale, clipboard and camera-enumeration readers are projected and verified above; sensors.h, input_haptics.h, input_joystick.h, input_cursor.h, input_text.h and camera frame acquisition are measured and unprojected |
 
 ## LANGUAGE_MAPPING_LIMITATION
 

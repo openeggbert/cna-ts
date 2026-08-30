@@ -13,6 +13,10 @@ import type {
   CnaContentBackend,
   CnaDeviceBackend,
   CnaGamerServicesBackend,
+  CnaSensorBackend,
+  AccelerometerReadingSnapshot,
+  SensorStateSnapshot,
+  SensorSupportSnapshot,
   CameraInventorySnapshot,
   HostDeviceSnapshot,
   PreferredLocaleSnapshot,
@@ -484,6 +488,14 @@ interface NativeBridge {
   setGuideIsScreenSaverEnabled(value: boolean): void;
   getGuideNotificationPosition(): number;
   setGuideNotificationPosition(position: number): void;
+  getSensorSupport(game: bigint): SensorSupportSnapshot;
+  createAccelerometer(game: bigint): bigint;
+  destroyAccelerometer(sensor: bigint): void;
+  startAccelerometer(sensor: bigint): void;
+  stopAccelerometer(sensor: bigint): void;
+  getAccelerometerState(sensor: bigint): SensorStateSnapshot;
+  setAccelerometerInterval(sensor: bigint, ticks: bigint): void;
+  getAccelerometerReading(sensor: bigint): AccelerometerReadingSnapshot;
   isDeviceExtensionLayerAvailable(): boolean;
   getHostDeviceInfo(game: bigint): HostDeviceSnapshot;
   getPreferredLocales(game: bigint): PreferredLocaleSnapshot[];
@@ -652,7 +664,7 @@ interface NativeBridge {
 export class NodeNativeBackend
   implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend,
     CnaRuntimeServicesBackend, CnaGraphicsExtensionBackend, CnaContentBackend,
-    CnaDeviceBackend, CnaGamerServicesBackend {
+    CnaDeviceBackend, CnaGamerServicesBackend, CnaSensorBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
   public readonly AbiVersion: string;
@@ -672,6 +684,7 @@ export class NodeNativeBackend
   public readonly Content: CnaContentBackend = this;
   public readonly Devices: CnaDeviceBackend = this;
   public readonly GamerServices: CnaGamerServicesBackend = this;
+  public readonly Sensors: CnaSensorBackend = this;
   readonly #bridge: NativeBridge;
   #activeGame: NativeHandle | null = null;
   #boundGameLifetime: NativeResourceLifetime | null = null;
@@ -1444,6 +1457,23 @@ export class NodeNativeBackend
   public getGuideNotificationPosition(): number { return this.#bridge.getGuideNotificationPosition(); }
   public setGuideNotificationPosition(position: number): void {
     this.#bridge.setGuideNotificationPosition(position);
+  }
+
+  // Sensors. Support is a game-scoped question and the sensor itself is a game child, so both
+  // reach CNA through the running game handle.
+  public getSensorSupport(): SensorSupportSnapshot { return this.#bridge.getSensorSupport(this.#game()); }
+  public createAccelerometer(): NativeHandle { return this.#bridge.createAccelerometer(this.#game()); }
+  public destroyAccelerometer(sensor: NativeHandle): void { this.#bridge.destroyAccelerometer(sensor); }
+  public startAccelerometer(sensor: NativeHandle): void { this.#bridge.startAccelerometer(sensor); }
+  public stopAccelerometer(sensor: NativeHandle): void { this.#bridge.stopAccelerometer(sensor); }
+  public getAccelerometerState(sensor: NativeHandle): SensorStateSnapshot {
+    return this.#bridge.getAccelerometerState(sensor);
+  }
+  public setAccelerometerInterval(sensor: NativeHandle, ticks: bigint): void {
+    this.#bridge.setAccelerometerInterval(sensor, ticks);
+  }
+  public getAccelerometerReading(sensor: NativeHandle): AccelerometerReadingSnapshot {
+    return this.#bridge.getAccelerometerReading(sensor);
   }
 
   // The extended device layer. Each of these needs the active game handle, because CNA addresses

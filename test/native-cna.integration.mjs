@@ -31,6 +31,7 @@ import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../dist/internal/abi.js";
 import * as renderPipelineModule from "../dist/extensions/graphics/index.js";
 import * as extensionsModule from "../dist/extensions/index.js";
 import * as devicesModule from "../dist/extensions/devices/index.js";
+import * as sensorsModule from "../dist/extensions/sensors/index.js";
 import { getBackend } from "../dist/internal/backend.js";
 import {
   getVertexBufferRawForInternalUse,
@@ -1161,6 +1162,108 @@ test("gamer services has a real dispatcher and Guide state, and still refuses a 
   assert.equal(evidence.ShowSignInRefusal, "GamerServicesNotAvailableException");
   assert.equal(evidence.DelayNotificationsRefusal, "GamerServicesNotAvailableException");
   assert.equal(evidence.ShowMessageBoxRefusal, "GamerServicesNotAvailableException");
+});
+
+class SensorProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    this.evidence.support = { ...sensorsModule.CnaSensors.GetSupport() };
+
+    // Constructing one on a device that has none is allowed, so a game can build its options
+    // screen without branching first. What is *not* allowed is getting a reading out of it.
+    const accelerometer = new sensorsModule.Accelerometer();
+    try {
+      this.evidence.state = accelerometer.State;
+      this.evidence.isDataValid = accelerometer.IsDataValid;
+
+      // The whole point of this family: a device with no accelerometer must not read as one lying
+      // perfectly still. Zeroes here would be a measurement a game could integrate.
+      try {
+        accelerometer.CurrentValue;
+        this.evidence.currentValue = "returned a reading";
+      } catch (error) {
+        this.evidence.currentValue = error.constructor.name;
+      }
+
+      try {
+        accelerometer.Start();
+        this.evidence.start = "SUCCESS";
+      } catch (error) {
+        this.evidence.start = `result ${error.cnaResult}`;
+      }
+      this.evidence.stateAfterStart = accelerometer.State;
+
+      // The update interval is a request, and reading it back is what says whether it took.
+      const before = accelerometer.TimeBetweenUpdates.Ticks;
+      accelerometer.TimeBetweenUpdates = TimeSpan.FromMilliseconds(50);
+      this.evidence.interval = {
+        before: String(before),
+        after: String(accelerometer.TimeBetweenUpdates.Ticks),
+        requested: String(TimeSpan.FromMilliseconds(50).Ticks),
+      };
+
+      try {
+        accelerometer.Stop();
+        this.evidence.stop = "SUCCESS";
+      } catch (error) {
+        this.evidence.stop = `result ${error.cnaResult}`;
+      }
+    } finally {
+      accelerometer.Dispose();
+      accelerometer.Dispose();
+      this.evidence.disposedTwice = accelerometer.IsDisposed;
+    }
+    try {
+      new sensorsModule.Accelerometer().Dispose();
+      this.evidence.reconstructed = true;
+    } catch {
+      this.evidence.reconstructed = false;
+    }
+    this.Exit();
+    super.LoadContent();
+  }
+}
+
+test("a sensor that is not there reports absence rather than a zero reading", async () => {
+  const game = new SensorProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  // Four families, each answered by the platform rather than assumed.
+  for (const [name, supported] of Object.entries(evidence.support)) {
+    assert.equal(typeof supported, "boolean", `${name} must answer with a boolean`);
+  }
+
+  assert.ok(
+    Object.values(sensorsModule.SensorState).includes(evidence.state),
+    `unexpected sensor state ${evidence.state}`,
+  );
+  if (!evidence.support.Accelerometer) {
+    // This host has no accelerometer, and the whole family says so consistently: the state is
+    // NotSupported, no data is valid, and asking for a value refuses instead of returning zeroes a
+    // game would integrate into an orientation nothing ever measured.
+    assert.equal(evidence.state, sensorsModule.SensorState.NotSupported);
+    assert.equal(evidence.isDataValid, false);
+    assert.equal(evidence.currentValue, "InvalidOperationException");
+  }
+  assert.equal(typeof evidence.isDataValid, "boolean");
+
+  // Start and Stop either work or name the result they refused with; neither is assumed.
+  for (const value of [evidence.start, evidence.stop]) {
+    assert.ok(value === "SUCCESS" || /^result \d+$/.test(value), `unexpected sensor evidence ${value}`);
+  }
+
+  // The interval is a request. Whether the platform took it is read back rather than assumed.
+  assert.match(evidence.interval.before, /^\d+$/);
+  assert.match(evidence.interval.after, /^\d+$/);
+  assert.equal(evidence.disposedTwice, true);
+  assert.equal(evidence.reconstructed, true, "a released sensor does not block the next one");
 });
 
 class NativeAudioProbeGame extends Game {

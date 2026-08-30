@@ -1097,6 +1097,49 @@ export interface CnaGamerServicesBackend {
   setGuideNotificationPosition(position: number): void;
 }
 
+
+/** Which of CNA's sensor families the platform has at all. */
+export interface SensorSupportSnapshot {
+  readonly Accelerometer: boolean;
+  readonly Compass: boolean;
+  readonly Gyroscope: boolean;
+  readonly Motion: boolean;
+}
+
+/** A sensor's state, plus how often it is asked to update. */
+export interface SensorStateSnapshot {
+  readonly State: number;
+  readonly IsDataValid: boolean;
+  readonly TimeBetweenUpdatesTicks: bigint;
+}
+
+/** One accelerometer reading, in g per axis, with the timestamp that identifies it. */
+export interface AccelerometerReadingSnapshot {
+  readonly X: number;
+  readonly Y: number;
+  readonly Z: number;
+  readonly TimestampTicks: bigint;
+  readonly TimestampOffsetTicks: bigint;
+}
+
+/**
+ * CNA's sensors.
+ *
+ * The rule that shapes this boundary: a sensor that is not there is not a sensor reading zero.
+ * Support is asked separately from state, and a host without an accelerometer says so rather than
+ * handing back three zeroes a game would integrate into a wrong orientation.
+ */
+export interface CnaSensorBackend {
+  getSensorSupport(): SensorSupportSnapshot;
+  createAccelerometer(): NativeHandle;
+  destroyAccelerometer(sensor: NativeHandle): void;
+  startAccelerometer(sensor: NativeHandle): void;
+  stopAccelerometer(sensor: NativeHandle): void;
+  getAccelerometerState(sensor: NativeHandle): SensorStateSnapshot;
+  setAccelerometerInterval(sensor: NativeHandle, ticks: bigint): void;
+  getAccelerometerReading(sensor: NativeHandle): AccelerometerReadingSnapshot;
+}
+
 export interface CnaBackend {
   readonly Kind: BackendKind;
   readonly IsAvailable: boolean;
@@ -1115,6 +1158,7 @@ export interface CnaBackend {
   readonly Content?: CnaContentBackend;
   readonly Devices?: CnaDeviceBackend;
   readonly GamerServices?: CnaGamerServicesBackend;
+  readonly Sensors?: CnaSensorBackend;
   openTitleStream?(name: string): Uint8Array;
 
   initialize(): Promise<void>;

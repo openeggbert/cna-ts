@@ -135,6 +135,7 @@
       "CNA_POWER_STATE_MAXIMUM",
       "CNA_PRIMITIVE_POINT_LIST_EXT",
       "CNA_RACING_CAMERA_ANGLE_MAXIMUM",
+      "CNA_SENSOR_STATE_MAXIMUM",
       "CNA_SURFACE_FORMAT_BC7_EXT",
       "CNA_SURFACE_FORMAT_BC7_SRGB_EXT",
       "CNA_SURFACE_FORMAT_BYTE_EXT",
@@ -627,6 +628,10 @@
     {
       "typeScriptEnum": "CameraPosition",
       "cnaPrefix": "CNA_CAMERA_POSITION"
+    },
+    {
+      "typeScriptEnum": "SensorState",
+      "cnaPrefix": "CNA_SENSOR_STATE"
     }
   ]
 }

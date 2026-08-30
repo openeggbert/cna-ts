@@ -16,13 +16,13 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 581,
+    "NODE": 594,
     "WASM": 169
   },
-  "reachableByAny": 581,
+  "reachableByAny": 594,
   "reachableByAll": 169,
   "reachableExclusively": {
-    "NODE": 412,
+    "NODE": 425,
     "WASM": 0
   },
   "reachabilityByCategory": {
@@ -31,7 +31,7 @@
       "WASM": 64
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 210,
+      "NODE": 223,
       "WASM": 104
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -265,7 +265,8 @@
     },
     "sensors.h": {
       "TOOLING_ONLY": 24,
-      "CNA_EXTENSION_BACKING": 120
+      "CNA_EXTENSION_BACKING": 120,
+      "REACHABLE_NODE": 13
     },
     "sprite_font.h": {
       "INTENTIONALLY_DEFERRED": 9
@@ -327,14 +328,18 @@
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_accelerometer_destroy",
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_accelerometer_dispatch_to_instances_for_tests_ext",
@@ -355,7 +360,9 @@
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_accelerometer_get_dispatch_exception_count_for_tests_ext",
@@ -369,14 +376,18 @@
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_accelerometer_get_is_supported",
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_accelerometer_get_last_dispatch_exception_message_size_for_tests_ext",
@@ -390,7 +401,9 @@
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_accelerometer_get_subsystem_held_for_tests_ext",
@@ -404,7 +417,9 @@
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_accelerometer_get_type_name_size",
@@ -579,21 +594,27 @@
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_accelerometer_start",
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_accelerometer_stop",
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_accelerometer_subscribe_current_value_changed",
@@ -6691,7 +6712,9 @@
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_compass_get_state",
@@ -14566,7 +14589,9 @@
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_gyroscope_get_last_dispatch_exception_message_size_for_tests_ext",
@@ -19370,7 +19395,9 @@
       "header": "sensors.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_motion_get_state",

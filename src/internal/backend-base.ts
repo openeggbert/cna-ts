@@ -17,6 +17,7 @@ import type { GestureSample, TouchPanelCapabilities, } from "../Microsoft/Xna/Fr
 import type { DisplayOrientation } from "../Microsoft/Xna/Framework/DisplayOrientation.js";
 import type { DepthFormat, GraphicsProfile, SurfaceFormat, } from "../Microsoft/Xna/Framework/Graphics/DeviceEnums.js";
 import type {
+  AccelerometerReadingSnapshot,
   AudioEmitterSnapshot,
   AudioListenerSnapshot,
   AudioVectorSnapshot,
@@ -38,6 +39,7 @@ import type {
   CnaGraphicsExtensionBackend,
   CnaMediaBackend,
   CnaRuntimeServicesBackend,
+  CnaSensorBackend,
   CnaStorageBackend,
   CnaVideoBackend,
   CnaXactBackend,
@@ -74,6 +76,8 @@ import type {
   RendererIdentitySnapshot,
   RendererSelectionSnapshot,
   SamplerStateSnapshot,
+  SensorStateSnapshot,
+  SensorSupportSnapshot,
   SoundEffectInstanceSnapshot,
   SpriteBatchCommand,
   StockEffectSnapshot,
@@ -1265,6 +1269,29 @@ export abstract class CnaGamerServicesBackendBase implements CnaGamerServicesBac
   public setGuideNotificationPosition(
     _position: number,
   ): void { return this.unsupported("setGuideNotificationPosition"); }
+}
+
+/** Refusing base for {@link CnaSensorBackend}. */
+export abstract class CnaSensorBackendBase implements CnaSensorBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public getSensorSupport(): SensorSupportSnapshot { return this.unsupported("getSensorSupport"); }
+  public createAccelerometer(): NativeHandle { return this.unsupported("createAccelerometer"); }
+  public destroyAccelerometer(
+    _sensor: NativeHandle,
+  ): void { return this.unsupported("destroyAccelerometer"); }
+  public startAccelerometer(_sensor: NativeHandle): void { return this.unsupported("startAccelerometer"); }
+  public stopAccelerometer(_sensor: NativeHandle): void { return this.unsupported("stopAccelerometer"); }
+  public getAccelerometerState(
+    _sensor: NativeHandle,
+  ): SensorStateSnapshot { return this.unsupported("getAccelerometerState"); }
+  public setAccelerometerInterval(
+    _sensor: NativeHandle,
+    _ticks: bigint,
+  ): void { return this.unsupported("setAccelerometerInterval"); }
+  public getAccelerometerReading(
+    _sensor: NativeHandle,
+  ): AccelerometerReadingSnapshot { return this.unsupported("getAccelerometerReading"); }
 }
 
 /** Refusing base for {@link CnaBackend}. */

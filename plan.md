@@ -296,8 +296,12 @@ Electron, or mobile support.
   area, the user's preferred locales, the clipboard, and camera enumeration that keeps "no camera
   support" apart from "no cameras attached". Availability is asked before any reader is offered,
   because every route exists in both build states.
-- [ ] `extensions/input` and `extensions/sensors` — sensors, haptics, joysticks, the cursor/text
-  families and camera frame capture — are measured and unprojected.
+- [x] `cna-ts/extensions/sensors` projects the platform's sensor support and the accelerometer,
+  built around the rule the whole family exists for: a missing sensor is not a sensor reading zero.
+  `NotSupported`, `NoPermissions`, `Disabled` and `NoData` stay distinct, and `CurrentValue`
+  refuses rather than inventing a measurement.
+- [ ] `extensions/input` — haptics, joysticks, the cursor/text families — plus compass, gyroscope
+  and motion readings and camera frame capture are measured and unprojected.
 
 ## Runtime capability inventory
 
@@ -305,7 +309,7 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 97 operation families: 20 verified managed, 45 verified native, seven
+- [x] Current baseline is 98 operation families: 20 verified managed, 46 verified native, seven
   verified WebAssembly, five explicitly unavailable on the qualified backend, one upstream-CNA
   blocked, three fixture pending, four hardware pending, three platform pending, five unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.
