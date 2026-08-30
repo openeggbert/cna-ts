@@ -154,7 +154,7 @@ Electron, or mobile support.
   every route the WebAssembly backend resolves is present — rather than looking for a `.wasm`
   committed to the CNA worktree, which is not how the artifact is produced.
 - [x] Define the first exact symbol subset rather than binding all 4,051 routes blindly.
-- [x] The audit extracts and verifies the adapter's exact 414 imported symbols separately from the
+- [x] The audit extracts and verifies the adapter's exact 581 imported symbols separately from the
   sentinel list and checks the qualified library exports each.
 - [x] Every imported route's declared function-pointer type is verified against the canonical
   headers under `-Wall -Wextra -Werror`; signature mismatches are zero.
@@ -302,12 +302,13 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 93 operation families: 20 verified managed, 43 verified native, five
+- [x] Current baseline is 96 operation families: 20 verified managed, 45 verified native, six
   verified WebAssembly, five explicitly unavailable on the qualified backend, one upstream-CNA
   blocked, three fixture pending, four hardware pending, three platform pending, five unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.
-- [x] Audit all 63 `NativeUnavailableError` and six `NotSupportedException` construction sites in 23
-  selected-framework source files into those operation-family boundaries.
+- [x] Audit every `NativeUnavailableError` and `NotSupportedException` construction site in the
+  selected-framework source into those operation-family boundaries; the generator refuses to run
+  when a count moves without the audit being revisited.
 
 ## Template
 
@@ -341,8 +342,12 @@ Electron, or mobile support.
   probe; nothing at that boundary is hand-written.
 - [x] Handles cross the boundary as `bigint` under `WASM_BIGINT` and are never converted through
   `Number`.
-- [ ] The WebAssembly backend is a vertical slice: members outside it refuse by name through the
-  generated `CnaBackendBase` instead of returning a plausible value.
+- [x] The browser slice reaches 105 routes: the game loop, the graphics device, `Clear`,
+  `Texture2D`, `SpriteBatch`, keyboard and mouse, the modern runtime services, **title storage and
+  the whole managed content stack**, **render targets with asserted pixel readback**, and **sound
+  effects**.
+- [ ] It is still a slice: members outside it refuse by name through the generated `CnaBackendBase`
+  or `CnaGraphicsBackendBase` instead of returning a plausible value.
 
 ## Node, desktop, and mobile
 
@@ -356,9 +361,14 @@ Electron, or mobile support.
 
 ## Packaging and CI gates
 
-- [x] `npm ci`, clean build, strict type check, unit/differential tests, runtime symbols, leak guard,
-  ABI audit, capability generation, and `npm pack` are always-on CI gates; strict XNA metadata and
-  native integration are protected conditional jobs that report `NOT_CONFIGURED` when absent.
+- [x] `npm ci`, clean build, strict type check, unit/differential tests, runtime symbols, leak
+  guard, ABI audit, the compiled C contract, route coverage with backend reachability, generated-file
+  currency, capability generation, and `npm pack` are always-on CI gates; strict XNA metadata,
+  native, CNB, extension, browser and windowed integration are protected conditional jobs that
+  report `NOT_CONFIGURED` when their artifact is absent.
+- [x] Every checked-in report is reproducible from a pinned checkout: absolute host paths, artifact
+  hashes and the dependency revision are printed by the text run and left out of the JSON CI
+  compares.
 - [x] Install the exact tarball in independent TS and JS consumers with no sibling paths.
 - [x] Package exports contain no internal subpath and fresh consumers prove the guard.
 - [x] Final generated template TypeScript/JavaScript projects both install the one exact final
