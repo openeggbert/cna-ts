@@ -1,0 +1,225 @@
+{
+  "contract": "tools/cna-abi/contract.json",
+  "cnaRoot": "/rv/data/development/github.com/openeggbert/cnanext",
+  "typeScriptEnums": 52,
+  "verifiedFamilies": 51,
+  "managedEnums": 1,
+  "claims": 432,
+  "identicalClaims": 429,
+  "translatedClaims": 3,
+  "scalarAssertions": 6,
+  "resultCodeAssertions": 15,
+  "structVersionAssertions": 6,
+  "staticAssertionsCompiled": true,
+  "cnaOnlyFamilyConstants": [
+    {
+      "family": "AudioStopOptions",
+      "constant": "CNA_AUDIO_STOP_OPTIONS_MAXIMUM"
+    },
+    {
+      "family": "Blend",
+      "constant": "CNA_BLEND_STATE_PRESET_ADDITIVE"
+    },
+    {
+      "family": "Blend",
+      "constant": "CNA_BLEND_STATE_PRESET_ALPHA_BLEND"
+    },
+    {
+      "family": "Blend",
+      "constant": "CNA_BLEND_STATE_PRESET_DEFAULT"
+    },
+    {
+      "family": "Blend",
+      "constant": "CNA_BLEND_STATE_PRESET_NON_PREMULTIPLIED"
+    },
+    {
+      "family": "Blend",
+      "constant": "CNA_BLEND_STATE_PRESET_OPAQUE"
+    },
+    {
+      "family": "Blend",
+      "constant": "CNA_BLEND_STATE_TYPE_NAME"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_ALL"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_LABEL_A"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_LABEL_B"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_LABEL_CIRCLE"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_LABEL_CROSS"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_LABEL_SQUARE"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_LABEL_TRIANGLE"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_LABEL_UNKNOWN"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_LABEL_X"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_LABEL_Y"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_MISC1_EXT"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_NONE"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_PADDLE1_EXT"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_PADDLE2_EXT"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_PADDLE3_EXT"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_PADDLE4_EXT"
+    },
+    {
+      "family": "Buttons",
+      "constant": "CNA_GAMEPAD_BUTTON_TOUCH_PAD_EXT"
+    },
+    {
+      "family": "GestureType",
+      "constant": "CNA_GESTURE_TYPE_ALL"
+    },
+    {
+      "family": "Keys",
+      "constant": "CNA_KEY_MODIFIER_ALL"
+    },
+    {
+      "family": "Keys",
+      "constant": "CNA_KEY_MODIFIER_ALT"
+    },
+    {
+      "family": "Keys",
+      "constant": "CNA_KEY_MODIFIER_CAPS"
+    },
+    {
+      "family": "Keys",
+      "constant": "CNA_KEY_MODIFIER_CTRL"
+    },
+    {
+      "family": "Keys",
+      "constant": "CNA_KEY_MODIFIER_GUI"
+    },
+    {
+      "family": "Keys",
+      "constant": "CNA_KEY_MODIFIER_MODE"
+    },
+    {
+      "family": "Keys",
+      "constant": "CNA_KEY_MODIFIER_NONE"
+    },
+    {
+      "family": "Keys",
+      "constant": "CNA_KEY_MODIFIER_NUM"
+    },
+    {
+      "family": "Keys",
+      "constant": "CNA_KEY_MODIFIER_SCROLL"
+    },
+    {
+      "family": "Keys",
+      "constant": "CNA_KEY_MODIFIER_SHIFT"
+    },
+    {
+      "family": "MediaState",
+      "constant": "CNA_MEDIA_STATE_MAXIMUM"
+    },
+    {
+      "family": "MicrophoneState",
+      "constant": "CNA_MICROPHONE_STATE_MAXIMUM"
+    },
+    {
+      "family": "PrimitiveType",
+      "constant": "CNA_PRIMITIVE_POINT_LIST_EXT"
+    },
+    {
+      "family": "SurfaceFormat",
+      "constant": "CNA_SURFACE_FORMAT_BC7_EXT"
+    },
+    {
+      "family": "SurfaceFormat",
+      "constant": "CNA_SURFACE_FORMAT_BC7_SRGB_EXT"
+    },
+    {
+      "family": "SurfaceFormat",
+      "constant": "CNA_SURFACE_FORMAT_BYTE_EXT"
+    },
+    {
+      "family": "SurfaceFormat",
+      "constant": "CNA_SURFACE_FORMAT_COLOR_BGRA_EXT"
+    },
+    {
+      "family": "SurfaceFormat",
+      "constant": "CNA_SURFACE_FORMAT_COLOR_SRGB_EXT"
+    },
+    {
+      "family": "SurfaceFormat",
+      "constant": "CNA_SURFACE_FORMAT_DXT5_SRGB_EXT"
+    },
+    {
+      "family": "SurfaceFormat",
+      "constant": "CNA_SURFACE_FORMAT_USHORT_EXT"
+    },
+    {
+      "family": "VideoSoundtrackType",
+      "constant": "CNA_VIDEO_SOUNDTRACK_TYPE_MAXIMUM"
+    }
+  ],
+  "declaredCnaOnlyConstants": 46,
+  "diagnostics": [],
+  "translations": [
+    {
+      "subject": "BlendFunction.Min",
+      "typeScriptValue": 3,
+      "cnaConstant": "CNA_BLEND_FUNCTION_MIN",
+      "cnaValue": 4,
+      "translator": "toCnaBlendFunction"
+    },
+    {
+      "subject": "BlendFunction.Max",
+      "typeScriptValue": 4,
+      "cnaConstant": "CNA_BLEND_FUNCTION_MAX",
+      "cnaValue": 3,
+      "translator": "toCnaBlendFunction"
+    },
+    {
+      "subject": "GamePadType.BigButtonPad",
+      "typeScriptValue": 768,
+      "cnaConstant": "CNA_GAMEPAD_TYPE_BIG_BUTTON_PAD",
+      "cnaValue": 9,
+      "translator": "fromCnaGamePadType"
+    }
+  ]
+}

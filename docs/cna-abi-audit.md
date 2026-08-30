@@ -136,3 +136,60 @@ CApi_Utf8Oracle=TARGET_NOT_BUILT (no cna_c_api_utf8_oracle_test target in this t
 `CApi_LifecycleSmoke`, which validates game create/run/destroy, update and draw callbacks, sprite
 submission and texture readback, passes -- so the game loop this binding depends on is exercised and
 sound in this configuration.
+
+## The header-derived contract
+
+Hand-maintaining hundreds of prototypes and constants beside a moving ABI is how a binding drifts.
+`tools/cna-abi/contract.json` states, once, what CNA-TS depends on at the C boundary, and
+`npm run verify:cna-contract` proves it by *generating a C translation unit and compiling it*
+against `CNA/C/*.h` under `-std=c11 -Wall -Wextra -Werror`. Every claim is a `_Static_assert`, so an
+absent constant, a changed value, a changed scalar width or a changed descriptor version is a
+compile error. The TypeScript half of each claim is read out of `src/` rather than copied into the
+contract, so what the package actually publishes is what gets proved.
+
+```text
+TYPESCRIPT_ENUMS=52
+VERIFIED_ENUM_FAMILIES=51
+MANAGED_ONLY_ENUMS=1
+ENUM_MEMBER_CLAIMS=432
+IDENTICAL_CLAIMS=429
+TRANSLATED_CLAIMS=3
+SCALAR_ASSERTIONS=6
+RESULT_CODE_ASSERTIONS=15
+STRUCT_VERSION_ASSERTIONS=6
+STATIC_ASSERTIONS_COMPILED=PASS
+CNA_ONLY_FAMILY_CONSTANTS=46
+DECLARED_CNA_ONLY_CONSTANTS=46
+DIAGNOSTICS=0
+```
+
+### What the first run found
+
+429 of the 432 projected enum members already carry the identical number on both sides. Exactly
+three do not, and two of them were live defects:
+
+- **`BlendFunction.Min`/`Max` were exchanged on every native path.** XNA 4.0 numbers `Min = 3` and
+  `Max = 4`; the CNA C ABI numbers `CNA_BLEND_FUNCTION_MAX = 3` and `CNA_BLEND_FUNCTION_MIN = 4`.
+  The adapter passed the XNA number straight into `CNA_BlendState`, so a game asking for a minimum
+  blend got a maximum and vice versa, through `GraphicsDevice.BlendState` and through both
+  `SpriteBatch.Begin` overloads that take one. `src/internal/cna-enums.ts` now translates both
+  directions and the three call sites use it.
+- **`GamePadType.BigButtonPad`** is `0x300` in XNA and `9` in the C ABI. The adapter already handled
+  this, as an unexplained inline `=== 9 ? 0x300` in the capability path; it is now a named,
+  contract-declared translation with a round-trip test.
+
+The 46 constants that share a mapped family's prefix without an XNA counterpart -- `_MAXIMUM`
+sentinels, the `_EXT` surface beyond XNA 4.0, state presets, and sub-families such as
+`CNA_KEY_MODIFIER_*` -- are listed in the contract, so a newly added one arrives as a diagnostic
+rather than passing unnoticed. `CNA_SURFACE_FORMAT_BC7_EXT`, `CNA_PRIMITIVE_POINT_LIST_EXT` and
+their neighbours are modern-CNA surface and belong outside `Microsoft.Xna.Framework.*`.
+
+### Mutation controls
+
+`test/cna-abi-contract.test.mjs` proves the verifier can fail, which is the only thing that makes a
+green run evidence. Thirteen deliberate mutations are each asserted to produce their own diagnostic:
+a wrong scalar width, a wrong result code, a wrong descriptor version, a suffix override naming no
+constant, a prefix pointing at the wrong family, a dropped family, a translation with no translator,
+a translation claiming the wrong value, a removed translation, an undeclared CNA-only constant, a
+declared constant the headers no longer define, and a TypeScript enum member whose value drifts in a
+copied source tree.

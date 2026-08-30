@@ -40,6 +40,7 @@ import type {
   StockEffectSnapshot,
 } from "./backend.js";
 import { decodeAbiVersion, describeAbiWindow, isSupportedAbiVersion } from "./abi.js";
+import { fromCnaGamePadType, toCnaBlendState } from "./cna-enums.js";
 import { NativeUnavailableError } from "./native-error.js";
 import type { NativeHandle, NativeResourceLifetime } from "./ownership.js";
 import type { PlayerIndex } from "../Microsoft/Xna/Framework/PlayerIndex.js";
@@ -698,7 +699,7 @@ export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaEff
     this.#bridge.setGraphicsDeviceBlendFactor(device, packedColor);
   }
   public setGraphicsDeviceBlendState(device: NativeHandle, state: BlendStateSnapshot): void {
-    this.#bridge.setGraphicsDeviceBlendState(device, state);
+    this.#bridge.setGraphicsDeviceBlendState(device, toCnaBlendState(state));
   }
   public setGraphicsDeviceDepthStencilState(
     device: NativeHandle, state: DepthStencilStateSnapshot,
@@ -783,7 +784,7 @@ export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaEff
     rasterizer: RasterizerStateSnapshot, transform: readonly number[] | null,
   ): void {
     this.#bridge.beginSpriteBatchWithStates(
-      spriteBatch, sortMode, blend, sampler, depth, rasterizer, transform,
+      spriteBatch, sortMode, toCnaBlendState(blend), sampler, depth, rasterizer, transform,
     );
   }
   public createEffectEmpty(device: NativeHandle): NativeHandle {
@@ -821,7 +822,7 @@ export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaEff
     transform: readonly number[] | null,
   ): void {
     this.#bridge.beginSpriteBatchWithEffect(
-      spriteBatch, sortMode, blend, sampler, depth, rasterizer, effect, transform,
+      spriteBatch, sortMode, toCnaBlendState(blend), sampler, depth, rasterizer, effect, transform,
     );
   }
   public setVertexBufferData(
@@ -1015,7 +1016,7 @@ export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaEff
     const snapshot = this.#bridge.getGamePadCapabilities(this.#game(), playerIndex);
     return createGamePadCapabilities({
       ...snapshot,
-      GamePadType: snapshot.GamePadType === 9 ? 0x300 : snapshot.GamePadType,
+      GamePadType: fromCnaGamePadType(snapshot.GamePadType),
     });
   }
   public setGamePadVibration(
