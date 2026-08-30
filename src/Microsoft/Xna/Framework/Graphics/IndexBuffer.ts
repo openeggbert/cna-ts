@@ -5,6 +5,7 @@ import {
 } from "../../../../internal/exceptions.js";
 import type { CnaBackend } from "../../../../internal/backend.js";
 import { NativeUnavailableError } from "../../../../internal/native-error.js";
+import { bindContentLostForInternalUse } from "../../../../internal/content-lost.js";
 import { NativeResourceLifetime } from "../../../../internal/ownership.js";
 import type { XnaType } from "../Contracts.js";
 import {
@@ -237,6 +238,17 @@ export function getIndexBufferDataForInternalUse(
 
 export function resolveIndexBufferHandleForInternalUse(buffer: IndexBuffer) {
   return stateOf(buffer).Lifetime.Handle;
+}
+
+/** Internal: gives a dynamic index buffer's declared ContentLost event a real CNA producer. */
+export function bindIndexBufferContentLostForInternalUse(
+  buffer: IndexBuffer, raise: () => void,
+): void {
+  const state = stateOf(buffer);
+  bindContentLostForInternalUse(
+    state.Backend.Graphics, "index-buffer", state.Lifetime.Handle,
+    (teardown) => { state.Lifetime.TrackCallback(teardown); }, raise,
+  );
 }
 
 export function getIndexBufferIsContentLostForInternalUse(buffer: IndexBuffer): boolean {

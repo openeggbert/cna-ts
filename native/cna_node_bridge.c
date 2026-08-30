@@ -26,6 +26,17 @@ typedef void* LibraryHandle;
 #endif
 
 typedef uint32_t (*GetAbiVersionFn)(void);
+typedef CNA_Result (*RenderTargetSubscribeFn)(
+  CNA_Handle, CNA_RenderTargetContentLostCallback, void*, CNA_RenderTargetEventRegistrationHandle*);
+typedef CNA_Result (*RenderTargetUnsubscribeFn)(CNA_RenderTargetEventRegistrationHandle);
+typedef CNA_Result (*VertexBufferSubscribeFn)(
+  CNA_VertexBufferHandle, CNA_VertexBufferContentLostCallback, void*,
+  CNA_VertexBufferEventRegistrationHandle*);
+typedef CNA_Result (*VertexBufferUnsubscribeFn)(CNA_VertexBufferEventRegistrationHandle);
+typedef CNA_Result (*IndexBufferSubscribeFn)(
+  CNA_IndexBufferHandle, CNA_IndexBufferContentLostCallback, void*,
+  CNA_IndexBufferEventRegistrationHandle*);
+typedef CNA_Result (*IndexBufferUnsubscribeFn)(CNA_IndexBufferEventRegistrationHandle);
 typedef CNA_Result (*U32OutFn)(uint32_t*);
 typedef CNA_Result (*BoolOutFn)(CNA_Bool*);
 typedef CNA_Result (*SizeOutFn)(uint64_t*);
@@ -254,6 +265,12 @@ typedef CNA_Result (*EffectMatricesFn)(CNA_EffectHandle, const CNA_Matrix*, uint
 
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
+  RenderTargetSubscribeFn render_target_subscribe_content_lost;
+  RenderTargetUnsubscribeFn render_target_unsubscribe_content_lost;
+  VertexBufferSubscribeFn vertex_buffer_subscribe_content_lost;
+  VertexBufferUnsubscribeFn vertex_buffer_unsubscribe_content_lost;
+  IndexBufferSubscribeFn index_buffer_subscribe_content_lost;
+  IndexBufferUnsubscribeFn index_buffer_unsubscribe_content_lost;
   U32OutFn platform_get_current;
   BoolOutFn platform_get_is_apple;
   BoolOutFn platform_get_is_mobile;
@@ -661,6 +678,19 @@ typedef struct GameContext {
   struct GameContext* next;
 } GameContext;
 
+/**
+ * One ContentLost subscription. ABI 0.9 made the event real on renderers whose API can lose a
+ * device, so a registration now has a producer behind it rather than only preserving the shape of
+ * the public contract.
+ */
+typedef struct ContentLostContext {
+  napi_env env;
+  napi_ref callback;
+  CNA_Handle registration;
+  uint32_t kind;
+  struct ContentLostContext* next;
+} ContentLostContext;
+
 typedef struct WindowEventContext {
   napi_env env;
   napi_ref callback;
@@ -674,6 +704,7 @@ static Api g_api;
 static uint32_t g_imported_symbols;
 static GameContext* g_games;
 static WindowEventContext* g_window_events;
+static ContentLostContext* g_content_lost_events;
 
 static napi_value undefined_result(napi_env env, const char* operation);
 static int get_named_handle(napi_env env, napi_value object, const char* name, CNA_Handle* out);
@@ -936,6 +967,12 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   g_imported_symbols = 0;
 
   LOAD_REQUIRED(get_abi_version, GetAbiVersionFn, "cna_get_abi_version");
+  LOAD_REQUIRED(render_target_subscribe_content_lost, RenderTargetSubscribeFn, "cna_render_target_subscribe_content_lost");
+  LOAD_REQUIRED(render_target_unsubscribe_content_lost, RenderTargetUnsubscribeFn, "cna_render_target_unsubscribe_content_lost");
+  LOAD_REQUIRED(vertex_buffer_subscribe_content_lost, VertexBufferSubscribeFn, "cna_vertex_buffer_subscribe_content_lost");
+  LOAD_REQUIRED(vertex_buffer_unsubscribe_content_lost, VertexBufferUnsubscribeFn, "cna_vertex_buffer_unsubscribe_content_lost");
+  LOAD_REQUIRED(index_buffer_subscribe_content_lost, IndexBufferSubscribeFn, "cna_index_buffer_subscribe_content_lost");
+  LOAD_REQUIRED(index_buffer_unsubscribe_content_lost, IndexBufferUnsubscribeFn, "cna_index_buffer_unsubscribe_content_lost");
   LOAD_REQUIRED(platform_get_current, U32OutFn, "cna_platform_get_current");
   LOAD_REQUIRED(platform_get_is_apple, BoolOutFn, "cna_platform_get_is_apple_ext");
   LOAD_REQUIRED(platform_get_is_mobile, BoolOutFn, "cna_platform_get_is_mobile_ext");
@@ -6487,6 +6524,143 @@ static napi_value is_graphics_extension_layer_available(napi_env env, napi_callb
   return output;
 }
 
+/* ---- ContentLost subscriptions ---------------------------------------------------------------
+   Three CNA callbacks with the same shape, one JavaScript dispatch. The callback runs on the
+   thread that lost the device, which for every renderer this ABI can lose one on is the game
+   thread inside a call this adapter made, so an ordinary napi_call_function is correct here. */
+
+#define CONTENT_LOST_RENDER_TARGET 0u
+#define CONTENT_LOST_VERTEX_BUFFER 1u
+#define CONTENT_LOST_INDEX_BUFFER 2u
+
+static ContentLostContext* find_content_lost(CNA_Handle registration) {
+  for (ContentLostContext* value = g_content_lost_events; value; value = value->next) {
+    if (value->registration == registration) return value;
+  }
+  return NULL;
+}
+
+static void unlink_content_lost(ContentLostContext* target) {
+  ContentLostContext** link = &g_content_lost_events;
+  while (*link) {
+    if (*link == target) { *link = target->next; return; }
+    link = &(*link)->next;
+  }
+}
+
+static void dispatch_content_lost(void* raw) {
+  ContentLostContext* context = (ContentLostContext*) raw;
+  if (!context) return;
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(context->env, &scope) != napi_ok) return;
+  napi_value callback, receiver, result;
+  napi_status status = napi_get_reference_value(context->env, context->callback, &callback);
+  if (status == napi_ok) status = napi_get_undefined(context->env, &receiver);
+  if (status == napi_ok) status = napi_call_function(context->env, receiver, callback, 0, NULL, &result);
+  /* A JavaScript exception must never unwind into compiled C. CNA's ContentLost contract has no
+     way to carry one, so it is discarded here rather than left pending across the boundary. */
+  if (status == napi_pending_exception) {
+    napi_value exception;
+    napi_get_and_clear_last_exception(context->env, &exception);
+  }
+  napi_close_handle_scope(context->env, scope);
+}
+
+static void on_render_target_content_lost(CNA_Handle target, void* context) {
+  (void) target;
+  dispatch_content_lost(context);
+}
+
+static void on_vertex_buffer_content_lost(CNA_VertexBufferHandle buffer, void* context) {
+  (void) buffer;
+  dispatch_content_lost(context);
+}
+
+static void on_index_buffer_content_lost(CNA_IndexBufferHandle buffer, void* context) {
+  (void) buffer;
+  dispatch_content_lost(context);
+}
+
+static napi_value subscribe_content_lost(napi_env env, napi_callback_info info, uint32_t kind) {
+  napi_value args[2];
+  CNA_Handle resource = 0;
+  napi_valuetype type;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &resource) ||
+      napi_typeof(env, args[1], &type) != napi_ok || type != napi_function) {
+    return throw_message(env, "the ContentLost callback must be a function");
+  }
+  ContentLostContext* context = (ContentLostContext*) calloc(1, sizeof(*context));
+  if (!context) return throw_message(env, "ContentLost context allocation failed");
+  context->env = env;
+  context->kind = kind;
+  if (napi_create_reference(env, args[1], 1, &context->callback) != napi_ok) {
+    free(context);
+    return throw_napi(env, "ContentLost callback retention");
+  }
+  CNA_Result result;
+  const char* operation;
+  if (kind == CONTENT_LOST_RENDER_TARGET) {
+    operation = "cna_render_target_subscribe_content_lost";
+    result = g_api.render_target_subscribe_content_lost(
+      resource, on_render_target_content_lost, context, &context->registration);
+  } else if (kind == CONTENT_LOST_VERTEX_BUFFER) {
+    operation = "cna_vertex_buffer_subscribe_content_lost";
+    result = g_api.vertex_buffer_subscribe_content_lost(
+      resource, on_vertex_buffer_content_lost, context, &context->registration);
+  } else {
+    operation = "cna_index_buffer_subscribe_content_lost";
+    result = g_api.index_buffer_subscribe_content_lost(
+      resource, on_index_buffer_content_lost, context, &context->registration);
+  }
+  if (result != CNA_RESULT_SUCCESS) {
+    napi_delete_reference(env, context->callback);
+    free(context);
+    return throw_result(env, operation, result);
+  }
+  context->next = g_content_lost_events;
+  g_content_lost_events = context;
+  return make_handle(env, context->registration);
+}
+
+static napi_value subscribe_render_target_content_lost(napi_env env, napi_callback_info info) {
+  return subscribe_content_lost(env, info, CONTENT_LOST_RENDER_TARGET);
+}
+
+static napi_value subscribe_vertex_buffer_content_lost(napi_env env, napi_callback_info info) {
+  return subscribe_content_lost(env, info, CONTENT_LOST_VERTEX_BUFFER);
+}
+
+static napi_value subscribe_index_buffer_content_lost(napi_env env, napi_callback_info info) {
+  return subscribe_content_lost(env, info, CONTENT_LOST_INDEX_BUFFER);
+}
+
+static napi_value unsubscribe_content_lost(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle registration = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &registration)) return NULL;
+  ContentLostContext* context = find_content_lost(registration);
+  if (!context) return throw_message(env, "no ContentLost registration has that handle");
+  CNA_Result result;
+  const char* operation;
+  if (context->kind == CONTENT_LOST_RENDER_TARGET) {
+    operation = "cna_render_target_unsubscribe_content_lost";
+    result = g_api.render_target_unsubscribe_content_lost(registration);
+  } else if (context->kind == CONTENT_LOST_VERTEX_BUFFER) {
+    operation = "cna_vertex_buffer_unsubscribe_content_lost";
+    result = g_api.vertex_buffer_unsubscribe_content_lost(registration);
+  } else {
+    operation = "cna_index_buffer_unsubscribe_content_lost";
+    result = g_api.index_buffer_unsubscribe_content_lost(registration);
+  }
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  unlink_content_lost(context);
+  napi_delete_reference(env, context->callback);
+  free(context);
+  return undefined_result(env, "ContentLost unsubscribe result");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
@@ -6615,6 +6789,10 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "setGameWindowTitle", NULL, set_window_title, NULL, NULL, NULL, napi_default, NULL },
     { "beginGameWindowScreenDeviceChange", NULL, begin_window_screen_change, NULL, NULL, NULL, napi_default, NULL },
     { "endGameWindowScreenDeviceChange", NULL, end_window_screen_change, NULL, NULL, NULL, napi_default, NULL },
+    { "subscribeRenderTargetContentLost", NULL, subscribe_render_target_content_lost, NULL, NULL, NULL, napi_default, NULL },
+    { "subscribeVertexBufferContentLost", NULL, subscribe_vertex_buffer_content_lost, NULL, NULL, NULL, napi_default, NULL },
+    { "subscribeIndexBufferContentLost", NULL, subscribe_index_buffer_content_lost, NULL, NULL, NULL, napi_default, NULL },
+    { "unsubscribeContentLost", NULL, unsubscribe_content_lost, NULL, NULL, NULL, napi_default, NULL },
     { "subscribeGameWindowEvent", NULL, subscribe_window_event, NULL, NULL, NULL, napi_default, NULL },
     { "unsubscribeGameWindowEvent", NULL, unsubscribe_window_event, NULL, NULL, NULL, napi_default, NULL },
     { "getKeyboardState", NULL, get_keyboard_state, NULL, NULL, NULL, napi_default, NULL },

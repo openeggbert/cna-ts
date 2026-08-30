@@ -1,14 +1,14 @@
 {
   "cnaRoot": "/rv/data/development/github.com/openeggbert/cnanext",
   "headers": 57,
-  "nodeImportedTotal": 398,
+  "nodeImportedTotal": 404,
   "wasmImportedTotal": 79,
   "importedByBothBackends": 79,
   "totalFunctions": 4051,
   "totals": {
-    "NODE_IMPORTED": 398,
+    "NODE_IMPORTED": 404,
     "WASM_IMPORTED": 0,
-    "XNA_BACKING": 551,
+    "XNA_BACKING": 545,
     "CNA_EXTENSION_BACKING": 1690,
     "INTERNAL_RUNTIME_ONLY": 0,
     "MANAGED_BY_DESIGN": 457,
@@ -95,8 +95,8 @@
       "NODE_IMPORTED": 11
     },
     "index_resources.h": {
-      "XNA_BACKING": 4,
-      "NODE_IMPORTED": 6
+      "XNA_BACKING": 2,
+      "NODE_IMPORTED": 8
     },
     "input_cursor.h": {
       "CNA_EXTENSION_BACKING": 6
@@ -182,8 +182,8 @@
       "MANAGED_BY_DESIGN": 28
     },
     "render_target.h": {
-      "XNA_BACKING": 7,
-      "NODE_IMPORTED": 5
+      "XNA_BACKING": 5,
+      "NODE_IMPORTED": 7
     },
     "runtime_components.h": {
       "INTENTIONALLY_DEFERRED": 37,
@@ -228,8 +228,8 @@
       "MANAGED_BY_DESIGN": 137
     },
     "vertex_resources.h": {
-      "XNA_BACKING": 14,
-      "NODE_IMPORTED": 10
+      "XNA_BACKING": 12,
+      "NODE_IMPORTED": 12
     },
     "vertex_values.h": {
       "MANAGED_BY_DESIGN": 13
@@ -12448,14 +12448,14 @@
     {
       "name": "cna_index_buffer_subscribe_content_lost",
       "header": "index_resources.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_index_buffer_unsubscribe_content_lost",
       "header": "index_resources.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_indirect_draw_arguments_init",
@@ -19642,14 +19642,14 @@
     {
       "name": "cna_render_target_subscribe_content_lost",
       "header": "render_target.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_render_target_unsubscribe_content_lost",
       "header": "render_target.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_render_target_usage_preserves_contents",
@@ -23842,14 +23842,14 @@
     {
       "name": "cna_vertex_buffer_subscribe_content_lost",
       "header": "vertex_resources.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_vertex_buffer_unsubscribe_content_lost",
       "header": "vertex_resources.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_vertex_declaration_copy_elements",

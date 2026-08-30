@@ -78,7 +78,7 @@ test("a WebAssembly row naming a route that backend does not import is refused",
 
 test("claiming something is unimplemented while a backend imports it is refused", () => {
   const result = generate((source) => {
-    entry(source, "RenderTarget ContentLost event signaling").proof = ["absentRoute:cna_texture2d_create"];
+    entry(source, "Direct standalone GraphicsDevice construction").proof = ["absentRoute:cna_texture2d_create"];
   });
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /claims cna_texture2d_create is unimplemented but a backend imports it/);

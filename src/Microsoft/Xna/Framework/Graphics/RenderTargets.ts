@@ -1,3 +1,4 @@
+import { bindContentLostForInternalUse } from "../../../../internal/content-lost.js";
 import type { CnaGraphicsBackend, RenderTargetInfo } from "../../../../internal/backend.js";
 import { EventDispatcher } from "../../../../internal/events.js";
 import {
@@ -68,6 +69,13 @@ export class RenderTarget2D extends Texture2D {
         graphicsDevice, resolveTexture2DHandleForInternalUse(this), 1,
       );
       twoDimensionalStates.set(this, state);
+      // Registered before the bound-target guard so that guard runs first: a disposal refused
+      // because the target is still bound must leave the subscription in place.
+      bindContentLostForInternalUse(
+        state.Backend, "render-target", resolveTexture2DHandleForInternalUse(this),
+        (teardown) => { guardGraphicsResourceReleaseForInternalUse(this, teardown); },
+        () => this.#contentLost.Dispatch(this, EventArgs.Empty),
+      );
       guardGraphicsResourceReleaseForInternalUse(this, () => {
         if (isRenderTargetBoundForInternalUse(graphicsDevice, this)) {
           throw new InvalidOperationException("A bound RenderTarget2D cannot be disposed");
@@ -117,6 +125,11 @@ export class RenderTargetCube extends TextureCube {
         graphicsDevice, resolveTextureCubeHandleForInternalUse(this), 2,
       );
       cubeStates.set(this, state);
+      bindContentLostForInternalUse(
+        state.Backend, "render-target", resolveTextureCubeHandleForInternalUse(this),
+        (teardown) => { guardGraphicsResourceReleaseForInternalUse(this, teardown); },
+        () => this.#contentLost.Dispatch(this, EventArgs.Empty),
+      );
       guardGraphicsResourceReleaseForInternalUse(this, () => {
         if (isRenderTargetBoundForInternalUse(graphicsDevice, this)) {
           throw new InvalidOperationException("A bound RenderTargetCube cannot be disposed");

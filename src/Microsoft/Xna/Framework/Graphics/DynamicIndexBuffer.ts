@@ -3,6 +3,7 @@ import type { XnaEvent, XnaType } from "../Contracts.js";
 import { EventArgs } from "../EventArgs.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
 import {
+  bindIndexBufferContentLostForInternalUse,
   getIndexBufferIsContentLostForInternalUse,
   IndexBuffer,
   setIndexBufferDataForInternalUse,
@@ -18,7 +19,12 @@ export class DynamicIndexBuffer extends IndexBuffer {
   public constructor(
     graphicsDevice: GraphicsDevice, sizeOrType: IndexElementSize | XnaType<unknown>,
     indexCount: number, usage: BufferUsage,
-  ) { super(graphicsDevice, sizeOrType as IndexElementSize, indexCount, usage); }
+  ) {
+    super(graphicsDevice, sizeOrType as IndexElementSize, indexCount, usage);
+    bindIndexBufferContentLostForInternalUse(
+      this, () => this.#contentLost.Dispatch(this, EventArgs.Empty),
+    );
+  }
 
   public get IsContentLost(): boolean { return getIndexBufferIsContentLostForInternalUse(this); }
   public SetData<T>(data: T[]): void;

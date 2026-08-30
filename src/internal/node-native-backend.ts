@@ -9,6 +9,7 @@ import type {
   CnaEffectBackend,
   CnaGameWindowBackend,
   BackendRendererInfo,
+  ContentLostResourceKind,
   PlatformSnapshot,
   RendererFallbackSnapshot,
   RendererIdentitySnapshot,
@@ -265,6 +266,10 @@ interface NativeBridge {
     buffer: bigint, offsetInBytes: number, vertexCount: number, vertexStride: number,
   ): Uint8Array;
   getVertexBufferIsContentLost(buffer: bigint): boolean;
+  subscribeRenderTargetContentLost(target: bigint, callback: () => void): bigint;
+  subscribeVertexBufferContentLost(buffer: bigint, callback: () => void): bigint;
+  subscribeIndexBufferContentLost(buffer: bigint, callback: () => void): bigint;
+  unsubscribeContentLost(registration: bigint): void;
   setIndexBufferData(
     buffer: bigint, elementSize: number, options: number, hasOffset: boolean,
     offsetInBytes: number, startIndex: number, elementCount: number,
@@ -869,6 +874,16 @@ export class NodeNativeBackend
     return new Uint8Array(this.#bridge.getVertexBufferRawAt(
       buffer, offsetInBytes, vertexCount, vertexStride,
     ));
+  }
+  public subscribeContentLost(
+    kind: ContentLostResourceKind, resource: NativeHandle, callback: () => void,
+  ): NativeHandle {
+    if (kind === "render-target") return this.#bridge.subscribeRenderTargetContentLost(resource, callback);
+    if (kind === "vertex-buffer") return this.#bridge.subscribeVertexBufferContentLost(resource, callback);
+    return this.#bridge.subscribeIndexBufferContentLost(resource, callback);
+  }
+  public unsubscribeContentLost(registration: NativeHandle): void {
+    this.#bridge.unsubscribeContentLost(registration);
   }
   public getVertexBufferIsContentLost(buffer: NativeHandle): boolean {
     return this.#bridge.getVertexBufferIsContentLost(buffer);

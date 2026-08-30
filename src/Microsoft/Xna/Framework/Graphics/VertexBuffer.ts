@@ -5,6 +5,7 @@ import {
 } from "../../../../internal/exceptions.js";
 import type { CnaBackend } from "../../../../internal/backend.js";
 import { NativeUnavailableError } from "../../../../internal/native-error.js";
+import { bindContentLostForInternalUse } from "../../../../internal/content-lost.js";
 import { NativeResourceLifetime } from "../../../../internal/ownership.js";
 import { resolveVertexCodec } from "../../../../internal/vertex-transfer.js";
 import type { XnaType } from "../Contracts.js";
@@ -242,6 +243,17 @@ export function getVertexBufferDataForInternalUse(
 
 export function resolveVertexBufferHandleForInternalUse(buffer: VertexBuffer) {
   return stateOf(buffer).Lifetime.Handle;
+}
+
+/** Internal: gives a dynamic vertex buffer's declared ContentLost event a real CNA producer. */
+export function bindVertexBufferContentLostForInternalUse(
+  buffer: VertexBuffer, raise: () => void,
+): void {
+  const state = stateOf(buffer);
+  bindContentLostForInternalUse(
+    state.Backend.Graphics, "vertex-buffer", state.Lifetime.Handle,
+    (teardown) => { state.Lifetime.TrackCallback(teardown); }, raise,
+  );
 }
 
 export function getVertexBufferIsContentLostForInternalUse(buffer: VertexBuffer): boolean {

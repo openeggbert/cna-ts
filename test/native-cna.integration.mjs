@@ -556,6 +556,68 @@ test("loads an exact real CNA ABI and only the audited symbols", () => {
   assert.equal(status.ImportedSymbolCount, EXPECTED_IMPORTED_SYMBOLS);
 });
 
+class ContentLostProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    // ABI 0.9 made ContentLost a real event on renderers whose API can lose a device. The
+    // subscription and its deterministic release are what a HEADLESS renderer can prove; the event
+    // firing is not, because HEADLESS has no device to lose.
+    let raised = 0;
+    const target = new Graphics.RenderTarget2D(this.GraphicsDevice, 16, 16);
+    const onLost = () => { raised += 1; };
+    target.ContentLost.Add(onLost);
+    this.evidence.renderTargetSubscribed = true;
+    this.evidence.renderTargetIsContentLost = target.IsContentLost;
+    target.Dispose();
+    this.evidence.renderTargetDisposedAfterSubscription = target.IsDisposed;
+
+    const vertex = new Graphics.DynamicVertexBuffer(
+      this.GraphicsDevice, Graphics.VertexPositionColor.VertexDeclaration, 4,
+      Graphics.BufferUsage.WriteOnly,
+    );
+    vertex.ContentLost.Add(onLost);
+    this.evidence.vertexSubscribed = true;
+    this.evidence.vertexIsContentLost = vertex.IsContentLost;
+    vertex.Dispose();
+    // Disposing twice must stay harmless with a live registration behind the resource.
+    vertex.Dispose();
+    this.evidence.vertexDisposedTwice = vertex.IsDisposed;
+
+    const index = new Graphics.DynamicIndexBuffer(
+      this.GraphicsDevice, Graphics.IndexElementSize.SixteenBits, 6, Graphics.BufferUsage.WriteOnly,
+    );
+    index.ContentLost.Add(onLost);
+    this.evidence.indexSubscribed = true;
+    index.Dispose();
+
+    this.evidence.raised = raised;
+    this.Exit();
+    super.LoadContent();
+  }
+}
+
+test("ContentLost subscriptions reach CNA and release with their resource", async () => {
+  const game = new ContentLostProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+  assert.equal(evidence.renderTargetSubscribed, true);
+  assert.equal(evidence.vertexSubscribed, true);
+  assert.equal(evidence.indexSubscribed, true);
+  assert.equal(evidence.renderTargetIsContentLost, false);
+  assert.equal(evidence.vertexIsContentLost, false);
+  assert.equal(evidence.renderTargetDisposedAfterSubscription, true);
+  assert.equal(evidence.vertexDisposedTwice, true);
+  // HEADLESS cannot lose a device, so the producer never runs here. This asserts the honest
+  // number rather than pretending a renderer raised an event it has no way to raise.
+  assert.equal(evidence.raised, 0);
+});
+
 class NativeAudioProbeGame extends Game {
   constructor(mediaUri) {
     super();

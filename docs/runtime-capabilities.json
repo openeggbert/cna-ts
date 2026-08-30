@@ -13,14 +13,14 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 20,
-    "VERIFIED_NATIVE": 33,
+    "VERIFIED_NATIVE": 35,
     "VERIFIED_WEBASSEMBLY": 3,
-    "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 4,
+    "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 0,
     "FIXTURE_PENDING": 3,
     "HARDWARE_PENDING": 4,
     "PLATFORM_PENDING": 3,
-    "UNIMPLEMENTED_CNA_TS": 8,
+    "UNIMPLEMENTED_CNA_TS": 6,
     "LANGUAGE_MAPPING_LIMITATION": 3,
     "NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT": 1
   },
@@ -30,6 +30,12 @@
       "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
       "owner": "current qualified backend",
       "evidence": "CNA capability bit reports compiled effects unavailable"
+    },
+    {
+      "operation": "ContentLost event delivery",
+      "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
+      "owner": "current qualified backend",
+      "evidence": "ABI 0.9 raises the event for real on the renderers whose API can lose a device (DirectX9, Direct2D, Skia); HEADLESS has no device to lose, so the producer never runs and the native suite asserts zero raises rather than pretending otherwise"
     },
     {
       "operation": "GraphicsAdapter discovery, current display mode and windowed adapter capabilities",
@@ -144,16 +150,6 @@
       ]
     },
     {
-      "operation": "Dynamic buffer ContentLost event signaling",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "cna_vertex_buffer_subscribe_content_lost and cna_index_buffer_subscribe_content_lost exist and ABI 0.9 states the event is raised for real on renderers whose API can lose a device; CNA-TS imports neither",
-      "proof": [
-        "absentRoute:cna_vertex_buffer_subscribe_content_lost",
-        "absentRoute:cna_index_buffer_subscribe_content_lost"
-      ]
-    },
-    {
       "operation": "Microsoft.Xna.Framework.GamerServices and .Net platform operations",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
@@ -191,15 +187,6 @@
       "proof": [
         "absentRoute:cna_pbr_material_init",
         "absentRoute:cna_render_pipeline_settings_init"
-      ]
-    },
-    {
-      "operation": "RenderTarget ContentLost event signaling",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "ABI 0.9 added cna_render_target_subscribe_content_lost and its registration handle, and made the flag clear again on binding; CNA-TS imports neither route",
-      "proof": [
-        "absentRoute:cna_render_target_subscribe_content_lost"
       ]
     },
     {
@@ -440,6 +427,18 @@
       ]
     },
     {
+      "operation": "Dynamic buffer ContentLost subscription and deterministic release",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "the declared events now have a real CNA producer behind them: both subscriptions execute on the qualified artifact, the registration is released with the resource, and disposing twice with a live registration stays harmless",
+      "proof": [
+        "route:cna_vertex_buffer_subscribe_content_lost",
+        "route:cna_index_buffer_subscribe_content_lost",
+        "route:cna_vertex_buffer_unsubscribe_content_lost",
+        "route:cna_index_buffer_unsubscribe_content_lost"
+      ]
+    },
+    {
       "operation": "DynamicSoundEffectInstance submit, pending buffers and managed refill pump",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
@@ -625,6 +624,16 @@
         "route:cna_occlusion_query_begin",
         "route:cna_occlusion_query_end",
         "route:cna_occlusion_query_get_is_complete"
+      ]
+    },
+    {
+      "operation": "RenderTarget ContentLost subscription and deterministic release",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "subscription executes on the qualified artifact and its registration is released before the target is, ordered after the bound-target guard so a refused disposal leaves the subscription in place",
+      "proof": [
+        "route:cna_render_target_subscribe_content_lost",
+        "route:cna_render_target_unsubscribe_content_lost"
       ]
     },
     {

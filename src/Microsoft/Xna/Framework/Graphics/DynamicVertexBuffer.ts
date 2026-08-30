@@ -5,6 +5,7 @@ import type { GraphicsDevice } from "./GraphicsDevice.js";
 import type { VertexDeclaration } from "./VertexDeclaration.js";
 import { BufferUsage, SetDataOptions } from "./VertexEnums.js";
 import {
+  bindVertexBufferContentLostForInternalUse,
   getVertexBufferIsContentLostForInternalUse,
   setVertexBufferDataForInternalUse,
   VertexBuffer,
@@ -19,7 +20,12 @@ export class DynamicVertexBuffer extends VertexBuffer {
   public constructor(
     graphicsDevice: GraphicsDevice, declarationOrType: VertexDeclaration | XnaType<unknown>,
     vertexCount: number, usage: BufferUsage,
-  ) { super(graphicsDevice, declarationOrType as VertexDeclaration, vertexCount, usage); }
+  ) {
+    super(graphicsDevice, declarationOrType as VertexDeclaration, vertexCount, usage);
+    bindVertexBufferContentLostForInternalUse(
+      this, () => this.#contentLost.Dispatch(this, EventArgs.Empty),
+    );
+  }
 
   public get IsContentLost(): boolean { return getVertexBufferIsContentLostForInternalUse(this); }
   public SetData<T>(data: T[]): void;

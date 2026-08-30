@@ -36,6 +36,7 @@ import type {
   CnaStorageBackend,
   CnaVideoBackend,
   CnaXactBackend,
+  ContentLostResourceKind,
   CueSnapshot,
   DepthStencilStateSnapshot,
   GameWindowBoundsSnapshot,
@@ -257,6 +258,14 @@ export abstract class CnaGraphicsBackendBase implements CnaGraphicsBackend {
   public getVertexBufferIsContentLost(
     _buffer: NativeHandle,
   ): boolean { return this.unsupported("getVertexBufferIsContentLost"); }
+  public subscribeContentLost(
+    _kind: ContentLostResourceKind,
+    _resource: NativeHandle,
+    _callback: () => void,
+  ): NativeHandle { return this.unsupported("subscribeContentLost"); }
+  public unsubscribeContentLost(
+    _registration: NativeHandle,
+  ): void { return this.unsupported("unsubscribeContentLost"); }
   public setIndexBufferData(
     _buffer: NativeHandle,
     _elementSize: number,

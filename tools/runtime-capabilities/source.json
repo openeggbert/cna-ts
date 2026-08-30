@@ -588,22 +588,25 @@
       ]
     },
     {
-      "operation": "Dynamic buffer ContentLost event signaling",
-      "category": "UNIMPLEMENTED_CNA_TS",
+      "operation": "Dynamic buffer ContentLost subscription and deterministic release",
+      "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS",
-      "evidence": "cna_vertex_buffer_subscribe_content_lost and cna_index_buffer_subscribe_content_lost exist and ABI 0.9 states the event is raised for real on renderers whose API can lose a device; CNA-TS imports neither",
+      "evidence": "the declared events now have a real CNA producer behind them: both subscriptions execute on the qualified artifact, the registration is released with the resource, and disposing twice with a live registration stays harmless",
       "proof": [
-        "absentRoute:cna_vertex_buffer_subscribe_content_lost",
-        "absentRoute:cna_index_buffer_subscribe_content_lost"
+        "route:cna_vertex_buffer_subscribe_content_lost",
+        "route:cna_index_buffer_subscribe_content_lost",
+        "route:cna_vertex_buffer_unsubscribe_content_lost",
+        "route:cna_index_buffer_unsubscribe_content_lost"
       ]
     },
     {
-      "operation": "RenderTarget ContentLost event signaling",
-      "category": "UNIMPLEMENTED_CNA_TS",
+      "operation": "RenderTarget ContentLost subscription and deterministic release",
+      "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS",
-      "evidence": "ABI 0.9 added cna_render_target_subscribe_content_lost and its registration handle, and made the flag clear again on binding; CNA-TS imports neither route",
+      "evidence": "subscription executes on the qualified artifact and its registration is released before the target is, ordered after the bound-target guard so a refused disposal leaves the subscription in place",
       "proof": [
-        "absentRoute:cna_render_target_subscribe_content_lost"
+        "route:cna_render_target_subscribe_content_lost",
+        "route:cna_render_target_unsubscribe_content_lost"
       ]
     },
     {
@@ -794,6 +797,12 @@
       "proof": [
         "test:test/gamer-services-net.test.mjs"
       ]
+    },
+    {
+      "operation": "ContentLost event delivery",
+      "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
+      "owner": "current qualified backend",
+      "evidence": "ABI 0.9 raises the event for real on the renderers whose API can lose a device (DirectX9, Direct2D, Skia); HEADLESS has no device to lose, so the producer never runs and the native suite asserts zero raises rather than pretending otherwise"
     }
   ]
 }

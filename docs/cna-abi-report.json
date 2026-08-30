@@ -1,5 +1,5 @@
 {
-  "cnaRevision": "a66fc61b591ce8752ed348553a359402d1ba2b7a",
+  "cnaRevision": "17b5a90a0878f3f44c23bc8e3197d5d30373dc72",
   "abiVersion": "0.20.0",
   "abiVersionComponents": {
     "major": 0,
@@ -17,6 +17,12 @@
   "missingRequiredSymbols": [],
   "nodeBridgeImportedSymbols": [
     "cna_get_abi_version",
+    "cna_render_target_subscribe_content_lost",
+    "cna_render_target_unsubscribe_content_lost",
+    "cna_vertex_buffer_subscribe_content_lost",
+    "cna_vertex_buffer_unsubscribe_content_lost",
+    "cna_index_buffer_subscribe_content_lost",
+    "cna_index_buffer_unsubscribe_content_lost",
     "cna_platform_get_current",
     "cna_platform_get_is_apple_ext",
     "cna_platform_get_is_mobile_ext",
@@ -416,7 +422,7 @@
     "cna_storage_stream_close"
   ],
   "missingNodeBridgeSymbols": [],
-  "nodeBridgeSignaturesVerified": 398,
+  "nodeBridgeSignaturesVerified": 404,
   "nodeBridgeSignatureMismatches": 0,
   "qualifiedLibrary": "/rv/data/development/github.com/openeggbert/cnanext/cmake-build-tsnext/modules/c-api/libcna_c_api.so",
   "qualifiedLibraryExportedFunctions": 4051,

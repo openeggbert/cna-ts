@@ -233,6 +233,9 @@ export interface CnaGameWindowBackend {
 }
 
 /** Optional dependency-complete graphics slice beyond the minimal 2D backend. */
+/** Which resource family a ContentLost subscription is for. */
+export type ContentLostResourceKind = "render-target" | "vertex-buffer" | "index-buffer";
+
 export interface CnaGraphicsBackend {
   getGraphicsDeviceStatus(device: NativeHandle): number;
   setGraphicsDeviceBlendFactor(device: NativeHandle, packedColor: number): void;
@@ -295,6 +298,15 @@ export interface CnaGraphicsBackend {
     buffer: NativeHandle, offsetInBytes: number, vertexCount: number, vertexStride: number,
   ): Uint8Array;
   getVertexBufferIsContentLost(buffer: NativeHandle): boolean;
+  /**
+   * Subscribes to a resource's ContentLost event. ABI 0.9 made the event real on the renderers
+   * whose API can lose a device, so a registration has a producer behind it rather than only
+   * preserving the shape of the public contract.
+   */
+  subscribeContentLost(
+    kind: ContentLostResourceKind, resource: NativeHandle, callback: () => void,
+  ): NativeHandle;
+  unsubscribeContentLost(registration: NativeHandle): void;
   setIndexBufferData(
     buffer: NativeHandle, elementSize: number, options: number, offsetInBytes: number | null,
     startIndex: number, elementCount: number, capacity: number, bytes: Uint8Array,

@@ -20,14 +20,14 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Category | Operation families |
 | --- | ---: |
 | VERIFIED_MANAGED | 20 |
-| VERIFIED_NATIVE | 33 |
+| VERIFIED_NATIVE | 35 |
 | VERIFIED_WEBASSEMBLY | 3 |
-| EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 4 |
+| EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 5 |
 | UPSTREAM_CNA_BLOCKED | 0 |
 | FIXTURE_PENDING | 3 |
 | HARDWARE_PENDING | 4 |
 | PLATFORM_PENDING | 3 |
-| UNIMPLEMENTED_CNA_TS | 8 |
+| UNIMPLEMENTED_CNA_TS | 6 |
 | LANGUAGE_MAPPING_LIMITATION | 3 |
 | NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT | 1 |
 
@@ -64,6 +64,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | BasicEffect, AlphaTestEffect, DualTextureEffect, EnvironmentMapEffect and SkinnedEffect native state/apply execution | CNA-TS + CNA | qualified HEADLESS integration synchronizes dependency-complete stock state, applies every stock effect and verifies clone, texture retention and deterministic disposal |
 | CNA renderer identity and capability query extension | CNA-TS + CNA | qualified artifact reports HEADLESS/custom-effects/compiled-effects capability bits |
 | Compiled Effect creation binding route | CNA-TS + CNA | exact byte payload reaches cna_effect_create_compiled with compiler-verified ABI; three legal conformance-FXB attempts deterministically return the qualified HEADLESS result 6 with invalid output and no shader-execution claim |
+| Dynamic buffer ContentLost subscription and deterministic release | CNA-TS | the declared events now have a real CNA producer behind them: both subscriptions execute on the qualified artifact, the registration is released with the resource, and disposing twice with a live registration stays harmless |
 | DynamicSoundEffectInstance submit, pending buffers and managed refill pump | CNA-TS + CNA | qualified native integration with reentrant/self-removing/throwing callback tests |
 | DynamicVertexBuffer and DynamicIndexBuffer creation, typed transfer, readback and IsContentLost query | CNA-TS + CNA | qualified integration covers Discard/NoOverwrite, built-in vertex and 16-bit index round trips, double disposal and parent shutdown |
 | Effect and EffectPass ABI-0.7 apply dispatch with native technique/pass reflection identity | CNA-TS + CNA | qualified integration executes cna_effect_apply and cna_effect_pass_apply on effect-owned stock passes; managed/native ownership tests retain the parent, destroy owned views, reject disposed parents and expose no raw handles |
@@ -81,6 +82,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Model.Draw effect/pass/indexed-draw pipeline | CNA-TS + CNA | qualified HEADLESS Model XNB executes buffer/index binding, BasicEffect matrices, real EffectPass.Apply and DrawIndexedPrimitives without a special native model renderer |
 | Modern CNA platform identity, renderer selection and runtime log | cna-ts/extensions/runtime | nine native integration assertions over 37 handle-free routes, including the pre-latch and non-desktop refusals CNA reports as state |
 | OcclusionQuery construction, ordering, reuse, completion/result dispatch and disposal | CNA-TS + CNA | qualified integration executes the real query state machine without fabricating PixelCount; managed suite covers completion and exact result identity |
+| RenderTarget ContentLost subscription and deterministic release | CNA-TS | subscription executes on the qualified artifact and its registration is released before the target is, ordered after the bound-target guard so a refused disposal leaves the subscription in place |
 | RenderTarget2D/Cube construction, metadata, binding and inherited exact transfer routes | CNA-TS + CNA | qualified HEADLESS integration verifies RenderTarget2D and RenderTargetCube creation, metadata, 2D/cube-face bind/unbind identity, bound-destroy rejection and parent shutdown; managed backend covers cube metadata, face identity and duplicate validation |
 | SoundEffect PCM creation, instances, controls, Apply3D and disposal | CNA-TS + CNA | qualified NULL-audio integration; no audibility claim |
 | SpriteBatch create, Begin, Draw/DrawString submission, End and destroy | CNA-TS + CNA | qualified native integration and template 60/600 frames |
@@ -107,6 +109,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
 | Compiled-effect execution on the qualified renderer | current qualified backend | CNA capability bit reports compiled effects unavailable |
+| ContentLost event delivery | current qualified backend | ABI 0.9 raises the event for real on the renderers whose API can lose a device (DirectX9, Direct2D, Skia); HEADLESS has no device to lose, so the producer never runs and the native suite asserts zero raises rather than pretending otherwise |
 | GraphicsAdapter discovery, current display mode and windowed adapter capabilities | current qualified backend | HEADLESS artifact exposes no windowed adapter/display evidence |
 | Physical GameWindow resize/orientation/screen-device event qualification | current qualified backend | event registrations are real and removable, but HEADLESS exposes no physical window or event stimulus |
 | Texture3D and TextureCube resource execution on the qualified renderer | current qualified backend | both exact ABI-0.7 creation routes return CNA_RESULT_NOT_SUPPORTED under HEADLESS; no storage or transfer success is claimed |
@@ -146,12 +149,10 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
 | Direct standalone GraphicsDevice construction | CNA-TS | ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime the projection needs now exists upstream; CNA-TS still projects only the game-owned borrowed device |
-| Dynamic buffer ContentLost event signaling | CNA-TS | cna_vertex_buffer_subscribe_content_lost and cna_index_buffer_subscribe_content_lost exist and ABI 0.9 states the event is raised for real on renderers whose API can lose a device; CNA-TS imports neither |
 | Microsoft.Xna.Framework.GamerServices and .Net platform operations | CNA-TS | the 74 declarations are projected and the xna40-windows-live profile holds at zero differences, but every operation that needs a gamer-services platform refuses with GamerServicesNotAvailableException; 436 backing C routes exist and none is imported |
 | Modern CNA binary content: .cnb container, schemas and compilation front ends | CNA-TS | 272 cnb.h routes are classified as extension backing and none is projected yet |
 | Modern CNA device and sensor extensions | CNA-TS | devices.h, sensors.h and the haptics/joystick/cursor/text input families are classified as extension backing and none is projected yet |
 | Modern CNA engine layer: PBR materials, render pipeline, post-process, lighting and shadows | CNA-TS | 857 engine_layer.h routes are classified as extension backing in docs/cna-api-coverage.md and none is projected yet |
-| RenderTarget ContentLost event signaling | CNA-TS | ABI 0.9 added cna_render_target_subscribe_content_lost and its registration handle, and made the flag clear again on binding; CNA-TS imports neither route |
 | VideoPlayer.GetTexture transient frame projection | CNA-TS | ABI 0.9 added cna_video_player_get_frame_ext with CNA_VideoFrameEXT and a monotonic frame generation, which is the borrowed-frame identity the projection was missing; CNA-TS has not adopted it |
 
 ## LANGUAGE_MAPPING_LIMITATION
