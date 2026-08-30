@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -86,6 +87,9 @@ function parseArgs(values) {
     nativeLibrary: process.env.CNA_NATIVE_LIBRARY
       ? path.resolve(process.env.CNA_NATIVE_LIBRARY)
       : null,
+    wasmArtifactDir: process.env.CNA_WASM_ARTIFACT_DIR
+      ? path.resolve(process.env.CNA_WASM_ARTIFACT_DIR)
+      : null,
   };
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
@@ -94,6 +98,7 @@ function parseArgs(values) {
     else if (value === "--output") result.output = path.resolve(values[++index]);
     else if (value === "--require-wasm") result.requireWasm = true;
     else if (value === "--native-library") result.nativeLibrary = path.resolve(values[++index]);
+    else if (value === "--wasm-artifact-dir") result.wasmArtifactDir = path.resolve(values[++index]);
     else throw new Error(`unknown argument: ${value}`);
   }
   if (!result.cnaRoot) {
@@ -237,12 +242,22 @@ function formatText(report) {
     `QUALIFIED_LIBRARY=${report.qualifiedLibrary ?? "NOT_PROVIDED"}`,
     `QUALIFIED_LIBRARY_EXPORTED_FUNCTIONS=${report.qualifiedLibraryExportedFunctions ?? 0}`,
     `MISSING_QUALIFIED_LIBRARY_IMPORTS=${report.missingQualifiedLibraryImports.length}`,
-    `TRACKED_WASM_ARTIFACTS=${report.trackedWasmArtifacts.length}`,
-    `TRACKED_C_API_ESM_LOADERS=${report.trackedCApiEsmLoaders.length}`,
+    `UPSTREAM_TRACKED_WASM_ARTIFACTS=${report.trackedWasmArtifacts.length}`,
+    `UPSTREAM_TRACKED_C_API_ESM_LOADERS=${report.trackedCApiEsmLoaders.length}`,
     `EMCC_AVAILABLE=${report.emccAvailable ? 1 : 0}`,
     `EMCMAKE_AVAILABLE=${report.emcmakeAvailable ? 1 : 0}`,
+    `WASM_ARTIFACT_DIRECTORY=${report.wasmArtifact.directory ?? "NOT_PROVIDED"}`,
+    `WASM_ARTIFACT_MODULE_SHA256=${report.wasmArtifact.moduleSha256 ?? "ABSENT"}`,
+    `WASM_ARTIFACT_WASM_SHA256=${report.wasmArtifact.wasmSha256 ?? "ABSENT"}`,
+    `WASM_ARTIFACT_WASM_BYTES=${report.wasmArtifact.wasmBytes ?? 0}`,
+    `WASM_ARTIFACT_EXPORTED_FUNCTIONS=${report.wasmArtifact.exportedFunctions ?? 0}`,
+    `WASM_BACKEND_ROUTES=${report.wasmBackendRoutes.length}`,
+    `MISSING_WASM_BACKEND_EXPORTS=${report.missingWasmBackendExports.length}`,
     `BROWSER_ARTIFACT_STATUS=${report.browserArtifactStatus}`,
   ];
+  for (const symbol of report.missingWasmBackendExports) {
+    lines.push(`MISSING_WASM_EXPORT=${symbol}`);
+  }
   for (const [group, symbols] of Object.entries(report.symbolGroups)) {
     lines.push(`SYMBOL_GROUP_${group.toUpperCase()}=${symbols.length}`);
   }
@@ -250,6 +265,61 @@ function formatText(report) {
     lines.push(`MISSING_SYMBOL=${symbol}`);
   }
   return `${lines.join("\n")}\n`;
+}
+
+/** The routes {@link WasmBackend} resolves when it is constructed, read from its own list. */
+function readWasmBackendRoutes() {
+  const file = path.join(ROOT_DIR, "src/internal/wasm/wasm-backend.ts");
+  if (!fs.statSync(file, { throwIfNoEntry: false })?.isFile()) return [];
+  const source = fs.readFileSync(file, "utf8");
+  const block = /const ROUTES = \[([\s\S]*?)\] as const;/.exec(source);
+  if (!block) return [];
+  return [...block[1].matchAll(/"(cna_[A-Za-z0-9_]+)"/g)].map((match) => match[1]);
+}
+
+/**
+ * Measures the WebAssembly artifact this binding actually consumes.
+ *
+ * The artifact is built out of tree from `cnanext`, not committed anywhere, so "is there a tracked
+ * `.wasm` in the CNA worktree" -- which is what this audit used to answer -- says nothing about
+ * whether a browser consumer has something to load.
+ *
+ * The route names come from the ESM loader, not from the `.wasm` export section: a Release link
+ * minifies wasm export names (`Mi`, `Ni`, ...), and the loader is what maps a readable
+ * `Module["_cna_..."]` onto one. Since `route()` resolves exactly that property, reading the same
+ * assignments the loader emits measures what the backend will actually find.
+ */
+function readWasmArtifact(directory) {
+  const empty = {
+    directory,
+    module: null,
+    wasm: null,
+    moduleSha256: null,
+    wasmSha256: null,
+    wasmBytes: null,
+    exportedFunctions: null,
+    exports: null,
+  };
+  if (!directory || !fs.statSync(directory, { throwIfNoEntry: false })?.isDirectory()) return empty;
+  const modulePath = path.join(directory, "cna_c_api.mjs");
+  const wasmPath = path.join(directory, "cna_c_api.wasm");
+  const hasModule = fs.statSync(modulePath, { throwIfNoEntry: false })?.isFile() === true;
+  if (!fs.statSync(wasmPath, { throwIfNoEntry: false })?.isFile() || !hasModule) return empty;
+  const wasmBytes = fs.readFileSync(wasmPath);
+  const moduleSource = fs.readFileSync(modulePath, "utf8");
+  const exports = new Set(
+    [...moduleSource.matchAll(/Module\["(_cna_[A-Za-z0-9_]+)"\]\s*=/g)].map((match) => match[1]),
+  );
+  return {
+    directory,
+    module: modulePath,
+    wasm: wasmPath,
+    moduleSha256: crypto.createHash("sha256").update(moduleSource).digest("hex"),
+    wasmSha256: crypto.createHash("sha256").update(wasmBytes).digest("hex"),
+    wasmBytes: wasmBytes.byteLength,
+    exportedFunctions: exports.size,
+    exports,
+  };
 }
 
 function main() {
@@ -313,6 +383,15 @@ function main() {
     const isScript = normalized.endsWith(".mjs") || normalized.endsWith(".js");
     return isScript && (normalized.includes("modules/c-api/") || normalized.includes("cna_c_api"));
   });
+  const wasmArtifact = readWasmArtifact(args.wasmArtifactDir);
+  const wasmBackendRoutes = readWasmBackendRoutes();
+  // The loader exposes a C function as `Module["_name"]`, which is what `route()` looks up. A
+  // route the backend resolves at construction time that the module does not expose is a broken
+  // artifact, and the audit is where that is cheap to find -- before a browser run fails on
+  // `route()` with no context.
+  const missingWasmBackendExports = wasmArtifact.exports == null
+    ? []
+    : wasmBackendRoutes.filter((name) => !wasmArtifact.exports.has(`_${name}`));
   const report = {
     cnaRevision: runGit(args.cnaRoot, ["rev-parse", "HEAD"]),
     abiVersion: `${version.major}.${version.minor}.${version.patch}`,
@@ -336,13 +415,19 @@ function main() {
     trackedCApiEsmLoaders,
     emccAvailable: compilerAvailable("emcc"),
     emcmakeAvailable: toolPath("emcmake") != null,
+    wasmArtifact,
+    wasmBackendRoutes,
+    missingWasmBackendExports,
     browserArtifactStatus:
-      trackedWasmArtifacts.length > 0 && trackedCApiEsmLoaders.length > 0
-        ? "CANDIDATE_PRESENT_NOT_EXECUTION_VERIFIED"
-        : "MISSING",
+      wasmArtifact.wasmSha256 == null
+        ? "MISSING"
+        : missingWasmBackendExports.length > 0
+          ? "PRESENT_BUT_INCOMPLETE"
+          : "PRESENT_NOT_EXECUTION_VERIFIED",
   };
+  const serializable = { ...report, wasmArtifact: { ...report.wasmArtifact, exports: undefined } };
   const output = args.format === "json"
-    ? `${JSON.stringify(report, null, 2)}\n`
+    ? `${JSON.stringify(serializable, null, 2)}\n`
     : formatText(report);
   if (args.output) fs.writeFileSync(args.output, output);
   else process.stdout.write(output);
@@ -350,6 +435,7 @@ function main() {
   if (
     missing.length > 0 || missingNodeBridgeSymbols.length > 0 || missingQualifiedLibraryImports.length > 0 ||
     !report.targetedAbiMatchesHeaders ||
+    report.missingWasmBackendExports.length > 0 ||
     (args.requireWasm && report.browserArtifactStatus === "MISSING")
   ) {
     process.exitCode = 1;

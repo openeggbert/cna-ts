@@ -1,6 +1,6 @@
 # CNA C ABI 0.20 migration audit
 
-Audit date: 2026-08-30
+Audit date: 2026-08-31 (requalified against the live dependency state)
 
 This audit treats `cnanext` and `sharp-runtimenext` as read-only evidence. Neither repository was
 modified. The binding previously targeted CNA C ABI `0.7.0` from the older `cna` checkout; the live
@@ -11,12 +11,22 @@ runtime evidence were re-measured rather than renumbered.
 
 ```text
 CNA_SOURCE=/rv/data/development/github.com/openeggbert/cnanext
-CNA_HEAD=72262a33ed5ae7657024c7f1251338748a3feee5
+CNA_HEAD=17b5a90a0878f3f44c23bc8e3197d5d30373dc72
 CNA_BRANCH=next
 SHARP_RUNTIME_SOURCE=/rv/data/development/github.com/openeggbert/sharp-runtimenext
-SHARP_RUNTIME_HEAD=eebebd862121953538e3b84d43384d70a8a1728d
+SHARP_RUNTIME_HEAD=4a49afb0cfe6a41e6e0af0bb62dc5175976731bb
 SHARP_RUNTIME_BRANCH=next
 ```
+
+Both artifacts were previously built from `cnanext` 72262a33 and `sharp-runtimenext` eebebd86 and
+have been rebuilt from the revisions above. The C contract did not move with them: `git diff
+72262a33..17b5a90a -- modules/c-api` is empty, so the ABI version, the declaration set and the
+export set are identical and the difference is confined to implementation and build files. That is
+measured, not inferred from the fact that neither number changed -- a moved HEAD is not evidence of
+an ABI change, and an unchanged ABI version is not evidence that the headers held still.
+
+Both dependency worktrees carried another session's uncommitted work throughout. Nothing in this
+audit modified either.
 
 ## Qualified artifact
 
@@ -38,8 +48,8 @@ CNA_DEVICES=ON
 CNA_ENABLE_NET=ON
 CNA_ENABLE_VIDEO=AUTO
 PATH=/rv/data/development/github.com/openeggbert/cnanext/cmake-build-tsnext/modules/c-api/libcna_c_api.so
-SHA256=53f513af7a81745df49e9214a9d93aa6e4487b8514891f75ebecab5d8c348fba
-BYTES=188621656
+SHA256=c635aff6b3bbc5794ffd0a98c9a7193c375928b85d3451ece545a770e41e5c6d
+BYTES=189122712
 REPORTED_ABI=0.20.0
 EXPORTED_CNA_SYMBOLS=4051
 ```
@@ -135,7 +145,41 @@ CApi_Utf8Oracle=TARGET_NOT_BUILT (no cna_c_api_utf8_oracle_test target in this t
 
 `CApi_LifecycleSmoke`, which validates game create/run/destroy, update and draw callbacks, sprite
 submission and texture readback, passes -- so the game loop this binding depends on is exercised and
-sound in this configuration.
+sound in this configuration. Rebuilding against `cnanext` 17b5a90a reproduced the same 86 of 92 with
+the same six names, which is what makes it a baseline rather than a snapshot.
+
+The wider `ctest -R CApi` selection additionally runs three upstream record-keeping gates
+(`CApiCoverageMatrix`, `CApiLimitations`, `CApiReleaseGate`). All three currently fail on
+`cnanext`'s own plan bookkeeping -- `CBIND-037` and `CBIND-114` are recorded complete while still
+owning planned rows -- with no C API surface involved. That is another session's work in progress in
+a repository this one does not modify, and it is recorded here only so a future run does not mistake
+it for a regression this binding caused.
+
+## The contract counts this audit holds
+
+```text
+ABI_VERSION=0.20.0
+PUBLIC_HEADERS=61
+EXPORTED_FUNCTIONS=4051
+NODE_BRIDGE_IMPORTED_SYMBOLS=414
+NODE_BRIDGE_SIGNATURES_VERIFIED=414
+NODE_BRIDGE_SIGNATURE_MISMATCHES=0
+MISSING_QUALIFIED_LIBRARY_IMPORTS=0
+WASM_ARTIFACT_EXPORTED_FUNCTIONS=4053
+WASM_BACKEND_ROUTES=79
+MISSING_WASM_BACKEND_EXPORTS=0
+BROWSER_ARTIFACT_STATUS=PRESENT_NOT_EXECUTION_VERIFIED
+```
+
+`BROWSER_ARTIFACT_STATUS` used to be derived from whether a `.wasm` was *committed* to the CNA
+worktree, which answered nothing: the artifact is built out of tree and never checked in, so the
+audit reported `MISSING` beside a module that had just run 600 browser frames. It now measures the
+artifact the binding actually loads -- hashes, byte size, and whether the loader exposes every route
+`WasmBackend` resolves at construction. The route names come from the ESM loader rather than the
+`.wasm` export section, because a Release link minifies wasm export names to `Mi`, `Ni`, ... and the
+loader is what maps a readable `Module["_cna_..."]` onto one. `PRESENT_NOT_EXECUTION_VERIFIED` is
+deliberate: a complete artifact is not a running one, and execution evidence belongs to
+`npm run test:wasm-browser`.
 
 ## The header-derived contract
 

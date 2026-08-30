@@ -1,6 +1,6 @@
 # CNA-TS implementation plan
 
-Status date: 2026-08-30
+Status date: 2026-08-31
 
 Selected profiles: XNA 4.0 Windows runtime and XNA 4.0 Windows LIVE (GamerServices, Net, Avatar)
 
@@ -69,7 +69,7 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   TypeScript mapping erases them; deliberate broken-contract fixtures prove the generic gate.
 - [x] Emit text and JSON diagnostics with the required categories.
 - [x] Strict mode exits nonzero; report-only records 443 initial differences.
-- [x] Runtime-symbol verifier reports zero differences for all 271 target types, including
+- [x] Runtime-symbol verifier reports zero differences for all 348 declared types, including
   abstract-member and JavaScript iterable-protocol handling.
 - [x] Strict internal/native leak gate reports zero.
 - [x] Allowlist size is zero and blanket allowlisting is prohibited.
@@ -79,8 +79,9 @@ Current measured report:
 ```text
 REFERENCE_TYPES=257
 REFERENCE_MEMBERS=2964
-EXPECTED_MAPPED_TYPES=271
-TARGET_TYPES=271
+EXPECTED_MAPPED_TYPES=274
+TARGET_TYPES=274
+DECLARED_TYPES=348
 TOTAL_DIFFERENCES=0
 MISSING_TYPE=0
 MISSING_MEMBER=0
@@ -125,25 +126,33 @@ Electron, or mobile support.
 - [x] Managed lifecycle tests execute the contract through an internal backend and the native
   ownership state machine without exposing public injection.
 - [x] Implement the first real backend as a small N-API adapter over an explicitly supplied CNA
-  ABI-0.7 library.
+  ABI 0.20 library.
+- [x] Implement the second real backend over the `cna_c_api` Emscripten module, answering the same
+  private boundary from a browser.
 - [x] Exact ABI version, UTF-8 errors, synchronous callbacks, bigint handles, child ownership, and
   shutdown have Linux HEADLESS integration evidence; GameWindow state/handle/event registrations
   are now routed, while physical event delivery remains unqualifiable under HEADLESS.
 
 ## CNA C ABI status
 
-- [x] Current CNA exposes experimental C ABI 0.7.0, 59 public headers, and 2,861 unique exported
-  declarations. The old “waiting for canonical exports” claim was removed.
+- [x] Current CNA exposes experimental C ABI 0.20.0 across 61 public headers and 4,051 unique
+  exported declarations, measured from `cnanext`. The historical 0.7.0/2,861 baseline is recorded
+  in `NEXT.md`, not here.
 - [x] The ABI covers version/error handling plus runtime, graphics, textures, SpriteBatch routes,
-  input, content, audio/XACT, media, storage, events, and resource handles.
-- [x] A reproducible read-only audit verifies ABI version/header/function counts and all 32 exact
-  first-slice sentinel symbols; it separately reports tracked C-ABI Wasm/ESM artifacts.
-- [ ] Produce or obtain a consumable C-ABI WebAssembly ESM artifact.
-- [x] Define the first exact symbol subset rather than binding all 2,861 routes blindly.
-- [x] The audit extracts and verifies the adapter's exact 360 imported symbols separately from the
-  broader 46-symbol cross-subsystem sentinel list and checks the qualified library exports each.
-- [x] An isolated unmodified HEADLESS native build was investigated and stopped at CNA's upstream
-  C-API renderer table assertion (49 identities versus 50); no library or adapter was fabricated.
+  input, content, audio/XACT, media, storage, events, and resource handles, and beyond XNA it adds
+  CNB, the modern engine layer, devices, sensors and the extended input families.
+- [x] A reproducible read-only audit verifies ABI version/header/function counts and all 46 exact
+  cross-subsystem sentinel symbols.
+- [x] Produce or obtain a consumable C-ABI WebAssembly ESM artifact: `cna_c_api.mjs` plus
+  `cna_c_api.wasm` are built out of tree with Emscripten 6.0.3 and executed in a browser.
+- [x] The audit measures that artifact directly — its hashes, its exposed route count and whether
+  every route the WebAssembly backend resolves is present — rather than looking for a `.wasm`
+  committed to the CNA worktree, which is not how the artifact is produced.
+- [x] Define the first exact symbol subset rather than binding all 4,051 routes blindly.
+- [x] The audit extracts and verifies the adapter's exact 414 imported symbols separately from the
+  sentinel list and checks the qualified library exports each.
+- [x] Every imported route's declared function-pointer type is verified against the canonical
+  headers under `-Wall -Wextra -Werror`; signature mismatches are zero.
 
 ## Ownership and lifetime
 
@@ -162,7 +171,7 @@ Electron, or mobile support.
   cache identity, content disposal, and parent shutdown in the qualified native lifecycle.
 - [x] Extend deterministic ownership to dynamic buffers, render targets, Texture3D/Cube,
   OcclusionQuery and binding references; reject bound render-target disposal in CNA-TS before the
-  qualified ABI-0.7 artifact's aborting native path can execute.
+  qualified artifact's aborting native path can execute.
 
 ## Core/value API
 
@@ -204,8 +213,8 @@ Electron, or mobile support.
   qualified HEADLESS pipeline reaches CNA and returns result 12 because no effect is applied, so
   dispatch is verified without claiming GPU output.
 - [x] Import state/scalar/sampler/texture/buffer/render-target binding, dynamic-buffer,
-  render-target, volume-texture, query and advanced SpriteBatch routes supported by ABI 0.7.
-- [x] Reconcile Effect against canonical ABI 0.7: project owned native technique/pass identities,
+  render-target, volume-texture, query and advanced SpriteBatch routes the ABI supports.
+- [x] Reconcile Effect against the canonical ABI: project owned native technique/pass identities,
   execute all five stock effects, route Model.Draw and Effect-bearing SpriteBatch Begin, and keep
   compiled execution separately backend-unavailable on HEADLESS after real route dispatch.
 
@@ -244,22 +253,32 @@ Electron, or mobile support.
   state, and isolated Storage on Linux HEADLESS/NULL audio.
 - [ ] Authored XACT playback is asset-pending; microphone capture has no HEADLESS device; video
   decode and player-owned transient frame textures remain backend/fixture blocked.
-- [ ] Inventory non-selected GamerServices/Net profiles separately.
+- [x] Inventory non-selected GamerServices/Net profiles separately; both are now a projected
+  strict profile of their own, refusing at runtime with `GamerServicesNotAvailableException`
+  where the platform is absent rather than fabricating a signed-in gamer.
 
 ## CNA extensions
 
 - [x] Separate extension subpath exists.
 - [x] Renderer information and capability flags come from CNA device queries and remain outside
   strict `GraphicsDevice`; they are unavailable before a real device callback executes.
+- [x] `cna-ts/extensions/runtime` projects platform identity, renderer selection with its
+  availability set, fallback chain and recorded reasons, and the runtime log, over both backends.
+- [x] `cna-ts/extensions/graphics` projects the PBR material, the render pipeline and its frame
+  statistics, and reports the truthful not-supported branch where the extended layer is absent.
+- [ ] `cna-ts/extensions/content` for CNB, `extensions/devices`, `extensions/input` and
+  `extensions/sensors` are measured and unprojected.
 
 ## Runtime capability inventory
 
 - [x] Keep runtime capability claims independent of the strict structural verifier.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
-- [x] Rebaseline 72 operation families: 19 verified managed, 30 verified native, five upstream-CNA
-  blocked, three fixture pending, four hardware pending, three platform pending, zero CNA-TS gaps,
-  three language-mapping limitations, four explicitly unavailable on the qualified backend, and
-  one not applicable to HEADLESS Linux.
+- [x] Every capability row carries machine-checkable proof and the generator refuses to write the
+  document when a claim does not hold; mutation controls prove the gate can fail.
+- [x] Current baseline is 85 operation families: 20 verified managed, 37 verified native, three
+  verified WebAssembly, five explicitly unavailable on the qualified backend, zero upstream-CNA
+  blocked, three fixture pending, four hardware pending, three platform pending, six unimplemented
+  in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.
 - [x] Audit all 63 `NativeUnavailableError` and six `NotSupportedException` construction sites in 23
   selected-framework source files into those operation-family boundaries.
 
@@ -272,6 +291,8 @@ Electron, or mobile support.
 - [x] Make the template's actual `HelloGame` an opt-in Node-native 2D demo using embedded PNG
   `FromStream`, public SpriteBatch drawing, moving state, input polling, and deterministic cleanup.
 - [x] Verify the template at 60 and 600 real SpriteBatch draw frames against the final package.
+- [x] Run the same template game in a browser on the WebAssembly backend at 60 and 600 frames, and
+  keep an extensions smoke that reports what the modern CNA surface actually answers.
 - [ ] Implement native window/resize and a packaged windowed renderer before making windowed claims.
 - [x] Keep the template as a 2D-only canary. The library now has native stock Effects, but no cube,
   Model, shader asset, or 3D/effect demo was added to the template.
@@ -281,19 +302,27 @@ Electron, or mobile support.
 ## Browser/WASM
 
 - [x] CNA contains real Emscripten-aware renderer/runtime code.
-- [ ] No packaged C-ABI ESM loader/Wasm artifact was found in the inspected CNA worktree.
-- [ ] Local environment currently has no `emcc`; record exact toolchain/artifact recipe upstream.
+- [x] The C-ABI ESM loader and `.wasm` are built out of tree from `cnanext` with Emscripten 6.0.3;
+  `docs/wasm-backend.md` records the exact recipe, including the two link settings the upstream
+  target does not set for itself.
 - [x] Record the required module factory, memory/UTF-8, callback, canvas, shutdown, ABI provenance,
   and CI artifact contract in `docs/cna-abi-audit.md`.
-- [ ] Browser smoke verifies initialization, graphics/resources, 60 frames, shutdown, and zero
-  unhandled console errors; stability target is 600 frames.
+- [x] Browser smoke verifies initialization, graphics/resources, 60 frames, shutdown, and zero
+  unhandled console errors; the 600-frame stability target passes on a real WebGL2 context in
+  headless Chromium.
+- [x] wasm32 structure layouts and callback signatures are generated from an Emscripten-compiled
+  probe; nothing at that boundary is hand-written.
+- [x] Handles cross the boundary as `bigint` under `WASM_BIGINT` and are never converted through
+  `Number`.
+- [ ] The WebAssembly backend is a vertical slice: members outside it refuse by name through the
+  generated `CnaBackendBase` instead of returning a plausible value.
 
 ## Node, desktop, and mobile
 
 - [x] Node managed values, components/services, content lifetime, and package consumers are
   verified.
 - [x] Node CNA runtime execution is verified on Linux x86-64 HEADLESS with an explicit compatible
-  ABI-0.7 artifact.
+  ABI 0.20 artifact.
 - [ ] Electron is planned, not supported or build-verified.
 - [ ] Android and iOS are planned, not supported or build-verified.
 - [ ] Capacitor/Electron dependencies stay out of the template until they prove a real runtime path.
@@ -315,19 +344,22 @@ Electron, or mobile support.
 
 ## Upstream CNA blockers
 
-- consumable C-ABI Emscripten module packaging and documented exported-symbol/loading contract;
-- a reproducible browser artifact recipe accessible to binding CI;
-- repair of the current-HEAD C-API renderer identity table (49 entries for 50 canonical renderers)
-  so the unmodified native shared target can compile;
-- publish reproducible CNA ABI-0.7 shared artifacts instead of relying on temporary sibling build
-  paths for verification;
-- standalone owned GraphicsDevice construction (ABI 0.7 exposes only the game-owned borrowed
-  device);
-- compiled Effect execution on the qualified HEADLESS renderer (the ABI route exists and is bound;
-  all five stock effects, EffectPass.Apply, Model.Draw and SpriteBatch Effect Begin are verified);
-- actual dynamic-buffer/render-target loss callbacks (queries exist, loss events do not);
-- fix the documented bound-render-target destroy path so it returns invalid state instead of
-  aborting the process;
-- platform-specific renderer/window integration evidence for WebView/Electron claims.
+Every runtime gap earlier sessions recorded against CNA has since been closed upstream, so the
+capability inventory's `UPSTREAM_CNA_BLOCKED` count is zero. Two build-system gaps remain, both in
+`cnanext`, both worked around in this binding's build configuration rather than by editing it, and
+both written up with proposed changes in `docs/wasm-backend.md`:
+
+- `cna_c_api_wasm` does not pin `MIN_WEBGL_VERSION`/`MAX_WEBGL_VERSION`, so Emscripten negotiates a
+  WebGL 1 context while EasyGL asks SDL for GLES 3 and its GLSL ES 3.00 shaders fail to compile.
+  The graphics examples already set the pair; the artifact a binding consumes does not;
+- `CNA::EmscriptenAbi` adds `-sASYNCIFY=1` to every Emscripten link. SDL3's Emscripten swap calls
+  `emscripten_sleep(0)` on each present, and Asyncify's rewind re-enters the bottom export with no
+  arguments — under `WASM_BIGINT` an `i64` handle given `undefined` throws. Every route in this ABI
+  takes a `CNA_Handle`, so no route survives an unwind.
+
+Separately, and not blockers for this binding: standalone owned `GraphicsDevice` construction is
+still absent from the ABI, which is why `GraphicsAdapter.DefaultAdapter` has no non-HEADLESS
+qualification here; and compiled `Effect` execution returns not-supported on the HEADLESS renderer,
+which is a renderer property rather than a missing route.
 
 These are narrower than “CNA has no ABI”: the native C ABI exists and is broad.

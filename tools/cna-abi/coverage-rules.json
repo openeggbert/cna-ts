@@ -1,8 +1,6 @@
 {
-  "description": "Classifies every public CNA C API declaration. Rules are matched in order against a declaration's header and name; the first match wins, except that a route the Node or WebAssembly adapter actually imports is classified by that fact regardless of any rule. UNEXPLAINED must stay at zero: a route with no rule is a route nobody has decided about.",
+  "description": "Classifies every public CNA C API declaration on two independent axes. The first is purpose: rules are matched in order against a declaration's header and name and the first match wins, so every route lands in exactly one purpose category and UNEXPLAINED must stay at zero -- a route with no rule is a route nobody has decided about. The second is reachability: which backends actually import the route, measured from the Node adapter's C source and the WebAssembly backend's route table rather than declared here. The two are orthogonal on purpose, because \"what is this route for\" and \"can a consumer reach it today\" are different questions and conflating them hides both.",
   "categories": {
-    "NODE_IMPORTED": "imported by native/cna_node_bridge.c and reachable from the public API",
-    "WASM_IMPORTED": "imported by the WebAssembly backend",
     "XNA_BACKING": "backs an XNA 4.0 member this package projects, reached through a different route or an exact managed implementation",
     "CNA_EXTENSION_BACKING": "modern CNA surface outside Microsoft.Xna.Framework, the target of cna-ts/extensions",
     "INTERNAL_RUNTIME_ONLY": "runtime plumbing the binding never exposes as public API",
@@ -72,8 +70,8 @@
       "headers": [
         "abi.h"
       ],
-      "category": "NODE_IMPORTED",
-      "reason": "the ABI version query is the first route the adapter loads"
+      "category": "INTERNAL_RUNTIME_ONLY",
+      "reason": "the ABI version query is the first route every backend loads and the gate that rejects an incompatible library; it is never public API"
     },
     {
       "headers": [

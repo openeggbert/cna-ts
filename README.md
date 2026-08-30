@@ -13,7 +13,7 @@ TypeScript.
 > projected is the 128-type content pipeline, which runs in the content build rather than in a game.
 >
 > Two real backends run the same public API. An opt-in Node-API bridge executes CNA C ABI 0.20.0 on
-> Linux HEADLESS with NULL audio through 398 imported routes; a WebAssembly backend runs the same
+> Linux HEADLESS with NULL audio through 414 imported routes; a WebAssembly backend runs the same
 > `Game`, `GraphicsDeviceManager`, `Texture2D` and `SpriteBatch` for 60 and 600 real frames in a
 > browser on a WebGL2 context. No native binary and no CNA library is bundled, and without an
 > explicitly loaded backend native operations fail rather than simulating execution.
@@ -51,8 +51,8 @@ backend modules are not package exports.
 ## Opt-in Node CNA runtime
 
 The source distribution includes `native/cna_node_bridge.c` and a build helper. Build the adapter
-against a CNA ABI 0.7 header checkout and Node 20+ headers, then load an explicit compatible shared
-library:
+against a CNA ABI 0.20 header checkout and Node 20+ headers, then load an explicit compatible
+shared library:
 
 ```bash
 CNA_SOURCE_PATH=/path/to/cna npm run build:native-bridge
@@ -67,9 +67,10 @@ await LoadNodeNativeBackend({
 });
 ```
 
-The adapter enforces exact ABI 0.7.0 and uses exactly 360 audited symbols: the previous 280-route
-slice plus 80 dependency-complete Effect ownership/reflection and stock-effect symbols.
-Current native evidence
+The adapter enforces the ABI 0.20 window and uses exactly 414 audited symbols. Every one of them
+has its declared function-pointer type checked against the canonical headers under
+`-Wall -Wextra -Werror`, so a route whose signature moves is a build failure rather than a runtime
+surprise. Current native evidence
 covers game lifecycle, graphics manager/device borrowing, clear/present, Texture2D Color
 upload/readback/regions/mips, PNG `FromStream` and encoding, public SpriteBatch drawing,
 SpriteFont XNB/DrawString, model XNB resource construction, static/dynamic vertex/index buffers,

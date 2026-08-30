@@ -22,9 +22,14 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.20.0
-WASM_ROUTES_REACHED=42
+WASM_BACKEND_ROUTES=79
+MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
+
+Every one of those 79 routes is resolved when the backend is constructed, so a module missing any of
+them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
+artifact's loader before a browser is started.
 
 `npm run test:wasm-browser` serves `dist/` and the artifact over HTTP, drives an ordinary XNA `Game`
 from `requestAnimationFrame`, and asserts the frame, update and draw counts, the texture the game
@@ -58,7 +63,23 @@ emcmake cmake -S . -B cmake-build-tswasm -G Ninja \
 cmake --build cmake-build-tswasm --target cna_c_api_wasm
 ```
 
-Both extra settings exist because of measured upstream gaps, recorded below. `CMAKE_CXX_STANDARD_LIBRARIES`
+The artifact this build produces, requalified against `cnanext` 17b5a90a:
+
+```text
+EMCC=6.0.3
+CMAKE_BUILD_TYPE=Release   CNA_GRAPHICS_RENDERER=WEBGL2   CNA_PLATFORM=SDL3
+MODULE_SHA256=70eea48caddb9bdf94f47a7edac49506678c95a574cd4506bd1a847656522e3f
+WASM_SHA256=6a5db6f6a6a3cc4e0906c0e108d31e850adf75b65ea805c1b8c99b7e30ff49f2
+WASM_BYTES=18943981
+EXPOSED_ROUTES=4053
+```
+
+Both extra settings exist because of measured upstream gaps, recorded below. Each was re-checked
+against the live `cnanext` tree on 2026-08-31 and both are still present: `cna_c_api_wasm`'s
+`target_link_options` in `modules/c-api/CMakeLists.txt` still set no `MIN_WEBGL_VERSION` or
+`MAX_WEBGL_VERSION`, and `cna_emscripten_abi` in `cmake/BuildPerformance.cmake` still adds
+`-sASYNCIFY=1` to every Emscripten link unconditionally. Neither workaround has been removed on the
+strength of the build merely continuing to succeed with it. `CMAKE_CXX_STANDARD_LIBRARIES`
 is the placement that works: CMake puts `CMAKE_EXE_LINKER_FLAGS` *before* a target's own link
 options, and `emcc` lets the last `-s` win, so an `-sASYNCIFY=0` in the linker flags would be
 overridden by the `-sASYNCIFY=1` the target inherits.
