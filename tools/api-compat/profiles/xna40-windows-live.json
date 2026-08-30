@@ -1,0 +1,19 @@
+{
+  "name": "XNA 4.0 Windows LIVE surface",
+  "description": "GamerServices, Net and Avatar: the Windows assemblies a game references in addition to the runtime profile. They resolve against the runtime assemblies in the same directory but are a separate contract, because a build that omits them is still a complete XNA game.",
+  "referenceSubdirectory": "Windows/x86",
+  "role": "inventory",
+  "referenceAssemblies": [
+    "Microsoft.Xna.Framework.GamerServices.dll",
+    "Microsoft.Xna.Framework.Net.dll",
+    "Microsoft.Xna.Framework.Avatar.dll"
+  ],
+  "referenceSha256": {
+    "Microsoft.Xna.Framework.GamerServices.dll": "7c6effed97aa25a95c5e095d9c261f5581e402180cc073271a367b9eef79c8af",
+    "Microsoft.Xna.Framework.Net.dll": "39739dbf5f6ba02e1d0b02ed404f6fe0692497848bc1a6a25be132d47ed9c151",
+    "Microsoft.Xna.Framework.Avatar.dll": "b3c70bbe469000b9e11507cc63b88d54a4e0bc5c27afc826d66e0aee51640871"
+  },
+  "namespacePrefixes": [
+    "Microsoft.Xna.Framework"
+  ]
+}

@@ -1070,4 +1070,4 @@ if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
   }
 }
 
-export { compareTypes, mapType, strictBaseline, transformReference };
+export { compareTypes, mapType, mapTypeIdentity, readReference, strictBaseline, transformReference };

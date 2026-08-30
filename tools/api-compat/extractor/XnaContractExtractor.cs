@@ -49,7 +49,7 @@ internal static class XnaContractExtractor
         var root = new Dictionary<string, object>
         {
             ["schemaVersion"] = 1,
-            ["profile"] = "XNA 4.0 Windows runtime",
+            ["profile"] = Environment.GetEnvironmentVariable("XNA_PROFILE_NAME") ?? "XNA 4.0 Windows runtime",
             ["types"] = contractTypes
         };
         var serializer = new JavaScriptSerializer { MaxJsonLength = Int32.MaxValue, RecursionLimit = 256 };
@@ -114,6 +114,8 @@ internal static class XnaContractExtractor
         return new Dictionary<string, object>
         {
             ["name"] = type.FullName,
+            ["assembly"] = type.Assembly.GetName().Name,
+            ["namespace"] = type.Namespace ?? "",
             ["kind"] = Kind(type),
             ["access"] = TypeAccess(type),
             ["abstract"] = type.IsAbstract,

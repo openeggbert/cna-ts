@@ -44,6 +44,7 @@
     "verify:cna-contract": "node tools/cna-abi/verify-contract.mjs",
     "api:report": "node tools/api-compat/verify.mjs --report-only --summary-only",
     "api:inventory": "node tools/api-compat/missing-type-inventory.mjs --output docs/missing-type-inventory.md --json-output docs/missing-type-inventory.json",
+    "api:profiles": "node tools/api-compat/profile-inventory.mjs --output docs/xna-profile-inventory.md --json-output docs/xna-profile-inventory.json",
     "api:verify": "node tools/api-compat/verify.mjs --summary-only",
     "verify:runtime": "npm run build && node tools/api-compat/verify-runtime.mjs",
     "verify:leaks": "npm run build && node tools/api-compat/verify.mjs --leak-only --summary-only",
