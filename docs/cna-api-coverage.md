@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=547
+REACHABLE_NODE=548
 REACHABLE_WASM=85
-REACHABLE_BY_ANY_BACKEND=547
+REACHABLE_BY_ANY_BACKEND=548
 REACHABLE_BY_EVERY_BACKEND=85
-REACHABLE_NODE_ONLY=462
+REACHABLE_NODE_ONLY=463
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -35,7 +35,7 @@ What each backend reaches, by what the routes are for:
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
 | `XNA_BACKING` | 902 | 357 | 45 |
-| `CNA_EXTENSION_BACKING` | 1736 | 189 | 39 |
+| `CNA_EXTENSION_BACKING` | 1736 | 190 | 39 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 457 | 0 | 0 |
 | `TOOLING_ONLY` | 31 | 0 | 0 |
@@ -100,5 +100,5 @@ What each backend reaches, by what the routes are for:
 | `vectors.h` | 0 | 0 | 0 | 0 | 0 | 137 | 0 | 0 | 0 | 0 |
 | `vertex_resources.h` | 12 | 0 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `vertex_values.h` | 0 | 0 | 0 | 0 | 0 | 13 | 0 | 0 | 0 | 0 |
-| `video.h` | 11 | 0 | 36 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `video.h` | 12 | 0 | 36 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `xact.h` | 46 | 0 | 58 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |

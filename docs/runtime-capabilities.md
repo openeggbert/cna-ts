@@ -9,9 +9,9 @@ This inventory is independent of the strict API verifier: API shape completeness
 
 ## Explicit failure-site audit
 
-All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it.
+All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it. The count fell by one when VideoPlayer.GetTexture stopped refusing outright and began projecting CNA's borrowed frame.
 
-- NativeUnavailableError construction sites: 62
+- NativeUnavailableError construction sites: 61
 - NotSupportedException construction sites: 7
 - Framework files containing those sites: 23
 
@@ -20,14 +20,14 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Category | Operation families |
 | --- | ---: |
 | VERIFIED_MANAGED | 20 |
-| VERIFIED_NATIVE | 41 |
+| VERIFIED_NATIVE | 42 |
 | VERIFIED_WEBASSEMBLY | 5 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 5 |
 | UPSTREAM_CNA_BLOCKED | 1 |
 | FIXTURE_PENDING | 3 |
 | HARDWARE_PENDING | 4 |
 | PLATFORM_PENDING | 3 |
-| UNIMPLEMENTED_CNA_TS | 6 |
+| UNIMPLEMENTED_CNA_TS | 5 |
 | LANGUAGE_MAPPING_LIMITATION | 3 |
 | NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT | 1 |
 
@@ -101,6 +101,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | VertexBuffer/IndexBuffer mapped public value transfer | CNA-TS + CNA | qualified integration verifies four exact built-in vertex codecs and 16-bit index transfer; no JavaScript object serialization or layout guessing is used |
 | VertexDeclaration, VertexBuffer and IndexBuffer resource construction/readback used by Model XNB | CNA-TS + CNA | qualified native Model reader integration |
 | VideoPlayer construction and control/cached-property state without decoded frames | CNA-TS + CNA | qualified native control-state integration |
+| VideoPlayer.GetTexture borrowed frame projection and its decode identity | CNA-TS | cna_video_player_get_frame_ext's monotonic decode generation is what made a safe projection possible: GetTexture now hands back a non-owning Texture2D over the player's own frame, returns the same object while the generation is unchanged, and retires it the moment anything else touches the player -- the exact window CNA says the handle is valid for. Before any decode the identity reads absent with generation zero and a negative presentation time, reading it twice does not advance the count, and neither path fabricates a texture. Frame progression across a real decode stays fixture-pending |
 
 ## VERIFIED_WEBASSEMBLY
 
@@ -162,7 +163,6 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Microsoft.Xna.Framework.GamerServices and .Net platform operations | CNA-TS | the 74 declarations are projected and the xna40-windows-live profile holds at zero differences, but every operation that needs a gamer-services platform refuses with GamerServicesNotAvailableException; 436 backing C routes exist and none is imported |
 | Modern CNA device and sensor extensions | CNA-TS | devices.h, sensors.h and the haptics/joystick/cursor/text input families are classified as extension backing and none is projected yet |
 | Modern CNA engine layer beyond the pipeline and its post-process chain: lighting, shadows, particles, decals, compute and clustered rendering | CNA-TS | the render pipeline and the post-process chain are projected and verified above; the rest of engine_layer.h -- clustered and cascaded lighting, shadow maps, particles, decals, LOD, compute and storage buffers, environment and atmospheric rendering -- is measured and unprojected |
-| VideoPlayer.GetTexture transient frame projection | CNA-TS | ABI 0.9 added cna_video_player_get_frame_ext with CNA_VideoFrameEXT and a monotonic frame generation, which is the borrowed-frame identity the projection was missing; CNA-TS has not adopted it |
 
 ## LANGUAGE_MAPPING_LIMITATION
 

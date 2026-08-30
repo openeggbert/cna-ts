@@ -17,13 +17,13 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 547,
+    "NODE": 548,
     "WASM": 85
   },
-  "reachableByAny": 547,
+  "reachableByAny": 548,
   "reachableByAll": 85,
   "reachableExclusively": {
-    "NODE": 462,
+    "NODE": 463,
     "WASM": 0
   },
   "reachabilityByCategory": {
@@ -32,7 +32,7 @@
       "WASM": 45
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 189,
+      "NODE": 190,
       "WASM": 39
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -294,7 +294,7 @@
     "video.h": {
       "XNA_BACKING": 36,
       "CNA_EXTENSION_BACKING": 6,
-      "REACHABLE_NODE": 11
+      "REACHABLE_NODE": 12
     },
     "xact.h": {
       "XNA_BACKING": 58,
@@ -29347,7 +29347,9 @@
       "header": "video.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "an _ext route is CNA surface beyond XNA 4.0 by the ABI's own naming rule",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_video_player_get_is_disposed",

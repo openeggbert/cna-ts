@@ -252,8 +252,14 @@ Electron, or mobile support.
   authored banks/cues, MediaPlayer, VideoPlayer controls, and Storage selectors/containers.
 - [x] Verify PCM SoundEffect, dynamic buffers, generated-WAV MediaPlayer state, VideoPlayer control
   state, and isolated Storage on Linux HEADLESS/NULL audio.
+- [x] `VideoPlayer.GetTexture` projects CNA's player-owned frame as a **borrowed** `Texture2D`:
+  `cna_video_player_get_frame_ext`'s monotonic decode generation is what made that safe, so the
+  same object comes back while the generation is unchanged and the facade is retired the moment
+  anything else touches the player. `cna-ts/extensions` exposes the generation, which XNA has no
+  member for.
 - [ ] Authored XACT playback is asset-pending; microphone capture has no HEADLESS device; video
-  decode and player-owned transient frame textures remain backend/fixture blocked.
+  *decode progression* remains fixture-blocked — no redistributable video is available on this
+  host, so nothing beyond the no-frame control path is claimed.
 - [x] Inventory non-selected GamerServices/Net profiles separately; both are now a projected
   strict profile of their own, refusing at runtime with `GamerServicesNotAvailableException`
   where the platform is absent rather than fabricating a signed-in gamer.
@@ -287,9 +293,9 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 92 operation families: 20 verified managed, 41 verified native, five
+- [x] Current baseline is 92 operation families: 20 verified managed, 42 verified native, five
   verified WebAssembly, five explicitly unavailable on the qualified backend, one upstream-CNA
-  blocked, three fixture pending, four hardware pending, three platform pending, six unimplemented
+  blocked, three fixture pending, four hardware pending, three platform pending, five unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.
 - [x] Audit all 63 `NativeUnavailableError` and six `NotSupportedException` construction sites in 23
   selected-framework source files into those operation-family boundaries.

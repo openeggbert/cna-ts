@@ -68,6 +68,12 @@ export class Texture2D extends Texture {
       readonly LevelCount: number;
       readonly Release?: (handle: NativeHandle) => void;
       readonly Label?: string;
+      /**
+       * `"borrowed"` for a texture some other native object owns -- a VideoPlayer's decoded frame
+       * is the case this exists for. A borrowed lifetime releases nothing, so the facade going away
+       * cannot destroy an object its real owner is still using.
+       */
+      readonly Ownership?: "owned" | "borrowed";
     },
   ) {
     super();
@@ -82,13 +88,21 @@ export class Texture2D extends Texture {
     const activeBackend = graphicsDeviceBackendForInternalUse(graphicsDevice);
     const handle = adopted?.Handle ??
       activeBackend.createTexture2D(deviceHandle, width, height, Boolean(mipMap), format);
-    const lifetime = new NativeResourceLifetime({
-      Handle: handle,
-      Ownership: "owned",
-      Parent: parent,
-      Release: adopted?.Release ?? ((value) => activeBackend.destroyTexture2D(value)),
-      Label: adopted?.Label ?? "Texture2D",
-    });
+    const borrowed = adopted?.Ownership === "borrowed";
+    const lifetime = new NativeResourceLifetime(borrowed
+      ? {
+        Handle: handle,
+        Ownership: "borrowed",
+        Parent: parent,
+        Label: adopted?.Label ?? "Texture2D",
+      }
+      : {
+        Handle: handle,
+        Ownership: "owned",
+        Parent: parent,
+        Release: adopted?.Release ?? ((value) => activeBackend.destroyTexture2D(value)),
+        Label: adopted?.Label ?? "Texture2D",
+      });
     initializeTextureForInternalUse(
       this,
       format,

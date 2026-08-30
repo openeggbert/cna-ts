@@ -438,6 +438,7 @@ export class GraphicsDevice implements IDisposable {
     }
     this.#disposing.Dispatch(this, EventArgs.Empty);
     state.Disposed = true;
+    if (liveGraphicsDevice === this) liveGraphicsDevice = null;
   }
 
   public DrawIndexedPrimitives(
@@ -755,6 +756,24 @@ export class GraphicsDevice implements IDisposable {
 
 }
 
+/**
+ * The live device, for the one object that has no way to be handed one.
+ *
+ * `VideoPlayer.GetTexture` returns a `Texture2D`, and every `Texture2D` belongs to a
+ * `GraphicsDevice` -- but XNA's `VideoPlayer` takes no device, and CNA's video routes take none
+ * either, so there is nothing to thread through. This ABI creates exactly one game-owned device, so
+ * "the live one" is unambiguous rather than a guess. A frame texture asked for with no live device
+ * refuses instead of inventing one.
+ */
+let liveGraphicsDevice: GraphicsDevice | null = null;
+
+/** The live device, or null when none has been created or the last one was disposed. */
+export function liveGraphicsDeviceForInternalUse(): GraphicsDevice | null {
+  if (liveGraphicsDevice == null) return null;
+  const state = states.get(liveGraphicsDevice);
+  return state != null && !state.Disposed ? liveGraphicsDevice : null;
+}
+
 export function createGraphicsDeviceForInternalUse(value: GraphicsDeviceInternalState): GraphicsDevice {
   const InternalGraphicsDevice = GraphicsDevice as unknown as new (
     adapter: GraphicsAdapter | null,
@@ -762,9 +781,11 @@ export function createGraphicsDeviceForInternalUse(value: GraphicsDeviceInternal
     parameters: PresentationParameters,
     internalState: GraphicsDeviceInternalState,
   ) => GraphicsDevice;
-  return new InternalGraphicsDevice(
+  const device = new InternalGraphicsDevice(
     value.Adapter, value.GraphicsProfile, value.PresentationParameters, value,
   );
+  liveGraphicsDevice = device;
+  return device;
 }
 
 export function resolveGraphicsDeviceHandleForInternalUse(device: GraphicsDevice): NativeHandle {

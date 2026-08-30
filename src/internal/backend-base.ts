@@ -79,6 +79,7 @@ import type {
   TextureCubeInfo,
   VertexBufferBindingSnapshot,
   VertexElementSnapshot,
+  VideoFrameSnapshot,
   VideoPlayerSnapshot,
 } from "./backend.js";
 
@@ -614,6 +615,9 @@ export abstract class CnaVideoBackendBase implements CnaVideoBackend {
   public getVideoPlayerInfo(
     _player: NativeHandle,
   ): VideoPlayerSnapshot { return this.unsupported("getVideoPlayerInfo"); }
+  public getVideoPlayerFrame(
+    _player: NativeHandle,
+  ): VideoFrameSnapshot { return this.unsupported("getVideoPlayerFrame"); }
   public setVideoPlayerLooped(
     _player: NativeHandle,
     _value: boolean,

@@ -333,6 +333,8 @@ typedef CNA_Result (*U32ToI32OutFn)(uint32_t, int32_t*);
 typedef CNA_Result (*U32ToFloatOutFn)(uint32_t, float*);
 typedef CNA_Result (*HandleU32Fn)(CNA_Handle, uint32_t);
 
+typedef CNA_Result (*VideoPlayerFrameFn)(CNA_VideoPlayerHandle, CNA_VideoFrameEXT*);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -883,6 +885,7 @@ typedef struct Api {
   HandleU64OutFn post_process_chain_get_pass_timing_count;
   PostProcessChainTimingFn post_process_chain_get_pass_timing;
   PostProcessChainTimingNameFn post_process_chain_copy_pass_timing_name;
+  VideoPlayerFrameFn video_player_get_frame;
 } Api;
 
 typedef struct GameContext {
@@ -1574,6 +1577,7 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(video_player_create, HandleHandleOutFn, "cna_video_player_create");
   LOAD_REQUIRED(video_player_destroy, GameHandleFn, "cna_video_player_destroy");
   LOAD_REQUIRED(video_player_get_state, GameU32OutFn, "cna_video_player_get_state");
+  LOAD_REQUIRED(video_player_get_frame, VideoPlayerFrameFn, "cna_video_player_get_frame_ext");
   LOAD_REQUIRED(video_player_get_position, HandleInt64OutFn, "cna_video_player_get_play_position_ticks");
   LOAD_REQUIRED(video_player_set_looped, HandleBoolFn, "cna_video_player_set_is_looped");
   LOAD_REQUIRED(video_player_set_muted, HandleBoolFn, "cna_video_player_set_is_muted");
@@ -8803,6 +8807,43 @@ static napi_value post_process_chain_timings(napi_env env, napi_callback_info in
   return output;
 }
 
+/*
+ * The frame a VideoPlayer currently holds, with the identity a caller needs to track it.
+ *
+ * `cna_video_player_get_texture` hands back a fresh handle every call, so two calls against one
+ * undecoded frame look exactly like two calls across a frame advance. `generation` is what settles
+ * that: it changes only when a frame is actually decoded, and it is monotonic for the player's
+ * whole life -- neither Stop nor playing a different video restarts it.
+ */
+static napi_value get_video_player_frame(napi_env env, napi_callback_info info) {
+  napi_value args[1], output, generation_value;
+  CNA_Handle player = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &player)) return NULL;
+  CNA_VideoFrameEXT frame;
+  memset(&frame, 0, sizeof(frame));
+  frame.struct_size = sizeof(frame);
+  frame.struct_version = CNA_VIDEO_FRAME_EXT_STRUCT_VERSION;
+  const CNA_Result result = g_api.video_player_get_frame(player, &frame);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_video_player_get_frame_ext", result);
+  }
+  napi_value texture_value = make_handle(env, frame.texture);
+  if (!texture_value) return NULL;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "video frame");
+  /* The generation is a uint64 and stays one: a frame count that outgrew a double would start
+     comparing equal to itself, which is the one thing this field exists to prevent. */
+  NAPI_OR_RETURN(
+    env, napi_create_bigint_uint64(env, frame.generation, &generation_value), "video frame");
+  if (!set_bool_property(env, output, "IsAvailable", frame.available) ||
+      !set_double_property(env, output, "PresentationTimeSeconds", frame.presentation_time) ||
+      napi_set_named_property(env, output, "Texture", texture_value) != napi_ok ||
+      napi_set_named_property(env, output, "Generation", generation_value) != napi_ok) {
+    return throw_napi(env, "video frame");
+  }
+  return output;
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
@@ -9186,6 +9227,7 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "setPostProcessChainGpuTimingEnabled", NULL, post_process_chain_set_gpu_timing, NULL, NULL, NULL, napi_default, NULL },
     { "applyPostProcessChain", NULL, post_process_chain_apply, NULL, NULL, NULL, napi_default, NULL },
     { "getPostProcessChainPassTimings", NULL, post_process_chain_timings, NULL, NULL, NULL, napi_default, NULL },
+    { "getVideoPlayerFrame", NULL, get_video_player_frame, NULL, NULL, NULL, napi_default, NULL },
     { "openStorageFile", NULL, open_storage_file, NULL, NULL, NULL, napi_default, NULL },
   };
   if (napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties) != napi_ok) {

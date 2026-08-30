@@ -43,6 +43,7 @@ import type {
   MediaSourceSnapshot,
   MediaSongPlaybackSnapshot,
   VideoPlayerSnapshot,
+  VideoFrameSnapshot,
   StorageDeviceSnapshot,
   BlendStateSnapshot,
   DepthStencilStateSnapshot,
@@ -597,6 +598,7 @@ interface NativeBridge {
   createVideoPlayer(game: bigint): bigint;
   destroyVideoPlayer(player: bigint): void;
   getVideoPlayerInfo(player: bigint): VideoPlayerSnapshot;
+  getVideoPlayerFrame(player: bigint): VideoFrameSnapshot;
   setVideoPlayerLooped(player: bigint, value: boolean): void;
   setVideoPlayerMuted(player: bigint, value: boolean): void;
   setVideoPlayerVolume(player: bigint, value: number): void;
@@ -1715,6 +1717,9 @@ export class NodeNativeBackend
   public destroyVideoPlayer(player: NativeHandle): void { this.#bridge.destroyVideoPlayer(player); }
   public getVideoPlayerInfo(player: NativeHandle): VideoPlayerSnapshot {
     return this.#bridge.getVideoPlayerInfo(player);
+  }
+  public getVideoPlayerFrame(player: NativeHandle): VideoFrameSnapshot {
+    return this.#bridge.getVideoPlayerFrame(player);
   }
   public setVideoPlayerLooped(player: NativeHandle, value: boolean): void {
     this.#bridge.setVideoPlayerLooped(player, value);

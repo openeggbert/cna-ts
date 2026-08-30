@@ -581,11 +581,27 @@ export interface VideoPlayerSnapshot {
 }
 
 /** Optional typed video-player slice. Frame textures remain player-owned transient aliases. */
+/**
+ * The frame a VideoPlayer holds, and the identity that makes it trackable.
+ *
+ * `Texture` is **borrowed** and valid only until the next call on that player. `Generation` is what
+ * distinguishes "the same frame, asked for twice" from "the frame advanced": it counts decoded
+ * frames, never restarts, and is a `bigint` because a frame count that outgrew a double would start
+ * comparing equal to itself.
+ */
+export interface VideoFrameSnapshot {
+  readonly Texture: NativeHandle;
+  readonly Generation: bigint;
+  readonly PresentationTimeSeconds: number;
+  readonly IsAvailable: boolean;
+}
+
 export interface CnaVideoBackend {
   readonly ParentLifetime: NativeResourceLifetime;
   createVideoPlayer(): NativeHandle;
   destroyVideoPlayer(player: NativeHandle): void;
   getVideoPlayerInfo(player: NativeHandle): VideoPlayerSnapshot;
+  getVideoPlayerFrame(player: NativeHandle): VideoFrameSnapshot;
   setVideoPlayerLooped(player: NativeHandle, value: boolean): void;
   setVideoPlayerMuted(player: NativeHandle, value: boolean): void;
   setVideoPlayerVolume(player: NativeHandle, value: number): void;

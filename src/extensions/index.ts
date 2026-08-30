@@ -1,4 +1,9 @@
 import { GetRuntimeStatus, NativeUnavailableError } from "../runtime/index.js";
+import type { VideoPlayer } from "../Microsoft/Xna/Framework/Media/Video.js";
+import {
+  resolveVideoPlayerHandleForInternalUse,
+  videoPlayerBackendForInternalUse,
+} from "../Microsoft/Xna/Framework/Media/Video.js";
 import type { XnaType } from "../Microsoft/Xna/Framework/Contracts.js";
 import type { ContentTypeReaderOfT } from
   "../Microsoft/Xna/Framework/Content/ContentTypeReader.js";
@@ -40,4 +45,39 @@ export function RegisterContentTypeReader<T>(
   targetType: XnaType<T>,
 ): () => void {
   return registerContentTypeReaderForInternalUse(serializedName, readerType, targetType);
+}
+
+/**
+ * What a {@link VideoPlayer} currently holds, with the identity XNA's API has no way to express.
+ *
+ * XNA owns two frame textures and alternates between them, so a game can tell frames apart by which
+ * texture it got. CNA decodes into one texture in place, so handle identity says nothing: two calls
+ * against one undecoded frame look exactly like two calls across an advance. CNA answers that with
+ * a monotonic decode generation, and this is where a consumer reads it — outside
+ * `Microsoft.Xna.Framework`, because XNA has no such member and inventing one there would be a
+ * different API wearing XNA's name.
+ *
+ * `Generation` counts decoded frames for the player's whole life. It never restarts: neither `Stop`
+ * nor playing a different video resets it, which is exactly what lets inequality mean "the frame
+ * changed" rather than "playback began again".
+ */
+export interface CnaVideoFrame {
+  /** Whether the player holds a decoded frame at all. Absence is a state, not a failure. */
+  readonly IsAvailable: boolean;
+  /** Decoded frames since the player was created; zero before the first. Monotonic. */
+  readonly Generation: bigint;
+  /** The held frame's presentation timestamp in seconds; negative when there is none. */
+  readonly PresentationTimeSeconds: number;
+}
+
+/** Reads {@link CnaVideoFrame} for a player, without taking or holding its frame texture. */
+export function GetVideoFrameIdentity(player: VideoPlayer): CnaVideoFrame {
+  if (player == null) throw new TypeError("player is required");
+  const frame = videoPlayerBackendForInternalUse(player)
+    .getVideoPlayerFrame(resolveVideoPlayerHandleForInternalUse(player));
+  return Object.freeze({
+    IsAvailable: frame.IsAvailable,
+    Generation: frame.Generation,
+    PresentationTimeSeconds: frame.PresentationTimeSeconds,
+  });
 }

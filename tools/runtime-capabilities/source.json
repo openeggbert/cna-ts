@@ -5,10 +5,10 @@
   "granularity": "Each row is a reviewed operation family; overloads with the same implementation and evidence share a row.",
   "sourceAudit": {
     "root": "src/Microsoft/Xna/Framework",
-    "nativeUnavailableErrorSites": 62,
+    "nativeUnavailableErrorSites": 61,
     "notSupportedExceptionSites": 7,
     "filesWithExplicitFailureSites": 23,
-    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it."
+    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it. The count fell by one when VideoPlayer.GetTexture stopped refusing outright and began projecting CNA's borrowed frame."
   },
   "categories": [
     "VERIFIED_MANAGED",
@@ -557,12 +557,13 @@
       "evidence": "event registrations are real and removable, but HEADLESS exposes no physical window or event stimulus"
     },
     {
-      "operation": "VideoPlayer.GetTexture transient frame projection",
-      "category": "UNIMPLEMENTED_CNA_TS",
+      "operation": "VideoPlayer.GetTexture borrowed frame projection and its decode identity",
+      "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS",
-      "evidence": "ABI 0.9 added cna_video_player_get_frame_ext with CNA_VideoFrameEXT and a monotonic frame generation, which is the borrowed-frame identity the projection was missing; CNA-TS has not adopted it",
+      "evidence": "cna_video_player_get_frame_ext's monotonic decode generation is what made a safe projection possible: GetTexture now hands back a non-owning Texture2D over the player's own frame, returns the same object while the generation is unchanged, and retires it the moment anything else touches the player -- the exact window CNA says the handle is valid for. Before any decode the identity reads absent with generation zero and a negative presentation time, reading it twice does not advance the count, and neither path fabricates a texture. Frame progression across a real decode stays fixture-pending",
       "proof": [
-        "absentRoute:cna_video_player_get_frame_ext"
+        "route:cna_video_player_get_frame_ext",
+        "test:test/native-cna.integration.mjs"
       ]
     },
     {

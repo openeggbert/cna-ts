@@ -27,6 +27,7 @@ import {
 } from "../dist/index.js";
 import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../dist/internal/abi.js";
 import * as renderPipelineModule from "../dist/extensions/graphics/index.js";
+import * as extensionsModule from "../dist/extensions/index.js";
 import { getBackend } from "../dist/internal/backend.js";
 import {
   getVertexBufferRawForInternalUse,
@@ -1045,6 +1046,26 @@ class NativeAudioProbeGame extends Game {
     this.videoPlayer.Resume();
     this.videoPlayer.Stop();
     assert.throws(() => this.videoPlayer.GetTexture(), /No video has been played/);
+
+    // The frame identity CNA added so a borrowed frame texture could be projected at all. Before
+    // any decode it is an absence with a zero generation -- a state, not a failure -- and reading
+    // it must not fabricate a texture or advance the count.
+    const before = extensionsModule.GetVideoFrameIdentity(this.videoPlayer);
+    assert.equal(before.IsAvailable, false);
+    assert.equal(before.Generation, 0n);
+    assert.equal(typeof before.PresentationTimeSeconds, "number");
+    assert.ok(before.PresentationTimeSeconds < 0, "no frame has no presentation time");
+    const again = extensionsModule.GetVideoFrameIdentity(this.videoPlayer);
+    assert.equal(again.Generation, before.Generation, "asking does not advance the frame");
+
+    // Control-path evidence for the projection itself: it now distinguishes "nothing has played"
+    // from "playing but nothing decoded yet", and neither invents a Texture2D. Actual decode
+    // progression is fixture-pending -- no redistributable video is available on this host.
+    this.videoPlayerFrameEvidence = {
+      available: before.IsAvailable,
+      generation: before.Generation,
+      presentationTime: before.PresentationTimeSeconds,
+    };
   }
 
   Update() {
