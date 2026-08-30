@@ -6,6 +6,7 @@ export * as Media from "./Media/index.js";
 export * as Storage from "./Storage/index.js";
 export * as Design from "./Design/index.js";
 export * as GamerServices from "./GamerServices/index.js";
+export * as Net from "./Net/index.js";
 
 export { Color } from "./Color.js";
 export { DisplayOrientation } from "./DisplayOrientation.js";
@@ -13,6 +14,8 @@ export { BoundingBox } from "./BoundingBox.js";
 export { BoundingFrustum } from "./BoundingFrustum.js";
 export { BoundingSphere } from "./BoundingSphere.js";
 export type {
+  AsyncCallback,
+  IAsyncResult,
   IComparable,
   IDisposable,
   IEquatable,

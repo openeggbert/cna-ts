@@ -19,7 +19,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Category | Operation families |
 | --- | ---: |
-| VERIFIED_MANAGED | 19 |
+| VERIFIED_MANAGED | 20 |
 | VERIFIED_NATIVE | 33 |
 | VERIFIED_WEBASSEMBLY | 3 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 4 |
@@ -45,6 +45,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Effect reflection, parameter values, techniques and managed stock-effect state | CNA-TS | graphics/content differential observations and graphics-foundation tests |
 | Framework math, geometry, curves, packed vectors, TimeSpan, Color and value contracts | CNA-TS | 83 deterministic XNA differential observations plus math/geometry/graphics-value unit suites |
 | GameComponent, DrawableGameComponent, collections, services and managed events | CNA-TS | framework-components unit suite covers ordering, mutation, filtering, services and disposal |
+| GamerServices and Net declarations, identities, value shapes and exception hierarchy | CNA-TS | the xna40-windows-live profile holds at zero differences over 74 types and 676 members, with thirteen behaviour assertions over the identities, the catchable exception hierarchy, the empty signed-in collection, Guide title state, the mutable AvatarExpression, the null-preserving session property bag and a full packet round trip |
 | Graphics presentation, viewport, display, vertex and render-target value objects | CNA-TS | graphics-foundation and graphics-values unit suites |
 | KeyboardState, MouseState, GamePad values and Touch values/collections | CNA-TS | 23 deterministic XNA differential observations and input unit suite |
 | Media collections, queue identity and MediaPlayer managed settings/events | CNA-TS | deterministic subsystem differential observations |
@@ -146,7 +147,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | --- | --- | --- |
 | Direct standalone GraphicsDevice construction | CNA-TS | ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime the projection needs now exists upstream; CNA-TS still projects only the game-owned borrowed device |
 | Dynamic buffer ContentLost event signaling | CNA-TS | cna_vertex_buffer_subscribe_content_lost and cna_index_buffer_subscribe_content_lost exist and ABI 0.9 states the event is raised for real on renderers whose API can lose a device; CNA-TS imports neither |
-| Microsoft.Xna.Framework.GamerServices and .Net profiles | CNA-TS | docs/xna-profile-inventory.md measures the complete remaining XNA 4.0 runtime gap as 74 types; 436 backing C routes exist and none is imported |
+| Microsoft.Xna.Framework.GamerServices and .Net platform operations | CNA-TS | the 74 declarations are projected and the xna40-windows-live profile holds at zero differences, but every operation that needs a gamer-services platform refuses with GamerServicesNotAvailableException; 436 backing C routes exist and none is imported |
 | Modern CNA binary content: .cnb container, schemas and compilation front ends | CNA-TS | 272 cnb.h routes are classified as extension backing and none is projected yet |
 | Modern CNA device and sensor extensions | CNA-TS | devices.h, sensors.h and the haptics/joystick/cursor/text input families are classified as extension backing and none is projected yet |
 | Modern CNA engine layer: PBR materials, render pipeline, post-process, lighting and shadows | CNA-TS | 857 engine_layer.h routes are classified as extension backing in docs/cna-api-coverage.md and none is projected yet |

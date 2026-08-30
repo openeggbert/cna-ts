@@ -5,10 +5,10 @@ separately; no Microsoft binary is committed or packaged. `TARGET` is the profil
 projects and holds at zero differences. `INVENTORY` profiles are discovery: they record what
 exists, not what is promised.
 
-TYPESCRIPT_PROJECTED_TYPES=271
+TYPESCRIPT_PROJECTED_TYPES=348
 RUNTIME_SUPERSET_TYPES=331
-RUNTIME_SUPERSET_PROJECTED_TYPES=257
-RUNTIME_SUPERSET_UNPROJECTED_TYPES=74
+RUNTIME_SUPERSET_PROJECTED_TYPES=331
+RUNTIME_SUPERSET_UNPROJECTED_TYPES=0
 
 The runtime superset is the union of every profile a game runs against -- the Windows runtime,
 the Windows LIVE assemblies and the Xbox 360 set. It deliberately excludes the content pipeline,
@@ -17,42 +17,26 @@ which runs in the content build rather than in a game.
 | Profile | Role | Assemblies | Types | Members | Projected | Unprojected |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | `xna40-windows-content-pipeline` | INVENTORY | 7 | 128 | 743 | 0 | 128 |
-| `xna40-windows-full` | INVENTORY | 17 | 459 | 4383 | 257 | 202 |
-| `xna40-windows-live` | INVENTORY | 3 | 74 | 676 | 0 | 74 |
+| `xna40-windows-full` | INVENTORY | 17 | 459 | 4383 | 331 | 128 |
+| `xna40-windows-live` | TARGET | 3 | 74 | 676 | 74 | 0 |
 | `xna40-windows-runtime` | TARGET | 7 | 257 | 2964 | 257 | 0 |
-| `xna40-xbox360` | INVENTORY | 10 | 318 | 3577 | 244 | 74 |
+| `xna40-xbox360` | INVENTORY | 10 | 318 | 3577 | 318 | 0 |
 
-### `xna40-windows-full` against `xna40-windows-runtime`
+### `xna40-windows-full` against `xna40-windows-live`
 
 ```text
-SHARED_TYPES=257
-ONLY_IN_XNA40_WINDOWS_FULL=199
+SHARED_TYPES=74
+ONLY_IN_XNA40_WINDOWS_FULL=382
 ONLY_IN_TARGET=0
 ```
 
-### `xna40-xbox360` against `xna40-windows-runtime`
+### `xna40-xbox360` against `xna40-windows-live`
 
 ```text
-SHARED_TYPES=244
-ONLY_IN_XNA40_XBOX360=74
-ONLY_IN_TARGET=13
+SHARED_TYPES=74
+ONLY_IN_XNA40_XBOX360=244
+ONLY_IN_TARGET=0
 ```
-
-Types the target profile has and this one does not:
-
-- `Microsoft.Xna.Framework.Design.BoundingBoxConverter`
-- `Microsoft.Xna.Framework.Design.BoundingSphereConverter`
-- `Microsoft.Xna.Framework.Design.ColorConverter`
-- `Microsoft.Xna.Framework.Design.MathTypeConverter`
-- `Microsoft.Xna.Framework.Design.MatrixConverter`
-- `Microsoft.Xna.Framework.Design.PlaneConverter`
-- `Microsoft.Xna.Framework.Design.PointConverter`
-- `Microsoft.Xna.Framework.Design.QuaternionConverter`
-- `Microsoft.Xna.Framework.Design.RayConverter`
-- `Microsoft.Xna.Framework.Design.RectangleConverter`
-- `Microsoft.Xna.Framework.Design.Vector2Converter`
-- `Microsoft.Xna.Framework.Design.Vector3Converter`
-- `Microsoft.Xna.Framework.Design.Vector4Converter`
 
 ## XNA 4.0 Windows content pipeline
 
@@ -100,8 +84,8 @@ REFERENCE_SUBDIRECTORY=Windows/x86
 ASSEMBLIES=17
 REFERENCE_TYPES=459
 REFERENCE_MEMBERS=4383
-PROJECTED_TYPES=257
-UNPROJECTED_TYPES=202
+PROJECTED_TYPES=331
+UNPROJECTED_TYPES=128
 ```
 
 Namespaces:
@@ -152,13 +136,13 @@ GamerServices, Net and Avatar: the Windows assemblies a game references in addit
 
 ```text
 ID=xna40-windows-live
-ROLE=INVENTORY
+ROLE=TARGET
 REFERENCE_SUBDIRECTORY=Windows/x86
 ASSEMBLIES=3
 REFERENCE_TYPES=74
 REFERENCE_MEMBERS=676
-PROJECTED_TYPES=0
-UNPROJECTED_TYPES=74
+PROJECTED_TYPES=74
+UNPROJECTED_TYPES=0
 ```
 
 Namespaces:
@@ -222,8 +206,8 @@ REFERENCE_SUBDIRECTORY=Xbox360
 ASSEMBLIES=10
 REFERENCE_TYPES=318
 REFERENCE_MEMBERS=3577
-PROJECTED_TYPES=244
-UNPROJECTED_TYPES=74
+PROJECTED_TYPES=318
+UNPROJECTED_TYPES=0
 ```
 
 Namespaces:

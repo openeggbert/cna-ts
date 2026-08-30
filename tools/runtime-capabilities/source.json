@@ -767,10 +767,10 @@
       ]
     },
     {
-      "operation": "Microsoft.Xna.Framework.GamerServices and .Net profiles",
+      "operation": "Microsoft.Xna.Framework.GamerServices and .Net platform operations",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "docs/xna-profile-inventory.md measures the complete remaining XNA 4.0 runtime gap as 74 types; 436 backing C routes exist and none is imported",
+      "evidence": "the 74 declarations are projected and the xna40-windows-live profile holds at zero differences, but every operation that needs a gamer-services platform refuses with GamerServicesNotAvailableException; 436 backing C routes exist and none is imported",
       "proof": [
         "absentRoute:cna_gamer_services_dispatcher_update",
         "absentRoute:cna_network_session_create"
@@ -784,6 +784,15 @@
       "proof": [
         "absentRoute:cna_devices_ext_is_available",
         "absentRoute:cna_camera_create"
+      ]
+    },
+    {
+      "operation": "GamerServices and Net declarations, identities, value shapes and exception hierarchy",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "the xna40-windows-live profile holds at zero differences over 74 types and 676 members, with thirteen behaviour assertions over the identities, the catchable exception hierarchy, the empty signed-in collection, Guide title state, the mutable AvatarExpression, the null-preserving session property bag and a full packet round trip",
+      "proof": [
+        "test:test/gamer-services-net.test.mjs"
       ]
     }
   ]

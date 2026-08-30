@@ -4,7 +4,8 @@
   "propertyStyle": "same-cased-accessor",
   "mixedAccessorVisibility": "project-most-visible-accessor",
   "ignoredMethods": [
-    "Finalize"
+    "Finalize",
+    "GetObjectData"
   ],
   "mixedVisibilityOverloads": [
     "Microsoft.Xna.Framework.Game.Dispose",
@@ -33,7 +34,9 @@
     "Microsoft.Xna.Framework.Audio.DynamicSoundEffectInstance.Dispose",
     "Microsoft.Xna.Framework.Audio.SoundBank.Dispose",
     "Microsoft.Xna.Framework.Audio.SoundEffectInstance.Dispose",
-    "Microsoft.Xna.Framework.Audio.WaveBank.Dispose"
+    "Microsoft.Xna.Framework.Audio.WaveBank.Dispose",
+    "Microsoft.Xna.Framework.GamerServices.AvatarAnimation.Dispose",
+    "Microsoft.Xna.Framework.GamerServices.AvatarRenderer.Dispose"
   ],
   "publicConstructorOverloads": [
     "Microsoft.Xna.Framework.Graphics.Effect..ctor(Microsoft.Xna.Framework.Graphics.Effect)",
@@ -45,7 +48,14 @@
   ],
   "ignoredConstructors": [
     "Microsoft.Xna.Framework.Content.ContentLoadException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)",
-    "Microsoft.Xna.Framework.Storage.StorageDeviceNotConnectedException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)"
+    "Microsoft.Xna.Framework.Storage.StorageDeviceNotConnectedException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)",
+    "Microsoft.Xna.Framework.GamerServices.NetworkException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)",
+    "Microsoft.Xna.Framework.GamerServices.NetworkNotAvailableException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)",
+    "Microsoft.Xna.Framework.GamerServices.GamerServicesNotAvailableException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)",
+    "Microsoft.Xna.Framework.GamerServices.GamerPrivilegeException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)",
+    "Microsoft.Xna.Framework.GamerServices.GuideAlreadyVisibleException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)",
+    "Microsoft.Xna.Framework.GamerServices.GameUpdateRequiredException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)",
+    "Microsoft.Xna.Framework.Net.NetworkSessionJoinException..ctor(System.Runtime.Serialization.SerializationInfo,System.Runtime.Serialization.StreamingContext)"
   ],
   "fieldStyle": "same-cased-field",
   "structStyle": "mutable-class",
@@ -94,6 +104,12 @@
     },
     "Microsoft.Xna.Framework.Matrix.Decompose": {
       "returnType": "Microsoft.Xna.Framework.MatrixDecomposeResult"
+    },
+    "Microsoft.Xna.Framework.GamerServices.PropertyDictionary.TryGetValue": {
+      "returnType": "Microsoft.Xna.Framework.TryResult<unknown>"
+    },
+    "Microsoft.Xna.Framework.Net.LocalNetworkGamer.ReceiveData": {
+      "returnType": "Microsoft.Xna.Framework.Net.NetworkPacketResult"
     }
   },
   "contentLoad": "Load<T>(assetType: XnaType<T>, assetName: string): T",
@@ -110,7 +126,8 @@
     "System.Collections.Generic.IList`1",
     "System.Collections.Generic.IEnumerator`1",
     "Microsoft.Xna.Framework.Graphics.IGraphicsResource",
-    "Microsoft.Xna.Framework.Graphics.IDynamicGraphicsResource"
+    "Microsoft.Xna.Framework.Graphics.IDynamicGraphicsResource",
+    "System.Collections.Generic.IDictionary`2"
   ],
   "erasedBaseTypes": [
     "System.Collections.ObjectModel.Collection`1",
@@ -125,13 +142,17 @@
       "name": "Microsoft.Xna.Framework.IEquatable",
       "kind": "interface",
       "genericArity": 1,
-      "genericParameters": ["T"]
+      "genericParameters": [
+        "T"
+      ]
     },
     {
       "name": "Microsoft.Xna.Framework.IComparable",
       "kind": "interface",
       "genericArity": 1,
-      "genericParameters": ["T"]
+      "genericParameters": [
+        "T"
+      ]
     },
     {
       "name": "Microsoft.Xna.Framework.IDisposable",
@@ -141,7 +162,9 @@
       "name": "Microsoft.Xna.Framework.TryResult",
       "kind": "interface",
       "genericArity": 1,
-      "genericParameters": ["T"]
+      "genericParameters": [
+        "T"
+      ]
     },
     {
       "name": "Microsoft.Xna.Framework.MatrixDecomposeResult",
@@ -163,28 +186,50 @@
       "name": "Microsoft.Xna.Framework.XnaEvent",
       "kind": "interface",
       "genericArity": 2,
-      "genericParameters": ["TSender", "TArgs"]
+      "genericParameters": [
+        "TSender",
+        "TArgs"
+      ]
     },
     {
       "name": "Microsoft.Xna.Framework.XnaAction",
       "kind": "delegate",
       "genericArity": 1,
-      "genericParameters": ["T"]
+      "genericParameters": [
+        "T"
+      ]
     },
     {
       "name": "Microsoft.Xna.Framework.XnaEventHandler",
       "kind": "delegate",
       "genericArity": 2,
-      "genericParameters": ["TSender", "TArgs"]
+      "genericParameters": [
+        "TSender",
+        "TArgs"
+      ]
     },
     {
       "name": "Microsoft.Xna.Framework.XnaType",
       "kind": "interface",
       "genericArity": 1,
-      "genericParameters": ["T"]
+      "genericParameters": [
+        "T"
+      ]
     },
     {
       "name": "Microsoft.Xna.Framework.IServiceProvider",
+      "kind": "interface"
+    },
+    {
+      "name": "Microsoft.Xna.Framework.IAsyncResult",
+      "kind": "interface"
+    },
+    {
+      "name": "Microsoft.Xna.Framework.AsyncCallback",
+      "kind": "delegate"
+    },
+    {
+      "name": "Microsoft.Xna.Framework.Net.NetworkPacketResult",
       "kind": "interface"
     }
   ],
@@ -214,7 +259,11 @@
     "System.Uri": "URL",
     "System.IServiceProvider": "Microsoft.Xna.Framework.IServiceProvider",
     "System.TimeSpan": "Microsoft.Xna.Framework.TimeSpan",
-    "System.Type": "Microsoft.Xna.Framework.XnaType<unknown>"
+    "System.Type": "Microsoft.Xna.Framework.XnaType<unknown>",
+    "System.IAsyncResult": "Microsoft.Xna.Framework.IAsyncResult",
+    "System.AsyncCallback": "Microsoft.Xna.Framework.AsyncCallback",
+    "System.Globalization.RegionInfo": "string"
   },
-  "allowlist": []
+  "allowlist": [],
+  "keyValuePairMapping": "readonly [key, value] tuple"
 }

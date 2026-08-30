@@ -1,11 +1,11 @@
 {
   "contract": "tools/cna-abi/contract.json",
   "cnaRoot": "/rv/data/development/github.com/openeggbert/cnanext",
-  "typeScriptEnums": 60,
-  "verifiedFamilies": 59,
+  "typeScriptEnums": 82,
+  "verifiedFamilies": 81,
   "managedEnums": 1,
-  "claims": 510,
-  "identicalClaims": 507,
+  "claims": 752,
+  "identicalClaims": 749,
   "translatedClaims": 3,
   "scalarAssertions": 6,
   "resultCodeAssertions": 15,
@@ -15,6 +15,34 @@
     {
       "family": "AudioStopOptions",
       "constant": "CNA_AUDIO_STOP_OPTIONS_MAXIMUM"
+    },
+    {
+      "family": "AvatarAnimationPreset",
+      "constant": "CNA_AVATAR_ANIMATION_PRESET_MAXIMUM"
+    },
+    {
+      "family": "AvatarBodyType",
+      "constant": "CNA_AVATAR_BODY_TYPE_MAXIMUM"
+    },
+    {
+      "family": "AvatarBone",
+      "constant": "CNA_AVATAR_BONE_MAXIMUM"
+    },
+    {
+      "family": "AvatarEye",
+      "constant": "CNA_AVATAR_EYE_MAXIMUM"
+    },
+    {
+      "family": "AvatarEyebrow",
+      "constant": "CNA_AVATAR_EYEBROW_MAXIMUM"
+    },
+    {
+      "family": "AvatarMouth",
+      "constant": "CNA_AVATAR_MOUTH_MAXIMUM"
+    },
+    {
+      "family": "AvatarRendererState",
+      "constant": "CNA_AVATAR_RENDERER_STATE_MAXIMUM"
     },
     {
       "family": "Blend",
@@ -39,6 +67,14 @@
     {
       "family": "Blend",
       "constant": "CNA_BLEND_STATE_TYPE_NAME"
+    },
+    {
+      "family": "ControllerSensitivity",
+      "constant": "CNA_CONTROLLER_SENSITIVITY_MAXIMUM"
+    },
+    {
+      "family": "GameDifficulty",
+      "constant": "CNA_GAME_DIFFICULTY_MAXIMUM"
     },
     {
       "family": "Buttons",
@@ -109,6 +145,18 @@
       "constant": "CNA_GAMEPAD_BUTTON_TOUCH_PAD_EXT"
     },
     {
+      "family": "GamerPresenceMode",
+      "constant": "CNA_GAMER_PRESENCE_MODE_MAXIMUM"
+    },
+    {
+      "family": "GamerPrivilegeSetting",
+      "constant": "CNA_GAMER_PRIVILEGE_SETTING_MAXIMUM"
+    },
+    {
+      "family": "GamerZone",
+      "constant": "CNA_GAMER_ZONE_MAXIMUM"
+    },
+    {
       "family": "GestureType",
       "constant": "CNA_GESTURE_TYPE_ALL"
     },
@@ -165,16 +213,36 @@
       "constant": "CNA_KEY_MODIFIER_SHIFT"
     },
     {
+      "family": "LeaderboardKey",
+      "constant": "CNA_LEADERBOARD_KEY_MAXIMUM"
+    },
+    {
+      "family": "LeaderboardOutcome",
+      "constant": "CNA_LEADERBOARD_OUTCOME_MAXIMUM"
+    },
+    {
       "family": "MediaState",
       "constant": "CNA_MEDIA_STATE_MAXIMUM"
+    },
+    {
+      "family": "MessageBoxIcon",
+      "constant": "CNA_MESSAGE_BOX_ICON_MAXIMUM"
     },
     {
       "family": "MicrophoneState",
       "constant": "CNA_MICROPHONE_STATE_MAXIMUM"
     },
     {
+      "family": "NotificationPosition",
+      "constant": "CNA_NOTIFICATION_POSITION_MAXIMUM"
+    },
+    {
       "family": "PrimitiveType",
       "constant": "CNA_PRIMITIVE_POINT_LIST_EXT"
+    },
+    {
+      "family": "RacingCameraAngle",
+      "constant": "CNA_RACING_CAMERA_ANGLE_MAXIMUM"
     },
     {
       "family": "SurfaceFormat",
@@ -209,7 +277,7 @@
       "constant": "CNA_VIDEO_SOUNDTRACK_TYPE_MAXIMUM"
     }
   ],
-  "declaredCnaOnlyConstants": 48,
+  "declaredCnaOnlyConstants": 65,
   "diagnostics": [],
   "translations": [
     {

@@ -22,6 +22,9 @@ type PathModule = typeof import("node:path");
 type NodeStorage = { readonly Fs: FsModule; readonly Path: PathModule; readonly Root: string };
 
 class StorageAsyncResult<T> implements IAsyncResult {
+  // The operation always yields to the microtask queue before it completes, so it never finishes
+  // inside the Begin call that started it.
+  public readonly CompletedSynchronously = false;
   public IsCompleted = false;
   public Value: T | null = null;
   public Error: unknown = null;

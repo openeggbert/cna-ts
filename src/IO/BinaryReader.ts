@@ -1,7 +1,7 @@
 /** Little-endian, bounds-checked reader used by the TypeScript ContentReader projection. */
 export class BinaryReader {
-  readonly #bytes: Uint8Array;
-  readonly #view: DataView;
+  #bytes: Uint8Array;
+  #view: DataView;
   #position = 0;
 
   public constructor(bytes: Uint8Array) {
@@ -11,7 +11,24 @@ export class BinaryReader {
   }
 
   public get BaseStream(): Uint8Array { return new Uint8Array(this.#bytes); }
+
+  /**
+   * Internal: replaces the buffer and rewinds. A received network packet reuses one reader rather
+   * than allocating a new one every frame, which is why this exists.
+   */
+  public resetForInternalUse(bytes: Uint8Array): void {
+    this.#bytes = new Uint8Array(bytes);
+    this.#view = new DataView(this.#bytes.buffer, this.#bytes.byteOffset, this.#bytes.byteLength);
+    this.Position = 0;
+  }
   public get Position(): number { return this.#position; }
+  public set Position(value: number) {
+    const position = Math.trunc(value);
+    if (position < 0 || position > this.#bytes.byteLength) {
+      throw new RangeError("Position is outside the buffer");
+    }
+    this.#position = position;
+  }
   public get Length(): number { return this.#bytes.byteLength; }
   public get Remaining(): number { return this.Length - this.#position; }
 

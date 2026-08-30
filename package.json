@@ -53,6 +53,7 @@
     "api:inventory": "node tools/api-compat/missing-type-inventory.mjs --output docs/missing-type-inventory.md --json-output docs/missing-type-inventory.json",
     "api:profiles": "node tools/api-compat/profile-inventory.mjs --output docs/xna-profile-inventory.md --json-output docs/xna-profile-inventory.json",
     "api:verify": "node tools/api-compat/verify.mjs --summary-only",
+    "api:verify:live": "node tools/api-compat/verify.mjs --profile tools/api-compat/profiles/xna40-windows-live.json --summary-only",
     "verify:runtime": "npm run build && node tools/api-compat/verify-runtime.mjs",
     "verify:leaks": "npm run build && node tools/api-compat/verify.mjs --leak-only --summary-only",
     "runtime:inventory": "node tools/runtime-capabilities/generate.mjs",

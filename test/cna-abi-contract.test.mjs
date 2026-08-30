@@ -101,9 +101,10 @@ test("dropping a family leaves its TypeScript enum unclassified", { skip }, () =
   const report = withContract((contract) => {
     contract.enumFamilies = contract.enumFamilies.filter((entry) => entry.typeScriptEnum !== "SurfaceFormat");
   });
-  const diagnostic = report.diagnostics.find((entry) => entry.code === "UNCLASSIFIED_TYPESCRIPT_ENUM");
-  assert.ok(diagnostic);
-  assert.equal(diagnostic.subject, "SurfaceFormat");
+  const subjects = report.diagnostics
+    .filter((entry) => entry.code === "UNCLASSIFIED_TYPESCRIPT_ENUM")
+    .map((entry) => entry.subject);
+  assert.deepEqual(subjects, ["SurfaceFormat"]);
 });
 
 test("a declared translation with no translator is reported", { skip }, () => {

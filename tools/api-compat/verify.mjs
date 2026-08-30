@@ -194,6 +194,9 @@ function mapType(value, rules, typeGenericNames = [], methodGenericNames = []) {
       "System.Collections.Generic.List.Enumerator": "IterableIterator",
       "System.Collections.Generic.List`1+Enumerator": "IterableIterator",
       "System.Nullable`1": "Nullable",
+      // A CLR KeyValuePair is two named fields with no behaviour, which is a tuple in TypeScript.
+      // Projecting it as a class would add a type XNA never had to a dictionary walk.
+      "System.Collections.Generic.KeyValuePair`2": "KeyValuePair",
       "System.EventHandler`1": "XnaEventHandler",
       "System.IEquatable`1": "Microsoft.Xna.Framework.IEquatable",
       "System.IComparable`1": "Microsoft.Xna.Framework.IComparable",
@@ -204,6 +207,7 @@ function mapType(value, rules, typeGenericNames = [], methodGenericNames = []) {
       (argument) => mapType(argument, rules, typeGenericNames, methodGenericNames),
     );
     if (mappedBase === "Nullable") return [argumentsText[0], "null"].sort().join("|");
+    if (mappedBase === "KeyValuePair") return `[${argumentsText.join(",")}]`;
     return `${mappedBase}<${argumentsText.join(",")}>`;
   }
   if (value === "System.IDisposable") return "Microsoft.Xna.Framework.IDisposable";
@@ -605,14 +609,25 @@ function transformReference(reference, rules) {
   // declaration remains assignable to its declared base while preserving every callable shape.
   for (const type of types) {
     if (type.kind !== "class" || type.members == null || !type.baseType) continue;
-    const base = byName.get(type.baseType.replace(/<.*>$/, ""));
+    const genericBaseUse = splitMappedGeneric(type.baseType);
+    const base = byName.get(genericBaseUse?.base ?? type.baseType);
     if (!base?.members) continue;
+    // A derived type that binds its base's generic arguments inherits the *bound* signatures.
+    // Copying `Get(number): T` from GamerCollection<T> into SignedInGamerCollection unsubstituted
+    // would demand a declaration no TypeScript author would write.
+    const baseSubstitutions = new Map(
+      (base.genericParameters ?? []).map((parameter, index) => [
+        parameter.name,
+        genericBaseUse?.argumentsList[index] ?? parameter.name,
+      ]).filter(([name, value]) => name !== value),
+    );
     const overriddenNames = new Set(
       type.members.filter((member) => member.kind === "method").map((member) => member.name),
     );
     const signatures = new Set(type.members.map((member) => `${memberKey(member)}:${memberSignature(member)}`));
-    for (const member of base.members) {
-      if (member.kind !== "method" || !overriddenNames.has(member.name)) continue;
+    for (const original of base.members) {
+      if (original.kind !== "method" || !overriddenNames.has(original.name)) continue;
+      const member = substituteMember(original, baseSubstitutions);
       const key = `${memberKey(member)}:${memberSignature(member)}`;
       if (!signatures.has(key)) {
         type.members.push({ ...member, access: "public", abstract: false });
@@ -987,6 +1002,8 @@ function textReport(report, summaryOnly) {
     `REFERENCE_MEMBERS=${report.summary.referenceMembers ?? "N/A"}`,
     `EXPECTED_MAPPED_TYPES=${report.summary.expectedMappedTypes ?? "N/A"}`,
     `TARGET_TYPES=${report.summary.targetTypes}`,
+    `DECLARED_TYPES=${report.summary.declaredTypes ?? report.summary.targetTypes}`,
+    `SIBLING_PROFILE_TYPES=${report.summary.siblingProfileTypes ?? 0}`,
     `TOTAL_DIFFERENCES=${report.summary.totalDifferences}`,
     `ALLOWLIST_SIZE=${report.summary.allowlistSize}`,
     ...Object.entries(report.summary.diagnosticCounts).map(([code, count]) => `${code}=${count}`),
@@ -1020,21 +1037,61 @@ function textReport(report, summaryOnly) {
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * Where a sibling profile's assemblies live. Profiles record the subdirectory of the XNA Game
+ * Studio References tree they came from, so a caller who points at one profile's directory can
+ * still reach a sibling in another.
+ */
+function siblingReferenceDirectory(args, profile, siblingProfile) {
+  if (process.env.XNA_REFERENCE_ROOT && siblingProfile.referenceSubdirectory) {
+    return path.join(process.env.XNA_REFERENCE_ROOT, siblingProfile.referenceSubdirectory);
+  }
+  if (
+    profile.referenceSubdirectory && siblingProfile.referenceSubdirectory &&
+    profile.referenceSubdirectory !== siblingProfile.referenceSubdirectory
+  ) {
+    const root = path.resolve(args.referenceDir, "../".repeat(profile.referenceSubdirectory.split("/").length));
+    return path.join(root, siblingProfile.referenceSubdirectory);
+  }
+  return args.referenceDir;
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const profile = JSON.parse(fs.readFileSync(args.profile, "utf8"));
   const rules = JSON.parse(fs.readFileSync(args.rules, "utf8"));
   if (rules.allowlist.length !== 0) throw new Error("mapping allowlist must remain empty");
-  const target = readDeclarationModel(args.declarations);
+  const wholeTarget = readDeclarationModel(args.declarations);
+  let target = wholeTarget;
   let reference = null;
   let expected = null;
   let diagnostics;
+  let siblingTypes = 0;
   if (args.leakOnly) {
     diagnostics = leakDiagnostics(target);
   } else {
     const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "cna-ts-api-compat-"));
     try {
       reference = readReference(args.referenceDir, profile, temporary);
+      // Profiles that share a namespace with this one own their own types. Without this, adding
+      // Microsoft.Xna.Framework.Net to the package would make every one of its types an
+      // UNEXPECTED_TYPE against the Windows runtime profile, whose reference has never heard of
+      // them -- and the honest reading is that they belong to a different contract, not that they
+      // do not belong.
+      const owned = new Set();
+      for (const sibling of profile.siblingProfiles ?? []) {
+        const siblingPath = path.join(ROOT, "tools/api-compat/profiles", `${sibling}.json`);
+        const siblingProfile = JSON.parse(fs.readFileSync(siblingPath, "utf8"));
+        const siblingReference = readReference(
+          siblingReferenceDirectory(args, profile, siblingProfile), siblingProfile, temporary,
+        );
+        for (const type of siblingReference.types) owned.add(mapTypeIdentity(type.name, rules));
+      }
+      if (owned.size > 0) {
+        const kept = wholeTarget.types.filter((type) => !owned.has(type.name));
+        siblingTypes = wholeTarget.types.length - kept.length;
+        target = { ...wholeTarget, types: kept };
+      }
     } finally {
       fs.rmSync(temporary, { recursive: true, force: true });
     }
@@ -1045,11 +1102,15 @@ function main() {
     }
     diagnostics = compareTypes(expected, target, [
       ...transformed.mappingDiagnostics,
-      ...leakDiagnostics(target),
+      ...leakDiagnostics(wholeTarget),
     ], rules);
   }
   const report = {
-    summary: summary(reference, expected, target, diagnostics, rules),
+    summary: {
+      ...summary(reference, expected, target, diagnostics, rules),
+      siblingProfileTypes: siblingTypes,
+      declaredTypes: wholeTarget.types.length,
+    },
     diagnostics,
   };
   report.strictBaseline = args.leakOnly

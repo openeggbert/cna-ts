@@ -74,15 +74,14 @@ export namespace Collections {
 
 export interface Attribute {}
 
-export interface IAsyncResult {
-  readonly AsyncState: unknown;
-  readonly IsCompleted: boolean;
-}
+// One async contract, not two: these are the framework's own, re-exported so the internal helpers
+// can use them without importing across the boundary at every call site.
+export type { AsyncCallback, IAsyncResult } from "../Microsoft/Xna/Framework/Contracts.js";
+import type { IAsyncResult as FrameworkAsyncResult } from "../Microsoft/Xna/Framework/Contracts.js";
 
-export type AsyncCallback = (result: IAsyncResult) => void;
-
-export class CompletedAsyncResult<T> implements IAsyncResult {
+export class CompletedAsyncResult<T> implements FrameworkAsyncResult {
   public readonly IsCompleted = true;
+  public readonly CompletedSynchronously = true;
   public constructor(
     public readonly Value: T,
     public readonly AsyncState: unknown,

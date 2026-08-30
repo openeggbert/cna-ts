@@ -40,3 +40,23 @@ export interface TryResult<T> {
   readonly Success: boolean;
   readonly Value: T;
 }
+
+/**
+ * Structural projection of `System.IAsyncResult`, the handle XNA's `Begin.../End...` pair passes
+ * between them.
+ *
+ * `AsyncWaitHandle` is deliberately absent: it is a `System.Threading.WaitHandle`, and JavaScript
+ * has no blocking wait to project it onto. Everything a game does with one of these -- poll
+ * `IsCompleted`, carry `AsyncState`, hand it back to the matching `End...` -- is here.
+ */
+export interface IAsyncResult {
+  /** The caller-supplied state object passed to the `Begin...` call. */
+  readonly AsyncState: unknown;
+  /** Whether the operation finished before `Begin...` returned. */
+  readonly CompletedSynchronously: boolean;
+  /** Whether the operation has finished. */
+  readonly IsCompleted: boolean;
+}
+
+/** Projection of `System.AsyncCallback`, invoked when a `Begin...` operation completes. */
+export type AsyncCallback = (result: IAsyncResult) => void;

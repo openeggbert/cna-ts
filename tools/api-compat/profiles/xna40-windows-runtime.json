@@ -3,6 +3,9 @@
   "description": "Seven XNA 4.0 Windows runtime assemblies; other platform and build-time profiles stay separate.",
   "referenceSubdirectory": "Windows/x86",
   "role": "target",
+  "siblingProfiles": [
+    "xna40-windows-live"
+  ],
   "referenceAssemblies": [
     "Microsoft.Xna.Framework.dll",
     "Microsoft.Xna.Framework.Game.dll",
@@ -25,8 +28,9 @@
     "Microsoft.Xna.Framework"
   ],
   "strictBaseline": {
-    "targetTypes": 271,
+    "targetTypes": 274,
     "totalDifferences": 0,
-    "allowlistSize": 0
+    "allowlistSize": 0,
+    "note": "274 rather than the reference's 257: the difference is the package's shared support types -- IEquatable, IDisposable, TimeSpan, XnaEvent, IAsyncResult and the rest -- which belong to the package rather than to a profile and are declared as synthetic types in the mapping rules. Types owned by a sibling profile are excluded."
   }
 }

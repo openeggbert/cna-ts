@@ -71,12 +71,20 @@
     "reason": "constants that share a mapped family's prefix but have no XNA counterpart: MAXIMUM sentinels, _EXT extensions beyond XNA 4.0, state presets and type names, and sub-families that merely share a prefix. Listing them means a newly added one arrives as a diagnostic instead of passing unnoticed.",
     "constants": [
       "CNA_AUDIO_STOP_OPTIONS_MAXIMUM",
+      "CNA_AVATAR_ANIMATION_PRESET_MAXIMUM",
+      "CNA_AVATAR_BODY_TYPE_MAXIMUM",
+      "CNA_AVATAR_BONE_MAXIMUM",
+      "CNA_AVATAR_EYEBROW_MAXIMUM",
+      "CNA_AVATAR_EYE_MAXIMUM",
+      "CNA_AVATAR_MOUTH_MAXIMUM",
+      "CNA_AVATAR_RENDERER_STATE_MAXIMUM",
       "CNA_BLEND_STATE_PRESET_ADDITIVE",
       "CNA_BLEND_STATE_PRESET_ALPHA_BLEND",
       "CNA_BLEND_STATE_PRESET_DEFAULT",
       "CNA_BLEND_STATE_PRESET_NON_PREMULTIPLIED",
       "CNA_BLEND_STATE_PRESET_OPAQUE",
       "CNA_BLEND_STATE_TYPE_NAME",
+      "CNA_CONTROLLER_SENSITIVITY_MAXIMUM",
       "CNA_GAMEPAD_BUTTON_ALL",
       "CNA_GAMEPAD_BUTTON_LABEL_A",
       "CNA_GAMEPAD_BUTTON_LABEL_B",
@@ -94,6 +102,10 @@
       "CNA_GAMEPAD_BUTTON_PADDLE3_EXT",
       "CNA_GAMEPAD_BUTTON_PADDLE4_EXT",
       "CNA_GAMEPAD_BUTTON_TOUCH_PAD_EXT",
+      "CNA_GAMER_PRESENCE_MODE_MAXIMUM",
+      "CNA_GAMER_PRIVILEGE_SETTING_MAXIMUM",
+      "CNA_GAMER_ZONE_MAXIMUM",
+      "CNA_GAME_DIFFICULTY_MAXIMUM",
       "CNA_GESTURE_TYPE_ALL",
       "CNA_GRAPHICS_RENDERER_FALLBACK_MAXIMUM",
       "CNA_GRAPHICS_RENDERER_MAXIMUM",
@@ -107,9 +119,14 @@
       "CNA_KEY_MODIFIER_NUM",
       "CNA_KEY_MODIFIER_SCROLL",
       "CNA_KEY_MODIFIER_SHIFT",
+      "CNA_LEADERBOARD_KEY_MAXIMUM",
+      "CNA_LEADERBOARD_OUTCOME_MAXIMUM",
       "CNA_MEDIA_STATE_MAXIMUM",
+      "CNA_MESSAGE_BOX_ICON_MAXIMUM",
       "CNA_MICROPHONE_STATE_MAXIMUM",
+      "CNA_NOTIFICATION_POSITION_MAXIMUM",
       "CNA_PRIMITIVE_POINT_LIST_EXT",
+      "CNA_RACING_CAMERA_ANGLE_MAXIMUM",
       "CNA_SURFACE_FORMAT_BC7_EXT",
       "CNA_SURFACE_FORMAT_BC7_SRGB_EXT",
       "CNA_SURFACE_FORMAT_BYTE_EXT",
@@ -433,6 +450,126 @@
         "PortableGL": "PORTABLEGL",
         "PixiJs": "PIXIJS"
       }
+    },
+    {
+      "typeScriptEnum": "AvatarAnimationPreset",
+      "cnaPrefix": "CNA_AVATAR_ANIMATION_PRESET",
+      "suffixOverrides": {
+        "Stand0": "STAND_0",
+        "Stand1": "STAND_1",
+        "Stand2": "STAND_2",
+        "Stand3": "STAND_3",
+        "Stand4": "STAND_4",
+        "Stand5": "STAND_5",
+        "Stand6": "STAND_6",
+        "Stand7": "STAND_7"
+      }
+    },
+    {
+      "typeScriptEnum": "AvatarBodyType",
+      "cnaPrefix": "CNA_AVATAR_BODY_TYPE"
+    },
+    {
+      "typeScriptEnum": "AvatarBone",
+      "cnaPrefix": "CNA_AVATAR_BONE",
+      "suffixOverrides": {
+        "FingerIndex2Left": "FINGER_INDEX_2_LEFT",
+        "FingerIndex2Right": "FINGER_INDEX_2_RIGHT",
+        "FingerIndex3Left": "FINGER_INDEX_3_LEFT",
+        "FingerIndex3Right": "FINGER_INDEX_3_RIGHT",
+        "FingerMiddle2Left": "FINGER_MIDDLE_2_LEFT",
+        "FingerMiddle2Right": "FINGER_MIDDLE_2_RIGHT",
+        "FingerMiddle3Left": "FINGER_MIDDLE_3_LEFT",
+        "FingerMiddle3Right": "FINGER_MIDDLE_3_RIGHT",
+        "FingerRing2Left": "FINGER_RING_2_LEFT",
+        "FingerRing2Right": "FINGER_RING_2_RIGHT",
+        "FingerRing3Left": "FINGER_RING_3_LEFT",
+        "FingerRing3Right": "FINGER_RING_3_RIGHT",
+        "FingerSmall2Left": "FINGER_SMALL_2_LEFT",
+        "FingerSmall2Right": "FINGER_SMALL_2_RIGHT",
+        "FingerSmall3Left": "FINGER_SMALL_3_LEFT",
+        "FingerSmall3Right": "FINGER_SMALL_3_RIGHT",
+        "FingerThumb2Left": "FINGER_THUMB_2_LEFT",
+        "FingerThumb2Right": "FINGER_THUMB_2_RIGHT",
+        "FingerThumb3Left": "FINGER_THUMB_3_LEFT",
+        "FingerThumb3Right": "FINGER_THUMB_3_RIGHT"
+      }
+    },
+    {
+      "typeScriptEnum": "AvatarEye",
+      "cnaPrefix": "CNA_AVATAR_EYE"
+    },
+    {
+      "typeScriptEnum": "AvatarEyebrow",
+      "cnaPrefix": "CNA_AVATAR_EYEBROW"
+    },
+    {
+      "typeScriptEnum": "AvatarMouth",
+      "cnaPrefix": "CNA_AVATAR_MOUTH"
+    },
+    {
+      "typeScriptEnum": "AvatarRendererState",
+      "cnaPrefix": "CNA_AVATAR_RENDERER_STATE"
+    },
+    {
+      "typeScriptEnum": "ControllerSensitivity",
+      "cnaPrefix": "CNA_CONTROLLER_SENSITIVITY"
+    },
+    {
+      "typeScriptEnum": "GameDifficulty",
+      "cnaPrefix": "CNA_GAME_DIFFICULTY"
+    },
+    {
+      "typeScriptEnum": "GamerPresenceMode",
+      "cnaPrefix": "CNA_GAMER_PRESENCE_MODE"
+    },
+    {
+      "typeScriptEnum": "GamerPrivilegeSetting",
+      "cnaPrefix": "CNA_GAMER_PRIVILEGE_SETTING"
+    },
+    {
+      "typeScriptEnum": "GamerZone",
+      "cnaPrefix": "CNA_GAMER_ZONE"
+    },
+    {
+      "typeScriptEnum": "LeaderboardKey",
+      "cnaPrefix": "CNA_LEADERBOARD_KEY"
+    },
+    {
+      "typeScriptEnum": "LeaderboardOutcome",
+      "cnaPrefix": "CNA_LEADERBOARD_OUTCOME"
+    },
+    {
+      "typeScriptEnum": "MessageBoxIcon",
+      "cnaPrefix": "CNA_MESSAGE_BOX_ICON"
+    },
+    {
+      "typeScriptEnum": "NotificationPosition",
+      "cnaPrefix": "CNA_NOTIFICATION_POSITION"
+    },
+    {
+      "typeScriptEnum": "RacingCameraAngle",
+      "cnaPrefix": "CNA_RACING_CAMERA_ANGLE"
+    },
+    {
+      "typeScriptEnum": "NetworkSessionEndReason",
+      "cnaPrefix": "CNA_NETWORK_SESSION_END_REASON"
+    },
+    {
+      "typeScriptEnum": "NetworkSessionJoinError",
+      "cnaPrefix": "CNA_NETWORK_SESSION_JOIN_ERROR"
+    },
+    {
+      "typeScriptEnum": "NetworkSessionState",
+      "cnaPrefix": "CNA_NETWORK_SESSION_STATE"
+    },
+    {
+      "typeScriptEnum": "NetworkSessionType",
+      "cnaPrefix": "CNA_NETWORK_SESSION_TYPE"
+    },
+    {
+      "typeScriptEnum": "SendDataOptions",
+      "cnaPrefix": "CNA_SEND_DATA_OPTIONS"
     }
   ]
 }
