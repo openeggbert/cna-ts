@@ -102,6 +102,7 @@ try {
       `import { Color, GetRuntimeStatus, Microsoft, Vector2 } from "cna-ts";\n` +
       `import { Vector3 } from "cna-ts/xna";\n` +
       `import { GetRendererInfo } from "cna-ts/extensions";\n` +
+      `import { GetPlatformInfo, GraphicsRendererType, RendererSelection } from "cna-ts/extensions/runtime";\n` +
       `import { NativeUnavailableError } from "cna-ts/runtime";\n` +
       `assert.equal(Vector2.Add(new Vector2(1, 2), new Vector2(3, 4)).X, 4);\n` +
       `assert.equal(new Vector3(1).Z, 1);\n` +
@@ -109,7 +110,11 @@ try {
       `assert.equal(Microsoft.Xna.Framework.Vector2, Vector2);\n` +
       `assert.equal(GetRuntimeStatus().IsAvailable, false);\n` +
       `assert.throws(() => GetRendererInfo(), NativeUnavailableError);\n` +
-      `await assert.rejects(import("cna-ts/internal/backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n`,
+      `assert.equal(GraphicsRendererType.WebGL2, 6);\n` +
+      `assert.throws(() => GetPlatformInfo(), NativeUnavailableError);\n` +
+      `assert.throws(() => RendererSelection.GetState(), NativeUnavailableError);\n` +
+      `await assert.rejects(import("cna-ts/internal/backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n` +
+      `await assert.rejects(import("cna-ts/internal/wasm/wasm-backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n`,
   );
   installTarball(javascript, tarball);
   run(process.execPath, ["main.mjs"], javascript);
@@ -137,13 +142,16 @@ try {
     `import { Color, Microsoft, Vector2 } from "cna-ts";\n` +
       `import { Matrix, Vector3 } from "cna-ts/xna";\n` +
       `import type { RendererInfo } from "cna-ts/extensions";\n` +
+      `import type { CnaPlatformInfo, RendererIdentity } from "cna-ts/extensions/runtime";\n` +
       `import type { RuntimeStatus } from "cna-ts/runtime";\n` +
       `const vector: Vector2 = Vector2.Transform(Vector2.One, Matrix.Identity);\n` +
       `const color: Color = Microsoft.Xna.Framework.Color.White;\n` +
       `const vector3: Vector3 = Vector3.Cross(Vector3.UnitX, Vector3.UnitY);\n` +
       `const status: RuntimeStatus | undefined = undefined;\n` +
       `const renderer: RendererInfo | undefined = undefined;\n` +
-      `void [vector, color, vector3, status, renderer];\n`,
+      `const platform: CnaPlatformInfo | undefined = undefined;\n` +
+      `const identity: RendererIdentity | undefined = undefined;\n` +
+      `void [vector, color, vector3, status, renderer, platform, identity];\n`,
   );
   installTarball(typescript, tarball);
   run(
