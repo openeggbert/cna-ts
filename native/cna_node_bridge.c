@@ -318,6 +318,21 @@ typedef CNA_Result (*CnbEncodeSpriteFontFn)(CNA_CnbSpriteFontDataHandle, CNA_Str
 typedef CNA_Result (*CnbTextureDataDestroyFn)(CNA_CnbTextureDataHandle);
 typedef CNA_Result (*CnbDocumentDestroyFn)(CNA_CnbDocumentHandle);
 
+
+/* --- the engine layer's post-process chain --------------------------------------------------- */
+typedef CNA_Result (*PostProcessContextInitFn)(CNA_PostProcessContext*);
+typedef CNA_Result (*PostProcessPassCreateFn)(CNA_Handle, CNA_PostProcessPassHandle*);
+typedef CNA_Result (*PostProcessPassApplyFn)(CNA_PostProcessPassHandle, const CNA_PostProcessContext*);
+typedef CNA_Result (*PostProcessPassSupportedFn)(CNA_PostProcessPassHandle, CNA_Handle, CNA_Bool*);
+typedef CNA_Result (*PostProcessChainApplyFn)(CNA_PostProcessChainHandle, const CNA_PostProcessContext*);
+typedef CNA_Result (*PostProcessChainTimingFn)(CNA_PostProcessChainHandle, uint64_t, CNA_PassTimingEXT*);
+typedef CNA_Result (*PostProcessChainTimingNameFn)(
+  CNA_PostProcessChainHandle, uint64_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*HandleI32Fn)(CNA_Handle, int32_t);
+typedef CNA_Result (*U32ToI32OutFn)(uint32_t, int32_t*);
+typedef CNA_Result (*U32ToFloatOutFn)(uint32_t, float*);
+typedef CNA_Result (*HandleU32Fn)(CNA_Handle, uint32_t);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -798,6 +813,76 @@ typedef struct Api {
   CnbSpriteFontSetAtlasFn cnb_sprite_font_data_set_atlas;
   CnbSpriteFontCopyAtlasFn cnb_sprite_font_data_copy_atlas;
   CnbEncodeSpriteFontFn cnb_encode_sprite_font;
+
+  PostProcessContextInitFn post_process_context_init;
+  PostProcessPassCreateFn blit_pass_create;
+  PostProcessPassCreateFn bloom_pass_create;
+  PostProcessPassCreateFn tonemap_pass_create;
+  PostProcessPassCreateFn fxaa_pass_create;
+  PostProcessPassCreateFn ssao_pass_create;
+  PostProcessPassCreateFn ssr_pass_create;
+  HandleFloatOutFn bloom_get_intensity;
+  HandleFloatFn bloom_set_intensity;
+  HandleFloatOutFn bloom_get_threshold;
+  HandleFloatFn bloom_set_threshold;
+  HandleFloatOutFn tonemap_get_exposure;
+  HandleFloatFn tonemap_set_exposure;
+  HandleFloatOutFn tonemap_get_gamma;
+  HandleFloatFn tonemap_set_gamma;
+  HandleFloatOutFn tonemap_get_deband_strength;
+  HandleFloatFn tonemap_set_deband_strength;
+  HandleFloatOutFn fxaa_get_edge_threshold;
+  HandleFloatFn fxaa_set_edge_threshold;
+  HandleFloatOutFn ssao_get_radius;
+  HandleFloatFn ssao_set_radius;
+  HandleFloatOutFn ssao_get_intensity;
+  HandleFloatFn ssao_set_intensity;
+  HandleFloatOutFn ssr_get_intensity;
+  HandleFloatFn ssr_set_intensity;
+  HandleFloatOutFn ssr_get_max_distance;
+  HandleFloatFn ssr_set_max_distance;
+  HandleFloatOutFn ssr_get_thickness;
+  HandleFloatFn ssr_set_thickness;
+  HandleFloatOutFn ssr_get_depth_bias;
+  HandleFloatFn ssr_set_depth_bias;
+  HandleFloatOutFn ssr_get_edge_fade;
+  HandleFloatFn ssr_set_edge_fade;
+  HandleFloatOutFn ssr_get_roughness_blur;
+  HandleFloatFn ssr_set_roughness_blur;
+  HandleI32OutFn bloom_get_iterations;
+  HandleI32Fn bloom_set_iterations;
+  HandleI32OutFn ssao_get_sample_count;
+  HandleI32Fn ssao_set_sample_count;
+  HandleI32OutFn ssr_get_step_count;
+  HandleI32Fn ssr_set_step_count;
+  BoolGetFn ssao_get_half_resolution;
+  HandleBoolFn ssao_set_half_resolution;
+  GameU32OutFn tonemap_get_mode;
+  HandleU32Fn tonemap_set_mode;
+  BoolGetFn tonemap_is_deband_enabled;
+  HandleBoolFn tonemap_set_deband_enabled;
+  U32ToI32OutFn bloom_iterations_for_quality;
+  U32ToFloatOutFn fxaa_edge_threshold_for_quality;
+  U32ToI32OutFn ssao_sample_count_for_quality;
+  GameHandleFn bloom_reset_targets;
+  GameHandleFn ssao_reset_targets;
+  PostProcessPassApplyFn post_process_pass_apply;
+  HandleCopyStringFn post_process_pass_copy_name;
+  PostProcessPassSupportedFn post_process_pass_is_supported;
+  GameHandleFn post_process_pass_destroy;
+  HandleHandleOutFn post_process_chain_create;
+  GameHandleFn post_process_chain_destroy;
+  TwoHandleFn post_process_chain_add_pass;
+  TwoHandleFn post_process_chain_add_owned_pass;
+  GameHandleFn post_process_chain_clear;
+  HandleI32OutFn post_process_chain_get_pass_count;
+  PostProcessChainApplyFn post_process_chain_apply;
+  GameHandleFn post_process_chain_reset_targets;
+  BoolGetFn post_process_chain_is_gpu_timing_enabled;
+  HandleBoolFn post_process_chain_set_gpu_timing_enabled;
+  HandleU64OutFn post_process_chain_get_pass_timing_count;
+  PostProcessChainTimingFn post_process_chain_get_pass_timing;
+  PostProcessChainTimingNameFn post_process_chain_copy_pass_timing_name;
 } Api;
 
 typedef struct GameContext {
@@ -1589,6 +1674,77 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(cnb_sprite_font_data_set_atlas, CnbSpriteFontSetAtlasFn, "cna_cnb_sprite_font_data_set_atlas");
   LOAD_REQUIRED(cnb_sprite_font_data_copy_atlas, CnbSpriteFontCopyAtlasFn, "cna_cnb_sprite_font_data_copy_atlas");
   LOAD_REQUIRED(cnb_encode_sprite_font, CnbEncodeSpriteFontFn, "cna_cnb_encode_sprite_font");
+
+
+  LOAD_REQUIRED(post_process_context_init, PostProcessContextInitFn, "cna_post_process_context_init");
+  LOAD_REQUIRED(blit_pass_create, PostProcessPassCreateFn, "cna_blit_pass_create");
+  LOAD_REQUIRED(bloom_pass_create, PostProcessPassCreateFn, "cna_bloom_pass_create");
+  LOAD_REQUIRED(tonemap_pass_create, PostProcessPassCreateFn, "cna_tonemap_pass_create");
+  LOAD_REQUIRED(fxaa_pass_create, PostProcessPassCreateFn, "cna_fxaa_pass_create");
+  LOAD_REQUIRED(ssao_pass_create, PostProcessPassCreateFn, "cna_ssao_pass_create");
+  LOAD_REQUIRED(ssr_pass_create, PostProcessPassCreateFn, "cna_ssr_pass_create");
+  LOAD_REQUIRED(bloom_get_intensity, HandleFloatOutFn, "cna_bloom_pass_get_intensity");
+  LOAD_REQUIRED(bloom_set_intensity, HandleFloatFn, "cna_bloom_pass_set_intensity");
+  LOAD_REQUIRED(bloom_get_threshold, HandleFloatOutFn, "cna_bloom_pass_get_threshold");
+  LOAD_REQUIRED(bloom_set_threshold, HandleFloatFn, "cna_bloom_pass_set_threshold");
+  LOAD_REQUIRED(tonemap_get_exposure, HandleFloatOutFn, "cna_tonemap_pass_get_exposure");
+  LOAD_REQUIRED(tonemap_set_exposure, HandleFloatFn, "cna_tonemap_pass_set_exposure");
+  LOAD_REQUIRED(tonemap_get_gamma, HandleFloatOutFn, "cna_tonemap_pass_get_gamma");
+  LOAD_REQUIRED(tonemap_set_gamma, HandleFloatFn, "cna_tonemap_pass_set_gamma");
+  LOAD_REQUIRED(tonemap_get_deband_strength, HandleFloatOutFn, "cna_tonemap_pass_get_deband_strength");
+  LOAD_REQUIRED(tonemap_set_deband_strength, HandleFloatFn, "cna_tonemap_pass_set_deband_strength");
+  LOAD_REQUIRED(fxaa_get_edge_threshold, HandleFloatOutFn, "cna_fxaa_pass_get_edge_threshold");
+  LOAD_REQUIRED(fxaa_set_edge_threshold, HandleFloatFn, "cna_fxaa_pass_set_edge_threshold");
+  LOAD_REQUIRED(ssao_get_radius, HandleFloatOutFn, "cna_ssao_pass_get_radius");
+  LOAD_REQUIRED(ssao_set_radius, HandleFloatFn, "cna_ssao_pass_set_radius");
+  LOAD_REQUIRED(ssao_get_intensity, HandleFloatOutFn, "cna_ssao_pass_get_intensity");
+  LOAD_REQUIRED(ssao_set_intensity, HandleFloatFn, "cna_ssao_pass_set_intensity");
+  LOAD_REQUIRED(ssr_get_intensity, HandleFloatOutFn, "cna_ssr_pass_get_intensity");
+  LOAD_REQUIRED(ssr_set_intensity, HandleFloatFn, "cna_ssr_pass_set_intensity");
+  LOAD_REQUIRED(ssr_get_max_distance, HandleFloatOutFn, "cna_ssr_pass_get_max_distance");
+  LOAD_REQUIRED(ssr_set_max_distance, HandleFloatFn, "cna_ssr_pass_set_max_distance");
+  LOAD_REQUIRED(ssr_get_thickness, HandleFloatOutFn, "cna_ssr_pass_get_thickness");
+  LOAD_REQUIRED(ssr_set_thickness, HandleFloatFn, "cna_ssr_pass_set_thickness");
+  LOAD_REQUIRED(ssr_get_depth_bias, HandleFloatOutFn, "cna_ssr_pass_get_depth_bias");
+  LOAD_REQUIRED(ssr_set_depth_bias, HandleFloatFn, "cna_ssr_pass_set_depth_bias");
+  LOAD_REQUIRED(ssr_get_edge_fade, HandleFloatOutFn, "cna_ssr_pass_get_edge_fade");
+  LOAD_REQUIRED(ssr_set_edge_fade, HandleFloatFn, "cna_ssr_pass_set_edge_fade");
+  LOAD_REQUIRED(ssr_get_roughness_blur, HandleFloatOutFn, "cna_ssr_pass_get_roughness_blur");
+  LOAD_REQUIRED(ssr_set_roughness_blur, HandleFloatFn, "cna_ssr_pass_set_roughness_blur");
+  LOAD_REQUIRED(bloom_get_iterations, HandleI32OutFn, "cna_bloom_pass_get_iterations");
+  LOAD_REQUIRED(bloom_set_iterations, HandleI32Fn, "cna_bloom_pass_set_iterations");
+  LOAD_REQUIRED(ssao_get_sample_count, HandleI32OutFn, "cna_ssao_pass_get_sample_count");
+  LOAD_REQUIRED(ssao_set_sample_count, HandleI32Fn, "cna_ssao_pass_set_sample_count");
+  LOAD_REQUIRED(ssr_get_step_count, HandleI32OutFn, "cna_ssr_pass_get_step_count");
+  LOAD_REQUIRED(ssr_set_step_count, HandleI32Fn, "cna_ssr_pass_set_step_count");
+  LOAD_REQUIRED(ssao_get_half_resolution, BoolGetFn, "cna_ssao_pass_get_half_resolution");
+  LOAD_REQUIRED(ssao_set_half_resolution, HandleBoolFn, "cna_ssao_pass_set_half_resolution");
+  LOAD_REQUIRED(tonemap_get_mode, GameU32OutFn, "cna_tonemap_pass_get_mode");
+  LOAD_REQUIRED(tonemap_set_mode, HandleU32Fn, "cna_tonemap_pass_set_mode");
+  LOAD_REQUIRED(tonemap_is_deband_enabled, BoolGetFn, "cna_tonemap_pass_is_deband_enabled");
+  LOAD_REQUIRED(tonemap_set_deband_enabled, HandleBoolFn, "cna_tonemap_pass_set_deband_enabled");
+  LOAD_REQUIRED(bloom_iterations_for_quality, U32ToI32OutFn, "cna_bloom_pass_iterations_for_quality");
+  LOAD_REQUIRED(fxaa_edge_threshold_for_quality, U32ToFloatOutFn, "cna_fxaa_pass_edge_threshold_for_quality");
+  LOAD_REQUIRED(ssao_sample_count_for_quality, U32ToI32OutFn, "cna_ssao_pass_sample_count_for_quality");
+  LOAD_REQUIRED(bloom_reset_targets, GameHandleFn, "cna_bloom_pass_reset_targets");
+  LOAD_REQUIRED(ssao_reset_targets, GameHandleFn, "cna_ssao_pass_reset_targets");
+  LOAD_REQUIRED(post_process_pass_apply, PostProcessPassApplyFn, "cna_post_process_pass_apply");
+  LOAD_REQUIRED(post_process_pass_copy_name, HandleCopyStringFn, "cna_post_process_pass_copy_name");
+  LOAD_REQUIRED(post_process_pass_is_supported, PostProcessPassSupportedFn, "cna_post_process_pass_is_supported");
+  LOAD_REQUIRED(post_process_pass_destroy, GameHandleFn, "cna_post_process_pass_destroy");
+  LOAD_REQUIRED(post_process_chain_create, HandleHandleOutFn, "cna_post_process_chain_create");
+  LOAD_REQUIRED(post_process_chain_destroy, GameHandleFn, "cna_post_process_chain_destroy");
+  LOAD_REQUIRED(post_process_chain_add_pass, TwoHandleFn, "cna_post_process_chain_add_pass");
+  LOAD_REQUIRED(post_process_chain_add_owned_pass, TwoHandleFn, "cna_post_process_chain_add_owned_pass");
+  LOAD_REQUIRED(post_process_chain_clear, GameHandleFn, "cna_post_process_chain_clear");
+  LOAD_REQUIRED(post_process_chain_get_pass_count, HandleI32OutFn, "cna_post_process_chain_get_pass_count");
+  LOAD_REQUIRED(post_process_chain_apply, PostProcessChainApplyFn, "cna_post_process_chain_apply");
+  LOAD_REQUIRED(post_process_chain_reset_targets, GameHandleFn, "cna_post_process_chain_reset_targets");
+  LOAD_REQUIRED(post_process_chain_is_gpu_timing_enabled, BoolGetFn, "cna_post_process_chain_is_gpu_timing_enabled");
+  LOAD_REQUIRED(post_process_chain_set_gpu_timing_enabled, HandleBoolFn, "cna_post_process_chain_set_gpu_timing_enabled");
+  LOAD_REQUIRED(post_process_chain_get_pass_timing_count, HandleU64OutFn, "cna_post_process_chain_get_pass_timing_count");
+  LOAD_REQUIRED(post_process_chain_get_pass_timing, PostProcessChainTimingFn, "cna_post_process_chain_get_pass_timing");
+  LOAD_REQUIRED(post_process_chain_copy_pass_timing_name, PostProcessChainTimingNameFn, "cna_post_process_chain_copy_pass_timing_name");
 
   napi_value undefined;
   NAPI_OR_RETURN(env, napi_get_undefined(env, &undefined), "load result");
@@ -8038,6 +8194,615 @@ static napi_value cnb_encode_sprite_font(napi_env env, napi_callback_info info) 
   return output;
 }
 
+/* --- the engine layer's post-process chain --------------------------------------------------- */
+/*
+ * A chain and its passes. Two ownership rules from `engine_layer.h` are what shape this: a pass
+ * added with `add_pass` stays the caller's and must outlive the chain's use of it, while
+ * `add_owned_pass` *consumes* the handle -- the one route in the layer that invalidates a handle a
+ * caller still holds. Both are exposed, distinctly, because collapsing them into a flag is how a
+ * caller ends up double-freeing a pass.
+ */
+
+static int read_post_process_context(napi_env env, napi_value value, CNA_PostProcessContext* context) {
+  CNA_Result result = g_api.post_process_context_init(context);
+  if (result != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_post_process_context_init", result);
+    return 0;
+  }
+  napi_value entry;
+  int32_t width = 0, height = 0;
+  if (napi_get_named_property(env, value, "Source", &entry) != napi_ok ||
+      !read_handle_allow_zero(env, entry, &context->source) ||
+      napi_get_named_property(env, value, "Destination", &entry) != napi_ok ||
+      !read_handle_allow_zero(env, entry, &context->destination) ||
+      napi_get_named_property(env, value, "Width", &entry) != napi_ok ||
+      napi_get_value_int32(env, entry, &width) != napi_ok ||
+      napi_get_named_property(env, value, "Height", &entry) != napi_ok ||
+      napi_get_value_int32(env, entry, &height) != napi_ok) {
+    throw_message(env, "a post-process frame needs Source, Destination, Width and Height");
+    return 0;
+  }
+  context->width = width;
+  context->height = height;
+  static const char* const optional_handles[] = {"SourceDepth", "SourceNormals", "SourceVelocity"};
+  CNA_Handle* const targets[] = {
+    &context->source_depth, &context->source_normals, &context->source_velocity};
+  for (size_t index = 0; index < 3; index += 1) {
+    if (napi_get_named_property(env, value, optional_handles[index], &entry) != napi_ok ||
+        !read_handle_allow_zero(env, entry, targets[index])) {
+      throw_message(env, "a post-process frame's optional inputs must be handles or zero");
+      return 0;
+    }
+  }
+  static const char* const scalars[] = {"ElapsedSeconds", "NearPlane", "FarPlane"};
+  float* const scalar_targets[] = {&context->elapsed_seconds, &context->near_plane, &context->far_plane};
+  for (size_t index = 0; index < 3; index += 1) {
+    double scalar = 0;
+    if (napi_get_named_property(env, value, scalars[index], &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &scalar) != napi_ok) {
+      throw_message(env, "a post-process frame's camera scalars must be numbers");
+      return 0;
+    }
+    *scalar_targets[index] = (float) scalar;
+  }
+  return 1;
+}
+
+static napi_value pp_create(
+  napi_env env, napi_callback_info info, PostProcessPassCreateFn route, const char* name
+) {
+  napi_value args[1];
+  CNA_Handle device = 0;
+  CNA_PostProcessPassHandle pass = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  const CNA_Result result = route(device, &pass);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return make_handle(env, pass);
+}
+
+static napi_value pp_get_float(
+  napi_env env, napi_callback_info info, HandleFloatOutFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle pass = 0;
+  float value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pass)) return NULL;
+  const CNA_Result result = route(pass, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) value, &output), name);
+  return output;
+}
+
+static napi_value pp_set_float(
+  napi_env env, napi_callback_info info, HandleFloatFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle pass = 0;
+  double value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pass) ||
+      napi_get_value_double(env, args[1], &value) != napi_ok) {
+    return throw_message(env, "expected a post-process pass and a number");
+  }
+  const CNA_Result result = route(pass, (float) value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value pp_get_i32(
+  napi_env env, napi_callback_info info, HandleI32OutFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle pass = 0;
+  int32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pass)) return NULL;
+  const CNA_Result result = route(pass, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_int32(env, value, &output), name);
+  return output;
+}
+
+static napi_value pp_set_i32(
+  napi_env env, napi_callback_info info, HandleI32Fn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle pass = 0;
+  int32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pass) ||
+      napi_get_value_int32(env, args[1], &value) != napi_ok) {
+    return throw_message(env, "expected a post-process pass and an integer");
+  }
+  const CNA_Result result = route(pass, value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value pp_get_bool(
+  napi_env env, napi_callback_info info, BoolGetFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle pass = 0;
+  CNA_Bool value = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pass)) return NULL;
+  const CNA_Result result = route(pass, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, value != CNA_FALSE, &output), name);
+  return output;
+}
+
+static napi_value pp_set_bool(
+  napi_env env, napi_callback_info info, HandleBoolFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle pass = 0;
+  bool value = false;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pass) ||
+      napi_get_value_bool(env, args[1], &value) != napi_ok) {
+    return throw_message(env, "expected a post-process pass and a boolean");
+  }
+  const CNA_Result result = route(pass, value ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value pp_quality_i32(
+  napi_env env, napi_callback_info info, U32ToI32OutFn route, const char* name
+) {
+  napi_value args[1], output;
+  uint32_t quality = 0;
+  int32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &quality) != napi_ok) {
+    return throw_message(env, "expected a render quality");
+  }
+  const CNA_Result result = route(quality, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_int32(env, value, &output), name);
+  return output;
+}
+
+static napi_value pp_handle_only(
+  napi_env env, napi_callback_info info, GameHandleFn route, const char* name
+) {
+  napi_value args[1];
+  CNA_Handle handle = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &handle)) return NULL;
+  const CNA_Result result = route(handle);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value create_blit_pass(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.blit_pass_create, "cna_blit_pass_create");
+}
+
+static napi_value create_bloom_pass(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.bloom_pass_create, "cna_bloom_pass_create");
+}
+
+static napi_value create_tonemap_pass(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.tonemap_pass_create, "cna_tonemap_pass_create");
+}
+
+static napi_value create_fxaa_pass(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.fxaa_pass_create, "cna_fxaa_pass_create");
+}
+
+static napi_value create_ssao_pass(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.ssao_pass_create, "cna_ssao_pass_create");
+}
+
+static napi_value create_ssr_pass(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.ssr_pass_create, "cna_ssr_pass_create");
+}
+
+static napi_value bloom_get_intensity_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.bloom_get_intensity, "cna_bloom_pass_get_intensity");
+}
+
+static napi_value bloom_set_intensity_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.bloom_set_intensity, "cna_bloom_pass_set_intensity");
+}
+
+static napi_value bloom_get_threshold_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.bloom_get_threshold, "cna_bloom_pass_get_threshold");
+}
+
+static napi_value bloom_set_threshold_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.bloom_set_threshold, "cna_bloom_pass_set_threshold");
+}
+
+static napi_value tonemap_get_exposure_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.tonemap_get_exposure, "cna_tonemap_pass_get_exposure");
+}
+
+static napi_value tonemap_set_exposure_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.tonemap_set_exposure, "cna_tonemap_pass_set_exposure");
+}
+
+static napi_value tonemap_get_gamma_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.tonemap_get_gamma, "cna_tonemap_pass_get_gamma");
+}
+
+static napi_value tonemap_set_gamma_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.tonemap_set_gamma, "cna_tonemap_pass_set_gamma");
+}
+
+static napi_value tonemap_get_deband_strength_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.tonemap_get_deband_strength, "cna_tonemap_pass_get_deband_strength");
+}
+
+static napi_value tonemap_set_deband_strength_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.tonemap_set_deband_strength, "cna_tonemap_pass_set_deband_strength");
+}
+
+static napi_value fxaa_get_edge_threshold_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.fxaa_get_edge_threshold, "cna_fxaa_pass_get_edge_threshold");
+}
+
+static napi_value fxaa_set_edge_threshold_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.fxaa_set_edge_threshold, "cna_fxaa_pass_set_edge_threshold");
+}
+
+static napi_value ssao_get_radius_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.ssao_get_radius, "cna_ssao_pass_get_radius");
+}
+
+static napi_value ssao_set_radius_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.ssao_set_radius, "cna_ssao_pass_set_radius");
+}
+
+static napi_value ssao_get_intensity_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.ssao_get_intensity, "cna_ssao_pass_get_intensity");
+}
+
+static napi_value ssao_set_intensity_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.ssao_set_intensity, "cna_ssao_pass_set_intensity");
+}
+
+static napi_value ssr_get_intensity_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.ssr_get_intensity, "cna_ssr_pass_get_intensity");
+}
+
+static napi_value ssr_set_intensity_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.ssr_set_intensity, "cna_ssr_pass_set_intensity");
+}
+
+static napi_value ssr_get_max_distance_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.ssr_get_max_distance, "cna_ssr_pass_get_max_distance");
+}
+
+static napi_value ssr_set_max_distance_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.ssr_set_max_distance, "cna_ssr_pass_set_max_distance");
+}
+
+static napi_value ssr_get_thickness_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.ssr_get_thickness, "cna_ssr_pass_get_thickness");
+}
+
+static napi_value ssr_set_thickness_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.ssr_set_thickness, "cna_ssr_pass_set_thickness");
+}
+
+static napi_value ssr_get_depth_bias_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.ssr_get_depth_bias, "cna_ssr_pass_get_depth_bias");
+}
+
+static napi_value ssr_set_depth_bias_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.ssr_set_depth_bias, "cna_ssr_pass_set_depth_bias");
+}
+
+static napi_value ssr_get_edge_fade_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.ssr_get_edge_fade, "cna_ssr_pass_get_edge_fade");
+}
+
+static napi_value ssr_set_edge_fade_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.ssr_set_edge_fade, "cna_ssr_pass_set_edge_fade");
+}
+
+static napi_value ssr_get_roughness_blur_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.ssr_get_roughness_blur, "cna_ssr_pass_get_roughness_blur");
+}
+
+static napi_value ssr_set_roughness_blur_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.ssr_set_roughness_blur, "cna_ssr_pass_set_roughness_blur");
+}
+
+static napi_value bloom_get_iterations_value(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.bloom_get_iterations, "cna_bloom_pass_get_iterations");
+}
+
+static napi_value bloom_set_iterations_value(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, g_api.bloom_set_iterations, "cna_bloom_pass_set_iterations");
+}
+
+static napi_value ssao_get_sample_count_value(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.ssao_get_sample_count, "cna_ssao_pass_get_sample_count");
+}
+
+static napi_value ssao_set_sample_count_value(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, g_api.ssao_set_sample_count, "cna_ssao_pass_set_sample_count");
+}
+
+static napi_value ssr_get_step_count_value(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.ssr_get_step_count, "cna_ssr_pass_get_step_count");
+}
+
+static napi_value ssr_set_step_count_value(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, g_api.ssr_set_step_count, "cna_ssr_pass_set_step_count");
+}
+
+static napi_value ssao_get_half_resolution_value(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.ssao_get_half_resolution, "cna_ssao_pass_get_half_resolution");
+}
+
+static napi_value ssao_set_half_resolution_value(napi_env env, napi_callback_info info) {
+  return pp_set_bool(env, info, g_api.ssao_set_half_resolution, "cna_ssao_pass_set_half_resolution");
+}
+
+static napi_value tonemap_get_mode_value(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle pass = 0;
+  uint32_t mode = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pass)) return NULL;
+  const CNA_Result result = g_api.tonemap_get_mode(pass, &mode);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_tonemap_pass_get_mode", result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, mode, &output), "tonemapping mode");
+  return output;
+}
+
+static napi_value tonemap_set_mode_value(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle pass = 0;
+  uint32_t mode = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pass) ||
+      napi_get_value_uint32(env, args[1], &mode) != napi_ok) {
+    return throw_message(env, "expected a tonemap pass and a mode");
+  }
+  const CNA_Result result = g_api.tonemap_set_mode(pass, mode);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_tonemap_pass_set_mode", result);
+  return undefined_result(env, "tonemapping mode");
+}
+
+static napi_value tonemap_get_deband_enabled_value(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.tonemap_is_deband_enabled, "cna_tonemap_pass_is_deband_enabled");
+}
+
+static napi_value tonemap_set_deband_enabled_value(napi_env env, napi_callback_info info) {
+  return pp_set_bool(env, info, g_api.tonemap_set_deband_enabled, "cna_tonemap_pass_set_deband_enabled");
+}
+
+static napi_value bloom_iterations_for_quality_value(napi_env env, napi_callback_info info) {
+  return pp_quality_i32(
+    env, info, g_api.bloom_iterations_for_quality, "cna_bloom_pass_iterations_for_quality");
+}
+
+static napi_value ssao_sample_count_for_quality_value(napi_env env, napi_callback_info info) {
+  return pp_quality_i32(
+    env, info, g_api.ssao_sample_count_for_quality, "cna_ssao_pass_sample_count_for_quality");
+}
+
+static napi_value fxaa_edge_threshold_for_quality_value(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  uint32_t quality = 0;
+  float value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &quality) != napi_ok) {
+    return throw_message(env, "expected a render quality");
+  }
+  const CNA_Result result = g_api.fxaa_edge_threshold_for_quality(quality, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_fxaa_pass_edge_threshold_for_quality", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) value, &output), "FXAA edge threshold");
+  return output;
+}
+
+static napi_value bloom_reset_targets_value(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.bloom_reset_targets, "cna_bloom_pass_reset_targets");
+}
+
+static napi_value ssao_reset_targets_value(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.ssao_reset_targets, "cna_ssao_pass_reset_targets");
+}
+
+static napi_value post_process_pass_apply(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle pass = 0;
+  CNA_PostProcessContext context;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pass) ||
+      !read_post_process_context(env, args[1], &context)) return NULL;
+  const CNA_Result result = g_api.post_process_pass_apply(pass, &context);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_post_process_pass_apply", result);
+  return undefined_result(env, "post-process pass");
+}
+
+static napi_value post_process_pass_name(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle pass = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pass)) return NULL;
+  /* One route for both halves: a null destination with zero capacity asks for the size. */
+  uint64_t length = 0;
+  CNA_Result result = g_api.post_process_pass_copy_name(pass, NULL, 0, &length);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_post_process_pass_copy_name", result);
+  }
+  if (length > SIZE_MAX - 1) return throw_message(env, "a pass name exceeds the address space");
+  char* name = (char*) malloc((size_t) length + 1);
+  if (!name) return throw_message(env, "pass-name allocation failed");
+  uint64_t copied = 0;
+  result = g_api.post_process_pass_copy_name(pass, name, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(name);
+    return throw_result(
+      env, "cna_post_process_pass_copy_name",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  name[length] = '\0';
+  napi_value output;
+  const napi_status status = napi_create_string_utf8(env, name, (size_t) length, &output);
+  free(name);
+  if (status != napi_ok) return throw_napi(env, "pass name");
+  return output;
+}
+
+static napi_value post_process_pass_supported(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle pass = 0, device = 0;
+  CNA_Bool supported = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pass) || !read_handle(env, args[1], &device)) return NULL;
+  const CNA_Result result = g_api.post_process_pass_is_supported(pass, device, &supported);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_post_process_pass_is_supported", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, supported != CNA_FALSE, &output), "pass support");
+  return output;
+}
+
+static napi_value post_process_pass_release(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.post_process_pass_destroy, "cna_post_process_pass_destroy");
+}
+
+static napi_value post_process_chain_create(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle device = 0;
+  CNA_PostProcessChainHandle chain = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  const CNA_Result result = g_api.post_process_chain_create(device, &chain);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_post_process_chain_create", result);
+  return make_handle(env, chain);
+}
+
+static napi_value post_process_chain_release(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.post_process_chain_destroy, "cna_post_process_chain_destroy");
+}
+
+static napi_value post_process_chain_clear(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.post_process_chain_clear, "cna_post_process_chain_clear");
+}
+
+static napi_value post_process_chain_reset_targets(napi_env env, napi_callback_info info) {
+  return pp_handle_only(
+    env, info, g_api.post_process_chain_reset_targets, "cna_post_process_chain_reset_targets");
+}
+
+static napi_value post_process_chain_two_handles(
+  napi_env env, napi_callback_info info, TwoHandleFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle chain = 0, pass = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &chain) || !read_handle(env, args[1], &pass)) return NULL;
+  const CNA_Result result = route(chain, pass);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value post_process_chain_add_pass(napi_env env, napi_callback_info info) {
+  return post_process_chain_two_handles(
+    env, info, g_api.post_process_chain_add_pass, "cna_post_process_chain_add_pass");
+}
+
+static napi_value post_process_chain_add_owned_pass(napi_env env, napi_callback_info info) {
+  return post_process_chain_two_handles(
+    env, info, g_api.post_process_chain_add_owned_pass, "cna_post_process_chain_add_owned_pass");
+}
+
+static napi_value post_process_chain_pass_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(
+    env, info, g_api.post_process_chain_get_pass_count, "cna_post_process_chain_get_pass_count");
+}
+
+static napi_value post_process_chain_get_gpu_timing(napi_env env, napi_callback_info info) {
+  return pp_get_bool(
+    env, info, g_api.post_process_chain_is_gpu_timing_enabled,
+    "cna_post_process_chain_is_gpu_timing_enabled");
+}
+
+static napi_value post_process_chain_set_gpu_timing(napi_env env, napi_callback_info info) {
+  return pp_set_bool(
+    env, info, g_api.post_process_chain_set_gpu_timing_enabled,
+    "cna_post_process_chain_set_gpu_timing_enabled");
+}
+
+static napi_value post_process_chain_apply(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle chain = 0;
+  CNA_PostProcessContext context;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &chain) ||
+      !read_post_process_context(env, args[1], &context)) return NULL;
+  const CNA_Result result = g_api.post_process_chain_apply(chain, &context);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_post_process_chain_apply", result);
+  return undefined_result(env, "post-process chain");
+}
+
+static napi_value post_process_chain_timings(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle chain = 0;
+  uint64_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &chain)) return NULL;
+  CNA_Result result = g_api.post_process_chain_get_pass_timing_count(chain, &count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_post_process_chain_get_pass_timing_count", result);
+  }
+  if (count > UINT32_MAX) return throw_message(env, "too many recorded pass timings");
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, (size_t) count, &output), "pass timings");
+  for (uint64_t index = 0; index < count; index += 1) {
+    CNA_PassTimingEXT timing;
+    memset(&timing, 0, sizeof(timing));
+    timing.struct_size = sizeof(timing);
+    timing.struct_version = 1;
+    result = g_api.post_process_chain_get_pass_timing(chain, index, &timing);
+    if (result != CNA_RESULT_SUCCESS) {
+      return throw_result(env, "cna_post_process_chain_get_pass_timing", result);
+    }
+    uint64_t length = 0;
+    result = g_api.post_process_chain_copy_pass_timing_name(chain, index, NULL, 0, &length);
+    if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+      return throw_result(env, "cna_post_process_chain_copy_pass_timing_name", result);
+    }
+    if (length > SIZE_MAX - 1) return throw_message(env, "a pass name exceeds the address space");
+    char* name = (char*) malloc((size_t) length + 1);
+    if (!name) return throw_message(env, "pass-name allocation failed");
+    uint64_t copied = 0;
+    result = g_api.post_process_chain_copy_pass_timing_name(chain, index, name, length, &copied);
+    if (result != CNA_RESULT_SUCCESS || copied != length) {
+      free(name);
+      return throw_result(
+        env, "cna_post_process_chain_copy_pass_timing_name",
+        result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+    }
+    name[length] = '\0';
+    napi_value entry, name_value;
+    const napi_status status = napi_create_string_utf8(env, name, (size_t) length, &name_value);
+    free(name);
+    if (status != napi_ok) return throw_napi(env, "pass name");
+    if (napi_create_object(env, &entry) != napi_ok ||
+        !set_i32_property(env, entry, "SampleCount", timing.sample_count) ||
+        !set_double_property(env, entry, "Milliseconds", timing.milliseconds) ||
+        napi_set_named_property(env, entry, "Name", name_value) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      return throw_napi(env, "pass timing");
+    }
+  }
+  return output;
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
@@ -8355,6 +9120,72 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "cnbSpriteFontDataSetAtlas", NULL, cnb_sprite_font_data_set_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbSpriteFontDataCopyAtlas", NULL, cnb_sprite_font_data_copy_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbEncodeSpriteFont", NULL, cnb_encode_sprite_font, NULL, NULL, NULL, napi_default, NULL },
+    { "createBlitPass", NULL, create_blit_pass, NULL, NULL, NULL, napi_default, NULL },
+    { "createBloomPass", NULL, create_bloom_pass, NULL, NULL, NULL, napi_default, NULL },
+    { "createTonemapPass", NULL, create_tonemap_pass, NULL, NULL, NULL, napi_default, NULL },
+    { "createFxaaPass", NULL, create_fxaa_pass, NULL, NULL, NULL, napi_default, NULL },
+    { "createSsaoPass", NULL, create_ssao_pass, NULL, NULL, NULL, napi_default, NULL },
+    { "createSsrPass", NULL, create_ssr_pass, NULL, NULL, NULL, napi_default, NULL },
+    { "getBloomIntensity", NULL, bloom_get_intensity_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setBloomIntensity", NULL, bloom_set_intensity_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getBloomThreshold", NULL, bloom_get_threshold_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setBloomThreshold", NULL, bloom_set_threshold_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getTonemapExposure", NULL, tonemap_get_exposure_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setTonemapExposure", NULL, tonemap_set_exposure_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getTonemapGamma", NULL, tonemap_get_gamma_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setTonemapGamma", NULL, tonemap_set_gamma_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getTonemapDebandStrength", NULL, tonemap_get_deband_strength_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setTonemapDebandStrength", NULL, tonemap_set_deband_strength_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getFxaaEdgeThreshold", NULL, fxaa_get_edge_threshold_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setFxaaEdgeThreshold", NULL, fxaa_set_edge_threshold_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsaoRadius", NULL, ssao_get_radius_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setSsaoRadius", NULL, ssao_set_radius_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsaoIntensity", NULL, ssao_get_intensity_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setSsaoIntensity", NULL, ssao_set_intensity_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsrIntensity", NULL, ssr_get_intensity_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setSsrIntensity", NULL, ssr_set_intensity_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsrMaxDistance", NULL, ssr_get_max_distance_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setSsrMaxDistance", NULL, ssr_set_max_distance_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsrThickness", NULL, ssr_get_thickness_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setSsrThickness", NULL, ssr_set_thickness_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsrDepthBias", NULL, ssr_get_depth_bias_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setSsrDepthBias", NULL, ssr_set_depth_bias_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsrEdgeFade", NULL, ssr_get_edge_fade_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setSsrEdgeFade", NULL, ssr_set_edge_fade_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsrRoughnessBlur", NULL, ssr_get_roughness_blur_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setSsrRoughnessBlur", NULL, ssr_set_roughness_blur_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getBloomIterations", NULL, bloom_get_iterations_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setBloomIterations", NULL, bloom_set_iterations_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsaoSampleCount", NULL, ssao_get_sample_count_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setSsaoSampleCount", NULL, ssao_set_sample_count_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsrStepCount", NULL, ssr_get_step_count_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setSsrStepCount", NULL, ssr_set_step_count_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsaoHalfResolution", NULL, ssao_get_half_resolution_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setSsaoHalfResolution", NULL, ssao_set_half_resolution_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getTonemapMode", NULL, tonemap_get_mode_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setTonemapMode", NULL, tonemap_set_mode_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getTonemapDebandEnabled", NULL, tonemap_get_deband_enabled_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setTonemapDebandEnabled", NULL, tonemap_set_deband_enabled_value, NULL, NULL, NULL, napi_default, NULL },
+    { "bloomIterationsForQuality", NULL, bloom_iterations_for_quality_value, NULL, NULL, NULL, napi_default, NULL },
+    { "ssaoSampleCountForQuality", NULL, ssao_sample_count_for_quality_value, NULL, NULL, NULL, napi_default, NULL },
+    { "fxaaEdgeThresholdForQuality", NULL, fxaa_edge_threshold_for_quality_value, NULL, NULL, NULL, napi_default, NULL },
+    { "resetBloomTargets", NULL, bloom_reset_targets_value, NULL, NULL, NULL, napi_default, NULL },
+    { "resetSsaoTargets", NULL, ssao_reset_targets_value, NULL, NULL, NULL, napi_default, NULL },
+    { "applyPostProcessPass", NULL, post_process_pass_apply, NULL, NULL, NULL, napi_default, NULL },
+    { "getPostProcessPassName", NULL, post_process_pass_name, NULL, NULL, NULL, napi_default, NULL },
+    { "isPostProcessPassSupported", NULL, post_process_pass_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyPostProcessPass", NULL, post_process_pass_release, NULL, NULL, NULL, napi_default, NULL },
+    { "createPostProcessChain", NULL, post_process_chain_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyPostProcessChain", NULL, post_process_chain_release, NULL, NULL, NULL, napi_default, NULL },
+    { "clearPostProcessChain", NULL, post_process_chain_clear, NULL, NULL, NULL, napi_default, NULL },
+    { "resetPostProcessChainTargets", NULL, post_process_chain_reset_targets, NULL, NULL, NULL, napi_default, NULL },
+    { "addPostProcessPass", NULL, post_process_chain_add_pass, NULL, NULL, NULL, napi_default, NULL },
+    { "addOwnedPostProcessPass", NULL, post_process_chain_add_owned_pass, NULL, NULL, NULL, napi_default, NULL },
+    { "getPostProcessChainPassCount", NULL, post_process_chain_pass_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getPostProcessChainGpuTimingEnabled", NULL, post_process_chain_get_gpu_timing, NULL, NULL, NULL, napi_default, NULL },
+    { "setPostProcessChainGpuTimingEnabled", NULL, post_process_chain_set_gpu_timing, NULL, NULL, NULL, napi_default, NULL },
+    { "applyPostProcessChain", NULL, post_process_chain_apply, NULL, NULL, NULL, napi_default, NULL },
+    { "getPostProcessChainPassTimings", NULL, post_process_chain_timings, NULL, NULL, NULL, napi_default, NULL },
     { "openStorageFile", NULL, open_storage_file, NULL, NULL, NULL, napi_default, NULL },
   };
   if (napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties) != napi_ok) {

@@ -22,10 +22,11 @@ TypeScript.
 > `GamerServicesNotAvailableException`, the exception XNA itself raises where the platform is
 > absent. Modern CNA surface outside XNA lives under `cna-ts/extensions`: `extensions/runtime`
 > carries platform identity, renderer selection and the runtime log, verified on both backends;
-> `extensions/graphics` carries the PBR material, the render pipeline and its frame statistics,
-> verified against a build with CNA's extended graphics layer compiled in and reporting the
-> truthful not-supported branch where it is not; and `extensions/content` reads `.cnb`, CNA's own
-> compiled content format, ending in an ordinary `Texture2D` or `SpriteFont`.
+> `extensions/graphics` carries the PBR material, the render pipeline and its frame statistics, and
+> the post-process chain — bloom, tonemapping, FXAA, SSAO and screen-space reflections — verified
+> against a build with CNA's extended graphics layer compiled in and reporting the truthful
+> not-supported branch where it is not; and `extensions/content` reads `.cnb`, CNA's own compiled
+> content format, ending in an ordinary `Texture2D` or `SpriteFont`.
 
 ## One package for both languages
 

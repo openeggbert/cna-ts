@@ -267,6 +267,10 @@ Electron, or mobile support.
   availability set, fallback chain and recorded reasons, and the runtime log, over both backends.
 - [x] `cna-ts/extensions/graphics` projects the PBR material, the render pipeline and its frame
   statistics, and reports the truthful not-supported branch where the extended layer is absent.
+- [x] The same subpath projects the post-process chain — blit, bloom, tonemapping, FXAA, SSAO and
+  screen-space reflections — with CNA's own quality tiers, its per-pass support answer, its GPU
+  timings, and both of its ownership rules kept distinct. `AddOwned` is bound and documented as
+  upstream-blocked: CNA consumes the handle without its owned-resource accounting.
 - [x] `cna-ts/extensions/content` projects CNB, CNA's own compiled content format: the validated
   container with its table of contents, metadata, external references and chunk bytes; the texture
   schema, ending in a real `Texture2D`; and the sprite-font schema with its embedded atlas, ending
@@ -283,8 +287,8 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 90 operation families: 20 verified managed, 40 verified native, five
-  verified WebAssembly, five explicitly unavailable on the qualified backend, zero upstream-CNA
+- [x] Current baseline is 92 operation families: 20 verified managed, 41 verified native, five
+  verified WebAssembly, five explicitly unavailable on the qualified backend, one upstream-CNA
   blocked, three fixture pending, four hardware pending, three platform pending, six unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.
 - [x] Audit all 63 `NativeUnavailableError` and six `NotSupportedException` construction sites in 23
@@ -352,10 +356,17 @@ Electron, or mobile support.
 
 ## Upstream CNA blockers
 
-Every runtime gap earlier sessions recorded against CNA has since been closed upstream, so the
-capability inventory's `UPSTREAM_CNA_BLOCKED` count is zero. Two build-system gaps remain, both in
-`cnanext`, both worked around in this binding's build configuration rather than by editing it, and
-both written up with proposed changes in `docs/wasm-backend.md`:
+One runtime defect and two build-system gaps remain, all in `cnanext`, all measured here and none
+fixed from this session. `docs/upstream-cna-findings.md` records each with its reproduction and a
+proposed change, and each has a test in this package that fails when the behaviour changes.
+
+The runtime one: `cna_post_process_chain_add_owned_pass` consumes a pass handle without the
+`RemoveOwnedGraphicsResourceFor` its sibling `_destroy` performs, so the game's
+owned-graphics-resource counter never falls and every later `cna_game_destroy` in the process
+refuses. It is the capability inventory's single `UPSTREAM_CNA_BLOCKED` row.
+
+The build-system two, both worked around in this binding's build configuration rather than by
+editing it, and both written up in `docs/wasm-backend.md`:
 
 - `cna_c_api_wasm` does not pin `MIN_WEBGL_VERSION`/`MAX_WEBGL_VERSION`, so Emscripten negotiates a
   WebGL 1 context while EasyGL asks SDL for GLES 3 and its GLSL ES 3.00 shaders fail to compile.

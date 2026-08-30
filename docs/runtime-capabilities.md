@@ -20,10 +20,10 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Category | Operation families |
 | --- | ---: |
 | VERIFIED_MANAGED | 20 |
-| VERIFIED_NATIVE | 40 |
+| VERIFIED_NATIVE | 41 |
 | VERIFIED_WEBASSEMBLY | 5 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 5 |
-| UPSTREAM_CNA_BLOCKED | 0 |
+| UPSTREAM_CNA_BLOCKED | 1 |
 | FIXTURE_PENDING | 3 |
 | HARDWARE_PENDING | 4 |
 | PLATFORM_PENDING | 3 |
@@ -85,6 +85,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Model.Draw effect/pass/indexed-draw pipeline | CNA-TS + CNA | qualified HEADLESS Model XNB executes buffer/index binding, BasicEffect matrices, real EffectPass.Apply and DrawIndexedPrimitives without a special native model renderer |
 | Modern CNA PBR material and render-pipeline value defaults | cna-ts/extensions/graphics | cna_pbr_material_init and cna_render_pipeline_settings_init are pure value operations CNA documents as answering in either build, and they do on the qualified artifact; the facade seeds its value objects from them rather than from numbers written in TypeScript |
 | Modern CNA platform identity, renderer selection and runtime log | cna-ts/extensions/runtime | nine native integration assertions over 37 handle-free routes, including the pre-latch and non-desktop refusals CNA reports as state |
+| Modern CNA post-process chain: bloom, tonemapping, FXAA, SSAO, screen-space reflections | cna-ts/extensions/graphics | every pass property round-trips through CNA at float precision, CNA's own quality tiers rise with quality and its roughness-blur clamp is recorded rather than avoided, each pass reports its own name and its truthful IsSupportedOn answer on the HEADLESS renderer, a chain applies over real render targets, and GPU timing reports what the renderer actually gave rather than what was asked for |
 | Modern CNA render pipeline object lifetime, resize, frame and statistics | cna-ts/extensions/graphics | on a CNA_CNAEXT=ON artifact a pipeline is created, resized, begun, ended, queried for statistics and disposed twice safely; where the layer is compiled out construction reports CNA_RESULT_NOT_SUPPORTED and the native suite asserts that branch instead |
 | OcclusionQuery construction, ordering, reuse, completion/result dispatch and disposal | CNA-TS + CNA | qualified integration executes the real query state machine without fabricating PixelCount; managed suite covers completion and exact result identity |
 | RenderTarget ContentLost subscription and deterministic release | CNA-TS | subscription executes on the qualified artifact and its registration is released before the target is, ordered after the bound-target guard so a refused disposal leaves the subscription in place |
@@ -125,6 +126,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
+| Handing a post-process pass to a chain with PostProcessChain.AddOwned | cna-ts/extensions/graphics | cna_post_process_chain_add_owned_pass consumes the handle without the RemoveOwnedGraphicsResourceFor its sibling _destroy performs, so the game's owned-graphics-resource counter never falls and every later cna_game_destroy in the process refuses with CNA_RESULT_INVALID_STATE; measured and written up in docs/upstream-cna-findings.md, characterised in its own process by test/post-process-owned-pass.probe.mjs |
 
 ## FIXTURE_PENDING
 
@@ -159,7 +161,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Direct standalone GraphicsDevice construction | CNA-TS | ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime exists upstream. The qualified HEADLESS artifact reports no graphics adapter, so GraphicsAdapter.DefaultAdapter has nothing to return and the XNA constructor has no argument to be given; implementing the route here would be unexercisable on any backend this session can build |
 | Microsoft.Xna.Framework.GamerServices and .Net platform operations | CNA-TS | the 74 declarations are projected and the xna40-windows-live profile holds at zero differences, but every operation that needs a gamer-services platform refuses with GamerServicesNotAvailableException; 436 backing C routes exist and none is imported |
 | Modern CNA device and sensor extensions | CNA-TS | devices.h, sensors.h and the haptics/joystick/cursor/text input families are classified as extension backing and none is projected yet |
-| Modern CNA engine layer beyond the render pipeline: lighting, shadows, post-process passes, particles and compute | CNA-TS | 857 engine_layer.h routes are classified as extension backing in docs/cna-api-coverage.md; the render-pipeline object and the PBR/pipeline value defaults are projected, the rest is not |
+| Modern CNA engine layer beyond the pipeline and its post-process chain: lighting, shadows, particles, decals, compute and clustered rendering | CNA-TS | the render pipeline and the post-process chain are projected and verified above; the rest of engine_layer.h -- clustered and cascaded lighting, shadow maps, particles, decals, LOD, compute and storage buffers, environment and atmospheric rendering -- is measured and unprojected |
 | VideoPlayer.GetTexture transient frame projection | CNA-TS | ABI 0.9 added cna_video_player_get_frame_ext with CNA_VideoFrameEXT and a monotonic frame generation, which is the borrowed-frame identity the projection was missing; CNA-TS has not adopted it |
 
 ## LANGUAGE_MAPPING_LIMITATION

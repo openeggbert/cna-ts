@@ -773,13 +773,13 @@
       ]
     },
     {
-      "operation": "Modern CNA engine layer beyond the render pipeline: lighting, shadows, post-process passes, particles and compute",
+      "operation": "Modern CNA engine layer beyond the pipeline and its post-process chain: lighting, shadows, particles, decals, compute and clustered rendering",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "857 engine_layer.h routes are classified as extension backing in docs/cna-api-coverage.md; the render-pipeline object and the PBR/pipeline value defaults are projected, the rest is not",
+      "evidence": "the render pipeline and the post-process chain are projected and verified above; the rest of engine_layer.h -- clustered and cascaded lighting, shadow maps, particles, decals, LOD, compute and storage buffers, environment and atmospheric rendering -- is measured and unprojected",
       "proof": [
         "absentRoute:cna_clustered_light_grid_create",
-        "absentRoute:cna_post_process_chain_create"
+        "absentRoute:cna_compute_shader_create"
       ]
     },
     {
@@ -892,6 +892,31 @@
         "route:cna_cnb_sprite_font_data_copy_atlas",
         "route:cna_cnb_encode_sprite_font",
         "test:test/cnb-content.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Modern CNA post-process chain: bloom, tonemapping, FXAA, SSAO, screen-space reflections",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "every pass property round-trips through CNA at float precision, CNA's own quality tiers rise with quality and its roughness-blur clamp is recorded rather than avoided, each pass reports its own name and its truthful IsSupportedOn answer on the HEADLESS renderer, a chain applies over real render targets, and GPU timing reports what the renderer actually gave rather than what was asked for",
+      "proof": [
+        "route:cna_post_process_chain_create",
+        "route:cna_post_process_chain_apply",
+        "route:cna_bloom_pass_set_threshold",
+        "route:cna_tonemap_pass_set_mode",
+        "route:cna_ssao_pass_set_sample_count",
+        "route:cna_post_process_pass_is_supported",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Handing a post-process pass to a chain with PostProcessChain.AddOwned",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "cna_post_process_chain_add_owned_pass consumes the handle without the RemoveOwnedGraphicsResourceFor its sibling _destroy performs, so the game's owned-graphics-resource counter never falls and every later cna_game_destroy in the process refuses with CNA_RESULT_INVALID_STATE; measured and written up in docs/upstream-cna-findings.md, characterised in its own process by test/post-process-owned-pass.probe.mjs",
+      "proof": [
+        "route:cna_post_process_chain_add_owned_pass",
+        "test:test/post-process-owned-pass.probe.mjs"
       ]
     }
   ]

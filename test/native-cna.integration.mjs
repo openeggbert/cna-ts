@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
+import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 import {
@@ -672,6 +673,264 @@ test("the CNA render pipeline is a real owned object where the layer is compiled
     assert.equal(evidence.created, false);
     assert.equal(evidence.cnaResult, 6);
   }
+});
+
+class PostProcessProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const graphics = renderPipelineModule;
+    this.evidence.layerAvailable = graphics.IsGraphicsExtensionLayerAvailable();
+    if (!this.evidence.layerAvailable) {
+      try {
+        new graphics.BloomPass(this.GraphicsDevice);
+        this.evidence.refusedWithoutLayer = null;
+      } catch (error) {
+        this.evidence.refusedWithoutLayer = error.cnaResult;
+      }
+      this.Exit();
+      super.LoadContent();
+      return;
+    }
+
+    // Quality tiers come from CNA rather than from numbers written in the binding, so a game asking
+    // for "High" gets whatever the engine considers high today.
+    this.evidence.quality = {
+      bloomLow: graphics.BloomPass.IterationsForQuality(graphics.RenderQuality.Low),
+      bloomUltra: graphics.BloomPass.IterationsForQuality(graphics.RenderQuality.Ultra),
+      ssaoLow: graphics.SsaoPass.SampleCountForQuality(graphics.RenderQuality.Low),
+      ssaoUltra: graphics.SsaoPass.SampleCountForQuality(graphics.RenderQuality.Ultra),
+      fxaaLow: graphics.FxaaPass.EdgeThresholdForQuality(graphics.RenderQuality.Low),
+      fxaaUltra: graphics.FxaaPass.EdgeThresholdForQuality(graphics.RenderQuality.Ultra),
+    };
+
+    const bloom = new graphics.BloomPass(this.GraphicsDevice);
+    const tonemap = new graphics.TonemapPass(this.GraphicsDevice);
+    const fxaa = new graphics.FxaaPass(this.GraphicsDevice);
+    const ssao = new graphics.SsaoPass(this.GraphicsDevice);
+    const ssr = new graphics.SsrPass(this.GraphicsDevice);
+
+    const blit = new graphics.BlitPass(this.GraphicsDevice);
+    this.evidence.names = {
+      blit: blit.Name,
+      bloom: bloom.Name,
+      tonemap: tonemap.Name,
+      fxaa: fxaa.Name,
+      ssao: ssao.Name,
+      ssr: ssr.Name,
+    };
+
+    // Every value round-trips through CNA, at float precision. A setter that reached the wrong
+    // property would show up as a value that did not come back.
+    bloom.Threshold = 0.75;
+    bloom.Intensity = 1.25;
+    bloom.Iterations = 3;
+    tonemap.Mode = graphics.TonemappingMode.Filmic;
+    tonemap.Exposure = 1.5;
+    tonemap.Gamma = 2.2;
+    tonemap.DebandEnabled = true;
+    tonemap.DebandStrength = 0.25;
+    fxaa.EdgeThreshold = 0.125;
+    ssao.Radius = 0.5;
+    ssao.Intensity = 1.75;
+    ssao.SampleCount = 12;
+    ssao.HalfResolution = true;
+    ssr.Intensity = 0.5;
+    ssr.MaxDistance = 40;
+    ssr.StepCount = 24;
+    ssr.Thickness = 0.25;
+    ssr.DepthBias = 0.03125;
+    ssr.EdgeFade = 0.1875;
+    // Deliberately out of range: CNA clamps roughness blur, and the clamp is a value worth
+    // recording rather than a number to avoid.
+    ssr.RoughnessBlur = 0.625;
+    this.evidence.values = {
+      bloomThreshold: bloom.Threshold,
+      bloomIntensity: bloom.Intensity,
+      bloomIterations: bloom.Iterations,
+      tonemapMode: tonemap.Mode,
+      tonemapExposure: tonemap.Exposure,
+      tonemapGamma: tonemap.Gamma,
+      tonemapDeband: tonemap.DebandEnabled,
+      tonemapDebandStrength: tonemap.DebandStrength,
+      fxaaEdgeThreshold: fxaa.EdgeThreshold,
+      ssaoRadius: ssao.Radius,
+      ssaoIntensity: ssao.Intensity,
+      ssaoSampleCount: ssao.SampleCount,
+      ssaoHalfResolution: ssao.HalfResolution,
+      ssrIntensity: ssr.Intensity,
+      ssrMaxDistance: ssr.MaxDistance,
+      ssrStepCount: ssr.StepCount,
+      ssrThickness: ssr.Thickness,
+      ssrDepthBias: ssr.DepthBias,
+      ssrEdgeFade: ssr.EdgeFade,
+      ssrRoughnessBlur: ssr.RoughnessBlur,
+    };
+
+    // A pass that cannot do its real work on this renderer says so. That is a documented
+    // degradation to a copy, not a failure, and the honest answer is recorded either way.
+    this.evidence.supported = {
+      bloom: bloom.IsSupportedOn(this.GraphicsDevice),
+      tonemap: tonemap.IsSupportedOn(this.GraphicsDevice),
+      ssao: ssao.IsSupportedOn(this.GraphicsDevice),
+    };
+
+    const chain = new graphics.PostProcessChain(this.GraphicsDevice);
+    this.evidence.emptyCount = chain.PassCount;
+    chain.Add(bloom);
+    chain.Add(tonemap);
+    this.evidence.borrowedCount = chain.PassCount;
+
+    chain.GpuTimingEnabled = true;
+    this.evidence.gpuTimingRequested = true;
+    this.evidence.gpuTimingActual = chain.GpuTimingEnabled;
+
+    const source = new Graphics.RenderTarget2D(this.GraphicsDevice, 32, 32);
+    const destination = new Graphics.RenderTarget2D(this.GraphicsDevice, 32, 32);
+    try {
+      chain.Apply({ Source: source, Destination: destination, Width: 32, Height: 32 });
+      this.evidence.applied = "SUCCESS";
+    } catch (error) {
+      this.evidence.applied = `result ${error.cnaResult}`;
+    }
+    this.evidence.timings = chain.GetPassTimings().map((timing) => ({
+      name: timing.Name,
+      sampleCount: timing.SampleCount,
+      milliseconds: timing.Milliseconds,
+    }));
+
+    // A frame with no source has nothing to read; CNA refuses before allocating an intermediate.
+    try {
+      chain.Apply({ Source: source, Destination: destination, Width: 0, Height: 32 });
+      this.evidence.refusedEmptyFrame = "allowed";
+    } catch (error) {
+      this.evidence.refusedEmptyFrame = error.constructor.name;
+    }
+
+    chain.Clear();
+    this.evidence.clearedCount = chain.PassCount;
+    chain.Dispose();
+    chain.Dispose();
+    this.evidence.chainDisposedTwice = chain.IsDisposed;
+
+    // The borrowed passes survived the chain, which is the whole point of the distinction.
+    this.evidence.borrowedSurvived = bloom.Name.length > 0 && tonemap.Name.length > 0;
+    blit.Dispose();
+    bloom.Dispose();
+    tonemap.Dispose();
+    fxaa.Dispose();
+    ssao.Dispose();
+    ssr.Dispose();
+    source.Dispose();
+    destination.Dispose();
+    this.Exit();
+    super.LoadContent();
+  }
+}
+
+test("the post-process chain is a real object graph with two distinct ownership rules", async () => {
+  const game = new PostProcessProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  try {
+    game.Dispose();
+  } catch (error) {
+      assert.fail(`${error.message}: ${(error.errors ?? []).map((entry) => entry.message).join("; ")}`);
+  }
+  assert.equal(typeof evidence.layerAvailable, "boolean");
+  if (!evidence.layerAvailable) {
+    assert.equal(evidence.refusedWithoutLayer, 6, "NOT_SUPPORTED without the extended layer");
+    return;
+  }
+
+  // CNA's own quality tiers, not numbers this binding invented: a higher tier must cost more
+  // samples and iterations, and a higher-quality FXAA must accept a finer edge.
+  assert.ok(evidence.quality.bloomUltra > evidence.quality.bloomLow);
+  assert.ok(evidence.quality.ssaoUltra > evidence.quality.ssaoLow);
+  assert.ok(evidence.quality.fxaaUltra < evidence.quality.fxaaLow);
+
+  assert.deepEqual(evidence.names, {
+    blit: "Blit", bloom: "Bloom", tonemap: "Tonemap", fxaa: "FXAA", ssao: "SSAO", ssr: "SSR",
+  });
+
+  // Exact round trips at float precision. Every value chosen above is representable, so an
+  // approximate comparison would hide a setter reaching the wrong property.
+  assert.deepEqual(evidence.values, {
+    bloomThreshold: 0.75,
+    bloomIntensity: 1.25,
+    bloomIterations: 3,
+    tonemapMode: 2,
+    tonemapExposure: 1.5,
+    tonemapGamma: Math.fround(2.2),
+    tonemapDeband: true,
+    tonemapDebandStrength: 0.25,
+    fxaaEdgeThreshold: 0.125,
+    ssaoRadius: 0.5,
+    ssaoIntensity: 1.75,
+    ssaoSampleCount: 12,
+    ssaoHalfResolution: true,
+    ssrIntensity: 0.5,
+    ssrMaxDistance: 40,
+    ssrStepCount: 24,
+    ssrThickness: 0.25,
+    ssrDepthBias: 0.03125,
+    ssrEdgeFade: 0.1875,
+    // 0.625 was asked for. CNA clamps roughness blur to a quarter, and reporting what it kept is
+    // more useful than choosing an input that could not reveal a clamp at all.
+    ssrRoughnessBlur: 0.25,
+  });
+
+  for (const [name, supported] of Object.entries(evidence.supported)) {
+    assert.equal(typeof supported, "boolean", `${name} must answer support with a boolean`);
+  }
+
+  assert.equal(evidence.emptyCount, 0);
+  assert.equal(evidence.borrowedCount, 2);
+
+  assert.equal(evidence.gpuTimingRequested, true);
+  // A renderer with no GPU timers accepts the request and reports false; both are truthful.
+  assert.equal(typeof evidence.gpuTimingActual, "boolean");
+  if (!evidence.gpuTimingActual) assert.deepEqual(evidence.timings, []);
+
+  assert.ok(
+    evidence.applied === "SUCCESS" || /^result \d+$/.test(evidence.applied),
+    `unexpected apply evidence ${evidence.applied}`,
+  );
+  assert.equal(evidence.refusedEmptyFrame, "RangeError", "a zero-width frame is refused here");
+  assert.equal(evidence.clearedCount, 0);
+  assert.equal(evidence.chainDisposedTwice, true);
+  assert.equal(evidence.borrowedSurvived, true);
+});
+
+test("handing a pass to a chain consumes it, and leaks CNA's owned-resource count", async () => {
+  // In its own process, because of what it finds: `cna_post_process_chain_add_owned_pass` consumes
+  // the pass handle without the `RemoveOwnedGraphicsResourceFor` its sibling `_destroy` performs,
+  // so the game's owned-graphics-resource counter never comes back down and every later
+  // `cna_game_destroy` in that process refuses. Running it here would fail every test after it.
+  const probe = spawnSync(
+    process.execPath,
+    [path.join(import.meta.dirname, "post-process-owned-pass.probe.mjs")],
+    { encoding: "utf8", cwd: path.resolve(import.meta.dirname, "..") },
+  );
+  assert.equal(probe.status, 0, probe.stderr);
+  const evidence = JSON.parse(probe.stdout.trim().split("\n").pop());
+  if (evidence.status === "NOT_CONFIGURED" || evidence.layerAvailable === false) return;
+
+  // The managed half of the transfer is correct and asserted for its own sake.
+  assert.equal(evidence.passCount, 1);
+  assert.equal(evidence.isOwnedByChain, true);
+  assert.equal(evidence.disposeAfterTransferIsNoOp, true, "a transferred pass releases nothing");
+  assert.match(evidence.useAfterTransfer, /handed to a chain with AddOwned/);
+  assert.equal(evidence.countAfterClear, 0);
+
+  // The upstream half is not. This asserts the defect as measured, so that fixing it upstream
+  // fails here rather than passing silently.
+  assert.equal(evidence.gameDisposed, false, "UPSTREAM: add_owned_pass no longer leaks the count");
+  assert.match(evidence.gameDisposeError, /All owned C child resources must be destroyed/);
 });
 
 class NativeAudioProbeGame extends Game {

@@ -11,6 +11,8 @@ import type {
   BackendRendererInfo,
   CnaGraphicsExtensionBackend,
   CnaContentBackend,
+  PassTimingSnapshot,
+  PostProcessFrameSnapshot,
   CnbChunkEntrySnapshot,
   CnbDocumentSnapshot,
   CnbExternalReferenceSnapshot,
@@ -397,6 +399,72 @@ interface NativeBridge {
   cnbSpriteFontDataSetAtlas(font: bigint, atlas: bigint): void;
   cnbSpriteFontDataCopyAtlas(font: bigint): bigint;
   cnbEncodeSpriteFont(font: bigint, contentName: string): Uint8Array;
+  createBlitPass(device: bigint): bigint;
+  createBloomPass(device: bigint): bigint;
+  createTonemapPass(device: bigint): bigint;
+  createFxaaPass(device: bigint): bigint;
+  createSsaoPass(device: bigint): bigint;
+  createSsrPass(device: bigint): bigint;
+  getBloomIntensity(pass: bigint): number;
+  setBloomIntensity(pass: bigint, value: number): void;
+  getBloomThreshold(pass: bigint): number;
+  setBloomThreshold(pass: bigint, value: number): void;
+  getTonemapExposure(pass: bigint): number;
+  setTonemapExposure(pass: bigint, value: number): void;
+  getTonemapGamma(pass: bigint): number;
+  setTonemapGamma(pass: bigint, value: number): void;
+  getTonemapDebandStrength(pass: bigint): number;
+  setTonemapDebandStrength(pass: bigint, value: number): void;
+  getFxaaEdgeThreshold(pass: bigint): number;
+  setFxaaEdgeThreshold(pass: bigint, value: number): void;
+  getSsaoRadius(pass: bigint): number;
+  setSsaoRadius(pass: bigint, value: number): void;
+  getSsaoIntensity(pass: bigint): number;
+  setSsaoIntensity(pass: bigint, value: number): void;
+  getSsrIntensity(pass: bigint): number;
+  setSsrIntensity(pass: bigint, value: number): void;
+  getSsrMaxDistance(pass: bigint): number;
+  setSsrMaxDistance(pass: bigint, value: number): void;
+  getSsrThickness(pass: bigint): number;
+  setSsrThickness(pass: bigint, value: number): void;
+  getSsrDepthBias(pass: bigint): number;
+  setSsrDepthBias(pass: bigint, value: number): void;
+  getSsrEdgeFade(pass: bigint): number;
+  setSsrEdgeFade(pass: bigint, value: number): void;
+  getSsrRoughnessBlur(pass: bigint): number;
+  setSsrRoughnessBlur(pass: bigint, value: number): void;
+  getBloomIterations(pass: bigint): number;
+  setBloomIterations(pass: bigint, value: number): void;
+  getSsaoSampleCount(pass: bigint): number;
+  setSsaoSampleCount(pass: bigint, value: number): void;
+  getSsrStepCount(pass: bigint): number;
+  setSsrStepCount(pass: bigint, value: number): void;
+  getSsaoHalfResolution(pass: bigint): boolean;
+  setSsaoHalfResolution(pass: bigint, value: boolean): void;
+  getTonemapMode(pass: bigint): number;
+  setTonemapMode(pass: bigint, mode: number): void;
+  getTonemapDebandEnabled(pass: bigint): boolean;
+  setTonemapDebandEnabled(pass: bigint, value: boolean): void;
+  bloomIterationsForQuality(quality: number): number;
+  ssaoSampleCountForQuality(quality: number): number;
+  fxaaEdgeThresholdForQuality(quality: number): number;
+  resetBloomTargets(pass: bigint): void;
+  resetSsaoTargets(pass: bigint): void;
+  applyPostProcessPass(pass: bigint, frame: PostProcessFrameSnapshot): void;
+  getPostProcessPassName(pass: bigint): string;
+  isPostProcessPassSupported(pass: bigint, device: bigint): boolean;
+  destroyPostProcessPass(pass: bigint): void;
+  createPostProcessChain(device: bigint): bigint;
+  destroyPostProcessChain(chain: bigint): void;
+  clearPostProcessChain(chain: bigint): void;
+  resetPostProcessChainTargets(chain: bigint): void;
+  addPostProcessPass(chain: bigint, pass: bigint): void;
+  addOwnedPostProcessPass(chain: bigint, pass: bigint): void;
+  getPostProcessChainPassCount(chain: bigint): number;
+  getPostProcessChainGpuTimingEnabled(chain: bigint): boolean;
+  setPostProcessChainGpuTimingEnabled(chain: bigint, value: boolean): void;
+  applyPostProcessChain(chain: bigint, frame: PostProcessFrameSnapshot): void;
+  getPostProcessChainPassTimings(chain: bigint): PassTimingSnapshot[];
   openTitleStream(game: bigint, name: string): Uint8Array;
   getGameWindowAllowUserResizing(game: bigint): boolean;
   setGameWindowAllowUserResizing(game: bigint, value: boolean): void;
@@ -1208,6 +1276,119 @@ export class NodeNativeBackend
   }
   public cnbEncodeSpriteFont(font: NativeHandle, contentName: string): Uint8Array {
     return new Uint8Array(this.#bridge.cnbEncodeSpriteFont(font, contentName));
+  }
+
+  public createBlitPass(device: NativeHandle): NativeHandle {
+    return this.#bridge.createBlitPass(device);
+  }
+  public createBloomPass(device: NativeHandle): NativeHandle {
+    return this.#bridge.createBloomPass(device);
+  }
+  public createTonemapPass(device: NativeHandle): NativeHandle {
+    return this.#bridge.createTonemapPass(device);
+  }
+  public createFxaaPass(device: NativeHandle): NativeHandle {
+    return this.#bridge.createFxaaPass(device);
+  }
+  public createSsaoPass(device: NativeHandle): NativeHandle {
+    return this.#bridge.createSsaoPass(device);
+  }
+  public createSsrPass(device: NativeHandle): NativeHandle {
+    return this.#bridge.createSsrPass(device);
+  }
+  public getBloomIntensity(pass: NativeHandle): number { return this.#bridge.getBloomIntensity(pass); }
+  public setBloomIntensity(pass: NativeHandle, value: number): void { this.#bridge.setBloomIntensity(pass, value); }
+  public getBloomThreshold(pass: NativeHandle): number { return this.#bridge.getBloomThreshold(pass); }
+  public setBloomThreshold(pass: NativeHandle, value: number): void { this.#bridge.setBloomThreshold(pass, value); }
+  public getTonemapExposure(pass: NativeHandle): number { return this.#bridge.getTonemapExposure(pass); }
+  public setTonemapExposure(pass: NativeHandle, value: number): void { this.#bridge.setTonemapExposure(pass, value); }
+  public getTonemapGamma(pass: NativeHandle): number { return this.#bridge.getTonemapGamma(pass); }
+  public setTonemapGamma(pass: NativeHandle, value: number): void { this.#bridge.setTonemapGamma(pass, value); }
+  public getTonemapDebandStrength(pass: NativeHandle): number { return this.#bridge.getTonemapDebandStrength(pass); }
+  public setTonemapDebandStrength(pass: NativeHandle, value: number): void { this.#bridge.setTonemapDebandStrength(pass, value); }
+  public getFxaaEdgeThreshold(pass: NativeHandle): number { return this.#bridge.getFxaaEdgeThreshold(pass); }
+  public setFxaaEdgeThreshold(pass: NativeHandle, value: number): void { this.#bridge.setFxaaEdgeThreshold(pass, value); }
+  public getSsaoRadius(pass: NativeHandle): number { return this.#bridge.getSsaoRadius(pass); }
+  public setSsaoRadius(pass: NativeHandle, value: number): void { this.#bridge.setSsaoRadius(pass, value); }
+  public getSsaoIntensity(pass: NativeHandle): number { return this.#bridge.getSsaoIntensity(pass); }
+  public setSsaoIntensity(pass: NativeHandle, value: number): void { this.#bridge.setSsaoIntensity(pass, value); }
+  public getSsrIntensity(pass: NativeHandle): number { return this.#bridge.getSsrIntensity(pass); }
+  public setSsrIntensity(pass: NativeHandle, value: number): void { this.#bridge.setSsrIntensity(pass, value); }
+  public getSsrMaxDistance(pass: NativeHandle): number { return this.#bridge.getSsrMaxDistance(pass); }
+  public setSsrMaxDistance(pass: NativeHandle, value: number): void { this.#bridge.setSsrMaxDistance(pass, value); }
+  public getSsrThickness(pass: NativeHandle): number { return this.#bridge.getSsrThickness(pass); }
+  public setSsrThickness(pass: NativeHandle, value: number): void { this.#bridge.setSsrThickness(pass, value); }
+  public getSsrDepthBias(pass: NativeHandle): number { return this.#bridge.getSsrDepthBias(pass); }
+  public setSsrDepthBias(pass: NativeHandle, value: number): void { this.#bridge.setSsrDepthBias(pass, value); }
+  public getSsrEdgeFade(pass: NativeHandle): number { return this.#bridge.getSsrEdgeFade(pass); }
+  public setSsrEdgeFade(pass: NativeHandle, value: number): void { this.#bridge.setSsrEdgeFade(pass, value); }
+  public getSsrRoughnessBlur(pass: NativeHandle): number { return this.#bridge.getSsrRoughnessBlur(pass); }
+  public setSsrRoughnessBlur(pass: NativeHandle, value: number): void { this.#bridge.setSsrRoughnessBlur(pass, value); }
+  public getBloomIterations(pass: NativeHandle): number { return this.#bridge.getBloomIterations(pass); }
+  public setBloomIterations(pass: NativeHandle, value: number): void { this.#bridge.setBloomIterations(pass, value); }
+  public getSsaoSampleCount(pass: NativeHandle): number { return this.#bridge.getSsaoSampleCount(pass); }
+  public setSsaoSampleCount(pass: NativeHandle, value: number): void { this.#bridge.setSsaoSampleCount(pass, value); }
+  public getSsrStepCount(pass: NativeHandle): number { return this.#bridge.getSsrStepCount(pass); }
+  public setSsrStepCount(pass: NativeHandle, value: number): void { this.#bridge.setSsrStepCount(pass, value); }
+  public getSsaoHalfResolution(pass: NativeHandle): boolean { return this.#bridge.getSsaoHalfResolution(pass); }
+  public setSsaoHalfResolution(pass: NativeHandle, value: boolean): void { this.#bridge.setSsaoHalfResolution(pass, value); }
+  public getTonemapMode(pass: NativeHandle): number { return this.#bridge.getTonemapMode(pass); }
+  public setTonemapMode(pass: NativeHandle, mode: number): void { this.#bridge.setTonemapMode(pass, mode); }
+  public getTonemapDebandEnabled(pass: NativeHandle): boolean {
+    return this.#bridge.getTonemapDebandEnabled(pass);
+  }
+  public setTonemapDebandEnabled(pass: NativeHandle, value: boolean): void {
+    this.#bridge.setTonemapDebandEnabled(pass, value);
+  }
+  public bloomIterationsForQuality(quality: number): number {
+    return this.#bridge.bloomIterationsForQuality(quality);
+  }
+  public ssaoSampleCountForQuality(quality: number): number {
+    return this.#bridge.ssaoSampleCountForQuality(quality);
+  }
+  public fxaaEdgeThresholdForQuality(quality: number): number {
+    return this.#bridge.fxaaEdgeThresholdForQuality(quality);
+  }
+  public resetBloomTargets(pass: NativeHandle): void { this.#bridge.resetBloomTargets(pass); }
+  public resetSsaoTargets(pass: NativeHandle): void { this.#bridge.resetSsaoTargets(pass); }
+  public applyPostProcessPass(pass: NativeHandle, frame: PostProcessFrameSnapshot): void {
+    this.#bridge.applyPostProcessPass(pass, frame);
+  }
+  public getPostProcessPassName(pass: NativeHandle): string {
+    return this.#bridge.getPostProcessPassName(pass);
+  }
+  public isPostProcessPassSupported(pass: NativeHandle, device: NativeHandle): boolean {
+    return this.#bridge.isPostProcessPassSupported(pass, device);
+  }
+  public destroyPostProcessPass(pass: NativeHandle): void { this.#bridge.destroyPostProcessPass(pass); }
+  public createPostProcessChain(device: NativeHandle): NativeHandle {
+    return this.#bridge.createPostProcessChain(device);
+  }
+  public destroyPostProcessChain(chain: NativeHandle): void { this.#bridge.destroyPostProcessChain(chain); }
+  public clearPostProcessChain(chain: NativeHandle): void { this.#bridge.clearPostProcessChain(chain); }
+  public resetPostProcessChainTargets(chain: NativeHandle): void {
+    this.#bridge.resetPostProcessChainTargets(chain);
+  }
+  public addPostProcessPass(chain: NativeHandle, pass: NativeHandle): void {
+    this.#bridge.addPostProcessPass(chain, pass);
+  }
+  public addOwnedPostProcessPass(chain: NativeHandle, pass: NativeHandle): void {
+    this.#bridge.addOwnedPostProcessPass(chain, pass);
+  }
+  public getPostProcessChainPassCount(chain: NativeHandle): number {
+    return this.#bridge.getPostProcessChainPassCount(chain);
+  }
+  public getPostProcessChainGpuTimingEnabled(chain: NativeHandle): boolean {
+    return this.#bridge.getPostProcessChainGpuTimingEnabled(chain);
+  }
+  public setPostProcessChainGpuTimingEnabled(chain: NativeHandle, value: boolean): void {
+    this.#bridge.setPostProcessChainGpuTimingEnabled(chain, value);
+  }
+  public applyPostProcessChain(chain: NativeHandle, frame: PostProcessFrameSnapshot): void {
+    this.#bridge.applyPostProcessChain(chain, frame);
+  }
+  public getPostProcessChainPassTimings(chain: NativeHandle): readonly PassTimingSnapshot[] {
+    return this.#bridge.getPostProcessChainPassTimings(chain);
   }
 
   public openTitleStream(name: string): Uint8Array {

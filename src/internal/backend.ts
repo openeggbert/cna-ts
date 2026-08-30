@@ -784,6 +784,28 @@ export interface RenderPipelineStatisticsSnapshot {
  * in every build; everything that needs a native pipeline object answers `NOT_SUPPORTED` where the
  * layer was compiled out, which is why the facade asks before offering the feature.
  */
+
+/** One frame's inputs to a post-process pass or chain, with every texture as a handle. */
+export interface PostProcessFrameSnapshot {
+  readonly Source: NativeHandle;
+  readonly SourceDepth: NativeHandle;
+  readonly SourceNormals: NativeHandle;
+  readonly SourceVelocity: NativeHandle;
+  readonly Destination: NativeHandle;
+  readonly Width: number;
+  readonly Height: number;
+  readonly ElapsedSeconds: number;
+  readonly NearPlane: number;
+  readonly FarPlane: number;
+}
+
+/** How long one post-process pass took on the GPU, averaged over its samples. */
+export interface PassTimingSnapshot {
+  readonly Name: string;
+  readonly SampleCount: number;
+  readonly Milliseconds: number;
+}
+
 export interface CnaGraphicsExtensionBackend {
   getDefaultPbrMaterial(): PbrMaterialDefaults;
   getDefaultRenderPipelineSettings(): RenderPipelineSettingsDefaults;
@@ -793,6 +815,72 @@ export interface CnaGraphicsExtensionBackend {
   beginRenderPipeline(pipeline: NativeHandle, packedClearColor: number): void;
   endRenderPipeline(pipeline: NativeHandle): void;
   getRenderPipelineStatistics(pipeline: NativeHandle): RenderPipelineStatisticsSnapshot;
+  createBlitPass(device: NativeHandle): NativeHandle;
+  createBloomPass(device: NativeHandle): NativeHandle;
+  createTonemapPass(device: NativeHandle): NativeHandle;
+  createFxaaPass(device: NativeHandle): NativeHandle;
+  createSsaoPass(device: NativeHandle): NativeHandle;
+  createSsrPass(device: NativeHandle): NativeHandle;
+  getBloomIntensity(pass: NativeHandle): number;
+  setBloomIntensity(pass: NativeHandle, value: number): void;
+  getBloomThreshold(pass: NativeHandle): number;
+  setBloomThreshold(pass: NativeHandle, value: number): void;
+  getTonemapExposure(pass: NativeHandle): number;
+  setTonemapExposure(pass: NativeHandle, value: number): void;
+  getTonemapGamma(pass: NativeHandle): number;
+  setTonemapGamma(pass: NativeHandle, value: number): void;
+  getTonemapDebandStrength(pass: NativeHandle): number;
+  setTonemapDebandStrength(pass: NativeHandle, value: number): void;
+  getFxaaEdgeThreshold(pass: NativeHandle): number;
+  setFxaaEdgeThreshold(pass: NativeHandle, value: number): void;
+  getSsaoRadius(pass: NativeHandle): number;
+  setSsaoRadius(pass: NativeHandle, value: number): void;
+  getSsaoIntensity(pass: NativeHandle): number;
+  setSsaoIntensity(pass: NativeHandle, value: number): void;
+  getSsrIntensity(pass: NativeHandle): number;
+  setSsrIntensity(pass: NativeHandle, value: number): void;
+  getSsrMaxDistance(pass: NativeHandle): number;
+  setSsrMaxDistance(pass: NativeHandle, value: number): void;
+  getSsrThickness(pass: NativeHandle): number;
+  setSsrThickness(pass: NativeHandle, value: number): void;
+  getSsrDepthBias(pass: NativeHandle): number;
+  setSsrDepthBias(pass: NativeHandle, value: number): void;
+  getSsrEdgeFade(pass: NativeHandle): number;
+  setSsrEdgeFade(pass: NativeHandle, value: number): void;
+  getSsrRoughnessBlur(pass: NativeHandle): number;
+  setSsrRoughnessBlur(pass: NativeHandle, value: number): void;
+  getBloomIterations(pass: NativeHandle): number;
+  setBloomIterations(pass: NativeHandle, value: number): void;
+  getSsaoSampleCount(pass: NativeHandle): number;
+  setSsaoSampleCount(pass: NativeHandle, value: number): void;
+  getSsrStepCount(pass: NativeHandle): number;
+  setSsrStepCount(pass: NativeHandle, value: number): void;
+  getSsaoHalfResolution(pass: NativeHandle): boolean;
+  setSsaoHalfResolution(pass: NativeHandle, value: boolean): void;
+  getTonemapMode(pass: NativeHandle): number;
+  setTonemapMode(pass: NativeHandle, mode: number): void;
+  getTonemapDebandEnabled(pass: NativeHandle): boolean;
+  setTonemapDebandEnabled(pass: NativeHandle, value: boolean): void;
+  bloomIterationsForQuality(quality: number): number;
+  ssaoSampleCountForQuality(quality: number): number;
+  fxaaEdgeThresholdForQuality(quality: number): number;
+  resetBloomTargets(pass: NativeHandle): void;
+  resetSsaoTargets(pass: NativeHandle): void;
+  applyPostProcessPass(pass: NativeHandle, frame: PostProcessFrameSnapshot): void;
+  getPostProcessPassName(pass: NativeHandle): string;
+  isPostProcessPassSupported(pass: NativeHandle, device: NativeHandle): boolean;
+  destroyPostProcessPass(pass: NativeHandle): void;
+  createPostProcessChain(device: NativeHandle): NativeHandle;
+  destroyPostProcessChain(chain: NativeHandle): void;
+  clearPostProcessChain(chain: NativeHandle): void;
+  resetPostProcessChainTargets(chain: NativeHandle): void;
+  addPostProcessPass(chain: NativeHandle, pass: NativeHandle): void;
+  addOwnedPostProcessPass(chain: NativeHandle, pass: NativeHandle): void;
+  getPostProcessChainPassCount(chain: NativeHandle): number;
+  getPostProcessChainGpuTimingEnabled(chain: NativeHandle): boolean;
+  setPostProcessChainGpuTimingEnabled(chain: NativeHandle, value: boolean): void;
+  applyPostProcessChain(chain: NativeHandle, frame: PostProcessFrameSnapshot): void;
+  getPostProcessChainPassTimings(chain: NativeHandle): readonly PassTimingSnapshot[];
 }
 
 

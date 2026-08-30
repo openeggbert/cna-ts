@@ -55,8 +55,10 @@ import type {
   NativeEffectPassSnapshot,
   NativeEffectReflectionSnapshot,
   NativeEffectTechniqueSnapshot,
+  PassTimingSnapshot,
   PbrMaterialDefaults,
   PlatformSnapshot,
+  PostProcessFrameSnapshot,
   RasterizerStateSnapshot,
   RenderPipelineSettingsDefaults,
   RenderPipelineStatisticsSnapshot,
@@ -871,6 +873,184 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public getRenderPipelineStatistics(
     _pipeline: NativeHandle,
   ): RenderPipelineStatisticsSnapshot { return this.unsupported("getRenderPipelineStatistics"); }
+  public createBlitPass(_device: NativeHandle): NativeHandle { return this.unsupported("createBlitPass"); }
+  public createBloomPass(_device: NativeHandle): NativeHandle { return this.unsupported("createBloomPass"); }
+  public createTonemapPass(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createTonemapPass"); }
+  public createFxaaPass(_device: NativeHandle): NativeHandle { return this.unsupported("createFxaaPass"); }
+  public createSsaoPass(_device: NativeHandle): NativeHandle { return this.unsupported("createSsaoPass"); }
+  public createSsrPass(_device: NativeHandle): NativeHandle { return this.unsupported("createSsrPass"); }
+  public getBloomIntensity(_pass: NativeHandle): number { return this.unsupported("getBloomIntensity"); }
+  public setBloomIntensity(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setBloomIntensity"); }
+  public getBloomThreshold(_pass: NativeHandle): number { return this.unsupported("getBloomThreshold"); }
+  public setBloomThreshold(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setBloomThreshold"); }
+  public getTonemapExposure(_pass: NativeHandle): number { return this.unsupported("getTonemapExposure"); }
+  public setTonemapExposure(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setTonemapExposure"); }
+  public getTonemapGamma(_pass: NativeHandle): number { return this.unsupported("getTonemapGamma"); }
+  public setTonemapGamma(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setTonemapGamma"); }
+  public getTonemapDebandStrength(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getTonemapDebandStrength"); }
+  public setTonemapDebandStrength(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setTonemapDebandStrength"); }
+  public getFxaaEdgeThreshold(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getFxaaEdgeThreshold"); }
+  public setFxaaEdgeThreshold(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setFxaaEdgeThreshold"); }
+  public getSsaoRadius(_pass: NativeHandle): number { return this.unsupported("getSsaoRadius"); }
+  public setSsaoRadius(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSsaoRadius"); }
+  public getSsaoIntensity(_pass: NativeHandle): number { return this.unsupported("getSsaoIntensity"); }
+  public setSsaoIntensity(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSsaoIntensity"); }
+  public getSsrIntensity(_pass: NativeHandle): number { return this.unsupported("getSsrIntensity"); }
+  public setSsrIntensity(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSsrIntensity"); }
+  public getSsrMaxDistance(_pass: NativeHandle): number { return this.unsupported("getSsrMaxDistance"); }
+  public setSsrMaxDistance(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSsrMaxDistance"); }
+  public getSsrThickness(_pass: NativeHandle): number { return this.unsupported("getSsrThickness"); }
+  public setSsrThickness(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSsrThickness"); }
+  public getSsrDepthBias(_pass: NativeHandle): number { return this.unsupported("getSsrDepthBias"); }
+  public setSsrDepthBias(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSsrDepthBias"); }
+  public getSsrEdgeFade(_pass: NativeHandle): number { return this.unsupported("getSsrEdgeFade"); }
+  public setSsrEdgeFade(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSsrEdgeFade"); }
+  public getSsrRoughnessBlur(_pass: NativeHandle): number { return this.unsupported("getSsrRoughnessBlur"); }
+  public setSsrRoughnessBlur(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSsrRoughnessBlur"); }
+  public getBloomIterations(_pass: NativeHandle): number { return this.unsupported("getBloomIterations"); }
+  public setBloomIterations(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setBloomIterations"); }
+  public getSsaoSampleCount(_pass: NativeHandle): number { return this.unsupported("getSsaoSampleCount"); }
+  public setSsaoSampleCount(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSsaoSampleCount"); }
+  public getSsrStepCount(_pass: NativeHandle): number { return this.unsupported("getSsrStepCount"); }
+  public setSsrStepCount(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSsrStepCount"); }
+  public getSsaoHalfResolution(
+    _pass: NativeHandle,
+  ): boolean { return this.unsupported("getSsaoHalfResolution"); }
+  public setSsaoHalfResolution(
+    _pass: NativeHandle,
+    _value: boolean,
+  ): void { return this.unsupported("setSsaoHalfResolution"); }
+  public getTonemapMode(_pass: NativeHandle): number { return this.unsupported("getTonemapMode"); }
+  public setTonemapMode(
+    _pass: NativeHandle,
+    _mode: number,
+  ): void { return this.unsupported("setTonemapMode"); }
+  public getTonemapDebandEnabled(
+    _pass: NativeHandle,
+  ): boolean { return this.unsupported("getTonemapDebandEnabled"); }
+  public setTonemapDebandEnabled(
+    _pass: NativeHandle,
+    _value: boolean,
+  ): void { return this.unsupported("setTonemapDebandEnabled"); }
+  public bloomIterationsForQuality(
+    _quality: number,
+  ): number { return this.unsupported("bloomIterationsForQuality"); }
+  public ssaoSampleCountForQuality(
+    _quality: number,
+  ): number { return this.unsupported("ssaoSampleCountForQuality"); }
+  public fxaaEdgeThresholdForQuality(
+    _quality: number,
+  ): number { return this.unsupported("fxaaEdgeThresholdForQuality"); }
+  public resetBloomTargets(_pass: NativeHandle): void { return this.unsupported("resetBloomTargets"); }
+  public resetSsaoTargets(_pass: NativeHandle): void { return this.unsupported("resetSsaoTargets"); }
+  public applyPostProcessPass(
+    _pass: NativeHandle,
+    _frame: PostProcessFrameSnapshot,
+  ): void { return this.unsupported("applyPostProcessPass"); }
+  public getPostProcessPassName(
+    _pass: NativeHandle,
+  ): string { return this.unsupported("getPostProcessPassName"); }
+  public isPostProcessPassSupported(
+    _pass: NativeHandle,
+    _device: NativeHandle,
+  ): boolean { return this.unsupported("isPostProcessPassSupported"); }
+  public destroyPostProcessPass(
+    _pass: NativeHandle,
+  ): void { return this.unsupported("destroyPostProcessPass"); }
+  public createPostProcessChain(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createPostProcessChain"); }
+  public destroyPostProcessChain(
+    _chain: NativeHandle,
+  ): void { return this.unsupported("destroyPostProcessChain"); }
+  public clearPostProcessChain(
+    _chain: NativeHandle,
+  ): void { return this.unsupported("clearPostProcessChain"); }
+  public resetPostProcessChainTargets(
+    _chain: NativeHandle,
+  ): void { return this.unsupported("resetPostProcessChainTargets"); }
+  public addPostProcessPass(
+    _chain: NativeHandle,
+    _pass: NativeHandle,
+  ): void { return this.unsupported("addPostProcessPass"); }
+  public addOwnedPostProcessPass(
+    _chain: NativeHandle,
+    _pass: NativeHandle,
+  ): void { return this.unsupported("addOwnedPostProcessPass"); }
+  public getPostProcessChainPassCount(
+    _chain: NativeHandle,
+  ): number { return this.unsupported("getPostProcessChainPassCount"); }
+  public getPostProcessChainGpuTimingEnabled(
+    _chain: NativeHandle,
+  ): boolean { return this.unsupported("getPostProcessChainGpuTimingEnabled"); }
+  public setPostProcessChainGpuTimingEnabled(
+    _chain: NativeHandle,
+    _value: boolean,
+  ): void { return this.unsupported("setPostProcessChainGpuTimingEnabled"); }
+  public applyPostProcessChain(
+    _chain: NativeHandle,
+    _frame: PostProcessFrameSnapshot,
+  ): void { return this.unsupported("applyPostProcessChain"); }
+  public getPostProcessChainPassTimings(
+    _chain: NativeHandle,
+  ): readonly PassTimingSnapshot[] { return this.unsupported("getPostProcessChainPassTimings"); }
 }
 
 /** Refusing base for {@link CnaContentBackend}. */
