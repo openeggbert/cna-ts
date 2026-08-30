@@ -664,6 +664,73 @@ export interface CnaAudioBackend {
   getMicrophoneData?(index: number, count: number): Uint8Array;
 }
 
+/**
+ * One renderer identity as the CNA runtime describes it. There is deliberately no `Name`: the C ABI
+ * names the *current* renderer, a backend category, a maturity and a fallback reason, but has no
+ * route that names an arbitrary renderer identity. The public facade supplies that spelling from
+ * the identity enumeration, which the ABI contract proves against the canonical constants.
+ */
+export interface RendererIdentitySnapshot {
+  readonly Type: number;
+  readonly Category: number;
+  readonly CategoryName: string;
+  readonly Maturity: number;
+  readonly MaturityName: string;
+  readonly IsAvailable: boolean;
+}
+
+/** The CNA runtime's own account of which renderer it is running and how it got there. */
+export interface RendererSelectionSnapshot {
+  readonly Selected: number;
+  /** Null until a renderer has actually been created; CNA refuses to invent one. */
+  readonly Active: number | null;
+  readonly Current: number | null;
+  readonly CurrentName: string | null;
+  readonly IsLatched: boolean;
+  readonly AutomaticFallback: boolean;
+}
+
+/** One renderer CNA tried and rejected, with the reason it gave. */
+export interface RendererFallbackSnapshot {
+  readonly Type: number;
+  readonly Reason: number;
+  readonly ReasonName: string;
+  readonly Message: string;
+}
+
+/** The host CNA reports itself running on. */
+export interface PlatformSnapshot {
+  readonly Platform: number;
+  readonly Name: string;
+  readonly IsApple: boolean;
+  readonly IsMobile: boolean;
+  /** Null where the platform is not a desktop; CNA refuses the question rather than answering it. */
+  readonly DesktopOperatingSystem: number | null;
+}
+
+/**
+ * Process-wide CNA services with no Microsoft.Xna.Framework counterpart: which host the runtime is
+ * on, which renderer it selected and why, and its log sink. None of these take a handle, so they
+ * answer before a Game exists and are the same operations on every backend.
+ */
+export interface CnaRuntimeServicesBackend {
+  getPlatform(): PlatformSnapshot;
+  getRendererSelection(): RendererSelectionSnapshot;
+  getAvailableRendererTypes(): readonly number[];
+  isRendererAvailable(type: number): boolean;
+  describeRenderer(type: number): RendererIdentitySnapshot;
+  setPreferredRenderer(type: number): void;
+  setPreferredRendererByName(name: string): void;
+  tryParseRendererName(name: string): number | null;
+  setRendererFallbackChain(types: readonly number[]): void;
+  setAutomaticRendererFallback(enabled: boolean): void;
+  getRendererFallbacks(): readonly RendererFallbackSnapshot[];
+  getMinimumLogLevel(): number;
+  setMinimumLogLevel(level: number): void;
+  writeLog(level: number, category: number, message: string): void;
+  isGraphicsExtensionLayerAvailable(): boolean;
+}
+
 export interface CnaBackend {
   readonly Kind: BackendKind;
   readonly IsAvailable: boolean;
@@ -677,6 +744,7 @@ export interface CnaBackend {
   readonly Graphics?: CnaGraphicsBackend;
   readonly Effects?: CnaEffectBackend;
   readonly Window?: CnaGameWindowBackend;
+  readonly RuntimeServices?: CnaRuntimeServicesBackend;
   openTitleStream?(name: string): Uint8Array;
 
   initialize(): Promise<void>;

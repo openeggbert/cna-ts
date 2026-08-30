@@ -1,11 +1,11 @@
 {
   "contract": "tools/cna-abi/contract.json",
   "cnaRoot": "/rv/data/development/github.com/openeggbert/cnanext",
-  "typeScriptEnums": 52,
-  "verifiedFamilies": 51,
+  "typeScriptEnums": 60,
+  "verifiedFamilies": 59,
   "managedEnums": 1,
-  "claims": 432,
-  "identicalClaims": 429,
+  "claims": 510,
+  "identicalClaims": 507,
   "translatedClaims": 3,
   "scalarAssertions": 6,
   "resultCodeAssertions": 15,
@@ -113,6 +113,18 @@
       "constant": "CNA_GESTURE_TYPE_ALL"
     },
     {
+      "family": "GraphicsRendererFallbackReason",
+      "constant": "CNA_GRAPHICS_RENDERER_FALLBACK_MAXIMUM"
+    },
+    {
+      "family": "GraphicsRendererType",
+      "constant": "CNA_GRAPHICS_RENDERER_FALLBACK_MAXIMUM"
+    },
+    {
+      "family": "GraphicsRendererType",
+      "constant": "CNA_GRAPHICS_RENDERER_MAXIMUM"
+    },
+    {
       "family": "Keys",
       "constant": "CNA_KEY_MODIFIER_ALL"
     },
@@ -197,7 +209,7 @@
       "constant": "CNA_VIDEO_SOUNDTRACK_TYPE_MAXIMUM"
     }
   ],
-  "declaredCnaOnlyConstants": 46,
+  "declaredCnaOnlyConstants": 48,
   "diagnostics": [],
   "translations": [
     {

@@ -1,15 +1,15 @@
 {
   "cnaRoot": "/rv/data/development/github.com/openeggbert/cnanext",
   "headers": 57,
-  "nodeImportedTotal": 361,
-  "wasmImportedTotal": 42,
-  "importedByBothBackends": 42,
+  "nodeImportedTotal": 398,
+  "wasmImportedTotal": 79,
+  "importedByBothBackends": 79,
   "totalFunctions": 4051,
   "totals": {
-    "NODE_IMPORTED": 361,
+    "NODE_IMPORTED": 398,
     "WASM_IMPORTED": 0,
     "XNA_BACKING": 551,
-    "CNA_EXTENSION_BACKING": 1727,
+    "CNA_EXTENSION_BACKING": 1690,
     "INTERNAL_RUNTIME_ONLY": 0,
     "MANAGED_BY_DESIGN": 457,
     "TOOLING_ONLY": 31,
@@ -41,7 +41,8 @@
       "CNA_EXTENSION_BACKING": 4
     },
     "core_ext.h": {
-      "CNA_EXTENSION_BACKING": 56,
+      "CNA_EXTENSION_BACKING": 20,
+      "NODE_IMPORTED": 36,
       "TOOLING_ONLY": 1
     },
     "core.h": {
@@ -78,7 +79,8 @@
       "CNA_EXTENSION_BACKING": 14
     },
     "graphics_ext.h": {
-      "CNA_EXTENSION_BACKING": 28
+      "CNA_EXTENSION_BACKING": 27,
+      "NODE_IMPORTED": 1
     },
     "graphics_resource.h": {
       "INTENTIONALLY_DEFERRED": 12
@@ -7196,8 +7198,8 @@
     {
       "name": "cna_desktop_os_get_current",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_devices_clipboard_set_text_ext",
@@ -10424,20 +10426,20 @@
     {
       "name": "cna_graphics_backend_category_copy_name",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_backend_category_get_name_size",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_backend_get_category",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_backend_get_current_category",
@@ -10454,20 +10456,20 @@
     {
       "name": "cna_graphics_backend_get_maturity",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_backend_maturity_copy_name",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_backend_maturity_get_name_size",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_device_clear_color_depth",
@@ -11294,8 +11296,8 @@
     {
       "name": "cna_graphics_ext_is_available",
       "header": "graphics_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_memory_barrier_has",
@@ -11306,98 +11308,98 @@
     {
       "name": "cna_graphics_renderer_copy_available_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_copy_current_name",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_fallback_copy_message_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_fallback_get_message_size_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_fallback_reason_copy_name_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_fallback_reason_get_name_size_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_get_active_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_get_automatic_fallback_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_get_available_count_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_get_current_name_size",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_get_current_type",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_get_fallback_at_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_get_fallback_count_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_get_is_available_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_get_is_latched_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_get_selected_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_reset_selection_for_tests_ext",
@@ -11408,32 +11410,32 @@
     {
       "name": "cna_graphics_renderer_set_automatic_fallback_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_set_fallback_chain_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_set_preferred_by_name_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_set_preferred_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_renderer_try_parse_name_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_graphics_resource_copy_name",
@@ -13814,8 +13816,8 @@
     {
       "name": "cna_logger_get_minimum_level",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_logger_info",
@@ -13832,8 +13834,8 @@
     {
       "name": "cna_logger_log",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_logger_reset_sink_ext",
@@ -13844,8 +13846,8 @@
     {
       "name": "cna_logger_set_minimum_level",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_logger_set_sink_ext",
@@ -18326,32 +18328,32 @@
     {
       "name": "cna_platform_copy_current_name_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_platform_get_current",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_platform_get_current_name_size_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_platform_get_is_apple_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_platform_get_is_mobile_ext",
       "header": "core_ext.h",
-      "category": "CNA_EXTENSION_BACKING",
-      "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection"
+      "category": "NODE_IMPORTED",
+      "reason": "imported by the Node-API adapter"
     },
     {
       "name": "cna_playlist_collection_copy_type_name",

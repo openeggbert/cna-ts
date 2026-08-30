@@ -32,6 +32,7 @@ import type {
   CnaGameWindowBackend,
   CnaGraphicsBackend,
   CnaMediaBackend,
+  CnaRuntimeServicesBackend,
   CnaStorageBackend,
   CnaVideoBackend,
   CnaXactBackend,
@@ -45,10 +46,14 @@ import type {
   NativeEffectPassSnapshot,
   NativeEffectReflectionSnapshot,
   NativeEffectTechniqueSnapshot,
+  PlatformSnapshot,
   RasterizerStateSnapshot,
   RenderTargetBindingSnapshot,
   RenderTargetInfo,
   RendererDetailSnapshot,
+  RendererFallbackSnapshot,
+  RendererIdentitySnapshot,
+  RendererSelectionSnapshot,
   SamplerStateSnapshot,
   SoundEffectInstanceSnapshot,
   SpriteBatchCommand,
@@ -779,6 +784,45 @@ export abstract class CnaAudioBackendBase implements CnaAudioBackend {
     _offset: number,
     _count: number,
   ): void { return this.unsupported("submitDynamicBuffer"); }
+}
+
+/** Refusing base for {@link CnaRuntimeServicesBackend}. */
+export abstract class CnaRuntimeServicesBackendBase implements CnaRuntimeServicesBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public getPlatform(): PlatformSnapshot { return this.unsupported("getPlatform"); }
+  public getRendererSelection(
+  ): RendererSelectionSnapshot { return this.unsupported("getRendererSelection"); }
+  public getAvailableRendererTypes(
+  ): readonly number[] { return this.unsupported("getAvailableRendererTypes"); }
+  public isRendererAvailable(_type: number): boolean { return this.unsupported("isRendererAvailable"); }
+  public describeRenderer(
+    _type: number,
+  ): RendererIdentitySnapshot { return this.unsupported("describeRenderer"); }
+  public setPreferredRenderer(_type: number): void { return this.unsupported("setPreferredRenderer"); }
+  public setPreferredRendererByName(
+    _name: string,
+  ): void { return this.unsupported("setPreferredRendererByName"); }
+  public tryParseRendererName(
+    _name: string,
+  ): number | null { return this.unsupported("tryParseRendererName"); }
+  public setRendererFallbackChain(
+    _types: readonly number[],
+  ): void { return this.unsupported("setRendererFallbackChain"); }
+  public setAutomaticRendererFallback(
+    _enabled: boolean,
+  ): void { return this.unsupported("setAutomaticRendererFallback"); }
+  public getRendererFallbacks(
+  ): readonly RendererFallbackSnapshot[] { return this.unsupported("getRendererFallbacks"); }
+  public getMinimumLogLevel(): number { return this.unsupported("getMinimumLogLevel"); }
+  public setMinimumLogLevel(_level: number): void { return this.unsupported("setMinimumLogLevel"); }
+  public writeLog(
+    _level: number,
+    _category: number,
+    _message: string,
+  ): void { return this.unsupported("writeLog"); }
+  public isGraphicsExtensionLayerAvailable(
+  ): boolean { return this.unsupported("isGraphicsExtensionLayerAvailable"); }
 }
 
 /** Refusing base for {@link CnaBackend}. */

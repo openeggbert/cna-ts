@@ -33,6 +33,26 @@ try {
   result.abiVersion = status.AbiVersion;
   result.importedSymbolCount = status.ImportedSymbolCount;
 
+  // The modern CNA runtime services, over the same WebAssembly module. These reach routes that
+  // take a CNA_StringView by value, which docs/c-api/WASM_ARTIFACT.md leaves unpinned for wasm32,
+  // so exercising them here is what settles the convention with evidence.
+  const ext = await import("/cna-ts/extensions/runtime/index.js");
+  const platform = ext.GetPlatformInfo();
+  result.extensions = {
+    platform: platform.Platform,
+    platformName: platform.Name,
+    isMobile: platform.IsMobile,
+    selected: ext.RendererSelection.GetState().Selected,
+    available: ext.RendererSelection.GetAvailable().map((r) => r.Name),
+    availableCategories: ext.RendererSelection.GetAvailable().map((r) => r.CategoryName),
+    parsedWebGL2: ext.RendererSelection.TryParseName("webgl2"),
+    parsedNonsense: ext.RendererSelection.TryParseName("not-a-renderer"),
+    fallbacks: ext.RendererSelection.GetFallbacks().length,
+    logLevel: ext.CnaLog.GetMinimumLevel(),
+    graphicsExtensionLayer: ext.IsGraphicsExtensionLayerAvailable(),
+  };
+  ext.CnaLog.Write(ext.CnaLogLevel.Fatal, ext.CnaLogCategory.Test, "cna-ts wasm runtime services");
+
   const targetFrames = Number(new URLSearchParams(location.search).get("frames") ?? "60");
 
   class HelloGame extends Game {

@@ -18,6 +18,10 @@
       "types": "./dist/extensions/index.d.ts",
       "import": "./dist/extensions/index.js"
     },
+    "./extensions/runtime": {
+      "types": "./dist/extensions/runtime/index.d.ts",
+      "import": "./dist/extensions/runtime/index.js"
+    },
     "./runtime": {
       "types": "./dist/runtime/index.d.ts",
       "import": "./dist/runtime/index.js"
@@ -40,6 +44,7 @@
     "test:differential": "npm run build && node test/differential-xna.test.mjs",
     "build:native-bridge": "node tools/build-native-bridge.mjs",
     "test:native": "npm run build:native-bridge && npm run build && node --test test/native-cna.integration.mjs",
+    "test:extensions": "npm run build && node --test test/extensions-runtime.integration.mjs",
     "test:wasm-browser": "npm run build && node --test test/wasm-browser.mjs",
     "audit:cna-abi": "node tools/audit-cna-abi.mjs",
     "verify:cna-contract": "node tools/cna-abi/verify-contract.mjs",

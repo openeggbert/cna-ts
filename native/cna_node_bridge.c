@@ -26,6 +26,25 @@ typedef void* LibraryHandle;
 #endif
 
 typedef uint32_t (*GetAbiVersionFn)(void);
+typedef CNA_Result (*U32OutFn)(uint32_t*);
+typedef CNA_Result (*BoolOutFn)(CNA_Bool*);
+typedef CNA_Result (*SizeOutFn)(uint64_t*);
+typedef CNA_Result (*CopyTextFn)(char*, uint64_t, uint64_t*);
+typedef CNA_Result (*U32InFn)(uint32_t);
+typedef CNA_Result (*BoolInFn)(CNA_Bool);
+typedef CNA_Result (*StringViewInFn)(CNA_StringView);
+typedef CNA_Result (*U32ToU32Fn)(uint32_t, uint32_t*);
+typedef CNA_Result (*U32ToBoolFn)(uint32_t, CNA_Bool*);
+typedef CNA_Result (*U32SizeOutFn)(uint32_t, uint64_t*);
+typedef CNA_Result (*U32CopyTextFn)(uint32_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*U64CopyTextFn)(uint64_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*U64SizeOutFn)(uint64_t, uint64_t*);
+typedef CNA_Result (*RendererListCopyFn)(CNA_GraphicsRendererType*, uint64_t, uint64_t*);
+typedef CNA_Result (*RendererChainFn)(const CNA_GraphicsRendererType*, uint64_t);
+typedef CNA_Result (*RendererFallbackAtFn)(uint64_t, CNA_GraphicsRendererFallbackRecord*);
+typedef CNA_Result (*RendererParseFn)(CNA_StringView, CNA_GraphicsRendererType*, CNA_Bool*);
+typedef CNA_Result (*LoggerLogFn)(CNA_LogLevel, CNA_StringView, CNA_LogCategory, CNA_Bool);
+
 typedef CNA_Result (*ErrorGetLastMessageSizeFn)(uint64_t*);
 typedef CNA_Result (*ErrorCopyLastMessageFn)(char*, uint64_t, uint64_t*);
 typedef CNA_Result (*GameCreateFn)(const CNA_GameCreateInfo*, CNA_Handle*);
@@ -235,6 +254,43 @@ typedef CNA_Result (*EffectMatricesFn)(CNA_EffectHandle, const CNA_Matrix*, uint
 
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
+  U32OutFn platform_get_current;
+  BoolOutFn platform_get_is_apple;
+  BoolOutFn platform_get_is_mobile;
+  SizeOutFn platform_name_size;
+  CopyTextFn platform_copy_name;
+  U32OutFn desktop_os_get_current;
+  U32ToU32Fn backend_get_category;
+  U32SizeOutFn backend_category_name_size;
+  U32CopyTextFn backend_category_copy_name;
+  U32ToU32Fn backend_get_maturity;
+  U32SizeOutFn backend_maturity_name_size;
+  U32CopyTextFn backend_maturity_copy_name;
+  U32InFn renderer_set_preferred;
+  StringViewInFn renderer_set_preferred_by_name;
+  U32OutFn renderer_get_selected;
+  U32OutFn renderer_get_active;
+  BoolOutFn renderer_get_is_latched;
+  SizeOutFn renderer_available_count;
+  RendererListCopyFn renderer_copy_available;
+  U32ToBoolFn renderer_get_is_available;
+  RendererChainFn renderer_set_fallback_chain;
+  BoolInFn renderer_set_automatic_fallback;
+  BoolOutFn renderer_get_automatic_fallback;
+  SizeOutFn renderer_fallback_count;
+  RendererFallbackAtFn renderer_fallback_at;
+  U64SizeOutFn renderer_fallback_message_size;
+  U64CopyTextFn renderer_fallback_copy_message;
+  U32SizeOutFn renderer_fallback_reason_name_size;
+  U32CopyTextFn renderer_fallback_reason_copy_name;
+  RendererParseFn renderer_try_parse_name;
+  U32OutFn renderer_get_current_type;
+  SizeOutFn renderer_current_name_size;
+  CopyTextFn renderer_copy_current_name;
+  U32OutFn logger_get_minimum_level;
+  U32InFn logger_set_minimum_level;
+  LoggerLogFn logger_log;
+  BoolOutFn graphics_ext_is_available;
   ErrorGetLastMessageSizeFn error_get_last_message_size;
   ErrorCopyLastMessageFn error_copy_last_message;
   GameCreateFn game_create;
@@ -880,6 +936,43 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   g_imported_symbols = 0;
 
   LOAD_REQUIRED(get_abi_version, GetAbiVersionFn, "cna_get_abi_version");
+  LOAD_REQUIRED(platform_get_current, U32OutFn, "cna_platform_get_current");
+  LOAD_REQUIRED(platform_get_is_apple, BoolOutFn, "cna_platform_get_is_apple_ext");
+  LOAD_REQUIRED(platform_get_is_mobile, BoolOutFn, "cna_platform_get_is_mobile_ext");
+  LOAD_REQUIRED(platform_name_size, SizeOutFn, "cna_platform_get_current_name_size_ext");
+  LOAD_REQUIRED(platform_copy_name, CopyTextFn, "cna_platform_copy_current_name_ext");
+  LOAD_REQUIRED(desktop_os_get_current, U32OutFn, "cna_desktop_os_get_current");
+  LOAD_REQUIRED(backend_get_category, U32ToU32Fn, "cna_graphics_backend_get_category");
+  LOAD_REQUIRED(backend_category_name_size, U32SizeOutFn, "cna_graphics_backend_category_get_name_size");
+  LOAD_REQUIRED(backend_category_copy_name, U32CopyTextFn, "cna_graphics_backend_category_copy_name");
+  LOAD_REQUIRED(backend_get_maturity, U32ToU32Fn, "cna_graphics_backend_get_maturity");
+  LOAD_REQUIRED(backend_maturity_name_size, U32SizeOutFn, "cna_graphics_backend_maturity_get_name_size");
+  LOAD_REQUIRED(backend_maturity_copy_name, U32CopyTextFn, "cna_graphics_backend_maturity_copy_name");
+  LOAD_REQUIRED(renderer_set_preferred, U32InFn, "cna_graphics_renderer_set_preferred_ext");
+  LOAD_REQUIRED(renderer_set_preferred_by_name, StringViewInFn, "cna_graphics_renderer_set_preferred_by_name_ext");
+  LOAD_REQUIRED(renderer_get_selected, U32OutFn, "cna_graphics_renderer_get_selected_ext");
+  LOAD_REQUIRED(renderer_get_active, U32OutFn, "cna_graphics_renderer_get_active_ext");
+  LOAD_REQUIRED(renderer_get_is_latched, BoolOutFn, "cna_graphics_renderer_get_is_latched_ext");
+  LOAD_REQUIRED(renderer_available_count, SizeOutFn, "cna_graphics_renderer_get_available_count_ext");
+  LOAD_REQUIRED(renderer_copy_available, RendererListCopyFn, "cna_graphics_renderer_copy_available_ext");
+  LOAD_REQUIRED(renderer_get_is_available, U32ToBoolFn, "cna_graphics_renderer_get_is_available_ext");
+  LOAD_REQUIRED(renderer_set_fallback_chain, RendererChainFn, "cna_graphics_renderer_set_fallback_chain_ext");
+  LOAD_REQUIRED(renderer_set_automatic_fallback, BoolInFn, "cna_graphics_renderer_set_automatic_fallback_ext");
+  LOAD_REQUIRED(renderer_get_automatic_fallback, BoolOutFn, "cna_graphics_renderer_get_automatic_fallback_ext");
+  LOAD_REQUIRED(renderer_fallback_count, SizeOutFn, "cna_graphics_renderer_get_fallback_count_ext");
+  LOAD_REQUIRED(renderer_fallback_at, RendererFallbackAtFn, "cna_graphics_renderer_get_fallback_at_ext");
+  LOAD_REQUIRED(renderer_fallback_message_size, U64SizeOutFn, "cna_graphics_renderer_fallback_get_message_size_ext");
+  LOAD_REQUIRED(renderer_fallback_copy_message, U64CopyTextFn, "cna_graphics_renderer_fallback_copy_message_ext");
+  LOAD_REQUIRED(renderer_fallback_reason_name_size, U32SizeOutFn, "cna_graphics_renderer_fallback_reason_get_name_size_ext");
+  LOAD_REQUIRED(renderer_fallback_reason_copy_name, U32CopyTextFn, "cna_graphics_renderer_fallback_reason_copy_name_ext");
+  LOAD_REQUIRED(renderer_try_parse_name, RendererParseFn, "cna_graphics_renderer_try_parse_name_ext");
+  LOAD_REQUIRED(renderer_get_current_type, U32OutFn, "cna_graphics_renderer_get_current_type");
+  LOAD_REQUIRED(renderer_current_name_size, SizeOutFn, "cna_graphics_renderer_get_current_name_size");
+  LOAD_REQUIRED(renderer_copy_current_name, CopyTextFn, "cna_graphics_renderer_copy_current_name");
+  LOAD_REQUIRED(logger_get_minimum_level, U32OutFn, "cna_logger_get_minimum_level");
+  LOAD_REQUIRED(logger_set_minimum_level, U32InFn, "cna_logger_set_minimum_level");
+  LOAD_REQUIRED(logger_log, LoggerLogFn, "cna_logger_log");
+  LOAD_REQUIRED(graphics_ext_is_available, BoolOutFn, "cna_graphics_ext_is_available");
   LOAD_REQUIRED(error_get_last_message_size, ErrorGetLastMessageSizeFn, "cna_error_get_last_message_size");
   LOAD_REQUIRED(error_copy_last_message, ErrorCopyLastMessageFn, "cna_error_copy_last_message");
   {
@@ -5964,10 +6057,454 @@ static napi_value open_storage_file(napi_env env, napi_callback_info info) {
 AUDIO_HANDLE_METHOD(destroy_storage_device, storage_device_destroy, "cna_storage_device_destroy")
 AUDIO_HANDLE_METHOD(destroy_storage_container, storage_container_destroy, "cna_storage_container_destroy")
 
+/* ---- Process-wide CNA runtime services (platform, renderer selection, logging) ----------------
+   None of these take a handle: they answer before a Game exists and are the same operations on
+   every backend, which is what makes them the first modern CNA extension family. */
+
+static napi_value copy_global_string(
+  napi_env env, SizeOutFn size_function, CopyTextFn copy_function, const char* operation) {
+  uint64_t length = 0;
+  CNA_Result result = size_function(&length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  if (length > SIZE_MAX) return throw_message(env, "CNA runtime text exceeds host address space");
+  char* value = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !value) return throw_message(env, "CNA runtime text allocation failed");
+  uint64_t copied = 0;
+  result = copy_function(value, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(value);
+    return throw_result(env, operation, result);
+  }
+  napi_value output;
+  const napi_status status = napi_create_string_utf8(env, value ? value : "", (size_t) length, &output);
+  free(value);
+  if (status != napi_ok) return throw_napi(env, operation);
+  return output;
+}
+
+static napi_value copy_identity_string(
+  napi_env env, uint32_t identity, U32SizeOutFn size_function, U32CopyTextFn copy_function,
+  const char* operation) {
+  uint64_t length = 0;
+  CNA_Result result = size_function(identity, &length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  if (length > SIZE_MAX) return throw_message(env, "CNA identity name exceeds host address space");
+  char* value = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !value) return throw_message(env, "CNA identity name allocation failed");
+  uint64_t copied = 0;
+  result = copy_function(identity, value, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(value);
+    return throw_result(env, operation, result);
+  }
+  napi_value output;
+  const napi_status status = napi_create_string_utf8(env, value ? value : "", (size_t) length, &output);
+  free(value);
+  if (status != napi_ok) return throw_napi(env, operation);
+  return output;
+}
+
+static int set_u32_property(napi_env env, napi_value object, const char* name, uint32_t value) {
+  napi_value entry;
+  return napi_create_uint32(env, value, &entry) == napi_ok &&
+    napi_set_named_property(env, object, name, entry) == napi_ok;
+}
+
+static int set_bool_property(napi_env env, napi_value object, const char* name, CNA_Bool value) {
+  napi_value entry;
+  return napi_get_boolean(env, value != CNA_FALSE, &entry) == napi_ok &&
+    napi_set_named_property(env, object, name, entry) == napi_ok;
+}
+
+static napi_value get_platform_snapshot(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  uint32_t platform = 0, desktop = 0;
+  CNA_Bool apple = CNA_FALSE, mobile = CNA_FALSE;
+  CNA_Result result = g_api.platform_get_current(&platform);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_platform_get_current", result);
+  result = g_api.platform_get_is_apple(&apple);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_platform_get_is_apple_ext", result);
+  result = g_api.platform_get_is_mobile(&mobile);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_platform_get_is_mobile_ext", result);
+  /* Off a desktop there is no desktop operating system, and CNA refuses the question with
+     CNA_RESULT_INVALID_STATE rather than naming one. That is a state, not a failure. */
+  int has_desktop = 1;
+  result = g_api.desktop_os_get_current(&desktop);
+  if (result == CNA_RESULT_INVALID_STATE) has_desktop = 0;
+  else if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_desktop_os_get_current", result);
+  }
+  napi_value name = copy_global_string(env, g_api.platform_name_size, g_api.platform_copy_name,
+    "cna_platform_copy_current_name_ext");
+  if (!name) return NULL;
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "platform snapshot");
+  napi_value desktop_value;
+  if (has_desktop) {
+    NAPI_OR_RETURN(env, napi_create_uint32(env, desktop, &desktop_value), "platform snapshot");
+  } else {
+    NAPI_OR_RETURN(env, napi_get_null(env, &desktop_value), "platform snapshot");
+  }
+  if (!set_u32_property(env, output, "Platform", platform) ||
+      napi_set_named_property(env, output, "DesktopOperatingSystem", desktop_value) != napi_ok ||
+      !set_bool_property(env, output, "IsApple", apple) ||
+      !set_bool_property(env, output, "IsMobile", mobile) ||
+      napi_set_named_property(env, output, "Name", name) != napi_ok) {
+    return throw_napi(env, "platform snapshot");
+  }
+  return output;
+}
+
+static napi_value get_renderer_selection(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  uint32_t selected = 0, active = 0, current = 0;
+  CNA_Bool latched = CNA_FALSE, automatic = CNA_FALSE;
+  CNA_Result result = g_api.renderer_get_selected(&selected);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_renderer_get_selected_ext", result);
+  /* Before any renderer has been created there is no active or current identity, and CNA says so
+     with CNA_RESULT_INVALID_STATE rather than by inventing one. That is a state, not a failure, so
+     it becomes a null field instead of a thrown error. */
+  int has_active = 1, has_current = 1;
+  result = g_api.renderer_get_active(&active);
+  if (result == CNA_RESULT_INVALID_STATE) has_active = 0;
+  else if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_renderer_get_active_ext", result);
+  }
+  result = g_api.renderer_get_current_type(&current);
+  if (result == CNA_RESULT_INVALID_STATE) has_current = 0;
+  else if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_renderer_get_current_type", result);
+  }
+  result = g_api.renderer_get_is_latched(&latched);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_renderer_get_is_latched_ext", result);
+  result = g_api.renderer_get_automatic_fallback(&automatic);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_renderer_get_automatic_fallback_ext", result);
+  }
+  napi_value name;
+  if (has_current) {
+    name = copy_global_string(env, g_api.renderer_current_name_size,
+      g_api.renderer_copy_current_name, "cna_graphics_renderer_copy_current_name");
+    if (!name) return NULL;
+  } else {
+    NAPI_OR_RETURN(env, napi_get_null(env, &name), "renderer selection");
+  }
+  napi_value active_value, current_value;
+  if (has_active) {
+    NAPI_OR_RETURN(env, napi_create_uint32(env, active, &active_value), "renderer selection");
+  } else {
+    NAPI_OR_RETURN(env, napi_get_null(env, &active_value), "renderer selection");
+  }
+  if (has_current) {
+    NAPI_OR_RETURN(env, napi_create_uint32(env, current, &current_value), "renderer selection");
+  } else {
+    NAPI_OR_RETURN(env, napi_get_null(env, &current_value), "renderer selection");
+  }
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "renderer selection");
+  if (!set_u32_property(env, output, "Selected", selected) ||
+      napi_set_named_property(env, output, "Active", active_value) != napi_ok ||
+      napi_set_named_property(env, output, "Current", current_value) != napi_ok ||
+      !set_bool_property(env, output, "IsLatched", latched) ||
+      !set_bool_property(env, output, "AutomaticFallback", automatic) ||
+      napi_set_named_property(env, output, "CurrentName", name) != napi_ok) {
+    return throw_napi(env, "renderer selection");
+  }
+  return output;
+}
+
+static napi_value get_available_renderer_types(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  uint64_t count = 0;
+  CNA_Result result = g_api.renderer_available_count(&count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_renderer_get_available_count_ext", result);
+  }
+  if (count > SIZE_MAX / sizeof(CNA_GraphicsRendererType)) {
+    return throw_message(env, "renderer list exceeds host address space");
+  }
+  CNA_GraphicsRendererType* types = count == 0 ? NULL :
+    (CNA_GraphicsRendererType*) calloc((size_t) count, sizeof(CNA_GraphicsRendererType));
+  if (count != 0 && !types) return throw_message(env, "renderer list allocation failed");
+  uint64_t copied = 0;
+  result = g_api.renderer_copy_available(types, count, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != count) {
+    free(types);
+    return throw_result(env, "cna_graphics_renderer_copy_available_ext", result);
+  }
+  napi_value output;
+  if (napi_create_array_with_length(env, (size_t) count, &output) != napi_ok) {
+    free(types);
+    return throw_napi(env, "renderer list");
+  }
+  for (uint64_t index = 0; index < count; index += 1) {
+    napi_value entry;
+    if (napi_create_uint32(env, types[index], &entry) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      free(types);
+      return throw_napi(env, "renderer list");
+    }
+  }
+  free(types);
+  return output;
+}
+
+static napi_value describe_renderer(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  uint32_t type = 0;
+  if (!get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &type) != napi_ok) return NULL;
+  uint32_t category = 0, maturity = 0;
+  CNA_Bool available = CNA_FALSE;
+  CNA_Result result = g_api.backend_get_category(type, &category);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_backend_get_category", result);
+  result = g_api.backend_get_maturity(type, &maturity);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_backend_get_maturity", result);
+  result = g_api.renderer_get_is_available(type, &available);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_renderer_get_is_available_ext", result);
+  }
+  napi_value category_name = copy_identity_string(env, category, g_api.backend_category_name_size,
+    g_api.backend_category_copy_name, "cna_graphics_backend_category_copy_name");
+  if (!category_name) return NULL;
+  napi_value maturity_name = copy_identity_string(env, maturity, g_api.backend_maturity_name_size,
+    g_api.backend_maturity_copy_name, "cna_graphics_backend_maturity_copy_name");
+  if (!maturity_name) return NULL;
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "renderer identity");
+  if (!set_u32_property(env, output, "Type", type) ||
+      !set_u32_property(env, output, "Category", category) ||
+      !set_u32_property(env, output, "Maturity", maturity) ||
+      !set_bool_property(env, output, "IsAvailable", available) ||
+      napi_set_named_property(env, output, "CategoryName", category_name) != napi_ok ||
+      napi_set_named_property(env, output, "MaturityName", maturity_name) != napi_ok) {
+    return throw_napi(env, "renderer identity");
+  }
+  return output;
+}
+
+static napi_value set_preferred_renderer(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  uint32_t type = 0;
+  if (!get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &type) != napi_ok) return NULL;
+  CNA_Result result = g_api.renderer_set_preferred(type);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_renderer_set_preferred_ext", result);
+  }
+  return undefined_result(env, "preferred renderer result");
+}
+
+static napi_value set_preferred_renderer_by_name(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  char* name = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 1, args) || !read_utf8(env, args[0], &name, &length)) return NULL;
+  const CNA_StringView view = {name, length};
+  CNA_Result result = g_api.renderer_set_preferred_by_name(view);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_renderer_set_preferred_by_name_ext", result);
+  }
+  return undefined_result(env, "preferred renderer result");
+}
+
+static napi_value try_parse_renderer_name(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  char* name = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 1, args) || !read_utf8(env, args[0], &name, &length)) return NULL;
+  const CNA_StringView view = {name, length};
+  uint32_t type = 0;
+  CNA_Bool recognized = CNA_FALSE;
+  CNA_Result result = g_api.renderer_try_parse_name(view, &type, &recognized);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_renderer_try_parse_name_ext", result);
+  }
+  napi_value output;
+  if (recognized == CNA_FALSE) {
+    NAPI_OR_RETURN(env, napi_get_null(env, &output), "renderer name parse");
+    return output;
+  }
+  NAPI_OR_RETURN(env, napi_create_uint32(env, type, &output), "renderer name parse");
+  return output;
+}
+
+static napi_value set_renderer_fallback_chain(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  bool is_array = false;
+  if (!get_args(env, info, 1, args)) return NULL;
+  if (napi_is_array(env, args[0], &is_array) != napi_ok || !is_array) {
+    return throw_message(env, "the renderer fallback chain must be an array");
+  }
+  uint32_t count = 0;
+  NAPI_OR_RETURN(env, napi_get_array_length(env, args[0], &count), "fallback chain length");
+  CNA_GraphicsRendererType* types = count == 0 ? NULL :
+    (CNA_GraphicsRendererType*) calloc(count, sizeof(CNA_GraphicsRendererType));
+  if (count != 0 && !types) return throw_message(env, "fallback chain allocation failed");
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value entry;
+    uint32_t value = 0;
+    if (napi_get_element(env, args[0], index, &entry) != napi_ok ||
+        napi_get_value_uint32(env, entry, &value) != napi_ok) {
+      free(types);
+      return throw_message(env, "the renderer fallback chain must hold renderer identities");
+    }
+    types[index] = value;
+  }
+  CNA_Result result = g_api.renderer_set_fallback_chain(types, count);
+  free(types);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_renderer_set_fallback_chain_ext", result);
+  }
+  return undefined_result(env, "fallback chain result");
+}
+
+static napi_value set_automatic_renderer_fallback(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  bool enabled = false;
+  if (!get_args(env, info, 1, args) ||
+      napi_get_value_bool(env, args[0], &enabled) != napi_ok) return NULL;
+  CNA_Result result = g_api.renderer_set_automatic_fallback(enabled ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_renderer_set_automatic_fallback_ext", result);
+  }
+  return undefined_result(env, "automatic fallback result");
+}
+
+static napi_value get_renderer_fallbacks(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  uint64_t count = 0;
+  CNA_Result result = g_api.renderer_fallback_count(&count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_renderer_get_fallback_count_ext", result);
+  }
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, (size_t) count, &output), "fallback list");
+  for (uint64_t index = 0; index < count; index += 1) {
+    CNA_GraphicsRendererFallbackRecord record;
+    memset(&record, 0, sizeof(record));
+    record.struct_size = sizeof(record);
+    record.struct_version = 1;
+    result = g_api.renderer_fallback_at(index, &record);
+    if (result != CNA_RESULT_SUCCESS) {
+      return throw_result(env, "cna_graphics_renderer_get_fallback_at_ext", result);
+    }
+    uint64_t length = 0;
+    result = g_api.renderer_fallback_message_size(index, &length);
+    if (result != CNA_RESULT_SUCCESS) {
+      return throw_result(env, "cna_graphics_renderer_fallback_get_message_size_ext", result);
+    }
+    if (length > SIZE_MAX) return throw_message(env, "fallback message exceeds host address space");
+    char* message = length == 0 ? NULL : (char*) malloc((size_t) length);
+    if (length != 0 && !message) return throw_message(env, "fallback message allocation failed");
+    uint64_t copied = 0;
+    result = g_api.renderer_fallback_copy_message(index, message, length, &copied);
+    if (result != CNA_RESULT_SUCCESS || copied != length) {
+      free(message);
+      return throw_result(env, "cna_graphics_renderer_fallback_copy_message_ext", result);
+    }
+    napi_value message_value;
+    const napi_status status =
+      napi_create_string_utf8(env, message ? message : "", (size_t) length, &message_value);
+    free(message);
+    if (status != napi_ok) return throw_napi(env, "fallback message");
+    napi_value reason_name = copy_identity_string(env, record.reason,
+      g_api.renderer_fallback_reason_name_size, g_api.renderer_fallback_reason_copy_name,
+      "cna_graphics_renderer_fallback_reason_copy_name_ext");
+    if (!reason_name) return NULL;
+    napi_value entry;
+    NAPI_OR_RETURN(env, napi_create_object(env, &entry), "fallback record");
+    if (!set_u32_property(env, entry, "Type", record.type) ||
+        !set_u32_property(env, entry, "Reason", record.reason) ||
+        napi_set_named_property(env, entry, "ReasonName", reason_name) != napi_ok ||
+        napi_set_named_property(env, entry, "Message", message_value) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      return throw_napi(env, "fallback record");
+    }
+  }
+  return output;
+}
+
+static napi_value get_minimum_log_level(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  uint32_t level = 0;
+  CNA_Result result = g_api.logger_get_minimum_level(&level);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_logger_get_minimum_level", result);
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_uint32(env, level, &output), "log level");
+  return output;
+}
+
+static napi_value set_minimum_log_level(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  uint32_t level = 0;
+  if (!get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &level) != napi_ok) return NULL;
+  CNA_Result result = g_api.logger_set_minimum_level(level);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_logger_set_minimum_level", result);
+  return undefined_result(env, "log level result");
+}
+
+static napi_value write_log(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  uint32_t level = 0, category = 0;
+  char* message = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 3, args) ||
+      napi_get_value_uint32(env, args[0], &level) != napi_ok ||
+      napi_get_value_uint32(env, args[1], &category) != napi_ok ||
+      !read_utf8(env, args[2], &message, &length)) return NULL;
+  const CNA_StringView view = {message, length};
+  CNA_Result result = g_api.logger_log(level, view, category, CNA_FALSE);
+  free(message);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_logger_log", result);
+  return undefined_result(env, "log result");
+}
+
+static napi_value is_graphics_extension_layer_available(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  CNA_Bool available = CNA_FALSE;
+  CNA_Result result = g_api.graphics_ext_is_available(&available);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_graphics_ext_is_available", result);
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_get_boolean(env, available != CNA_FALSE, &output), "extension availability");
+  return output;
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "getPlatformSnapshot", NULL, get_platform_snapshot, NULL, NULL, NULL, napi_default, NULL },
+    { "getRendererSelection", NULL, get_renderer_selection, NULL, NULL, NULL, napi_default, NULL },
+    { "getAvailableRendererTypes", NULL, get_available_renderer_types, NULL, NULL, NULL, napi_default, NULL },
+    { "describeRenderer", NULL, describe_renderer, NULL, NULL, NULL, napi_default, NULL },
+    { "setPreferredRenderer", NULL, set_preferred_renderer, NULL, NULL, NULL, napi_default, NULL },
+    { "setPreferredRendererByName", NULL, set_preferred_renderer_by_name, NULL, NULL, NULL, napi_default, NULL },
+    { "tryParseRendererName", NULL, try_parse_renderer_name, NULL, NULL, NULL, napi_default, NULL },
+    { "setRendererFallbackChain", NULL, set_renderer_fallback_chain, NULL, NULL, NULL, napi_default, NULL },
+    { "setAutomaticRendererFallback", NULL, set_automatic_renderer_fallback, NULL, NULL, NULL, napi_default, NULL },
+    { "getRendererFallbacks", NULL, get_renderer_fallbacks, NULL, NULL, NULL, napi_default, NULL },
+    { "getMinimumLogLevel", NULL, get_minimum_log_level, NULL, NULL, NULL, napi_default, NULL },
+    { "setMinimumLogLevel", NULL, set_minimum_log_level, NULL, NULL, NULL, napi_default, NULL },
+    { "writeLog", NULL, write_log, NULL, NULL, NULL, napi_default, NULL },
+    { "isGraphicsExtensionLayerAvailable", NULL, is_graphics_extension_layer_available, NULL, NULL, NULL, napi_default, NULL },
     { "importedSymbolCount", NULL, imported_symbol_count, NULL, NULL, NULL, napi_default, NULL },
     { "getLastError", NULL, get_last_error, NULL, NULL, NULL, napi_default, NULL },
     { "createGame", NULL, create_game, NULL, NULL, NULL, napi_default, NULL },

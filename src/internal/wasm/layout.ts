@@ -225,4 +225,14 @@ export const WASM_STRUCT_LAYOUTS = {
       pressed_buttons: { offset: 24, size: 4 },
     },
   },
+  CNA_GraphicsRendererFallbackRecord: {
+    size: 16,
+    align: 4,
+    fields: {
+      struct_size: { offset: 0, size: 4 },
+      struct_version: { offset: 4, size: 4 },
+      type: { offset: 8, size: 4 },
+      reason: { offset: 12, size: 4 },
+    },
+  },
 } as const satisfies Readonly<Record<string, WasmStructLayout>>;

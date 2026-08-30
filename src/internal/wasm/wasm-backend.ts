@@ -14,6 +14,11 @@ import { CNA_ABI_MAJOR, CNA_ABI_MINOR, decodeAbiVersion, describeAbiWindow, isSu
 import { CnaBackendBase } from "../backend-base.js";
 import type {
   BackendRendererInfo,
+  CnaRuntimeServicesBackend,
+  PlatformSnapshot,
+  RendererFallbackSnapshot,
+  RendererIdentitySnapshot,
+  RendererSelectionSnapshot,
   CnaGameCallbacks,
   CnaGameConfiguration,
   CnaGameTimeSnapshot,
@@ -40,6 +45,7 @@ import {
 } from "./module.js";
 
 const CNA_RESULT_SUCCESS = 0;
+const CNA_RESULT_INVALID_STATE = 3;
 const MOUSE_BUTTON_LEFT = 1 << 0;
 const MOUSE_BUTTON_MIDDLE = 1 << 1;
 const MOUSE_BUTTON_RIGHT = 1 << 2;
@@ -90,6 +96,43 @@ const ROUTES = [
   "cna_sprite_batch_destroy",
   "cna_keyboard_get_state",
   "cna_mouse_get_state",
+  "cna_platform_get_current",
+  "cna_platform_get_is_apple_ext",
+  "cna_platform_get_is_mobile_ext",
+  "cna_platform_get_current_name_size_ext",
+  "cna_platform_copy_current_name_ext",
+  "cna_desktop_os_get_current",
+  "cna_graphics_backend_get_category",
+  "cna_graphics_backend_category_get_name_size",
+  "cna_graphics_backend_category_copy_name",
+  "cna_graphics_backend_get_maturity",
+  "cna_graphics_backend_maturity_get_name_size",
+  "cna_graphics_backend_maturity_copy_name",
+  "cna_graphics_renderer_set_preferred_ext",
+  "cna_graphics_renderer_set_preferred_by_name_ext",
+  "cna_graphics_renderer_get_selected_ext",
+  "cna_graphics_renderer_get_active_ext",
+  "cna_graphics_renderer_get_is_latched_ext",
+  "cna_graphics_renderer_get_available_count_ext",
+  "cna_graphics_renderer_copy_available_ext",
+  "cna_graphics_renderer_get_is_available_ext",
+  "cna_graphics_renderer_set_fallback_chain_ext",
+  "cna_graphics_renderer_set_automatic_fallback_ext",
+  "cna_graphics_renderer_get_automatic_fallback_ext",
+  "cna_graphics_renderer_get_fallback_count_ext",
+  "cna_graphics_renderer_get_fallback_at_ext",
+  "cna_graphics_renderer_fallback_get_message_size_ext",
+  "cna_graphics_renderer_fallback_copy_message_ext",
+  "cna_graphics_renderer_fallback_reason_get_name_size_ext",
+  "cna_graphics_renderer_fallback_reason_copy_name_ext",
+  "cna_graphics_renderer_try_parse_name_ext",
+  "cna_graphics_renderer_get_current_type",
+  "cna_graphics_renderer_get_current_name_size",
+  "cna_graphics_renderer_copy_current_name",
+  "cna_logger_get_minimum_level",
+  "cna_logger_set_minimum_level",
+  "cna_logger_log",
+  "cna_graphics_ext_is_available",
 ] as const;
 
 type RouteName = (typeof ROUTES)[number];
@@ -111,7 +154,7 @@ export class WasmCnaError extends Error {
   }
 }
 
-export class WasmBackend extends CnaBackendBase {
+export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBackend {
   public readonly Kind = "wasm" as const;
   public readonly IsAvailable = true;
   public readonly AbiVersion: string;
@@ -119,6 +162,7 @@ export class WasmBackend extends CnaBackendBase {
   public readonly ImportedSymbolCount = ROUTES.length;
   /** Reported once the graphics device exists, matching the Node adapter's status shape. */
   public RendererInfo: BackendRendererInfo | null = null;
+  public readonly RuntimeServices: CnaRuntimeServicesBackend = this;
 
   readonly #module: CnaWasmModule;
   readonly #routes: Map<RouteName, WasmExport>;
@@ -645,4 +689,238 @@ export class WasmBackend extends CnaBackendBase {
       scope.dispose();
     }
   }
+
+  // ---- Process-wide CNA runtime services -------------------------------------------------------
+  // Identical operations to the Node adapter's, over the same C routes. None takes a handle, so
+  // they answer before a game exists and before a canvas is attached.
+
+  #outU32(name: RouteName, ...args: readonly (number | bigint)[]): number {
+    const scope = new WasmScope(this.#module);
+    try {
+      const out = scope.allocate(4);
+      this.#invoke(name, ...args, out);
+      return new DataView(this.#module.HEAPU8.buffer as ArrayBuffer).getUint32(out, true);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  #outBool(name: RouteName, ...args: readonly (number | bigint)[]): boolean {
+    const scope = new WasmScope(this.#module);
+    try {
+      const out = scope.allocate(1);
+      this.#invoke(name, ...args, out);
+      return this.#module.HEAPU8[out] !== 0;
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  #outU64(name: RouteName, ...args: readonly (number | bigint)[]): number {
+    const scope = new WasmScope(this.#module);
+    try {
+      const out = scope.allocate(8);
+      this.#invoke(name, ...args, out);
+      return Number(new DataView(this.#module.HEAPU8.buffer as ArrayBuffer).getBigUint64(out, true));
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /** A copied CNA string carries no terminator, so its exact byte count is read first. */
+  #copyText(
+    sizeRoute: RouteName, copyRoute: RouteName, ...leading: readonly (number | bigint)[]
+  ): string {
+    const byteLength = this.#outU64(sizeRoute, ...leading);
+    if (byteLength === 0) return "";
+    const scope = new WasmScope(this.#module);
+    try {
+      const buffer = scope.allocate(byteLength);
+      const written = scope.allocate(8);
+      this.#invoke(copyRoute, ...leading, buffer, BigInt(byteLength), written);
+      const count = Number(new DataView(this.#module.HEAPU8.buffer as ArrayBuffer).getBigUint64(written, true));
+      return readUtf8(this.#module, buffer, count);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /** Runs a read that CNA answers only in some states, mapping its refusal to null. */
+  #optional(read: () => number): number | null {
+    try {
+      return read();
+    } catch (error) {
+      if (error instanceof WasmCnaError && error.cnaResult === CNA_RESULT_INVALID_STATE) return null;
+      throw error;
+    }
+  }
+
+  public getPlatform(): PlatformSnapshot {
+    return Object.freeze({
+      Platform: this.#outU32("cna_platform_get_current"),
+      Name: this.#copyText("cna_platform_get_current_name_size_ext", "cna_platform_copy_current_name_ext"),
+      IsApple: this.#outBool("cna_platform_get_is_apple_ext"),
+      IsMobile: this.#outBool("cna_platform_get_is_mobile_ext"),
+      // Off a desktop there is no desktop operating system and CNA refuses the question.
+      DesktopOperatingSystem: this.#optional(() => this.#outU32("cna_desktop_os_get_current")),
+    });
+  }
+
+  public getRendererSelection(): RendererSelectionSnapshot {
+    // Before any renderer has been created there is no active or current identity, and CNA says so
+    // with CNA_RESULT_INVALID_STATE rather than inventing one. That is a state, not a failure.
+    const current = this.#optional(() => this.#outU32("cna_graphics_renderer_get_current_type"));
+    return Object.freeze({
+      Selected: this.#outU32("cna_graphics_renderer_get_selected_ext"),
+      Active: this.#optional(() => this.#outU32("cna_graphics_renderer_get_active_ext")),
+      Current: current,
+      CurrentName: current == null ? null : this.#copyText(
+        "cna_graphics_renderer_get_current_name_size", "cna_graphics_renderer_copy_current_name",
+      ),
+      IsLatched: this.#outBool("cna_graphics_renderer_get_is_latched_ext"),
+      AutomaticFallback: this.#outBool("cna_graphics_renderer_get_automatic_fallback_ext"),
+    });
+  }
+
+  public getAvailableRendererTypes(): readonly number[] {
+    const count = this.#outU64("cna_graphics_renderer_get_available_count_ext");
+    if (count === 0) return Object.freeze([]);
+    const scope = new WasmScope(this.#module);
+    try {
+      const buffer = scope.allocate(count * 4);
+      const written = scope.allocate(8);
+      this.#invoke("cna_graphics_renderer_copy_available_ext", buffer, BigInt(count), written);
+      const view = new DataView(this.#module.HEAPU8.buffer as ArrayBuffer);
+      const types: number[] = [];
+      for (let index = 0; index < count; index += 1) types.push(view.getUint32(buffer + index * 4, true));
+      return Object.freeze(types);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public isRendererAvailable(type: number): boolean {
+    return this.#outBool("cna_graphics_renderer_get_is_available_ext", type);
+  }
+
+  public describeRenderer(type: number): RendererIdentitySnapshot {
+    const category = this.#outU32("cna_graphics_backend_get_category", type);
+    const maturity = this.#outU32("cna_graphics_backend_get_maturity", type);
+    return Object.freeze({
+      Type: type,
+      Category: category,
+      CategoryName: this.#copyText(
+        "cna_graphics_backend_category_get_name_size", "cna_graphics_backend_category_copy_name", category,
+      ),
+      Maturity: maturity,
+      MaturityName: this.#copyText(
+        "cna_graphics_backend_maturity_get_name_size", "cna_graphics_backend_maturity_copy_name", maturity,
+      ),
+      IsAvailable: this.isRendererAvailable(type),
+    });
+  }
+
+  public setPreferredRenderer(type: number): void {
+    this.#invoke("cna_graphics_renderer_set_preferred_ext", type);
+  }
+
+  #withStringView<T>(value: string, body: (pointer: number, byteLength: number) => T): T {
+    const scope = new WasmScope(this.#module);
+    try {
+      const text = scope.allocateUtf8(value);
+      const view = allocateStruct(this.#module, scope, "CNA_StringView", false);
+      view.setPointer("data", text.pointer).setU64("byte_length", BigInt(text.byteLength));
+      return body(view.pointer, text.byteLength);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public setPreferredRendererByName(name: string): void {
+    // A CNA_StringView passed by value is not pinned for wasm32, so the routes that take one are
+    // reached through their pointer form where the ABI offers a choice. This one does not, so the
+    // structure is built in module memory and its address is handed over, which is how Emscripten
+    // lowers a by-value aggregate argument.
+    this.#withStringView(name, (pointer) => {
+      this.#invoke("cna_graphics_renderer_set_preferred_by_name_ext", pointer);
+    });
+  }
+
+  public tryParseRendererName(name: string): number | null {
+    return this.#withStringView(name, (pointer) => {
+      const scope = new WasmScope(this.#module);
+      try {
+        const type = scope.allocate(4);
+        const recognized = scope.allocate(1);
+        this.#invoke("cna_graphics_renderer_try_parse_name_ext", pointer, type, recognized);
+        if (this.#module.HEAPU8[recognized] === 0) return null;
+        return new DataView(this.#module.HEAPU8.buffer as ArrayBuffer).getUint32(type, true);
+      } finally {
+        scope.dispose();
+      }
+    });
+  }
+
+  public setRendererFallbackChain(types: readonly number[]): void {
+    const scope = new WasmScope(this.#module);
+    try {
+      const buffer = scope.allocate(Math.max(types.length * 4, 1));
+      const view = new DataView(this.#module.HEAPU8.buffer as ArrayBuffer);
+      types.forEach((type, index) => view.setUint32(buffer + index * 4, type, true));
+      this.#invoke("cna_graphics_renderer_set_fallback_chain_ext", buffer, BigInt(types.length));
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public setAutomaticRendererFallback(enabled: boolean): void {
+    this.#invoke("cna_graphics_renderer_set_automatic_fallback_ext", enabled ? 1 : 0);
+  }
+
+  public getRendererFallbacks(): readonly RendererFallbackSnapshot[] {
+    const count = this.#outU64("cna_graphics_renderer_get_fallback_count_ext");
+    const rows: RendererFallbackSnapshot[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const scope = new WasmScope(this.#module);
+      try {
+        const record = allocateStruct(this.#module, scope, "CNA_GraphicsRendererFallbackRecord");
+        this.#invoke("cna_graphics_renderer_get_fallback_at_ext", BigInt(index), record.pointer);
+        const reason = record.getU32("reason");
+        rows.push(Object.freeze({
+          Type: record.getU32("type"),
+          Reason: reason,
+          ReasonName: this.#copyText(
+            "cna_graphics_renderer_fallback_reason_get_name_size_ext",
+            "cna_graphics_renderer_fallback_reason_copy_name_ext",
+            reason,
+          ),
+          Message: this.#copyText(
+            "cna_graphics_renderer_fallback_get_message_size_ext",
+            "cna_graphics_renderer_fallback_copy_message_ext",
+            BigInt(index),
+          ),
+        }));
+      } finally {
+        scope.dispose();
+      }
+    }
+    return Object.freeze(rows);
+  }
+
+  public getMinimumLogLevel(): number { return this.#outU32("cna_logger_get_minimum_level"); }
+
+  public setMinimumLogLevel(level: number): void {
+    this.#invoke("cna_logger_set_minimum_level", level);
+  }
+
+  public writeLog(level: number, category: number, message: string): void {
+    this.#withStringView(message, (pointer) => {
+      this.#invoke("cna_logger_log", level, pointer, category, 0);
+    });
+  }
+
+  public isGraphicsExtensionLayerAvailable(): boolean {
+    return this.#outBool("cna_graphics_ext_is_available");
+  }
+
 }

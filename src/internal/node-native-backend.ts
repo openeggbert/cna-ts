@@ -9,6 +9,10 @@ import type {
   CnaEffectBackend,
   CnaGameWindowBackend,
   BackendRendererInfo,
+  PlatformSnapshot,
+  RendererFallbackSnapshot,
+  RendererIdentitySnapshot,
+  RendererSelectionSnapshot,
   CnaGameCallbacks,
   CnaGameConfiguration,
   GraphicsManagerConfiguration,
@@ -38,6 +42,7 @@ import type {
   GameWindowBoundsSnapshot,
   NativeEffectReflectionSnapshot,
   StockEffectSnapshot,
+  CnaRuntimeServicesBackend,
 } from "./backend.js";
 import { decodeAbiVersion, describeAbiWindow, isSupportedAbiVersion } from "./abi.js";
 import { fromCnaGamePadType, toCnaBlendState } from "./cna-enums.js";
@@ -86,6 +91,20 @@ interface NativeGestureSample {
 interface NativeBridge {
   loadLibrary(path: string): void;
   abiVersion(): number;
+  getPlatformSnapshot(): PlatformSnapshot;
+  getRendererSelection(): RendererSelectionSnapshot;
+  getAvailableRendererTypes(): number[];
+  describeRenderer(type: number): RendererIdentitySnapshot;
+  setPreferredRenderer(type: number): void;
+  setPreferredRendererByName(name: string): void;
+  tryParseRendererName(name: string): number | null;
+  setRendererFallbackChain(types: readonly number[]): void;
+  setAutomaticRendererFallback(enabled: boolean): void;
+  getRendererFallbacks(): RendererFallbackSnapshot[];
+  getMinimumLogLevel(): number;
+  setMinimumLogLevel(level: number): void;
+  writeLog(level: number, category: number, message: string): void;
+  isGraphicsExtensionLayerAvailable(): boolean;
   importedSymbolCount(): number;
   getLastError(): string | null;
   createGame(fixedTimeStep: boolean, targetElapsedTicks: bigint, callbacks: CnaGameCallbacks): bigint;
@@ -458,7 +477,9 @@ interface NativeBridge {
   openStorageFile(container: bigint, path: string, mode: number, access: number, share: number): Uint8Array;
 }
 
-export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend {
+export class NodeNativeBackend
+  implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend,
+    CnaRuntimeServicesBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
   public readonly AbiVersion: string;
@@ -473,6 +494,7 @@ export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaEff
   public readonly Graphics: CnaGraphicsBackend = this;
   public readonly Effects: CnaEffectBackend = this;
   public readonly Window: CnaGameWindowBackend = this;
+  public readonly RuntimeServices: CnaRuntimeServicesBackend = this;
   readonly #bridge: NativeBridge;
   #activeGame: NativeHandle | null = null;
   #boundGameLifetime: NativeResourceLifetime | null = null;
@@ -1355,4 +1377,49 @@ export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaEff
     }
     return this.#activeGame;
   }
+
+  // ---- Process-wide CNA runtime services -------------------------------------------------------
+  // None of these take a handle, so they answer before a Game exists. They are the private side of
+  // the cna-ts/extensions/runtime facade and have no Microsoft.Xna.Framework counterpart.
+
+  public getPlatform(): PlatformSnapshot {
+    return Object.freeze(this.#bridge.getPlatformSnapshot());
+  }
+  public getRendererSelection(): RendererSelectionSnapshot {
+    return Object.freeze(this.#bridge.getRendererSelection());
+  }
+  public getAvailableRendererTypes(): readonly number[] {
+    return Object.freeze(this.#bridge.getAvailableRendererTypes());
+  }
+  public isRendererAvailable(type: number): boolean {
+    return this.#bridge.describeRenderer(type).IsAvailable;
+  }
+  public describeRenderer(type: number): RendererIdentitySnapshot {
+    return Object.freeze(this.#bridge.describeRenderer(type));
+  }
+  public setPreferredRenderer(type: number): void { this.#bridge.setPreferredRenderer(type); }
+  public setPreferredRendererByName(name: string): void {
+    this.#bridge.setPreferredRendererByName(name);
+  }
+  public tryParseRendererName(name: string): number | null {
+    return this.#bridge.tryParseRendererName(name);
+  }
+  public setRendererFallbackChain(types: readonly number[]): void {
+    this.#bridge.setRendererFallbackChain(types);
+  }
+  public setAutomaticRendererFallback(enabled: boolean): void {
+    this.#bridge.setAutomaticRendererFallback(enabled);
+  }
+  public getRendererFallbacks(): readonly RendererFallbackSnapshot[] {
+    return Object.freeze(this.#bridge.getRendererFallbacks().map((row) => Object.freeze(row)));
+  }
+  public getMinimumLogLevel(): number { return this.#bridge.getMinimumLogLevel(); }
+  public setMinimumLogLevel(level: number): void { this.#bridge.setMinimumLogLevel(level); }
+  public writeLog(level: number, category: number, message: string): void {
+    this.#bridge.writeLog(level, category, message);
+  }
+  public isGraphicsExtensionLayerAvailable(): boolean {
+    return this.#bridge.isGraphicsExtensionLayerAvailable();
+  }
+
 }

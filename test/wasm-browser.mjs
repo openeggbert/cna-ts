@@ -138,6 +138,28 @@ test("the WebAssembly backend runs 60 real browser frames through the public XNA
   assert.deepEqual(consoleErrors, []);
 });
 
+test("the modern CNA runtime services answer over the same WebAssembly module", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const extensions = result.extensions;
+  assert.ok(extensions, "the extension facade produced no result");
+  // CNA_PLATFORM_WEB. A browser reporting anything else would mean the platform probe is guessing.
+  assert.equal(extensions.platform, 3);
+  assert.equal(extensions.platformName.length > 0, true);
+  assert.equal(extensions.isMobile, false);
+  assert.deepEqual(extensions.available, ["WebGL2"]);
+  assert.deepEqual(extensions.availableCategories, ["Web"]);
+  // Both of these reach a route taking CNA_StringView by value, which is the wasm32 convention
+  // WASM_ARTIFACT.md leaves unpinned; a wrong lowering would not round-trip.
+  assert.equal(extensions.parsedWebGL2, 6);
+  assert.equal(extensions.parsedNonsense, null);
+  assert.equal(extensions.fallbacks, 0);
+  assert.equal(typeof extensions.logLevel, "number");
+  assert.equal(extensions.graphicsExtensionLayer, false, "this artifact is built with CNA_CNAEXT off");
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(consoleErrors, []);
+});
+
 test("the WebAssembly backend runs 600 real browser frames without drift", { skip }, async () => {
   const { result, consoleErrors } = await runFrames(600);
   assert.equal(result.status, "ok", result.error ?? "");

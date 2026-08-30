@@ -130,6 +130,12 @@
       "scroll_wheel",
       "horizontal_scroll_wheel",
       "pressed_buttons"
+    ],
+    "CNA_GraphicsRendererFallbackRecord": [
+      "struct_size",
+      "struct_version",
+      "type",
+      "reason"
     ]
   },
   "callbacks": {

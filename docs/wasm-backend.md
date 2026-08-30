@@ -117,3 +117,29 @@ native ABI baseline places several structure fields somewhere the module does no
 exactly how a binding earns `CNA_RESULT_INVALID_ARGUMENT` with nothing visibly wrong. Nothing in that
 file is written by hand, and the sprite-command array stride is read from it rather than restated,
 which is what caught an assumed 80-byte stride against a measured 72.
+
+## A wasm32 convention this backend pinned
+
+`docs/c-api/WASM_ARTIFACT.md` records that how a `CNA_StringView` passed **by value** is expanded in
+the wasm32 calling convention "was not established", and advises using pointer-and-length routes
+where there is a choice. Three routes this binding needs offer no choice --
+`cna_graphics_renderer_set_preferred_by_name_ext`, `cna_graphics_renderer_try_parse_name_ext` and
+`cna_logger_log` all take the view by value.
+
+Measured: Emscripten lowers the by-value aggregate to **a pointer to the structure in module
+memory**, laid out exactly as the generated `CNA_StringView` layout says. The browser test asserts
+the round trip -- `TryParseName("webgl2")` returns 6 and `TryParseName("not-a-renderer")` returns
+null -- so a wrong lowering would fail rather than pass quietly. That is one fewer unpinned item in
+the artifact contract.
+
+## Two states this backend learned to model
+
+Both were found by running the same code on two backends, which is the point of having two.
+
+- **`cna_graphics_renderer_get_active_ext` refuses before any renderer exists**, with
+  `CNA_RESULT_INVALID_STATE` and the message "was called before any graphics renderer had been
+  created". That is a state, not a failure, so `RendererSelectionState.Active` is `null` there
+  rather than an exception or a fabricated `Unknown`.
+- **`cna_desktop_os_get_current` refuses off a desktop**, which is exactly what a browser is. Node
+  reaches this route happily and would never have shown it; the browser run failed on the first
+  call. `CnaPlatformInfo.DesktopOperatingSystem` is now `null` on a non-desktop platform.

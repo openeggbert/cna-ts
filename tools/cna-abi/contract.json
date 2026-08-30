@@ -95,6 +95,8 @@
       "CNA_GAMEPAD_BUTTON_PADDLE4_EXT",
       "CNA_GAMEPAD_BUTTON_TOUCH_PAD_EXT",
       "CNA_GESTURE_TYPE_ALL",
+      "CNA_GRAPHICS_RENDERER_FALLBACK_MAXIMUM",
+      "CNA_GRAPHICS_RENDERER_MAXIMUM",
       "CNA_KEY_MODIFIER_ALL",
       "CNA_KEY_MODIFIER_ALT",
       "CNA_KEY_MODIFIER_CAPS",
@@ -368,6 +370,69 @@
     {
       "typeScriptEnum": "PlayerIndex",
       "cnaPrefix": "CNA_PLAYER_INDEX"
+    },
+    {
+      "typeScriptEnum": "CnaPlatform",
+      "cnaPrefix": "CNA_PLATFORM"
+    },
+    {
+      "typeScriptEnum": "CnaDesktopOperatingSystem",
+      "cnaPrefix": "CNA_DESKTOP_OS",
+      "suffixOverrides": {
+        "MacOSX": "MACOSX"
+      }
+    },
+    {
+      "typeScriptEnum": "GraphicsBackendCategory",
+      "cnaPrefix": "CNA_GRAPHICS_BACKEND_CATEGORY"
+    },
+    {
+      "typeScriptEnum": "GraphicsBackendMaturity",
+      "cnaPrefix": "CNA_GRAPHICS_BACKEND_MATURITY"
+    },
+    {
+      "typeScriptEnum": "GraphicsRendererFallbackReason",
+      "cnaPrefix": "CNA_GRAPHICS_RENDERER_FALLBACK"
+    },
+    {
+      "typeScriptEnum": "CnaLogLevel",
+      "cnaPrefix": "CNA_LOG_LEVEL"
+    },
+    {
+      "typeScriptEnum": "CnaLogCategory",
+      "cnaPrefix": "CNA_LOG_CATEGORY"
+    },
+    {
+      "typeScriptEnum": "GraphicsRendererType",
+      "cnaPrefix": "CNA_GRAPHICS_RENDERER",
+      "suffixOverrides": {
+        "OpenGLES2": "OPENGLES2",
+        "OpenGLES3": "OPENGLES3",
+        "OpenGL33": "OPENGL33",
+        "WebGL1": "WEBGL1",
+        "WebGL2": "WEBGL2",
+        "WebGpu": "WEBGPU",
+        "DirectX11": "DIRECTX11",
+        "DirectX12": "DIRECTX12",
+        "Direct2D": "DIRECT2D",
+        "FreeDirect": "FREEDIRECT",
+        "DirectX9": "DIRECTX9",
+        "DirectX1": "DIRECTX1",
+        "DirectX2": "DIRECTX2",
+        "DirectX3": "DIRECTX3",
+        "DirectX5": "DIRECTX5",
+        "DirectX6": "DIRECTX6",
+        "DirectX7": "DIRECTX7",
+        "DirectX8": "DIRECTX8",
+        "DirectX10": "DIRECTX10",
+        "OpenGLES1": "OPENGLES1",
+        "OpenGL4": "OPENGL4",
+        "OpenGL1": "OPENGL1",
+        "OpenGL2": "OPENGL2",
+        "Fna3D": "FNA3D",
+        "PortableGL": "PORTABLEGL",
+        "PixiJs": "PIXIJS"
+      }
     }
   ]
 }
