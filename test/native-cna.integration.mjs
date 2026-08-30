@@ -24,6 +24,7 @@ import {
   Vector2,
   Vector3,
 } from "../dist/index.js";
+import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../dist/internal/abi.js";
 import { getBackend } from "../dist/internal/backend.js";
 import {
   getVertexBufferRawForInternalUse,
@@ -35,11 +36,21 @@ import {
 } from "../dist/Microsoft/Xna/Framework/Graphics/IndexBuffer.js";
 
 const library = process.env.CNA_NATIVE_LIBRARY;
-if (!library) throw new Error("CNA_NATIVE_LIBRARY must name an existing CNA ABI 0.7.0 shared library");
+if (!library) {
+  throw new Error(
+    `CNA_NATIVE_LIBRARY must name an existing CNA C ABI ${CNA_ABI_MAJOR}.${CNA_ABI_MINOR}.x shared library`,
+  );
+}
 const nativeStorageHome = fs.mkdtempSync(path.join(os.tmpdir(), "cna-ts-native-storage-"));
 process.env.XDG_DATA_HOME = nativeStorageHome;
 after(() => fs.rmSync(nativeStorageHome, { recursive: true, force: true }));
 const bridge = path.resolve(process.env.CNA_NODE_BRIDGE ?? "build/cna_node_bridge.node");
+// Counted from the adapter source rather than restated here, so the runtime-reported import count
+// is cross-checked against the declarations that produced it instead of against a copied number.
+const EXPECTED_IMPORTED_SYMBOLS = (
+  fs.readFileSync(new URL("../native/cna_node_bridge.c", import.meta.url), "utf8")
+    .match(/LOAD_REQUIRED\([^\n]*?"cna_[A-Za-z0-9_]+"\)/g) ?? []
+).length;
 const status = await LoadNodeNativeBackend({
   CnaLibrary: path.resolve(library),
   BridgeModule: bridge,
@@ -537,8 +548,12 @@ class NativeProbeGame extends Game {
 test("loads an exact real CNA ABI and only the audited symbols", () => {
   assert.equal(status.Backend, "node-native");
   assert.equal(status.IsAvailable, true);
-  assert.equal(status.AbiVersion, "0.7.0");
-  assert.equal(status.ImportedSymbolCount, 360);
+  // The loaded artifact must fall inside the generation this package targets. The patch component
+  // is free, so the assertion names the window rather than one exact build.
+  const [major, minor] = String(status.AbiVersion).split(".").map(Number);
+  assert.equal(major, CNA_ABI_MAJOR);
+  assert.equal(minor, CNA_ABI_MINOR);
+  assert.equal(status.ImportedSymbolCount, EXPECTED_IMPORTED_SYMBOLS);
 });
 
 class NativeAudioProbeGame extends Game {
@@ -590,12 +605,20 @@ class NativeAudioProbeGame extends Game {
     this.instance.Pan = 0.25;
     this.instance.IsLooped = true;
     this.instance.Apply3D(new Audio.AudioListener(), new Audio.AudioEmitter());
-    assert.throws(
-      () => this.instance.Apply3D(
-        [new Audio.AudioListener(), new Audio.AudioListener()], new Audio.AudioEmitter(),
-      ),
-      (error) => error.cnaResult === 6,
+    // ABI 0.9.0 changed this contract: Apply3D previously refused every listener count but one and
+    // now accepts any positive count, the nearest listener deciding the applied attenuation.
+    this.instance.Apply3D(
+      [new Audio.AudioListener(), new Audio.AudioListener()], new Audio.AudioEmitter(),
     );
+    // The other half of that contract change: a playing instance that was never positioned refuses,
+    // because starting playback fixes the choice between 3D and pan.
+    const unpositioned = this.sound.CreateInstance();
+    unpositioned.Play();
+    assert.throws(
+      () => unpositioned.Apply3D(new Audio.AudioListener(), new Audio.AudioEmitter()),
+      (error) => error.cnaResult === 3,
+    );
+    unpositioned.Dispose();
     this.instance.Play();
     assert.equal(this.instance.State, Audio.SoundState.Stopped);
     this.instance.Resume();

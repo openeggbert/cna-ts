@@ -1,13 +1,18 @@
 {
-  "cnaRevision": "1bb2145d99ed572dd4eb15009c34e2e5f410fcf0",
-  "abiVersion": "0.7.0",
+  "cnaRevision": "72262a33ed5ae7657024c7f1251338748a3feee5",
+  "abiVersion": "0.20.0",
   "abiVersionComponents": {
     "major": 0,
-    "minor": 7,
+    "minor": 20,
     "patch": 0
   },
-  "publicHeaders": 59,
-  "exportedFunctions": 2861,
+  "targetedAbi": {
+    "major": 0,
+    "minor": 20
+  },
+  "targetedAbiMatchesHeaders": true,
+  "publicHeaders": 61,
+  "exportedFunctions": 4051,
   "requiredSymbols": 46,
   "missingRequiredSymbols": [],
   "nodeBridgeImportedSymbols": [
@@ -90,6 +95,7 @@
     "cna_sprite_batch_begin_with_effect",
     "cna_vertex_buffer_set_data",
     "cna_vertex_buffer_set_data_raw_at",
+    "cna_vertex_buffer_set_data_raw_at_with_options",
     "cna_vertex_buffer_get_info",
     "cna_texture3d_create",
     "cna_texture3d_get_info",
@@ -373,10 +379,10 @@
     "cna_storage_stream_close"
   ],
   "missingNodeBridgeSymbols": [],
-  "nodeBridgeSignaturesVerified": 360,
+  "nodeBridgeSignaturesVerified": 361,
   "nodeBridgeSignatureMismatches": 0,
-  "qualifiedLibrary": "/tmp/cna-java-native-working-070/modules/c-api/libcna_c_api.so",
-  "qualifiedLibraryExportedFunctions": 2861,
+  "qualifiedLibrary": "/rv/data/development/github.com/openeggbert/cnanext/cmake-build-tsnext/modules/c-api/libcna_c_api.so",
+  "qualifiedLibraryExportedFunctions": 4051,
   "missingQualifiedLibraryImports": [],
   "symbolGroups": {
     "versionAndErrors": [
@@ -445,8 +451,10 @@
     ]
   },
   "trackedWasmArtifacts": [],
-  "trackedCApiEsmLoaders": [],
-  "emccAvailable": false,
-  "emcmakeAvailable": false,
+  "trackedCApiEsmLoaders": [
+    "modules/c-api/wasm/module_smoke.mjs"
+  ],
+  "emccAvailable": true,
+  "emcmakeAvailable": true,
   "browserArtifactStatus": "MISSING"
 }

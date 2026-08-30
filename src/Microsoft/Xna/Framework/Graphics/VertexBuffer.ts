@@ -213,14 +213,10 @@ export function setVertexBufferDataForInternalUse(
     );
     return;
   }
-  if (request.Options !== SetDataOptions.None) {
-    throw new NativeUnavailableError(
-      "CNA ABI 0.7 cannot combine a VertexBuffer destination byte offset with Discard or NoOverwrite",
-    );
-  }
   const bytes = codec.encode(request.Data, request.StartIndex, request.ElementCount, false);
   graphics.setVertexBufferRawAt(
     state.Lifetime.Handle, request.OffsetInBytes, bytes, request.ElementCount, request.VertexStride,
+    request.Options,
   );
 }
 

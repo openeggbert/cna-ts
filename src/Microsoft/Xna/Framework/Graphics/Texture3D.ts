@@ -1,3 +1,4 @@
+import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../../../../internal/abi.js";
 import type { CnaGraphicsBackend } from "../../../../internal/backend.js";
 import {
   ArgumentException,
@@ -169,7 +170,9 @@ function prepareTransfer(
   forReadback: boolean,
 ): TransferRequest {
   if (format !== SurfaceFormat.Color) {
-    throw new NotSupportedException("CNA ABI 0.7 Texture3D transfers expose only exact Color elements");
+    throw new NotSupportedException(
+      `CNA C ABI ${CNA_ABI_MAJOR}.${CNA_ABI_MINOR} Texture3D transfers expose only exact Color elements`,
+    );
   }
   let level = 0;
   let left = 0;

@@ -1,3 +1,4 @@
+import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../../../../internal/abi.js";
 import type { CnaGraphicsBackend } from "../../../../internal/backend.js";
 import {
   ArgumentException,
@@ -165,7 +166,9 @@ function prepareTransfer(
   forReadback: boolean,
 ): TransferRequest {
   if (format !== SurfaceFormat.Color) {
-    throw new NotSupportedException("CNA ABI 0.7 TextureCube transfers expose only exact Color elements");
+    throw new NotSupportedException(
+      `CNA C ABI ${CNA_ABI_MAJOR}.${CNA_ABI_MINOR} TextureCube transfers expose only exact Color elements`,
+    );
   }
   if (args.length !== 2 && args.length !== 4 && args.length !== 6) {
     throw new ArgumentException("invalid TextureCube data overload");

@@ -1,3 +1,4 @@
+import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "./abi.js";
 import type { PlayerIndex } from "../Microsoft/Xna/Framework/PlayerIndex.js";
 import type { NativeHandle } from "./ownership.js";
 import type { NativeResourceLifetime } from "./ownership.js";
@@ -288,7 +289,7 @@ export interface CnaGraphicsBackend {
   ): void;
   setVertexBufferRawAt(
     buffer: NativeHandle, offsetInBytes: number, bytes: Uint8Array,
-    vertexCount: number, vertexStride: number,
+    vertexCount: number, vertexStride: number, options: number,
   ): void;
   getVertexBufferRawAt(
     buffer: NativeHandle, offsetInBytes: number, vertexCount: number, vertexStride: number,
@@ -764,7 +765,8 @@ class UnavailableBackend implements CnaBackend {
   public readonly IsAvailable = false;
   public readonly AbiVersion = null;
   public readonly Detail =
-    "CNA publishes experimental C ABI 0.7.0 headers, but this package has no loaded WebAssembly or Node backend artifact";
+    `CNA publishes experimental C ABI ${CNA_ABI_MAJOR}.${CNA_ABI_MINOR}.x headers, but this package ` +
+    "has no loaded WebAssembly or Node backend artifact";
 
   public initialize(): Promise<void> { return Promise.reject(this.error()); }
   public updateFrameworkDispatcher(): void { this.fail(); }

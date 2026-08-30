@@ -1,3 +1,4 @@
+import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../../../internal/abi.js";
 import type { CnaGameWindowBackend } from "../../../internal/backend.js";
 import { ArgumentNullException } from "../../../internal/exceptions.js";
 import { EventDispatcher } from "../../../internal/events.js";
@@ -135,7 +136,8 @@ class NativeGameWindow extends GameWindow {
 
   protected override SetSupportedOrientations(_orientations: DisplayOrientation): void {
     throw new NativeUnavailableError(
-      "GameWindow orientation mutation is owned by GraphicsDeviceManager in CNA ABI 0.7",
+      "GameWindow supported-orientation mutation is owned by GraphicsDeviceManager; the CNA C ABI " +
+      `${CNA_ABI_MAJOR}.${CNA_ABI_MINOR} window family exposes only the read-only current orientation`,
     );
   }
 

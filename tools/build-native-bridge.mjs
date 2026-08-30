@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const cnaRoot = path.resolve(process.env.CNA_SOURCE_PATH ?? path.join(root, "../../cna"));
+const cnaRoot = path.resolve(process.env.CNA_SOURCE_PATH ?? path.join(root, "../../cnanext"));
 const nodeInclude = process.env.NODE_INCLUDE
   ? path.resolve(process.env.NODE_INCLUDE)
   : path.resolve(path.dirname(process.execPath), "../include/node");

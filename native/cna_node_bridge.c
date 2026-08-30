@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MS-PL
-// Minimal Node-API adapter for the CNA C ABI 0.7 runtime slice used by cna-ts.
+// Minimal Node-API adapter for the CNA C ABI runtime slice used by cna-ts.
+// The accepted ABI window is derived from the CNA headers this adapter is compiled
+// against; see abi_version_is_supported below for the exact policy.
 
 #include <node_api.h>
 
@@ -101,6 +103,8 @@ typedef CNA_Result (*VertexBufferSetDataFn)(
   CNA_VertexBufferHandle, const CNA_VertexBufferTransfer*, const void*, uint64_t);
 typedef CNA_Result (*VertexBufferSetRawAtFn)(
   CNA_VertexBufferHandle, uint64_t, const void*, uint64_t, uint64_t, uint32_t);
+typedef CNA_Result (*VertexBufferSetRawAtWithOptionsFn)(
+  CNA_VertexBufferHandle, uint64_t, const void*, uint64_t, uint64_t, uint32_t, CNA_SetDataOptions);
 typedef CNA_Result (*VertexBufferInfoFn)(CNA_VertexBufferHandle, CNA_VertexBufferInfo*);
 typedef CNA_Result (*IndexBufferSetAtFn)(
   CNA_IndexBufferHandle, uint64_t, const CNA_IndexBufferTransfer*, const void*, uint64_t);
@@ -309,6 +313,7 @@ typedef struct Api {
   SpriteBatchBeginEffectFn sprite_batch_begin_effect;
   VertexBufferSetDataFn vertex_buffer_set_data;
   VertexBufferSetRawAtFn vertex_buffer_set_raw_at;
+  VertexBufferSetRawAtWithOptionsFn vertex_buffer_set_raw_at_with_options;
   VertexBufferInfoFn vertex_buffer_get_info;
   Texture3DCreateFn texture3d_create;
   Texture3DInfoFn texture3d_get_info;
@@ -822,12 +827,36 @@ static int rethrow_callback_exception(GameContext* context) {
   return 0;
 }
 
+/* The ABI window this adapter accepts, taken from the CNA headers it was compiled against.
+   docs/c-api/ABI_VERSIONING.md: a consumer must reject a different major and may require a
+   minimum minor. Under an experimental 0.x an incompatible change is a minor increment, so the
+   minor must match exactly there; from 1.x a newer minor is additive and is accepted. The patch
+   component is always accepted because it may only carry additive or corrective changes. */
+#define CNA_TS_ABI_MAJOR ((uint32_t) CNA_ABI_VERSION_MAJOR)
+#define CNA_TS_ABI_MINOR ((uint32_t) CNA_ABI_VERSION_MINOR)
+
+static uint32_t abi_major_of(uint32_t encoded) { return (encoded >> 16) & UINT32_C(0xFFFF); }
+static uint32_t abi_minor_of(uint32_t encoded) { return (encoded >> 8) & UINT32_C(0xFF); }
+static uint32_t abi_patch_of(uint32_t encoded) { return encoded & UINT32_C(0xFF); }
+
+static int abi_version_is_supported(uint32_t encoded) {
+  if (abi_major_of(encoded) != CNA_TS_ABI_MAJOR) return 0;
+#if CNA_ABI_VERSION_MAJOR == 0
+  return abi_minor_of(encoded) == CNA_TS_ABI_MINOR;
+#else
+  return abi_minor_of(encoded) >= CNA_TS_ABI_MINOR;
+#endif
+}
+
 #define LOAD_REQUIRED(field, type, symbol) \
   do { \
     void* address = LOAD_ADDRESS(g_library, symbol); \
     if (!address) { \
       char message[256]; \
-      snprintf(message, sizeof(message), "CNA ABI 0.7 library is missing required symbol %s", symbol); \
+      snprintf( \
+        message, sizeof(message), \
+        "CNA ABI %" PRIu32 ".%" PRIu32 " library is missing required symbol %s", \
+        CNA_TS_ABI_MAJOR, CNA_TS_ABI_MINOR, symbol); \
       return throw_message(env, message); \
     } \
     memcpy(&g_api.field, &address, sizeof(type)); \
@@ -853,8 +882,19 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(get_abi_version, GetAbiVersionFn, "cna_get_abi_version");
   LOAD_REQUIRED(error_get_last_message_size, ErrorGetLastMessageSizeFn, "cna_error_get_last_message_size");
   LOAD_REQUIRED(error_copy_last_message, ErrorCopyLastMessageFn, "cna_error_copy_last_message");
-  if (g_api.get_abi_version() != CNA_ABI_VERSION) {
-    return throw_message(env, "CNA library ABI is not exactly 0.7.0 (encoded 0x00000700)");
+  {
+    const uint32_t encoded = g_api.get_abi_version();
+    if (!abi_version_is_supported(encoded)) {
+      char message[256];
+      snprintf(
+        message, sizeof(message),
+        "CNA library reports ABI %" PRIu32 ".%" PRIu32 ".%" PRIu32
+        " (0x%08" PRIx32 "), which is outside the %" PRIu32 ".%" PRIu32
+        ".x window this adapter was compiled for",
+        abi_major_of(encoded), abi_minor_of(encoded), abi_patch_of(encoded), encoded,
+        CNA_TS_ABI_MAJOR, CNA_TS_ABI_MINOR);
+      return throw_message(env, message);
+    }
   }
   LOAD_REQUIRED(game_create, GameCreateFn, "cna_game_create");
   LOAD_REQUIRED(game_set_frame_hooks, GameSetFrameHooksFn, "cna_game_set_frame_hooks_ext");
@@ -932,6 +972,7 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(sprite_batch_begin_effect, SpriteBatchBeginEffectFn, "cna_sprite_batch_begin_with_effect");
   LOAD_REQUIRED(vertex_buffer_set_data, VertexBufferSetDataFn, "cna_vertex_buffer_set_data");
   LOAD_REQUIRED(vertex_buffer_set_raw_at, VertexBufferSetRawAtFn, "cna_vertex_buffer_set_data_raw_at");
+  LOAD_REQUIRED(vertex_buffer_set_raw_at_with_options, VertexBufferSetRawAtWithOptionsFn, "cna_vertex_buffer_set_data_raw_at_with_options");
   LOAD_REQUIRED(vertex_buffer_get_info, VertexBufferInfoFn, "cna_vertex_buffer_get_info");
   LOAD_REQUIRED(texture3d_create, Texture3DCreateFn, "cna_texture3d_create");
   LOAD_REQUIRED(texture3d_get_info, Texture3DInfoFn, "cna_texture3d_get_info");
@@ -3076,20 +3117,31 @@ static napi_value set_vertex_buffer_data(napi_env env, napi_callback_info info) 
 }
 
 static napi_value set_vertex_buffer_raw_at(napi_env env, napi_callback_info info) {
-  napi_value args[5];
+  napi_value args[6];
   CNA_Handle buffer = 0;
-  uint32_t offset = 0, vertex_count = 0, stride = 0;
+  uint32_t offset = 0, vertex_count = 0, stride = 0, options = 0;
   const uint8_t* bytes = NULL;
   size_t byte_count = 0;
-  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+  if (!require_loaded(env) || !get_args(env, info, 6, args) ||
       !read_handle(env, args[0], &buffer) ||
       napi_get_value_uint32(env, args[1], &offset) != napi_ok ||
       !read_byte_view(env, args[2], &bytes, &byte_count) ||
       napi_get_value_uint32(env, args[3], &vertex_count) != napi_ok ||
-      napi_get_value_uint32(env, args[4], &stride) != napi_ok) return NULL;
-  CNA_Result result = g_api.vertex_buffer_set_raw_at(
-    buffer, offset, bytes, byte_count, vertex_count, stride);
-  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_vertex_buffer_set_data_raw_at", result);
+      napi_get_value_uint32(env, args[4], &stride) != napi_ok ||
+      napi_get_value_uint32(env, args[5], &options) != napi_ok) return NULL;
+  /* vertex_resources.h states that the options-carrying route with CNA_SET_DATA_NONE matches the
+     plain one, so the plain route stays the one taken for None. Both remain imported and both are
+     reached, rather than one becoming a stale import. */
+  const char* route = "cna_vertex_buffer_set_data_raw_at";
+  CNA_Result result;
+  if (options == CNA_SET_DATA_NONE) {
+    result = g_api.vertex_buffer_set_raw_at(buffer, offset, bytes, byte_count, vertex_count, stride);
+  } else {
+    route = "cna_vertex_buffer_set_data_raw_at_with_options";
+    result = g_api.vertex_buffer_set_raw_at_with_options(
+      buffer, offset, bytes, byte_count, vertex_count, stride, options);
+  }
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, route, result);
   return undefined_result(env, "VertexBuffer window upload result");
 }
 

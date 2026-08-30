@@ -6,6 +6,8 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
 const REQUIRED_SYMBOL_GROUPS = {
   versionAndErrors: [
     "cna_get_abi_version",
@@ -126,9 +128,49 @@ function readMacro(source, name) {
   return Number.parseInt(match[1], 10);
 }
 
-function commandAvailable(command) {
-  const result = spawnSync(command, ["--version"], { encoding: "utf8" });
-  return !result.error && result.status === 0;
+/**
+ * Resolves a build tool to an absolute path. An installed but unsourced Emscripten SDK is the
+ * common local case -- emcc lives in the SDK tree rather than on PATH -- so what is reachable is
+ * reported rather than merely what a bare shell exports.
+ */
+function toolPath(command) {
+  for (const directory of (process.env.PATH ?? "").split(path.delimiter)) {
+    if (!directory) continue;
+    const candidate = path.join(directory, command);
+    if (fs.statSync(candidate, { throwIfNoEntry: false })?.isFile()) return candidate;
+  }
+  for (const root of emsdkRoots()) {
+    const candidate = path.join(root, "upstream/emscripten", command);
+    if (fs.statSync(candidate, { throwIfNoEntry: false })?.isFile()) return candidate;
+  }
+  return null;
+}
+
+/** True when the compiler is present and answers a version query. */
+function compilerAvailable(command) {
+  const resolved = toolPath(command);
+  if (!resolved) return false;
+  const probe = spawnSync(resolved, ["--version"], { encoding: "utf8" });
+  return !probe.error && probe.status === 0;
+}
+
+function emsdkRoots() {
+  const roots = [];
+  if (process.env.EMSDK) roots.push(path.resolve(process.env.EMSDK));
+  const home = os.homedir();
+  if (home) roots.push(path.join(home, "emsdk"));
+  return roots.filter((root) => fs.statSync(root, { throwIfNoEntry: false })?.isDirectory());
+}
+
+/** Reads the ABI generation this package declares in src/internal/abi.ts. */
+function readTargetedAbi() {
+  const source = fs.readFileSync(path.join(ROOT_DIR, "src/internal/abi.ts"), "utf8");
+  const read = (name) => {
+    const match = source.match(new RegExp(`export const ${name} = (\\d+);`));
+    if (!match) throw new Error(`missing ${name} in src/internal/abi.ts`);
+    return Number.parseInt(match[1], 10);
+  };
+  return { major: read("CNA_ABI_MAJOR"), minor: read("CNA_ABI_MINOR") };
 }
 
 function verifyNodeBridgeSignatures(cnaRoot, bridgeSource) {
@@ -181,6 +223,9 @@ function formatText(report) {
   const lines = [
     `CNA_REVISION=${report.cnaRevision}`,
     `ABI_VERSION=${report.abiVersion}`,
+    `TARGETED_ABI_MAJOR=${report.targetedAbi.major}`,
+    `TARGETED_ABI_MINOR=${report.targetedAbi.minor}`,
+    `TARGETED_ABI_MATCHES_HEADERS=${report.targetedAbiMatchesHeaders ? 1 : 0}`,
     `PUBLIC_HEADERS=${report.publicHeaders}`,
     `EXPORTED_FUNCTIONS=${report.exportedFunctions}`,
     `REQUIRED_SYMBOLS=${report.requiredSymbols}`,
@@ -229,6 +274,7 @@ function main() {
     minor: readMacro(abiSource, "CNA_ABI_VERSION_MINOR"),
     patch: readMacro(abiSource, "CNA_ABI_VERSION_PATCH"),
   };
+  const targetedAbi = readTargetedAbi();
   const required = Object.values(REQUIRED_SYMBOL_GROUPS).flat();
   const missing = required.filter((symbol) => !exportedSymbols.has(symbol));
   const bridgeSource = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../native/cna_node_bridge.c"), "utf8");
@@ -271,6 +317,9 @@ function main() {
     cnaRevision: runGit(args.cnaRoot, ["rev-parse", "HEAD"]),
     abiVersion: `${version.major}.${version.minor}.${version.patch}`,
     abiVersionComponents: version,
+    targetedAbi,
+    targetedAbiMatchesHeaders:
+      targetedAbi.major === version.major && targetedAbi.minor === version.minor,
     publicHeaders: headers.length,
     exportedFunctions: exportedSymbols.size,
     requiredSymbols: required.length,
@@ -285,8 +334,8 @@ function main() {
     symbolGroups: REQUIRED_SYMBOL_GROUPS,
     trackedWasmArtifacts,
     trackedCApiEsmLoaders,
-    emccAvailable: commandAvailable("emcc"),
-    emcmakeAvailable: commandAvailable("emcmake"),
+    emccAvailable: compilerAvailable("emcc"),
+    emcmakeAvailable: toolPath("emcmake") != null,
     browserArtifactStatus:
       trackedWasmArtifacts.length > 0 && trackedCApiEsmLoaders.length > 0
         ? "CANDIDATE_PRESENT_NOT_EXECUTION_VERIFIED"
@@ -300,6 +349,7 @@ function main() {
 
   if (
     missing.length > 0 || missingNodeBridgeSymbols.length > 0 || missingQualifiedLibraryImports.length > 0 ||
+    !report.targetedAbiMatchesHeaders ||
     (args.requireWasm && report.browserArtifactStatus === "MISSING")
   ) {
     process.exitCode = 1;

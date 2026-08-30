@@ -46,7 +46,10 @@ export function GetRuntimeStatus(): RuntimeStatus {
   });
 }
 
-/** Loads an explicitly built Node-API adapter and an exact CNA ABI 0.7.0 shared library. */
+/**
+ * Loads an explicitly built Node-API adapter and a CNA shared library whose reported ABI falls in
+ * the generation this package targets. A library outside that window is rejected rather than used.
+ */
 export async function LoadNodeNativeBackend(options: NodeNativeLoadOptions): Promise<RuntimeStatus> {
   if (options == null || typeof options.CnaLibrary !== "string" || options.CnaLibrary.length === 0) {
     throw new TypeError("CnaLibrary must be a non-empty path");

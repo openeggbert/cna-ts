@@ -39,6 +39,7 @@ import type {
   NativeEffectReflectionSnapshot,
   StockEffectSnapshot,
 } from "./backend.js";
+import { decodeAbiVersion, describeAbiWindow, isSupportedAbiVersion } from "./abi.js";
 import { NativeUnavailableError } from "./native-error.js";
 import type { NativeHandle, NativeResourceLifetime } from "./ownership.js";
 import type { PlayerIndex } from "../Microsoft/Xna/Framework/PlayerIndex.js";
@@ -238,7 +239,7 @@ interface NativeBridge {
   ): void;
   setVertexBufferRawAt(
     buffer: bigint, offsetInBytes: number, bytes: Uint8Array,
-    vertexCount: number, vertexStride: number,
+    vertexCount: number, vertexStride: number, options: number,
   ): void;
   getVertexBufferRawAt(
     buffer: bigint, offsetInBytes: number, vertexCount: number, vertexStride: number,
@@ -459,7 +460,7 @@ interface NativeBridge {
 export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
-  public readonly AbiVersion = "0.7.0";
+  public readonly AbiVersion: string;
   public readonly Detail: string;
   public readonly ImportedSymbolCount: number;
   public RendererInfo: BackendRendererInfo | null = null;
@@ -477,15 +478,18 @@ export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaEff
 
   public constructor(bridge: NativeBridge, libraryPath: string) {
     bridge.loadLibrary(libraryPath);
-    const encodedVersion = bridge.abiVersion();
-    if (encodedVersion !== 0x0000_0700) {
+    const version = decodeAbiVersion(bridge.abiVersion());
+    if (!isSupportedAbiVersion(version)) {
       throw new NativeUnavailableError(
-        `CNA library reported incompatible ABI 0x${encodedVersion.toString(16).padStart(8, "0")}`,
+        `CNA library reports ABI ${version.Text} (0x${version.Encoded.toString(16).padStart(8, "0")}), ` +
+        `which is outside the ${describeAbiWindow()} window this package targets`,
       );
     }
     this.#bridge = bridge;
+    this.AbiVersion = version.Text;
     this.ImportedSymbolCount = bridge.importedSymbolCount();
-    this.Detail = `CNA ABI 0.7.0 loaded through the Node-API bridge (${this.ImportedSymbolCount} symbols)`;
+    this.Detail =
+      `CNA ABI ${version.Text} loaded through the Node-API bridge (${this.ImportedSymbolCount} symbols)`;
   }
 
   public initialize(): Promise<void> { return Promise.resolve(); }
@@ -830,10 +834,10 @@ export class NodeNativeBackend implements CnaBackend, CnaGraphicsBackend, CnaEff
   }
   public setVertexBufferRawAt(
     buffer: NativeHandle, offsetInBytes: number, bytes: Uint8Array,
-    vertexCount: number, vertexStride: number,
+    vertexCount: number, vertexStride: number, options: number,
   ): void {
     this.#bridge.setVertexBufferRawAt(
-      buffer, offsetInBytes, bytes, vertexCount, vertexStride,
+      buffer, offsetInBytes, bytes, vertexCount, vertexStride, options,
     );
   }
   public getVertexBufferRawAt(

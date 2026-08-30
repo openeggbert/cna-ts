@@ -12,6 +12,7 @@ import {
   TimeSpan,
   Vector2,
 } from "../dist/index.js";
+import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../dist/internal/abi.js";
 
 test("root aliases and namespace projection share implementations", () => {
   assert.equal(Microsoft.Xna.Framework.Vector2, Vector2);
@@ -54,7 +55,10 @@ test("native execution truthfully reports the absent backend", async () => {
   assert.equal(bindingsAvailable, false);
   const status = GetRuntimeStatus();
   assert.deepEqual(status.Backend, "unavailable");
-  assert.match(status.Detail, /experimental C ABI 0\.7\.0/);
+  assert.match(
+    status.Detail,
+    new RegExp(`experimental C ABI ${CNA_ABI_MAJOR}\\.${CNA_ABI_MINOR}\\.x`),
+  );
   assert.match(status.Detail, /no loaded WebAssembly or Node backend artifact/);
   await assert.rejects(new Game().Run(), NativeUnavailableError);
 });
