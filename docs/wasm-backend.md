@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.20.0
-WASM_BACKEND_ROUTES=105
+WASM_BACKEND_ROUTES=169
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 105 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 169 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started.
 
@@ -44,7 +44,13 @@ diagnostic naming the member instead of a silent wrong answer.
 In the slice: ABI query, initialization, game create/run-one-frame/exit/destroy,
 graphics-device-manager configuration and device creation, renderer identity, `Clear`, `Texture2D`
 create/upload/read/destroy, `SpriteBatch` begin/submit/end/destroy, keyboard and mouse snapshots,
-the modern runtime-services family, **title storage**, **render targets**, and **sound effects**.
+the modern runtime-services family, **title storage**, **render targets**, **sound effects**, and
+**CNB**, CNA's own compiled content format.
+
+CNB crossing to the browser needed no new public API at all, which is the point of having designed
+it backend-neutrally: a page gets the same `CnbDocument`, `CnbTextureData` and
+`CreateTexture2DFromCnb` a desktop consumer gets, and the browser test makes the same exact-texel
+assertion the Node suite makes.
 
 ## Sound
 

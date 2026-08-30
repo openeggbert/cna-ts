@@ -768,6 +768,19 @@
       ]
     },
     {
+      "operation": "CNB in a browser: the same compiled-content API, on the WebAssembly backend",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "cna-ts/extensions/content",
+      "evidence": "a page encodes a texture with CNA's own writer, parses the container back and uploads it with CreateTexture2DFromCnb, and the four readback texels are exactly the RGBA the encoder was given -- the same assertion the Node suite makes, through the same public API, against a different backend. The container primitives agree across backends too: the CRC-32C check value and the magic are the same C routines either side",
+      "proof": [
+        "wasmRoute:cna_cnb_document_parse",
+        "wasmRoute:cna_cnb_decode_texture2d",
+        "wasmRoute:cna_cnb_texture_data_copy_level",
+        "wasmRoute:cna_cnb_encode_texture2d",
+        "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
       "operation": "Extended graphics layer availability probe",
       "category": "VERIFIED_NATIVE",
       "owner": "cna-ts/extensions/runtime",

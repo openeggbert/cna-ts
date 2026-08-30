@@ -21,7 +21,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | --- | ---: |
 | VERIFIED_MANAGED | 20 |
 | VERIFIED_NATIVE | 45 |
-| VERIFIED_WEBASSEMBLY | 6 |
+| VERIFIED_WEBASSEMBLY | 7 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 5 |
 | UPSTREAM_CNA_BLOCKED | 1 |
 | FIXTURE_PENDING | 3 |
@@ -114,6 +114,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Browser sound effects: PCM construction, exact duration and the instance state machine | CNA-TS | a quarter second of 16-bit mono PCM built in the page reports exactly 250 ms and 2,500,000 ticks, volume, pitch, pan and looping round-trip through CNA at float precision, and an instance walks stopped -> playing -> paused -> playing -> stopped. Audibility is deliberately not claimed: a browser will not start a WebAudio context without a user gesture, and SoundEffect.Play reports whether the runtime accepted the sample rather than whether anyone heard it |
 | Browser title storage and ContentManager XNB loading | CNA-TS | the browser harness writes assets into the module filesystem, reads exact title bytes back through TitleContainer.OpenStream, and loads an uncompressed Texture2D XNB and an LZX-compressed SpriteFont XNB through an ordinary ContentManager; a missing asset refuses with CNA_RESULT_IO rather than reading as empty |
 | Browser/Wasm CNA runtime | CNA-TS | 60 and 600 real frames of the public XNA Game/GraphicsDeviceManager/Texture2D/SpriteBatch path in headless Chromium on a WebGL2 context, ABI 0.20.0, no uncaught page error |
+| CNB in a browser: the same compiled-content API, on the WebAssembly backend | cna-ts/extensions/content | a page encodes a texture with CNA's own writer, parses the container back and uploads it with CreateTexture2DFromCnb, and the four readback texels are exactly the RGBA the encoder was given -- the same assertion the Node suite makes, through the same public API, against a different backend. The container primitives agree across backends too: the CRC-32C check value and the magic are the same C routines either side |
 | Modern CNA runtime services over WebAssembly | cna-ts/extensions/runtime | the browser harness reads platform, renderer selection and available renderers, and round-trips two by-value CNA_StringView routes |
 | WebAssembly game lifecycle, device creation, Clear, Texture2D transfer, SpriteBatch and input snapshots | CNA-TS | test/wasm-browser.mjs drives the first vertical slice through the same public XNA classes the Node backend serves |
 

@@ -193,6 +193,62 @@
       "volume",
       "pitch",
       "pan"
+    ],
+    "CNA_Vector3": [
+      "x",
+      "y",
+      "z"
+    ],
+    "CNA_CnbMetadata": [
+      "struct_size",
+      "struct_version",
+      "present",
+      "flags"
+    ],
+    "CNA_CnbChunkEntry": [
+      "struct_size",
+      "struct_version",
+      "offset",
+      "stored_size",
+      "uncompressed_size",
+      "type",
+      "flags",
+      "checksum",
+      "compression",
+      "alignment"
+    ],
+    "CNA_CnbExternalReference": [
+      "struct_size",
+      "struct_version",
+      "flags",
+      "expected_asset_type_id"
+    ],
+    "CNA_CnbTextureInfo": [
+      "struct_size",
+      "struct_version",
+      "width",
+      "height",
+      "depth",
+      "face_count",
+      "mip_count",
+      "representation_count"
+    ],
+    "CNA_CnbSpriteFontInfo": [
+      "struct_size",
+      "struct_version",
+      "glyph_count",
+      "line_spacing",
+      "spacing",
+      "default_character",
+      "has_default_character"
+    ],
+    "CNA_SpriteFontGlyph": [
+      "struct_size",
+      "struct_version",
+      "glyph_bounds",
+      "cropping",
+      "character",
+      "kerning"
     ]
   },
   "callbacks": {

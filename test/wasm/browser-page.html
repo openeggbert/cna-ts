@@ -63,6 +63,9 @@ try {
   };
   ext.CnaLog.Write(ext.CnaLogLevel.Fatal, ext.CnaLogCategory.Test, "cna-ts wasm runtime services");
 
+  // Imported before the game runs: LoadContent is synchronous, as XNA's is.
+  const cnb = await import("/cna-ts/extensions/content/index.js");
+
   const targetFrames = Number(new URLSearchParams(location.search).get("frames") ?? "60");
 
   class HelloGame extends Game {
@@ -195,6 +198,41 @@ try {
         masterVolume: Audio.SoundEffect.MasterVolume,
       };
 
+      // CNB, CNA's own compiled content format, in a browser. The public API is backend-neutral,
+      // so this is the same CnbTextureData/CnbDocument/CreateTexture2DFromCnb a desktop consumer
+      // writes -- built here rather than fetched only so the expected pixels are in one place.
+      const rgba = Uint8Array.from([
+        255, 0, 0, 255,
+        0, 128, 0, 255,
+        0, 0, 255, 255,
+        16, 32, 48, 64,
+      ]);
+      const authored = cnb.CnbTextureData.FromRgba8(2, 2, rgba);
+      let image;
+      try {
+        image = authored.Encode("Browser/Atlas");
+      } finally {
+        authored.Dispose();
+      }
+      const document = cnb.CnbDocument.Parse(image, "Browser/Atlas.cnb");
+      try {
+        this.cnbTexture = cnb.CreateTexture2DFromCnb(this.GraphicsDevice, document);
+        const decoded = new Array(4);
+        this.cnbTexture.GetData(decoded);
+        result.cnb = {
+          hasMagic: cnb.CnbFormat.HasMagic(image),
+          crc32c: cnb.CnbFormat.Crc32c(new TextEncoder().encode("123456789")) >>> 0,
+          assetType: document.AssetType,
+          contentName: document.Metadata.ContentName,
+          chunks: document.Chunks.map((chunk) => chunk.Id),
+          externalReferences: document.ExternalReferences.length,
+          uploadedPixels: decoded.map((color) => color.PackedValue),
+          textureSize: [this.cnbTexture.Width, this.cnbTexture.Height],
+        };
+      } finally {
+        document.Dispose();
+      }
+
       super.LoadContent();
     }
 
@@ -214,6 +252,8 @@ try {
     }
 
     UnloadContent() {
+      this.cnbTexture?.Dispose();
+      this.cnbTexture = null;
       this.soundInstance?.Dispose();
       this.soundInstance = null;
       this.sound?.Dispose();

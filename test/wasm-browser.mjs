@@ -255,6 +255,33 @@ test("a browser renders to an off-screen target and reads its exact pixels back"
   assert.deepEqual(consoleErrors, []);
 });
 
+test("a browser loads CNA's own compiled content through the same API Node uses", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const cnb = result.cnb;
+  assert.ok(cnb, "no CNB evidence was produced");
+
+  // The container primitives answer identically in both backends, because they are the same C
+  // routines: the CRC-32C check value and the magic are not browser-specific.
+  assert.equal(cnb.hasMagic, true);
+  assert.equal(cnb.crc32c, 0xe3069283, "the Castagnoli check value for \"123456789\"");
+
+  // A container CNA's own writer produced, parsed back in the page: same asset type, same metadata,
+  // same chunk order the Node suite asserts.
+  assert.equal(cnb.assetType, 1, "CnbAssetType.Texture2D");
+  assert.equal(cnb.contentName, "Browser/Atlas");
+  assert.deepEqual(cnb.chunks, ["CMET", "TEXH", "TEXR", "TEXD"]);
+  assert.equal(cnb.externalReferences, 0);
+
+  // And the whole point: the decoded levels reach a real WebGL2 Texture2D with the exact texels
+  // the encoder was given. This is the same assertion test/cnb-content.integration.mjs makes on
+  // Node, through the same public API, against a different backend.
+  assert.deepEqual(cnb.textureSize, [2, 2]);
+  assert.deepEqual(cnb.uploadedPixels, [0xff0000ff, 0xff008000, 0xffff0000, 0x40302010]);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(consoleErrors, []);
+});
+
 test("a browser game can build and drive a sound effect", { skip }, async () => {
   const { result, consoleErrors } = await runFrames(60);
   assert.equal(result.status, "ok", result.error ?? "");

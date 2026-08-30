@@ -281,6 +281,9 @@ Electron, or mobile support.
   screen-space reflections — with CNA's own quality tiers, its per-pass support answer, its GPU
   timings, and both of its ownership rules kept distinct. `AddOwned` is bound and documented as
   upstream-blocked: CNA consumes the handle without its owned-resource accounting.
+- [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument` and
+  `CreateTexture2DFromCnb` a Node consumer gets, and the browser test makes the same exact-texel
+  assertion.
 - [x] `cna-ts/extensions/content` projects CNB, CNA's own compiled content format: the validated
   container with its table of contents, metadata, external references and chunk bytes; the texture
   schema, ending in a real `Texture2D`; and the sprite-font schema with its embedded atlas, ending
@@ -302,7 +305,7 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 96 operation families: 20 verified managed, 45 verified native, six
+- [x] Current baseline is 97 operation families: 20 verified managed, 45 verified native, seven
   verified WebAssembly, five explicitly unavailable on the qualified backend, one upstream-CNA
   blocked, three fixture pending, four hardware pending, three platform pending, five unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.
@@ -342,10 +345,10 @@ Electron, or mobile support.
   probe; nothing at that boundary is hand-written.
 - [x] Handles cross the boundary as `bigint` under `WASM_BIGINT` and are never converted through
   `Number`.
-- [x] The browser slice reaches 105 routes: the game loop, the graphics device, `Clear`,
+- [x] The browser slice reaches 169 routes: the game loop, the graphics device, `Clear`,
   `Texture2D`, `SpriteBatch`, keyboard and mouse, the modern runtime services, **title storage and
-  the whole managed content stack**, **render targets with asserted pixel readback**, and **sound
-  effects**.
+  the whole managed content stack**, **render targets with asserted pixel readback**, **sound
+  effects**, and **CNB**.
 - [ ] It is still a slice: members outside it refuse by name through the generated `CnaBackendBase`
   or `CnaGraphicsBackendBase` instead of returning a plausible value.
 

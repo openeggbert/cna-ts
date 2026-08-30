@@ -16,6 +16,7 @@ import { CnaResult } from "../cna-results.js";
 import type {
   BackendRendererInfo,
   CnaAudioBackend,
+  CnaContentBackend,
   CnaGraphicsBackend,
   CnaRuntimeServicesBackend,
   PlatformSnapshot,
@@ -47,6 +48,7 @@ import {
   type CnaWasmModule,
 } from "./module.js";
 import { WasmAudioBackend } from "./audio.js";
+import { WasmContentBackend } from "./content.js";
 import { WasmGraphicsBackend } from "./graphics.js";
 
 const CNA_RESULT_SUCCESS = CnaResult.Success;
@@ -164,6 +166,70 @@ const ROUTES = [
   "cna_sound_effect_instance_set_pan",
   "cna_sound_effect_instance_set_is_looped",
   "cna_sound_effect_instance_destroy",
+  "cna_cnb_has_magic",
+  "cna_cnb_copy_format_magic",
+  "cna_cnb_crc32c",
+  "cna_cnb_is_compression_supported",
+  "cna_cnb_get_compression_name_size",
+  "cna_cnb_copy_compression_name",
+  "cna_cnb_get_asset_type_name_size",
+  "cna_cnb_copy_asset_type_name",
+  "cna_cnb_asset_type_id_from_name",
+  "cna_cnb_is_custom_asset_type_id",
+  "cna_cnb_make_chunk_id",
+  "cna_cnb_get_chunk_id_string_size",
+  "cna_cnb_copy_chunk_id_string",
+  "cna_cnb_is_well_formed_chunk_id",
+  "cna_cnb_get_texture_format_name_size",
+  "cna_cnb_copy_texture_format_name",
+  "cna_cnb_is_block_compressed_texture_format",
+  "cna_cnb_get_texture_format_unit_bytes",
+  "cna_cnb_get_texture_level_byte_size",
+  "cna_cnb_texture_format_to_surface_format",
+  "cna_cnb_document_parse",
+  "cna_cnb_document_destroy",
+  "cna_cnb_document_get_origin_size",
+  "cna_cnb_document_copy_origin",
+  "cna_cnb_document_get_container_major",
+  "cna_cnb_document_get_container_minor",
+  "cna_cnb_document_get_asset_type_id",
+  "cna_cnb_document_get_asset_schema_version",
+  "cna_cnb_document_get_chunk_count",
+  "cna_cnb_document_get_chunk",
+  "cna_cnb_document_copy_chunk_data",
+  "cna_cnb_document_find_all",
+  "cna_cnb_document_require_mandatory_chunks_understood",
+  "cna_cnb_document_get_metadata",
+  "cna_cnb_document_get_metadata_asset_type_name_size",
+  "cna_cnb_document_copy_metadata_asset_type_name",
+  "cna_cnb_document_get_metadata_content_name_size",
+  "cna_cnb_document_copy_metadata_content_name",
+  "cna_cnb_document_get_external_reference_count",
+  "cna_cnb_document_get_external_reference",
+  "cna_cnb_document_get_external_reference_name_size",
+  "cna_cnb_document_copy_external_reference_name",
+  "cna_cnb_decode_texture2d",
+  "cna_cnb_texture_data_destroy",
+  "cna_cnb_texture_data_get_info",
+  "cna_cnb_texture_data_get_level_dimensions",
+  "cna_cnb_texture_data_get_representation_format",
+  "cna_cnb_texture_data_get_level_count",
+  "cna_cnb_texture_data_copy_level",
+  "cna_cnb_texture_data_create",
+  "cna_cnb_texture_data_create_rgba8",
+  "cna_cnb_texture_data_add_representation",
+  "cna_cnb_texture_data_set_level",
+  "cna_cnb_encode_texture2d",
+  "cna_cnb_decode_sprite_font",
+  "cna_cnb_sprite_font_data_create",
+  "cna_cnb_sprite_font_data_destroy",
+  "cna_cnb_sprite_font_data_get_info",
+  "cna_cnb_sprite_font_data_set_info",
+  "cna_cnb_sprite_font_data_get_glyph",
+  "cna_cnb_sprite_font_data_add_glyph",
+  "cna_cnb_sprite_font_data_set_atlas",
+  "cna_cnb_sprite_font_data_copy_atlas",
+  "cna_cnb_encode_sprite_font",
 ] as const;
 
 type RouteName = (typeof ROUTES)[number];
@@ -192,6 +258,12 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
   public readonly Graphics: CnaGraphicsBackend;
   /** Sound effects, so a browser game can make a noise. */
   public readonly Audio: CnaAudioBackend;
+  /**
+   * CNB, so a page can load CNA's own compiled content. The public API above this line is
+   * backend-neutral, so a browser gets the same `CnbDocument` and `CreateTexture2DFromCnb` a Node
+   * consumer gets rather than a browser-shaped variant of them.
+   */
+  public readonly Content: CnaContentBackend;
 
   readonly #module: CnaWasmModule;
   readonly #routes: WasmRouteTable;
@@ -207,6 +279,7 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
     this.Audio = new WasmAudioBackend(
       this.#routes, () => this.#requireGame(), () => this.#requireGameLifetime(),
     );
+    this.Content = new WasmContentBackend(this.#routes);
     const version = decodeAbiVersion(Number(this.#call("cna_get_abi_version")));
     if (!isSupportedAbiVersion(version)) {
       throw new NativeUnavailableError(
