@@ -15,6 +15,7 @@ import { CnaBackendBase } from "../backend-base.js";
 import { CnaResult } from "../cna-results.js";
 import type {
   BackendRendererInfo,
+  CnaAudioBackend,
   CnaGraphicsBackend,
   CnaRuntimeServicesBackend,
   PlatformSnapshot,
@@ -30,7 +31,7 @@ import type {
   Texture2DTransfer,
 } from "../backend.js";
 import { NativeUnavailableError } from "../native-error.js";
-import type { NativeHandle } from "../ownership.js";
+import type { NativeHandle, NativeResourceLifetime } from "../ownership.js";
 import { ButtonState, type Keys } from "../../Microsoft/Xna/Framework/Input/Enums.js";
 import { KeyboardState } from "../../Microsoft/Xna/Framework/Input/KeyboardState.js";
 import { MouseState } from "../../Microsoft/Xna/Framework/Input/MouseState.js";
@@ -45,6 +46,7 @@ import {
   WasmStruct,
   type CnaWasmModule,
 } from "./module.js";
+import { WasmAudioBackend } from "./audio.js";
 import { WasmGraphicsBackend } from "./graphics.js";
 
 const CNA_RESULT_SUCCESS = CnaResult.Success;
@@ -142,6 +144,26 @@ const ROUTES = [
   "cna_render_target_get_info",
   "cna_render_target_destroy",
   "cna_graphics_device_set_render_targets",
+  "cna_sound_effect_create_pcm16_range_ext",
+  "cna_sound_effect_get_duration_ticks",
+  "cna_sound_effect_get_name_size",
+  "cna_sound_effect_copy_name",
+  "cna_sound_effect_set_name",
+  "cna_sound_effect_create_instance",
+  "cna_sound_effect_play_with_settings",
+  "cna_sound_effect_destroy",
+  "cna_sound_effect_get_master_volume",
+  "cna_sound_effect_set_master_volume",
+  "cna_sound_effect_instance_play",
+  "cna_sound_effect_instance_pause",
+  "cna_sound_effect_instance_resume",
+  "cna_sound_effect_instance_stop",
+  "cna_sound_effect_instance_get_info",
+  "cna_sound_effect_instance_set_volume",
+  "cna_sound_effect_instance_set_pitch",
+  "cna_sound_effect_instance_set_pan",
+  "cna_sound_effect_instance_set_is_looped",
+  "cna_sound_effect_instance_destroy",
 ] as const;
 
 type RouteName = (typeof ROUTES)[number];
@@ -168,17 +190,23 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
    * than through this class's message about a different boundary.
    */
   public readonly Graphics: CnaGraphicsBackend;
+  /** Sound effects, so a browser game can make a noise. */
+  public readonly Audio: CnaAudioBackend;
 
   readonly #module: CnaWasmModule;
   readonly #routes: WasmRouteTable;
   #game: GameCallbackState | null = null;
   #activeGame: NativeHandle | null = null;
+  #gameLifetime: NativeResourceLifetime | null = null;
 
   public constructor(module: CnaWasmModule) {
     super();
     this.#module = module;
     this.#routes = new WasmRouteTable(module, ROUTES);
     this.Graphics = new WasmGraphicsBackend(this.#routes);
+    this.Audio = new WasmAudioBackend(
+      this.#routes, () => this.#requireGame(), () => this.#requireGameLifetime(),
+    );
     const version = decodeAbiVersion(Number(this.#call("cna_get_abi_version")));
     if (!isSupportedAbiVersion(version)) {
       throw new NativeUnavailableError(
@@ -621,6 +649,23 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
 
   public override destroySpriteBatch(spriteBatch: NativeHandle): void {
     this.#invoke("cna_sprite_batch_destroy", spriteBatch);
+  }
+
+  /**
+   * The running game's lifetime, which every audio resource is a child of.
+   *
+   * `Game` binds it when it creates the native game, so a game going away releases its sound
+   * effects deterministically instead of leaving handles CNA will later refuse to let go of.
+   */
+  public bindGameLifetimeForInternalUse(lifetime: NativeResourceLifetime | null): void {
+    this.#gameLifetime = lifetime;
+  }
+
+  #requireGameLifetime(): NativeResourceLifetime {
+    if (this.#gameLifetime == null) {
+      throw new NativeUnavailableError("CNA audio resources require an active native Game lifetime");
+    }
+    return this.#gameLifetime;
   }
 
   #requireGame(): NativeHandle {

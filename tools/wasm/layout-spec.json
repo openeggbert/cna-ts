@@ -178,6 +178,21 @@
       "render_target",
       "array_slice",
       "cube_map_face"
+    ],
+    "CNA_SoundEffectCreateInfo": [
+      "struct_size",
+      "struct_version",
+      "sample_rate",
+      "channels"
+    ],
+    "CNA_SoundEffectInstanceInfo": [
+      "struct_size",
+      "struct_version",
+      "state",
+      "is_looped",
+      "volume",
+      "pitch",
+      "pan"
     ]
   },
   "callbacks": {

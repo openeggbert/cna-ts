@@ -126,10 +126,16 @@ async function runFrames(frames) {
     // level. An INFO banner is not a page error, so the runtime's own non-error levels are
     // classified out by their exact log-line shape; an ERROR or FATAL from CNA still fails.
     const runtimeLog = /^\[(INFO|DEBUG|TRACE|WARN|WARNING|EXPERIMENT)\]\[[A-Z]+\] /;
+    // One CNA line does not go through that logger: the SDL3 mixer prints its negotiated audio
+    // format to stderr unconditionally, *after* it has successfully created the mixer, and
+    // Emscripten routes stderr to console.error. It is a success notice, so it is classified out
+    // by its exact shape rather than by widening the rule above -- and recorded upstream in
+    // docs/upstream-cna-findings.md, because a browser consumer collecting console errors sees it.
+    const mixerNotice = /^\[AudioMixer\] Requested format=0x[0-9a-f]+ channels=\d+ freq=\d+; /;
     page.on("console", (message) => {
       if (message.type() !== "error") return;
       const text = message.text();
-      if (runtimeLog.test(text)) return;
+      if (runtimeLog.test(text) || mixerNotice.test(text)) return;
       consoleErrors.push(text);
     });
     page.on("pageerror", (error) => consoleErrors.push(String(error)));
@@ -245,6 +251,39 @@ test("a browser renders to an off-screen target and reads its exact pixels back"
   // A bound target cannot be disposed. XNA raises, CNA refuses, and the refusal must arrive as the
   // managed exception rather than as a native abort.
   assert.equal(result.boundDisposal, "A bound RenderTarget2D cannot be disposed");
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("a browser game can build and drive a sound effect", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const audio = result.audio;
+  assert.ok(audio, "no audio evidence was produced");
+
+  // Duration is arithmetic on the sample count, so it is exact and does not depend on anything
+  // being audible: a quarter second of 8 kHz mono is a quarter second whatever the page's audio
+  // context is doing.
+  assert.equal(audio.durationMilliseconds, 250);
+  assert.equal(audio.durationMilliseconds, audio.expectedMilliseconds);
+  assert.equal(audio.durationTicks, "2500000");
+
+  // Every instance property round-trips through CNA at float precision.
+  assert.equal(audio.volume, 0.5);
+  assert.equal(audio.pitch, 0.25);
+  assert.equal(audio.pan, -0.75);
+  assert.equal(audio.isLooped, true);
+  assert.equal(typeof audio.masterVolume, "number");
+
+  // The state machine, which is what can be asserted in a page that has had no user gesture.
+  // XNA numbers SoundState Playing = 0, Paused = 1, Stopped = 2, so a fresh instance is stopped,
+  // Play makes it playing, Pause pauses it, Resume plays it again and Stop stops it. Whether
+  // anyone heard it is a browser question this deliberately does not answer.
+  const [Playing, Paused, Stopped] = [0, 1, 2];
+  assert.deepEqual(
+    audio.states, [Stopped, Playing, Paused, Playing, Stopped], "SoundState transitions",
+  );
+  assert.equal(typeof audio.played, "boolean", "Play reports acceptance rather than audibility");
   assert.deepEqual(result.errors, []);
   assert.deepEqual(consoleErrors, []);
 });

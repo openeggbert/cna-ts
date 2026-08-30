@@ -58,13 +58,36 @@ process, because a leaked counter would otherwise fail every later test in the i
 and `native-cna.integration.mjs` asserts the defect as measured. **When CNA fixes this, that
 assertion fails**, which is what it is for.
 
-## 2. `cna_c_api_wasm` does not pin its renderer's WebGL version
+## 2. The SDL3 mixer prints its negotiated format to stderr on the success path
+
+**Measured:** CNA ABI 0.20.0, Emscripten build, `CNA_AUDIO_PLATFORM=SDL3`, headless Chromium.
+
+`AudioMixer.cpp:197` writes one line to `std::cerr` unconditionally, *after* `MIX_CreateMixer` has
+succeeded:
+
+```text
+[AudioMixer] Requested format=0x0 channels=2 freq=44100; application format=0x8010 channels=2 freq=44100
+```
+
+On a desktop that is a harmless diagnostic. In a browser it is not quite: Emscripten routes stderr
+to `console.error`, so every page that opens audio reports a console error on a path where nothing
+went wrong, and any consumer collecting page errors — a crash reporter, a CI gate, this package's
+own browser harness — has to special-case it.
+
+**Proposed fix:** route it through CNA's logger at INFO, as the rest of the runtime's notices are,
+so it carries a level a consumer can filter on.
+
+**Consequence here:** `test/wasm-browser.mjs` classifies that exact line out by shape rather than
+widening its "not an error" rule, and still fails on any other console error. When CNA routes it
+through the logger the existing `[INFO][...]` rule covers it and the special case can go.
+
+## 3. `cna_c_api_wasm` does not pin its renderer's WebGL version
 
 Recorded in `docs/wasm-backend.md`. Still present in `cnanext` 17b5a90a: `cna_c_api_wasm`'s
 `target_link_options` in `modules/c-api/CMakeLists.txt` set neither `MIN_WEBGL_VERSION` nor
 `MAX_WEBGL_VERSION`, while the graphics examples set both.
 
-## 3. `-sASYNCIFY=1` is added to every Emscripten link
+## 4. `-sASYNCIFY=1` is added to every Emscripten link
 
 Recorded in `docs/wasm-backend.md`. Still present in `cnanext` 17b5a90a:
 `cna_emscripten_abi` in `cmake/BuildPerformance.cmake` adds it unconditionally, and no route in this

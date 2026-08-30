@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.20.0
-WASM_BACKEND_ROUTES=79
+WASM_BACKEND_ROUTES=105
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 79 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 105 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started.
 
@@ -44,7 +44,26 @@ diagnostic naming the member instead of a silent wrong answer.
 In the slice: ABI query, initialization, game create/run-one-frame/exit/destroy,
 graphics-device-manager configuration and device creation, renderer identity, `Clear`, `Texture2D`
 create/upload/read/destroy, `SpriteBatch` begin/submit/end/destroy, keyboard and mouse snapshots,
-the modern runtime-services family, **title storage**, and **render targets**.
+the modern runtime-services family, **title storage**, **render targets**, and **sound effects**.
+
+## Sound
+
+A game without sound is not much of a game, so `SoundEffect` and `SoundEffectInstance` are the same
+public classes here that a Node consumer uses. What a browser adds is one rule this backend does not
+pretend away: a page will not start a WebAudio context until it has had a user gesture. So building
+a sound, reading its duration, making instances and driving their state all work regardless, and
+whether a sample is *audible* is the page's business. `SoundEffect.Play` reports whether the runtime
+accepted it, which is the most a caller can truthfully be told from here.
+
+```text
+DURATION=250 ms exactly, from a quarter second of 8 kHz mono PCM
+INSTANCE_STATES=Stopped -> Playing -> Paused -> Playing -> Stopped
+VOLUME/PITCH/PAN/LOOPED=round-trip at float precision
+```
+
+Duration is arithmetic on the sample count, so it is exact evidence that does not depend on anything
+being heard. XACT, microphones, 3D positioning and dynamic buffers are outside the slice and refuse
+by name.
 
 ## Content in a browser
 

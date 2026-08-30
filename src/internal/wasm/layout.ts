@@ -293,4 +293,27 @@ export const WASM_STRUCT_LAYOUTS = {
       cube_map_face: { offset: 20, size: 4 },
     },
   },
+  CNA_SoundEffectCreateInfo: {
+    size: 24,
+    align: 8,
+    fields: {
+      struct_size: { offset: 0, size: 4 },
+      struct_version: { offset: 4, size: 4 },
+      sample_rate: { offset: 8, size: 4 },
+      channels: { offset: 12, size: 4 },
+    },
+  },
+  CNA_SoundEffectInstanceInfo: {
+    size: 32,
+    align: 4,
+    fields: {
+      struct_size: { offset: 0, size: 4 },
+      struct_version: { offset: 4, size: 4 },
+      state: { offset: 8, size: 4 },
+      is_looped: { offset: 12, size: 1 },
+      volume: { offset: 16, size: 4 },
+      pitch: { offset: 20, size: 4 },
+      pan: { offset: 24, size: 4 },
+    },
+  },
 } as const satisfies Readonly<Record<string, WasmStructLayout>>;

@@ -14,7 +14,7 @@
   "counts": {
     "VERIFIED_MANAGED": 20,
     "VERIFIED_NATIVE": 45,
-    "VERIFIED_WEBASSEMBLY": 5,
+    "VERIFIED_WEBASSEMBLY": 6,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 1,
     "FIXTURE_PENDING": 3,
@@ -912,6 +912,18 @@
         "wasmRoute:cna_graphics_device_set_render_targets",
         "wasmRoute:cna_render_target_get_info",
         "wasmRoute:cna_render_target_destroy",
+        "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "Browser sound effects: PCM construction, exact duration and the instance state machine",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "a quarter second of 16-bit mono PCM built in the page reports exactly 250 ms and 2,500,000 ticks, volume, pitch, pan and looping round-trip through CNA at float precision, and an instance walks stopped -> playing -> paused -> playing -> stopped. Audibility is deliberately not claimed: a browser will not start a WebAudio context without a user gesture, and SoundEffect.Play reports whether the runtime accepted the sample rather than whether anyone heard it",
+      "proof": [
+        "wasmRoute:cna_sound_effect_create_pcm16_range_ext",
+        "wasmRoute:cna_sound_effect_get_duration_ticks",
+        "wasmRoute:cna_sound_effect_instance_get_info",
         "test:test/wasm-browser.mjs"
       ]
     },

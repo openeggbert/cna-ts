@@ -21,8 +21,8 @@ window.addEventListener("unhandledrejection", (event) => result.errors.push(
 
 try {
   const {
-    Color, Content, Game, GraphicsDeviceManager, Graphics, GetRuntimeStatus, LoadWasmBackend,
-    TitleContainer, Vector2,
+    Audio, Color, Content, Game, GraphicsDeviceManager, Graphics, GetRuntimeStatus, LoadWasmBackend,
+    TitleContainer, TimeSpan, Vector2,
   } = await import("/cna-ts/index.js");
   const createCnaCApi = (await import("/wasm/cna_c_api.mjs")).default;
   const canvas = document.getElementById("canvas");
@@ -151,6 +151,50 @@ try {
       } finally {
         this.GraphicsDevice.SetRenderTarget(null);
       }
+      // Sound, which is most of what separates a demo from a game. A quarter second of 16-bit
+      // mono PCM at 8 kHz: the duration is arithmetic on the sample count, so it is exact and does
+      // not depend on anything being audible. Whether a browser actually plays it depends on the
+      // page having had a user gesture, which a headless run does not have -- so what is asserted
+      // is the state machine, not a sound nobody heard.
+      const sampleRate = 8000;
+      const frames = sampleRate / 4;
+      // XNA's SoundEffect takes a byte[], and this projection keeps that signature exactly, so the
+      // samples are written through a view and handed over as the byte array XNA declares.
+      const samples = new DataView(new ArrayBuffer(frames * 2));
+      for (let index = 0; index < frames; index += 1) {
+        samples.setInt16(index * 2, Math.round(8000 * Math.sin(index * 0.05)), true);
+      }
+      const pcm = [...new Uint8Array(samples.buffer)];
+      this.sound = new Audio.SoundEffect(pcm, sampleRate, Audio.AudioChannels.Mono);
+      this.soundInstance = this.sound.CreateInstance();
+      const played = this.sound.Play();
+      this.soundInstance.Volume = 0.5;
+      this.soundInstance.Pitch = 0.25;
+      this.soundInstance.Pan = -0.75;
+      this.soundInstance.IsLooped = true;
+      const initialState = this.soundInstance.State;
+      this.soundInstance.Play();
+      const playingState = this.soundInstance.State;
+      this.soundInstance.Pause();
+      const pausedState = this.soundInstance.State;
+      this.soundInstance.Resume();
+      const resumedState = this.soundInstance.State;
+      this.soundInstance.Stop();
+      result.audio = {
+        durationTicks: String(this.sound.Duration.Ticks),
+        durationMilliseconds: this.sound.Duration.TotalMilliseconds,
+        expectedMilliseconds: TimeSpan.FromTicks(
+          BigInt(Math.round((frames / sampleRate) * 10_000_000)),
+        ).TotalMilliseconds,
+        played,
+        volume: this.soundInstance.Volume,
+        pitch: this.soundInstance.Pitch,
+        pan: this.soundInstance.Pan,
+        isLooped: this.soundInstance.IsLooped,
+        states: [initialState, playingState, pausedState, resumedState, this.soundInstance.State],
+        masterVolume: Audio.SoundEffect.MasterVolume,
+      };
+
       super.LoadContent();
     }
 
@@ -170,6 +214,10 @@ try {
     }
 
     UnloadContent() {
+      this.soundInstance?.Dispose();
+      this.soundInstance = null;
+      this.sound?.Dispose();
+      this.sound = null;
       this.target?.Dispose();
       this.target = null;
       this.content?.Dispose();
