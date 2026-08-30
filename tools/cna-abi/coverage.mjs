@@ -45,6 +45,7 @@ function parseArgs(values) {
     output: null,
     jsonOutput: null,
     reportOnly: false,
+    portable: false,
   };
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
@@ -54,6 +55,7 @@ function parseArgs(values) {
     else if (value === "--output") result.output = path.resolve(values[++index]);
     else if (value === "--json-output") result.jsonOutput = path.resolve(values[++index]);
     else if (value === "--report-only") result.reportOnly = true;
+    else if (value === "--portable") result.portable = true;
     else throw new Error(`unknown argument: ${value}`);
   }
   return result;
@@ -293,7 +295,10 @@ function formatText(report) {
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const report = run(args);
-  if (args.jsonOutput) fs.writeFileSync(args.jsonOutput, `${JSON.stringify(report, null, 2)}\n`);
+  // Portable by default for the JSON: the absolute path this ran against is a fact about the
+  // machine, and the checked-in report has to be reproducible from a pinned checkout elsewhere.
+  const serializable = { ...report, cnaRoot: undefined };
+  if (args.jsonOutput) fs.writeFileSync(args.jsonOutput, `${JSON.stringify(serializable, null, 2)}\n`);
   const text = args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : formatText(report);
   if (args.output) fs.writeFileSync(args.output, text);
   else process.stdout.write(text);

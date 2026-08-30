@@ -1,14 +1,14 @@
 {
   "contract": "tools/cna-abi/contract.json",
-  "cnaRoot": "/rv/data/development/github.com/openeggbert/cnanext",
-  "typeScriptEnums": 86,
-  "verifiedFamilies": 85,
+  "typeScriptEnums": 91,
+  "verifiedFamilies": 90,
   "managedEnums": 1,
-  "claims": 769,
-  "identicalClaims": 766,
+  "claims": 821,
+  "identicalClaims": 818,
   "translatedClaims": 3,
   "scalarAssertions": 6,
   "resultCodeAssertions": 15,
+  "typeScriptResultCodes": 15,
   "structVersionAssertions": 6,
   "staticAssertionsCompiled": true,
   "cnaOnlyFamilyConstants": [
@@ -71,6 +71,30 @@
     {
       "family": "Blend",
       "constant": "CNA_BLEND_STATE_TYPE_NAME"
+    },
+    {
+      "family": "CameraPosition",
+      "constant": "CNA_CAMERA_POSITION_MAXIMUM"
+    },
+    {
+      "family": "CnbAssetType",
+      "constant": "CNA_CNB_ASSET_TYPE_CUSTOM_RANGE_FIRST"
+    },
+    {
+      "family": "CnbAssetType",
+      "constant": "CNA_CNB_ASSET_TYPE_EFFECT"
+    },
+    {
+      "family": "CnbAssetType",
+      "constant": "CNA_CNB_ASSET_TYPE_RESERVED_RANGE_FIRST"
+    },
+    {
+      "family": "CnbCompression",
+      "constant": "CNA_CNB_COMPRESSION_MAXIMUM"
+    },
+    {
+      "family": "CnbTextureFormat",
+      "constant": "CNA_CNB_TEXTURE_FORMAT_MAXIMUM"
     },
     {
       "family": "ControllerSensitivity",
@@ -241,6 +265,10 @@
       "constant": "CNA_NOTIFICATION_POSITION_MAXIMUM"
     },
     {
+      "family": "PowerState",
+      "constant": "CNA_POWER_STATE_MAXIMUM"
+    },
+    {
       "family": "PrimitiveType",
       "constant": "CNA_PRIMITIVE_POINT_LIST_EXT"
     },
@@ -281,7 +309,7 @@
       "constant": "CNA_VIDEO_SOUNDTRACK_TYPE_MAXIMUM"
     }
   ],
-  "declaredCnaOnlyConstants": 66,
+  "declaredCnaOnlyConstants": 73,
   "diagnostics": [],
   "translations": [
     {

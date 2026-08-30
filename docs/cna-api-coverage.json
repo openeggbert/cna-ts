@@ -1,5 +1,4 @@
 {
-  "cnaRoot": "/rv/data/development/github.com/openeggbert/cnanext",
   "headers": 57,
   "backends": [
     "NODE",

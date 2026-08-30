@@ -84,6 +84,7 @@ function parseArgs(values) {
     format: "text",
     output: null,
     requireWasm: false,
+    portable: false,
     nativeLibrary: process.env.CNA_NATIVE_LIBRARY
       ? path.resolve(process.env.CNA_NATIVE_LIBRARY)
       : null,
@@ -97,6 +98,7 @@ function parseArgs(values) {
     else if (value === "--format") result.format = values[++index];
     else if (value === "--output") result.output = path.resolve(values[++index]);
     else if (value === "--require-wasm") result.requireWasm = true;
+    else if (value === "--portable") result.portable = true;
     else if (value === "--native-library") result.nativeLibrary = path.resolve(values[++index]);
     else if (value === "--wasm-artifact-dir") result.wasmArtifactDir = path.resolve(values[++index]);
     else throw new Error(`unknown argument: ${value}`);
@@ -425,7 +427,18 @@ function main() {
           ? "PRESENT_BUT_INCOMPLETE"
           : "PRESENT_NOT_EXECUTION_VERIFIED",
   };
+  // The checked-in JSON is a function of this repository plus the pinned headers, and nothing else.
+  // A dependency revision, an absolute library path and an artifact hash are all facts about the
+  // machine that ran the audit, so `--portable` leaves them out and CI compares what it can
+  // reproduce. The text format always prints them, because that is what a human reading a
+  // qualification run wants to see.
+  const environment = [
+    "cnaRevision", "cnaRoot", "qualifiedLibrary", "qualifiedLibraryExportedFunctions",
+    "trackedWasmArtifacts", "trackedCApiEsmLoaders", "emccAvailable", "emcmakeAvailable",
+    "wasmArtifact", "browserArtifactStatus",
+  ];
   const serializable = { ...report, wasmArtifact: { ...report.wasmArtifact, exports: undefined } };
+  if (args.portable) for (const field of environment) delete serializable[field];
   const output = args.format === "json"
     ? `${JSON.stringify(serializable, null, 2)}\n`
     : formatText(report);

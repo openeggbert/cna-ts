@@ -29,6 +29,7 @@ function parseArgs(values) {
     format: "text",
     output: null,
     reportOnly: false,
+    portable: false,
   };
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
@@ -38,6 +39,7 @@ function parseArgs(values) {
     else if (value === "--format") result.format = values[++index];
     else if (value === "--output") result.output = path.resolve(values[++index]);
     else if (value === "--report-only") result.reportOnly = true;
+    else if (value === "--portable") result.portable = true;
     else throw new Error(`unknown argument: ${value}`);
   }
   if (!new Set(["text", "json"]).has(result.format)) throw new Error("--format must be text or json");
@@ -359,7 +361,12 @@ function formatText(report) {
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const report = run(args);
-  const output = args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : formatText(report);
+  // `--portable` drops the absolute path the audit ran against, so the checked-in JSON is a
+  // function of this repository plus the pinned headers and CI can compare it byte for byte from a
+  // different checkout. The text format keeps it, because a person reading a run wants to know
+  // which tree it measured.
+  const serializable = args.portable ? { ...report, cnaRoot: undefined } : report;
+  const output = args.format === "json" ? `${JSON.stringify(serializable, null, 2)}\n` : formatText(report);
   if (args.output) fs.writeFileSync(args.output, output);
   else process.stdout.write(output);
   if (!args.reportOnly && report.diagnostics.length > 0) process.exitCode = 1;

@@ -39,16 +39,32 @@ jobs:
         run: |
           node tools/runtime-capabilities/generate.mjs
           git diff --exit-code -- docs/runtime-capabilities.json docs/runtime-capabilities.md
-      - name: Checkout exact audited CNA ABI-0.7 headers
+      - name: Checkout the exact audited CNA headers
         uses: actions/checkout@v4
         with:
           repository: openeggbert/cna
-          ref: a09196a6477f69a7a57c8364f990658d31531a5b
-          path: cna-abi-070
+          # The revision the checked-in ABI, contract and coverage reports were measured from. A
+          # branch name here would make every report a moving target; a SHA makes a moved
+          # dependency a deliberate update with new numbers rather than a silent drift.
+          ref: 17b5a90a0878f3f44c23bc8e3197d5d30373dc72
+          path: cna-headers
       - name: ABI declarations and all imported signatures
         run: |
-          node tools/audit-cna-abi.mjs --cna-root cna-abi-070 --format json --output /tmp/cna-abi-report.json
+          node tools/audit-cna-abi.mjs --cna-root cna-headers --portable --format json --output /tmp/cna-abi-report.json
           cmp docs/cna-abi-report.json /tmp/cna-abi-report.json
+      - name: The C enum, scalar and result-code contract compiles against the headers
+        run: |
+          node tools/cna-abi/verify-contract.mjs --cna-root cna-headers --portable --format json --output /tmp/cna-abi-contract-report.json
+          cmp docs/cna-abi-contract-report.json /tmp/cna-abi-contract-report.json
+      - name: Every C API route stays classified and reachability stays current
+        run: |
+          node tools/cna-abi/coverage.mjs --cna-root cna-headers --output /tmp/cna-api-coverage.md --json-output /tmp/cna-api-coverage.json
+          cmp docs/cna-api-coverage.md /tmp/cna-api-coverage.md
+          cmp docs/cna-api-coverage.json /tmp/cna-api-coverage.json
+      - name: The generated backend base and wasm layout are not stale
+        run: |
+          node tools/backend/generate-backend-base.mjs
+          git diff --exit-code -- src/internal/backend-base.ts
       - name: Reproducible clean dist
         run: node tools/verify-build-reproducibility.mjs
       - name: npm pack
@@ -63,7 +79,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: openeggbert/cna-ts-template
-          ref: 49620019729ae87208ea67d84504b568e8b08b0b
+          ref: 2ea39870941d0520c7599afd9455efda9cea4c6b
           path: cna-ts-template
       - name: Install template tooling against the exact package
         run: >-
@@ -76,11 +92,15 @@ jobs:
       - name: Optional evidence status
         env:
           XNA_REFERENCE_PATH: ${{ vars.XNA_REFERENCE_PATH }}
-          CNA_070_LIBRARY_PATH: ${{ vars.CNA_070_LIBRARY_PATH }}
-          CNA_070_SOURCE_PATH: ${{ vars.CNA_070_SOURCE_PATH }}
+          CNA_LIBRARY_PATH: ${{ vars.CNA_LIBRARY_PATH }}
+          CNA_SOURCE_PATH: ${{ vars.CNA_SOURCE_PATH }}
+          CNA_WASM_ARTIFACT_DIR: ${{ vars.CNA_WASM_ARTIFACT_DIR }}
+          CNA_WINDOWED_LIBRARY_PATH: ${{ vars.CNA_WINDOWED_LIBRARY_PATH }}
         run: |
           test -n "$XNA_REFERENCE_PATH" && echo STRICT_API_ARTIFACT=CONFIGURED || echo STRICT_API_ARTIFACT=NOT_CONFIGURED
-          test -n "$CNA_070_LIBRARY_PATH" && test -n "$CNA_070_SOURCE_PATH" && echo NATIVE_070_ARTIFACT=CONFIGURED || echo NATIVE_070_ARTIFACT=NOT_CONFIGURED
+          test -n "$CNA_LIBRARY_PATH" && test -n "$CNA_SOURCE_PATH" && echo NATIVE_ARTIFACT=CONFIGURED || echo NATIVE_ARTIFACT=NOT_CONFIGURED
+          test -n "$CNA_WASM_ARTIFACT_DIR" && echo BROWSER_ARTIFACT=CONFIGURED || echo BROWSER_ARTIFACT=NOT_CONFIGURED
+          test -n "$CNA_WINDOWED_LIBRARY_PATH" && echo WINDOWED_ARTIFACT=CONFIGURED || echo WINDOWED_ARTIFACT=NOT_CONFIGURED
       - uses: actions/upload-artifact@v4
         with:
           name: cna-ts-package
@@ -110,7 +130,39 @@ jobs:
           cmp docs/missing-type-inventory.json /tmp/missing-type-inventory.json
 
   native-qualification:
-    if: ${{ vars.CNA_070_LIBRARY_PATH != '' && vars.CNA_070_SOURCE_PATH != '' }}
+    if: ${{ vars.CNA_LIBRARY_PATH != '' && vars.CNA_SOURCE_PATH != '' }}
+    runs-on: self-hosted
+    env:
+      CNA_NATIVE_LIBRARY: ${{ vars.CNA_LIBRARY_PATH }}
+      CNA_SOURCE_PATH: ${{ vars.CNA_SOURCE_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.14.0
+          cache: npm
+      - run: npm ci
+      - name: The artifact answers the ABI this package targets, and exports every import
+        # No pinned library hash: the artifact is built out of tree and is rebuilt whenever the
+        # dependency moves, so a frozen hash would only ever mean "this runner is stale". What is
+        # checked is what actually matters -- the ABI is in the targeted window, every imported
+        # symbol is present, and every signature matches the headers under -Werror.
+        run: node tools/audit-cna-abi.mjs
+      - name: Exact native integration
+        run: npm run test:native
+      - name: Modern CNA extension integration
+        run: npm run test:extensions
+      - name: CNB compiled content, end to end
+        run: npm run test:cnb
+      - name: Windowed renderer with real GPU pixels
+        # Opt-in and skips with a reason where no windowed library exists, so a runner without one
+        # reports a skip rather than a pass it did not earn.
+        env:
+          CNA_WINDOWED_LIBRARY: ${{ vars.CNA_WINDOWED_LIBRARY_PATH }}
+        run: xvfb-run -a npm run test:windowed
+
+  browser-qualification:
+    if: ${{ vars.CNA_WASM_ARTIFACT_DIR != '' }}
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
@@ -119,16 +171,8 @@ jobs:
           node-version: 22.14.0
           cache: npm
       - run: npm ci
-      - name: Validate protected ABI-0.7 artifact provenance
+      - name: 60 and 600 real browser frames on a WebGL2 context
         env:
-          CNA_NATIVE_LIBRARY: ${{ vars.CNA_070_LIBRARY_PATH }}
-          CNA_SOURCE_PATH: ${{ vars.CNA_070_SOURCE_PATH }}
-        run: |
-          test "$(git -C "$CNA_SOURCE_PATH" rev-parse HEAD)" = a09196a6477f69a7a57c8364f990658d31531a5b
-          test "$(sha256sum "$CNA_NATIVE_LIBRARY" | cut -d' ' -f1)" = 42e099146bf3b470f82fd963a516f8bdd7ff0406da8c37dd53747699117db086
-          node tools/audit-cna-abi.mjs --cna-root "$CNA_SOURCE_PATH"
-      - name: Exact native integration
-        env:
-          CNA_NATIVE_LIBRARY: ${{ vars.CNA_070_LIBRARY_PATH }}
-          CNA_SOURCE_PATH: ${{ vars.CNA_070_SOURCE_PATH }}
-        run: npm run test:native
+          CNA_WASM_ARTIFACT_DIR: ${{ vars.CNA_WASM_ARTIFACT_DIR }}
+          CNA_PLAYWRIGHT_MODULE: ${{ vars.CNA_PLAYWRIGHT_MODULE }}
+        run: npm run test:wasm-browser
