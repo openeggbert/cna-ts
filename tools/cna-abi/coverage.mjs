@@ -147,7 +147,22 @@ export function run(args) {
   const nodeImports = readImportedSymbols(path.join(ROOT, "native/cna_node_bridge.c"));
   const wasmImports = readWasmImportedSymbols(path.join(ROOT, "src/internal/wasm"));
   const rows = classify(declarations, rules, nodeImports, wasmImports);
-  return { cnaRoot: args.cnaRoot, headers: new Set([...declarations.values()]).size, ...summarize(rows, rules), rows };
+  // A route both backends import is counted once in the exclusive category and again in these
+  // per-backend totals, because "how much of the ABI does each backend reach" is a different
+  // question from "what is each route for".
+  const declared = new Set(declarations.keys());
+  const nodeTotal = [...nodeImports].filter((name) => declared.has(name)).length;
+  const wasmTotal = [...wasmImports].filter((name) => declared.has(name)).length;
+  const bothTotal = [...wasmImports].filter((name) => declared.has(name) && nodeImports.has(name)).length;
+  return {
+    cnaRoot: args.cnaRoot,
+    headers: new Set([...declarations.values()]).size,
+    nodeImportedTotal: nodeTotal,
+    wasmImportedTotal: wasmTotal,
+    importedByBothBackends: bothTotal,
+    ...summarize(rows, rules),
+    rows,
+  };
 }
 
 function formatText(report) {
@@ -160,6 +175,9 @@ function formatText(report) {
     "```text",
     `TOTAL_C_API_FUNCTIONS=${report.totalFunctions}`,
     `PUBLIC_HEADERS=${report.headers}`,
+    `NODE_IMPORTED_TOTAL=${report.nodeImportedTotal}`,
+    `WASM_IMPORTED_TOTAL=${report.wasmImportedTotal}`,
+    `IMPORTED_BY_BOTH_BACKENDS=${report.importedByBothBackends}`,
     ...Object.entries(report.totals).map(([key, value]) => `${key}=${value}`),
     "```",
     "",

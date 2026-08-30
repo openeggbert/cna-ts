@@ -2,6 +2,8 @@ import { getBackend, setBackendForInternalUse } from "../internal/backend.js";
 export { NativeUnavailableError } from "../internal/native-error.js";
 import { NativeUnavailableError } from "../internal/native-error.js";
 import { NodeNativeBackend } from "../internal/node-native-backend.js";
+import { WasmBackend } from "../internal/wasm/wasm-backend.js";
+import type { CnaWasmModule } from "../internal/wasm/module.js";
 
 export interface RuntimeStatus {
   readonly Backend: "unavailable" | "wasm" | "node-native";
@@ -73,4 +75,44 @@ export function requireNative(): void {
   if (!status.IsAvailable) {
     throw new NativeUnavailableError(status.Detail);
   }
+}
+
+/**
+ * How to reach an instantiated CNA C ABI WebAssembly module.
+ *
+ * The package never fetches a `.wasm` on its own: where the artifact lives, and how a page is
+ * allowed to load it, are the consumer's decisions. Pass the module the Emscripten factory returned,
+ * or the factory itself when the page wants this call to await it.
+ */
+export interface WasmBackendLoadOptions {
+  /** An already-instantiated `cna_c_api` module. */
+  readonly Module?: object;
+  /** The `createCnaCApi` factory exported by `cna_c_api.mjs`. */
+  readonly Factory?: (options?: object) => Promise<object>;
+  /** Options handed to the factory, such as `{ canvas }` for a game. */
+  readonly FactoryOptions?: object;
+}
+
+/**
+ * Loads the WebAssembly backend over an instantiated CNA C ABI module.
+ *
+ * The public XNA objects are unchanged: `Game`, `GraphicsDeviceManager`, `Texture2D`, `SpriteBatch`
+ * and the input snapshots are the same classes a Node consumer uses. A browser owns its event loop,
+ * so drive `Game.RunOneFrame` from `requestAnimationFrame` rather than calling `Game.Run`, which
+ * this backend refuses by design.
+ */
+export async function LoadWasmBackend(options: WasmBackendLoadOptions): Promise<RuntimeStatus> {
+  if (options == null) throw new TypeError("WasmBackendLoadOptions is required");
+  let instantiated = options.Module;
+  if (instantiated == null) {
+    if (typeof options.Factory !== "function") {
+      throw new TypeError("pass either an instantiated Module or the Emscripten Factory");
+    }
+    instantiated = options.FactoryOptions === undefined
+      ? await options.Factory()
+      : await options.Factory(options.FactoryOptions);
+  }
+  setBackendForInternalUse(new WasmBackend(instantiated as CnaWasmModule));
+  bindingsAvailable = true;
+  return GetRuntimeStatus();
 }

@@ -1,6 +1,9 @@
 {
   "cnaRoot": "/rv/data/development/github.com/openeggbert/cnanext",
   "headers": 57,
+  "nodeImportedTotal": 361,
+  "wasmImportedTotal": 42,
+  "importedByBothBackends": 42,
   "totalFunctions": 4051,
   "totals": {
     "NODE_IMPORTED": 361,

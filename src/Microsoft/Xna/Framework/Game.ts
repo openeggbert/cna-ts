@@ -84,6 +84,7 @@ export class Game implements IDisposable {
   #isMouseVisible = false;
   #isActive = false;
   #inRun = false;
+  #deviceCreated = false;
   #initialized = false;
   #exitRequested = false;
   #exitingRaised = false;
@@ -158,7 +159,7 @@ export class Game implements IDisposable {
     const backend = getBackend();
     await backend.initialize();
     const lifetime = this.#ensureNativeGame(backend);
-    graphicsManagers.get(this)?.CreateDevice();
+    this.#createGraphicsDeviceOnce();
     this.#inRun = true;
     try {
       if (this.#exitRequested) backend.exitGame(lifetime.Handle);
@@ -173,7 +174,17 @@ export class Game implements IDisposable {
     this.#ensureUsable();
     const backend = this.#nativeBackend ?? getBackend();
     const lifetime = this.#ensureNativeGame(backend);
+    // A backend whose host owns the event loop -- a browser -- never reaches Run, so the device
+    // creation Run performs has to happen here too, once. Doing it on every frame would recreate a
+    // live device; doing it never leaves a browser game with no GraphicsDevice at all.
+    this.#createGraphicsDeviceOnce();
     backend.runGameOneFrame(lifetime.Handle);
+  }
+
+  #createGraphicsDeviceOnce(): void {
+    if (this.#deviceCreated) return;
+    this.#deviceCreated = true;
+    graphicsManagers.get(this)?.CreateDevice();
   }
 
   public Tick(): void { this.RunOneFrame(); }

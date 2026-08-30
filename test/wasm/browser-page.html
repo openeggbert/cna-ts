@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CNA-TS WebAssembly runtime harness</title>
+</head>
+<body>
+<canvas id="canvas" width="320" height="240"></canvas>
+<script type="module">
+// This page is a real consumer of the built package: it imports the public XNA surface and never
+// an internal path, and the game below is the ordinary XNA shape a Node consumer writes.
+const result = { status: "running", frames: 0, errors: [] };
+globalThis.__cnaHarness = result;
+window.onerror = (message, source, line, column, error) => {
+  result.errors.push(`error: ${error && error.stack ? error.stack : `${message} @${source}:${line}:${column}`}`);
+  return false;
+};
+window.addEventListener("unhandledrejection", (event) => result.errors.push(
+  `rejection: ${event.reason && event.reason.stack ? event.reason.stack : String(event.reason)}`,
+));
+
+try {
+  const {
+    Color, Game, GraphicsDeviceManager, Graphics, GetRuntimeStatus, LoadWasmBackend, Vector2,
+  } = await import("/cna-ts/index.js");
+  const createCnaCApi = (await import("/wasm/cna_c_api.mjs")).default;
+  const canvas = document.getElementById("canvas");
+  const status = await LoadWasmBackend({
+    Factory: createCnaCApi,
+    FactoryOptions: { canvas },
+  });
+  result.backend = status.Backend;
+  result.abiVersion = status.AbiVersion;
+  result.importedSymbolCount = status.ImportedSymbolCount;
+
+  const targetFrames = Number(new URLSearchParams(location.search).get("frames") ?? "60");
+
+  class HelloGame extends Game {
+    constructor() {
+      super();
+      this.graphics = new GraphicsDeviceManager(this);
+      this.graphics.PreferredBackBufferWidth = 320;
+      this.graphics.PreferredBackBufferHeight = 240;
+      // A browser drives frames from requestAnimationFrame, so the frame clock is the
+      // page's. A fixed timestep would make CNA wait out the remainder of each frame.
+      this.IsFixedTimeStep = false;
+      this.updates = 0;
+      this.draws = 0;
+      this.texture = null;
+      this.spriteBatch = null;
+    }
+
+    Initialize() {
+      super.Initialize();
+    }
+
+    LoadContent() {
+      this.spriteBatch = new Graphics.SpriteBatch(this.GraphicsDevice);
+      this.texture = new Graphics.Texture2D(this.GraphicsDevice, 2, 2);
+      this.texture.SetData([Color.Red, Color.Green, Color.Blue, Color.White]);
+      const info = this.texture.Width * 1000 + this.texture.Height;
+      result.textureInfo = info;
+      super.LoadContent();
+    }
+
+    Update(gameTime) {
+      this.updates += 1;
+      super.Update(gameTime);
+    }
+
+    Draw(gameTime) {
+      this.GraphicsDevice.Clear(Color.CornflowerBlue);
+      this.spriteBatch.Begin();
+      this.spriteBatch.Draw(this.texture, new Vector2(16, 16), Color.White);
+      this.spriteBatch.End();
+      this.draws += 1;
+      super.Draw(gameTime);
+    }
+
+    UnloadContent() {
+      this.texture?.Dispose();
+      this.texture = null;
+      this.spriteBatch?.Dispose();
+      this.spriteBatch = null;
+      super.UnloadContent();
+    }
+  }
+
+  const game = new HelloGame();
+  result.rendererName = null;
+
+  await new Promise((resolve, reject) => {
+    const pump = () => {
+      try {
+        game.RunOneFrame();
+        result.frames += 1;
+        if (result.rendererName == null && game.GraphicsDevice) {
+          result.rendererName = GetRuntimeStatus().RendererInfo?.Name ?? "";
+        }
+        if (result.frames >= targetFrames) {
+          resolve();
+          return;
+        }
+        requestAnimationFrame(pump);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    requestAnimationFrame(pump);
+  });
+
+  result.isFixedTimeStep = game.IsFixedTimeStep;
+  result.updates = game.updates;
+  result.draws = game.draws;
+  game.Exit();
+  game.Dispose();
+  result.disposed = game.IsDisposed !== false;
+  result.status = "ok";
+} catch (error) {
+  result.status = "failed";
+  result.error = String(error && error.stack ? error.stack : error);
+}
+</script>
+</body>
+</html>

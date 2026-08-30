@@ -1,0 +1,140 @@
+{
+  "description": "The CNA C ABI structures the WebAssembly backend writes and reads. wasm32 layouts differ from the native ones -- pointers are four bytes -- so they are measured from a compiled Emscripten probe rather than copied from the native ABI baseline, which is exactly the mistake docs/c-api/WASM_ARTIFACT.md warns a binding will make.",
+  "structs": {
+    "CNA_StringView": [
+      "data",
+      "byte_length"
+    ],
+    "CNA_CallbackError": [
+      "struct_size",
+      "struct_version",
+      "message"
+    ],
+    "CNA_GameTime": [
+      "total_game_time_ticks",
+      "elapsed_game_time_ticks",
+      "is_running_slowly"
+    ],
+    "CNA_GameCallbacks": [
+      "struct_size",
+      "struct_version",
+      "load_content",
+      "update",
+      "draw",
+      "unload_content",
+      "exiting",
+      "context"
+    ],
+    "CNA_GameFrameHooks": [
+      "struct_size",
+      "struct_version",
+      "initialize",
+      "begin_run",
+      "end_run",
+      "begin_draw",
+      "end_draw",
+      "context"
+    ],
+    "CNA_GameCreateInfo": [
+      "struct_size",
+      "struct_version",
+      "is_fixed_time_step",
+      "target_elapsed_time_ticks",
+      "window_title",
+      "callbacks"
+    ],
+    "CNA_RendererInfo": [
+      "struct_size",
+      "struct_version",
+      "renderer_name_byte_length",
+      "capability_flags",
+      "renderer_type",
+      "max_texture_dimension"
+    ],
+    "CNA_Rectangle": [
+      "x",
+      "y",
+      "width",
+      "height"
+    ],
+    "CNA_Vector2": [
+      "x",
+      "y"
+    ],
+    "CNA_Color": [
+      "r",
+      "g",
+      "b",
+      "a"
+    ],
+    "CNA_Texture2DCreateInfo": [
+      "struct_size",
+      "struct_version",
+      "width",
+      "height",
+      "mip_map",
+      "format"
+    ],
+    "CNA_Texture2DDecodeInfo": [
+      "struct_size",
+      "struct_version",
+      "width",
+      "height",
+      "zoom"
+    ],
+    "CNA_Texture2DInfo": [
+      "struct_size",
+      "struct_version",
+      "width",
+      "height",
+      "level_count",
+      "format"
+    ],
+    "CNA_Texture2DTransfer": [
+      "struct_size",
+      "struct_version",
+      "level",
+      "has_rectangle",
+      "rectangle",
+      "start_index",
+      "element_count"
+    ],
+    "CNA_SpriteBatchBeginInfo": [
+      "struct_size",
+      "struct_version",
+      "sort_mode"
+    ],
+    "CNA_SpriteScaledCommand": [
+      "struct_size",
+      "struct_version",
+      "texture",
+      "position",
+      "source",
+      "color",
+      "rotation",
+      "origin",
+      "scale",
+      "effects",
+      "layer_depth"
+    ],
+    "CNA_KeyboardState": [
+      "struct_size",
+      "struct_version",
+      "pressed_key_words"
+    ],
+    "CNA_MouseState": [
+      "struct_size",
+      "struct_version",
+      "x",
+      "y",
+      "scroll_wheel",
+      "horizontal_scroll_wheel",
+      "pressed_buttons"
+    ]
+  },
+  "callbacks": {
+    "CNA_GameLifecycleCallback": "ijiii",
+    "CNA_GameBeginDrawCallback": "ijiiii"
+  },
+  "callbackSignatureNote": "An Emscripten addFunction signature names the return type first and then the parameters, so a CNA_Result(CNA_Handle, const CNA_GameTime*, void*, CNA_CallbackError*) is 'ijiii': i32 return, i64 handle, three pointers."
+}
