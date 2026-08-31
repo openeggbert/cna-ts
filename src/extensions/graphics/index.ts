@@ -611,7 +611,7 @@ export class PostProcessChain implements IDisposable {
    * The pass is unusable afterwards: CNA consumes the handle, and continuing to hold it would let
    * a caller release an object the chain now owns.
    *
-   * **Known upstream defect (CNA ABI 0.20.0).** `cna_post_process_chain_add_owned_pass` consumes
+   * **Known upstream defect (CNA ABI 0.21.0).** `cna_post_process_chain_add_owned_pass` consumes
    * the handle without the owned-resource accounting its sibling `_destroy` performs, so the
    * game's owned-graphics-resource counter never comes back down and every later `Game.Dispose`
    * in that process refuses. Until CNA fixes it, prefer {@link Add} and dispose the pass yourself;

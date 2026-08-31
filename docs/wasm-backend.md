@@ -21,7 +21,7 @@ BROWSER_FRAMES_600=PASS
 BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
-ABI=0.20.0
+ABI=0.21.0
 WASM_BACKEND_ROUTES=169
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
@@ -125,7 +125,8 @@ declared and unproduced rather than to register a producer that can never fire.
 ## Building the artifact
 
 The artifact is `cna_c_api.mjs` plus `cna_c_api.wasm`, from the `cna_c_api_wasm` target of an
-Emscripten tree. Out of tree, and with two link settings the target does not set itself:
+Emscripten tree, built out of tree. **It no longer needs any binding-specific link setting.** Two
+were required until ABI 0.21; CNA now sets both itself, and the recipe below is the stock target:
 
 ```sh
 source ~/emsdk/emsdk_env.sh
@@ -136,50 +137,45 @@ emcmake cmake -S . -B cmake-build-tswasm -G Ninja \
   -DCNA_GRAPHICS_RENDERER=WEBGL2 \
   -DCNA_BUILD_TESTS=ON -DCNA_BUILD_EXAMPLES=OFF \
   -DCNA_ENABLE_DRACO=OFF -DCNA_ENABLE_VIDEO=OFF \
-  -DCMAKE_EXE_LINKER_FLAGS="-sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2" \
-  -DCMAKE_CXX_STANDARD_LIBRARIES="-sASYNCIFY=0" \
   -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache
 cmake --build cmake-build-tswasm --target cna_c_api_wasm
 ```
 
-The artifact this build produces, requalified against `cnanext` 17b5a90a:
+The artifact this build produces, requalified against `cnanext` 599d14e5:
 
 ```text
 EMCC=6.0.3
 CMAKE_BUILD_TYPE=Release   CNA_GRAPHICS_RENDERER=WEBGL2   CNA_PLATFORM=SDL3
-MODULE_SHA256=70eea48caddb9bdf94f47a7edac49506678c95a574cd4506bd1a847656522e3f
-WASM_SHA256=6a5db6f6a6a3cc4e0906c0e108d31e850adf75b65ea805c1b8c99b7e30ff49f2
-WASM_BYTES=18943981
-EXPOSED_ROUTES=4053
+MODULE_SHA256=b33248e3e0a822e373c5a923c2a6c3b473017220d560e70f456336c81559fdf8
+WASM_SHA256=7479a41a59a4ea5cf129e1e39598dbea7e62e3349c37b9021c54d414b694f35f
+WASM_BYTES=18958610
+BINDING_LINK_OVERRIDES=0
 ```
 
-Both extra settings exist because of measured upstream gaps, recorded below. Each was re-checked
-against the live `cnanext` tree on 2026-08-31 and both are still present: `cna_c_api_wasm`'s
-`target_link_options` in `modules/c-api/CMakeLists.txt` still set no `MIN_WEBGL_VERSION` or
-`MAX_WEBGL_VERSION`, and `cna_emscripten_abi` in `cmake/BuildPerformance.cmake` still adds
-`-sASYNCIFY=1` to every Emscripten link unconditionally. Neither workaround has been removed on the
-strength of the build merely continuing to succeed with it. `CMAKE_CXX_STANDARD_LIBRARIES`
-is the placement that works: CMake puts `CMAKE_EXE_LINKER_FLAGS` *before* a target's own link
-options, and `emcc` lets the last `-s` win, so an `-sASYNCIFY=0` in the linker flags would be
-overridden by the `-sASYNCIFY=1` the target inherits.
+## The two upstream gaps this backend measured, and their repair
 
-## Upstream gaps this backend measured
+Both are **fixed in `cnanext` 599d14e5** and the fix is verified here against the artifact rather
+than against the commit message. The measurements that found them are kept, because they are what
+makes the repair checkable.
 
-### 1. `cna_c_api_wasm` does not pin the WebGL version its renderer needs
+### 1. `cna_c_api_wasm` did not pin the WebGL version its renderer needs
 
 Without `-sMIN_WEBGL_VERSION=2 -sMAX_WEBGL_VERSION=2`, Emscripten negotiates a WebGL 1 context while
 `EasyGLGraphicsBackend` asks SDL for GLES 3, its GLSL ES 3.00 shaders fail to compile
 (`ERROR: 0:1: '' : unsupported shader version 300`), and the module aborts on the first draw.
-`cnanext/docs/web-emscripten-graphics-limitations.md` already records this exact failure for a
-different target, and `modules/graphics/examples/CMakeLists.txt` sets the pair for the demos --
-`cna_c_api_wasm`, the artifact a binding is meant to consume, does not.
+`modules/graphics/examples/CMakeLists.txt` set the pair for the demos; `cna_c_api_wasm`, the
+artifact a binding is meant to consume, did not, so this package supplied the pair through
+`CMAKE_EXE_LINKER_FLAGS`.
 
-**Proposed upstream change:** give `cna_c_api_wasm` the same renderer-conditional
-`MIN_WEBGL_VERSION`/`MAX_WEBGL_VERSION` link options the examples already carry.
+**Repaired upstream** by `cna_apply_emscripten_renderer_link_contract` in
+`cmake/RendererSelection.cmake`, which derives the pair from `CNA_GRAPHICS_RENDERER` and is applied
+to `cna_c_api_wasm`. **Verified here**: the stock artifact's generated JavaScript requests
+`majorVersion:2` exactly once and `majorVersion:1` zero times, and the browser suite renders a
+render target through GLSL ES 3.00 shaders and reads its exact texels back.
 
-### 2. `-sASYNCIFY=1` makes every route unrewindable, because every route takes a handle
+### 2. `-sASYNCIFY=1` made every route unrewindable, because every route takes a handle
 
-`CNA::EmscriptenAbi` adds `-sASYNCIFY=1` to every Emscripten link. SDL3's
+`CNA::EmscriptenAbi` added `-sASYNCIFY=1` to every Emscripten link. SDL3's
 `Emscripten_GLES_SwapWindow` then calls `emscripten_sleep(0)` on each present
 (`third_party/SDL/src/video/emscripten/SDL_emscriptenopengles.c:145`, guarded by
 `emscripten_has_asyncify()`), which unwinds the JS-entered export.
@@ -187,15 +183,17 @@ different target, and `modules/graphics/examples/CMakeLists.txt` sets the pair f
 Asyncify's rewind re-enters the bottom export of the call stack **with no arguments**. Under
 `WASM_BIGINT` an `i64` parameter given `undefined` throws
 `TypeError: Cannot convert undefined to a BigInt`, so the rewind fails and the frame is lost. Every
-route in this ABI takes a `CNA_Handle`, which is `uint64_t`, so **no route can be driven from
-JavaScript while Asyncify may unwind it**. Measured: with Asyncify on, 5 requested frames produced 3
-updates and 3 unhandled rejections; with `-sASYNCIFY=0`, 5 frames produced 5 updates, 5 draws and no
-errors.
+route in this ABI takes a `CNA_Handle`, which is `uint64_t`, so **no route could be driven from
+JavaScript while Asyncify might unwind it**. Measured then: with Asyncify on, 5 requested frames
+produced 3 updates and 3 unhandled rejections; with `-sASYNCIFY=0`, 5 frames produced 5 updates,
+5 draws and no errors.
 
-**Proposed upstream change:** either link `cna_c_api_wasm` with `-sASYNCIFY=0`, or set
-`SDL_HINT_EMSCRIPTEN_ASYNCIFY` to false inside the C API's platform initialisation. The first is
-correct for a library whose consumer owns the event loop; the second keeps Asyncify for consumers
-who want a blocking `cna_game_run`.
+**Repaired upstream** by setting `CNA_EMSCRIPTEN_ASYNCIFY OFF` on the target and stating
+`-sASYNCIFY=0` in its own `target_link_options`, so the project-wide support pass cannot append a
+later `-sASYNCIFY=1` that wins by order. CNA also added its own `CApi_WasmLinkContract` test, which
+greps the linked JavaScript rather than trusting option order. **Verified here**: the stock
+artifact's generated JavaScript contains no `Asyncify` runtime object, and the browser suite runs
+600 real frames with zero uncaught page errors.
 
 ## Frame pacing in a browser
 

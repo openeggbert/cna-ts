@@ -1,29 +1,60 @@
-# CNA C ABI 0.20 migration audit
+# CNA C ABI migration and requalification audit
 
-Audit date: 2026-08-31 (requalified against the live dependency state)
+Audit date: 2026-08-31 (requalified against the live dependency state at CNA C ABI 0.21.0)
 
 This audit treats `cnanext` and `sharp-runtimenext` as read-only evidence. Neither repository was
-modified. The binding previously targeted CNA C ABI `0.7.0` from the older `cna` checkout; the live
-canonical headers now declare `0.20.0`, so every imported route, the acceptance policy and the
-runtime evidence were re-measured rather than renumbered.
+modified. The binding first targeted CNA C ABI `0.7.0` from the older `cna` checkout, then `0.20.0`;
+the live canonical headers now declare `0.21.0`. Each crossing re-measured every imported route, the
+acceptance policy and the runtime evidence rather than renumbering them, and each is recorded here
+in the order it happened.
 
 ## Live dependency provenance
 
 ```text
 CNA_SOURCE=/rv/data/development/github.com/openeggbert/cnanext
-CNA_HEAD=17b5a90a0878f3f44c23bc8e3197d5d30373dc72
+CNA_HEAD=599d14e54e073b566d77b3d6fb30ac52d3d810b7
 CNA_BRANCH=next
 SHARP_RUNTIME_SOURCE=/rv/data/development/github.com/openeggbert/sharp-runtimenext
 SHARP_RUNTIME_HEAD=4a49afb0cfe6a41e6e0af0bb62dc5175976731bb
 SHARP_RUNTIME_BRANCH=next
 ```
 
-Both artifacts were previously built from `cnanext` 72262a33 and `sharp-runtimenext` eebebd86 and
-have been rebuilt from the revisions above. The C contract did not move with them: `git diff
-72262a33..17b5a90a -- modules/c-api` is empty, so the ABI version, the declaration set and the
-export set are identical and the difference is confined to implementation and build files. That is
-measured, not inferred from the fact that neither number changed -- a moved HEAD is not evidence of
-an ABI change, and an unchanged ABI version is not evidence that the headers held still.
+Both artifacts were previously built from `cnanext` 17b5a90a and have been rebuilt from the
+revisions above. **This time the C contract did move**, which is why it was measured rather than
+assumed: `git diff 17b5a90a..599d14e5 -- modules/c-api/include` touches six headers, and one of
+them is `abi.h`.
+
+```text
+PREVIOUS_ARTIFACT_SOURCE=17b5a90a  ABI 0.20.0  4051 exported declarations
+CURRENT_ARTIFACT_SOURCE=599d14e5   ABI 0.21.0  4054 exported declarations
+```
+
+Under this package's own acceptance policy an experimental `0.x` minor increment is an
+incompatible change, so an ABI 0.21 library would have been **rejected** by the 0.20 window rather
+than silently mis-driven. `src/internal/abi.ts` now declares 0.21 and
+`TARGETED_ABI_MATCHES_HEADERS` proves it against the headers.
+
+What actually changed, read declaration by declaration rather than inferred from the version bump:
+
+```text
+ADDED   cna_environment_get_device_type                            devices.h
+ADDED   cna_object_dictionary_ext_get_runtime_type_name_size       content_readers.h
+ADDED   cna_object_dictionary_ext_copy_runtime_type_name           content_readers.h
+REMOVED (none)
+RENAMED (none)
+SIGNATURE CHANGES to imported routes: 0 (all 594 recompile under -Wall -Wextra -Werror)
+```
+
+Three documented *behaviour* changes accompany them, none of which alters a prototype:
+`cna_content_manager_load_texture2d` and `cna_graphics_device_create_texture2d` now accept any
+renderer-supported surface format rather than only `Color`; `cna_network_session_create*` document
+a two-through-31 `max_gamers` range; and `cna_network_session_create_async` now preserves the
+requested gamer limit instead of substituting its own. Only the last was previously asserted here,
+and it was asserted as an ABI *fact* rather than as a CNA-TS behaviour, so nothing in the binding
+depended on the old answer.
+
+A moved HEAD is not evidence of an ABI change, and an unchanged ABI version is not evidence that
+the headers held still: both directions have now been observed on this dependency.
 
 Both dependency worktrees carried another session's uncommitted work throughout. Nothing in this
 audit modified either.
@@ -48,10 +79,10 @@ CNA_DEVICES=ON
 CNA_ENABLE_NET=ON
 CNA_ENABLE_VIDEO=AUTO
 PATH=/rv/data/development/github.com/openeggbert/cnanext/cmake-build-tsnext/modules/c-api/libcna_c_api.so
-SHA256=c635aff6b3bbc5794ffd0a98c9a7193c375928b85d3451ece545a770e41e5c6d
-BYTES=189122712
-REPORTED_ABI=0.20.0
-EXPORTED_CNA_SYMBOLS=4051
+SHA256=17131a4d4b8bf0dc4f35fd7a1b64dd2ae7969a8f0c879aa9c0265f6a6cf0bcda
+BYTES=188973392
+REPORTED_ABI=0.21.0
+EXPORTED_CNA_SYMBOLS=4054
 ```
 
 Reproduce the header, compiler-signature and artifact-export checks with:
@@ -163,18 +194,31 @@ it for a regression this binding caused.
 ## The contract counts this audit holds
 
 ```text
-ABI_VERSION=0.20.0
+ABI_VERSION=0.21.0
+TARGETED_ABI_MATCHES_HEADERS=1
 PUBLIC_HEADERS=61
-EXPORTED_FUNCTIONS=4051
-NODE_BRIDGE_IMPORTED_SYMBOLS=581
-NODE_BRIDGE_SIGNATURES_VERIFIED=581
+EXPORTED_FUNCTIONS=4054
+NODE_BRIDGE_IMPORTED_SYMBOLS=594
+NODE_BRIDGE_SIGNATURES_VERIFIED=594
 NODE_BRIDGE_SIGNATURE_MISMATCHES=0
 MISSING_QUALIFIED_LIBRARY_IMPORTS=0
-WASM_ARTIFACT_EXPORTED_FUNCTIONS=4053
-WASM_BACKEND_ROUTES=105
+WASM_ARTIFACT_EXPORTED_FUNCTIONS=4056
+WASM_BACKEND_ROUTES=169
 MISSING_WASM_BACKEND_EXPORTS=0
+WASM_ARTIFACT_ASYNCIFY_RUNTIME=0
+WASM_ARTIFACT_WEBGL_MAJOR_VERSIONS=2
+WASM_ARTIFACT_LINK_CONTRACT=OK_ASYNCIFY_OFF_WEBGL2
 BROWSER_ARTIFACT_STATUS=PRESENT_NOT_EXECUTION_VERIFIED
 ```
+
+`NODE_BRIDGE_IMPORTED_SYMBOLS` and `WASM_BACKEND_ROUTES` are *backend reachability* — how many C
+routes each adapter actually imports. They are not the same dimension as the coverage report's
+purpose classification, and neither is the canonical declaration count. All three are printed
+separately here and in `docs/cna-api-coverage.md` for exactly that reason.
+
+`WASM_ARTIFACT_LINK_CONTRACT` is new in this generation: it measures, out of the artifact's own
+generated JavaScript, the two Emscripten link properties this package used to supply itself before
+CNA repaired them. See `docs/upstream-cna-findings.md` items 3 and 4.
 
 `BROWSER_ARTIFACT_STATUS` used to be derived from whether a `.wasm` was *committed* to the CNA
 worktree, which answered nothing: the artifact is built out of tree and never checked in, so the

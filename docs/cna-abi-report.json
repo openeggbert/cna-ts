@@ -1,17 +1,17 @@
 {
-  "abiVersion": "0.20.0",
+  "abiVersion": "0.21.0",
   "abiVersionComponents": {
     "major": 0,
-    "minor": 20,
+    "minor": 21,
     "patch": 0
   },
   "targetedAbi": {
     "major": 0,
-    "minor": 20
+    "minor": 21
   },
   "targetedAbiMatchesHeaders": true,
   "publicHeaders": 61,
-  "exportedFunctions": 4051,
+  "exportedFunctions": 4054,
   "requiredSymbols": 46,
   "missingRequiredSymbols": [],
   "nodeBridgeImportedSymbols": [
@@ -680,6 +680,7 @@
       "cna_sound_effect_destroy"
     ]
   },
+  "wasmArtifactLinkContract": "NOT_PROVIDED",
   "wasmBackendRoutes": [
     "cna_get_abi_version",
     "cna_error_get_last_message_size",
@@ -723,6 +724,15 @@
     "cna_sprite_batch_destroy",
     "cna_keyboard_get_state",
     "cna_mouse_get_state",
+    "cna_gamepad_get_capabilities",
+    "cna_gamepad_get_state_with_dead_zone",
+    "cna_gamepad_set_vibration",
+    "cna_touch_get_capabilities",
+    "cna_touch_get_state",
+    "cna_touch_panel_get_window_handle",
+    "cna_touch_panel_set_window_handle",
+    "cna_touch_panel_get_is_gesture_available",
+    "cna_touch_panel_read_gesture",
     "cna_platform_get_current",
     "cna_platform_get_is_apple_ext",
     "cna_platform_get_is_mobile_ext",

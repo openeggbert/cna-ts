@@ -253,6 +253,9 @@ function formatText(report) {
     `WASM_ARTIFACT_WASM_SHA256=${report.wasmArtifact.wasmSha256 ?? "ABSENT"}`,
     `WASM_ARTIFACT_WASM_BYTES=${report.wasmArtifact.wasmBytes ?? 0}`,
     `WASM_ARTIFACT_EXPORTED_FUNCTIONS=${report.wasmArtifact.exportedFunctions ?? 0}`,
+    `WASM_ARTIFACT_ASYNCIFY_RUNTIME=${report.wasmArtifact.asyncifyRuntime === null ? "UNMEASURED" : report.wasmArtifact.asyncifyRuntime ? 1 : 0}`,
+    `WASM_ARTIFACT_WEBGL_MAJOR_VERSIONS=${report.wasmArtifact.webglMajorVersions == null ? "UNMEASURED" : (report.wasmArtifact.webglMajorVersions.join(",") || "NONE")}`,
+    `WASM_ARTIFACT_LINK_CONTRACT=${report.wasmArtifactLinkContract}`,
     `WASM_BACKEND_ROUTES=${report.wasmBackendRoutes.length}`,
     `MISSING_WASM_BACKEND_EXPORTS=${report.missingWasmBackendExports.length}`,
     `BROWSER_ARTIFACT_STATUS=${report.browserArtifactStatus}`,
@@ -301,6 +304,8 @@ function readWasmArtifact(directory) {
     wasmBytes: null,
     exportedFunctions: null,
     exports: null,
+    asyncifyRuntime: null,
+    webglMajorVersions: null,
   };
   if (!directory || !fs.statSync(directory, { throwIfNoEntry: false })?.isDirectory()) return empty;
   const modulePath = path.join(directory, "cna_c_api.mjs");
@@ -312,6 +317,16 @@ function readWasmArtifact(directory) {
   const exports = new Set(
     [...moduleSource.matchAll(/Module\["(_cna_[A-Za-z0-9_]+)"\]\s*=/g)].map((match) => match[1]),
   );
+  // Two link-contract properties this binding used to supply itself, measured from the artifact
+  // rather than from the CMake that produced it. CNA repaired both in ABI 0.21; if a later build
+  // regresses, a browser consumer sees a WebGL 1 context whose GLSL ES 3.00 shaders will not
+  // compile, or an Asyncify unwind that loses every i64 handle. Both fail loudly here instead.
+  const asyncifyRuntime = /var[ \t]+Asyncify|Asyncify[ \t]*=[ \t]*\{/.test(moduleSource);
+  const webglMajorVersions = [
+    ...new Set(
+      [...moduleSource.matchAll(/majorVersion[ \t]*:[ \t]*(\d)/g)].map((match) => Number(match[1])),
+    ),
+  ].sort();
   return {
     directory,
     module: modulePath,
@@ -321,7 +336,28 @@ function readWasmArtifact(directory) {
     wasmBytes: wasmBytes.byteLength,
     exportedFunctions: exports.size,
     exports,
+    asyncifyRuntime,
+    webglMajorVersions,
   };
+}
+
+/**
+ * The link contract the WebAssembly backend depends on, measured from the artifact's own generated
+ * JavaScript. Until ABI 0.21 this package supplied both properties itself through extra CMake
+ * settings, because `cna_c_api_wasm` set neither; CNA now states both on the target and gates them
+ * with its own `CApi_WasmLinkContract` test. That is why the overrides are gone -- and why this
+ * check stays: a rebuilt artifact that silently reacquires Asyncify loses every `i64` handle on the
+ * first SDL present, and one that negotiates WebGL 1 cannot compile EasyGL's GLSL ES 3.00 shaders.
+ * Both failures appear far from their cause, so they are caught at the artifact instead.
+ */
+function wasmArtifactLinkContract(artifact) {
+  if (artifact.moduleSha256 == null) return "NOT_PROVIDED";
+  if (artifact.asyncifyRuntime) return "BROKEN_ASYNCIFY_PRESENT";
+  const versions = artifact.webglMajorVersions ?? [];
+  if (versions.length !== 1 || versions[0] !== 2) {
+    return `BROKEN_WEBGL_MAJOR_VERSIONS_${versions.join("_") || "NONE"}`;
+  }
+  return "OK_ASYNCIFY_OFF_WEBGL2";
 }
 
 function main() {
@@ -418,6 +454,7 @@ function main() {
     emccAvailable: compilerAvailable("emcc"),
     emcmakeAvailable: toolPath("emcmake") != null,
     wasmArtifact,
+    wasmArtifactLinkContract: wasmArtifactLinkContract(wasmArtifact),
     wasmBackendRoutes,
     missingWasmBackendExports,
     browserArtifactStatus:
@@ -449,6 +486,7 @@ function main() {
     missing.length > 0 || missingNodeBridgeSymbols.length > 0 || missingQualifiedLibraryImports.length > 0 ||
     !report.targetedAbiMatchesHeaders ||
     report.missingWasmBackendExports.length > 0 ||
+    report.wasmArtifactLinkContract.startsWith("BROKEN_") ||
     (args.requireWasm && report.browserArtifactStatus === "MISSING")
   ) {
     process.exitCode = 1;

@@ -157,7 +157,7 @@ test("the WebAssembly backend runs 60 real browser frames through the public XNA
   const { result, consoleErrors } = await runFrames(60);
   assert.equal(result.status, "ok", result.error ?? "");
   assert.equal(result.backend, "wasm");
-  assert.match(result.abiVersion, /^0\.20\./);
+  assert.match(result.abiVersion, /^0\.21\./);
   assert.equal(result.frames, 60);
   assert.ok(result.updates >= 60, `expected at least 60 updates, saw ${result.updates}`);
   assert.ok(result.draws >= 1, `expected at least one draw, saw ${result.draws}`);

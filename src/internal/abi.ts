@@ -12,7 +12,7 @@
 export const CNA_ABI_MAJOR = 0;
 
 /** Minor component of the CNA C ABI generation this package's native routes were written for. */
-export const CNA_ABI_MINOR = 20;
+export const CNA_ABI_MINOR = 21;
 
 /** A decoded CNA C ABI version. */
 export interface CnaAbiVersion {

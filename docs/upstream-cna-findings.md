@@ -7,11 +7,19 @@ package that fails when the behaviour changes, so a repaired upstream is noticed
 silently outgrowing its workaround.
 
 `docs/wasm-backend.md` carries the two Emscripten build-system gaps separately, because they are
-build configuration rather than runtime behaviour.
+build configuration rather than runtime behaviour. **Both of those are now fixed upstream and
+verified here** — see items 3 and 4 below.
+
+Re-checked against `cnanext` 599d14e5 (CNA C ABI 0.21.0) on 2026-08-31.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
-**Measured:** CNA ABI 0.20.0, `cnanext` 17b5a90a, HEADLESS platform/renderer, `CNA_CNAEXT=ON`.
+**Status: still present** in `cnanext` 599d14e5. Re-read from source at that revision:
+`cna_post_process_chain_add_owned_pass` still performs the `Release` with no
+`RemoveOwnedGraphicsResourceFor` beside it.
+
+**Measured:** CNA ABI 0.20.0, `cnanext` 17b5a90a, HEADLESS platform/renderer, `CNA_CNAEXT=ON`;
+re-read unchanged at 0.21.0.
 
 Handing a post-process pass to a chain makes the game undestroyable for the rest of the process:
 
@@ -60,7 +68,12 @@ assertion fails**, which is what it is for.
 
 ## 2. The SDL3 mixer prints its negotiated format to stderr on the success path
 
-**Measured:** CNA ABI 0.20.0, Emscripten build, `CNA_AUDIO_PLATFORM=SDL3`, headless Chromium.
+**Status: still present** in `cnanext` 599d14e5. `AudioMixer.cpp:197` is unchanged and still an
+unconditional `std::cerr` on the success path, so `test/wasm-browser.mjs` still carries the
+special case.
+
+**Measured:** CNA ABI 0.20.0, Emscripten build, `CNA_AUDIO_PLATFORM=SDL3`, headless Chromium;
+re-measured unchanged at 0.21.0.
 
 `AudioMixer.cpp:197` writes one line to `std::cerr` unconditionally, *after* `MIX_CreateMixer` has
 succeeded:
@@ -81,14 +94,34 @@ so it carries a level a consumer can filter on.
 widening its "not an error" rule, and still fails on any other console error. When CNA routes it
 through the logger the existing `[INFO][...]` rule covers it and the special case can go.
 
-## 3. `cna_c_api_wasm` does not pin its renderer's WebGL version
+## 3. `cna_c_api_wasm` did not pin its renderer's WebGL version — FIXED in 0.21.0
 
-Recorded in `docs/wasm-backend.md`. Still present in `cnanext` 17b5a90a: `cna_c_api_wasm`'s
-`target_link_options` in `modules/c-api/CMakeLists.txt` set neither `MIN_WEBGL_VERSION` nor
-`MAX_WEBGL_VERSION`, while the graphics examples set both.
+**Fixed and independently verified.** `cnanext` 599d14e5 adds
+`cna_apply_emscripten_renderer_link_contract` in `cmake/RendererSelection.cmake`, which derives
+`MIN_WEBGL_VERSION`/`MAX_WEBGL_VERSION` from `CNA_GRAPHICS_RENDERER`, and applies it to
+`cna_c_api_wasm`.
 
-## 4. `-sASYNCIFY=1` is added to every Emscripten link
+Verified rather than accepted from the commit: the `cna_c_api_wasm` target was rebuilt **stock**,
+with this package's `CMAKE_EXE_LINKER_FLAGS` override removed, and the resulting artifact was
+measured. Its generated JavaScript requests `majorVersion:2` exactly once and `majorVersion:1` zero
+times, and all seven browser tests pass on it, including the render-target readback whose GLSL ES
+3.00 shaders are what a WebGL 1 context cannot compile.
 
-Recorded in `docs/wasm-backend.md`. Still present in `cnanext` 17b5a90a:
-`cna_emscripten_abi` in `cmake/BuildPerformance.cmake` adds it unconditionally, and no route in this
-ABI survives an Asyncify unwind because every one of them takes an `i64` handle.
+## 4. `-sASYNCIFY=1` was added to every Emscripten link — FIXED in 0.21.0
+
+**Fixed and independently verified.** `cnanext` 599d14e5 sets `CNA_EMSCRIPTEN_ASYNCIFY OFF` on
+`cna_c_api_wasm` and states `-sASYNCIFY=0` in the target's own `target_link_options`, so the
+project-wide support pass in `cmake/BuildPerformance.cmake` cannot append a later `-sASYNCIFY=1`
+that wins by link order. CNA also added `CApi_WasmLinkContract`, a CMake test that greps the linked
+JavaScript instead of trusting option order — the same shape of check this package now makes.
+
+Verified rather than accepted from the commit: the stock artifact, built with this package's
+`CMAKE_CXX_STANDARD_LIBRARIES` override removed, contains no `Asyncify` runtime object, and the
+browser suite runs 600 real frames with zero uncaught page errors. Under the old defect that same
+run lost frames to `TypeError: Cannot convert undefined to a BigInt`.
+
+**Consequence here:** both binding-specific link overrides are removed;
+`BINDING_LINK_OVERRIDES=0`. `npm run audit:cna-abi` now measures both properties out of the
+artifact it consumes and reports `WASM_ARTIFACT_LINK_CONTRACT`, failing the run on either
+regression. `test/wasm-artifact-link-contract.test.mjs` plants each defect in a copy of the real
+artifact and proves the audit rejects it, so the gate is known to be able to fail.
