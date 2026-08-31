@@ -365,11 +365,16 @@ Electron, or mobile support.
   belongs, together with the two dependency lists a build system needs — what the compiler
   absorbed, and what it recorded as an external reference.
 - [ ] CNB's loader registry, plus the model's morph targets and per-slot texture arrays, are
-  measured and unprojected. The registry needs a typed abstraction designed rather than
-  transcribed: this package will not publish `void*` or a table of function pointers.
-  `cna_cnb_writer_write_to_file` and `cna_cnb_build_model_from_cnj` are deliberately unprojected —
-  the first would put a filesystem API back into the runtime package, and the second duplicates
-  `cna_cnb_compile_cnj`.
+  measured and unprojected. The registry itself works — a C probe registers a loader, writes a
+  `.cnb` of a minted custom type, and `cna_content_manager_load_foreign_ext` calls the loader and
+  caches its object exactly as XNA caches a reference type. What blocks it is this package's own
+  architecture: that retrieval route needs a **native** content manager, and `ContentManager` here
+  is a managed XNB reader that opens the file through `TitleContainer`. Adopting it means
+  projecting CNA's own `ContentManager` as a second content path with its own cache, which is a
+  decision to take deliberately rather than as a side effect. The callback shape is not the
+  obstacle. `cna_cnb_writer_write_to_file` and `cna_cnb_build_model_from_cnj` are deliberately
+  unprojected — the first would put a filesystem API back into the runtime package, and the second
+  duplicates `cna_cnb_compile_cnj`.
 - [x] `cna-ts/extensions/devices` projects CNA's extended device layer: the host's cores and
   memory, its power state with absences reported as absences, the display's content scale and safe
   area, the user's preferred locales, the clipboard, and camera enumeration that keeps "no camera

@@ -154,13 +154,13 @@
       "evidence": "no qualified artifact/job on either OS"
     },
     {
-      "operation": "CNB's remaining build-time tooling: the loader registry",
+      "operation": "CNB's loader registry, and the native content manager it needs",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the primitive byte writer, the container writer and the .cnj compile front end are projected and verified separately; what is left is teaching CNA a new asset type through cna_cnb_loader_registry_register, which means handing it callbacks. That needs a typed abstraction designed rather than transcribed, because this package will not publish void*, raw function pointers or a table of them. cna_cnb_build_model_from_cnj is unprojected too: cna_cnb_compile_cnj already compiles a Model .cnj, so the second front end would be a duplicate route with no consumer",
+      "evidence": "measured rather than deferred on style. The registry itself works: a C probe mints a custom asset type id from a name, registers a loader, writes a .cnb of that type, and cna_content_manager_load_foreign_ext calls the loader and hands the object back -- twice for the same name, from the cache, without calling the loader again, which is XNA reference-type caching. What blocks the projection is this binding's own architecture: that retrieval route takes a NATIVE content manager handle, and there is none here. ContentManager in this package is a managed XNB reader that opens the file through TitleContainer and constructs the object in TypeScript, and no cna_content_manager_* route is imported at all. Registering a loader whose product could never be retrieved would be a mechanism with no consumer. Adopting it means projecting CNA's own ContentManager as a second content path with its own cache, which is an architectural decision to take deliberately rather than as a side effect of wanting one registry. The callback shape is not the obstacle: a trampoline holding a napi_ref and a checked slot table would keep void* and function pointers entirely inside the bridge, the same way the text-input subscriptions already do",
       "proof": [
         "absentRoute:cna_cnb_loader_registry_register",
-        "absentRoute:cna_cnb_build_model_from_cnj"
+        "absentRoute:cna_content_manager_load_foreign_ext"
       ]
     },
     {
