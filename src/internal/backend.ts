@@ -217,6 +217,69 @@ export interface GameWindowBoundsSnapshot {
 }
 
 /** Game-owned borrowed window facade and same-thread removable event registrations. */
+/** One graphics adapter's numeric identity, as CNA reports it. */
+export interface GraphicsAdapterInfoSnapshot {
+  readonly AdapterIndex: number;
+  readonly IsDefaultAdapter: boolean;
+  readonly IsWideScreen: boolean;
+  readonly UseNullDevice: boolean;
+  readonly UseReferenceDevice: boolean;
+  readonly VendorId: number;
+  readonly DeviceId: number;
+  readonly Revision: number;
+  readonly SubSystemId: number;
+  readonly MonitorHandle: bigint;
+}
+
+/** One display mode: a resolution, its aspect ratio and its surface format. */
+export interface DisplayModeSnapshot {
+  readonly Width: number;
+  readonly Height: number;
+  readonly AspectRatio: number;
+  readonly Format: number;
+}
+
+/** What CNA chose when asked whether a format triple is usable. */
+export interface GraphicsFormatSelectionSnapshot {
+  readonly IsExactMatch: boolean;
+  readonly SelectedFormat: number;
+  readonly SelectedDepthFormat: number;
+  readonly SelectedMultiSampleCount: number;
+}
+
+/**
+ * CNA's graphics adapters, read through a live device.
+ *
+ * Every route takes a graphics-device handle rather than standing alone, because an adapter list is
+ * a property of a device a game created. A renderer with no displays reports **no adapters**, and
+ * this boundary carries that through rather than inventing one.
+ */
+export interface CnaGraphicsAdapterBackend {
+  getGraphicsAdapterCount(device: NativeHandle): number;
+  refreshGraphicsAdapters(device: NativeHandle): void;
+  getGraphicsAdapterInfo(device: NativeHandle, index: number): GraphicsAdapterInfoSnapshot;
+  getGraphicsAdapterDescription(device: NativeHandle, index: number): string;
+  getGraphicsAdapterDeviceName(device: NativeHandle, index: number): string;
+  getGraphicsAdapterCurrentDisplayMode(device: NativeHandle, index: number): DisplayModeSnapshot;
+  getGraphicsAdapterDisplayModes(
+    device: NativeHandle, index: number,
+  ): readonly DisplayModeSnapshot[];
+  isGraphicsAdapterProfileSupported(
+    device: NativeHandle, index: number, profile: number,
+  ): boolean;
+  queryGraphicsAdapterBackBufferFormat(
+    device: NativeHandle, index: number, profile: number, format: number, depthFormat: number,
+    multiSampleCount: number,
+  ): GraphicsFormatSelectionSnapshot;
+  queryGraphicsAdapterRenderTargetFormat(
+    device: NativeHandle, index: number, profile: number, format: number, depthFormat: number,
+    multiSampleCount: number,
+  ): GraphicsFormatSelectionSnapshot;
+  setGraphicsAdapterDevicePreferences(
+    device: NativeHandle, index: number, useNullDevice: boolean, useReferenceDevice: boolean,
+  ): void;
+}
+
 export interface CnaGameWindowBackend {
   getGameWindowAllowUserResizing(): boolean;
   setGameWindowAllowUserResizing(value: boolean): void;
@@ -1518,6 +1581,7 @@ export interface CnaBackend {
   readonly GamerServices?: CnaGamerServicesBackend;
   readonly Sensors?: CnaSensorBackend;
   readonly ExtendedInput?: CnaExtendedInputBackend;
+  readonly GraphicsAdapters?: CnaGraphicsAdapterBackend;
   openTitleStream?(name: string): Uint8Array;
 
   initialize(): Promise<void>;

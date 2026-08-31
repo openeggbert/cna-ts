@@ -582,7 +582,7 @@
       "operation": "Direct standalone GraphicsDevice construction",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime exists upstream. The qualified HEADLESS artifact reports no graphics adapter, so GraphicsAdapter.DefaultAdapter has nothing to return and the XNA constructor has no argument to be given; implementing the route here would be unexercisable on any backend this session can build",
+      "evidence": "ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime exists upstream. GraphicsAdapter itself is now filled -- its fourteen routes are bound and it reports a real adapter on four renderers -- but XNA's GraphicsDevice constructor takes an adapter *and* creates a device from it, and CNA's owned-device route is not reached by any path this package can exercise: every device here comes from a GraphicsDeviceManager. Implementing the standalone constructor would add a second device-creation path with no test able to drive it",
       "proof": [
         "absentRoute:cna_graphics_device_create",
         "absentRoute:cna_graphics_device_destroy"
@@ -1174,6 +1174,36 @@
         "route:cna_motion_set_test_backend_ext",
         "route:cna_motion_get_is_attitude_north_referenced_ext",
         "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "GraphicsAdapter: the adapter list, its display modes and its format answers",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "The one strict XNA type this package projected structurally and could not fill, because nothing read CNA's adapter capabilities. Its fourteen routes are now bound and the type is real on HEADLESS and on three windowed renderers. The read is deliberately lazy: CNA's adapter routes take a *borrowed* graphics-device handle and permit that borrow only inside a lifecycle callback, so a read at device-creation time is refused with INVALID_STATE -- what is registered there is a source, resolved the first time a caller asks, which for a game is from LoadContent. Asserted: one adapter, its four separate integer identity fields, a current display mode whose aspect ratio matches its own dimensions, a supported-mode list, both XNA profiles with HiDef implying Reach, and a 64x multisample request answered inexactly with a count CNA can actually provide. The description and device name are CNA's canonical XNA values rather than a GPU probe -- the same on HEADLESS and OPENGLES3 -- and that is stated rather than dressed up. A renderer with no adapters still refuses by name; a renderer with no native monitor handle answers zero, which is a legal IntPtr, rather than failing the whole adapter. Three planted defects fail it, including one that only fails because the test compares a case where the back-buffer and render-target queries genuinely disagree: Reach + Single is refused as a back buffer and accepted as a render target",
+      "proof": [
+        "route:cna_graphics_adapter_get_count",
+        "route:cna_graphics_adapter_get_info",
+        "route:cna_graphics_adapter_get_current_display_mode",
+        "route:cna_graphics_adapter_copy_display_modes",
+        "route:cna_graphics_adapter_is_profile_supported",
+        "route:cna_graphics_adapter_query_backbuffer_format",
+        "route:cna_graphics_adapter_query_render_target_format",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Windowed qualification across three renderers, with GameWindow and adapter state",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "The windowed suite now runs against every renderer it is pointed at and has been run against three: OPENGLES3, SDL_RENDERER and SOFTWARE, all ABI 0.21 and all under Xvfb. Each reports its own identity, capability flags and texture limit; each applies a stock BasicEffect for real; each runs 60 and 600 frames. GameWindow is exercised where HEADLESS cannot reach it: a title written and read back and restored, a native handle that stays a bigint, a screen device name, an orientation, and AllowUserResizing flipped and restored. Client bounds are measured rather than assumed, because the renderers disagree honestly -- OPENGLES3 and SDL_RENDERER report the 320x240 the manager requested, SOFTWARE reports 0x0 because it presents through a surface -- so what is asserted is that a renderer reporting a client area reports the requested one. SDL_RENDERER and SOFTWARE produce the exact sixteen render-target texels; OPENGLES3 no longer does, and that regression is asserted as measured rather than skipped, so its repair fails the test. See docs/upstream-cna-findings.md item 7",
+      "proof": [
+        "route:cna_render_target2d_create",
+        "route:cna_graphics_device_set_render_targets",
+        "route:cna_game_window_copy_title",
+        "route:cna_game_window_get_client_bounds",
+        "route:cna_game_window_get_allow_user_resizing",
+        "test:test/windowed-renderer.integration.mjs"
       ]
     },
     {

@@ -498,6 +498,26 @@ typedef CNA_Result (*GamerServicesVoidFn)(void);
 typedef CNA_Result (*GamerServicesU64InFn)(uint64_t);
 
 /* --- sensors ---------------------------------------------------------------------------------- */
+/*
+ * `display.h` publishes neither a version macro nor an `_init` route for its three versioned
+ * descriptors, so the adapter's own convention applies: version 1, declared once in
+ * tools/cna-abi/contract.json rather than repeated as a bare literal at each call site.
+ */
+#define CNA_TS_ADAPTER_STRUCT_VERSION UINT32_C(1)
+
+typedef CNA_Result (*AdapterCountFn)(CNA_Handle, uint64_t*);
+typedef CNA_Result (*AdapterInfoFn)(CNA_Handle, uint32_t, CNA_GraphicsAdapterInfo*);
+typedef CNA_Result (*AdapterModeFn)(CNA_Handle, uint32_t, CNA_DisplayMode*);
+typedef CNA_Result (*AdapterModeCountFn)(
+  CNA_Handle, uint32_t, CNA_Bool, CNA_SurfaceFormat, uint64_t*);
+typedef CNA_Result (*AdapterCopyModesFn)(
+  CNA_Handle, uint32_t, CNA_Bool, CNA_SurfaceFormat, CNA_DisplayMode*, uint64_t, uint64_t*);
+typedef CNA_Result (*AdapterMonitorFn)(CNA_Handle, uint32_t, CNA_NativeHandleValue*);
+typedef CNA_Result (*AdapterProfileFn)(CNA_Handle, uint32_t, CNA_GraphicsProfile, CNA_Bool*);
+typedef CNA_Result (*AdapterQueryFormatFn)(
+  CNA_Handle, uint32_t, CNA_GraphicsProfile, CNA_SurfaceFormat, CNA_DepthFormat, int32_t,
+  CNA_GraphicsFormatSelection*);
+typedef CNA_Result (*AdapterPreferencesFn)(CNA_Handle, uint32_t, CNA_Bool, CNA_Bool);
 typedef CNA_Result (*CompassReadingInitFn)(CNA_CompassReading*);
 typedef CNA_Result (*GyroscopeReadingInitFn)(CNA_GyroscopeReading*);
 typedef CNA_Result (*MotionReadingInitFn)(CNA_MotionReading*);
@@ -1233,6 +1253,19 @@ typedef struct Api {
   BoolInFn guide_set_is_screen_saver_enabled;
   U32OutFn guide_get_notification_position;
   U32InFn guide_set_notification_position;
+  AdapterCountFn graphics_adapter_get_count;
+  AdapterInfoFn graphics_adapter_get_info;
+  GameU32IndexCopyTextFn graphics_adapter_copy_description;
+  GameU32IndexCopyTextFn graphics_adapter_copy_device_name;
+  AdapterModeFn graphics_adapter_get_current_mode;
+  AdapterModeCountFn graphics_adapter_get_mode_count;
+  AdapterCopyModesFn graphics_adapter_copy_modes;
+  AdapterMonitorFn graphics_adapter_get_monitor_handle;
+  AdapterProfileFn graphics_adapter_is_profile_supported;
+  AdapterQueryFormatFn graphics_adapter_query_backbuffer;
+  AdapterQueryFormatFn graphics_adapter_query_render_target;
+  AdapterPreferencesFn graphics_adapter_set_preferences;
+  GameHandleFn graphics_adapters_refresh;
   CompassReadingInitFn compass_reading_init;
   GyroscopeReadingInitFn gyroscope_reading_init;
   MotionReadingInitFn motion_reading_init;
@@ -2330,6 +2363,19 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(guide_get_notification_position, U32OutFn, "cna_guide_get_notification_position");
   LOAD_REQUIRED(guide_set_notification_position, U32InFn, "cna_guide_set_notification_position");
 
+  LOAD_REQUIRED(graphics_adapter_get_count, AdapterCountFn, "cna_graphics_adapter_get_count");
+  LOAD_REQUIRED(graphics_adapter_get_info, AdapterInfoFn, "cna_graphics_adapter_get_info");
+  LOAD_REQUIRED(graphics_adapter_copy_description, GameU32IndexCopyTextFn, "cna_graphics_adapter_copy_description");
+  LOAD_REQUIRED(graphics_adapter_copy_device_name, GameU32IndexCopyTextFn, "cna_graphics_adapter_copy_device_name");
+  LOAD_REQUIRED(graphics_adapter_get_current_mode, AdapterModeFn, "cna_graphics_adapter_get_current_display_mode");
+  LOAD_REQUIRED(graphics_adapter_get_mode_count, AdapterModeCountFn, "cna_graphics_adapter_get_display_mode_count");
+  LOAD_REQUIRED(graphics_adapter_copy_modes, AdapterCopyModesFn, "cna_graphics_adapter_copy_display_modes");
+  LOAD_REQUIRED(graphics_adapter_get_monitor_handle, AdapterMonitorFn, "cna_graphics_adapter_get_native_monitor_handle");
+  LOAD_REQUIRED(graphics_adapter_is_profile_supported, AdapterProfileFn, "cna_graphics_adapter_is_profile_supported");
+  LOAD_REQUIRED(graphics_adapter_query_backbuffer, AdapterQueryFormatFn, "cna_graphics_adapter_query_backbuffer_format");
+  LOAD_REQUIRED(graphics_adapter_query_render_target, AdapterQueryFormatFn, "cna_graphics_adapter_query_render_target_format");
+  LOAD_REQUIRED(graphics_adapter_set_preferences, AdapterPreferencesFn, "cna_graphics_adapter_set_device_preferences");
+  LOAD_REQUIRED(graphics_adapters_refresh, GameHandleFn, "cna_graphics_adapters_refresh");
   LOAD_REQUIRED(compass_reading_init, CompassReadingInitFn, "cna_compass_reading_init");
   LOAD_REQUIRED(gyroscope_reading_init, GyroscopeReadingInitFn, "cna_gyroscope_reading_init");
   LOAD_REQUIRED(motion_reading_init, MotionReadingInitFn, "cna_motion_reading_init");
@@ -12875,6 +12921,315 @@ static napi_value set_accelerometer_interval(napi_env env, napi_callback_info in
   return undefined_result(env, "accelerometer interval");
 }
 
+/* --- graphics adapters and display modes ------------------------------------------------------- */
+/*
+ * `GraphicsAdapter` is the one strict XNA type this package projected structurally and could not
+ * fill, because nothing here read CNA's adapter capabilities. These fourteen routes are what fills
+ * it. Every one takes a graphics-device handle, so an adapter list is a property of a device a game
+ * created rather than of the process -- which is why this is installed from the device callback and
+ * not at load time.
+ *
+ * A HEADLESS renderer reports **no adapters at all**, and that stays true: nothing here invents one.
+ */
+
+static napi_value adapter_count(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle device = 0;
+  uint64_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  const CNA_Result result = g_api.graphics_adapter_get_count(device, &count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_adapter_get_count", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) count, &output), "adapter count");
+  return output;
+}
+
+static napi_value adapters_refresh(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle device = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  const CNA_Result result = g_api.graphics_adapters_refresh(device);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_adapters_refresh", result);
+  }
+  return undefined_result(env, "adapter refresh");
+}
+
+/*
+ * The adapter's two strings. Their lengths come out of the info structure rather than out of
+ * separate size routes, because that is where CNA publishes them -- so one `get_info` answers the
+ * capacity for both and there is no window in which a length and a copy could disagree.
+ */
+static napi_value adapter_text(
+  napi_env env,
+  napi_callback_info info,
+  const int want_device_name,
+  GameU32IndexCopyTextFn copy_fn,
+  const char* const operation
+) {
+  napi_value args[2], output;
+  CNA_Handle device = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a graphics device and an adapter index");
+  }
+  CNA_GraphicsAdapterInfo adapter;
+  memset(&adapter, 0, sizeof(adapter));
+  adapter.struct_size = (uint32_t) sizeof(adapter);
+  adapter.struct_version = CNA_TS_ADAPTER_STRUCT_VERSION;
+  CNA_Result result = g_api.graphics_adapter_get_info(device, index, &adapter);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_adapter_get_info", result);
+  }
+  const uint64_t required =
+    want_device_name ? adapter.device_name_byte_length : adapter.description_byte_length;
+  if (required > SIZE_MAX - 1) return throw_message(env, "adapter text exceeds the address space");
+  char* text = (char*) malloc((size_t) required + 1);
+  if (!text) return throw_message(env, "adapter text allocation failed");
+  uint64_t produced = 0;
+  result = copy_fn(device, index, text, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(text);
+    return throw_result(env, operation, result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  if (napi_create_string_utf8(env, text, (size_t) produced, &output) != napi_ok) {
+    free(text);
+    return throw_napi(env, operation);
+  }
+  free(text);
+  return output;
+}
+
+static napi_value adapter_description(napi_env env, napi_callback_info info) {
+  return adapter_text(
+    env, info, 0, g_api.graphics_adapter_copy_description,
+    "cna_graphics_adapter_copy_description");
+}
+
+static napi_value adapter_device_name(napi_env env, napi_callback_info info) {
+  return adapter_text(
+    env, info, 1, g_api.graphics_adapter_copy_device_name,
+    "cna_graphics_adapter_copy_device_name");
+}
+
+static int set_display_mode(napi_env env, napi_value object, const CNA_DisplayMode* mode) {
+  return set_i32(env, object, "Width", mode->width) &&
+    set_i32(env, object, "Height", mode->height) &&
+    set_number(env, object, "AspectRatio", (double) mode->aspect_ratio) &&
+    set_u32(env, object, "Format", mode->format);
+}
+
+static napi_value adapter_info(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle device = 0;
+  uint32_t index = 0;
+  CNA_NativeHandleValue monitor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a graphics device and an adapter index");
+  }
+  CNA_GraphicsAdapterInfo adapter;
+  memset(&adapter, 0, sizeof(adapter));
+  adapter.struct_size = (uint32_t) sizeof(adapter);
+  adapter.struct_version = CNA_TS_ADAPTER_STRUCT_VERSION;
+  CNA_Result result = g_api.graphics_adapter_get_info(device, index, &adapter);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_adapter_get_info", result);
+  }
+  /*
+   * A renderer that has adapters but exposes no native monitor handle answers NOT_SUPPORTED here.
+   * That is not a failure of the adapter: XNA's `MonitorHandle` is an `IntPtr` and zero is a legal
+   * value for it, so an unsupported handle becomes zero and the adapter is still reported. Any
+   * other result is still an error.
+   */
+  result = g_api.graphics_adapter_get_monitor_handle(device, index, &monitor);
+  if (result == CNA_RESULT_NOT_SUPPORTED) {
+    monitor = 0;
+  } else if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_adapter_get_native_monitor_handle", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "adapter info");
+  napi_value monitor_value;
+  NAPI_OR_RETURN(
+    env, napi_create_bigint_uint64(env, (uint64_t) monitor, &monitor_value), "monitor handle");
+  if (!set_u32(env, output, "AdapterIndex", adapter.adapter_index) ||
+      !set_bool(env, output, "IsDefaultAdapter", adapter.is_default_adapter != CNA_FALSE) ||
+      !set_bool(env, output, "IsWideScreen", adapter.is_wide_screen != CNA_FALSE) ||
+      !set_bool(env, output, "UseNullDevice", adapter.use_null_device != CNA_FALSE) ||
+      !set_bool(env, output, "UseReferenceDevice", adapter.use_reference_device != CNA_FALSE) ||
+      !set_i32(env, output, "VendorId", adapter.vendor_id) ||
+      !set_i32(env, output, "DeviceId", adapter.device_id) ||
+      !set_i32(env, output, "Revision", adapter.revision) ||
+      !set_i32(env, output, "SubSystemId", adapter.subsystem_id) ||
+      napi_set_named_property(env, output, "MonitorHandle", monitor_value) != napi_ok) {
+    return throw_napi(env, "adapter info");
+  }
+  return output;
+}
+
+static napi_value adapter_current_display_mode(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle device = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a graphics device and an adapter index");
+  }
+  CNA_DisplayMode mode;
+  memset(&mode, 0, sizeof(mode));
+  mode.struct_size = (uint32_t) sizeof(mode);
+  mode.struct_version = CNA_TS_ADAPTER_STRUCT_VERSION;
+  const CNA_Result result = g_api.graphics_adapter_get_current_mode(device, index, &mode);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_adapter_get_current_display_mode", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "display mode");
+  if (!set_display_mode(env, output, &mode)) return throw_napi(env, "display mode");
+  return output;
+}
+
+static napi_value adapter_display_modes(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle device = 0;
+  uint32_t index = 0;
+  uint64_t count = 0, produced = 0;
+  CNA_DisplayMode* modes = NULL;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a graphics device and an adapter index");
+  }
+  CNA_Result result =
+    g_api.graphics_adapter_get_mode_count(device, index, CNA_FALSE, 0, &count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_adapter_get_display_mode_count", result);
+  }
+  if (count > SIZE_MAX / sizeof(CNA_DisplayMode)) {
+    return throw_message(env, "the display-mode list exceeds the address space");
+  }
+  modes = count == 0 ? NULL : (CNA_DisplayMode*) calloc((size_t) count, sizeof(CNA_DisplayMode));
+  if (count != 0 && !modes) return throw_message(env, "display-mode allocation failed");
+  for (uint64_t entry = 0; entry < count; entry += 1) {
+    modes[entry].struct_size = (uint32_t) sizeof(CNA_DisplayMode);
+    modes[entry].struct_version = CNA_TS_ADAPTER_STRUCT_VERSION;
+  }
+  if (count != 0) {
+    result = g_api.graphics_adapter_copy_modes(device, index, CNA_FALSE, 0, modes, count, &produced);
+    if (result != CNA_RESULT_SUCCESS) {
+      free(modes);
+      return throw_result(env, "cna_graphics_adapter_copy_display_modes", result);
+    }
+  }
+  if (napi_create_array_with_length(env, (size_t) produced, &output) != napi_ok) {
+    free(modes);
+    return throw_napi(env, "display-mode list");
+  }
+  for (uint64_t entry = 0; entry < produced; entry += 1) {
+    napi_value value;
+    if (napi_create_object(env, &value) != napi_ok ||
+        !set_display_mode(env, value, &modes[entry]) ||
+        napi_set_element(env, output, (uint32_t) entry, value) != napi_ok) {
+      free(modes);
+      return throw_napi(env, "display-mode list");
+    }
+  }
+  free(modes);
+  return output;
+}
+
+static napi_value adapter_is_profile_supported(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  CNA_Handle device = 0;
+  uint32_t index = 0, profile = 0;
+  CNA_Bool supported = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &profile) != napi_ok) {
+    return throw_message(env, "expected a graphics device, an adapter index and a profile");
+  }
+  const CNA_Result result =
+    g_api.graphics_adapter_is_profile_supported(device, index, profile, &supported);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_adapter_is_profile_supported", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, supported != CNA_FALSE, &output), "profile support");
+  return output;
+}
+
+static napi_value adapter_query_format(
+  napi_env env, napi_callback_info info, AdapterQueryFormatFn function, const char* operation
+) {
+  napi_value args[6], output;
+  CNA_Handle device = 0;
+  uint32_t index = 0, profile = 0, format = 0, depth = 0;
+  int32_t samples = 0;
+  CNA_GraphicsFormatSelection selection;
+  if (!require_loaded(env) || !get_args(env, info, 6, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &profile) != napi_ok ||
+      napi_get_value_uint32(env, args[3], &format) != napi_ok ||
+      napi_get_value_uint32(env, args[4], &depth) != napi_ok ||
+      napi_get_value_int32(env, args[5], &samples) != napi_ok) {
+    return throw_message(env, "expected a device, an adapter, a profile and a format triple");
+  }
+  memset(&selection, 0, sizeof(selection));
+  selection.struct_size = (uint32_t) sizeof(selection);
+  selection.struct_version = CNA_TS_ADAPTER_STRUCT_VERSION;
+  const CNA_Result result =
+    function(device, index, profile, format, depth, samples, &selection);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), operation);
+  if (!set_bool(env, output, "IsExactMatch", selection.exact_match != CNA_FALSE) ||
+      !set_u32(env, output, "SelectedFormat", selection.format) ||
+      !set_u32(env, output, "SelectedDepthFormat", selection.depth_format) ||
+      !set_i32(env, output, "SelectedMultiSampleCount", selection.multi_sample_count)) {
+    return throw_napi(env, operation);
+  }
+  return output;
+}
+
+static napi_value adapter_query_backbuffer(napi_env env, napi_callback_info info) {
+  return adapter_query_format(
+    env, info, g_api.graphics_adapter_query_backbuffer,
+    "cna_graphics_adapter_query_backbuffer_format");
+}
+
+static napi_value adapter_query_render_target(napi_env env, napi_callback_info info) {
+  return adapter_query_format(
+    env, info, g_api.graphics_adapter_query_render_target,
+    "cna_graphics_adapter_query_render_target_format");
+}
+
+static napi_value adapter_set_device_preferences(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle device = 0;
+  uint32_t index = 0;
+  bool null_device = false, reference_device = false;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok ||
+      napi_get_value_bool(env, args[2], &null_device) != napi_ok ||
+      napi_get_value_bool(env, args[3], &reference_device) != napi_ok) {
+    return throw_message(env, "expected a device, an adapter index and two preferences");
+  }
+  const CNA_Result result = g_api.graphics_adapter_set_preferences(
+    device, index, null_device ? CNA_TRUE : CNA_FALSE,
+    reference_device ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_adapter_set_device_preferences", result);
+  }
+  return undefined_result(env, "adapter preferences");
+}
+
 /* --- the compass, the gyroscope and the motion sensor ------------------------------------------ */
 /*
  * The three sensors beside the accelerometer, and the three CNA gives deterministic injection hooks
@@ -13922,6 +14277,17 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "stopAccelerometer", NULL, stop_accelerometer, NULL, NULL, NULL, napi_default, NULL },
     { "getAccelerometerState", NULL, get_accelerometer_state, NULL, NULL, NULL, napi_default, NULL },
     { "setAccelerometerInterval", NULL, set_accelerometer_interval, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsAdapterCount", NULL, adapter_count, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsAdaptersRefresh", NULL, adapters_refresh, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsAdapterInfo", NULL, adapter_info, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsAdapterDescription", NULL, adapter_description, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsAdapterDeviceName", NULL, adapter_device_name, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsAdapterCurrentDisplayMode", NULL, adapter_current_display_mode, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsAdapterDisplayModes", NULL, adapter_display_modes, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsAdapterIsProfileSupported", NULL, adapter_is_profile_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsAdapterQueryBackBufferFormat", NULL, adapter_query_backbuffer, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsAdapterQueryRenderTargetFormat", NULL, adapter_query_render_target, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsAdapterSetDevicePreferences", NULL, adapter_set_device_preferences, NULL, NULL, NULL, napi_default, NULL },
     { "compassIsSupported", NULL, compass_is_supported, NULL, NULL, NULL, napi_default, NULL },
     { "compassCreate", NULL, compass_create, NULL, NULL, NULL, napi_default, NULL },
     { "compassDestroy", NULL, compass_destroy, NULL, NULL, NULL, napi_default, NULL },

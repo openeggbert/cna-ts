@@ -36,6 +36,28 @@ export type GraphicsAdapterState = {
 
 const states = new WeakMap<GraphicsAdapter, GraphicsAdapterState>();
 let adapters: readonly GraphicsAdapter[] | null = null;
+/**
+ * A source of adapter states, resolved on first use rather than at registration.
+ *
+ * CNA reads adapters through a graphics-device handle, and that handle may only be borrowed during
+ * a game lifecycle callback -- so the list cannot be built when the device is created. It is built
+ * the first time a caller asks for it, which for a game is from `LoadContent`, `Update` or `Draw`:
+ * inside a callback, where the borrow is legal.
+ */
+let provider: (() => readonly GraphicsAdapterState[] | null) | null = null;
+
+function resolveAdapters(): readonly GraphicsAdapter[] | null {
+  if (adapters) return adapters;
+  if (!provider) return null;
+  const source = provider;
+  // One attempt only. A renderer with no displays answers null, and retrying it on every property
+  // read would turn one honest refusal into a native call per access.
+  provider = null;
+  const values = source();
+  if (!values || values.length === 0) return null;
+  installGraphicsAdaptersForInternalUse(values);
+  return adapters;
+}
 let useNullDevice = false;
 let useReferenceDevice = false;
 
@@ -50,8 +72,11 @@ export class GraphicsAdapter {
   private constructor() {}
 
   public static get Adapters(): ReadonlyArray<GraphicsAdapter> {
-    if (!adapters) throw new NativeUnavailableError("GraphicsAdapter.Adapters requires CNA adapter discovery");
-    return adapters;
+    const resolved = resolveAdapters();
+    if (!resolved) {
+      throw new NativeUnavailableError("GraphicsAdapter.Adapters requires CNA adapter discovery");
+    }
+    return resolved;
   }
 
   public static get DefaultAdapter(): GraphicsAdapter {
@@ -102,6 +127,31 @@ export class GraphicsAdapter {
       graphicsProfile, format, depthFormat, Math.trunc(multiSampleCount),
     );
   }
+}
+
+/**
+ * Registers a source of adapter states to be read on first access.
+ *
+ * Registering does not read anything: CNA needs a borrowed device handle for that and one is only
+ * available inside a lifecycle callback, so the read happens when a caller first asks.
+ */
+/**
+ * The default adapter, or `null` where the renderer reports none.
+ *
+ * `GraphicsDevice.Adapter` needs this without the exception `DefaultAdapter` raises, because it has
+ * its own refusal to raise instead.
+ */
+export function defaultGraphicsAdapterOrNull(): GraphicsAdapter | null {
+  const resolved = resolveAdapters();
+  if (!resolved) return null;
+  return resolved.find((value) => value.IsDefaultAdapter) ?? resolved[0] ?? null;
+}
+
+export function installGraphicsAdapterProviderForInternalUse(
+  source: (() => readonly GraphicsAdapterState[] | null) | null,
+): void {
+  provider = source;
+  adapters = null;
 }
 
 export function installGraphicsAdaptersForInternalUse(values: readonly GraphicsAdapterState[]): void {

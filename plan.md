@@ -27,10 +27,13 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   default/backendless path remains explicitly unavailable.
 - [x] Linux x86-64 HEADLESS Node execution is verified against a CNA C ABI 0.21.0 artifact built
   out of tree from `cnanext` against `sharp-runtimenext`.
-- [x] A windowed Linux qualification exists beside it: against an OPENGLES3/SDL3 CNA library under
-  Xvfb, a `RenderTarget2D` cleared through the public API reads back all sixteen texels exactly and
-  a stock `BasicEffect` pass applies for real. It is opt-in through `CNA_WINDOWED_LIBRARY` and
-  skips with a reason where no windowed library or display exists.
+- [x] A windowed Linux qualification exists beside it, now across **three renderers** — OPENGLES3,
+  SDL_RENDERER and SOFTWARE, all under Xvfb. Each reports its own identity and capability flags,
+  applies a stock `BasicEffect` for real, runs 60 and 600 frames, fills a real `GraphicsAdapter`,
+  and exercises `GameWindow` state HEADLESS cannot reach. SDL_RENDERER and SOFTWARE read back all
+  sixteen `RenderTarget2D` texels exactly; OPENGLES3 no longer does, and that regression is
+  asserted as measured rather than skipped — `docs/upstream-cna-findings.md` item 7. Opt-in through
+  `CNA_WINDOWED_LIBRARY`; skips with a reason where no windowed library or display exists.
 - [x] A WebAssembly backend runs the same public XNA API for 60 and 600 real frames in headless
   Chromium on a WebGL2 context.
 - [x] The XNA structural difference count is zero on both profiles, with no missing members and an
@@ -217,6 +220,11 @@ Electron, or mobile support.
 - [x] Implement the complete mapped `GraphicsDeviceManager`, `GraphicsDevice`, and
   `GraphicsAdapter` declarations with real manager/device/clear/present routes where imported and
   explicit unavailability elsewhere; `Game.GraphicsDevice` is implemented.
+- [x] **`GraphicsAdapter` is filled from CNA rather than only declared.** Its fourteen routes are
+  bound, and the adapter list, its display modes, both profile answers and both format queries are
+  real on HEADLESS and on all three windowed renderers. The read is lazy because CNA permits
+  borrowing a device handle only inside a lifecycle callback; a renderer with no adapters still
+  refuses by name rather than being handed an invented one.
 
 ## Graphics
 
@@ -479,9 +487,10 @@ editing it, and both written up in `docs/wasm-backend.md`:
   arguments — under `WASM_BIGINT` an `i64` handle given `undefined` throws. Every route in this ABI
   takes a `CNA_Handle`, so no route survives an unwind.
 
-Separately, and not blockers for this binding: standalone owned `GraphicsDevice` construction is
-still absent from the ABI, which is why `GraphicsAdapter.DefaultAdapter` has no non-HEADLESS
-qualification here; and compiled `Effect` execution returns not-supported on the HEADLESS renderer,
-which is a renderer property rather than a missing route.
+Separately, and not blockers for this binding: XNA's standalone `GraphicsDevice` constructor has no
+path this package can exercise, because every device here comes from a `GraphicsDeviceManager`; and
+compiled `Effect` execution returns not-supported on the HEADLESS renderer, which is a renderer
+property rather than a missing route. `GraphicsAdapter.DefaultAdapter` is no longer in that list —
+it is qualified on four renderers now.
 
 These are narrower than “CNA has no ABI”: the native C ABI exists and is broad.

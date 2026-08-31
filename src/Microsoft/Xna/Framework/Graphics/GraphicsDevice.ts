@@ -30,7 +30,7 @@ import {
   GraphicsProfile,
 } from "./DeviceEnums.js";
 import type { DisplayMode } from "./DisplayMode.js";
-import type { GraphicsAdapter } from "./GraphicsAdapter.js";
+import { defaultGraphicsAdapterOrNull, type GraphicsAdapter } from "./GraphicsAdapter.js";
 import {
   resolveIndexBufferHandleForInternalUse,
   type IndexBuffer,
@@ -256,7 +256,10 @@ export class GraphicsDevice implements IDisposable {
   }
 
   public get Adapter(): GraphicsAdapter {
-    const adapter = stateOf(this).Adapter;
+    // Falls back to the process-wide default, which CNA reads lazily through this device's own
+    // handle: the adapter list cannot be built when the device is created, because CNA permits the
+    // borrow only inside a lifecycle callback. A renderer with no displays still refuses by name.
+    const adapter = stateOf(this).Adapter ?? defaultGraphicsAdapterOrNull();
     if (!adapter) throw new NativeUnavailableError("GraphicsDevice.Adapter requires CNA adapter discovery");
     return adapter;
   }

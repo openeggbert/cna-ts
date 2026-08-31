@@ -2272,3 +2272,210 @@ test("the compass, gyroscope and motion sensor report absence, then carry a real
   assert.deepEqual(evidence.disposed, [true, true, true]);
   assert.equal(evidence.compassAfterDispose, "ObjectDisposedException");
 });
+
+class GraphicsAdapterProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const { GraphicsAdapter, GraphicsProfile, SurfaceFormat, DepthFormat } = Graphics;
+    const record = (name, body) => {
+      try {
+        this.evidence[name] = body();
+      } catch (error) {
+        this.evidence[name] = `${error.constructor.name}: ${(error.message ?? "").slice(0, 80)}`;
+      }
+    };
+
+    // The adapter list is read here rather than at device creation, because CNA permits borrowing
+    // the device handle only inside a lifecycle callback. That is the whole reason the projection
+    // is lazy, and this is where a game would ask anyway.
+    record("count", () => GraphicsAdapter.Adapters.length);
+    record("adapter", () => {
+      const adapter = GraphicsAdapter.DefaultAdapter;
+      return {
+        description: adapter.Description,
+        deviceName: adapter.DeviceName,
+        vendorId: adapter.VendorId,
+        deviceId: adapter.DeviceId,
+        revision: adapter.Revision,
+        subSystemId: adapter.SubSystemId,
+        isDefault: adapter.IsDefaultAdapter,
+        monitorHandleIsBigInt: typeof adapter.MonitorHandle === "bigint",
+      };
+    });
+    record("currentMode", () => {
+      const mode = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode;
+      return {
+        width: mode.Width,
+        height: mode.Height,
+        format: mode.Format,
+        aspectRatio: mode.AspectRatio,
+      };
+    });
+    record("supportedModes", () => {
+      const modes = [...GraphicsAdapter.DefaultAdapter.SupportedDisplayModes];
+      return {
+        count: modes.length,
+        first: modes.length > 0
+          ? { width: modes[0].Width, height: modes[0].Height, format: modes[0].Format }
+          : null,
+      };
+    });
+    record("profiles", () => ({
+      reach: GraphicsAdapter.DefaultAdapter.IsProfileSupported(GraphicsProfile.Reach),
+      hiDef: GraphicsAdapter.DefaultAdapter.IsProfileSupported(GraphicsProfile.HiDef),
+    }));
+    record("backBufferQuery", () => {
+      const result = GraphicsAdapter.DefaultAdapter.QueryBackBufferFormat(
+        GraphicsProfile.HiDef, SurfaceFormat.Color, DepthFormat.Depth24, 0,
+      );
+      return { ...result };
+    });
+    record("renderTargetQuery", () => {
+      const result = GraphicsAdapter.DefaultAdapter.QueryRenderTargetFormat(
+        GraphicsProfile.HiDef, SurfaceFormat.Color, DepthFormat.Depth24Stencil8, 0,
+      );
+      return { ...result };
+    });
+    // The device's own adapter must be the same object the static list hands out, not a copy.
+    record("deviceAdapterIsDefault", () =>
+      this.GraphicsDevice.Adapter === GraphicsAdapter.DefaultAdapter);
+    // Asking twice must give the same objects: the list is read once and cached, so a caller
+    // holding an adapter is not holding one of several.
+    record("stableIdentity", () =>
+      GraphicsAdapter.Adapters[0] === GraphicsAdapter.Adapters[0] &&
+      GraphicsAdapter.DefaultAdapter === GraphicsAdapter.DefaultAdapter);
+    // The two format routes must be *different* routes. Reach + Single is a case where they
+    // genuinely disagree: a single-channel float is not a legal back buffer, so that query refuses
+    // and falls back to Color, while the same format is a perfectly good render target and that
+    // query accepts it exactly. A projection that called one route for both would return the same
+    // answer twice and fail here -- which an earlier version of this test did not catch, because
+    // it compared two triples that happen to agree.
+    record("divergentQueries", () => {
+      const adapter = GraphicsAdapter.DefaultAdapter;
+      const backBuffer = adapter.QueryBackBufferFormat(
+        GraphicsProfile.Reach, SurfaceFormat.Single, DepthFormat.None, 0,
+      );
+      const renderTarget = adapter.QueryRenderTargetFormat(
+        GraphicsProfile.Reach, SurfaceFormat.Single, DepthFormat.None, 0,
+      );
+      return {
+        backBuffer: { success: backBuffer.Success, format: backBuffer.Format },
+        renderTarget: { success: renderTarget.Success, format: renderTarget.Format },
+      };
+    });
+    // A format the renderer will not give exactly must report so rather than claiming success.
+    record("impossibleQuery", () => {
+      const result = GraphicsAdapter.DefaultAdapter.QueryBackBufferFormat(
+        GraphicsProfile.Reach, SurfaceFormat.Color, DepthFormat.Depth24Stencil8, 64,
+      );
+      return { success: result.Success, samples: result.MultiSampleCount };
+    });
+    super.LoadContent();
+  }
+
+  Draw(gameTime) {
+    this.GraphicsDevice.Clear(Color.CornflowerBlue);
+    this.Exit();
+    super.Draw(gameTime);
+  }
+}
+
+test("GraphicsAdapter reports CNA's real adapter, its modes and its format answers", async () => {
+  const game = new GraphicsAdapterProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  // This is the strict XNA type that was projected structurally and could not be filled until CNA's
+  // fourteen adapter routes were bound. It is filled now, on this renderer and on a windowed one.
+  assert.equal(evidence.count, 1, `expected one adapter, saw ${JSON.stringify(evidence.count)}`);
+
+  const adapter = evidence.adapter;
+  assert.equal(typeof adapter, "object", `adapter read failed: ${adapter}`);
+  // These are CNA's canonical adapter identity rather than a probe of the physical GPU -- the same
+  // values appear on HEADLESS and on OPENGLES3, which is measured rather than assumed. They are
+  // asserted because they are what a consumer receives, not because they describe this machine.
+  assert.equal(adapter.description, "Default Display");
+  assert.equal(adapter.deviceName, "\\\\.\\DISPLAY1", "XNA's canonical primary display name");
+  assert.equal(adapter.isDefault, true);
+  assert.equal(typeof adapter.vendorId, "number");
+  assert.equal(typeof adapter.deviceId, "number");
+  assert.ok(adapter.vendorId !== 0 || adapter.deviceId !== 0, "an adapter has some identity");
+  // Four separate integer fields, so a projection reading one for another would show here.
+  assert.notEqual(adapter.vendorId, adapter.deviceId);
+  assert.equal(typeof adapter.revision, "number");
+  assert.equal(typeof adapter.subSystemId, "number");
+  // XNA's MonitorHandle is an IntPtr; a renderer with no native monitor answers zero rather than
+  // failing the whole adapter, and it must still cross as a bigint.
+  assert.equal(adapter.monitorHandleIsBigInt, true);
+
+  // The current mode, and the aspect ratio CNA derives from it rather than one computed here.
+  const mode = evidence.currentMode;
+  assert.equal(typeof mode, "object", `current mode failed: ${mode}`);
+  assert.ok(mode.width > 0 && mode.height > 0, `implausible mode ${mode.width}x${mode.height}`);
+  assert.equal(mode.format, Graphics.SurfaceFormat.Color);
+  assert.ok(
+    Math.abs(mode.aspectRatio - mode.width / mode.height) < 1e-5,
+    `aspect ratio ${mode.aspectRatio} does not match ${mode.width}x${mode.height}`,
+  );
+
+  // The supported-mode list is a real list from CNA, and its first entry is a real mode.
+  const modes = evidence.supportedModes;
+  assert.equal(typeof modes, "object", `supported modes failed: ${modes}`);
+  assert.ok(modes.count >= 1, "an adapter supports at least one mode");
+  assert.ok(modes.first.width > 0 && modes.first.height > 0);
+
+  // Both XNA profiles, answered by CNA rather than assumed. Reach is the subset of HiDef, so a
+  // renderer supporting HiDef must support Reach; the converse is not required.
+  const profiles = evidence.profiles;
+  assert.equal(typeof profiles, "object", `profile query failed: ${profiles}`);
+  assert.equal(typeof profiles.reach, "boolean");
+  assert.equal(typeof profiles.hiDef, "boolean");
+  if (profiles.hiDef) assert.equal(profiles.reach, true, "HiDef implies Reach");
+
+  // The two format queries are separate routes and must answer separately: a back-buffer query and
+  // a render-target query for the same triple are different questions.
+  for (const name of ["backBufferQuery", "renderTargetQuery"]) {
+    const query = evidence[name];
+    assert.equal(typeof query, "object", `${name} failed: ${query}`);
+    assert.equal(typeof query.Success, "boolean");
+    assert.equal(query.Format, Graphics.SurfaceFormat.Color, `${name} kept the requested format`);
+    assert.equal(typeof query.MultiSampleCount, "number");
+  }
+
+  // A 64-sample back buffer is not something any of these renderers gives exactly, so the query
+  // must report an inexact match and a sample count it can actually provide. A projection that
+  // always answered Success would pass every assertion above and fail this one.
+  const impossible = evidence.impossibleQuery;
+  assert.equal(typeof impossible, "object", `impossible query failed: ${impossible}`);
+  assert.equal(impossible.success, false, "64x multisampling is not an exact match anywhere here");
+  assert.ok(
+    impossible.samples < 64,
+    `CNA must answer with a count it can provide, not the 64 it was asked for (got ${impossible.samples})`,
+  );
+
+  // The two format queries are separate CNA routes, and here they must give separate answers.
+  const divergent = evidence.divergentQueries;
+  assert.equal(typeof divergent, "object", `divergent query failed: ${divergent}`);
+  assert.equal(
+    divergent.backBuffer.success, false,
+    "SurfaceFormat.Single is not a legal Reach back buffer",
+  );
+  assert.equal(
+    divergent.backBuffer.format, Graphics.SurfaceFormat.Color,
+    "and the back-buffer query falls back to Color",
+  );
+  assert.equal(
+    divergent.renderTarget.success, true,
+    "...while the same format is a perfectly good render target",
+  );
+  assert.equal(divergent.renderTarget.format, Graphics.SurfaceFormat.Single);
+
+  assert.equal(evidence.deviceAdapterIsDefault, true, "GraphicsDevice.Adapter is the default one");
+  assert.equal(evidence.stableIdentity, true, "the adapter list is read once, not per access");
+});

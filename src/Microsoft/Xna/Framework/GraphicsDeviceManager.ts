@@ -17,6 +17,7 @@ import {
   GraphicsProfile,
   SurfaceFormat,
 } from "./Graphics/DeviceEnums.js";
+import { installAdapterProviderForInternalUse } from "../../../internal/graphics-adapters.js";
 import {
   createGraphicsDeviceForInternalUse,
   type GraphicsDevice,
@@ -142,6 +143,14 @@ export class GraphicsDeviceManager implements IGraphicsDeviceService, IDisposabl
       this.#copyInformation(information);
       backend.configureGraphicsDeviceManager(managerLifetime.Handle, this.#configuration());
       backend.createManagedGraphicsDevice(managerLifetime.Handle);
+      // CNA's adapter list is a property of this device, but its routes need a *borrowed* device
+      // handle and CNA permits that borrow only inside a lifecycle callback -- so what is
+      // registered here is a source, read the first time a caller asks. A renderer with no
+      // displays reports none, and `GraphicsAdapter` keeps saying so rather than being handed an
+      // invented entry.
+      installAdapterProviderForInternalUse(
+        backend, () => backend.borrowGraphicsDevice(managerLifetime.Handle),
+      );
       const parameters = this.#presentationParameters();
       this.#backend = backend;
       this.#managerLifetime = managerLifetime;

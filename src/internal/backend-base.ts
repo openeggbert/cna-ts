@@ -36,6 +36,7 @@ import type {
   CnaGameTimeSnapshot,
   CnaGameWindowBackend,
   CnaGamerServicesBackend,
+  CnaGraphicsAdapterBackend,
   CnaGraphicsBackend,
   CnaGraphicsExtensionBackend,
   CnaMediaBackend,
@@ -61,7 +62,10 @@ import type {
   ContentLostResourceKind,
   CueSnapshot,
   DepthStencilStateSnapshot,
+  DisplayModeSnapshot,
   GameWindowBoundsSnapshot,
+  GraphicsAdapterInfoSnapshot,
+  GraphicsFormatSelectionSnapshot,
   GraphicsManagerConfiguration,
   GyroscopeReadingSnapshot,
   HapticCapabilitiesSnapshot,
@@ -108,6 +112,65 @@ import type {
   VideoFrameSnapshot,
   VideoPlayerSnapshot,
 } from "./backend.js";
+
+/** Refusing base for {@link CnaGraphicsAdapterBackend}. */
+export abstract class CnaGraphicsAdapterBackendBase implements CnaGraphicsAdapterBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public getGraphicsAdapterCount(
+    _device: NativeHandle,
+  ): number { return this.unsupported("getGraphicsAdapterCount"); }
+  public refreshGraphicsAdapters(
+    _device: NativeHandle,
+  ): void { return this.unsupported("refreshGraphicsAdapters"); }
+  public getGraphicsAdapterInfo(
+    _device: NativeHandle,
+    _index: number,
+  ): GraphicsAdapterInfoSnapshot { return this.unsupported("getGraphicsAdapterInfo"); }
+  public getGraphicsAdapterDescription(
+    _device: NativeHandle,
+    _index: number,
+  ): string { return this.unsupported("getGraphicsAdapterDescription"); }
+  public getGraphicsAdapterDeviceName(
+    _device: NativeHandle,
+    _index: number,
+  ): string { return this.unsupported("getGraphicsAdapterDeviceName"); }
+  public getGraphicsAdapterCurrentDisplayMode(
+    _device: NativeHandle,
+    _index: number,
+  ): DisplayModeSnapshot { return this.unsupported("getGraphicsAdapterCurrentDisplayMode"); }
+  public getGraphicsAdapterDisplayModes(
+    _device: NativeHandle,
+    _index: number,
+  ): readonly DisplayModeSnapshot[] { return this.unsupported("getGraphicsAdapterDisplayModes"); }
+  public isGraphicsAdapterProfileSupported(
+    _device: NativeHandle,
+    _index: number,
+    _profile: number,
+  ): boolean { return this.unsupported("isGraphicsAdapterProfileSupported"); }
+  public queryGraphicsAdapterBackBufferFormat(
+    _device: NativeHandle,
+    _index: number,
+    _profile: number,
+    _format: number,
+    _depthFormat: number,
+    _multiSampleCount: number,
+  ): GraphicsFormatSelectionSnapshot { return this.unsupported("queryGraphicsAdapterBackBufferFormat"); }
+  public queryGraphicsAdapterRenderTargetFormat(
+    _device: NativeHandle,
+    _index: number,
+    _profile: number,
+    _format: number,
+    _depthFormat: number,
+    _multiSampleCount: number,
+  ): GraphicsFormatSelectionSnapshot { return this.unsupported("queryGraphicsAdapterRenderTargetFormat"); }
+  public setGraphicsAdapterDevicePreferences(
+    _device: NativeHandle,
+    _index: number,
+    _useNullDevice: boolean,
+    _useReferenceDevice: boolean,
+  ): void { return this.unsupported("setGraphicsAdapterDevicePreferences"); }
+}
 
 /** Refusing base for {@link CnaGameWindowBackend}. */
 export abstract class CnaGameWindowBackendBase implements CnaGameWindowBackend {

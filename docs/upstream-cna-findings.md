@@ -11,7 +11,8 @@ build configuration rather than runtime behaviour. **Both of those are now fixed
 verified here** — see items 3 and 4 below.
 
 Re-checked against `cnanext` 599d14e5 (CNA C ABI 0.21.0) on 2026-08-31. Items 5 and 6 are new,
-found while projecting the sensor families.
+found while projecting the sensor families; item 7 is new, found while widening the windowed
+qualification to three renderers.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -196,3 +197,57 @@ shape, so all three families are testable the same way.
 the gyroscope's is not, and `test/native-cna.integration.mjs` asserts exactly that -- the support
 override alone leaves the state `NotSupported`, `Start` is refused, the injection is accepted and
 no valid reading appears. If CNA adds the backend, those assertions fail and the coverage can grow.
+
+## 7. OPENGLES3 render-target readback returns zeros
+
+**Measured:** CNA ABI 0.21.0, `CNA_GRAPHICS_RENDERER=OPENGLES3`, `CNA_PLATFORM=SDL3`, under Xvfb
+with Mesa 25.0.7 (OpenGL ES 3.2). This is the renderer whose exact-texel readback was this
+package's first windowed qualification, and it no longer produces one.
+
+Every render-target readback path answers zero, while an ordinary texture readback on the same
+device answers correctly:
+
+```text
+                        OPENGLES3      SOFTWARE / SDL_RENDERER
+texture SetData/GetData  ff0000ff ...   ff0000ff ...            (correct on all three)
+render target, unbound   00000000       ff38220c
+render target, bound     00000000       ff38220c
+with Depth24             00000000       ff38220c
+PreserveContents         00000000       ff38220c
+64x64 instead of 4x4     00000000       ff38220c
+```
+
+`ff38220c` is `Color(12, 34, 56, 255)` as XNA packs it, which is what `Clear` was given. So this is
+specific to reading a render target, not to reading back at all, and it does not depend on the
+binding state, the depth format, the usage flag or the size.
+
+**Likely cause, stated as a hypothesis rather than a bisection.** `EasyGLRenderer::RestoreBinding`
+changed in 599d14e5 to stop restoring the renderer's own context at a lease boundary:
+
+```cpp
+-            if (binding.context != nullptr)
++            if (binding.context != nullptr && binding.context != context_)
+             {
+                 service_.MakeCurrent(binding.window, binding.context);
+             }
+```
+
+The reason given is sound for the threaded content case it fixes. But it also means that after any
+lease taken on the renderer's own context, that context is no longer current — and a subsequent
+`glReadPixels` against the render target's framebuffer would then read from no bound framebuffer,
+which is exactly a field of zeros. The library measured here was built at 03:52 on 2026-08-31, the
+same minute as that commit.
+
+This was not confirmed by bisection: `cmake-build-debug` is another session's build directory, its
+exact source revision cannot be recovered from the artifact, and building a second OPENGLES3 tree
+or checking out an earlier revision would mean modifying a dependency this session must not touch.
+The mechanism and the timing are offered as the lead; the measurement above is the fact.
+
+**Proposed fix:** re-acquire the renderer's own context before a readback, or restore it at the
+lease boundary for the non-threaded path while keeping the release the threaded path needs.
+
+**Consequence here:** `test/windowed-renderer.integration.mjs` now runs against every windowed
+renderer it is pointed at and **asserts this defect as measured** for OPENGLES3 — so the assertion
+fails when it is repaired, which is what it is for — while asserting the exact texels on
+SDL_RENDERER and SOFTWARE, which both produce them. The windowed pixel qualification therefore
+still exists; it has moved to the two renderers that currently earn it.

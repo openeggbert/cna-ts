@@ -28,7 +28,11 @@ import type {
   CnbGlyphSnapshot,
   CnbMaterialSnapshot,
   CnbModelInfoSnapshot,
+  CnaGraphicsAdapterBackend,
   CnbCurveSnapshot,
+  DisplayModeSnapshot,
+  GraphicsAdapterInfoSnapshot,
+  GraphicsFormatSelectionSnapshot,
   CompassReadingSnapshot,
   GyroscopeReadingSnapshot,
   MotionReadingSnapshot,
@@ -621,6 +625,25 @@ interface NativeBridge {
   getAccelerometerState(sensor: bigint): SensorStateSnapshot;
   setAccelerometerInterval(sensor: bigint, ticks: bigint): void;
   getAccelerometerReading(sensor: bigint): AccelerometerReadingSnapshot;
+  graphicsAdapterCount(device: bigint): number;
+  graphicsAdaptersRefresh(device: bigint): void;
+  graphicsAdapterInfo(device: bigint, index: number): GraphicsAdapterInfoSnapshot;
+  graphicsAdapterDescription(device: bigint, index: number): string;
+  graphicsAdapterDeviceName(device: bigint, index: number): string;
+  graphicsAdapterCurrentDisplayMode(device: bigint, index: number): DisplayModeSnapshot;
+  graphicsAdapterDisplayModes(device: bigint, index: number): DisplayModeSnapshot[];
+  graphicsAdapterIsProfileSupported(device: bigint, index: number, profile: number): boolean;
+  graphicsAdapterQueryBackBufferFormat(
+    device: bigint, index: number, profile: number, format: number, depthFormat: number,
+    multiSampleCount: number,
+  ): GraphicsFormatSelectionSnapshot;
+  graphicsAdapterQueryRenderTargetFormat(
+    device: bigint, index: number, profile: number, format: number, depthFormat: number,
+    multiSampleCount: number,
+  ): GraphicsFormatSelectionSnapshot;
+  graphicsAdapterSetDevicePreferences(
+    device: bigint, index: number, useNullDevice: boolean, useReferenceDevice: boolean,
+  ): void;
   compassCreate(game: bigint): bigint;
   compassDestroy(sensor: bigint): void;
   compassStart(sensor: bigint): void;
@@ -1978,6 +2001,68 @@ export class NodeNativeBackend
     this.#bridge.setAccelerometerInterval(sensor, ticks);
   }
 
+
+  // ---- graphics adapters -----------------------------------------------------------------------
+  // Every route takes a device handle, because an adapter list is a property of a device a game
+  // created rather than of the process. A renderer with no displays reports none, and nothing here
+  // manufactures one.
+  public readonly GraphicsAdapters: CnaGraphicsAdapterBackend = this;
+
+  public getGraphicsAdapterCount(device: NativeHandle): number {
+    return this.#bridge.graphicsAdapterCount(device);
+  }
+  public refreshGraphicsAdapters(device: NativeHandle): void {
+    this.#bridge.graphicsAdaptersRefresh(device);
+  }
+  public getGraphicsAdapterInfo(
+    device: NativeHandle, index: number,
+  ): GraphicsAdapterInfoSnapshot {
+    return this.#bridge.graphicsAdapterInfo(device, index);
+  }
+  public getGraphicsAdapterDescription(device: NativeHandle, index: number): string {
+    return this.#bridge.graphicsAdapterDescription(device, index);
+  }
+  public getGraphicsAdapterDeviceName(device: NativeHandle, index: number): string {
+    return this.#bridge.graphicsAdapterDeviceName(device, index);
+  }
+  public getGraphicsAdapterCurrentDisplayMode(
+    device: NativeHandle, index: number,
+  ): DisplayModeSnapshot {
+    return this.#bridge.graphicsAdapterCurrentDisplayMode(device, index);
+  }
+  public getGraphicsAdapterDisplayModes(
+    device: NativeHandle, index: number,
+  ): readonly DisplayModeSnapshot[] {
+    return this.#bridge.graphicsAdapterDisplayModes(device, index);
+  }
+  public isGraphicsAdapterProfileSupported(
+    device: NativeHandle, index: number, profile: number,
+  ): boolean {
+    return this.#bridge.graphicsAdapterIsProfileSupported(device, index, profile);
+  }
+  public queryGraphicsAdapterBackBufferFormat(
+    device: NativeHandle, index: number, profile: number, format: number, depthFormat: number,
+    multiSampleCount: number,
+  ): GraphicsFormatSelectionSnapshot {
+    return this.#bridge.graphicsAdapterQueryBackBufferFormat(
+      device, index, profile, format, depthFormat, multiSampleCount,
+    );
+  }
+  public queryGraphicsAdapterRenderTargetFormat(
+    device: NativeHandle, index: number, profile: number, format: number, depthFormat: number,
+    multiSampleCount: number,
+  ): GraphicsFormatSelectionSnapshot {
+    return this.#bridge.graphicsAdapterQueryRenderTargetFormat(
+      device, index, profile, format, depthFormat, multiSampleCount,
+    );
+  }
+  public setGraphicsAdapterDevicePreferences(
+    device: NativeHandle, index: number, useNullDevice: boolean, useReferenceDevice: boolean,
+  ): void {
+    this.#bridge.graphicsAdapterSetDevicePreferences(
+      device, index, useNullDevice, useReferenceDevice,
+    );
+  }
   // ---- the compass, the gyroscope and the motion sensor ----------------------------------------
   // Each takes the game handle to create and its own handle thereafter, exactly as the
   // accelerometer does. The injection routes are CNA's own `_ext` test hooks and are passed
