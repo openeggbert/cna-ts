@@ -1424,6 +1424,93 @@ export interface CnaDepthNormalPrepassBackend {
   unpackLinearDepth(r: number, g: number, b: number, a: number): number;
 }
 
+/**
+ * CNA's light probes: the probe value, the grid of them, and the baker that fills either.
+ *
+ * A probe compares by content and is copied into a volume rather than referenced by it, but it
+ * carries nine coefficient vectors and twelve visibility scalars, so it crosses this boundary as a
+ * handle rather than as a structure assembled here.
+ */
+export interface CnaLightProbeBackend {
+  createLightProbe(): NativeHandle;
+  createLightProbeAt(position: Vector3Snapshot): NativeHandle;
+  destroyLightProbe(probe: NativeHandle): void;
+  copyLightProbeFrom(destination: NativeHandle, source: NativeHandle): void;
+  getLightProbePosition(probe: NativeHandle): Vector3Snapshot;
+  setLightProbePosition(probe: NativeHandle, position: Vector3Snapshot): void;
+  getLightProbeCoefficient(probe: NativeHandle, index: number): Vector3Snapshot;
+  setLightProbeCoefficient(
+    probe: NativeHandle, index: number, value: Vector3Snapshot,
+  ): void;
+  copyLightProbeCoefficients(probe: NativeHandle): readonly Vector3Snapshot[];
+  lightProbeIrradiance(probe: NativeHandle, normal: Vector3Snapshot): Vector3Snapshot;
+  setLightProbeVisibility(
+    probe: NativeHandle, direction: number, mean: number, meanSquared: number,
+  ): void;
+  getLightProbeVisibilityMean(probe: NativeHandle, direction: number): number;
+  getLightProbeVisibilityMeanSquared(probe: NativeHandle, direction: number): number;
+  lightProbeHasVisibility(probe: NativeHandle): boolean;
+  lightProbeVisibilityWeight(
+    probe: NativeHandle, direction: Vector3Snapshot, distance: number,
+  ): number;
+  isLightProbeZero(probe: NativeHandle): boolean;
+  scaleLightProbe(probe: NativeHandle, factor: number): void;
+  lightProbeEquals(first: NativeHandle, second: NativeHandle): boolean;
+  getLightProbeEvaluationGlsl(): string;
+  createLightProbeVolume(
+    bounds: ClusterBoundsSnapshot, countX: number, countY: number, countZ: number,
+  ): NativeHandle;
+  destroyLightProbeVolume(volume: NativeHandle): void;
+  getLightProbeVolumeBounds(volume: NativeHandle): ClusterBoundsSnapshot;
+  getLightProbeVolumeCountX(volume: NativeHandle): number;
+  getLightProbeVolumeCountY(volume: NativeHandle): number;
+  getLightProbeVolumeCountZ(volume: NativeHandle): number;
+  getLightProbeVolumeProbeCount(volume: NativeHandle): number;
+  getLightProbeVolumeProbePosition(
+    volume: NativeHandle, x: number, y: number, z: number,
+  ): Vector3Snapshot;
+  getLightProbeVolumeProbe(
+    volume: NativeHandle, x: number, y: number, z: number, into: NativeHandle,
+  ): void;
+  setLightProbeVolumeProbe(
+    volume: NativeHandle, x: number, y: number, z: number, probe: NativeHandle,
+  ): void;
+  lightProbeVolumeContains(volume: NativeHandle, position: Vector3Snapshot): boolean;
+  sampleLightProbeVolume(
+    volume: NativeHandle, position: Vector3Snapshot, into: NativeHandle,
+  ): void;
+  lightProbeVolumeIrradiance(
+    volume: NativeHandle, position: Vector3Snapshot, normal: Vector3Snapshot,
+  ): Vector3Snapshot;
+  isLightProbeVolumeZero(volume: NativeHandle): boolean;
+  createLightProbeBaker(device: NativeHandle): NativeHandle;
+  createLightProbeBakerWithFaceSize(device: NativeHandle, faceSize: number): NativeHandle;
+  destroyLightProbeBaker(baker: NativeHandle): void;
+  isLightProbeBakerSupported(baker: NativeHandle): boolean;
+  getLightProbeBakerFaceSize(baker: NativeHandle): number;
+  getLightProbeBakerFaceCount(): number;
+  getLightProbeBakerNearPlane(baker: NativeHandle): number;
+  getLightProbeBakerFarPlane(baker: NativeHandle): number;
+  setLightProbeBakerPlanes(baker: NativeHandle, nearPlane: number, farPlane: number): void;
+  getLightProbeBakerFaceView(
+    baker: NativeHandle, face: number, position: Vector3Snapshot,
+  ): readonly number[];
+  bakeLightProbe(
+    baker: NativeHandle, position: Vector3Snapshot, draw: SceneFaceDraw,
+  ): NativeHandle;
+  bakeLightProbeVolumeLight(
+    baker: NativeHandle, volume: NativeHandle, draw: SceneFaceDraw,
+  ): number;
+  bakeLightProbeVolumeVisibility(
+    baker: NativeHandle, volume: NativeHandle, draw: SceneFaceDraw,
+  ): number;
+}
+
+/** What a bake calls once per cube face, with the camera it chose for that face. */
+export type SceneFaceDraw = (
+  view: readonly number[], projection: readonly number[],
+) => void;
+
 /** One decal projector. */
 export interface CnaDecalBackend {
   createDecalPass(device: NativeHandle): NativeHandle;
@@ -2107,6 +2194,7 @@ export interface CnaBackend {
   readonly Shadows?: CnaShadowBackend;
   readonly DepthNormalPrepass?: CnaDepthNormalPrepassBackend;
   readonly Decals?: CnaDecalBackend;
+  readonly LightProbes?: CnaLightProbeBackend;
   readonly Particles?: CnaParticleBackend;
   readonly Content?: CnaContentBackend;
   readonly Devices?: CnaDeviceBackend;

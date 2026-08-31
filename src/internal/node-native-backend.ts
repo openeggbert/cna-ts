@@ -20,6 +20,8 @@ import type {
   CnaParticleBackend,
   CnaShadowBackend,
   CnaDecalBackend,
+  CnaLightProbeBackend,
+  SceneFaceDraw,
   CnaDepthNormalPrepassBackend,
   ParticleEmitterSettingsSnapshot,
   ParticleSnapshot,
@@ -623,6 +625,52 @@ interface NativeBridge {
   decodeVelocityTexel(texel: ColorSnapshot): Vector2Snapshot;
   packLinearDepth(value: number): PackedDepthSnapshot;
   unpackLinearDepth(r: number, g: number, b: number, a: number): number;
+  createLightProbe(): bigint;
+  createLightProbeAt(position: Vector3Snapshot): bigint;
+  destroyLightProbe(probe: bigint): void;
+  copyLightProbeFrom(destination: bigint, source: bigint): void;
+  getLightProbePosition(probe: bigint): Vector3Snapshot;
+  setLightProbePosition(probe: bigint, position: Vector3Snapshot): void;
+  getLightProbeCoefficient(probe: bigint, index: number): Vector3Snapshot;
+  setLightProbeCoefficient(probe: bigint, index: number, value: Vector3Snapshot): void;
+  copyLightProbeCoefficients(probe: bigint): readonly Vector3Snapshot[];
+  lightProbeIrradiance(probe: bigint, normal: Vector3Snapshot): Vector3Snapshot;
+  setLightProbeVisibility(probe: bigint, direction: number, mean: number, meanSquared: number): void;
+  getLightProbeVisibilityMean(probe: bigint, direction: number): number;
+  getLightProbeVisibilityMeanSquared(probe: bigint, direction: number): number;
+  lightProbeHasVisibility(probe: bigint): boolean;
+  lightProbeVisibilityWeight(probe: bigint, direction: Vector3Snapshot, distance: number): number;
+  isLightProbeZero(probe: bigint): boolean;
+  scaleLightProbe(probe: bigint, factor: number): void;
+  lightProbeEquals(first: bigint, second: bigint): boolean;
+  getLightProbeEvaluationGlsl(): string;
+  createLightProbeVolume(bounds: ClusterBoundsSnapshot, countX: number, countY: number, countZ: number): bigint;
+  destroyLightProbeVolume(volume: bigint): void;
+  getLightProbeVolumeBounds(volume: bigint): ClusterBoundsSnapshot;
+  getLightProbeVolumeCountX(volume: bigint): number;
+  getLightProbeVolumeCountY(volume: bigint): number;
+  getLightProbeVolumeCountZ(volume: bigint): number;
+  getLightProbeVolumeProbeCount(volume: bigint): number;
+  getLightProbeVolumeProbePosition(volume: bigint, x: number, y: number, z: number): Vector3Snapshot;
+  getLightProbeVolumeProbe(volume: bigint, x: number, y: number, z: number, into: bigint): void;
+  setLightProbeVolumeProbe(volume: bigint, x: number, y: number, z: number, probe: bigint): void;
+  lightProbeVolumeContains(volume: bigint, position: Vector3Snapshot): boolean;
+  sampleLightProbeVolume(volume: bigint, position: Vector3Snapshot, into: bigint): void;
+  lightProbeVolumeIrradiance(volume: bigint, position: Vector3Snapshot, normal: Vector3Snapshot): Vector3Snapshot;
+  isLightProbeVolumeZero(volume: bigint): boolean;
+  createLightProbeBaker(device: bigint): bigint;
+  createLightProbeBakerWithFaceSize(device: bigint, faceSize: number): bigint;
+  destroyLightProbeBaker(baker: bigint): void;
+  isLightProbeBakerSupported(baker: bigint): boolean;
+  getLightProbeBakerFaceSize(baker: bigint): number;
+  getLightProbeBakerFaceCount(): number;
+  getLightProbeBakerNearPlane(baker: bigint): number;
+  getLightProbeBakerFarPlane(baker: bigint): number;
+  setLightProbeBakerPlanes(baker: bigint, nearPlane: number, farPlane: number): void;
+  getLightProbeBakerFaceView(baker: bigint, face: number, position: Vector3Snapshot): readonly number[];
+  bakeLightProbe(baker: bigint, position: Vector3Snapshot, draw: SceneFaceDraw): bigint;
+  bakeLightProbeVolumeLight(baker: bigint, volume: bigint, draw: SceneFaceDraw): number;
+  bakeLightProbeVolumeVisibility(baker: bigint, volume: bigint, draw: SceneFaceDraw): number;
   createDecalPass(device: bigint): bigint;
   destroyDecalPass(pass: bigint): void;
   getDecalOpacity(pass: bigint): number;
@@ -1150,7 +1198,7 @@ export class NodeNativeBackend
   implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend,
     CnaRuntimeServicesBackend, CnaGraphicsExtensionBackend, CnaContentBackend,
     CnaDeviceBackend, CnaGamerServicesBackend, CnaSensorBackend,
-    CnaDepthNormalPrepassBackend, CnaDecalBackend {
+    CnaDepthNormalPrepassBackend, CnaDecalBackend, CnaLightProbeBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
   public readonly AbiVersion: string;
@@ -1173,6 +1221,7 @@ export class NodeNativeBackend
   public readonly Shadows: CnaShadowBackend = this;
   public readonly DepthNormalPrepass: CnaDepthNormalPrepassBackend = this;
   public readonly Decals: CnaDecalBackend = this;
+  public readonly LightProbes: CnaLightProbeBackend = this;
   public readonly Particles: CnaParticleBackend = this;
   public readonly Content: CnaContentBackend = this;
   public readonly Devices: CnaDeviceBackend = this;
@@ -2264,6 +2313,52 @@ export class NodeNativeBackend
   public unpackLinearDepth(r: number, g: number, b: number, a: number): number {
     return this.#bridge.unpackLinearDepth(r, g, b, a);
   }
+  public createLightProbe(): NativeHandle { return this.#bridge.createLightProbe(); }
+  public createLightProbeAt(position: Vector3Snapshot): NativeHandle { return this.#bridge.createLightProbeAt(position); }
+  public destroyLightProbe(probe: NativeHandle): void { this.#bridge.destroyLightProbe(probe); }
+  public copyLightProbeFrom(destination: NativeHandle, source: NativeHandle): void { this.#bridge.copyLightProbeFrom(destination, source); }
+  public getLightProbePosition(probe: NativeHandle): Vector3Snapshot { return this.#bridge.getLightProbePosition(probe); }
+  public setLightProbePosition(probe: NativeHandle, position: Vector3Snapshot): void { this.#bridge.setLightProbePosition(probe, position); }
+  public getLightProbeCoefficient(probe: NativeHandle, index: number): Vector3Snapshot { return this.#bridge.getLightProbeCoefficient(probe, index); }
+  public setLightProbeCoefficient(probe: NativeHandle, index: number, value: Vector3Snapshot): void { this.#bridge.setLightProbeCoefficient(probe, index, value); }
+  public copyLightProbeCoefficients(probe: NativeHandle): readonly Vector3Snapshot[] { return this.#bridge.copyLightProbeCoefficients(probe); }
+  public lightProbeIrradiance(probe: NativeHandle, normal: Vector3Snapshot): Vector3Snapshot { return this.#bridge.lightProbeIrradiance(probe, normal); }
+  public setLightProbeVisibility(probe: NativeHandle, direction: number, mean: number, meanSquared: number): void { this.#bridge.setLightProbeVisibility(probe, direction, mean, meanSquared); }
+  public getLightProbeVisibilityMean(probe: NativeHandle, direction: number): number { return this.#bridge.getLightProbeVisibilityMean(probe, direction); }
+  public getLightProbeVisibilityMeanSquared(probe: NativeHandle, direction: number): number { return this.#bridge.getLightProbeVisibilityMeanSquared(probe, direction); }
+  public lightProbeHasVisibility(probe: NativeHandle): boolean { return this.#bridge.lightProbeHasVisibility(probe); }
+  public lightProbeVisibilityWeight(probe: NativeHandle, direction: Vector3Snapshot, distance: number): number { return this.#bridge.lightProbeVisibilityWeight(probe, direction, distance); }
+  public isLightProbeZero(probe: NativeHandle): boolean { return this.#bridge.isLightProbeZero(probe); }
+  public scaleLightProbe(probe: NativeHandle, factor: number): void { this.#bridge.scaleLightProbe(probe, factor); }
+  public lightProbeEquals(first: NativeHandle, second: NativeHandle): boolean { return this.#bridge.lightProbeEquals(first, second); }
+  public getLightProbeEvaluationGlsl(): string { return this.#bridge.getLightProbeEvaluationGlsl(); }
+  public createLightProbeVolume(bounds: ClusterBoundsSnapshot, countX: number, countY: number, countZ: number): NativeHandle { return this.#bridge.createLightProbeVolume(bounds, countX, countY, countZ); }
+  public destroyLightProbeVolume(volume: NativeHandle): void { this.#bridge.destroyLightProbeVolume(volume); }
+  public getLightProbeVolumeBounds(volume: NativeHandle): ClusterBoundsSnapshot { return this.#bridge.getLightProbeVolumeBounds(volume); }
+  public getLightProbeVolumeCountX(volume: NativeHandle): number { return this.#bridge.getLightProbeVolumeCountX(volume); }
+  public getLightProbeVolumeCountY(volume: NativeHandle): number { return this.#bridge.getLightProbeVolumeCountY(volume); }
+  public getLightProbeVolumeCountZ(volume: NativeHandle): number { return this.#bridge.getLightProbeVolumeCountZ(volume); }
+  public getLightProbeVolumeProbeCount(volume: NativeHandle): number { return this.#bridge.getLightProbeVolumeProbeCount(volume); }
+  public getLightProbeVolumeProbePosition(volume: NativeHandle, x: number, y: number, z: number): Vector3Snapshot { return this.#bridge.getLightProbeVolumeProbePosition(volume, x, y, z); }
+  public getLightProbeVolumeProbe(volume: NativeHandle, x: number, y: number, z: number, into: NativeHandle): void { this.#bridge.getLightProbeVolumeProbe(volume, x, y, z, into); }
+  public setLightProbeVolumeProbe(volume: NativeHandle, x: number, y: number, z: number, probe: NativeHandle): void { this.#bridge.setLightProbeVolumeProbe(volume, x, y, z, probe); }
+  public lightProbeVolumeContains(volume: NativeHandle, position: Vector3Snapshot): boolean { return this.#bridge.lightProbeVolumeContains(volume, position); }
+  public sampleLightProbeVolume(volume: NativeHandle, position: Vector3Snapshot, into: NativeHandle): void { this.#bridge.sampleLightProbeVolume(volume, position, into); }
+  public lightProbeVolumeIrradiance(volume: NativeHandle, position: Vector3Snapshot, normal: Vector3Snapshot): Vector3Snapshot { return this.#bridge.lightProbeVolumeIrradiance(volume, position, normal); }
+  public isLightProbeVolumeZero(volume: NativeHandle): boolean { return this.#bridge.isLightProbeVolumeZero(volume); }
+  public createLightProbeBaker(device: NativeHandle): NativeHandle { return this.#bridge.createLightProbeBaker(device); }
+  public createLightProbeBakerWithFaceSize(device: NativeHandle, faceSize: number): NativeHandle { return this.#bridge.createLightProbeBakerWithFaceSize(device, faceSize); }
+  public destroyLightProbeBaker(baker: NativeHandle): void { this.#bridge.destroyLightProbeBaker(baker); }
+  public isLightProbeBakerSupported(baker: NativeHandle): boolean { return this.#bridge.isLightProbeBakerSupported(baker); }
+  public getLightProbeBakerFaceSize(baker: NativeHandle): number { return this.#bridge.getLightProbeBakerFaceSize(baker); }
+  public getLightProbeBakerFaceCount(): number { return this.#bridge.getLightProbeBakerFaceCount(); }
+  public getLightProbeBakerNearPlane(baker: NativeHandle): number { return this.#bridge.getLightProbeBakerNearPlane(baker); }
+  public getLightProbeBakerFarPlane(baker: NativeHandle): number { return this.#bridge.getLightProbeBakerFarPlane(baker); }
+  public setLightProbeBakerPlanes(baker: NativeHandle, nearPlane: number, farPlane: number): void { this.#bridge.setLightProbeBakerPlanes(baker, nearPlane, farPlane); }
+  public getLightProbeBakerFaceView(baker: NativeHandle, face: number, position: Vector3Snapshot): readonly number[] { return this.#bridge.getLightProbeBakerFaceView(baker, face, position); }
+  public bakeLightProbe(baker: NativeHandle, position: Vector3Snapshot, draw: SceneFaceDraw): NativeHandle { return this.#bridge.bakeLightProbe(baker, position, draw); }
+  public bakeLightProbeVolumeLight(baker: NativeHandle, volume: NativeHandle, draw: SceneFaceDraw): number { return this.#bridge.bakeLightProbeVolumeLight(baker, volume, draw); }
+  public bakeLightProbeVolumeVisibility(baker: NativeHandle, volume: NativeHandle, draw: SceneFaceDraw): number { return this.#bridge.bakeLightProbeVolumeVisibility(baker, volume, draw); }
   public createDecalPass(device: NativeHandle): NativeHandle {
     return this.#bridge.createDecalPass(device);
   }

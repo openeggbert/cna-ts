@@ -18,6 +18,8 @@ import type {
   BoundingSphereSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
   CnaDecalBackend,
   CnaDepthNormalPrepassBackend,
+  CnaLightProbeBackend,
+  SceneFaceDraw,
   ClusterBoundsSnapshot,
   CnaLodBackend,
   CnaParticleBackend,
@@ -3267,4 +3269,515 @@ export class DecalPass implements IDisposable {
   public static IsInsideDecalBox(decalLocalPosition: Vector3): boolean {
     return decals().isInsideDecalBox(vectorSnapshot(decalLocalPosition, "decalLocalPosition"));
   }
+}
+
+
+/* --- light probes ---------------------------------------------------------------------------------
+ *
+ * A {@link LightProbe} is the ambient light arriving at one point from every direction, stored as
+ * nine second-order spherical-harmonic coefficients — which is all a cosine lobe leaves above second
+ * order, so nine vectors reconstruct the irradiance on any normal. A {@link LightProbeVolume} is a
+ * grid of them over a box, and a {@link LightProbeBaker} fills either by drawing the scene six times
+ * per probe, once down each axis.
+ *
+ * A probe is a **value**: it compares by content, a volume copies it in rather than referencing it,
+ * and two probes with the same coefficients are equal whatever handles they hold. It is a handle
+ * here only because it carries nine vectors and twelve scalars, which is more than a caller should
+ * have to assemble by hand.
+ */
+
+function lightProbes(): CnaLightProbeBackend {
+  const backend = getBackend();
+  if (!backend.IsAvailable || backend.LightProbes == null) {
+    throw new NativeUnavailableError(
+      `CNA's light probes require a loaded backend that has them: ${backend.Detail}`,
+    );
+  }
+  return backend.LightProbes;
+}
+
+/** What a bake calls once per cube face, with the camera CNA chose for that face. */
+export type SceneFaceDrawCallback = (view: Matrix, projection: Matrix) => void;
+
+/* Filled in by LightProbe's static block; see there for why they cannot be ordinary functions. */
+let handleOfLightProbe!: (probe: LightProbe) => NativeHandle;
+let adoptNativeLightProbe!: (handle: NativeHandle) => LightProbe;
+let handleOfLightProbeVolume!: (volume: LightProbeVolume) => NativeHandle;
+
+/**
+ * The ambient light at one point, as nine spherical-harmonic coefficients and six occluder
+ * distances.
+ *
+ * Set the coefficients directly, copy them out of a volume, or bake them from a scene with
+ * {@link LightProbeBaker}. {@link Irradiance} reconstructs what arrives on a surface facing any
+ * direction, and is **never negative**: the reconstruction can dip below zero where the fit
+ * overshoots a dark environment, and negative light is not a look, so CNA floors it.
+ */
+export class LightProbe implements IDisposable {
+  readonly #backend: CnaLightProbeBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(position?: Vector3);
+  public constructor(position?: Vector3, adopted?: NativeHandle) {
+    this.#backend = lightProbes();
+    this.#handle = adopted ?? (position === undefined
+      ? this.#backend.createLightProbe()
+      : this.#backend.createLightProbeAt(vectorSnapshot(position, "position")));
+  }
+
+  // The two things this module needs of a probe that a consumer does not: its handle, so a volume
+  // or a baker can name it, and a way to wrap one CNA has already made. Both stay inside the class
+  // body, because that is the only place a private field is reachable from.
+  static {
+    handleOfLightProbe = (probe: LightProbe) => probe.#active();
+    adoptNativeLightProbe = (handle: NativeHandle) => new (LightProbe as unknown as new (
+      position: Vector3 | undefined, adopted: NativeHandle,
+    ) => LightProbe)(undefined, handle);
+  }
+
+  /** Whether the probe has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the light probe is disposed");
+    return this.#handle;
+  }
+
+  /** Where the probe stands. A volume overwrites this with the cell's own position. */
+  public get Position(): Vector3 {
+    return toVector3(this.#backend.getLightProbePosition(this.#active()));
+  }
+  public set Position(value: Vector3) {
+    this.#backend.setLightProbePosition(this.#active(), vectorSnapshot(value, "Position"));
+  }
+
+  /**
+   * One coefficient, by index.
+   *
+   * An index outside the table is **refused rather than clamped**, because a clamped index returns
+   * a different coefficient and the surface would light almost right — which is the failure that
+   * does not look like one.
+   */
+  public GetCoefficient(index: number): Vector3 {
+    if (!Number.isInteger(index)) throw new TypeError("index must be an integer");
+    return toVector3(this.#backend.getLightProbeCoefficient(this.#active(), index));
+  }
+
+  /** Sets one coefficient, with the same refusal for an index outside the table. */
+  public SetCoefficient(index: number, value: Vector3): void {
+    if (!Number.isInteger(index)) throw new TypeError("index must be an integer");
+    this.#backend.setLightProbeCoefficient(
+      this.#active(), index, vectorSnapshot(value, "value"),
+    );
+  }
+
+  /** Every coefficient at once, in order, as many as CNA says a probe carries. */
+  public ToArray(): readonly Vector3[] {
+    return Object.freeze(
+      this.#backend.copyLightProbeCoefficients(this.#active()).map(toVector3),
+    );
+  }
+
+  /**
+   * The irradiance arriving on a surface facing `normal`.
+   *
+   * Irradiance, not outgoing radiance, and never negative on any channel. A degenerate normal is
+   * treated as straight up rather than refused.
+   */
+  public Irradiance(normal: Vector3): Vector3 {
+    return toVector3(
+      this.#backend.lightProbeIrradiance(this.#active(), vectorSnapshot(normal, "normal")),
+    );
+  }
+
+  /**
+   * Records how far away occluders are in one of the six axis directions.
+   *
+   * Both distances are floored at zero, and the mean squared is additionally floored at the mean
+   * squared: no distribution has negative variance, and one that appeared to would make
+   * {@link VisibilityWeight} answer outside the unit range — a probe contributing negative light.
+   */
+  public SetVisibility(direction: number, meanDistance: number, meanSquaredDistance: number): void {
+    if (!Number.isInteger(direction)) throw new TypeError("direction must be an integer");
+    for (const [name, value] of [
+      ["meanDistance", meanDistance], ["meanSquaredDistance", meanSquaredDistance],
+    ] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    this.#backend.setLightProbeVisibility(
+      this.#active(), direction, meanDistance, meanSquaredDistance,
+    );
+  }
+
+  /** The mean occluder distance recorded for one direction. */
+  public GetVisibilityMean(direction: number): number {
+    if (!Number.isInteger(direction)) throw new TypeError("direction must be an integer");
+    return this.#backend.getLightProbeVisibilityMean(this.#active(), direction);
+  }
+
+  /** The mean squared occluder distance recorded for one direction. */
+  public GetVisibilityMeanSquared(direction: number): number {
+    if (!Number.isInteger(direction)) throw new TypeError("direction must be an integer");
+    return this.#backend.getLightProbeVisibilityMeanSquared(this.#active(), direction);
+  }
+
+  /** Whether any visibility has been recorded at all. */
+  public get HasVisibility(): boolean {
+    return this.#backend.lightProbeHasVisibility(this.#active());
+  }
+
+  /**
+   * How much of this probe's light reaches a point `distance` away in `direction`.
+   *
+   * **One means "nothing is known to be in the way"**, and that is the answer for a probe with no
+   * visibility and for a distance that is not positive — both are absences rather than errors,
+   * which is why neither is refused. Beyond the recorded mean it is the Chebyshev bound a variance
+   * shadow map uses: a flat wall cuts off sharply, a cluttered direction fades.
+   */
+  public VisibilityWeight(direction: Vector3, distance: number): number {
+    if (typeof distance !== "number" || !Number.isFinite(distance)) {
+      throw new TypeError("distance must be a finite number");
+    }
+    return this.#backend.lightProbeVisibilityWeight(
+      this.#active(), vectorSnapshot(direction, "direction"), distance,
+    );
+  }
+
+  /** Whether the probe stores no light at all. */
+  public get IsZero(): boolean {
+    return this.#backend.isLightProbeZero(this.#active());
+  }
+
+  /** Multiplies every coefficient by a factor, which scales the irradiance with it. */
+  public Scale(factor: number): void {
+    if (typeof factor !== "number" || !Number.isFinite(factor)) {
+      throw new TypeError("factor must be a finite number");
+    }
+    this.#backend.scaleLightProbe(this.#active(), factor);
+  }
+
+  /**
+   * Whether two probes hold the same light: every coefficient and every visibility entry.
+   *
+   * By value, not by handle — a probe copied out of a volume equals the one that was copied in.
+   */
+  public EqualsProbe(other: LightProbe): boolean {
+    if (other == null) throw new TypeError("other is required");
+    return this.#backend.lightProbeEquals(
+      this.#active(), handleOfLightProbe(other),
+    );
+  }
+
+  /** Copies every field of another probe over this one, since a handle cannot be assigned. */
+  public CopyFrom(source: LightProbe): void {
+    if (source == null) throw new TypeError("source is required");
+    this.#backend.copyLightProbeFrom(
+      this.#active(), handleOfLightProbe(source),
+    );
+  }
+
+  /** Releases the probe. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyLightProbe(handle);
+  }
+
+  /** CNA's own GLSL for evaluating a probe, for a game writing the shader that samples one. */
+  public static get EvaluationGlsl(): string {
+    return lightProbes().getLightProbeEvaluationGlsl();
+  }
+}
+
+/**
+ * A grid of light probes over a box, and the interpolation between them.
+ *
+ * Probes are stored **by value**: {@link SetProbe} copies one in and overwrites its position with
+ * the cell's, and {@link GetProbe} copies one out, so a result stays correct after the volume
+ * changes.
+ */
+export class LightProbeVolume implements IDisposable {
+  readonly #backend: CnaLightProbeBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(bounds: BoundingBox, countX: number, countY: number, countZ: number) {
+    for (const [name, count] of [
+      ["countX", countX], ["countY", countY], ["countZ", countZ],
+    ] as const) {
+      if (!Number.isInteger(count)) throw new TypeError(`${name} must be an integer`);
+    }
+    this.#backend = lightProbes();
+    this.#handle = this.#backend.createLightProbeVolume(
+      boundsSnapshot(bounds), countX, countY, countZ,
+    );
+  }
+
+  /** Whether the volume has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the light probe volume is disposed");
+    }
+    return this.#handle;
+  }
+
+  static { handleOfLightProbeVolume = (volume: LightProbeVolume) => volume.#active(); }
+
+  /** The box the grid spans. */
+  public get Bounds(): BoundingBox {
+    const bounds = this.#backend.getLightProbeVolumeBounds(this.#active());
+    return new BoundingBox(toVector3(bounds.Min), toVector3(bounds.Max));
+  }
+
+  /** How many probes lie along X. */
+  public get CountX(): number {
+    return this.#backend.getLightProbeVolumeCountX(this.#active());
+  }
+  /** How many probes lie along Y. */
+  public get CountY(): number {
+    return this.#backend.getLightProbeVolumeCountY(this.#active());
+  }
+  /** How many probes lie along Z. */
+  public get CountZ(): number {
+    return this.#backend.getLightProbeVolumeCountZ(this.#active());
+  }
+  /** How many the volume holds in total. */
+  public get ProbeCount(): number {
+    return this.#backend.getLightProbeVolumeProbeCount(this.#active());
+  }
+
+  /**
+   * Where one probe of the grid stands: the box's corner plus an even step along each axis, and
+   * the box's own minimum on an axis holding a single probe.
+   */
+  public GetProbePosition(x: number, y: number, z: number): Vector3 {
+    assertCell(x, y, z);
+    return toVector3(this.#backend.getLightProbeVolumeProbePosition(this.#active(), x, y, z));
+  }
+
+  /**
+   * Copies one probe out of the grid.
+   *
+   * Pass `into` to reuse a probe rather than make one; the same object comes back. Without it the
+   * result is a new probe the caller owns and disposes.
+   */
+  public GetProbe(x: number, y: number, z: number, into?: LightProbe): LightProbe {
+    assertCell(x, y, z);
+    const target = into ?? new LightProbe();
+    try {
+      this.#backend.getLightProbeVolumeProbe(
+        this.#active(), x, y, z, handleOfLightProbe(target),
+      );
+    } catch (error) {
+      if (into === undefined) target.Dispose();
+      throw error;
+    }
+    return target;
+  }
+
+  /** Copies a probe into one cell, which takes the cell's own position with it. */
+  public SetProbe(x: number, y: number, z: number, probe: LightProbe): void {
+    assertCell(x, y, z);
+    if (probe == null) throw new TypeError("probe is required");
+    this.#backend.setLightProbeVolumeProbe(
+      this.#active(), x, y, z, handleOfLightProbe(probe),
+    );
+  }
+
+  /** Whether a position lies inside the box, edges included. */
+  public Contains(position: Vector3): boolean {
+    return this.#backend.lightProbeVolumeContains(
+      this.#active(), vectorSnapshot(position, "position"),
+    );
+  }
+
+  /**
+   * Interpolates the eight surrounding probes into one.
+   *
+   * A position outside the box is **clamped into it rather than refused**: a point just outside a
+   * probe grid is an ordinary thing during rendering, and the nearest interpolation is what a
+   * caller wants there. `into` works as it does on {@link GetProbe}.
+   */
+  public SampleProbe(position: Vector3, into?: LightProbe): LightProbe {
+    const target = into ?? new LightProbe();
+    try {
+      this.#backend.sampleLightProbeVolume(
+        this.#active(), vectorSnapshot(position, "position"),
+        handleOfLightProbe(target),
+      );
+    } catch (error) {
+      if (into === undefined) target.Dispose();
+      throw error;
+    }
+    return target;
+  }
+
+  /** The irradiance at a point on a surface facing one way, sampled and reconstructed in one go. */
+  public Irradiance(position: Vector3, normal: Vector3): Vector3 {
+    return toVector3(this.#backend.lightProbeVolumeIrradiance(
+      this.#active(), vectorSnapshot(position, "position"), vectorSnapshot(normal, "normal"),
+    ));
+  }
+
+  /** Whether every probe in the volume stores no light. */
+  public get IsZero(): boolean {
+    return this.#backend.isLightProbeVolumeZero(this.#active());
+  }
+
+  /** Releases the volume and the probes it holds. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyLightProbeVolume(handle);
+  }
+}
+
+function assertCell(x: number, y: number, z: number): void {
+  for (const [name, index] of [["x", x], ["y", y], ["z", z]] as const) {
+    if (!Number.isInteger(index)) throw new TypeError(`${name} must be an integer`);
+  }
+}
+
+/**
+ * Captures light probes by rendering the scene six times per probe, once down each axis.
+ *
+ * **Whether a baker can bake is probed rather than asked.** No renderer publishes "can bind an
+ * offscreen target and read it back" as a capability, and the two do not come together — a headless
+ * renderer binds happily and refuses the readback — so CNA renders one capture at construction and
+ * remembers whether it worked. {@link IsSupported} reports that measurement and every bake refuses
+ * when it is false.
+ *
+ * The scene callback runs with the baker's own target bound. **Draw the scene and nothing else:**
+ * binding another target inside it loses the face being captured.
+ */
+export class LightProbeBaker implements IDisposable {
+  readonly #backend: CnaLightProbeBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice, faceSize?: number) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (faceSize !== undefined && (!Number.isInteger(faceSize) || faceSize <= 0)) {
+      throw new RangeError("faceSize must be a positive integer");
+    }
+    this.#backend = lightProbes();
+    const device = resolveGraphicsDeviceHandleForInternalUse(graphicsDevice);
+    this.#handle = faceSize === undefined
+      ? this.#backend.createLightProbeBaker(device)
+      : this.#backend.createLightProbeBakerWithFaceSize(device, faceSize);
+  }
+
+  /** Whether the baker has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the light probe baker is disposed");
+    }
+    return this.#handle;
+  }
+
+  /** Whether this renderer can actually capture, measured at construction rather than declared. */
+  public get IsSupported(): boolean {
+    return this.#backend.isLightProbeBakerSupported(this.#active());
+  }
+
+  /** The cube-face resolution each capture renders at. */
+  public get FaceSize(): number {
+    return this.#backend.getLightProbeBakerFaceSize(this.#active());
+  }
+
+  /** The near capture distance. */
+  public get NearPlane(): number {
+    return this.#backend.getLightProbeBakerNearPlane(this.#active());
+  }
+
+  /** The far capture distance. */
+  public get FarPlane(): number {
+    return this.#backend.getLightProbeBakerFarPlane(this.#active());
+  }
+
+  /**
+   * Sets both capture distances at once.
+   *
+   * **Validated as a pair and refused as a pair**: a near distance that is not positive, or a far
+   * distance that does not exceed it, leaves both unchanged. There is no half-applied state and no
+   * clamping, because a silently corrected range gives probes that look plausible and are lit from
+   * the wrong depth.
+   */
+  public SetPlanes(nearPlane: number, farPlane: number): void {
+    for (const [name, value] of [["nearPlane", nearPlane], ["farPlane", farPlane]] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    this.#backend.setLightProbeBakerPlanes(this.#active(), nearPlane, farPlane);
+  }
+
+  /** The view matrix one cube face is captured with, from a capture position. */
+  public FaceView(face: number, position: Vector3): Matrix {
+    if (!Number.isInteger(face)) throw new TypeError("face must be an integer");
+    return toMatrix(this.#backend.getLightProbeBakerFaceView(
+      this.#active(), face, vectorSnapshot(position, "position"),
+    ));
+  }
+
+  /**
+   * Captures one probe, calling `draw` once per face with the camera CNA chose for it.
+   *
+   * The result is a new probe the caller owns and disposes. An exception thrown by `draw` is
+   * carried out of the bake and rethrown here rather than unwinding through CNA, which owns a
+   * bound render target for the duration.
+   */
+  public BakeProbe(position: Vector3, draw: SceneFaceDrawCallback): LightProbe {
+    if (typeof draw !== "function") throw new TypeError("draw must be a function");
+    const handle = this.#backend.bakeLightProbe(
+      this.#active(), vectorSnapshot(position, "position"), wrapSceneDraw(draw),
+    );
+    return adoptNativeLightProbe(handle);
+  }
+
+  /**
+   * Captures the light of every probe in a volume, and returns how many faces were drawn.
+   *
+   * Whatever visibility each probe already carried is **kept**: light and visibility are two
+   * separate bakes and either may be run without the other.
+   */
+  public BakeLight(volume: LightProbeVolume, draw: SceneFaceDrawCallback): number {
+    if (volume == null) throw new TypeError("volume is required");
+    if (typeof draw !== "function") throw new TypeError("draw must be a function");
+    return this.#backend.bakeLightProbeVolumeLight(
+      this.#active(), handleOfLightProbeVolume(volume), wrapSceneDraw(draw),
+    );
+  }
+
+  /** Captures the occluder distances of every probe in a volume, on the same terms. */
+  public BakeVisibility(volume: LightProbeVolume, draw: SceneFaceDrawCallback): number {
+    if (volume == null) throw new TypeError("volume is required");
+    if (typeof draw !== "function") throw new TypeError("draw must be a function");
+    return this.#backend.bakeLightProbeVolumeVisibility(
+      this.#active(), handleOfLightProbeVolume(volume), wrapSceneDraw(draw),
+    );
+  }
+
+  /** Releases the baker and its capture target. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyLightProbeBaker(handle);
+  }
+
+  /** How many faces one capture renders. The same for every baker, and asked rather than assumed. */
+  public static get FaceCount(): number {
+    return lightProbes().getLightProbeBakerFaceCount();
+  }
+}
+
+function wrapSceneDraw(draw: SceneFaceDrawCallback): SceneFaceDraw {
+  return (view, projection) => { draw(toMatrix(view), toMatrix(projection)); };
 }

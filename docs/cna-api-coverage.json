@@ -16,13 +16,13 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 1053,
+    "NODE": 1099,
     "WASM": 276
   },
-  "reachableByAny": 1053,
+  "reachableByAny": 1099,
   "reachableByAll": 276,
   "reachableExclusively": {
-    "NODE": 777,
+    "NODE": 823,
     "WASM": 0
   },
   "reachabilityByCategory": {
@@ -31,7 +31,7 @@
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 646,
+      "NODE": 692,
       "WASM": 189
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -119,7 +119,7 @@
     },
     "engine_layer.h": {
       "CNA_EXTENSION_BACKING": 857,
-      "REACHABLE_NODE": 273
+      "REACHABLE_NODE": 319
     },
     "gamer_services.h": {
       "XNA_BACKING": 250,
@@ -17052,322 +17052,414 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_bake_probe",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_bake_visibility",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_create",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_create_with_face_size",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_destroy",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_face_count",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_face_view",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_get_face_size",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_get_far_plane",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_get_near_plane",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_is_supported",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_baker_set_planes",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_copy_coefficients",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_copy_evaluation_glsl",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_copy_from",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_create",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_create_at",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_destroy",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_equals",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_get_coefficient",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_get_position",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_get_visibility_mean",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_get_visibility_mean_squared",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_has_visibility",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_irradiance",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_is_zero",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_scale",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_set_coefficient",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_set_position",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_set_visibility",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_ext_visibility_weight",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_contains",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_create",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_destroy",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_get_bounds",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_get_count_x",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_get_count_y",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_get_count_z",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_get_probe",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_get_probe_count",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_get_probe_position",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_irradiance",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_is_zero",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_sample_probe",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_probe_volume_ext_set_probe",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_shaft_pass_create",

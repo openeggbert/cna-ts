@@ -638,6 +638,60 @@ typedef CNA_Result (*DecalDrawFn)(
   CNA_DecalPassHandle, CNA_Handle, const CNA_Matrix*, int32_t, int32_t);
 typedef CNA_Result (*DecalInsideBoxFn)(const CNA_Vector3*, CNA_Bool*);
 
+/* --- the engine layer's light probes ----------------------------------------------------------- */
+/*
+ * A probe is a value carried as a handle, a volume is a grid of them, and a baker fills either by
+ * drawing the scene six times per probe through a callback. The callback is the only synchronous
+ * native-to-JavaScript boundary in this family, and CNA raises it on the thread that called in, so
+ * an ordinary napi_call_function is correct and no threadsafe function is needed.
+ */
+typedef CNA_Result (*LightProbeCreateFn)(CNA_LightProbeHandle*);
+typedef CNA_Result (*LightProbeCreateAtFn)(const CNA_Vector3*, CNA_LightProbeHandle*);
+typedef CNA_Result (*LightProbeVector3OutFn)(CNA_LightProbeHandle, CNA_Vector3*);
+typedef CNA_Result (*LightProbeVector3InFn)(CNA_LightProbeHandle, const CNA_Vector3*);
+typedef CNA_Result (*LightProbeCoefficientOutFn)(CNA_LightProbeHandle, int32_t, CNA_Vector3*);
+typedef CNA_Result (*LightProbeCoefficientInFn)(
+  CNA_LightProbeHandle, int32_t, const CNA_Vector3*);
+typedef CNA_Result (*LightProbeCopyCoefficientsFn)(
+  CNA_LightProbeHandle, CNA_Vector3*, uint64_t, uint64_t*);
+typedef CNA_Result (*LightProbeIrradianceFn)(
+  CNA_LightProbeHandle, const CNA_Vector3*, CNA_Vector3*);
+typedef CNA_Result (*LightProbeSetVisibilityFn)(CNA_LightProbeHandle, int32_t, float, float);
+typedef CNA_Result (*LightProbeVisibilityOutFn)(CNA_LightProbeHandle, int32_t, float*);
+typedef CNA_Result (*LightProbeVisibilityWeightFn)(
+  CNA_LightProbeHandle, const CNA_Vector3*, float, float*);
+typedef CNA_Result (*LightProbeScaleFn)(CNA_LightProbeHandle, float);
+typedef CNA_Result (*LightProbeEqualsFn)(
+  CNA_LightProbeHandle, CNA_LightProbeHandle, CNA_Bool*);
+
+typedef CNA_Result (*LightProbeVolumeCreateFn)(
+  const CNA_BoundingBox*, int32_t, int32_t, int32_t, CNA_LightProbeVolumeHandle*);
+typedef CNA_Result (*LightProbeVolumeBoundsFn)(
+  CNA_LightProbeVolumeHandle, CNA_BoundingBox*);
+typedef CNA_Result (*LightProbeVolumePositionFn)(
+  CNA_LightProbeVolumeHandle, int32_t, int32_t, int32_t, CNA_Vector3*);
+typedef CNA_Result (*LightProbeVolumeProbeFn)(
+  CNA_LightProbeVolumeHandle, int32_t, int32_t, int32_t, CNA_LightProbeHandle);
+typedef CNA_Result (*LightProbeVolumeContainsFn)(
+  CNA_LightProbeVolumeHandle, const CNA_Vector3*, CNA_Bool*);
+typedef CNA_Result (*LightProbeVolumeSampleFn)(
+  CNA_LightProbeVolumeHandle, const CNA_Vector3*, CNA_LightProbeHandle);
+typedef CNA_Result (*LightProbeVolumeIrradianceFn)(
+  CNA_LightProbeVolumeHandle, const CNA_Vector3*, const CNA_Vector3*, CNA_Vector3*);
+
+typedef CNA_Result (*LightProbeBakerCreateFn)(CNA_Handle, CNA_LightProbeBakerHandle*);
+typedef CNA_Result (*LightProbeBakerCreateSizedFn)(
+  CNA_Handle, int32_t, CNA_LightProbeBakerHandle*);
+typedef CNA_Result (*LightProbeBakerPlanesFn)(CNA_LightProbeBakerHandle, float, float);
+typedef CNA_Result (*LightProbeBakerFaceCountFn)(int32_t*);
+typedef CNA_Result (*LightProbeBakerFaceViewFn)(
+  CNA_LightProbeBakerHandle, int32_t, const CNA_Vector3*, CNA_Matrix*);
+typedef CNA_Result (*LightProbeBakerBakeProbeFn)(
+  CNA_LightProbeBakerHandle, const CNA_Vector3*, CNA_LightProbeSceneDrawCallback, void*,
+  CNA_LightProbeHandle*);
+typedef CNA_Result (*LightProbeBakerBakeVolumeFn)(
+  CNA_LightProbeBakerHandle, CNA_LightProbeVolumeHandle, CNA_LightProbeSceneDrawCallback, void*);
+
 /* --- the engine layer's compute path ---------------------------------------------------------- */
 /*
  * Storage buffers, compute shaders and GPU timers. The handle typedefs in `engine_layer.h` are all
@@ -1622,6 +1676,54 @@ typedef struct Api {
   DecalCameraFn decal_pass_set_camera;
   DecalDrawFn decal_pass_draw;
   DecalInsideBoxFn decal_pass_is_inside_decal_box;
+
+  /* light probes: the value, the volume, and the baker that fills either */
+  LightProbeCreateFn light_probe_ext_create;
+  LightProbeCreateAtFn light_probe_ext_create_at;
+  GameHandleFn light_probe_ext_destroy;
+  TwoHandleFn light_probe_ext_copy_from;
+  LightProbeVector3OutFn light_probe_ext_get_position;
+  LightProbeVector3InFn light_probe_ext_set_position;
+  LightProbeCoefficientOutFn light_probe_ext_get_coefficient;
+  LightProbeCoefficientInFn light_probe_ext_set_coefficient;
+  LightProbeCopyCoefficientsFn light_probe_ext_copy_coefficients;
+  LightProbeIrradianceFn light_probe_ext_irradiance;
+  LightProbeSetVisibilityFn light_probe_ext_set_visibility;
+  LightProbeVisibilityOutFn light_probe_ext_get_visibility_mean;
+  LightProbeVisibilityOutFn light_probe_ext_get_visibility_mean_squared;
+  BoolGetFn light_probe_ext_has_visibility;
+  LightProbeVisibilityWeightFn light_probe_ext_visibility_weight;
+  BoolGetFn light_probe_ext_is_zero;
+  LightProbeScaleFn light_probe_ext_scale;
+  LightProbeEqualsFn light_probe_ext_equals;
+  CopyGlslFn light_probe_ext_copy_evaluation_glsl;
+  LightProbeVolumeCreateFn light_probe_volume_ext_create;
+  GameHandleFn light_probe_volume_ext_destroy;
+  LightProbeVolumeBoundsFn light_probe_volume_ext_get_bounds;
+  HandleI32OutFn light_probe_volume_ext_get_count_x;
+  HandleI32OutFn light_probe_volume_ext_get_count_y;
+  HandleI32OutFn light_probe_volume_ext_get_count_z;
+  HandleI32OutFn light_probe_volume_ext_get_probe_count;
+  LightProbeVolumePositionFn light_probe_volume_ext_get_probe_position;
+  LightProbeVolumeProbeFn light_probe_volume_ext_get_probe;
+  LightProbeVolumeProbeFn light_probe_volume_ext_set_probe;
+  LightProbeVolumeContainsFn light_probe_volume_ext_contains;
+  LightProbeVolumeSampleFn light_probe_volume_ext_sample_probe;
+  LightProbeVolumeIrradianceFn light_probe_volume_ext_irradiance;
+  BoolGetFn light_probe_volume_ext_is_zero;
+  LightProbeBakerCreateFn light_probe_baker_create;
+  LightProbeBakerCreateSizedFn light_probe_baker_create_with_face_size;
+  GameHandleFn light_probe_baker_destroy;
+  BoolGetFn light_probe_baker_is_supported;
+  HandleI32OutFn light_probe_baker_get_face_size;
+  LightProbeBakerFaceCountFn light_probe_baker_face_count;
+  HandleFloatOutFn light_probe_baker_get_near_plane;
+  HandleFloatOutFn light_probe_baker_get_far_plane;
+  LightProbeBakerPlanesFn light_probe_baker_set_planes;
+  LightProbeBakerFaceViewFn light_probe_baker_face_view;
+  LightProbeBakerBakeProbeFn light_probe_baker_bake_probe;
+  LightProbeBakerBakeVolumeFn light_probe_baker_bake_light;
+  LightProbeBakerBakeVolumeFn light_probe_baker_bake_visibility;
 
   /* the engine layer's compute path */
   PresentationParametersInitFn presentation_parameters_init;
@@ -3021,6 +3123,53 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(decal_pass_draw, DecalDrawFn, "cna_decal_pass_draw");
   LOAD_REQUIRED(decal_pass_is_inside_decal_box, DecalInsideBoxFn, "cna_decal_pass_is_inside_decal_box");
 
+  LOAD_REQUIRED(light_probe_ext_create, LightProbeCreateFn, "cna_light_probe_ext_create");
+  LOAD_REQUIRED(light_probe_ext_create_at, LightProbeCreateAtFn, "cna_light_probe_ext_create_at");
+  LOAD_REQUIRED(light_probe_ext_destroy, GameHandleFn, "cna_light_probe_ext_destroy");
+  LOAD_REQUIRED(light_probe_ext_copy_from, TwoHandleFn, "cna_light_probe_ext_copy_from");
+  LOAD_REQUIRED(light_probe_ext_get_position, LightProbeVector3OutFn, "cna_light_probe_ext_get_position");
+  LOAD_REQUIRED(light_probe_ext_set_position, LightProbeVector3InFn, "cna_light_probe_ext_set_position");
+  LOAD_REQUIRED(light_probe_ext_get_coefficient, LightProbeCoefficientOutFn, "cna_light_probe_ext_get_coefficient");
+  LOAD_REQUIRED(light_probe_ext_set_coefficient, LightProbeCoefficientInFn, "cna_light_probe_ext_set_coefficient");
+  LOAD_REQUIRED(light_probe_ext_copy_coefficients, LightProbeCopyCoefficientsFn, "cna_light_probe_ext_copy_coefficients");
+  LOAD_REQUIRED(light_probe_ext_irradiance, LightProbeIrradianceFn, "cna_light_probe_ext_irradiance");
+  LOAD_REQUIRED(light_probe_ext_set_visibility, LightProbeSetVisibilityFn, "cna_light_probe_ext_set_visibility");
+  LOAD_REQUIRED(light_probe_ext_get_visibility_mean, LightProbeVisibilityOutFn, "cna_light_probe_ext_get_visibility_mean");
+  LOAD_REQUIRED(light_probe_ext_get_visibility_mean_squared, LightProbeVisibilityOutFn, "cna_light_probe_ext_get_visibility_mean_squared");
+  LOAD_REQUIRED(light_probe_ext_has_visibility, BoolGetFn, "cna_light_probe_ext_has_visibility");
+  LOAD_REQUIRED(light_probe_ext_visibility_weight, LightProbeVisibilityWeightFn, "cna_light_probe_ext_visibility_weight");
+  LOAD_REQUIRED(light_probe_ext_is_zero, BoolGetFn, "cna_light_probe_ext_is_zero");
+  LOAD_REQUIRED(light_probe_ext_scale, LightProbeScaleFn, "cna_light_probe_ext_scale");
+  LOAD_REQUIRED(light_probe_ext_equals, LightProbeEqualsFn, "cna_light_probe_ext_equals");
+  LOAD_REQUIRED(light_probe_ext_copy_evaluation_glsl, CopyGlslFn, "cna_light_probe_ext_copy_evaluation_glsl");
+  LOAD_REQUIRED(light_probe_volume_ext_create, LightProbeVolumeCreateFn, "cna_light_probe_volume_ext_create");
+  LOAD_REQUIRED(light_probe_volume_ext_destroy, GameHandleFn, "cna_light_probe_volume_ext_destroy");
+  LOAD_REQUIRED(light_probe_volume_ext_get_bounds, LightProbeVolumeBoundsFn, "cna_light_probe_volume_ext_get_bounds");
+  LOAD_REQUIRED(light_probe_volume_ext_get_count_x, HandleI32OutFn, "cna_light_probe_volume_ext_get_count_x");
+  LOAD_REQUIRED(light_probe_volume_ext_get_count_y, HandleI32OutFn, "cna_light_probe_volume_ext_get_count_y");
+  LOAD_REQUIRED(light_probe_volume_ext_get_count_z, HandleI32OutFn, "cna_light_probe_volume_ext_get_count_z");
+  LOAD_REQUIRED(light_probe_volume_ext_get_probe_count, HandleI32OutFn, "cna_light_probe_volume_ext_get_probe_count");
+  LOAD_REQUIRED(light_probe_volume_ext_get_probe_position, LightProbeVolumePositionFn, "cna_light_probe_volume_ext_get_probe_position");
+  LOAD_REQUIRED(light_probe_volume_ext_get_probe, LightProbeVolumeProbeFn, "cna_light_probe_volume_ext_get_probe");
+  LOAD_REQUIRED(light_probe_volume_ext_set_probe, LightProbeVolumeProbeFn, "cna_light_probe_volume_ext_set_probe");
+  LOAD_REQUIRED(light_probe_volume_ext_contains, LightProbeVolumeContainsFn, "cna_light_probe_volume_ext_contains");
+  LOAD_REQUIRED(light_probe_volume_ext_sample_probe, LightProbeVolumeSampleFn, "cna_light_probe_volume_ext_sample_probe");
+  LOAD_REQUIRED(light_probe_volume_ext_irradiance, LightProbeVolumeIrradianceFn, "cna_light_probe_volume_ext_irradiance");
+  LOAD_REQUIRED(light_probe_volume_ext_is_zero, BoolGetFn, "cna_light_probe_volume_ext_is_zero");
+  LOAD_REQUIRED(light_probe_baker_create, LightProbeBakerCreateFn, "cna_light_probe_baker_create");
+  LOAD_REQUIRED(light_probe_baker_create_with_face_size, LightProbeBakerCreateSizedFn, "cna_light_probe_baker_create_with_face_size");
+  LOAD_REQUIRED(light_probe_baker_destroy, GameHandleFn, "cna_light_probe_baker_destroy");
+  LOAD_REQUIRED(light_probe_baker_is_supported, BoolGetFn, "cna_light_probe_baker_is_supported");
+  LOAD_REQUIRED(light_probe_baker_get_face_size, HandleI32OutFn, "cna_light_probe_baker_get_face_size");
+  LOAD_REQUIRED(light_probe_baker_face_count, LightProbeBakerFaceCountFn, "cna_light_probe_baker_face_count");
+  LOAD_REQUIRED(light_probe_baker_get_near_plane, HandleFloatOutFn, "cna_light_probe_baker_get_near_plane");
+  LOAD_REQUIRED(light_probe_baker_get_far_plane, HandleFloatOutFn, "cna_light_probe_baker_get_far_plane");
+  LOAD_REQUIRED(light_probe_baker_set_planes, LightProbeBakerPlanesFn, "cna_light_probe_baker_set_planes");
+  LOAD_REQUIRED(light_probe_baker_face_view, LightProbeBakerFaceViewFn, "cna_light_probe_baker_face_view");
+  LOAD_REQUIRED(light_probe_baker_bake_probe, LightProbeBakerBakeProbeFn, "cna_light_probe_baker_bake_probe");
+  LOAD_REQUIRED(light_probe_baker_bake_light, LightProbeBakerBakeVolumeFn, "cna_light_probe_baker_bake_light");
+  LOAD_REQUIRED(light_probe_baker_bake_visibility, LightProbeBakerBakeVolumeFn, "cna_light_probe_baker_bake_visibility");
+
   LOAD_REQUIRED(presentation_parameters_init, PresentationParametersInitFn, "cna_presentation_parameters_init");
   LOAD_REQUIRED(graphics_device_create, StandaloneDeviceCreateFn, "cna_graphics_device_create");
   LOAD_REQUIRED(graphics_device_destroy, GameHandleFn, "cna_graphics_device_destroy");
@@ -3647,6 +3796,15 @@ static int read_vector3(napi_env env, napi_value object, const char* name, CNA_V
   out->x = (float) values[0];
   out->y = (float) values[1];
   out->z = (float) values[2];
+  return 1;
+}
+
+static int read_bounding_box(napi_env env, napi_value value, CNA_BoundingBox* box) {
+  if (!read_vector3(env, value, "Min", &box->min) ||
+      !read_vector3(env, value, "Max", &box->max)) {
+    throw_message(env, "scene bounds need a Min and a Max");
+    return 0;
+  }
   return 1;
 }
 
@@ -15284,6 +15442,696 @@ static napi_value decal_pass_draw(napi_env env, napi_callback_info info) {
   return undefined_result(env, "cna_decal_pass_draw");
 }
 
+/* --- the engine layer's light probes ----------------------------------------------------------- */
+
+static napi_value light_probe_create(napi_env env, napi_callback_info info) {
+  CNA_LightProbeHandle probe = 0;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.light_probe_ext_create(&probe);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_light_probe_ext_create", result);
+  return make_handle(env, probe);
+}
+
+static napi_value light_probe_create_at(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Vector3 position = {0, 0, 0};
+  CNA_LightProbeHandle probe = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_vector3_fields(env, args[0], &position)) {
+    return throw_message(env, "expected a position with X, Y and Z");
+  }
+  const CNA_Result result = g_api.light_probe_ext_create_at(&position, &probe);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_ext_create_at", result);
+  }
+  return make_handle(env, probe);
+}
+
+static napi_value light_probe_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.light_probe_ext_destroy, "cna_light_probe_ext_destroy");
+}
+
+static napi_value light_probe_copy_from(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle destination = 0, source = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &destination) ||
+      !read_handle(env, args[1], &source)) return NULL;
+  const CNA_Result result = g_api.light_probe_ext_copy_from(destination, source);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_ext_copy_from", result);
+  }
+  return undefined_result(env, "cna_light_probe_ext_copy_from");
+}
+
+/* One Vector3 out of one handle, which four routes in this family share. */
+static napi_value probe_vector3(
+  napi_env env, napi_callback_info info, LightProbeVector3OutFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle probe = 0;
+  CNA_Vector3 value = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &probe)) return NULL;
+  const CNA_Result result = route(probe, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), name);
+  if (!set_vector3_fields(env, output, &value)) return throw_napi(env, name);
+  return output;
+}
+
+static napi_value light_probe_get_position(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.light_probe_ext_get_position,
+    "cna_light_probe_ext_get_position");
+}
+
+static napi_value light_probe_set_position(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle probe = 0;
+  CNA_Vector3 position = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &probe) ||
+      !read_vector3_fields(env, args[1], &position)) {
+    return throw_message(env, "expected a probe and a position with X, Y and Z");
+  }
+  const CNA_Result result = g_api.light_probe_ext_set_position(probe, &position);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_ext_set_position", result);
+  }
+  return undefined_result(env, "cna_light_probe_ext_set_position");
+}
+
+static napi_value light_probe_get_coefficient(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle probe = 0;
+  int32_t index = 0;
+  CNA_Vector3 value = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &probe) ||
+      napi_get_value_int32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a probe and a coefficient index");
+  }
+  const CNA_Result result = g_api.light_probe_ext_get_coefficient(probe, index, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_ext_get_coefficient", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "light probe coefficient");
+  if (!set_vector3_fields(env, output, &value)) return throw_napi(env, "light probe coefficient");
+  return output;
+}
+
+static napi_value light_probe_set_coefficient(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle probe = 0;
+  int32_t index = 0;
+  CNA_Vector3 value = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &probe) ||
+      napi_get_value_int32(env, args[1], &index) != napi_ok ||
+      !read_vector3_fields(env, args[2], &value)) {
+    return throw_message(env, "expected a probe, an index and a coefficient");
+  }
+  const CNA_Result result = g_api.light_probe_ext_set_coefficient(probe, index, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_ext_set_coefficient", result);
+  }
+  return undefined_result(env, "cna_light_probe_ext_set_coefficient");
+}
+
+/* Asked with a zero capacity first, so the array is the length CNA reports rather than one
+   assumed here. */
+static napi_value light_probe_copy_coefficients(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle probe = 0;
+  uint64_t required = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &probe)) return NULL;
+  CNA_Result result = g_api.light_probe_ext_copy_coefficients(probe, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_light_probe_ext_copy_coefficients", result);
+  }
+  CNA_Vector3* values = (CNA_Vector3*) calloc((size_t) required + 1U, sizeof(CNA_Vector3));
+  if (!values) return throw_message(env, "light probe coefficient allocation failed");
+  result = g_api.light_probe_ext_copy_coefficients(probe, values, required, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(values);
+    return throw_result(env, "cna_light_probe_ext_copy_coefficients", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) required, &output) != napi_ok) {
+    free(values);
+    return throw_napi(env, "light probe coefficients");
+  }
+  for (uint64_t index = 0; index < required; index += 1) {
+    napi_value element;
+    if (napi_create_object(env, &element) != napi_ok ||
+        !set_vector3_fields(env, element, &values[index]) ||
+        napi_set_element(env, output, (uint32_t) index, element) != napi_ok) {
+      free(values);
+      return throw_napi(env, "light probe coefficients");
+    }
+  }
+  free(values);
+  return output;
+}
+
+static napi_value light_probe_irradiance(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle probe = 0;
+  CNA_Vector3 normal = {0, 0, 0}, irradiance = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &probe) ||
+      !read_vector3_fields(env, args[1], &normal)) {
+    return throw_message(env, "expected a probe and a normal with X, Y and Z");
+  }
+  const CNA_Result result = g_api.light_probe_ext_irradiance(probe, &normal, &irradiance);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_ext_irradiance", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "light probe irradiance");
+  if (!set_vector3_fields(env, output, &irradiance)) {
+    return throw_napi(env, "light probe irradiance");
+  }
+  return output;
+}
+
+static napi_value light_probe_set_visibility(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle probe = 0;
+  int32_t direction = 0;
+  double mean = 0, mean_squared = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &probe) ||
+      napi_get_value_int32(env, args[1], &direction) != napi_ok ||
+      napi_get_value_double(env, args[2], &mean) != napi_ok ||
+      napi_get_value_double(env, args[3], &mean_squared) != napi_ok) {
+    return throw_message(env, "expected a probe, a direction and two distances");
+  }
+  const CNA_Result result = g_api.light_probe_ext_set_visibility(
+    probe, direction, (float) mean, (float) mean_squared);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_ext_set_visibility", result);
+  }
+  return undefined_result(env, "cna_light_probe_ext_set_visibility");
+}
+
+static napi_value probe_visibility(
+  napi_env env, napi_callback_info info, LightProbeVisibilityOutFn route, const char* name
+) {
+  napi_value args[2], output;
+  CNA_Handle probe = 0;
+  int32_t direction = 0;
+  float value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &probe) ||
+      napi_get_value_int32(env, args[1], &direction) != napi_ok) {
+    return throw_message(env, "expected a probe and a direction");
+  }
+  const CNA_Result result = route(probe, direction, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) value, &output), name);
+  return output;
+}
+
+static napi_value light_probe_get_visibility_mean(napi_env env, napi_callback_info info) {
+  return probe_visibility(env, info, g_api.light_probe_ext_get_visibility_mean,
+    "cna_light_probe_ext_get_visibility_mean");
+}
+
+static napi_value light_probe_get_visibility_mean_squared(napi_env env, napi_callback_info info) {
+  return probe_visibility(env, info, g_api.light_probe_ext_get_visibility_mean_squared,
+    "cna_light_probe_ext_get_visibility_mean_squared");
+}
+
+static napi_value light_probe_has_visibility(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.light_probe_ext_has_visibility,
+    "cna_light_probe_ext_has_visibility");
+}
+
+static napi_value light_probe_visibility_weight(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  CNA_Handle probe = 0;
+  CNA_Vector3 direction = {0, 0, 0};
+  double distance = 0;
+  float weight = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &probe) ||
+      !read_vector3_fields(env, args[1], &direction) ||
+      napi_get_value_double(env, args[2], &distance) != napi_ok) {
+    return throw_message(env, "expected a probe, a direction and a distance");
+  }
+  const CNA_Result result = g_api.light_probe_ext_visibility_weight(
+    probe, &direction, (float) distance, &weight);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_ext_visibility_weight", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) weight, &output),
+    "cna_light_probe_ext_visibility_weight");
+  return output;
+}
+
+static napi_value light_probe_is_zero(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.light_probe_ext_is_zero, "cna_light_probe_ext_is_zero");
+}
+
+static napi_value light_probe_scale(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.light_probe_ext_scale, "cna_light_probe_ext_scale");
+}
+
+static napi_value light_probe_equals(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle first = 0, second = 0;
+  CNA_Bool equal = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &first) ||
+      !read_handle(env, args[1], &second)) return NULL;
+  const CNA_Result result = g_api.light_probe_ext_equals(first, second, &equal);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_light_probe_ext_equals", result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, equal == CNA_TRUE, &output),
+    "cna_light_probe_ext_equals");
+  return output;
+}
+
+static napi_value light_probe_evaluation_glsl(napi_env env, napi_callback_info info) {
+  uint64_t required = 0;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  CNA_Result result = g_api.light_probe_ext_copy_evaluation_glsl(NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_light_probe_ext_copy_evaluation_glsl", result);
+  }
+  char* text = (char*) malloc((size_t) required + 1U);
+  if (!text) return throw_message(env, "light probe GLSL allocation failed");
+  result = g_api.light_probe_ext_copy_evaluation_glsl(text, required + 1U, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(text);
+    return throw_result(env, "cna_light_probe_ext_copy_evaluation_glsl", result);
+  }
+  napi_value output = NULL;
+  const napi_status status = napi_create_string_utf8(env, text, (size_t) required, &output);
+  free(text);
+  if (status != napi_ok) return throw_message(env, "the light probe GLSL is not UTF-8");
+  return output;
+}
+
+static napi_value light_probe_volume_create(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_BoundingBox bounds;
+  int32_t counts[3] = {0, 0, 0};
+  CNA_LightProbeVolumeHandle volume = 0;
+  memset(&bounds, 0, sizeof(bounds));
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_bounding_box(env, args[0], &bounds)) return NULL;
+  for (size_t index = 0; index < 3; index += 1) {
+    if (napi_get_value_int32(env, args[index + 1], &counts[index]) != napi_ok) {
+      return throw_message(env, "a probe volume needs three counts");
+    }
+  }
+  const CNA_Result result = g_api.light_probe_volume_ext_create(
+    &bounds, counts[0], counts[1], counts[2], &volume);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_volume_ext_create", result);
+  }
+  return make_handle(env, volume);
+}
+
+static napi_value light_probe_volume_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.light_probe_volume_ext_destroy,
+    "cna_light_probe_volume_ext_destroy");
+}
+
+static napi_value light_probe_volume_get_bounds(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle volume = 0;
+  CNA_BoundingBox bounds;
+  memset(&bounds, 0, sizeof(bounds));
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &volume)) return NULL;
+  const CNA_Result result = g_api.light_probe_volume_ext_get_bounds(volume, &bounds);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_volume_ext_get_bounds", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "probe volume bounds");
+  if (!set_vector3(env, output, "Min", &bounds.min) ||
+      !set_vector3(env, output, "Max", &bounds.max)) {
+    return throw_napi(env, "probe volume bounds");
+  }
+  return output;
+}
+
+static napi_value light_probe_volume_get_count_x(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.light_probe_volume_ext_get_count_x,
+    "cna_light_probe_volume_ext_get_count_x");
+}
+static napi_value light_probe_volume_get_count_y(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.light_probe_volume_ext_get_count_y,
+    "cna_light_probe_volume_ext_get_count_y");
+}
+static napi_value light_probe_volume_get_count_z(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.light_probe_volume_ext_get_count_z,
+    "cna_light_probe_volume_ext_get_count_z");
+}
+static napi_value light_probe_volume_get_probe_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.light_probe_volume_ext_get_probe_count,
+    "cna_light_probe_volume_ext_get_probe_count");
+}
+
+static int read_cell(napi_env env, napi_value* args, int32_t* cell) {
+  for (size_t index = 0; index < 3; index += 1) {
+    if (napi_get_value_int32(env, args[index + 1], &cell[index]) != napi_ok) {
+      throw_message(env, "a probe volume cell needs three indices");
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static napi_value light_probe_volume_get_probe_position(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  CNA_Handle volume = 0;
+  int32_t cell[3] = {0, 0, 0};
+  CNA_Vector3 position = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &volume) || !read_cell(env, args, cell)) return NULL;
+  const CNA_Result result = g_api.light_probe_volume_ext_get_probe_position(
+    volume, cell[0], cell[1], cell[2], &position);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_volume_ext_get_probe_position", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "probe position");
+  if (!set_vector3_fields(env, output, &position)) return throw_napi(env, "probe position");
+  return output;
+}
+
+/* Both the read and the write copy a probe by value into or out of a caller's handle. */
+static napi_value probe_volume_cell(
+  napi_env env, napi_callback_info info, LightProbeVolumeProbeFn route, const char* name
+) {
+  napi_value args[5];
+  CNA_Handle volume = 0, probe = 0;
+  int32_t cell[3] = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &volume) || !read_cell(env, args, cell) ||
+      !read_handle(env, args[4], &probe)) return NULL;
+  const CNA_Result result = route(volume, cell[0], cell[1], cell[2], probe);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value light_probe_volume_get_probe(napi_env env, napi_callback_info info) {
+  return probe_volume_cell(env, info, g_api.light_probe_volume_ext_get_probe,
+    "cna_light_probe_volume_ext_get_probe");
+}
+static napi_value light_probe_volume_set_probe(napi_env env, napi_callback_info info) {
+  return probe_volume_cell(env, info, g_api.light_probe_volume_ext_set_probe,
+    "cna_light_probe_volume_ext_set_probe");
+}
+
+static napi_value light_probe_volume_contains(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle volume = 0;
+  CNA_Vector3 position = {0, 0, 0};
+  CNA_Bool contains = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &volume) ||
+      !read_vector3_fields(env, args[1], &position)) {
+    return throw_message(env, "expected a volume and a position with X, Y and Z");
+  }
+  const CNA_Result result = g_api.light_probe_volume_ext_contains(volume, &position, &contains);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_volume_ext_contains", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, contains == CNA_TRUE, &output),
+    "cna_light_probe_volume_ext_contains");
+  return output;
+}
+
+static napi_value light_probe_volume_sample_probe(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle volume = 0, probe = 0;
+  CNA_Vector3 position = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &volume) ||
+      !read_vector3_fields(env, args[1], &position) ||
+      !read_handle(env, args[2], &probe)) {
+    return throw_message(env, "expected a volume, a position and a probe to overwrite");
+  }
+  const CNA_Result result = g_api.light_probe_volume_ext_sample_probe(volume, &position, probe);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_volume_ext_sample_probe", result);
+  }
+  return undefined_result(env, "cna_light_probe_volume_ext_sample_probe");
+}
+
+static napi_value light_probe_volume_irradiance(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  CNA_Handle volume = 0;
+  CNA_Vector3 position = {0, 0, 0}, normal = {0, 0, 0}, irradiance = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &volume) ||
+      !read_vector3_fields(env, args[1], &position) ||
+      !read_vector3_fields(env, args[2], &normal)) {
+    return throw_message(env, "expected a volume, a position and a normal");
+  }
+  const CNA_Result result =
+    g_api.light_probe_volume_ext_irradiance(volume, &position, &normal, &irradiance);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_volume_ext_irradiance", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "probe volume irradiance");
+  if (!set_vector3_fields(env, output, &irradiance)) {
+    return throw_napi(env, "probe volume irradiance");
+  }
+  return output;
+}
+
+static napi_value light_probe_volume_is_zero(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.light_probe_volume_ext_is_zero,
+    "cna_light_probe_volume_ext_is_zero");
+}
+
+static napi_value light_probe_baker_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.light_probe_baker_create, "cna_light_probe_baker_create");
+}
+
+static napi_value light_probe_baker_create_with_face_size(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2];
+  CNA_Handle device = 0, baker = 0;
+  int32_t face_size = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &face_size) != napi_ok) {
+    return throw_message(env, "expected a device and a face size");
+  }
+  const CNA_Result result =
+    g_api.light_probe_baker_create_with_face_size(device, face_size, &baker);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_baker_create_with_face_size", result);
+  }
+  return make_handle(env, baker);
+}
+
+static napi_value light_probe_baker_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.light_probe_baker_destroy,
+    "cna_light_probe_baker_destroy");
+}
+
+static napi_value light_probe_baker_is_supported(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.light_probe_baker_is_supported,
+    "cna_light_probe_baker_is_supported");
+}
+
+static napi_value light_probe_baker_get_face_size(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.light_probe_baker_get_face_size,
+    "cna_light_probe_baker_get_face_size");
+}
+
+static napi_value light_probe_baker_face_count(napi_env env, napi_callback_info info) {
+  napi_value output;
+  int32_t count = 0;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.light_probe_baker_face_count(&count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_baker_face_count", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, count, &output),
+    "cna_light_probe_baker_face_count");
+  return output;
+}
+
+static napi_value light_probe_baker_get_near_plane(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.light_probe_baker_get_near_plane,
+    "cna_light_probe_baker_get_near_plane");
+}
+static napi_value light_probe_baker_get_far_plane(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.light_probe_baker_get_far_plane,
+    "cna_light_probe_baker_get_far_plane");
+}
+
+static napi_value light_probe_baker_set_planes(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle baker = 0;
+  double near_plane = 0, far_plane = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &baker) ||
+      napi_get_value_double(env, args[1], &near_plane) != napi_ok ||
+      napi_get_value_double(env, args[2], &far_plane) != napi_ok) {
+    return throw_message(env, "expected a baker and a pair of planes");
+  }
+  const CNA_Result result =
+    g_api.light_probe_baker_set_planes(baker, (float) near_plane, (float) far_plane);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_baker_set_planes", result);
+  }
+  return undefined_result(env, "cna_light_probe_baker_set_planes");
+}
+
+static napi_value light_probe_baker_face_view(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle baker = 0;
+  int32_t face = 0;
+  CNA_Vector3 position = {0, 0, 0};
+  CNA_Matrix view;
+  memset(&view, 0, sizeof(view));
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &baker) ||
+      napi_get_value_int32(env, args[1], &face) != napi_ok ||
+      !read_vector3_fields(env, args[2], &position)) {
+    return throw_message(env, "expected a baker, a face index and a position");
+  }
+  const CNA_Result result = g_api.light_probe_baker_face_view(baker, face, &position, &view);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_baker_face_view", result);
+  }
+  return make_matrix16(env, &view, "cna_light_probe_baker_face_view");
+}
+
+/*
+ * The bake callback.
+ *
+ * CNA calls it once per cube face, on the thread that called into the bake route, so the
+ * JavaScript function is called directly. Its own exception is *captured* rather than allowed to
+ * unwind through C++: the baker owns a bound render target for the duration, and an exception
+ * escaping the callback would leave it bound. The capture is rethrown after the bake route
+ * returns, so a caller still sees its own error rather than a silent success.
+ */
+typedef struct BakeContext {
+  napi_env env;
+  napi_value callback;
+  napi_ref exception;
+  int failed;
+  int calls;
+} BakeContext;
+
+static void on_bake_face(
+  const CNA_Matrix* view, const CNA_Matrix* projection, void* raw
+) {
+  BakeContext* context = (BakeContext*) raw;
+  /* Once a face has failed the rest are skipped: the bake is already going to be reported as a
+     failure, and calling on with the caller's exception pending would replace it. */
+  if (!context || context->failed) return;
+  context->calls += 1;
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(context->env, &scope) != napi_ok) {
+    context->failed = 1;
+    return;
+  }
+  napi_value arguments[2], receiver, result;
+  napi_status status = napi_get_undefined(context->env, &receiver);
+  if (status == napi_ok) {
+    arguments[0] = make_matrix16(context->env, view, "bake view");
+    arguments[1] = make_matrix16(context->env, projection, "bake projection");
+    if (arguments[0] == NULL || arguments[1] == NULL) status = napi_pending_exception;
+  }
+  if (status == napi_ok) {
+    status = napi_call_function(context->env, receiver, context->callback, 2, arguments, &result);
+  }
+  if (status == napi_pending_exception) {
+    napi_value exception;
+    if (napi_get_and_clear_last_exception(context->env, &exception) == napi_ok) {
+      /* A reference, not the value: the handle scope closes below and the rethrow happens after
+         the bake route has returned, which is well outside this scope's life. */
+      napi_create_reference(context->env, exception, 1, &context->exception);
+    }
+    context->failed = 1;
+  } else if (status != napi_ok) {
+    context->failed = 1;
+  }
+  napi_close_handle_scope(context->env, scope);
+}
+
+/* Rethrows the callback's own exception, if it had one, once CNA has unwound its own state. */
+static int rethrow_bake_exception(BakeContext* context) {
+  if (!context->exception) return 0;
+  napi_value exception;
+  const napi_status status =
+    napi_get_reference_value(context->env, context->exception, &exception);
+  napi_delete_reference(context->env, context->exception);
+  context->exception = NULL;
+  if (status != napi_ok) return 0;
+  napi_throw(context->env, exception);
+  return 1;
+}
+
+static napi_value light_probe_baker_bake_probe(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle baker = 0;
+  CNA_Vector3 position = {0, 0, 0};
+  CNA_LightProbeHandle probe = 0;
+  napi_valuetype kind = napi_undefined;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &baker) ||
+      !read_vector3_fields(env, args[1], &position)) {
+    return throw_message(env, "expected a baker, a position and a scene callback");
+  }
+  if (napi_typeof(env, args[2], &kind) != napi_ok || kind != napi_function) {
+    return throw_message(env, "the scene callback must be a function");
+  }
+  BakeContext context = {env, args[2], NULL, 0, 0};
+  const CNA_Result result =
+    g_api.light_probe_baker_bake_probe(baker, &position, on_bake_face, &context, &probe);
+  if (rethrow_bake_exception(&context)) return NULL;
+  if (context.failed) return throw_message(env, "the scene callback failed");
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_light_probe_baker_bake_probe", result);
+  }
+  return make_handle(env, probe);
+}
+
+static napi_value bake_volume(
+  napi_env env, napi_callback_info info, LightProbeBakerBakeVolumeFn route, const char* name
+) {
+  napi_value args[3], output;
+  CNA_Handle baker = 0, volume = 0;
+  napi_valuetype kind = napi_undefined;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &baker) ||
+      !read_handle(env, args[1], &volume)) return NULL;
+  if (napi_typeof(env, args[2], &kind) != napi_ok || kind != napi_function) {
+    return throw_message(env, "the scene callback must be a function");
+  }
+  BakeContext context = {env, args[2], NULL, 0, 0};
+  const CNA_Result result = route(baker, volume, on_bake_face, &context);
+  if (rethrow_bake_exception(&context)) return NULL;
+  if (context.failed) return throw_message(env, "the scene callback failed");
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_int32(env, context.calls, &output), name);
+  return output;
+}
+
+static napi_value light_probe_baker_bake_light(napi_env env, napi_callback_info info) {
+  return bake_volume(env, info, g_api.light_probe_baker_bake_light,
+    "cna_light_probe_baker_bake_light");
+}
+
+static napi_value light_probe_baker_bake_visibility(napi_env env, napi_callback_info info) {
+  return bake_volume(env, info, g_api.light_probe_baker_bake_visibility,
+    "cna_light_probe_baker_bake_visibility");
+}
+
 static napi_value decal_pass_is_inside_decal_box(napi_env env, napi_callback_info info) {
   napi_value args[1], output;
   CNA_Vector3 point = {0, 0, 0};
@@ -16129,15 +16977,6 @@ static napi_value shadow_map_filter_radius_for_quality(napi_env env, napi_callba
 }
 
 /* A bounding box argument, as two Vector3 fields. */
-static int read_bounding_box(napi_env env, napi_value value, CNA_BoundingBox* box) {
-  if (!read_vector3(env, value, "Min", &box->min) ||
-      !read_vector3(env, value, "Max", &box->max)) {
-    throw_message(env, "scene bounds need a Min and a Max");
-    return 0;
-  }
-  return 1;
-}
-
 static napi_value shadow_map_compute_light_view(napi_env env, napi_callback_info info) {
   napi_value args[2], entry;
   CNA_DirectionalLightEXT light;
@@ -19388,6 +20227,52 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "setDecalCamera", NULL, decal_pass_set_camera, NULL, NULL, NULL, napi_default, NULL },
     { "drawDecal", NULL, decal_pass_draw, NULL, NULL, NULL, napi_default, NULL },
     { "isInsideDecalBox", NULL, decal_pass_is_inside_decal_box, NULL, NULL, NULL, napi_default, NULL },
+    { "createLightProbe", NULL, light_probe_create, NULL, NULL, NULL, napi_default, NULL },
+    { "createLightProbeAt", NULL, light_probe_create_at, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyLightProbe", NULL, light_probe_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "copyLightProbeFrom", NULL, light_probe_copy_from, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbePosition", NULL, light_probe_get_position, NULL, NULL, NULL, napi_default, NULL },
+    { "setLightProbePosition", NULL, light_probe_set_position, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeCoefficient", NULL, light_probe_get_coefficient, NULL, NULL, NULL, napi_default, NULL },
+    { "setLightProbeCoefficient", NULL, light_probe_set_coefficient, NULL, NULL, NULL, napi_default, NULL },
+    { "copyLightProbeCoefficients", NULL, light_probe_copy_coefficients, NULL, NULL, NULL, napi_default, NULL },
+    { "lightProbeIrradiance", NULL, light_probe_irradiance, NULL, NULL, NULL, napi_default, NULL },
+    { "setLightProbeVisibility", NULL, light_probe_set_visibility, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeVisibilityMean", NULL, light_probe_get_visibility_mean, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeVisibilityMeanSquared", NULL, light_probe_get_visibility_mean_squared, NULL, NULL, NULL, napi_default, NULL },
+    { "lightProbeHasVisibility", NULL, light_probe_has_visibility, NULL, NULL, NULL, napi_default, NULL },
+    { "lightProbeVisibilityWeight", NULL, light_probe_visibility_weight, NULL, NULL, NULL, napi_default, NULL },
+    { "isLightProbeZero", NULL, light_probe_is_zero, NULL, NULL, NULL, napi_default, NULL },
+    { "scaleLightProbe", NULL, light_probe_scale, NULL, NULL, NULL, napi_default, NULL },
+    { "lightProbeEquals", NULL, light_probe_equals, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeEvaluationGlsl", NULL, light_probe_evaluation_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "createLightProbeVolume", NULL, light_probe_volume_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyLightProbeVolume", NULL, light_probe_volume_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeVolumeBounds", NULL, light_probe_volume_get_bounds, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeVolumeCountX", NULL, light_probe_volume_get_count_x, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeVolumeCountY", NULL, light_probe_volume_get_count_y, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeVolumeCountZ", NULL, light_probe_volume_get_count_z, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeVolumeProbeCount", NULL, light_probe_volume_get_probe_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeVolumeProbePosition", NULL, light_probe_volume_get_probe_position, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeVolumeProbe", NULL, light_probe_volume_get_probe, NULL, NULL, NULL, napi_default, NULL },
+    { "setLightProbeVolumeProbe", NULL, light_probe_volume_set_probe, NULL, NULL, NULL, napi_default, NULL },
+    { "lightProbeVolumeContains", NULL, light_probe_volume_contains, NULL, NULL, NULL, napi_default, NULL },
+    { "sampleLightProbeVolume", NULL, light_probe_volume_sample_probe, NULL, NULL, NULL, napi_default, NULL },
+    { "lightProbeVolumeIrradiance", NULL, light_probe_volume_irradiance, NULL, NULL, NULL, napi_default, NULL },
+    { "isLightProbeVolumeZero", NULL, light_probe_volume_is_zero, NULL, NULL, NULL, napi_default, NULL },
+    { "createLightProbeBaker", NULL, light_probe_baker_create, NULL, NULL, NULL, napi_default, NULL },
+    { "createLightProbeBakerWithFaceSize", NULL, light_probe_baker_create_with_face_size, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyLightProbeBaker", NULL, light_probe_baker_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "isLightProbeBakerSupported", NULL, light_probe_baker_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeBakerFaceSize", NULL, light_probe_baker_get_face_size, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeBakerFaceCount", NULL, light_probe_baker_face_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeBakerNearPlane", NULL, light_probe_baker_get_near_plane, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeBakerFarPlane", NULL, light_probe_baker_get_far_plane, NULL, NULL, NULL, napi_default, NULL },
+    { "setLightProbeBakerPlanes", NULL, light_probe_baker_set_planes, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightProbeBakerFaceView", NULL, light_probe_baker_face_view, NULL, NULL, NULL, napi_default, NULL },
+    { "bakeLightProbe", NULL, light_probe_baker_bake_probe, NULL, NULL, NULL, napi_default, NULL },
+    { "bakeLightProbeVolumeLight", NULL, light_probe_baker_bake_light, NULL, NULL, NULL, napi_default, NULL },
+    { "bakeLightProbeVolumeVisibility", NULL, light_probe_baker_bake_visibility, NULL, NULL, NULL, napi_default, NULL },
     { "supportsGraphicsCapability", NULL, graphics_device_supports_capability, NULL, NULL, NULL, napi_default, NULL },
     { "createStandaloneGraphicsDevice", NULL, create_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },
     { "destroyStandaloneGraphicsDevice", NULL, destroy_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },

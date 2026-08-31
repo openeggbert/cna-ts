@@ -1166,6 +1166,226 @@ class WindowedProbeGame extends Game {
       }
     });
 
+    // --- light probes, baked from a real scene ---------------------------------------------------
+    //
+    // The baker renders six faces per probe and projects what it read back onto nine
+    // spherical-harmonic coefficients. That makes a bake checkable without agreeing with CNA about
+    // any convention: light exactly one face, and the probe has to be brightest looking that way
+    // and darkest looking the other. Which face is lit is decided *inside* the callback, by
+    // matching the view CNA handed over against the one FaceView reports -- so the callback's own
+    // behaviour is the evidence that each face got its own camera.
+    record("lightProbes", () => {
+      const {
+        IsGraphicsExtensionLayerAvailable, LightProbe, LightProbeBaker, LightProbeVolume,
+      } = computeModule;
+      const FACE_SIZE = 16;
+      const NEAR = 0.5;
+      const FAR = 40;
+      const owned = [];
+      try {
+        let baker;
+        try {
+          baker = new LightProbeBaker(device, FACE_SIZE);
+        } catch (error) {
+          // No engine layer in this build; there is no baker to make.
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(baker);
+        baker.SetPlanes(NEAR, FAR);
+        const result = {
+          supported: baker.IsSupported,
+          faceSize: baker.FaceSize,
+          faceCount: LightProbeBaker.FaceCount,
+          planes: [baker.NearPlane, baker.FarPlane],
+        };
+        if (!result.supported) return result;
+
+        const ORIGIN = new Vector3(0, 0, 0);
+        const faceViewsAt = (position) => Array.from(
+          { length: LightProbeBaker.FaceCount },
+          (_, face) => matrixRow(baker.FaceView(face, position)),
+        );
+        const sameMatrix = (left, right) =>
+          left.every((value, index) => Math.abs(value - right[index]) < 1e-5);
+        // Which of the cameras this is, decided by the matrix rather than by a counter: a bake that
+        // handed the same view to every face, or the faces in another order, cannot pass this.
+        const identify = (view, views) => views.findIndex((candidate) => sameMatrix(view, candidate));
+
+        const bakeWith = (paint, from = ORIGIN) => {
+          const views = faceViewsAt(from);
+          const order = [];
+          const projections = [];
+          const probe = baker.BakeProbe(from, (view, projection) => {
+            const face = identify(matrixRow(view), views);
+            order.push(face);
+            projections.push(matrixRow(projection));
+            device.Clear(paint(face));
+          });
+          owned.push(probe);
+          return {
+            order,
+            projections,
+            position: [probe.Position.X, probe.Position.Y, probe.Position.Z],
+            isZero: probe.IsZero,
+            coefficients: probe.ToArray().map((value) => [value.X, value.Y, value.Z]),
+            // The six axis directions, which is where a single lit face shows up as a difference.
+            irradiance: [
+              [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+            ].map((axis) => {
+              const value = probe.Irradiance(new Vector3(...axis));
+              return [value.X, value.Y, value.Z];
+            }),
+          };
+        };
+        const BLACK = new Color(0, 0, 0, 255);
+        const WHITE = new Color(255, 255, 255, 255);
+        // Half the brightest byte, so the radiance is a known fraction of the white one and the
+        // coefficients have to scale with it.
+        const HALF = new Color(128, 128, 128, 255);
+        result.halfFraction = 128 / 255;
+        result.onlyFirstFace = bakeWith((face) => (face === 0 ? WHITE : BLACK));
+        result.onlySecondFace = bakeWith((face) => (face === 1 ? WHITE : BLACK));
+        result.onlyFifthFace = bakeWith((face) => (face === 4 ? WHITE : BLACK));
+        result.firstFaceHalf = bakeWith((face) => (face === 0 ? HALF : BLACK));
+        result.allDark = bakeWith(() => BLACK);
+        result.allBright = bakeWith(() => WHITE);
+        // The same scene captured from somewhere that is not the origin. The callback recognises a
+        // face only when the view matches FaceView for *that* point, so a bake that captured from
+        // the origin instead cannot identify a single one of the six.
+        result.awayFromOrigin = bakeWith(
+          (face) => (face === 0 ? WHITE : BLACK), new Vector3(3, -2, 1),
+        );
+        // The projection the test builds itself, which every face has to have been given.
+        result.expectedProjection = matrixRow(
+          Matrix.CreatePerspectiveFieldOfView(Math.PI / 2, 1, NEAR, FAR),
+        );
+
+        // --- a volume, where each probe has to be baked from its own place --------------------
+        //
+        // Two probes eight units apart. The callback works out which probe it is being asked to
+        // draw for by matching the view against the face cameras for each position, and lights the
+        // scene only for one of them. A bake that captured both from the same point, or that reused
+        // one capture for the whole volume, lights both.
+        const volume = new LightProbeVolume(
+          new BoundingBox(new Vector3(-4, 0, 0), new Vector3(4, 0, 0)), 2, 1, 1,
+        );
+        owned.push(volume);
+        result.volume = {
+          counts: [volume.CountX, volume.CountY, volume.CountZ],
+          positions: [0, 1].map((x) => {
+            const position = volume.GetProbePosition(x, 0, 0);
+            return [position.X, position.Y, position.Z];
+          }),
+          zeroBefore: volume.IsZero,
+        };
+        const cellViews = [0, 1].map(
+          (x) => faceViewsAt(volume.GetProbePosition(x, 0, 0)),
+        );
+        const seenCells = [];
+        result.volume.faceDraws = baker.BakeLight(volume, (view) => {
+          const row = matrixRow(view);
+          const cell = cellViews.findIndex((views) => identify(row, views) >= 0);
+          seenCells.push(cell);
+          device.Clear(cell === 0 ? WHITE : BLACK);
+        });
+        result.volume.seenCells = seenCells;
+        result.volume.zeroAfter = volume.IsZero;
+        result.volume.probes = [0, 1].map((x) => {
+          const probe = volume.GetProbe(x, 0, 0);
+          owned.push(probe);
+          const position = probe.Position;
+          const up = probe.Irradiance(new Vector3(0, 1, 0));
+          return {
+            isZero: probe.IsZero,
+            position: [position.X, position.Y, position.Z],
+            irradianceUp: [up.X, up.Y, up.Z],
+          };
+        });
+
+        // --- visibility, which is a distance rather than a colour ------------------------------
+        //
+        // The red channel of a face is read as a fraction of the far plane, so painting every face
+        // one known byte makes the recorded mean an exact number this test can compute. A uniform
+        // face also makes the mean squared exactly the mean squared, which is the floor CNA applies.
+        const DISTANCE_BYTE = 64;
+        result.visibility = { byte: DISTANCE_BYTE, farPlane: FAR };
+        // Set first, so the light bake below can be shown to keep it.
+        const marked = new LightProbe();
+        owned.push(marked);
+        marked.SetVisibility(3, 7, 60);
+        volume.SetProbe(1, 0, 0, marked);
+        result.visibility.faceDraws = baker.BakeVisibility(
+          volume, () => { device.Clear(new Color(DISTANCE_BYTE, 0, 0, 255)); },
+        );
+        result.visibility.recorded = [0, 1].map((x) => {
+          const probe = volume.GetProbe(x, 0, 0);
+          owned.push(probe);
+          return {
+            has: probe.HasVisibility,
+            means: Array.from({ length: 6 }, (_, face) => probe.GetVisibilityMean(face)),
+            meanSquared: probe.GetVisibilityMeanSquared(0),
+          };
+        });
+        // And a light bake after it keeps what the visibility bake recorded: the two are separate
+        // passes and either may be run without the other.
+        baker.BakeLight(volume, () => { device.Clear(WHITE); });
+        result.visibility.afterLightBake = (() => {
+          const probe = volume.GetProbe(0, 0, 0);
+          owned.push(probe);
+          return {
+            means: Array.from({ length: 6 }, (_, face) => probe.GetVisibilityMean(face)),
+            isZero: probe.IsZero,
+          };
+        })();
+
+        // --- what the boundary refuses ----------------------------------------------------------
+        const refusal = (body) => {
+          try {
+            body();
+            return "ACCEPTED";
+          } catch (error) {
+            return error.cnaResult ?? error.constructor.name;
+          }
+        };
+        // An exception from the scene is carried out of the bake and rethrown, rather than
+        // unwinding through CNA while it holds a bound render target.
+        result.callbackThrew = (() => {
+          try {
+            baker.BakeProbe(ORIGIN, () => { throw new RangeError("from the scene"); });
+            return "ACCEPTED";
+          } catch (error) {
+            return `${error.constructor.name}: ${error.message}`;
+          }
+        })();
+        // And the device is still usable afterwards, which is what says nothing was left bound.
+        result.usableAfterThrow = (() => {
+          const probe = bakeWith((face) => (face === 0 ? WHITE : BLACK));
+          return probe.irradiance;
+        })();
+        result.refusals = {
+          nullCallback: refusal(() => baker.BakeProbe(ORIGIN, null)),
+          disposedBaker: refusal(() => {
+            const spare = new LightProbeBaker(device, 4);
+            spare.Dispose();
+            spare.BakeProbe(ORIGIN, () => {});
+          }),
+        };
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch {
+            // A cleanup failure must not replace the failure that matters.
+          }
+        }
+      }
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -2401,6 +2621,228 @@ test("a windowed CNA renderer projects a decal onto what its prepass drew", { sk
     `DECAL=${evidence.overRect.count}px UPPER=${evidence.upperRight.count}px ` +
     `LOWER=${evidence.lowerLeft.count}px ROTATED=${evidence.rotated.count}px ` +
     `PACKED_PRECISION=${asStored.toExponential(3)} (finding 13)`,
+  );
+});
+
+test("a windowed CNA renderer bakes a light probe out of the scene it drew", { skip }, async () => {
+  const game = new WindowedProbeGame(2);
+  try {
+    await game.Run();
+  } finally {
+    game.Dispose();
+  }
+  const evidence = game.evidence.lightProbes;
+  assert.equal(typeof evidence, "object", `the light probe probe did not run: ${evidence}`);
+
+  if (evidence.layerAbsent) {
+    assert.equal(evidence.extensionLayer, false, "a refused create must mean the layer is absent");
+    assert.equal(evidence.cnaResult, CnaResult.NotSupported);
+    console.log("CNA_TS_WINDOWED_LIGHT_PROBES=LAYER_ABSENT");
+    return;
+  }
+  assert.equal(evidence.faceSize, 16, "the baker captures at the size it was asked for");
+  assert.equal(evidence.faceCount, 6);
+  assert.deepEqual(evidence.planes, [0.5, 40], "and with the capture range it was given");
+  if (!evidence.supported) {
+    // A renderer with the layer that still cannot read a target back. The native suite covers that
+    // boundary in full; there is nothing to bake here.
+    console.log("CNA_TS_WINDOWED_LIGHT_PROBES=BAKER_UNSUPPORTED");
+    return;
+  }
+
+  /*
+   * Every bake called the scene six times, once per face, in face order -- and each call was
+   * identified from the *matrix* CNA handed over rather than from a counter, by matching it against
+   * what FaceView reports for that face and that capture point. A bake that gave one camera to
+   * every face, or the six in another order, cannot produce this list.
+   */
+  const bakes = [
+    "onlyFirstFace", "onlySecondFace", "onlyFifthFace", "firstFaceHalf", "allDark", "allBright",
+  ];
+  for (const name of [...bakes, "awayFromOrigin"]) {
+    const bake = evidence[name];
+    assert.deepEqual(
+      bake.order, [0, 1, 2, 3, 4, 5],
+      `${name} must draw the six faces in order, each with its own camera`,
+    );
+    assert.deepEqual(
+      bake.position, name === "awayFromOrigin" ? [3, -2, 1] : [0, 0, 0],
+      "and the probe stands where it was captured",
+    );
+    for (const projection of bake.projections) {
+      for (const [index, value] of projection.entries()) {
+        assert.ok(
+          Math.abs(value - evidence.expectedProjection[index]) < 1e-5,
+          `${name} must capture through a square 90-degree frustum at element ${index}: ` +
+          `${value} against ${evidence.expectedProjection[index]}`,
+        );
+      }
+    }
+  }
+
+  /*
+   * A scene of nothing bakes a probe of nothing, and a scene of everything bakes one that is the
+   * same in every direction. Those two are the ends of the range every other bake sits inside.
+   */
+  assert.equal(evidence.allDark.isZero, true, "an unlit scene bakes a probe carrying no light");
+  assert.deepEqual(
+    evidence.allDark.irradiance, new Array(6).fill([0, 0, 0]),
+    "and no irradiance in any direction",
+  );
+  assert.equal(evidence.allBright.isZero, false, "a fully lit scene bakes one carrying light");
+  {
+    const values = evidence.allBright.irradiance.map((value) => value[0]);
+    const low = Math.min(...values), high = Math.max(...values);
+    assert.ok(low > 0.5, `a fully lit scene is bright in every direction (${low})`);
+    assert.ok(
+      (high - low) / high < 0.05,
+      `and nearly the same in every direction: ${low} to ${high}`,
+    );
+    // The directional coefficients cancel when every direction is equally bright, so the direct
+    // term is what is left, and it is far larger than any of them.
+    const [direct, ...rest] = evidence.allBright.coefficients.map((value) => Math.abs(value[0]));
+    assert.ok(
+      rest.every((value) => value < direct * 0.05),
+      `an isotropic scene leaves the direct term alone: ${direct} against ${rest}`,
+    );
+  }
+
+  /*
+   * And the part that is the whole point: light one face and the probe knows which way it was.
+   *
+   * The six faces look down +X, -X, +Y, -Y, +Z and -Z, which the native suite proves from the
+   * matrices themselves. So lighting face 0 must make the probe brightest looking along +X and
+   * dimmest along -X, and lighting face 1 must reverse exactly that pair while leaving the others
+   * where they were. Nothing here depends on which cube-face convention CNA uses: the two bakes are
+   * compared against each other.
+   */
+  const AXES = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"];
+  const brightestOf = (bake) => {
+    const values = bake.irradiance.map((value) => value[0]);
+    return values.indexOf(Math.max(...values));
+  };
+  const first = evidence.onlyFirstFace;
+  const second = evidence.onlySecondFace;
+  const fifth = evidence.onlyFifthFace;
+  assert.equal(brightestOf(first), 0, `lighting face 0 must be brightest along ${AXES[0]}`);
+  assert.equal(brightestOf(second), 1, `lighting face 1 must be brightest along ${AXES[1]}`);
+  assert.equal(brightestOf(fifth), 4, `lighting face 4 must be brightest along ${AXES[4]}`);
+  for (const [name, bake, lit, dark] of [
+    ["face 0", first, 0, 1], ["face 1", second, 1, 0], ["face 4", fifth, 4, 5],
+  ]) {
+    const values = bake.irradiance.map((value) => value[0]);
+    assert.ok(
+      values[lit] > values[dark] * 10,
+      `${name}: looking at the lit face is an order of magnitude brighter than away from it ` +
+      `(${values[lit]} against ${values[dark]})`,
+    );
+  }
+  // The first two bakes are the same scene mirrored, so their answers must be the same numbers
+  // swapped: what +X reads in one, -X reads in the other.
+  for (const [left, right] of [[0, 1], [2, 2], [3, 3], [4, 4], [5, 5]]) {
+    assert.ok(
+      Math.abs(first.irradiance[left][0] - second.irradiance[right][0]) < 1e-3,
+      `the two opposite bakes must mirror each other at ${AXES[left]}/${AXES[right]}: ` +
+      `${first.irradiance[left][0]} against ${second.irradiance[right][0]}`,
+    );
+  }
+  // Grey rather than white on the same face scales every coefficient by exactly the fraction of a
+  // full byte it was painted with. The projection is linear in the radiance it read, and this is
+  // that linearity measured rather than assumed.
+  for (const [index, coefficient] of evidence.firstFaceHalf.coefficients.entries()) {
+    const full = first.coefficients[index];
+    for (const channel of [0, 1, 2]) {
+      const expected = full[channel] * evidence.halfFraction;
+      assert.ok(
+        Math.abs(coefficient[channel] - expected) < 1e-3,
+        `coefficient ${index} channel ${channel} must scale with the radiance: ` +
+        `${coefficient[channel]} against ${expected}`,
+      );
+    }
+  }
+  // Every bake is grey, because every scene was: a channel that had drifted would show here.
+  for (const name of bakes) {
+    for (const [red, green, blue] of evidence[name].coefficients) {
+      assert.ok(
+        Math.abs(red - green) < 1e-6 && Math.abs(green - blue) < 1e-6,
+        `${name} bakes a grey scene as grey`,
+      );
+    }
+  }
+
+  /*
+   * A volume, where each probe has to be captured from its own place.
+   *
+   * The scene is lit only when the callback recognises the cameras of the first cell, so a bake
+   * that captured both probes from one point, or reused one capture across the volume, lights both.
+   */
+  const volume = evidence.volume;
+  assert.deepEqual(volume.counts, [2, 1, 1]);
+  assert.deepEqual(volume.positions, [[-4, 0, 0], [4, 0, 0]], "the two cells are eight units apart");
+  assert.equal(volume.zeroBefore, true);
+  assert.equal(volume.faceDraws, 12, "two probes, six faces each");
+  assert.deepEqual(
+    volume.seenCells, [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+    "every face of the first probe was drawn from the first probe's place, then the second's",
+  );
+  assert.equal(volume.zeroAfter, false);
+  assert.deepEqual(
+    volume.probes.map((probe) => probe.position), volume.positions,
+    "each baked probe stands in its own cell",
+  );
+  assert.equal(volume.probes[0].isZero, false, "the cell whose scene was lit carries light");
+  assert.equal(volume.probes[1].isZero, true, "and the cell whose scene was dark carries none");
+
+  /*
+   * Visibility, which is a distance rather than a colour: the red channel of a face is read as a
+   * fraction of the far plane. So painting every face one byte makes the recorded mean an exact
+   * number, and a uniform face makes the mean squared exactly the mean squared.
+   */
+  const visibility = evidence.visibility;
+  assert.equal(visibility.faceDraws, 12);
+  const expectedDistance = (visibility.byte / 255) * visibility.farPlane;
+  for (const [index, recorded] of visibility.recorded.entries()) {
+    assert.equal(recorded.has, true, `probe ${index} recorded visibility`);
+    for (const [face, mean] of recorded.means.entries()) {
+      assert.ok(
+        Math.abs(mean - expectedDistance) < 0.05,
+        `probe ${index} face ${face}: ${mean} against the ${expectedDistance} the byte encodes`,
+      );
+    }
+    assert.ok(
+      Math.abs(recorded.meanSquared - recorded.means[0] ** 2) < 0.05,
+      "a uniform face has no variance, so the mean squared is the mean squared: " +
+      `${recorded.meanSquared} against ${recorded.means[0] ** 2}`,
+    );
+  }
+  // And the light bake after it kept every distance: the two bakes are separate passes.
+  assert.deepEqual(
+    visibility.afterLightBake.means, visibility.recorded[0].means,
+    "a light bake keeps whatever visibility each probe already carried",
+  );
+  assert.equal(visibility.afterLightBake.isZero, false, "while replacing the light it carried");
+
+  // The scene's own exception comes back out of the bake, and the device still works afterwards --
+  // which is what says CNA was not left holding a bound target.
+  assert.equal(evidence.callbackThrew, "RangeError: from the scene");
+  assert.deepEqual(
+    evidence.usableAfterThrow, first.irradiance,
+    "the same bake after a thrown callback produces the same probe",
+  );
+  // The bake away from the origin is the same scene through the same six cameras, moved: it must
+  // produce the same probe, and it must have been captured from the point it was given.
+  assert.deepEqual(
+    evidence.awayFromOrigin.irradiance, first.irradiance,
+    "the same scene captured from elsewhere bakes the same probe",
+  );
+  assert.equal(evidence.refusals.nullCallback, "TypeError");
+  assert.equal(evidence.refusals.disposedBaker, "NativeUnavailableError");
+
+  console.log(
+    `CNA_TS_WINDOWED_LIGHT_PROBES=OK FACE=${evidence.faceSize}px ` +
+    `PLUS_X=${first.irradiance[0][0].toFixed(4)} MINUS_X=${first.irradiance[1][0].toFixed(4)} ` +
+    `ISOTROPIC=${evidence.allBright.irradiance[0][0].toFixed(4)} ` +
+    `VOLUME_FACES=${volume.faceDraws} VISIBILITY=${visibility.recorded[0].means[0].toFixed(3)}`,
   );
 });
 

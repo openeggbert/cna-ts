@@ -377,10 +377,22 @@ Electron, or mobile support.
   semantic: with the box left exactly where it is, a surface tilted 60 degrees shows, 80 does not,
   and widening the limit to 85 brings the same picture back. Twenty planted binding defects fail
   and none survives.
-- [ ] Light probes and atmospheric rendering are measured and unprojected. Light probes are the
-  probe value, the volume and the baker that captures six cube faces through a callback;
-  atmospheric rendering is the analytic sky, the skybox and the environment processor that feeds
-  it.
+- [x] **Light probes**, all three of them: the probe value, the volume, and the baker. The value is
+  checked against arithmetic with every constant *measured from CNA* rather than written down — the
+  test lights one coefficient at a time to read each of the five out, twice over for the two that
+  appear in more than one term, then predicts what a probe with nine distinct coefficients answers
+  for nine normals, to 1e-4 on every channel. The grid's positions, its trilinear sampling and
+  Chebyshev's visibility bound are the same kind of check. The baker is accepted on real captures:
+  which face the scene callback is drawing is decided *inside the callback*, by matching the view
+  CNA handed over against what `FaceView` reports for that face and that point, so the callback's
+  own behaviour is the evidence that each face got its own camera. Light one face and the probe is
+  brightest looking that way and a hundredfold darker looking the other; light the opposite face and
+  the two swap; paint the same face at half a byte and every coefficient scales by that fraction. A
+  two-cell volume lit only for the cell the callback recognises leaves the other carrying nothing.
+  Visibility records exactly the fraction of the far plane its byte encodes. Twenty-two planted
+  binding defects fail and none survives.
+- [ ] Atmospheric rendering is measured and unprojected: the analytic sky, the skybox, and the
+  environment processor that feeds it.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a

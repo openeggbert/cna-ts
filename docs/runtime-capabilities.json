@@ -13,7 +13,7 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 75,
+    "VERIFIED_NATIVE": 77,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 2,
@@ -174,12 +174,12 @@
       ]
     },
     {
-      "operation": "Modern CNA engine layer beyond the pipeline, the post-process chain, compute, clustered lighting, LOD, the shadow maps, particles, the prepass and decals: light probes and atmospheric rendering",
+      "operation": "Modern CNA engine layer beyond the pipeline, the post-process chain, compute, clustered lighting, LOD, the shadow maps, particles, the prepass, decals and light probes: atmospheric rendering",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the render pipeline, the post-process chain, the compute path, the clustered lighting family, level-of-detail groups, the shadow-map maths for all four shadow kinds, the shadow depth pass, the particle simulation, the particle draw, the depth/normal prepass and the decal projector are projected and verified separately. What is left is light probes -- the probe value, the volume and the baker that captures six cube faces through a callback -- and atmospheric rendering, which is the analytic sky, the skybox and the environment processor that feeds it",
+      "evidence": "the render pipeline, the post-process chain, the compute path, the clustered lighting family, level-of-detail groups, the shadow-map maths for all four shadow kinds, the shadow depth pass, the particle simulation, the particle draw, the depth/normal prepass, the decal projector and the whole light-probe family are projected and verified separately. What is left is atmospheric rendering: the analytic sky, the skybox and the environment processor that feeds it",
       "proof": [
-        "absentRoute:cna_light_probe_baker_create"
+        "absentRoute:cna_atmospheric_sky_create"
       ]
     },
     {
@@ -929,6 +929,42 @@
         "route:cna_lod_group_ext_set_hysteresis",
         "route:cna_lod_group_ext_projected_radius_pixels",
         "absentRoute:cna_lod_group_ext_select",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Light probe baking: six cube faces rendered per probe, and the probe they produce",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "accepted on real captures on a windowed OPENGLES3 renderer under Xvfb. Which face the scene callback is being asked to draw is decided inside the callback by matching the view CNA handed over against what FaceView reports for that face and that capture point, so the callback's own behaviour is the evidence that each face got its own camera -- and a bake that gave one camera to every face, or the six in another order, cannot produce the list the test asserts. Every face is captured through the square 90-degree frustum the test builds itself. Then the acceptance: light exactly one face and the probe is brightest looking that way and a hundredfold darker looking the other, light the opposite face and the two answers swap, light a third and the brightest direction moves with it. Painting the same face at half a byte scales every one of the nine coefficients by that fraction, which is the projection's linearity in radiance measured rather than assumed; an unlit scene bakes a probe that is zero in every direction; a fully lit one bakes an isotropic probe whose direct term is twenty times any other. A two-cell volume is baked with the scene lit only for the cell the callback recognises, and only that cell carries light, so each probe was captured from its own place; the same bake from a point away from the origin produces the same probe. Visibility is a distance rather than a colour: painting every face one known byte records exactly that fraction of the far plane, with the mean squared equal to the mean squared because a uniform face has no variance, and a light bake afterwards keeps every distance. An exception thrown by the scene comes back out of the bake as itself and the device still bakes afterwards, which is what says CNA was not left holding a bound target. HEADLESS cannot read a target back, so its baker reports unsupported, every bake refuses by state, and the scene callback is never called -- asserted rather than skipped, because a bake that drew and threw the result away would look identical from outside",
+      "proof": [
+        "route:cna_light_probe_baker_create_with_face_size",
+        "route:cna_light_probe_baker_is_supported",
+        "route:cna_light_probe_baker_face_view",
+        "route:cna_light_probe_baker_set_planes",
+        "route:cna_light_probe_baker_bake_probe",
+        "route:cna_light_probe_baker_bake_light",
+        "route:cna_light_probe_baker_bake_visibility",
+        "test:test/windowed-renderer.integration.mjs",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Light probes as values: nine coefficients, six occluder distances, and the grid over them",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "checked against arithmetic with every constant measured from CNA rather than written down. A probe's irradiance is a fixed quadratic in the surface normal with five constants, and the test lights one coefficient at a time to read each of them out of CNA -- twice over for the two that appear in more than one term, which have to agree -- then predicts what a probe with all nine distinct coefficients answers for nine normals, and it does, to 1e-4 on every channel. A direct-only probe is identical in every direction, an overshooting fit comes back at zero because negative light is not a look, a degenerate normal is treated as straight up, and scaling multiplies the irradiance with the coefficients. Equality is by content and content includes the position, which the volume's own behaviour then shows: a probe copied into a cell takes the cell's position, so it stops being equal to its source until the source is moved to match. The grid's probe positions are an even step along each axis computed by the test, an axis holding one probe puts it at the box's minimum, and trilinear sampling is exact at a cell, at a half and at a quarter, with a position outside the box clamped in rather than refused. Visibility floors both distances at zero and the mean squared at the mean squared -- no distribution has negative variance -- and the weight is Chebyshev's bound, computed by the test from the numbers it stored: one when nothing is known to be in the way, and a diagonal between two recorded axes mixing both rather than picking either, which is a third number from either alone. Twenty-two planted binding defects fail and none survives",
+      "proof": [
+        "route:cna_light_probe_ext_create_at",
+        "route:cna_light_probe_ext_set_coefficient",
+        "route:cna_light_probe_ext_irradiance",
+        "route:cna_light_probe_ext_set_visibility",
+        "route:cna_light_probe_ext_visibility_weight",
+        "route:cna_light_probe_ext_equals",
+        "route:cna_light_probe_volume_ext_create",
+        "route:cna_light_probe_volume_ext_get_probe_position",
+        "route:cna_light_probe_volume_ext_sample_probe",
+        "route:cna_light_probe_volume_ext_irradiance",
         "test:test/native-cna.integration.mjs"
       ]
     },

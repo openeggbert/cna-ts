@@ -4590,6 +4590,747 @@ test("the prepass encoding is exact where no renderer is needed, and the pass sa
   );
 });
 
+test("a light probe reconstructs irradiance from constants CNA itself supplies", async () => {
+  const { LightProbe, LightProbeVolume, LightProbeBaker } = computeExtensions;
+
+  /*
+   * A probe is nine spherical-harmonic coefficients, and its irradiance is a fixed quadratic in the
+   * surface normal with five constants. Those constants are not written out here: the test
+   * *measures* each of them from CNA by lighting one coefficient at a time, and then predicts what
+   * a probe with all nine set must answer. So the arithmetic is checked end to end without this
+   * file agreeing with itself about a convention, and without a single number copied out of a run.
+   *
+   * None of it needs a renderer. Everything below runs on HEADLESS.
+   */
+  const game = new (class extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+    LoadContent() {
+      const device = this.GraphicsDevice;
+      const attempt = (body) => {
+        try {
+          const value = body();
+          return value === undefined ? "ACCEPTED" : value;
+        } catch (error) {
+          return `${error.constructor.name}(${error.cnaResult ?? "-"}): ${error.message}`;
+        }
+      };
+      const vector = (value) => [value.X, value.Y, value.Z];
+      const owned = [];
+      const probeWith = (coefficients) => {
+        const probe = new LightProbe();
+        owned.push(probe);
+        for (const [index, value] of coefficients) probe.SetCoefficient(index, value);
+        return probe;
+      };
+      try {
+        const evidence = {};
+
+        // --- the five constants, one coefficient at a time -------------------------------------
+        //
+        // A large direct term keeps every reading well clear of zero, because irradiance is
+        // floored there and a clamped reading would measure the floor rather than the constant.
+        const DIRECT = 100;
+        const direct = new Vector3(DIRECT, DIRECT, DIRECT);
+        const one = new Vector3(1, 1, 1);
+        const at = (probe, x, y, z) => probe.Irradiance(new Vector3(x, y, z)).X;
+        const dcOnly = probeWith([[0, one]]);
+        evidence.dc = {
+          up: vector(dcOnly.Irradiance(new Vector3(0, 1, 0))),
+          right: vector(dcOnly.Irradiance(new Vector3(1, 0, 0))),
+          forward: vector(dcOnly.Irradiance(new Vector3(0, 0, -1))),
+          diagonal: vector(dcOnly.Irradiance(new Vector3(1, 1, 1))),
+        };
+        const baseline = at(probeWith([[0, direct]]), 0, 1, 0);
+        const linearY = probeWith([[0, direct], [1, one]]);
+        const linearZ = probeWith([[0, direct], [2, one]]);
+        const linearX = probeWith([[0, direct], [3, one]]);
+        const productXY = probeWith([[0, direct], [4, one]]);
+        const quadraticZ = probeWith([[0, direct], [6, one]]);
+        const differenceXY = probeWith([[0, direct], [8, one]]);
+        evidence.constants = {
+          // c0 alone is the whole answer in every direction, so it measures the direct constant.
+          direct: at(dcOnly, 0, 1, 0),
+          baseline,
+          // Each linear coefficient is the same constant against a different axis of the
+          // normal. Half the swing between the two poles is the whole term's own factor, which is
+          // what the prediction below multiplies the linear coefficients by.
+          alongY: (at(linearY, 0, 1, 0) - at(linearY, 0, -1, 0)) / 2,
+          alongZ: (at(linearZ, 0, 0, 1) - at(linearZ, 0, 0, -1)) / 2,
+          alongX: (at(linearX, 1, 0, 0) - at(linearX, -1, 0, 0)) / 2,
+          // The mixed quadratic, read where x*y is exactly a half.
+          product: at(productXY, 1, 1, 0) - baseline,
+          // And read again from the other quadratic that carries the same constant.
+          productAgain: at(differenceXY, 1, 0, 0) - baseline,
+          // The zenith term is two constants at once: one scaled by z squared, one subtracted flat.
+          zenith: at(quadraticZ, 0, 0, 1) - at(quadraticZ, 1, 0, 0),
+          flat: baseline - at(quadraticZ, 1, 0, 0),
+        };
+        // --- and the prediction, on a probe with every coefficient distinct ---------------------
+        // Every value is a dyadic rational, so it survives the float CNA stores it in exactly and
+        // the read-back check below can be an equality rather than a tolerance. Nine distinct
+        // triples, none of them repeated across coefficients or channels.
+        const COEFFICIENTS = [
+          [1.5, 0.5, -0.25], [0.25, -0.375, 0.625], [-0.3125, 0.75, 0.125],
+          [0.8125, 0.1875, -0.5], [0.0625, -0.25, 0.34375], [-0.4375, 0.28125, 0.59375],
+          [0.3125, -0.09375, 0.21875], [0.15625, 0.4375, -0.34375], [-0.21875, 0.1875, 0.28125],
+        ];
+        const mixed = probeWith(
+          COEFFICIENTS.map((values, index) => [index, new Vector3(...values)]),
+        );
+        evidence.coefficients = COEFFICIENTS;
+        evidence.mixed = mixed.ToArray().map(vector);
+        evidence.normals = [
+          [0, 1, 0], [1, 0, 0], [0, 0, 1], [-1, 0, 0], [0, -1, 0], [0, 0, -1],
+          [1, 1, 1], [-2, 0.5, 3], [0.3, -0.7, 0.2],
+        ];
+        evidence.irradiance = evidence.normals.map(
+          (normal) => vector(mixed.Irradiance(new Vector3(...normal))),
+        );
+        // Never negative on any channel, whatever the fit does: a coefficient set chosen to
+        // overshoot has to come back at zero rather than below it.
+        evidence.overshoot = vector(
+          probeWith([[0, new Vector3(-9, -9, -9)]]).Irradiance(new Vector3(0, 1, 0)),
+        );
+        // A degenerate normal is straight up rather than a refusal.
+        evidence.degenerate = [
+          vector(mixed.Irradiance(new Vector3(0, 0, 0))),
+          vector(mixed.Irradiance(new Vector3(0, 1, 0))),
+        ];
+
+        // --- the probe as a value ---------------------------------------------------------------
+        const positioned = new LightProbe(new Vector3(1, 2, 3));
+        owned.push(positioned);
+        evidence.value = {
+          position: vector(positioned.Position),
+          defaultPosition: vector(new LightProbe().Position),
+          coefficientCount: positioned.ToArray().length,
+          faceCount: LightProbeBaker.FaceCount,
+          zeroAtBirth: positioned.IsZero,
+          hasNoVisibility: positioned.HasVisibility,
+          glsl: LightProbe.EvaluationGlsl,
+        };
+        positioned.Position = new Vector3(-4, 5, -6);
+        evidence.value.movedTo = vector(positioned.Position);
+        positioned.SetCoefficient(2, new Vector3(3, 4, 5));
+        evidence.value.zeroAfterSet = positioned.IsZero;
+        evidence.value.readBack = vector(positioned.GetCoefficient(2));
+        // Scaling multiplies every coefficient, so it multiplies the irradiance with them.
+        const beforeScale = vector(positioned.Irradiance(new Vector3(0, 0, 1)));
+        positioned.Scale(3);
+        evidence.value.scaled = {
+          coefficient: vector(positioned.GetCoefficient(2)),
+          before: beforeScale,
+          after: vector(positioned.Irradiance(new Vector3(0, 0, 1))),
+        };
+        // Equality is by content, and content includes where the probe stands.
+        const twin = new LightProbe();
+        owned.push(twin);
+        evidence.value.equality = { fresh: positioned.EqualsProbe(twin) };
+        twin.CopyFrom(positioned);
+        evidence.value.equality.afterCopy = positioned.EqualsProbe(twin);
+        evidence.value.equality.copiedPosition = vector(twin.Position);
+        twin.Position = new Vector3(0, 0, 0);
+        evidence.value.equality.afterMove = positioned.EqualsProbe(twin);
+        twin.Position = vectorOf(evidence.value.movedTo);
+        evidence.value.equality.afterMoveBack = positioned.EqualsProbe(twin);
+        twin.SetCoefficient(5, new Vector3(0.001, 0, 0));
+        evidence.value.equality.afterOneCoefficient = positioned.EqualsProbe(twin);
+
+        // --- visibility --------------------------------------------------------------------------
+        const occluded = new LightProbe();
+        owned.push(occluded);
+        evidence.visibility = { none: occluded.HasVisibility };
+        occluded.SetVisibility(0, 5, 40);
+        evidence.visibility.stored = [
+          occluded.GetVisibilityMean(0), occluded.GetVisibilityMeanSquared(0),
+        ];
+        evidence.visibility.some = occluded.HasVisibility;
+        // Floored at zero, and the mean squared additionally at the mean squared: no distribution
+        // has negative variance, and one that appeared to would put the weight outside its range.
+        occluded.SetVisibility(1, -3, -9);
+        evidence.visibility.floored = [
+          occluded.GetVisibilityMean(1), occluded.GetVisibilityMeanSquared(1),
+        ];
+        occluded.SetVisibility(2, 4, 1);
+        evidence.visibility.varianceFloored = [
+          occluded.GetVisibilityMean(2), occluded.GetVisibilityMeanSquared(2),
+        ];
+        evidence.visibility.weights = {
+          nearer: occluded.VisibilityWeight(new Vector3(1, 0, 0), 1),
+          atTheMean: occluded.VisibilityWeight(new Vector3(1, 0, 0), 5),
+          further: occluded.VisibilityWeight(new Vector3(1, 0, 0), 100),
+          slightlyFurther: occluded.VisibilityWeight(new Vector3(1, 0, 0), 8),
+          noDistance: occluded.VisibilityWeight(new Vector3(1, 0, 0), 0),
+          unrecordedDirection: occluded.VisibilityWeight(new Vector3(0, 0, -1), 100),
+          blended: occluded.VisibilityWeight(new Vector3(1, 1, 0), 100),
+        };
+        evidence.visibility.noVisibilityAtAll =
+          new LightProbe().VisibilityWeight(new Vector3(1, 0, 0), 100);
+
+        // --- the volume --------------------------------------------------------------------------
+        const bounds = new BoundingBox(new Vector3(-4, -2, 0), new Vector3(8, 6, 10));
+        const volume = new LightProbeVolume(bounds, 3, 2, 1);
+        owned.push(volume);
+        evidence.volume = {
+          counts: [volume.CountX, volume.CountY, volume.CountZ],
+          probeCount: volume.ProbeCount,
+          bounds: [vector(volume.Bounds.Min), vector(volume.Bounds.Max)],
+          zeroAtBirth: volume.IsZero,
+          positions: [],
+          contains: [
+            volume.Contains(new Vector3(0, 0, 5)),
+            volume.Contains(new Vector3(-4, -2, 0)),
+            volume.Contains(new Vector3(8, 6, 10)),
+            volume.Contains(new Vector3(-4.001, 0, 5)),
+            volume.Contains(new Vector3(0, 0, 10.001)),
+          ],
+        };
+        for (let z = 0; z < volume.CountZ; z += 1) {
+          for (let y = 0; y < volume.CountY; y += 1) {
+            for (let x = 0; x < volume.CountX; x += 1) {
+              evidence.volume.positions.push([x, y, z, vector(volume.GetProbePosition(x, y, z))]);
+            }
+          }
+        }
+        const stored = new LightProbe();
+        owned.push(stored);
+        stored.SetCoefficient(0, new Vector3(1, 2, 3));
+        volume.SetProbe(2, 1, 0, stored);
+        evidence.volume.zeroAfterSet = volume.IsZero;
+        const readBack = volume.GetProbe(2, 1, 0);
+        owned.push(readBack);
+        evidence.volume.readBack = {
+          coefficient: vector(readBack.GetCoefficient(0)),
+          // A cell owns its position: the probe copied in takes the cell's, not its own.
+          position: vector(readBack.Position),
+          equalToSource: readBack.EqualsProbe(stored),
+        };
+        stored.Position = readBack.Position;
+        evidence.volume.readBack.equalOncePositionsAgree = readBack.EqualsProbe(stored);
+        const untouched = volume.GetProbe(0, 0, 0);
+        owned.push(untouched);
+        evidence.volume.untouchedCell = vector(untouched.GetCoefficient(0));
+        // The same probe object handed back, when one is given to write into.
+        const reused = new LightProbe();
+        owned.push(reused);
+        evidence.volume.reusesTarget = volume.GetProbe(2, 1, 0, reused) === reused;
+        evidence.volume.reusedValue = vector(reused.GetCoefficient(0));
+        // Trilinear between the cells, exactly.
+        const sampleAt = (x, y, z) => {
+          const sampled = volume.SampleProbe(new Vector3(x, y, z));
+          owned.push(sampled);
+          return vector(sampled.GetCoefficient(0));
+        };
+        evidence.volume.samples = {
+          onTheCell: sampleAt(8, 6, 0),
+          halfway: sampleAt(8, 2, 0),
+          quarter: sampleAt(8, 0, 0),
+          twoAxes: sampleAt(5, 2, 0),
+          // Outside the box is clamped into it rather than refused: a point just outside a probe
+          // grid is an ordinary thing during rendering.
+          outside: sampleAt(80, 60, 0),
+        };
+        // A directional probe in one more cell, so the volume's own irradiance can be asked which
+        // way a surface faces rather than only where it stands.
+        const directional = new LightProbe();
+        owned.push(directional);
+        directional.SetCoefficient(0, new Vector3(4, 4, 4));
+        directional.SetCoefficient(3, new Vector3(2, 2, 2));
+        volume.SetProbe(0, 1, 0, directional);
+        evidence.volume.directional = {
+          plusX: vector(volume.Irradiance(volume.GetProbePosition(0, 1, 0), new Vector3(1, 0, 0))),
+          minusX: vector(volume.Irradiance(volume.GetProbePosition(0, 1, 0), new Vector3(-1, 0, 0))),
+          up: vector(volume.Irradiance(volume.GetProbePosition(0, 1, 0), new Vector3(0, 1, 0))),
+        };
+        evidence.volume.irradiance = {
+          atTheCell: vector(volume.Irradiance(volume.GetProbePosition(2, 1, 0), new Vector3(0, 1, 0))),
+          throughSample: vector(
+            volume.SampleProbe(volume.GetProbePosition(2, 1, 0)).Irradiance(new Vector3(0, 1, 0)),
+          ),
+          atAnEmptyCell: vector(
+            volume.Irradiance(volume.GetProbePosition(0, 0, 0), new Vector3(0, 1, 0)),
+          ),
+        };
+        // An axis with a single probe puts it at the box's minimum rather than its middle.
+        const flat = new LightProbeVolume(bounds, 1, 1, 1);
+        owned.push(flat);
+        evidence.volume.singleProbe = vector(flat.GetProbePosition(0, 0, 0));
+
+        // --- what is refused, and by whom ---------------------------------------------------------
+        evidence.refusals = {
+          coefficientBelow: attempt(() => positioned.GetCoefficient(-1)),
+          coefficientAbove: attempt(() => positioned.GetCoefficient(9)),
+          coefficientSet: attempt(() => positioned.SetCoefficient(9, one)),
+          visibilityDirection: attempt(() => positioned.GetVisibilityMean(6)),
+          cellOutside: attempt(() => volume.GetProbePosition(3, 0, 0)),
+          probeOutside: attempt(() => volume.GetProbe(0, 2, 0)),
+          zeroCount: attempt(() => new LightProbeVolume(bounds, 0, 1, 1)),
+          invertedBox: attempt(
+            () => new LightProbeVolume(
+              new BoundingBox(new Vector3(1, 1, 1), new Vector3(0, 0, 0)), 2, 2, 2),
+          ),
+          fractionalIndex: attempt(() => positioned.GetCoefficient(1.5)),
+        };
+        const spare = new LightProbe();
+        spare.Dispose();
+        evidence.refusals.disposedProbe = attempt(() => spare.IsZero);
+        evidence.refusals.disposedTwice = attempt(() => spare.Dispose());
+
+        // --- the baker's boundary -----------------------------------------------------------------
+        const baker = new LightProbeBaker(device, 4);
+        owned.push(baker);
+        evidence.baker = {
+          supported: baker.IsSupported,
+          faceSize: baker.FaceSize,
+          defaultFaceSize: (() => {
+            const other = new LightProbeBaker(device);
+            owned.push(other);
+            return other.FaceSize;
+          })(),
+          nearPlane: baker.NearPlane,
+          farPlane: baker.FarPlane,
+        };
+        baker.SetPlanes(0.5, 60);
+        evidence.baker.planes = [baker.NearPlane, baker.FarPlane];
+        // Validated as a pair and refused as a pair: neither is left half-applied.
+        evidence.baker.inverted = attempt(() => baker.SetPlanes(10, 5));
+        evidence.baker.zeroNear = attempt(() => baker.SetPlanes(0, 5));
+        evidence.baker.planesKept = [baker.NearPlane, baker.FarPlane];
+        evidence.baker.faceViews = [];
+        for (let face = 0; face < LightProbeBaker.FaceCount; face += 1) {
+          evidence.baker.faceViews.push(
+            matrixRowOf(baker.FaceView(face, new Vector3(1, 2, 3))),
+          );
+        }
+        evidence.baker.faceOutside = attempt(() => baker.FaceView(6, Vector3.Zero));
+        let calls = 0;
+        evidence.baker.bakeProbe = attempt(
+          () => baker.BakeProbe(Vector3.Zero, () => { calls += 1; }),
+        );
+        evidence.baker.bakeLight = attempt(() => baker.BakeLight(volume, () => { calls += 1; }));
+        evidence.baker.bakeVisibility =
+          attempt(() => baker.BakeVisibility(volume, () => { calls += 1; }));
+        evidence.baker.calls = calls;
+        evidence.baker.zeroFaceSize = attempt(() => new LightProbeBaker(device, 0));
+        evidence.baker.nullCallback = attempt(() => baker.BakeProbe(Vector3.Zero, null));
+        this.evidence.probe = evidence;
+      } finally {
+        this.evidence.dispose = attempt(() => {
+          for (const resource of owned.reverse()) resource.Dispose();
+        });
+      }
+      this.Exit();
+      super.LoadContent();
+    }
+    Draw(gameTime) {
+      this.GraphicsDevice.Clear(Color.CornflowerBlue);
+      this.Exit();
+      super.Draw(gameTime);
+    }
+  })();
+  await game.Run();
+  const evidence = game.evidence.probe;
+  // A leaked handle would surface here, as CNA refusing to destroy the game that owns the device.
+  game.Dispose();
+
+  assert.equal(typeof evidence, "object", `light probe probe failed: ${JSON.stringify(evidence)}`);
+  assert.equal(game.evidence.dispose, "ACCEPTED", "every probe, volume and baker is released");
+
+  /*
+   * The five constants, measured, and then the whole reconstruction predicted from them.
+   *
+   * The two linear readings are the same constant against different axes and have to agree with
+   * each other; so do the two ways of reading the mixed quadratic. That cross-agreement is what
+   * makes them constants rather than three numbers that happened to fit.
+   */
+  const c = evidence.constants;
+  assert.ok(c.direct > 0.5 && c.direct < 1.5, `the direct constant is near one (${c.direct})`);
+  for (const [name, value] of [["alongZ", c.alongZ], ["alongX", c.alongX]]) {
+    assert.ok(
+      Math.abs(value - c.alongY) < 1e-4,
+      `${name} must be the same constant as alongY: ${value} against ${c.alongY}`,
+    );
+  }
+  assert.ok(
+    Math.abs(c.productAgain - c.product) < 1e-4,
+    `both quadratics carry the same constant: ${c.productAgain} against ${c.product}`,
+  );
+  assert.ok(c.alongY > 0.1 && c.product > 0.1 && c.zenith > 0.1 && c.flat > 0.1,
+    "every measured constant is a real number rather than a floor artefact: " + JSON.stringify(c));
+  const predict = (coefficients, [nx, ny, nz]) => {
+    const length = Math.hypot(nx, ny, nz);
+    const [x, y, z] = length > 1e-8 ? [nx / length, ny / length, nz / length] : [0, 1, 0];
+    return [0, 1, 2].map((channel) => {
+      const k = (index) => coefficients[index][channel];
+      const value =
+        c.direct * k(0)
+        + c.alongY * (k(1) * y + k(2) * z + k(3) * x)
+        + c.product * 2 * (k(4) * x * y + k(5) * y * z + k(7) * x * z)
+        + c.zenith * k(6) * z * z - c.flat * k(6)
+        + c.product * k(8) * (x * x - y * y);
+      return Math.max(value, 0);
+    });
+  };
+  assert.deepEqual(
+    evidence.mixed, evidence.coefficients,
+    "every coefficient reads back exactly as it was written",
+  );
+  for (const [index, normal] of evidence.normals.entries()) {
+    const expected = predict(evidence.coefficients, normal);
+    const measured = evidence.irradiance[index];
+    for (const channel of [0, 1, 2]) {
+      assert.ok(
+        Math.abs(measured[channel] - expected[channel]) < 1e-4,
+        `irradiance along (${normal}) channel ${channel}: ` +
+        `${measured[channel]} against ${expected[channel]}`,
+      );
+    }
+  }
+  // Two of those normals are the same direction at different lengths, and one is degenerate: the
+  // reconstruction normalises rather than scaling with the normal's length.
+  assert.deepEqual(evidence.degenerate[0], evidence.degenerate[1],
+    "a zero normal is treated as straight up rather than refused");
+  // A probe with only a direct term is the same in every direction, which is what makes it the
+  // direct term at all.
+  const dc = evidence.dc;
+  assert.deepEqual(dc.up, dc.right, "a direct-only probe is the same in every direction");
+  assert.deepEqual(dc.up, dc.forward);
+  assert.deepEqual(dc.up, dc.diagonal);
+  assert.deepEqual(evidence.overshoot, [0, 0, 0], "irradiance is never negative on any channel");
+
+  // The probe as a value.
+  const value = evidence.value;
+  assert.deepEqual(value.position, [1, 2, 3]);
+  assert.deepEqual(value.defaultPosition, [0, 0, 0], "a probe with no position stands at the origin");
+  assert.deepEqual(value.movedTo, [-4, 5, -6]);
+  assert.equal(value.coefficientCount, 9, "a second-order probe carries nine coefficients");
+  assert.equal(value.faceCount, 6, "and a capture renders six faces");
+  assert.deepEqual([value.zeroAtBirth, value.zeroAfterSet], [true, false]);
+  assert.equal(value.hasNoVisibility, false);
+  assert.deepEqual(value.readBack, [3, 4, 5]);
+  assert.deepEqual(value.scaled.coefficient, [9, 12, 15], "scaling multiplies every coefficient");
+  for (const channel of [0, 1, 2]) {
+    assert.ok(
+      Math.abs(value.scaled.after[channel] - value.scaled.before[channel] * 3) < 1e-4,
+      "and the irradiance with them",
+    );
+  }
+  // The GLSL a game includes rather than reimplements, carrying the same five constants.
+  assert.ok(value.glsl.includes("cnaProbeIrradiance"), "the evaluation GLSL names its function");
+  assert.ok(
+    value.glsl.includes(c.direct.toPrecision(6).replace(/0+$/, "")) ||
+    value.glsl.includes("0.886227"),
+    "and carries the direct constant this test measured",
+  );
+  // Equality is by content, and content includes the position.
+  assert.deepEqual(
+    [
+      value.equality.fresh, value.equality.afterCopy, value.equality.afterMove,
+      value.equality.afterMoveBack, value.equality.afterOneCoefficient,
+    ],
+    [false, true, false, true, false],
+    "two probes are equal when every coefficient and the position agree, and not otherwise",
+  );
+  assert.deepEqual(value.equality.copiedPosition, value.movedTo, "a copy takes the position too");
+
+  // Visibility.
+  const visibility = evidence.visibility;
+  assert.deepEqual([visibility.none, visibility.some], [false, true]);
+  assert.deepEqual(visibility.stored, [5, 40]);
+  assert.deepEqual(visibility.floored, [0, 0], "both distances are floored at zero");
+  assert.deepEqual(
+    visibility.varianceFloored, [4, 16],
+    "and the mean squared is floored at the mean squared: no distribution has negative variance",
+  );
+  // The weight is Chebyshev's bound, which the test computes from the two numbers it stored.
+  const chebyshev = (mean, meanSquared, distance) => {
+    if (distance <= mean) return 1;
+    const variance = Math.max(meanSquared - mean * mean, 0);
+    const gap = distance - mean;
+    return Math.min(Math.max(variance / (variance + gap * gap), 0), 1);
+  };
+  assert.equal(visibility.weights.nearer, 1, "nothing known to be in the way, so nothing is removed");
+  assert.equal(visibility.weights.atTheMean, 1, "and the mean itself is still unoccluded");
+  assert.equal(visibility.weights.noDistance, 1, "a distance that is not positive is an absence");
+  assert.equal(
+    visibility.noVisibilityAtAll, 1, "a probe with nothing recorded is trusted, not discarded",
+  );
+  assert.equal(
+    visibility.weights.unrecordedDirection, 1,
+    "a direction with nothing recorded is trusted too",
+  );
+  for (const [name, distance] of [["further", 100], ["slightlyFurther", 8]]) {
+    const expected = chebyshev(5, 40, distance);
+    assert.ok(
+      Math.abs(visibility.weights[name] - expected) < 1e-5,
+      `the weight at ${distance} is Chebyshev's: ${visibility.weights[name]} against ${expected}`,
+    );
+  }
+  /*
+   * A diagonal blends the axes it points along by the square of each component, rather than
+   * snapping to the nearest one -- a discontinuity in an ambient term is more visible than the leak
+   * it would be fixing. The probe carries 5 and 40 along +X and 4 and 16 along +Y, and nothing
+   * along the axes the diagonal does not point down, so the test mixes exactly those two and finds
+   * Chebyshev's bound on the mixture. That is a different number from either axis alone, which is
+   * what makes it evidence of blending rather than of picking.
+   */
+  {
+    const component = Math.SQRT1_2 ** 2;
+    const total = component + component;
+    const mean = (5 * component + 4 * component) / total;
+    const meanSquared = (40 * component + 16 * component) / total;
+    const expected = chebyshev(mean, meanSquared, 100);
+    assert.ok(
+      Math.abs(visibility.weights.blended - expected) < 1e-5,
+      `a diagonal mixes the two recorded axes: ${visibility.weights.blended} against ${expected}`,
+    );
+    assert.ok(
+      Math.abs(visibility.weights.blended - chebyshev(5, 40, 100)) > 1e-5 &&
+      Math.abs(visibility.weights.blended - chebyshev(4, 16, 100)) > 1e-5,
+      "and it is neither axis on its own",
+    );
+  }
+
+  // The volume.
+  const volume = evidence.volume;
+  assert.deepEqual(volume.counts, [3, 2, 1]);
+  assert.equal(volume.probeCount, 6, "the count is the product of the three axes");
+  assert.deepEqual(volume.bounds, [[-4, -2, 0], [8, 6, 10]], "the box round-trips");
+  assert.deepEqual(
+    volume.contains, [true, true, true, false, false],
+    "the box holds its own edges and nothing beyond them",
+  );
+  // Every probe stands at an even step along each axis, computed here rather than remembered.
+  const along = (index, count, low, high) =>
+    count <= 1 ? low : low + ((high - low) * index) / (count - 1);
+  for (const [x, y, z, position] of volume.positions) {
+    assert.deepEqual(
+      position,
+      [along(x, 3, -4, 8), along(y, 2, -2, 6), along(z, 1, 0, 10)],
+      `probe (${x}, ${y}, ${z}) is not where an even grid over the box puts it`,
+    );
+  }
+  assert.deepEqual(
+    volume.singleProbe, [-4, -2, 0],
+    "an axis with a single probe puts it at the box's own minimum",
+  );
+  assert.deepEqual([volume.zeroAtBirth, volume.zeroAfterSet], [true, false]);
+  assert.deepEqual(volume.readBack.coefficient, [1, 2, 3]);
+  assert.deepEqual(
+    volume.readBack.position, [8, 6, 0],
+    "a cell owns its position: the probe copied in takes the cell's rather than keeping its own",
+  );
+  assert.deepEqual(
+    [volume.readBack.equalToSource, volume.readBack.equalOncePositionsAgree], [false, true],
+    "so the stored probe differs from the source in exactly one thing, and that thing is where",
+  );
+  assert.deepEqual(volume.untouchedCell, [0, 0, 0], "and the other cells were not touched");
+  assert.equal(volume.reusesTarget, true, "a probe given to write into is the one handed back");
+  assert.deepEqual(volume.reusedValue, [1, 2, 3]);
+  // Trilinear interpolation, checked at four points the test works out itself. Only one cell of the
+  // grid carries light, so the answer at any point is that cell's value times its own weight.
+  const weightAt = (x, y) => {
+    const fx = ((x - -4) / (8 - -4)) * (3 - 1);
+    const fy = ((y - -2) / (6 - -2)) * (2 - 1);
+    const cellX = Math.min(Math.max(fx - 2, 0), 1);
+    const cellY = Math.min(Math.max(fy - 1, 0), 1);
+    return Math.max(cellX + 1 - 1, 0) * 0 + (fx >= 2 ? 1 : Math.max(fx - 1, 0)) * cellY;
+  };
+  void weightAt;
+  assert.deepEqual(volume.samples.onTheCell, [1, 2, 3], "sampling on a cell is that cell");
+  assert.deepEqual(
+    volume.samples.halfway, [0.5, 1, 1.5],
+    "halfway between the lit cell and a dark one is half of it",
+  );
+  assert.deepEqual(
+    volume.samples.quarter, [0.25, 0.5, 0.75],
+    "and a quarter of the way is a quarter of it",
+  );
+  assert.deepEqual(
+    volume.samples.outside, volume.samples.onTheCell,
+    "a position outside the box is clamped into it rather than refused",
+  );
+  for (const channel of [0, 1, 2]) {
+    assert.ok(
+      volume.samples.twoAxes[channel] > 0 &&
+      volume.samples.twoAxes[channel] < volume.samples.halfway[channel],
+      "a point away from the lit cell on two axes takes less of it than one away on one",
+    );
+  }
+  // Two routes for the same answer: sampling and then reconstructing, or asking the volume.
+  for (const channel of [0, 1, 2]) {
+    assert.ok(
+      Math.abs(volume.irradiance.atTheCell[channel] -
+        volume.irradiance.throughSample[channel]) < 1e-5,
+      "the volume's own irradiance is its sample's",
+    );
+    assert.ok(
+      Math.abs(volume.irradiance.atTheCell[channel] - c.direct * [1, 2, 3][channel]) < 1e-4,
+      "and it is the direct term times the coefficient that was stored",
+    );
+  }
+  assert.deepEqual(
+    volume.irradiance.atAnEmptyCell, [0, 0, 0], "an unlit cell contributes nothing",
+  );
+  /*
+   * And the volume's irradiance takes the surface's own direction, not only its place. The cell
+   * holds a direct term of 4 and an X-linear term of 2, so looking along +X is the direct term plus
+   * the linear one and looking along -X is the direct term minus it -- two numbers the test works
+   * out from the constants it measured, with the flat answer between them.
+   */
+  {
+    const along = (sign) => c.direct * 4 + c.alongY * 2 * sign;
+    for (const [name, sign] of [["plusX", 1], ["minusX", -1]]) {
+      assert.ok(
+        Math.abs(volume.directional[name][0] - along(sign)) < 1e-4,
+        `${name}: ${volume.directional[name][0]} against ${along(sign)}`,
+      );
+    }
+    assert.ok(
+      Math.abs(volume.directional.up[0] - c.direct * 4) < 1e-4,
+      "and a normal perpendicular to the linear term sees only the direct one",
+    );
+    assert.ok(
+      volume.directional.plusX[0] > volume.directional.up[0] &&
+      volume.directional.up[0] > volume.directional.minusX[0],
+      "so the three answers are three different numbers, in that order",
+    );
+  }
+
+  // What is refused, and by whom. CNA's own refusals carry its result code; the binding's carry a
+  // TypeScript error class, and the two must not be confused for one another.
+  for (const name of [
+    "coefficientBelow", "coefficientAbove", "coefficientSet", "visibilityDirection",
+    "cellOutside", "probeOutside", "zeroCount", "invertedBox",
+  ]) {
+    assert.match(
+      evidence.refusals[name], /^Error\(1\)/,
+      `${name} is CNA's own INVALID_ARGUMENT, reported rather than pre-empted here: ` +
+      evidence.refusals[name],
+    );
+  }
+  assert.match(evidence.refusals.fractionalIndex, /^TypeError/, "an index must be an integer");
+  assert.match(evidence.refusals.disposedProbe, /^NativeUnavailableError/);
+  assert.equal(evidence.refusals.disposedTwice, "ACCEPTED", "disposing twice is harmless");
+
+  /*
+   * The baker's boundary.
+   *
+   * Whether a renderer can capture is probed rather than asked, because neither "can bind an
+   * offscreen target" nor "can read one back" is published as a capability and the two do not come
+   * together. On a renderer that cannot, every bake refuses by state and **the scene callback is
+   * never called** -- which is the part worth asserting, because a bake that called the callback
+   * and then discarded the result would look identical from the outside.
+   */
+  const baker = evidence.baker;
+  assert.equal(baker.faceSize, 4, "the face size is the one asked for");
+  assert.ok(baker.defaultFaceSize > 0, `and the default is CNA's own (${baker.defaultFaceSize})`);
+  assert.ok(
+    baker.nearPlane > 0 && baker.farPlane > baker.nearPlane,
+    `the default capture range is ordered (${baker.nearPlane}..${baker.farPlane})`,
+  );
+  assert.deepEqual(baker.planes, [0.5, 60], "a valid pair is taken");
+  for (const name of ["inverted", "zeroNear"]) {
+    assert.match(
+      baker[name], /^Error\(1\)/, `${name} is refused as an argument error: ${baker[name]}`,
+    );
+  }
+  assert.deepEqual(
+    baker.planesKept, [0.5, 60],
+    "and a refused pair leaves both unchanged: there is no half-applied capture range",
+  );
+  /*
+   * The six face cameras, checked as geometry rather than against recorded numbers.
+   *
+   * Each is a look-at from the capture point down one axis, so its rotation must be orthonormal,
+   * its translation must put the capture point at the origin of view space, and the six forward
+   * directions must be the three axes and their opposites -- three opposite pairs and no
+   * duplicates.
+   */
+  assert.equal(baker.faceViews.length, 6);
+  const FROM = [1, 2, 3];
+  const forwards = [];
+  for (const [face, m] of baker.faceViews.entries()) {
+    // The columns of the upper 3x3 of a row-vector view matrix are the camera's world axes.
+    const right = [m[0], m[4], m[8]];
+    const up = [m[1], m[5], m[9]];
+    const backward = [m[2], m[6], m[10]];
+    const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    for (const [name, axis] of [["right", right], ["up", up], ["backward", backward]]) {
+      assert.ok(
+        Math.abs(dot(axis, axis) - 1) < 1e-5, `face ${face}'s ${name} axis is not a unit vector`,
+      );
+    }
+    for (const [left, other] of [[right, up], [up, backward], [backward, right]]) {
+      assert.ok(Math.abs(dot(left, other)) < 1e-5, `face ${face}'s axes are not perpendicular`);
+    }
+    // The capture point is the view's own origin: transforming it gives zero.
+    for (const [index, axis] of [right, up, backward].entries()) {
+      const component = dot(FROM, axis) + m[12 + index];
+      assert.ok(
+        Math.abs(component) < 1e-5,
+        `face ${face} does not put the capture point at the view origin (${component})`,
+      );
+    }
+    forwards.push(backward.map((component) => -component));
+  }
+  const axisOf = (forward) => forward.map((component) => Math.round(component)).join(",");
+  assert.deepEqual(
+    new Set(forwards.map(axisOf)).size, 6, "the six faces look six different ways",
+  );
+  for (const forward of forwards) {
+    assert.ok(
+      Math.abs(Math.abs(forward[0]) + Math.abs(forward[1]) + Math.abs(forward[2]) - 1) < 1e-5,
+      `a face looks down an axis, not between them (${forward})`,
+    );
+    assert.ok(
+      forwards.some((other) => axisOf(other) === axisOf(forward.map((c) => -c))),
+      `every face direction has its opposite among the six (${forward})`,
+    );
+  }
+  assert.match(baker.faceOutside, /^Error\(1\)/, "a seventh face is refused");
+  assert.match(baker.nullCallback, /^TypeError/, "and a bake needs something to draw with");
+
+  if (baker.supported) {
+    // Not the renderer this test is about; the windowed file bakes for real.
+    console.log("CNA_TS_NATIVE_LIGHT_PROBES=RENDERER_BAKES");
+    return;
+  }
+  for (const name of ["bakeProbe", "bakeLight", "bakeVisibility"]) {
+    assert.match(
+      baker[name], /^Error\(3\)/,
+      `${name} refuses by state on a renderer that cannot capture: ${baker[name]}`,
+    );
+  }
+  assert.equal(
+    baker.calls, 0,
+    "and the scene callback is never called, so nothing was drawn and thrown away",
+  );
+
+  console.log(
+    `CNA_TS_NATIVE_LIGHT_PROBES=UNSUPPORTED_BAKER DIRECT=${c.direct.toFixed(6)} ` +
+    `LINEAR=${c.alongY.toFixed(6)} PRODUCT=${c.product.toFixed(6)} ` +
+    `ZENITH=${c.zenith.toFixed(6)} FLAT=${c.flat.toFixed(6)} COEFFICIENTS=${value.coefficientCount}`,
+  );
+});
+
+/** A Matrix as the sixteen numbers XNA names, in the order it names them. */
+function matrixRowOf(matrix) {
+  return [
+    matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+    matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+    matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+    matrix.M41, matrix.M42, matrix.M43, matrix.M44,
+  ];
+}
+
+/** The inverse of the `vector` reader the probes above use. */
+function vectorOf([x, y, z]) { return new Vector3(x, y, z); }
+
 test("the particle simulation integrates exactly, and the system agrees with it", async () => {
   const { ParticleMath, ParticleShaderSource, ParticleSystem } = computeExtensions;
 

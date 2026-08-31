@@ -46,6 +46,7 @@ import type {
   CnaGraphicsAdapterBackend,
   CnaGraphicsBackend,
   CnaGraphicsExtensionBackend,
+  CnaLightProbeBackend,
   CnaLodBackend,
   CnaMediaBackend,
   CnaParticleBackend,
@@ -112,6 +113,7 @@ import type {
   RendererIdentitySnapshot,
   RendererSelectionSnapshot,
   SamplerStateSnapshot,
+  SceneFaceDraw,
   SensorStateSnapshot,
   SensorSupportSnapshot,
   SoundEffectInstanceSnapshot,
@@ -1348,6 +1350,185 @@ export abstract class CnaDepthNormalPrepassBackendBase implements CnaDepthNormal
     _b: number,
     _a: number,
   ): number { return this.unsupported("unpackLinearDepth"); }
+}
+
+/** Refusing base for {@link CnaLightProbeBackend}. */
+export abstract class CnaLightProbeBackendBase implements CnaLightProbeBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createLightProbe(): NativeHandle { return this.unsupported("createLightProbe"); }
+  public createLightProbeAt(
+    _position: Vector3Snapshot,
+  ): NativeHandle { return this.unsupported("createLightProbeAt"); }
+  public destroyLightProbe(_probe: NativeHandle): void { return this.unsupported("destroyLightProbe"); }
+  public copyLightProbeFrom(
+    _destination: NativeHandle,
+    _source: NativeHandle,
+  ): void { return this.unsupported("copyLightProbeFrom"); }
+  public getLightProbePosition(
+    _probe: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getLightProbePosition"); }
+  public setLightProbePosition(
+    _probe: NativeHandle,
+    _position: Vector3Snapshot,
+  ): void { return this.unsupported("setLightProbePosition"); }
+  public getLightProbeCoefficient(
+    _probe: NativeHandle,
+    _index: number,
+  ): Vector3Snapshot { return this.unsupported("getLightProbeCoefficient"); }
+  public setLightProbeCoefficient(
+    _probe: NativeHandle,
+    _index: number,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setLightProbeCoefficient"); }
+  public copyLightProbeCoefficients(
+    _probe: NativeHandle,
+  ): readonly Vector3Snapshot[] { return this.unsupported("copyLightProbeCoefficients"); }
+  public lightProbeIrradiance(
+    _probe: NativeHandle,
+    _normal: Vector3Snapshot,
+  ): Vector3Snapshot { return this.unsupported("lightProbeIrradiance"); }
+  public setLightProbeVisibility(
+    _probe: NativeHandle,
+    _direction: number,
+    _mean: number,
+    _meanSquared: number,
+  ): void { return this.unsupported("setLightProbeVisibility"); }
+  public getLightProbeVisibilityMean(
+    _probe: NativeHandle,
+    _direction: number,
+  ): number { return this.unsupported("getLightProbeVisibilityMean"); }
+  public getLightProbeVisibilityMeanSquared(
+    _probe: NativeHandle,
+    _direction: number,
+  ): number { return this.unsupported("getLightProbeVisibilityMeanSquared"); }
+  public lightProbeHasVisibility(
+    _probe: NativeHandle,
+  ): boolean { return this.unsupported("lightProbeHasVisibility"); }
+  public lightProbeVisibilityWeight(
+    _probe: NativeHandle,
+    _direction: Vector3Snapshot,
+    _distance: number,
+  ): number { return this.unsupported("lightProbeVisibilityWeight"); }
+  public isLightProbeZero(_probe: NativeHandle): boolean { return this.unsupported("isLightProbeZero"); }
+  public scaleLightProbe(
+    _probe: NativeHandle,
+    _factor: number,
+  ): void { return this.unsupported("scaleLightProbe"); }
+  public lightProbeEquals(
+    _first: NativeHandle,
+    _second: NativeHandle,
+  ): boolean { return this.unsupported("lightProbeEquals"); }
+  public getLightProbeEvaluationGlsl(): string { return this.unsupported("getLightProbeEvaluationGlsl"); }
+  public createLightProbeVolume(
+    _bounds: ClusterBoundsSnapshot,
+    _countX: number,
+    _countY: number,
+    _countZ: number,
+  ): NativeHandle { return this.unsupported("createLightProbeVolume"); }
+  public destroyLightProbeVolume(
+    _volume: NativeHandle,
+  ): void { return this.unsupported("destroyLightProbeVolume"); }
+  public getLightProbeVolumeBounds(
+    _volume: NativeHandle,
+  ): ClusterBoundsSnapshot { return this.unsupported("getLightProbeVolumeBounds"); }
+  public getLightProbeVolumeCountX(
+    _volume: NativeHandle,
+  ): number { return this.unsupported("getLightProbeVolumeCountX"); }
+  public getLightProbeVolumeCountY(
+    _volume: NativeHandle,
+  ): number { return this.unsupported("getLightProbeVolumeCountY"); }
+  public getLightProbeVolumeCountZ(
+    _volume: NativeHandle,
+  ): number { return this.unsupported("getLightProbeVolumeCountZ"); }
+  public getLightProbeVolumeProbeCount(
+    _volume: NativeHandle,
+  ): number { return this.unsupported("getLightProbeVolumeProbeCount"); }
+  public getLightProbeVolumeProbePosition(
+    _volume: NativeHandle,
+    _x: number,
+    _y: number,
+    _z: number,
+  ): Vector3Snapshot { return this.unsupported("getLightProbeVolumeProbePosition"); }
+  public getLightProbeVolumeProbe(
+    _volume: NativeHandle,
+    _x: number,
+    _y: number,
+    _z: number,
+    _into: NativeHandle,
+  ): void { return this.unsupported("getLightProbeVolumeProbe"); }
+  public setLightProbeVolumeProbe(
+    _volume: NativeHandle,
+    _x: number,
+    _y: number,
+    _z: number,
+    _probe: NativeHandle,
+  ): void { return this.unsupported("setLightProbeVolumeProbe"); }
+  public lightProbeVolumeContains(
+    _volume: NativeHandle,
+    _position: Vector3Snapshot,
+  ): boolean { return this.unsupported("lightProbeVolumeContains"); }
+  public sampleLightProbeVolume(
+    _volume: NativeHandle,
+    _position: Vector3Snapshot,
+    _into: NativeHandle,
+  ): void { return this.unsupported("sampleLightProbeVolume"); }
+  public lightProbeVolumeIrradiance(
+    _volume: NativeHandle,
+    _position: Vector3Snapshot,
+    _normal: Vector3Snapshot,
+  ): Vector3Snapshot { return this.unsupported("lightProbeVolumeIrradiance"); }
+  public isLightProbeVolumeZero(
+    _volume: NativeHandle,
+  ): boolean { return this.unsupported("isLightProbeVolumeZero"); }
+  public createLightProbeBaker(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createLightProbeBaker"); }
+  public createLightProbeBakerWithFaceSize(
+    _device: NativeHandle,
+    _faceSize: number,
+  ): NativeHandle { return this.unsupported("createLightProbeBakerWithFaceSize"); }
+  public destroyLightProbeBaker(
+    _baker: NativeHandle,
+  ): void { return this.unsupported("destroyLightProbeBaker"); }
+  public isLightProbeBakerSupported(
+    _baker: NativeHandle,
+  ): boolean { return this.unsupported("isLightProbeBakerSupported"); }
+  public getLightProbeBakerFaceSize(
+    _baker: NativeHandle,
+  ): number { return this.unsupported("getLightProbeBakerFaceSize"); }
+  public getLightProbeBakerFaceCount(): number { return this.unsupported("getLightProbeBakerFaceCount"); }
+  public getLightProbeBakerNearPlane(
+    _baker: NativeHandle,
+  ): number { return this.unsupported("getLightProbeBakerNearPlane"); }
+  public getLightProbeBakerFarPlane(
+    _baker: NativeHandle,
+  ): number { return this.unsupported("getLightProbeBakerFarPlane"); }
+  public setLightProbeBakerPlanes(
+    _baker: NativeHandle,
+    _nearPlane: number,
+    _farPlane: number,
+  ): void { return this.unsupported("setLightProbeBakerPlanes"); }
+  public getLightProbeBakerFaceView(
+    _baker: NativeHandle,
+    _face: number,
+    _position: Vector3Snapshot,
+  ): readonly number[] { return this.unsupported("getLightProbeBakerFaceView"); }
+  public bakeLightProbe(
+    _baker: NativeHandle,
+    _position: Vector3Snapshot,
+    _draw: SceneFaceDraw,
+  ): NativeHandle { return this.unsupported("bakeLightProbe"); }
+  public bakeLightProbeVolumeLight(
+    _baker: NativeHandle,
+    _volume: NativeHandle,
+    _draw: SceneFaceDraw,
+  ): number { return this.unsupported("bakeLightProbeVolumeLight"); }
+  public bakeLightProbeVolumeVisibility(
+    _baker: NativeHandle,
+    _volume: NativeHandle,
+    _draw: SceneFaceDraw,
+  ): number { return this.unsupported("bakeLightProbeVolumeVisibility"); }
 }
 
 /** Refusing base for {@link CnaDecalBackend}. */
