@@ -494,6 +494,9 @@
     "cna_cnb_sprite_font_data_set_atlas",
     "cna_cnb_sprite_font_data_copy_atlas",
     "cna_cnb_encode_sprite_font",
+    "cna_cnb_import_image_as_texture2d",
+    "cna_cnb_import_dds_as_texture_cube",
+    "cna_cnb_import_wav_as_sound_effect",
     "cna_curve_create",
     "cna_curve_destroy",
     "cna_curve_get_keys",
@@ -685,7 +688,7 @@
     "cna_accelerometer_set_time_between_updates_ticks"
   ],
   "missingNodeBridgeSymbols": [],
-  "nodeBridgeSignaturesVerified": 668,
+  "nodeBridgeSignaturesVerified": 671,
   "nodeBridgeSignatureMismatches": 0,
   "missingQualifiedLibraryImports": [],
   "symbolGroups": {

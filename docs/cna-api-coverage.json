@@ -16,13 +16,13 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 668,
+    "NODE": 671,
     "WASM": 247
   },
-  "reachableByAny": 668,
+  "reachableByAny": 671,
   "reachableByAll": 247,
   "reachableExclusively": {
-    "NODE": 421,
+    "NODE": 424,
     "WASM": 0
   },
   "reachabilityByCategory": {
@@ -31,7 +31,7 @@
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 284,
+      "NODE": 287,
       "WASM": 160
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -73,7 +73,7 @@
     },
     "cnb.h": {
       "CNA_EXTENSION_BACKING": 272,
-      "REACHABLE_NODE": 125,
+      "REACHABLE_NODE": 128,
       "REACHABLE_WASM": 120
     },
     "color.h": {
@@ -5306,21 +5306,27 @@
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_import_image_as_texture2d",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_import_wav_as_sound_effect",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_is_block_compressed_texture_format",

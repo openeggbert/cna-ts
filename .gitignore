@@ -19,3 +19,5 @@
 *.swp
 .DS_Store
 Thumbs.db
+content/dist/
+content/node_modules/

@@ -874,15 +874,14 @@
       ]
     },
     {
-      "operation": "CNB's remaining tooling: the byte writer, the loader registry and the .cnj front ends",
+      "operation": "CNB's remaining build-time tooling: the byte writer, the loader registry and .cnj",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the container and every runtime asset schema -- Texture2D, SpriteFont, model, sound effect, song, video, curve and animation clip -- are projected and verified above. What remains is build-time tooling rather than runtime surface: the primitive byte writer, the loader registry, the .cnj compile front ends, the path-taking importers, and the model's morph targets and per-slot texture arrays",
+      "evidence": "the container and every runtime asset schema are projected and verified above, and the three path-taking importers are projected in cna-ts-content. What remains of cnb.h is the primitive byte writer, the loader registry, the .cnj compile front ends, and the model's morph targets and per-slot texture arrays",
       "proof": [
         "absentRoute:cna_cnb_byte_writer_create",
         "absentRoute:cna_cnb_loader_registry_register",
         "absentRoute:cna_cnb_compile_cnj",
-        "absentRoute:cna_cnb_import_image_as_texture2d",
         "absentRoute:cna_cnb_model_get_morph"
       ]
     },
@@ -1098,6 +1097,18 @@
         "route:cna_cnb_decode_animation_clip",
         "route:cna_cnb_animation_clip_copy_keyframes",
         "test:test/cnb-content.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Build-time content compilation: source files into .cnb, in a separate package",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts-content",
+      "evidence": "The direction docs/content-pipeline-boundary.md chose, built. `cna-ts-content` is a separate package with its own exports, and the runtime tarball contains none of it: the three routes in the whole binding that read a file by path live there and nowhere else, which is what keeps the browser runtime free of filesystem and compiler APIs. Bytes cross that boundary and handles do not -- each operation imports, describes, encodes and releases inside one native call -- so the package owns no native lifetime at all. Proved end to end: a PNG and a RIFF/WAVE file written from their own specifications (not produced by CNA, because an importer test in which CNA reads back its own output proves nothing) are compiled to .cnb, written to disk, and loaded by the real runtime, where the four exact texels and the exact sample bytes come back. The colour key is asserted at the texel: the keyed one becomes transparent and the other three are untouched. Wrong-format sources are refused in both directions, and a planted defect that accepted the colour key without applying it passed until the test stopped varying the content name as well",
+      "proof": [
+        "route:cna_cnb_import_image_as_texture2d",
+        "route:cna_cnb_import_wav_as_sound_effect",
+        "route:cna_cnb_import_dds_as_texture_cube",
+        "test:content/test/content-pipeline.test.mjs"
       ]
     },
     {

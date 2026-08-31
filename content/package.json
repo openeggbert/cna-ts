@@ -1,0 +1,47 @@
+{
+  "name": "cna-ts-content",
+  "version": "0.1.0",
+  "description": "Build-time content tooling for CNA over CNA's own compiler: import source assets and write .cnb",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node tools/clean.mjs && tsc -p tsconfig.json",
+    "check": "npm run build && tsc -p tsconfig.types.json",
+    "test": "npm run build && node --test test/*.test.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "cna",
+    "cnb",
+    "content-pipeline",
+    "build-tools"
+  ],
+  "license": "Ms-PL",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openeggbert/cna-ts.git",
+    "directory": "content"
+  },
+  "sideEffects": false,
+  "peerDependencies": {
+    "cna-ts": "0.1.x"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2"
+  }
+}

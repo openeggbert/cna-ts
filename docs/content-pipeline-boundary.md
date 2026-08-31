@@ -108,6 +108,32 @@ built on CNA's compiler, and `cna-ts/extensions/content` already reads the resul
 
 **Chosen: C**, with the boundary stated rather than implied.
 
+## Built
+
+Option C now exists: `content/` in this repository is **`cna-ts-content`**, a separate package with
+its own `package.json`, its own exports and its own tests. The boundary is enforced rather than
+described — `npm pack` on the runtime produces a tarball with zero files from it, and the three
+routes in the whole binding that read a file by path (`cna_cnb_import_image_as_texture2d`,
+`cna_cnb_import_dds_as_texture_cube`, `cna_cnb_import_wav_as_sound_effect`) exist only there. That
+is what keeps `cna-ts` free of filesystem and compiler APIs it has no business carrying into a
+browser.
+
+The seam between the two packages is a file. **Bytes cross; handles do not.** Each operation
+imports, describes, encodes and releases inside one native call and returns a finished `.cnb`
+image, so the build-time package owns no native lifetime, has nothing to `Dispose`, and cannot leak
+anything. That is CNB's own contract stated as an API: a build tool produces bytes, a runtime reads
+them.
+
+It is proved the only way worth proving: `content/test/content-pipeline.test.mjs` writes a PNG and
+a RIFF/WAVE file **from their own specifications** — not produced by CNA, because an importer test
+in which CNA reads back its own output proves nothing about importing — compiles them, writes the
+`.cnb` files to disk, and then loads them through the real `cna-ts` runtime. The texture assertion
+is the four exact texels the PNG carried, read out of a native `Texture2D`.
+
+What remains of `cnb.h`'s build-time surface is the primitive byte writer, the loader registry and
+the `.cnj` compile front ends. Those are the package's next content; the runtime asset schemas it
+compiles *to* are all projected already, in `cna-ts/extensions/content`.
+
 ## What that means for this package
 
 - The 128 content-pipeline types stay inventoried and unprojected. They are correctly excluded from
@@ -119,9 +145,9 @@ built on CNA's compiler, and `cna-ts/extensions/content` already reads the resul
   one built in a page are the same bytes.
 - Nothing in this package will claim XNB *authoring*. `ContentManager` reads XNB and will keep
   reading it; producing one needs XNA's compiler, and CNA does not have it.
-- The remaining CNB tooling — the `.cnj` compile front ends, the three importers, the loader
-  registry — is measured and unprojected. It is the natural first content of package C, and it is
-  the reason the decision is "not here" rather than "not at all".
+- The three importers are now projected, in package C. The remaining CNB tooling — the `.cnj`
+  compile front ends and the loader registry — is measured and unprojected, and is that package's
+  next content rather than this one's.
 
 ## What would change this
 

@@ -62,8 +62,10 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   `docs/content-pipeline-boundary.md`: its 128 types stay unprojected, because four of its
   load-bearing mechanisms — attribute-driven discovery, reflection-based `IntermediateSerializer`,
   MSBuild tasks and XNB output — have no JavaScript or CNA counterpart. Content authoring belongs
-  to a separate build-time package over CNA's own compiler, whose write half already exists in
-  `cna-ts/extensions/content`.
+  to a separate build-time package over CNA's own compiler. **That package now exists**: `content/`
+  is `cna-ts-content`, with its own exports and tests, and the runtime tarball contains none of it.
+  A PNG and a WAV written from their own specifications compile to `.cnb` and load through the real
+  runtime with their exact texels and sample bytes.
 - [x] GamerServices, Net and Avatar are a projected strict profile of their own.
 - [ ] No Windows Phone reference corpus is retained on this host; that profile stays unmeasured
   until one is.
@@ -330,10 +332,12 @@ Electron, or mobile support.
   the decode, so what a consumer holds evaluates in TypeScript as always — and the round trip is
   checked by *evaluating* both curves between the keys, where the tangents and continuity decide
   the answer. An animation clip keeps its handle, because XNA has no clip type to become.
-- [ ] CNB's build-time tooling — the primitive byte writer, the loader registry, the `.cnj` compile
-  front ends and the path-taking importers — plus the model's morph targets and per-slot texture
-  arrays, are measured and unprojected. The tooling is the natural content of the separate
-  build-time product `docs/content-pipeline-boundary.md` chose.
+- [x] The three path-taking importers — image, DDS cube and WAV — are projected in
+  **`cna-ts-content`**, the separate build-time package. Bytes cross that package boundary and
+  handles do not: each operation imports, describes, encodes and releases inside one native call.
+- [ ] CNB's remaining build-time tooling — the primitive byte writer, the loader registry and the
+  `.cnj` compile front ends — plus the model's morph targets and per-slot texture arrays, are
+  measured and unprojected. The tooling belongs to `cna-ts-content` rather than to the runtime.
 - [x] `cna-ts/extensions/devices` projects CNA's extended device layer: the host's cores and
   memory, its power state with absences reported as absences, the display's content scale and safe
   area, the user's preferred locales, the clipboard, and camera enumeration that keeps "no camera

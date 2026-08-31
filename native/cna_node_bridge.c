@@ -315,6 +315,10 @@ typedef CNA_Result (*CnbSpriteFontAddGlyphFn)(CNA_CnbSpriteFontDataHandle, const
 typedef CNA_Result (*CnbSpriteFontSetAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle);
 typedef CNA_Result (*CnbSpriteFontCopyAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle*);
 typedef CNA_Result (*CnbEncodeSpriteFontFn)(CNA_CnbSpriteFontDataHandle, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbImportImageFn)(
+  CNA_StringView, const CNA_CnbImageImportOptions*, CNA_CnbTextureDataHandle*);
+typedef CNA_Result (*CnbImportDdsFn)(CNA_StringView, CNA_CnbTextureDataHandle*);
+typedef CNA_Result (*CnbImportWavFn)(CNA_StringView, CNA_CnbSoundEffectDataHandle*);
 typedef CNA_Result (*CurveCreateFn)(CNA_CurveHandle*);
 typedef CNA_Result (*CurveDestroyFn)(CNA_CurveHandle);
 typedef CNA_Result (*CurveGetKeysFn)(CNA_CurveHandle, CNA_CurveKeyCollectionHandle*);
@@ -925,6 +929,9 @@ typedef struct Api {
   CnbSpriteFontSetAtlasFn cnb_sprite_font_data_set_atlas;
   CnbSpriteFontCopyAtlasFn cnb_sprite_font_data_copy_atlas;
   CnbEncodeSpriteFontFn cnb_encode_sprite_font;
+  CnbImportImageFn cnb_import_image_as_texture2d;
+  CnbImportDdsFn cnb_import_dds_as_texture_cube;
+  CnbImportWavFn cnb_import_wav_as_sound_effect;
   CurveCreateFn curve_create;
   CurveDestroyFn curve_destroy;
   CurveGetKeysFn curve_get_keys;
@@ -1908,6 +1915,9 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(cnb_sprite_font_data_set_atlas, CnbSpriteFontSetAtlasFn, "cna_cnb_sprite_font_data_set_atlas");
   LOAD_REQUIRED(cnb_sprite_font_data_copy_atlas, CnbSpriteFontCopyAtlasFn, "cna_cnb_sprite_font_data_copy_atlas");
   LOAD_REQUIRED(cnb_encode_sprite_font, CnbEncodeSpriteFontFn, "cna_cnb_encode_sprite_font");
+  LOAD_REQUIRED(cnb_import_image_as_texture2d, CnbImportImageFn, "cna_cnb_import_image_as_texture2d");
+  LOAD_REQUIRED(cnb_import_dds_as_texture_cube, CnbImportDdsFn, "cna_cnb_import_dds_as_texture_cube");
+  LOAD_REQUIRED(cnb_import_wav_as_sound_effect, CnbImportWavFn, "cna_cnb_import_wav_as_sound_effect");
   LOAD_REQUIRED(curve_create, CurveCreateFn, "cna_curve_create");
   LOAD_REQUIRED(curve_destroy, CurveDestroyFn, "cna_curve_destroy");
   LOAD_REQUIRED(curve_get_keys, CurveGetKeysFn, "cna_curve_get_keys");
@@ -8589,6 +8599,257 @@ static napi_value cnb_encode_sprite_font(napi_env env, napi_callback_info info) 
   return output;
 }
 
+/* --- CNB build-time importers ------------------------------------------------------------------ */
+/*
+ * The three routes `cnb.h` provides for turning an ordinary source file into a compiled asset, and
+ * the only ones in this bridge that touch a filesystem path. They exist for `cna-ts-content`, the
+ * separate build-time package, and they are shaped so that **no handle crosses that package
+ * boundary**: each imports, reads the description, encodes and releases in one call, and returns
+ * the finished `.cnb` bytes beside the description. A build tool produces bytes; a runtime reads
+ * bytes. That is CNB's own contract and it is also the safest seam available.
+ */
+
+/* Encodes an imported texture and releases it, whatever happens. */
+static napi_value finish_texture_import(
+  napi_env env,
+  CNA_CnbTextureDataHandle texture,
+  const char* const content_name,
+  const size_t content_length
+) {
+  napi_value output = NULL;
+  uint8_t* bytes = NULL;
+  CNA_CnbTextureInfo info;
+  memset(&info, 0, sizeof(info));
+  info.struct_size = (uint32_t) sizeof(info);
+  info.struct_version = CNA_CNB_TEXTURE_INFO_STRUCT_VERSION;
+  CNA_Result result = g_api.cnb_texture_data_get_info(texture, &info);
+  if (result != CNA_RESULT_SUCCESS) {
+    g_api.cnb_texture_data_destroy(texture);
+    return throw_result(env, "cna_cnb_texture_data_get_info", result);
+  }
+  const CNA_StringView view = {content_name, content_length};
+  uint64_t required = 0;
+  result = g_api.cnb_encode_texture2d(texture, view, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) goto fail;
+  if (required > SIZE_MAX) {
+    g_api.cnb_texture_data_destroy(texture);
+    return throw_message(env, "CNB image exceeds the Node address space");
+  }
+  bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) {
+    g_api.cnb_texture_data_destroy(texture);
+    return throw_message(env, "CNB image allocation failed");
+  }
+  uint64_t written = 0;
+  result = g_api.cnb_encode_texture2d(texture, view, bytes, required, &written);
+  if (result != CNA_RESULT_SUCCESS || written != required) {
+    if (result == CNA_RESULT_SUCCESS) result = CNA_RESULT_INTERNAL;
+    goto fail;
+  }
+  g_api.cnb_texture_data_destroy(texture);
+  if (napi_create_object(env, &output) != napi_ok) {
+    free(bytes);
+    return throw_napi(env, "CNB import result");
+  }
+  {
+    napi_value image = copy_bytes(env, bytes, (size_t) written, "CNB image copy");
+    free(bytes);
+    if (!image) return NULL;
+    if (napi_set_named_property(env, output, "Image", image) != napi_ok ||
+        !set_u32(env, output, "Width", info.width) ||
+        !set_u32(env, output, "Height", info.height) ||
+        !set_u32(env, output, "Depth", info.depth) ||
+        !set_u32(env, output, "FaceCount", info.face_count) ||
+        !set_u32(env, output, "MipCount", info.mip_count) ||
+        !set_u32(env, output, "RepresentationCount", info.representation_count)) {
+      return throw_napi(env, "CNB import result");
+    }
+  }
+  return output;
+fail:
+  free(bytes);
+  g_api.cnb_texture_data_destroy(texture);
+  return throw_result(env, "cna_cnb_encode_texture2d", result);
+}
+
+static napi_value cnb_import_image_as_texture2d(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  char* path = NULL;
+  char* content = NULL;
+  size_t path_length = 0, content_length = 0;
+  CNA_CnbImageImportOptions options;
+  CNA_CnbTextureDataHandle texture = 0;
+  bool has_color_key = false;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_utf8(env, args[0], &path, &path_length)) return NULL;
+  memset(&options, 0, sizeof(options));
+  options.struct_size = (uint32_t) sizeof(options);
+  options.struct_version = CNA_CNB_IMAGE_IMPORT_OPTIONS_STRUCT_VERSION;
+  {
+    napi_valuetype kind = napi_undefined;
+    if (napi_typeof(env, args[1], &kind) != napi_ok) {
+      free(path);
+      return throw_napi(env, "colour-key inspection");
+    }
+    has_color_key = kind != napi_null && kind != napi_undefined;
+  }
+  if (has_color_key) {
+    float key[3];
+    if (!read_float_array(env, args[1], key, 3, "a colour key needs three components")) {
+      free(path);
+      return NULL;
+    }
+    for (size_t index = 0; index < 3; index += 1) {
+      const float value = key[index];
+      if (!(value >= 0.0f && value <= 255.0f)) {
+        free(path);
+        return throw_message(env, "a colour-key component must be between 0 and 255");
+      }
+      options.color_key[index] = (uint8_t) value;
+    }
+    options.has_color_key = CNA_TRUE;
+  }
+  if (!read_utf8(env, args[2], &content, &content_length)) {
+    free(path);
+    return NULL;
+  }
+  {
+    const CNA_StringView view = {path, path_length};
+    const CNA_Result result = g_api.cnb_import_image_as_texture2d(view, &options, &texture);
+    free(path);
+    if (result != CNA_RESULT_SUCCESS) {
+      free(content);
+      return throw_result(env, "cna_cnb_import_image_as_texture2d", result);
+    }
+  }
+  {
+    napi_value output = finish_texture_import(env, texture, content, content_length);
+    free(content);
+    return output;
+  }
+}
+
+static napi_value cnb_import_dds_as_texture_cube(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  char* path = NULL;
+  char* content = NULL;
+  size_t path_length = 0, content_length = 0;
+  CNA_CnbTextureDataHandle texture = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_utf8(env, args[0], &path, &path_length)) return NULL;
+  if (!read_utf8(env, args[1], &content, &content_length)) {
+    free(path);
+    return NULL;
+  }
+  {
+    const CNA_StringView view = {path, path_length};
+    const CNA_Result result = g_api.cnb_import_dds_as_texture_cube(view, &texture);
+    free(path);
+    if (result != CNA_RESULT_SUCCESS) {
+      free(content);
+      return throw_result(env, "cna_cnb_import_dds_as_texture_cube", result);
+    }
+  }
+  {
+    napi_value output = finish_texture_import(env, texture, content, content_length);
+    free(content);
+    return output;
+  }
+}
+
+static napi_value cnb_import_wav_as_sound_effect(napi_env env, napi_callback_info info) {
+  napi_value args[2], output = NULL;
+  char* path = NULL;
+  char* content = NULL;
+  size_t path_length = 0, content_length = 0;
+  CNA_CnbSoundEffectDataHandle sound = 0;
+  uint8_t* bytes = NULL;
+  CNA_CnbSoundEffectInfo description;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_utf8(env, args[0], &path, &path_length)) return NULL;
+  if (!read_utf8(env, args[1], &content, &content_length)) {
+    free(path);
+    return NULL;
+  }
+  {
+    const CNA_StringView view = {path, path_length};
+    const CNA_Result result = g_api.cnb_import_wav_as_sound_effect(view, &sound);
+    free(path);
+    if (result != CNA_RESULT_SUCCESS) {
+      free(content);
+      return throw_result(env, "cna_cnb_import_wav_as_sound_effect", result);
+    }
+  }
+  memset(&description, 0, sizeof(description));
+  description.struct_size = (uint32_t) sizeof(description);
+  description.struct_version = CNA_CNB_SOUND_EFFECT_INFO_STRUCT_VERSION;
+  CNA_Result result = g_api.cnb_sound_effect_data_get_info(sound, &description);
+  if (result != CNA_RESULT_SUCCESS) {
+    g_api.cnb_sound_effect_data_destroy(sound);
+    free(content);
+    return throw_result(env, "cna_cnb_sound_effect_data_get_info", result);
+  }
+  {
+    const CNA_StringView view = {content, content_length};
+    uint64_t required = 0;
+    result = g_api.cnb_encode_sound_effect(sound, view, NULL, 0, &required);
+    if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) goto fail;
+    if (required > SIZE_MAX) {
+      g_api.cnb_sound_effect_data_destroy(sound);
+      free(content);
+      return throw_message(env, "CNB image exceeds the Node address space");
+    }
+    bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+    if (required != 0 && !bytes) {
+      g_api.cnb_sound_effect_data_destroy(sound);
+      free(content);
+      return throw_message(env, "CNB image allocation failed");
+    }
+    uint64_t written = 0;
+    result = g_api.cnb_encode_sound_effect(sound, view, bytes, required, &written);
+    if (result != CNA_RESULT_SUCCESS || written != required) {
+      if (result == CNA_RESULT_SUCCESS) result = CNA_RESULT_INTERNAL;
+      goto fail;
+    }
+    g_api.cnb_sound_effect_data_destroy(sound);
+    free(content);
+    if (napi_create_object(env, &output) != napi_ok) {
+      free(bytes);
+      return throw_napi(env, "CNB import result");
+    }
+    napi_value image = copy_bytes(env, bytes, (size_t) written, "CNB image copy");
+    free(bytes);
+    if (!image) return NULL;
+    if (napi_set_named_property(env, output, "Image", image) != napi_ok ||
+        !set_u32(env, output, "Format", description.format) ||
+        !set_u32(env, output, "SampleRate", description.sample_rate) ||
+        !set_u32(env, output, "Channels", description.channels) ||
+        !set_u32(env, output, "FrameCount", description.frame_count) ||
+        !set_u32(env, output, "LoopStart", description.loop_start) ||
+        !set_u32(env, output, "LoopLength", description.loop_length)) {
+      return throw_napi(env, "CNB import result");
+    }
+    return output;
+  }
+fail:
+  free(bytes);
+  g_api.cnb_sound_effect_data_destroy(sound);
+  free(content);
+  return throw_result(env, "cna_cnb_encode_sound_effect", result);
+}
+
+/*
+ * Whether this process has already opened a CNA library. `loadLibrary` refuses a second one, and
+ * the runtime package and the build-time package share this module through Node's require cache --
+ * so a build script that also runs a game must be able to ask rather than guess.
+ */
+static napi_value is_library_loaded(napi_env env, napi_callback_info info) {
+  napi_value output;
+  (void) info;
+  NAPI_OR_RETURN(env, napi_get_boolean(env, g_library != NULL, &output), "library state");
+  return output;
+}
+
 /* --- the CNB curve and animation-clip schemas -------------------------------------------------- */
 /*
  * Two schemas whose decoded form is a *native* object this binding immediately reads out and
@@ -11765,6 +12026,10 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "cnbSpriteFontDataSetAtlas", NULL, cnb_sprite_font_data_set_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbSpriteFontDataCopyAtlas", NULL, cnb_sprite_font_data_copy_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbEncodeSpriteFont", NULL, cnb_encode_sprite_font, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbImportImageAsTexture2D", NULL, cnb_import_image_as_texture2d, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbImportDdsAsTextureCube", NULL, cnb_import_dds_as_texture_cube, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbImportWavAsSoundEffect", NULL, cnb_import_wav_as_sound_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "isLibraryLoaded", NULL, is_library_loaded, NULL, NULL, NULL, napi_default, NULL },
     { "cnbEncodeCurve", NULL, cnb_encode_curve, NULL, NULL, NULL, napi_default, NULL },
     { "cnbDecodeCurve", NULL, cnb_decode_curve, NULL, NULL, NULL, napi_default, NULL },
     { "cnbEncodeAnimationClip", NULL, cnb_encode_animation_clip, NULL, NULL, NULL, napi_default, NULL },
