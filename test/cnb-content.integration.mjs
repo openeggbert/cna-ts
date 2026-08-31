@@ -26,6 +26,7 @@ import {
   GraphicsDeviceManager,
   LoadNodeNativeBackend,
   Matrix,
+  NativeUnavailableError,
   Quaternion,
   Rectangle,
   Vector2,
@@ -34,7 +35,9 @@ import {
 } from "../dist/index.js";
 import {
   CnbAssetType,
+  CnbByteWriter,
   CnbCompression,
+  CnbWriter,
   CnbAnimationClip,
   CnbAudioFormat,
   CnbDocument,
@@ -1370,4 +1373,226 @@ test("a curve and a clip refuse each other's containers", { skip }, () => {
   } finally {
     clipDocument.Dispose();
   }
+});
+
+test("CNB's writers author a container for an asset type CNA has no schema for", () => {
+  // The payload: one of every primitive the byte writer offers, each a value that would survive a
+  // wrong width or a wrong byte order differently. Decoding them back at their exact offsets is
+  // what proves the widths and the order, rather than only that some bytes survived.
+  const writer = new CnbByteWriter();
+  let payload;
+  try {
+    writer
+      .WriteByte(0xAB)
+      .WriteUInt16(0xBEEF)
+      .WriteUInt32(0xDEAD_BEEF)
+      .WriteUInt64(0x0123_4567_89AB_CDEFn)
+      .WriteInt32(-123456)
+      .WriteSingle(0.5)
+      .WriteDouble(-2.25)
+      .WriteString("hello, cnb")
+      .WriteBytes(Uint8Array.from([1, 2, 3]))
+      .WriteZeros(4);
+
+    // 1 + 2 + 4 + 8 + 4 + 4 + 8 = 31, a four-byte length prefix and ten string bytes = 45,
+    // three raw bytes and four zeros = 52. The arithmetic is stated so a changed string encoding
+    // shows up as a size mismatch rather than silently shifting every offset after it.
+    assert.equal(writer.Size, 52);
+
+    payload = writer.ToArray();
+    assert.equal(payload.length, 52);
+    assert.equal(writer.Size, 52, "ToArray copies; the writer keeps what it has");
+
+    const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+    assert.equal(view.getUint8(0), 0xAB);
+    assert.equal(view.getUint16(1, true), 0xBEEF, "CNB is little-endian");
+    assert.equal(view.getUint32(3, true), 0xDEAD_BEEF);
+    assert.equal(view.getBigUint64(7, true), 0x0123_4567_89AB_CDEFn, "a u64 survives exactly");
+    assert.equal(view.getInt32(15, true), -123456, "and a negative i32 is not read as unsigned");
+    assert.equal(view.getFloat32(19, true), 0.5);
+    assert.equal(view.getFloat64(23, true), -2.25);
+    assert.equal(view.getUint32(31, true), 10, "a string carries its byte length first");
+    assert.equal(
+      new TextDecoder().decode(payload.subarray(35, 45)), "hello, cnb",
+      "then its UTF-8 bytes",
+    );
+    assert.deepEqual([...payload.subarray(45, 48)], [1, 2, 3], "raw bytes go in as they are");
+    assert.deepEqual([...payload.subarray(48, 52)], [0, 0, 0, 0], "and a zero run is zeros");
+
+    // Take is not ToArray: it hands over the same bytes and leaves the writer empty.
+    const taken = writer.Take();
+    assert.deepEqual([...taken], [...payload]);
+    assert.equal(writer.Size, 0, "Take empties the writer");
+    assert.deepEqual([...writer.ToArray()], [], "and it stays empty");
+  } finally {
+    writer.Dispose();
+  }
+
+  // A chunk identifier a game defines for itself: CNB reserves an uppercase first letter for its
+  // own schemas.
+  const chunkId = CnbFormat.MakeChunkId("mydt");
+  assert.equal(CnbFormat.GetChunkIdText(chunkId), "mydt");
+  assert.equal(CnbFormat.IsWellFormedChunkId(chunkId), true);
+
+  const container = new CnbWriter(9999, 3);
+  let image;
+  let defaults;
+  try {
+    // CNA's own bounds, read rather than assumed.
+    defaults = container.Limits;
+    assert.ok(defaults.MaxChunkSize > 0 && defaults.MaxFileSize > 0);
+    assert.ok(
+      defaults.MaxTotalUncompressedSize >= defaults.MaxFileSize,
+      "compression may expand a file, so the uncompressed bound is the larger one",
+    );
+
+    container.SetMetadata("MyGame.Level", "Levels/One");
+    container.AddExternalReference("Textures/Atlas", CnbAssetType.Texture2D);
+    container.AddChunk(chunkId, payload);
+    assert.equal(container.SchemaChunkCount, 1, "the container's own chunks are not schema chunks");
+    image = container.Build();
+  } finally {
+    container.Dispose();
+  }
+
+  assert.equal(CnbFormat.HasMagic(image), true, "what comes out is a real .cnb");
+
+  // Read it back through the same reader every projected schema goes through.
+  const document = CnbDocument.Parse(image, "Levels/One.cnb");
+  try {
+    assert.equal(document.AssetType, 9999, "a custom asset type survives");
+    assert.equal(document.AssetSchemaVersion, 3);
+    assert.equal(document.Metadata.AssetTypeName, "MyGame.Level");
+    assert.equal(document.Metadata.ContentName, "Levels/One");
+    assert.deepEqual(
+      document.Chunks.map((chunk) => chunk.Id), ["CMET", "XREF", "mydt"],
+      "the metadata and reference chunks the writer added itself, then the game's own",
+    );
+    assert.deepEqual(
+      document.ExternalReferences.map((reference) => reference.Name), ["Textures/Atlas"],
+    );
+    assert.equal(document.ExternalReferences[0].ExpectedAssetType, CnbAssetType.Texture2D);
+
+    const index = document.Chunks.findIndex((chunk) => chunk.RawId === chunkId);
+    assert.ok(index >= 0, "the custom chunk is in the table of contents");
+    assert.deepEqual(
+      [...document.ReadChunk(index)], [...payload],
+      "and its payload comes back byte for byte",
+    );
+  } finally {
+    document.Dispose();
+  }
+
+  console.log(
+    `CNA_TS_CNB_WRITERS=PASS PAYLOAD=${payload.length}B PRIMITIVES=DECODED ` +
+    `IMAGE=${image.length}B CHUNK=${CnbFormat.GetChunkIdText(chunkId)} ROUND_TRIP=EXACT`,
+  );
+});
+
+test("CNB's writers refuse what would not survive the format", () => {
+  const writer = new CnbByteWriter();
+  try {
+    // A value that does not fit the width it is written at is refused rather than truncated: CNA
+    // takes the width it is given and cannot tell a deliberate 0xFF from a truncated 0x1FF.
+    for (const call of [
+      () => writer.WriteByte(256),
+      () => writer.WriteByte(-1),
+      () => writer.WriteByte(1.5),
+      () => writer.WriteUInt16(0x1_0000),
+      () => writer.WriteUInt32(0x1_0000_0000),
+      () => writer.WriteInt32(0x8000_0000),
+      () => writer.WriteInt32(-0x8000_0001),
+      () => writer.WriteUInt64(-1n),
+      () => writer.WriteZeros(-1),
+    ]) {
+      assert.throws(call, RangeError, call.toString());
+    }
+    for (const call of [
+      () => writer.WriteUInt64(1),
+      () => writer.WriteString(7),
+      () => writer.WriteBytes([1, 2, 3]),
+      () => writer.WriteSingle("x"),
+    ]) {
+      assert.throws(call, TypeError, call.toString());
+    }
+    // Nothing refused reached CNA.
+    assert.equal(writer.Size, 0);
+    // The boundary values themselves are accepted, so the bounds are bounds rather than off by one.
+    writer.WriteByte(255).WriteUInt16(0xFFFF).WriteUInt32(0xFFFF_FFFF)
+      .WriteInt32(-0x8000_0000).WriteUInt64(0xFFFF_FFFF_FFFF_FFFFn);
+    assert.equal(writer.Size, 1 + 2 + 4 + 4 + 8);
+  } finally {
+    writer.Dispose();
+  }
+
+  // A chunk identifier is exactly four bytes.
+  for (const bad of ["", "abc", "abcde"]) {
+    assert.throws(() => CnbFormat.MakeChunkId(bad), /four bytes/);
+  }
+
+  const container = new CnbWriter(1234, 1);
+  try {
+    // CNB accepts only a power-of-two chunk alignment, and this package says so before CNA does.
+    for (const alignment of [0, 3, 6, 100]) {
+      assert.throws(
+        () => container.AddChunk(CnbFormat.MakeChunkId("algn"), new Uint8Array(4), 0, alignment),
+        RangeError,
+        `alignment ${alignment}`,
+      );
+    }
+    // A power of two past CNB's own ceiling is refused too -- by CNA, with its own message.
+    assert.throws(
+      () => container.AddChunk(CnbFormat.MakeChunkId("algn"), new Uint8Array(4), 0, 8192),
+      /alignment must be a power of two/,
+    );
+    container.AddChunk(CnbFormat.MakeChunkId("algn"), new Uint8Array(4), 0, 16);
+    assert.equal(container.SchemaChunkCount, 1, "a legal power of two is accepted");
+  } finally {
+    container.Dispose();
+  }
+
+  // Narrowing a limit is not decoration. CNB checks structure when a chunk is added and sizes when
+  // the document is built -- a writer accumulates, then validates what it is about to produce --
+  // so both halves are asserted where they actually happen.
+  const bounded = new CnbWriter(1234, 1);
+  try {
+    bounded.SetMetadata("MyGame.Level", "Levels/One");
+    bounded.Limits = { ...bounded.Limits, MaxChunkSize: 8 };
+    assert.equal(bounded.Limits.MaxChunkSize, 8, "the narrowed limit reads back");
+    bounded.AddChunk(CnbFormat.MakeChunkId("bigc"), new Uint8Array(64));
+    assert.throws(
+      () => bounded.Build(),
+      /above|exceed|holds \d+ bytes/i,
+      "a document whose chunk is past the narrowed limit is refused at build",
+    );
+  } finally {
+    bounded.Dispose();
+  }
+
+  const counted = new CnbWriter(1234, 1);
+  try {
+    counted.Limits = { ...counted.Limits, MaxChunkCount: 1 };
+    for (let index = 0; index < 3; index += 1) {
+      counted.AddChunk(CnbFormat.MakeChunkId(`ch${index}x`), new Uint8Array(2));
+    }
+    assert.equal(counted.SchemaChunkCount, 3, "chunks accumulate; the count is checked at build");
+    assert.throws(
+      () => counted.Build(), /chunks/i,
+      "and a document past the narrowed chunk count is refused there",
+    );
+  } finally {
+    counted.Dispose();
+  }
+
+  // Every entry point refuses once the writer is gone.
+  const gone = new CnbByteWriter();
+  gone.Dispose();
+  gone.Dispose();
+  assert.equal(gone.IsDisposed, true);
+  assert.throws(() => gone.WriteByte(1), NativeUnavailableError);
+  assert.throws(() => gone.Size, NativeUnavailableError);
+
+  console.log(
+    "CNA_TS_CNB_WRITER_REFUSALS=PASS WIDTHS=BOUNDED ALIGNMENT=POWER_OF_TWO LIMITS=ENFORCED",
+  );
 });

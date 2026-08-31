@@ -982,6 +982,17 @@ export interface CnaGraphicsExtensionBackend {
 }
 
 
+/** The bounds CNB refuses past, both while reading and while building. */
+export interface CnbLimitsSnapshot {
+  readonly MaxFileSize: number;
+  readonly MaxChunkSize: number;
+  readonly MaxTotalUncompressedSize: number;
+  readonly MaxChunkCount: number;
+  readonly MaxStringBytes: number;
+  readonly MaxArrayElementCount: number;
+  readonly MaxChunkAlignment: number;
+}
+
 /** One parsed `.cnb` table-of-contents entry, exactly as CNA reports it. */
 export interface CnbChunkEntrySnapshot {
   readonly Offset: number;
@@ -1439,6 +1450,40 @@ export interface CnaContentBackend {
   cnbAssetTypeIdFromName(name: string): number;
   cnbIsCustomAssetTypeId(assetTypeId: number): boolean;
   cnbMakeChunkId(a: number, b: number, c: number, d: number): number;
+  /** CNB's read limits, which the container writer also enforces while it builds. */
+  cnbWriterGetLimits(writer: NativeHandle): CnbLimitsSnapshot;
+  cnbWriterSetLimits(writer: NativeHandle, limits: CnbLimitsSnapshot): void;
+  cnbByteWriterCreate(initial: Uint8Array | null): NativeHandle;
+  cnbByteWriterDestroy(writer: NativeHandle): void;
+  cnbByteWriterWriteU8(writer: NativeHandle, value: number): void;
+  cnbByteWriterWriteU16(writer: NativeHandle, value: number): void;
+  cnbByteWriterWriteU32(writer: NativeHandle, value: number): void;
+  cnbByteWriterWriteU64(writer: NativeHandle, value: bigint): void;
+  cnbByteWriterWriteI32(writer: NativeHandle, value: number): void;
+  cnbByteWriterWriteF32(writer: NativeHandle, value: number): void;
+  cnbByteWriterWriteF64(writer: NativeHandle, value: number): void;
+  cnbByteWriterWriteString(writer: NativeHandle, value: string): void;
+  cnbByteWriterWriteBytes(writer: NativeHandle, bytes: Uint8Array): void;
+  cnbByteWriterWriteZeros(writer: NativeHandle, byteCount: number): void;
+  cnbByteWriterGetSize(writer: NativeHandle): number;
+  cnbByteWriterCopyBytes(writer: NativeHandle): Uint8Array;
+  cnbByteWriterTake(writer: NativeHandle): Uint8Array;
+  cnbWriterCreate(assetTypeId: number, assetSchemaVersion: number): NativeHandle;
+  cnbWriterDestroy(writer: NativeHandle): void;
+  cnbWriterSetMetadata(writer: NativeHandle, assetTypeName: string, contentName: string): void;
+  cnbWriterAddExternalReference(
+    writer: NativeHandle, flags: number, expectedAssetTypeId: number, logicalName: string,
+  ): void;
+  cnbWriterClearExternalReferences(writer: NativeHandle): void;
+  cnbWriterAddChunk(
+    writer: NativeHandle, chunkId: number, data: Uint8Array, flags: number, alignment: number,
+  ): void;
+  cnbWriterGetSchemaChunkCount(writer: NativeHandle): number;
+  cnbWriterSetCompression(writer: NativeHandle, codec: number, level: number): void;
+  cnbWriterAppendEmbeddedTexture2D(
+    writer: NativeHandle, texture: NativeHandle, label: string,
+  ): void;
+  cnbWriterBuild(writer: NativeHandle): Uint8Array;
   cnbChunkIdString(id: number): string;
   cnbIsWellFormedChunkId(id: number): boolean;
   cnbTextureFormatName(format: number): string;

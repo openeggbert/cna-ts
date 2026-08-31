@@ -21,6 +21,7 @@ import type {
   CnbChunkEntrySnapshot,
   CnbCurveSnapshot,
   CnbDocumentSnapshot,
+  CnbLimitsSnapshot,
   CnbExternalReferenceSnapshot,
   CnbGlyphSnapshot,
   CnbKeyframeSnapshot,
@@ -515,6 +516,219 @@ export class WasmContentBackend extends CnaContentBackendBase {
     } finally {
       scope.dispose();
     }
+  }
+
+  /* --- CNB's writers -------------------------------------------------------------------------
+   *
+   * The same writers the Node backend reaches. `docs/content-pipeline-boundary.md` says a `.cnb`
+   * built in a build script and one built in a page are the same bytes, and that only stays true
+   * if the browser can build one -- so the whole family is here rather than being Node-only.
+   */
+
+  public override cnbByteWriterCreate(initial: Uint8Array | null): NativeHandle {
+    if (initial == null || initial.byteLength === 0) {
+      return this.#routes.outHandle("cna_cnb_byte_writer_create");
+    }
+    const scope = this.#routes.scope();
+    try {
+      const bytes = scope.allocateBytes(initial);
+      return this.#routes.outHandle(
+        "cna_cnb_byte_writer_create_from_bytes", bytes, BigInt(initial.byteLength),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbByteWriterDestroy(writer: NativeHandle): void {
+    this.#routes.invoke("cna_cnb_byte_writer_destroy", writer);
+  }
+  public override cnbByteWriterWriteU8(writer: NativeHandle, value: number): void {
+    this.#routes.invoke("cna_cnb_byte_writer_write_u8", writer, value);
+  }
+  public override cnbByteWriterWriteU16(writer: NativeHandle, value: number): void {
+    this.#routes.invoke("cna_cnb_byte_writer_write_u16", writer, value);
+  }
+  public override cnbByteWriterWriteU32(writer: NativeHandle, value: number): void {
+    this.#routes.invoke("cna_cnb_byte_writer_write_u32", writer, value);
+  }
+  public override cnbByteWriterWriteU64(writer: NativeHandle, value: bigint): void {
+    this.#routes.invoke("cna_cnb_byte_writer_write_u64", writer, value);
+  }
+  public override cnbByteWriterWriteI32(writer: NativeHandle, value: number): void {
+    this.#routes.invoke("cna_cnb_byte_writer_write_i32", writer, value);
+  }
+  public override cnbByteWriterWriteF32(writer: NativeHandle, value: number): void {
+    this.#routes.invoke("cna_cnb_byte_writer_write_f32", writer, value);
+  }
+  public override cnbByteWriterWriteF64(writer: NativeHandle, value: number): void {
+    this.#routes.invoke("cna_cnb_byte_writer_write_f64", writer, value);
+  }
+  public override cnbByteWriterWriteZeros(writer: NativeHandle, byteCount: number): void {
+    this.#routes.invoke("cna_cnb_byte_writer_write_zeros", writer, BigInt(byteCount));
+  }
+  public override cnbByteWriterGetSize(writer: NativeHandle): number {
+    return this.#u64Of("cna_cnb_byte_writer_get_size", writer);
+  }
+
+  public override cnbByteWriterWriteString(writer: NativeHandle, value: string): void {
+    const scope = this.#routes.scope();
+    try {
+      this.#routes.invoke(
+        "cna_cnb_byte_writer_write_string", writer, this.#stringView(scope, value),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbByteWriterWriteBytes(writer: NativeHandle, bytes: Uint8Array): void {
+    const scope = this.#routes.scope();
+    try {
+      // The length is the view's own, never a separate argument.
+      const pointer = scope.allocateBytes(bytes);
+      this.#routes.invoke(
+        "cna_cnb_byte_writer_write_bytes", writer, pointer, BigInt(bytes.byteLength),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbByteWriterCopyBytes(writer: NativeHandle): Uint8Array {
+    return this.#countAndCopy("cna_cnb_byte_writer_copy_bytes", [writer], "bytes");
+  }
+  public override cnbByteWriterTake(writer: NativeHandle): Uint8Array {
+    return this.#countAndCopy("cna_cnb_byte_writer_take", [writer], "bytes");
+  }
+
+  public override cnbWriterCreate(assetTypeId: number, assetSchemaVersion: number): NativeHandle {
+    return this.#routes.outHandle("cna_cnb_writer_create", assetTypeId, assetSchemaVersion);
+  }
+  public override cnbWriterDestroy(writer: NativeHandle): void {
+    this.#routes.invoke("cna_cnb_writer_destroy", writer);
+  }
+  public override cnbWriterClearExternalReferences(writer: NativeHandle): void {
+    this.#routes.invoke("cna_cnb_writer_clear_external_references", writer);
+  }
+  public override cnbWriterGetSchemaChunkCount(writer: NativeHandle): number {
+    return this.#u64Of("cna_cnb_writer_get_schema_chunk_count", writer);
+  }
+  public override cnbWriterSetCompression(
+    writer: NativeHandle, codec: number, level: number,
+  ): void {
+    this.#routes.invoke("cna_cnb_writer_set_compression", writer, codec, level);
+  }
+  public override cnbWriterBuild(writer: NativeHandle): Uint8Array {
+    return this.#countAndCopy("cna_cnb_writer_build", [writer], "bytes");
+  }
+
+  public override cnbWriterSetMetadata(
+    writer: NativeHandle, assetTypeName: string, contentName: string,
+  ): void {
+    const scope = this.#routes.scope();
+    try {
+      this.#routes.invoke(
+        "cna_cnb_writer_set_metadata", writer,
+        this.#stringView(scope, assetTypeName), this.#stringView(scope, contentName),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbWriterAddExternalReference(
+    writer: NativeHandle, flags: number, expectedAssetTypeId: number, logicalName: string,
+  ): void {
+    const scope = this.#routes.scope();
+    try {
+      // A caller-provided versioned structure, laid out from the measured wasm32 offsets;
+      // allocateStruct fills the size and version header CNA insists the caller sets.
+      const reference = allocateStruct(
+        this.#routes.module, scope, "CNA_CnbExternalReference",
+      );
+      reference.setU32("flags", flags);
+      reference.setU32("expected_asset_type_id", expectedAssetTypeId);
+      this.#routes.invoke(
+        "cna_cnb_writer_add_external_reference", writer, reference.pointer,
+        this.#stringView(scope, logicalName),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbWriterAddChunk(
+    writer: NativeHandle, chunkId: number, data: Uint8Array, flags: number, alignment: number,
+  ): void {
+    const scope = this.#routes.scope();
+    try {
+      const pointer = scope.allocateBytes(data);
+      this.#routes.invoke(
+        "cna_cnb_writer_add_chunk", writer, chunkId, pointer, BigInt(data.byteLength),
+        flags, alignment,
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbWriterAppendEmbeddedTexture2D(
+    writer: NativeHandle, texture: NativeHandle, label: string,
+  ): void {
+    const scope = this.#routes.scope();
+    try {
+      this.#routes.invoke(
+        "cna_cnb_writer_append_embedded_texture2d", writer, texture,
+        this.#stringView(scope, label),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbWriterGetLimits(writer: NativeHandle): CnbLimitsSnapshot {
+    const scope = this.#routes.scope();
+    try {
+      const limits = this.#limitsStruct(scope);
+      this.#routes.invoke("cna_cnb_writer_get_limits", writer, limits.pointer);
+      return {
+        MaxFileSize: Number(limits.getU64("max_file_size")),
+        MaxChunkSize: Number(limits.getU64("max_chunk_size")),
+        MaxTotalUncompressedSize: Number(limits.getU64("max_total_uncompressed_size")),
+        MaxChunkCount: limits.getU32("max_chunk_count"),
+        MaxStringBytes: limits.getU32("max_string_bytes"),
+        MaxArrayElementCount: limits.getU32("max_array_element_count"),
+        MaxChunkAlignment: limits.getU32("max_chunk_alignment"),
+      };
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbWriterSetLimits(writer: NativeHandle, limits: CnbLimitsSnapshot): void {
+    const scope = this.#routes.scope();
+    try {
+      // Seeded from CNA's own defaults, so anything this ABI adds later stays CNA's; only the
+      // seven fields a caller can narrow are written over them.
+      const structure = this.#limitsStruct(scope);
+      this.#routes.invoke("cna_cnb_read_limits_init", structure.pointer);
+      structure.setU64("max_file_size", BigInt(limits.MaxFileSize));
+      structure.setU64("max_chunk_size", BigInt(limits.MaxChunkSize));
+      structure.setU64("max_total_uncompressed_size", BigInt(limits.MaxTotalUncompressedSize));
+      structure.setU32("max_chunk_count", limits.MaxChunkCount);
+      structure.setU32("max_string_bytes", limits.MaxStringBytes);
+      structure.setU32("max_array_element_count", limits.MaxArrayElementCount);
+      structure.setU32("max_chunk_alignment", limits.MaxChunkAlignment);
+      this.#routes.invoke("cna_cnb_writer_set_limits", writer, structure.pointer);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /** The read-limits structure with the version header CNA requires the caller to set. */
+  #limitsStruct(scope: ReturnType<WasmRouteTable["scope"]>): WasmStruct {
+    return allocateStruct(this.#routes.module, scope, "CNA_CnbReadLimits");
   }
 
   public override cnbDecodeSpriteFont(document: NativeHandle): NativeHandle {

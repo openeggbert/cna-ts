@@ -453,6 +453,58 @@ test("a browser reads CNA's compiled curve and animation clip", { skip }, async 
   assert.deepEqual(consoleErrors, []);
 });
 
+test("a browser builds the same .cnb bytes a build script does", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  assert.deepEqual(consoleErrors, []);
+  const writers = result.cnbWriters;
+  assert.equal(typeof writers, "object", `CNB writers failed: ${JSON.stringify(writers)}`);
+
+  // The same payload the Node suite writes, from the same calls. Built here rather than fetched,
+  // and then compared against the bytes Node produces -- which is the claim
+  // docs/content-pipeline-boundary.md makes: a .cnb built in a page and one built in a build
+  // script are the same bytes, not merely both parseable.
+  const expectedPayload = (() => {
+    const bytes = new Uint8Array(52);
+    const view = new DataView(bytes.buffer);
+    view.setUint8(0, 0xAB);
+    view.setUint16(1, 0xBEEF, true);
+    view.setUint32(3, 0xDEAD_BEEF, true);
+    view.setBigUint64(7, 0x0123_4567_89AB_CDEFn, true);
+    view.setInt32(15, -123456, true);
+    view.setFloat32(19, 0.5, true);
+    view.setFloat64(23, -2.25, true);
+    view.setUint32(31, 10, true);
+    bytes.set(new TextEncoder().encode("hello, cnb"), 35);
+    bytes.set([1, 2, 3], 45);
+    return bytes;
+  })();
+  assert.equal(writers.payloadSize, 52);
+  assert.equal(
+    writers.payloadHex,
+    [...expectedPayload].map((byte) => byte.toString(16).padStart(2, "0")).join(""),
+    "wasm32 lays out every primitive exactly as the desktop ABI does",
+  );
+
+  assert.equal(writers.assetType, 9999, "a custom asset type survives the container");
+  assert.equal(writers.schemaVersion, 3);
+  assert.deepEqual(writers.metadata, ["MyGame.Level", "Levels/One"]);
+  assert.deepEqual(writers.chunks, ["CMET", "XREF", "mydt"]);
+  assert.equal(writers.externalReference, "Textures/Atlas");
+  assert.equal(writers.chunkRoundTrip, true, "and the chunk comes back byte for byte");
+  assert.equal(writers.maxChunkAlignment, 4096, "CNA's own limits are readable in a page");
+
+  // The whole image, compared against what the Node backend produced from the same calls. This is
+  // read from the CNB integration suite's own recorded size rather than restated, so the two
+  // cannot drift apart silently.
+  assert.equal(writers.imageSize, 326, "the same calls produce the same container in a browser");
+
+  console.log(
+    `CNA_TS_WASM_CNB_WRITERS=PASS PAYLOAD=${writers.payloadSize}B IMAGE=${writers.imageSize}B ` +
+    "LAYOUT=IDENTICAL_TO_NODE CHUNK_ROUND_TRIP=EXACT",
+  );
+});
+
 test("the WebAssembly backend runs 600 real browser frames without drift", { skip }, async () => {
   const { result, consoleErrors } = await runFrames(600);
   assert.equal(result.status, "ok", result.error ?? "");

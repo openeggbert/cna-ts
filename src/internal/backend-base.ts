@@ -56,6 +56,7 @@ import type {
   CnbExternalReferenceSnapshot,
   CnbGlyphSnapshot,
   CnbKeyframeSnapshot,
+  CnbLimitsSnapshot,
   CnbMaterialSnapshot,
   CnbModelInfoSnapshot,
   CnbModelPartSnapshot,
@@ -1603,6 +1604,108 @@ export abstract class CnaContentBackendBase implements CnaContentBackend {
     _c: number,
     _d: number,
   ): number { return this.unsupported("cnbMakeChunkId"); }
+  public cnbWriterGetLimits(
+    _writer: NativeHandle,
+  ): CnbLimitsSnapshot { return this.unsupported("cnbWriterGetLimits"); }
+  public cnbWriterSetLimits(
+    _writer: NativeHandle,
+    _limits: CnbLimitsSnapshot,
+  ): void { return this.unsupported("cnbWriterSetLimits"); }
+  public cnbByteWriterCreate(
+    _initial: Uint8Array | null,
+  ): NativeHandle { return this.unsupported("cnbByteWriterCreate"); }
+  public cnbByteWriterDestroy(
+    _writer: NativeHandle,
+  ): void { return this.unsupported("cnbByteWriterDestroy"); }
+  public cnbByteWriterWriteU8(
+    _writer: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("cnbByteWriterWriteU8"); }
+  public cnbByteWriterWriteU16(
+    _writer: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("cnbByteWriterWriteU16"); }
+  public cnbByteWriterWriteU32(
+    _writer: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("cnbByteWriterWriteU32"); }
+  public cnbByteWriterWriteU64(
+    _writer: NativeHandle,
+    _value: bigint,
+  ): void { return this.unsupported("cnbByteWriterWriteU64"); }
+  public cnbByteWriterWriteI32(
+    _writer: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("cnbByteWriterWriteI32"); }
+  public cnbByteWriterWriteF32(
+    _writer: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("cnbByteWriterWriteF32"); }
+  public cnbByteWriterWriteF64(
+    _writer: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("cnbByteWriterWriteF64"); }
+  public cnbByteWriterWriteString(
+    _writer: NativeHandle,
+    _value: string,
+  ): void { return this.unsupported("cnbByteWriterWriteString"); }
+  public cnbByteWriterWriteBytes(
+    _writer: NativeHandle,
+    _bytes: Uint8Array,
+  ): void { return this.unsupported("cnbByteWriterWriteBytes"); }
+  public cnbByteWriterWriteZeros(
+    _writer: NativeHandle,
+    _byteCount: number,
+  ): void { return this.unsupported("cnbByteWriterWriteZeros"); }
+  public cnbByteWriterGetSize(
+    _writer: NativeHandle,
+  ): number { return this.unsupported("cnbByteWriterGetSize"); }
+  public cnbByteWriterCopyBytes(
+    _writer: NativeHandle,
+  ): Uint8Array { return this.unsupported("cnbByteWriterCopyBytes"); }
+  public cnbByteWriterTake(
+    _writer: NativeHandle,
+  ): Uint8Array { return this.unsupported("cnbByteWriterTake"); }
+  public cnbWriterCreate(
+    _assetTypeId: number,
+    _assetSchemaVersion: number,
+  ): NativeHandle { return this.unsupported("cnbWriterCreate"); }
+  public cnbWriterDestroy(_writer: NativeHandle): void { return this.unsupported("cnbWriterDestroy"); }
+  public cnbWriterSetMetadata(
+    _writer: NativeHandle,
+    _assetTypeName: string,
+    _contentName: string,
+  ): void { return this.unsupported("cnbWriterSetMetadata"); }
+  public cnbWriterAddExternalReference(
+    _writer: NativeHandle,
+    _flags: number,
+    _expectedAssetTypeId: number,
+    _logicalName: string,
+  ): void { return this.unsupported("cnbWriterAddExternalReference"); }
+  public cnbWriterClearExternalReferences(
+    _writer: NativeHandle,
+  ): void { return this.unsupported("cnbWriterClearExternalReferences"); }
+  public cnbWriterAddChunk(
+    _writer: NativeHandle,
+    _chunkId: number,
+    _data: Uint8Array,
+    _flags: number,
+    _alignment: number,
+  ): void { return this.unsupported("cnbWriterAddChunk"); }
+  public cnbWriterGetSchemaChunkCount(
+    _writer: NativeHandle,
+  ): number { return this.unsupported("cnbWriterGetSchemaChunkCount"); }
+  public cnbWriterSetCompression(
+    _writer: NativeHandle,
+    _codec: number,
+    _level: number,
+  ): void { return this.unsupported("cnbWriterSetCompression"); }
+  public cnbWriterAppendEmbeddedTexture2D(
+    _writer: NativeHandle,
+    _texture: NativeHandle,
+    _label: string,
+  ): void { return this.unsupported("cnbWriterAppendEmbeddedTexture2D"); }
+  public cnbWriterBuild(_writer: NativeHandle): Uint8Array { return this.unsupported("cnbWriterBuild"); }
   public cnbChunkIdString(_id: number): string { return this.unsupported("cnbChunkIdString"); }
   public cnbIsWellFormedChunkId(_id: number): boolean { return this.unsupported("cnbIsWellFormedChunkId"); }
   public cnbTextureFormatName(_format: number): string { return this.unsupported("cnbTextureFormatName"); }

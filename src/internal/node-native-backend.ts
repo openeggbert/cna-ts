@@ -32,6 +32,7 @@ import type {
   PassTimingSnapshot,
   PostProcessFrameSnapshot,
   CnbChunkEntrySnapshot,
+  CnbLimitsSnapshot,
   CnbDocumentSnapshot,
   CnbExternalReferenceSnapshot,
   CnbGlyphSnapshot,
@@ -393,6 +394,39 @@ interface NativeBridge {
   cnbAssetTypeIdFromName(name: string): number;
   cnbIsCustomAssetTypeId(assetTypeId: number): boolean;
   cnbMakeChunkId(a: number, b: number, c: number, d: number): number;
+  cnbWriterGetLimits(writer: bigint): CnbLimitsSnapshot;
+  cnbWriterSetLimits(writer: bigint, limits: CnbLimitsSnapshot): void;
+  cnbByteWriterCreate(initial: Uint8Array | null): bigint;
+  cnbByteWriterDestroy(writer: bigint): void;
+  cnbByteWriterWriteU8(writer: bigint, value: number): void;
+  cnbByteWriterWriteU16(writer: bigint, value: number): void;
+  cnbByteWriterWriteU32(writer: bigint, value: number): void;
+  cnbByteWriterWriteU64(writer: bigint, value: bigint): void;
+  cnbByteWriterWriteI32(writer: bigint, value: number): void;
+  cnbByteWriterWriteF32(writer: bigint, value: number): void;
+  cnbByteWriterWriteF64(writer: bigint, value: number): void;
+  cnbByteWriterWriteString(writer: bigint, value: string): void;
+  cnbByteWriterWriteBytes(writer: bigint, bytes: Uint8Array): void;
+  cnbByteWriterWriteZeros(writer: bigint, byteCount: number): void;
+  cnbByteWriterGetSize(writer: bigint): number;
+  cnbByteWriterCopyBytes(writer: bigint): Uint8Array;
+  cnbByteWriterTake(writer: bigint): Uint8Array;
+  cnbWriterCreate(assetTypeId: number, assetSchemaVersion: number): bigint;
+  cnbWriterDestroy(writer: bigint): void;
+  cnbWriterSetMetadata(writer: bigint, assetTypeName: string, contentName: string): void;
+  cnbWriterAddExternalReference(
+    writer: bigint, flags: number, expectedAssetTypeId: number, logicalName: string,
+  ): void;
+  cnbWriterClearExternalReferences(writer: bigint): void;
+  cnbWriterAddChunk(
+    writer: bigint, chunkId: number, data: Uint8Array, flags: number, alignment: number,
+  ): void;
+  cnbWriterGetSchemaChunkCount(writer: bigint): number;
+  cnbWriterSetCompression(writer: bigint, codec: number, level: number): void;
+  cnbWriterAppendEmbeddedTexture2D(
+    writer: bigint, texture: bigint, label: string,
+  ): void;
+  cnbWriterBuild(writer: bigint): Uint8Array;
   cnbChunkIdString(id: number): string;
   cnbIsWellFormedChunkId(id: number): boolean;
   cnbTextureFormatName(format: number): string;
@@ -1500,6 +1534,88 @@ export class NodeNativeBackend
   public cnbMakeChunkId(a: number, b: number, c: number, d: number): number {
     return this.#bridge.cnbMakeChunkId(a, b, c, d);
   }
+  public cnbWriterGetLimits(writer: NativeHandle): CnbLimitsSnapshot {
+    return this.#bridge.cnbWriterGetLimits(writer);
+  }
+  public cnbWriterSetLimits(writer: NativeHandle, limits: CnbLimitsSnapshot): void {
+    this.#bridge.cnbWriterSetLimits(writer, limits);
+  }
+  public cnbByteWriterCreate(initial: Uint8Array | null): NativeHandle {
+    return this.#bridge.cnbByteWriterCreate(initial);
+  }
+  public cnbByteWriterDestroy(writer: NativeHandle): void {
+    this.#bridge.cnbByteWriterDestroy(writer);
+  }
+  public cnbByteWriterWriteU8(writer: NativeHandle, value: number): void {
+    this.#bridge.cnbByteWriterWriteU8(writer, value);
+  }
+  public cnbByteWriterWriteU16(writer: NativeHandle, value: number): void {
+    this.#bridge.cnbByteWriterWriteU16(writer, value);
+  }
+  public cnbByteWriterWriteU32(writer: NativeHandle, value: number): void {
+    this.#bridge.cnbByteWriterWriteU32(writer, value);
+  }
+  public cnbByteWriterWriteU64(writer: NativeHandle, value: bigint): void {
+    this.#bridge.cnbByteWriterWriteU64(writer, value);
+  }
+  public cnbByteWriterWriteI32(writer: NativeHandle, value: number): void {
+    this.#bridge.cnbByteWriterWriteI32(writer, value);
+  }
+  public cnbByteWriterWriteF32(writer: NativeHandle, value: number): void {
+    this.#bridge.cnbByteWriterWriteF32(writer, value);
+  }
+  public cnbByteWriterWriteF64(writer: NativeHandle, value: number): void {
+    this.#bridge.cnbByteWriterWriteF64(writer, value);
+  }
+  public cnbByteWriterWriteString(writer: NativeHandle, value: string): void {
+    this.#bridge.cnbByteWriterWriteString(writer, value);
+  }
+  public cnbByteWriterWriteBytes(writer: NativeHandle, bytes: Uint8Array): void {
+    this.#bridge.cnbByteWriterWriteBytes(writer, bytes);
+  }
+  public cnbByteWriterWriteZeros(writer: NativeHandle, byteCount: number): void {
+    this.#bridge.cnbByteWriterWriteZeros(writer, byteCount);
+  }
+  public cnbByteWriterGetSize(writer: NativeHandle): number {
+    return this.#bridge.cnbByteWriterGetSize(writer);
+  }
+  public cnbByteWriterCopyBytes(writer: NativeHandle): Uint8Array {
+    return this.#bridge.cnbByteWriterCopyBytes(writer);
+  }
+  public cnbByteWriterTake(writer: NativeHandle): Uint8Array {
+    return this.#bridge.cnbByteWriterTake(writer);
+  }
+  public cnbWriterCreate(assetTypeId: number, assetSchemaVersion: number): NativeHandle {
+    return this.#bridge.cnbWriterCreate(assetTypeId, assetSchemaVersion);
+  }
+  public cnbWriterDestroy(writer: NativeHandle): void {
+    this.#bridge.cnbWriterDestroy(writer);
+  }
+  public cnbWriterSetMetadata(writer: NativeHandle, assetTypeName: string, contentName: string): void {
+    this.#bridge.cnbWriterSetMetadata(writer, assetTypeName, contentName);
+  }
+  public cnbWriterAddExternalReference(writer: NativeHandle, flags: number, expectedAssetTypeId: number, logicalName: string): void {
+    this.#bridge.cnbWriterAddExternalReference(writer, flags, expectedAssetTypeId, logicalName);
+  }
+  public cnbWriterClearExternalReferences(writer: NativeHandle): void {
+    this.#bridge.cnbWriterClearExternalReferences(writer);
+  }
+  public cnbWriterAddChunk(writer: NativeHandle, chunkId: number, data: Uint8Array, flags: number, alignment: number): void {
+    this.#bridge.cnbWriterAddChunk(writer, chunkId, data, flags, alignment);
+  }
+  public cnbWriterGetSchemaChunkCount(writer: NativeHandle): number {
+    return this.#bridge.cnbWriterGetSchemaChunkCount(writer);
+  }
+  public cnbWriterSetCompression(writer: NativeHandle, codec: number, level: number): void {
+    this.#bridge.cnbWriterSetCompression(writer, codec, level);
+  }
+  public cnbWriterAppendEmbeddedTexture2D(writer: NativeHandle, texture: NativeHandle, label: string): void {
+    this.#bridge.cnbWriterAppendEmbeddedTexture2D(writer, texture, label);
+  }
+  public cnbWriterBuild(writer: NativeHandle): Uint8Array {
+    return this.#bridge.cnbWriterBuild(writer);
+  }
+
   public cnbChunkIdString(id: number): string { return this.#bridge.cnbChunkIdString(id); }
   public cnbIsWellFormedChunkId(id: number): boolean { return this.#bridge.cnbIsWellFormedChunkId(id); }
   public cnbTextureFormatName(format: number): string {

@@ -130,9 +130,26 @@ in which CNA reads back its own output proves nothing about importing — compil
 `.cnb` files to disk, and then loads them through the real `cna-ts` runtime. The texture assertion
 is the four exact texels the PNG carried, read out of a native `Texture2D`.
 
-What remains of `cnb.h`'s build-time surface is the primitive byte writer, the loader registry and
-the `.cnj` compile front ends. Those are the package's next content; the runtime asset schemas it
-compiles *to* are all projected already, in `cna-ts/extensions/content`.
+The primitive byte writer and the container writer are now projected too, in
+`cna-ts/extensions/content` rather than in the build-time package — because they produce **bytes**,
+and bytes are this side of the seam. Together they are what "compile an asset CNA has no schema
+for" means: `CnbByteWriter` lays out a chunk's payload one primitive at a time in CNB's own byte
+order, `CnbWriter` wraps chunks, metadata and external references into a container, and
+`CnbDocument.Parse` — the same reader every projected schema goes through — reads the result back.
+
+`cna_cnb_writer_write_to_file` is deliberately **not** projected. It is the one writer route that
+touches a filesystem, and projecting it here would put a path-taking API back into the runtime
+package the boundary exists to keep clean. A build script writes the bytes itself.
+
+That the two backends agree is now proved rather than claimed. The Node suite and the browser page
+build the same container from the same calls, and the browser test asserts the payload is byte for
+byte what the desktop ABI lays out and the image is the same 326 bytes — so "a `.cnb` built in a
+build script and one built in a page are the same bytes" is a measurement.
+
+What remains of `cnb.h`'s build-time surface is the loader registry and the `.cnj` compile front
+ends. The registry is the harder one: teaching CNA a new asset type means handing it callbacks, and
+this package will not publish `void*`, raw function pointers or a table of them, so it needs a
+typed abstraction designed rather than transcribed.
 
 ## What that means for this package
 

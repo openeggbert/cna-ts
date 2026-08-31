@@ -13,8 +13,8 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 64,
-    "VERIFIED_WEBASSEMBLY": 12,
+    "VERIFIED_NATIVE": 65,
+    "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 2,
     "FIXTURE_PENDING": 3,
@@ -154,15 +154,13 @@
       "evidence": "no qualified artifact/job on either OS"
     },
     {
-      "operation": "CNB's remaining build-time tooling: the byte writer, the loader registry and .cnj",
+      "operation": "CNB's remaining build-time tooling: the loader registry and the .cnj front ends",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the container and every runtime asset schema are projected and verified above, and the three path-taking importers are projected in cna-ts-content. What remains of cnb.h is the primitive byte writer, the loader registry, the .cnj compile front ends, and the model's morph targets and per-slot texture arrays",
+      "evidence": "the primitive byte writer and the container writer are projected and verified separately; what is left is teaching CNA a new asset type through cna_cnb_loader_registry_*, which means handing it callbacks, and the two .cnj compile front ends. The registry needs a typed abstraction designed rather than transcribed, because this package will not publish void*, raw function pointers or a table of them. cna_cnb_writer_write_to_file is deliberately unprojected: it is the one writer route that touches a filesystem, and the runtime package draws its boundary at bytes",
       "proof": [
-        "absentRoute:cna_cnb_byte_writer_create",
         "absentRoute:cna_cnb_loader_registry_register",
-        "absentRoute:cna_cnb_compile_cnj",
-        "absentRoute:cna_cnb_model_get_morph"
+        "absentRoute:cna_cnb_compile_cnj"
       ]
     },
     {
@@ -603,6 +601,20 @@
         "route:cna_cnb_texture_data_get_info",
         "route:cna_cnb_encode_texture2d",
         "test:test/cnb-content.integration.mjs"
+      ]
+    },
+    {
+      "operation": "CNB's writers: authoring a container for an asset type CNA has no schema for",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "one of every primitive the byte writer offers, decoded back at its exact offset with a DataView -- which is what proves the widths and the little-endian order rather than only that some bytes survived. A u64 survives exactly because it crosses as a bigint; a negative i32 is not read as unsigned; a string carries a four-byte length before its UTF-8 bytes. ToArray copies and Take empties, and the two are distinct. A container built from a custom asset type, custom schema version, metadata, an external reference and a game-defined chunk parses back through the same CnbDocument reader every projected schema uses, with the chunk payload byte for byte. CNB validates structure when a chunk is added -- alignment must be a power of two within its ceiling -- and sizes when the document is built, and both halves are asserted where they happen. Four planted defects all fail: a Take that copies, a u16 written at 32 bits, a dropped power-of-two check, and a limit narrowed but never sent",
+      "proof": [
+        "route:cna_cnb_byte_writer_write_u64",
+        "route:cna_cnb_writer_add_chunk",
+        "route:cna_cnb_writer_build",
+        "wasmRoute:cna_cnb_writer_build",
+        "test:test/cnb-content.integration.mjs",
+        "test:test/wasm-browser.mjs"
       ]
     },
     {
@@ -1291,6 +1303,17 @@
         "wasmRoute:cna_cnb_model_get_bone",
         "wasmRoute:cna_cnb_model_copy_part_vertex_bytes",
         "wasmRoute:cna_cnb_model_copy_skeleton_matrices",
+        "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "CNB's writers produce identical bytes on both backends",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "the content-pipeline boundary claims a .cnb built in a build script and one built in a page are the same bytes. A browser page builds the same 52-byte payload and the same 326-byte container from the same calls, and the test compares the payload against the exact little-endian layout the desktop ABI produces rather than against the page agreeing with itself. The read-limits structure crosses through a wasm32 layout measured by an Emscripten probe, not a handwritten one",
+      "proof": [
+        "wasmRoute:cna_cnb_byte_writer_copy_bytes",
+        "wasmRoute:cna_cnb_writer_get_limits",
         "test:test/wasm-browser.mjs"
       ]
     },

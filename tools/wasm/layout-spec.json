@@ -436,6 +436,17 @@
       "cropping",
       "character",
       "kerning"
+    ],
+    "CNA_CnbReadLimits": [
+      "struct_size",
+      "struct_version",
+      "max_file_size",
+      "max_chunk_size",
+      "max_total_uncompressed_size",
+      "max_chunk_count",
+      "max_string_bytes",
+      "max_array_element_count",
+      "max_chunk_alignment"
     ]
   },
   "callbacks": {

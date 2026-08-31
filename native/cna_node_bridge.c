@@ -469,6 +469,31 @@ typedef CNA_Result (*CnbDecodeModelFn)(CNA_CnbDocumentHandle, CNA_CnbModelDataHa
 typedef CNA_Result (*CnbTextureDataDestroyFn)(CNA_CnbTextureDataHandle);
 typedef CNA_Result (*CnbDocumentDestroyFn)(CNA_CnbDocumentHandle);
 
+/* --- CNB's writers ---------------------------------------------------------------------------- */
+typedef CNA_Result (*CnbByteWriterCreateFn)(CNA_CnbByteWriterHandle*);
+typedef CNA_Result (*CnbByteWriterCreateFromBytesFn)(
+  const uint8_t*, uint64_t, CNA_CnbByteWriterHandle*);
+typedef CNA_Result (*CnbWriteU8Fn)(CNA_CnbByteWriterHandle, uint8_t);
+typedef CNA_Result (*CnbWriteU16Fn)(CNA_CnbByteWriterHandle, uint16_t);
+typedef CNA_Result (*CnbWriteU32Fn)(CNA_CnbByteWriterHandle, uint32_t);
+typedef CNA_Result (*CnbWriteU64Fn)(CNA_CnbByteWriterHandle, uint64_t);
+typedef CNA_Result (*CnbWriteF64Fn)(CNA_CnbByteWriterHandle, double);
+typedef CNA_Result (*CnbWriteStringFn)(CNA_CnbByteWriterHandle, CNA_StringView);
+typedef CNA_Result (*CnbWriteBytesFn)(CNA_CnbByteWriterHandle, const uint8_t*, uint64_t);
+typedef CNA_Result (*CnbWriterCreateFn)(uint32_t, uint32_t, CNA_CnbWriterHandle*);
+typedef CNA_Result (*CnbWriterMetadataFn)(CNA_CnbWriterHandle, CNA_StringView, CNA_StringView);
+typedef CNA_Result (*CnbWriterAddReferenceFn)(
+  CNA_CnbWriterHandle, const CNA_CnbExternalReference*, CNA_StringView);
+typedef CNA_Result (*CnbWriterAddChunkFn)(
+  CNA_CnbWriterHandle, CNA_CnbChunkId, const uint8_t*, uint64_t, uint32_t, uint32_t);
+typedef CNA_Result (*CnbWriterCompressionFn)(CNA_CnbWriterHandle, CNA_CnbCompression, int32_t);
+typedef CNA_Result (*CnbWriterSetLimitsFn)(CNA_CnbWriterHandle, const CNA_CnbReadLimits*);
+typedef CNA_Result (*CnbWriterGetLimitsFn)(CNA_CnbWriterHandle, CNA_CnbReadLimits*);
+typedef CNA_Result (*CnbReadLimitsInitFn)(CNA_CnbReadLimits*);
+typedef CNA_Result (*CnbWriterAppendTextureFn)(
+  CNA_CnbWriterHandle, CNA_CnbTextureDataHandle, CNA_StringView);
+
+
 
 /* --- the engine layer's post-process chain --------------------------------------------------- */
 typedef CNA_Result (*PostProcessContextInitFn)(CNA_PostProcessContext*);
@@ -1047,6 +1072,35 @@ typedef struct Api {
   U32ToU32Fn cnb_texture_format_to_surface_format;
   CnbDocumentParseFn cnb_document_parse;
   CnbDocumentDestroyFn cnb_document_destroy;
+  CnbByteWriterCreateFn cnb_byte_writer_create;
+  CnbByteWriterCreateFromBytesFn cnb_byte_writer_create_from_bytes;
+  GameHandleFn cnb_byte_writer_destroy;
+  CnbWriteU8Fn cnb_byte_writer_write_u8;
+  CnbWriteU16Fn cnb_byte_writer_write_u16;
+  CnbWriteU32Fn cnb_byte_writer_write_u32;
+  CnbWriteU64Fn cnb_byte_writer_write_u64;
+  HandleI32Fn cnb_byte_writer_write_i32;
+  HandleFloatFn cnb_byte_writer_write_f32;
+  CnbWriteF64Fn cnb_byte_writer_write_f64;
+  CnbWriteStringFn cnb_byte_writer_write_string;
+  CnbWriteBytesFn cnb_byte_writer_write_bytes;
+  WindowSetFn cnb_byte_writer_write_zeros;
+  HandleU64OutFn cnb_byte_writer_get_size;
+  StorageStreamReadFn cnb_byte_writer_copy_bytes;
+  StorageStreamReadFn cnb_byte_writer_take;
+  CnbWriterCreateFn cnb_writer_create;
+  GameHandleFn cnb_writer_destroy;
+  CnbWriterMetadataFn cnb_writer_set_metadata;
+  CnbWriterAddReferenceFn cnb_writer_add_external_reference;
+  GameHandleFn cnb_writer_clear_external_references;
+  CnbWriterAddChunkFn cnb_writer_add_chunk;
+  HandleU64OutFn cnb_writer_get_schema_chunk_count;
+  CnbWriterCompressionFn cnb_writer_set_compression;
+  CnbWriterSetLimitsFn cnb_writer_set_limits;
+  CnbWriterGetLimitsFn cnb_writer_get_limits;
+  CnbReadLimitsInitFn cnb_read_limits_init;
+  StorageStreamReadFn cnb_writer_build;
+  CnbWriterAppendTextureFn cnb_writer_append_embedded_texture2d;
   HandleU64OutFn cnb_document_get_origin_size;
   HandleCopyStringFn cnb_document_copy_origin;
   CnbDocumentU16OutFn cnb_document_get_container_major;
@@ -1553,6 +1607,17 @@ static ContentLostContext* g_content_lost_events;
 static TextInputContext* g_text_input_events;
 
 static napi_value undefined_result(napi_env env, const char* operation);
+
+/*
+ * A few generic route runners are defined with the families that first needed them, further down.
+ * The CNB writers reuse them rather than growing near-identical copies, so they are declared here.
+ */
+static napi_value pp_handle_only(
+  napi_env env, napi_callback_info info, GameHandleFn route, const char* name);
+static napi_value pp_set_float(
+  napi_env env, napi_callback_info info, HandleFloatFn route, const char* name);
+static napi_value storage_buffer_u64(
+  napi_env env, napi_callback_info info, HandleU64OutFn route, const char* name);
 static int get_named_handle(napi_env env, napi_value object, const char* name, CNA_Handle* out);
 
 static napi_value throw_message(napi_env env, const char* message) {
@@ -2264,6 +2329,35 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(cnb_texture_format_to_surface_format, U32ToU32Fn, "cna_cnb_texture_format_to_surface_format");
   LOAD_REQUIRED(cnb_document_parse, CnbDocumentParseFn, "cna_cnb_document_parse");
   LOAD_REQUIRED(cnb_document_destroy, CnbDocumentDestroyFn, "cna_cnb_document_destroy");
+  LOAD_REQUIRED(cnb_byte_writer_create, CnbByteWriterCreateFn, "cna_cnb_byte_writer_create");
+  LOAD_REQUIRED(cnb_byte_writer_create_from_bytes, CnbByteWriterCreateFromBytesFn, "cna_cnb_byte_writer_create_from_bytes");
+  LOAD_REQUIRED(cnb_byte_writer_destroy, GameHandleFn, "cna_cnb_byte_writer_destroy");
+  LOAD_REQUIRED(cnb_byte_writer_write_u8, CnbWriteU8Fn, "cna_cnb_byte_writer_write_u8");
+  LOAD_REQUIRED(cnb_byte_writer_write_u16, CnbWriteU16Fn, "cna_cnb_byte_writer_write_u16");
+  LOAD_REQUIRED(cnb_byte_writer_write_u32, CnbWriteU32Fn, "cna_cnb_byte_writer_write_u32");
+  LOAD_REQUIRED(cnb_byte_writer_write_u64, CnbWriteU64Fn, "cna_cnb_byte_writer_write_u64");
+  LOAD_REQUIRED(cnb_byte_writer_write_i32, HandleI32Fn, "cna_cnb_byte_writer_write_i32");
+  LOAD_REQUIRED(cnb_byte_writer_write_f32, HandleFloatFn, "cna_cnb_byte_writer_write_f32");
+  LOAD_REQUIRED(cnb_byte_writer_write_f64, CnbWriteF64Fn, "cna_cnb_byte_writer_write_f64");
+  LOAD_REQUIRED(cnb_byte_writer_write_string, CnbWriteStringFn, "cna_cnb_byte_writer_write_string");
+  LOAD_REQUIRED(cnb_byte_writer_write_bytes, CnbWriteBytesFn, "cna_cnb_byte_writer_write_bytes");
+  LOAD_REQUIRED(cnb_byte_writer_write_zeros, WindowSetFn, "cna_cnb_byte_writer_write_zeros");
+  LOAD_REQUIRED(cnb_byte_writer_get_size, HandleU64OutFn, "cna_cnb_byte_writer_get_size");
+  LOAD_REQUIRED(cnb_byte_writer_copy_bytes, StorageStreamReadFn, "cna_cnb_byte_writer_copy_bytes");
+  LOAD_REQUIRED(cnb_byte_writer_take, StorageStreamReadFn, "cna_cnb_byte_writer_take");
+  LOAD_REQUIRED(cnb_writer_create, CnbWriterCreateFn, "cna_cnb_writer_create");
+  LOAD_REQUIRED(cnb_writer_destroy, GameHandleFn, "cna_cnb_writer_destroy");
+  LOAD_REQUIRED(cnb_writer_set_metadata, CnbWriterMetadataFn, "cna_cnb_writer_set_metadata");
+  LOAD_REQUIRED(cnb_writer_add_external_reference, CnbWriterAddReferenceFn, "cna_cnb_writer_add_external_reference");
+  LOAD_REQUIRED(cnb_writer_clear_external_references, GameHandleFn, "cna_cnb_writer_clear_external_references");
+  LOAD_REQUIRED(cnb_writer_add_chunk, CnbWriterAddChunkFn, "cna_cnb_writer_add_chunk");
+  LOAD_REQUIRED(cnb_writer_get_schema_chunk_count, HandleU64OutFn, "cna_cnb_writer_get_schema_chunk_count");
+  LOAD_REQUIRED(cnb_writer_set_compression, CnbWriterCompressionFn, "cna_cnb_writer_set_compression");
+  LOAD_REQUIRED(cnb_writer_set_limits, CnbWriterSetLimitsFn, "cna_cnb_writer_set_limits");
+  LOAD_REQUIRED(cnb_writer_get_limits, CnbWriterGetLimitsFn, "cna_cnb_writer_get_limits");
+  LOAD_REQUIRED(cnb_read_limits_init, CnbReadLimitsInitFn, "cna_cnb_read_limits_init");
+  LOAD_REQUIRED(cnb_writer_build, StorageStreamReadFn, "cna_cnb_writer_build");
+  LOAD_REQUIRED(cnb_writer_append_embedded_texture2d, CnbWriterAppendTextureFn, "cna_cnb_writer_append_embedded_texture2d");
   LOAD_REQUIRED(cnb_document_get_origin_size, HandleU64OutFn, "cna_cnb_document_get_origin_size");
   LOAD_REQUIRED(cnb_document_copy_origin, HandleCopyStringFn, "cna_cnb_document_copy_origin");
   LOAD_REQUIRED(cnb_document_get_container_major, CnbDocumentU16OutFn, "cna_cnb_document_get_container_major");
@@ -8420,6 +8514,465 @@ static napi_value cnb_asset_type_id_from_name(napi_env env, napi_callback_info i
   if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_asset_type_id_from_name", result);
   NAPI_OR_RETURN(env, napi_create_uint32(env, id, &output), "CNB asset type identity");
   return output;
+}
+
+/* --- CNB's writers: the primitive byte writer and the container writer ------------------------- */
+/*
+ * The write half of CNB, for an asset type CNA does not have a schema for. The byte writer lays
+ * out a chunk's payload one primitive at a time; the container writer wraps chunks, metadata and
+ * external references into a `.cnb` image. Together they are what "compile a custom asset" means.
+ *
+ * `cna_cnb_writer_write_to_file` is deliberately not bound. This package produces bytes and never
+ * touches a filesystem -- that is the seam docs/content-pipeline-boundary.md draws, and the
+ * build-time package writes the bytes itself.
+ *
+ * Every copy-out route takes the same two-pass shape CNB uses elsewhere: ask with a zero capacity
+ * for the size, allocate exactly that, then copy. `take` additionally empties the writer, and it
+ * is exposed distinctly from `copy_bytes` because collapsing them into a flag is how a caller ends
+ * up with an empty writer it meant to keep.
+ *
+ * `cna_cnb_byte_writer_write_keyframe` is left to the animation-clip schema that owns the keyframe
+ * shape: it is already encoded there, and reading one twice in two places is how the two drift.
+ */
+
+static napi_value cnb_byte_writer_create(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_CnbByteWriterHandle writer = 0;
+  const uint8_t* bytes = NULL;
+  size_t length = 0;
+  napi_valuetype type = napi_undefined;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_typeof(env, args[0], &type) != napi_ok) return NULL;
+  CNA_Result result;
+  if (type == napi_null || type == napi_undefined) {
+    result = g_api.cnb_byte_writer_create(&writer);
+  } else {
+    if (!read_byte_view(env, args[0], &bytes, &length)) return NULL;
+    result = g_api.cnb_byte_writer_create_from_bytes(bytes, (uint64_t) length, &writer);
+  }
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_byte_writer_create", result);
+  }
+  return make_handle(env, writer);
+}
+
+static napi_value cnb_byte_writer_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.cnb_byte_writer_destroy,
+    "cna_cnb_byte_writer_destroy");
+}
+static napi_value cnb_byte_writer_get_size(napi_env env, napi_callback_info info) {
+  return storage_buffer_u64(env, info, g_api.cnb_byte_writer_get_size,
+    "cna_cnb_byte_writer_get_size");
+}
+
+/*
+ * The unsigned writes. Each one is refused here when the value does not fit its width, rather than
+ * being truncated into a plausible-looking number -- CNA takes the width it is given and cannot
+ * tell a deliberate 0xFF from a truncated 0x1FF.
+ */
+static int read_bounded_u64(
+  napi_env env, napi_value value, uint64_t limit, uint64_t* out, const char* what
+) {
+  double number = 0;
+  if (napi_get_value_double(env, value, &number) != napi_ok ||
+      !(number >= 0) || number > 9007199254740991.0 ||
+      number != (double) (uint64_t) number || (uint64_t) number > limit) {
+    throw_message(env, what);
+    return 0;
+  }
+  *out = (uint64_t) number;
+  return 1;
+}
+
+#define CNB_WRITE_UNSIGNED(name, field, ctype, limit, operation, message)                         \
+  static napi_value name(napi_env env, napi_callback_info info) {                                 \
+    napi_value args[2];                                                                           \
+    CNA_Handle writer = 0;                                                                        \
+    uint64_t value = 0;                                                                           \
+    if (!require_loaded(env) || !get_args(env, info, 2, args) ||                                  \
+        !read_handle(env, args[0], &writer) ||                                                    \
+        !read_bounded_u64(env, args[1], (limit), &value, (message))) return NULL;                 \
+    const CNA_Result result = g_api.field(writer, (ctype) value);                                 \
+    if (result != CNA_RESULT_SUCCESS) return throw_result(env, (operation), result);              \
+    return undefined_result(env, (operation));                                                    \
+  }
+
+CNB_WRITE_UNSIGNED(cnb_byte_writer_write_u8, cnb_byte_writer_write_u8, uint8_t, 0xFFu,
+  "cna_cnb_byte_writer_write_u8", "a u8 must be an integer from 0 to 255")
+CNB_WRITE_UNSIGNED(cnb_byte_writer_write_u16, cnb_byte_writer_write_u16, uint16_t, 0xFFFFu,
+  "cna_cnb_byte_writer_write_u16", "a u16 must be an integer from 0 to 65535")
+CNB_WRITE_UNSIGNED(cnb_byte_writer_write_u32, cnb_byte_writer_write_u32, uint32_t, 0xFFFFFFFFu,
+  "cna_cnb_byte_writer_write_u32", "a u32 must be an integer from 0 to 4294967295")
+
+/* u64 takes a bigint, because a JavaScript number cannot carry one exactly. */
+static napi_value cnb_byte_writer_write_u64(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle writer = 0;
+  uint64_t value = 0;
+  bool lossless = false;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &writer)) return NULL;
+  if (napi_get_value_bigint_uint64(env, args[1], &value, &lossless) != napi_ok || !lossless) {
+    return throw_message(env, "a u64 must be a bigint that fits in 64 unsigned bits");
+  }
+  const CNA_Result result = g_api.cnb_byte_writer_write_u64(writer, value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_byte_writer_write_u64", result);
+  }
+  return undefined_result(env, "cna_cnb_byte_writer_write_u64");
+}
+
+static napi_value cnb_byte_writer_write_i32(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle writer = 0;
+  int32_t value = 0;
+  double number = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &writer) ||
+      napi_get_value_double(env, args[1], &number) != napi_ok) return NULL;
+  if (number != (double) (int32_t) number) {
+    return throw_message(env, "an i32 must be an integer from -2147483648 to 2147483647");
+  }
+  value = (int32_t) number;
+  const CNA_Result result = g_api.cnb_byte_writer_write_i32(writer, value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_byte_writer_write_i32", result);
+  }
+  return undefined_result(env, "cna_cnb_byte_writer_write_i32");
+}
+
+static napi_value cnb_byte_writer_write_f32(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.cnb_byte_writer_write_f32,
+    "cna_cnb_byte_writer_write_f32");
+}
+
+static napi_value cnb_byte_writer_write_f64(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle writer = 0;
+  double value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &writer) ||
+      napi_get_value_double(env, args[1], &value) != napi_ok) {
+    return throw_message(env, "an f64 must be a number");
+  }
+  const CNA_Result result = g_api.cnb_byte_writer_write_f64(writer, value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_byte_writer_write_f64", result);
+  }
+  return undefined_result(env, "cna_cnb_byte_writer_write_f64");
+}
+
+static napi_value cnb_byte_writer_write_string(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle writer = 0;
+  char* text = NULL;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &writer) ||
+      !read_utf8(env, args[1], &text, &length)) return NULL;
+  const CNA_StringView view = {text, length};
+  const CNA_Result result = g_api.cnb_byte_writer_write_string(writer, view);
+  free(text);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_byte_writer_write_string", result);
+  }
+  return undefined_result(env, "cna_cnb_byte_writer_write_string");
+}
+
+static napi_value cnb_byte_writer_write_bytes(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle writer = 0;
+  const uint8_t* bytes = NULL;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &writer) ||
+      !read_byte_view(env, args[1], &bytes, &length)) return NULL;
+  /* The length is the view's own, never a separate argument. */
+  const CNA_Result result = g_api.cnb_byte_writer_write_bytes(writer, bytes, (uint64_t) length);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_byte_writer_write_bytes", result);
+  }
+  return undefined_result(env, "cna_cnb_byte_writer_write_bytes");
+}
+
+static napi_value cnb_byte_writer_write_zeros(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle writer = 0;
+  uint64_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &writer) ||
+      !read_bounded_u64(env, args[1], 0x7FFFFFFFu, &count,
+        "a zero run must be a non-negative safe integer")) return NULL;
+  const CNA_Result result = g_api.cnb_byte_writer_write_zeros(writer, count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_byte_writer_write_zeros", result);
+  }
+  return undefined_result(env, "cna_cnb_byte_writer_write_zeros");
+}
+
+static napi_value cnb_copy_out(
+  napi_env env, StorageStreamReadFn route, CNA_Handle handle, const char* name
+) {
+  napi_value output;
+  uint64_t required = 0;
+  CNA_Result result = route(handle, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, name, result);
+  }
+  if (required > SIZE_MAX) return throw_message(env, "the payload exceeds the host address space");
+  void* data = NULL;
+  if (napi_create_buffer(env, (size_t) required, &data, &output) != napi_ok) {
+    return throw_napi(env, name);
+  }
+  uint64_t produced = 0;
+  result = route(handle, (uint8_t*) data, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    return throw_result(env, name, result);
+  }
+  return output;
+}
+
+static napi_value cnb_byte_writer_copy_bytes(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle writer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &writer)) return NULL;
+  return cnb_copy_out(env, g_api.cnb_byte_writer_copy_bytes, writer,
+    "cna_cnb_byte_writer_copy_bytes");
+}
+
+static napi_value cnb_byte_writer_take(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle writer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &writer)) return NULL;
+  return cnb_copy_out(env, g_api.cnb_byte_writer_take, writer, "cna_cnb_byte_writer_take");
+}
+
+/* --- the container writer --- */
+
+static napi_value cnb_writer_create(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  uint32_t assetType = 0, schemaVersion = 0;
+  CNA_CnbWriterHandle writer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      napi_get_value_uint32(env, args[0], &assetType) != napi_ok ||
+      napi_get_value_uint32(env, args[1], &schemaVersion) != napi_ok) return NULL;
+  const CNA_Result result = g_api.cnb_writer_create(assetType, schemaVersion, &writer);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_writer_create", result);
+  return make_handle(env, writer);
+}
+
+static napi_value cnb_writer_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.cnb_writer_destroy, "cna_cnb_writer_destroy");
+}
+static napi_value cnb_writer_clear_external_references(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.cnb_writer_clear_external_references,
+    "cna_cnb_writer_clear_external_references");
+}
+static napi_value cnb_writer_get_schema_chunk_count(napi_env env, napi_callback_info info) {
+  return storage_buffer_u64(env, info, g_api.cnb_writer_get_schema_chunk_count,
+    "cna_cnb_writer_get_schema_chunk_count");
+}
+
+static napi_value cnb_writer_set_metadata(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle writer = 0;
+  char* assetTypeName = NULL;
+  char* contentName = NULL;
+  size_t assetTypeLength = 0, contentLength = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &writer) ||
+      !read_utf8(env, args[1], &assetTypeName, &assetTypeLength)) return NULL;
+  if (!read_utf8(env, args[2], &contentName, &contentLength)) {
+    free(assetTypeName);
+    return NULL;
+  }
+  const CNA_StringView assetTypeView = {assetTypeName, assetTypeLength};
+  const CNA_StringView contentView = {contentName, contentLength};
+  const CNA_Result result = g_api.cnb_writer_set_metadata(writer, assetTypeView, contentView);
+  free(assetTypeName);
+  free(contentName);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_writer_set_metadata", result);
+  }
+  return undefined_result(env, "cna_cnb_writer_set_metadata");
+}
+
+static napi_value cnb_writer_add_external_reference(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle writer = 0;
+  CNA_CnbExternalReference reference;
+  uint32_t flags = 0, expectedAssetTypeId = 0;
+  char* name = NULL;
+  size_t nameLength = 0;
+  /* Another caller-provided versioned structure; the version is the canonical macro, asserted
+     against the headers by tools/cna-abi/contract.json. */
+  memset(&reference, 0, sizeof(reference));
+  reference.struct_size = (uint32_t) sizeof(reference);
+  reference.struct_version = CNA_CNB_EXTERNAL_REFERENCE_STRUCT_VERSION;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &writer) ||
+      napi_get_value_uint32(env, args[1], &flags) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &expectedAssetTypeId) != napi_ok ||
+      !read_utf8(env, args[3], &name, &nameLength)) return NULL;
+  reference.flags = flags;
+  reference.expected_asset_type_id = expectedAssetTypeId;
+  const CNA_StringView view = {name, nameLength};
+  const CNA_Result result = g_api.cnb_writer_add_external_reference(writer, &reference, view);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_writer_add_external_reference", result);
+  }
+  return undefined_result(env, "cna_cnb_writer_add_external_reference");
+}
+
+static napi_value cnb_writer_add_chunk(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle writer = 0;
+  uint32_t type = 0, flags = 0, alignment = 0;
+  const uint8_t* bytes = NULL;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &writer) ||
+      napi_get_value_uint32(env, args[1], &type) != napi_ok ||
+      !read_byte_view(env, args[2], &bytes, &length) ||
+      napi_get_value_uint32(env, args[3], &flags) != napi_ok ||
+      napi_get_value_uint32(env, args[4], &alignment) != napi_ok) return NULL;
+  const CNA_Result result =
+    g_api.cnb_writer_add_chunk(writer, type, bytes, (uint64_t) length, flags, alignment);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_writer_add_chunk", result);
+  }
+  return undefined_result(env, "cna_cnb_writer_add_chunk");
+}
+
+static napi_value cnb_writer_set_compression(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle writer = 0;
+  uint32_t codec = 0;
+  int32_t level = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &writer) ||
+      napi_get_value_uint32(env, args[1], &codec) != napi_ok ||
+      napi_get_value_int32(env, args[2], &level) != napi_ok) return NULL;
+  const CNA_Result result = g_api.cnb_writer_set_compression(writer, codec, level);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_writer_set_compression", result);
+  }
+  return undefined_result(env, "cna_cnb_writer_set_compression");
+}
+
+static int set_u64_property(napi_env env, napi_value object, const char* name, uint64_t value) {
+  napi_value number;
+  return napi_create_double(env, (double) value, &number) == napi_ok &&
+    napi_set_named_property(env, object, name, number) == napi_ok;
+}
+
+static napi_value cnb_writer_get_limits(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle writer = 0;
+  CNA_CnbReadLimits limits;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &writer)) return NULL;
+  /* This is a caller-provided versioned structure: CNA fills the bounds, but the caller states the
+     size and version first. The version is the canonical macro, which tools/cna-abi/contract.json
+     asserts against the headers, rather than a literal restated here. */
+  memset(&limits, 0, sizeof(limits));
+  limits.struct_size = (uint32_t) sizeof(limits);
+  limits.struct_version = CNA_CNB_READ_LIMITS_STRUCT_VERSION;
+  const CNA_Result initialized = g_api.cnb_read_limits_init(&limits);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_read_limits_init", initialized);
+  }
+  const CNA_Result result = g_api.cnb_writer_get_limits(writer, &limits);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_writer_get_limits", result);
+  }
+  if (napi_create_object(env, &output) != napi_ok) return throw_napi(env, "CNB limits");
+  if (!set_u64_property(env, output, "MaxFileSize", limits.max_file_size) ||
+      !set_u64_property(env, output, "MaxChunkSize", limits.max_chunk_size) ||
+      !set_u64_property(env, output, "MaxTotalUncompressedSize",
+        limits.max_total_uncompressed_size) ||
+      !set_u64_property(env, output, "MaxChunkCount", limits.max_chunk_count) ||
+      !set_u64_property(env, output, "MaxStringBytes", limits.max_string_bytes) ||
+      !set_u64_property(env, output, "MaxArrayElementCount", limits.max_array_element_count) ||
+      !set_u64_property(env, output, "MaxChunkAlignment", limits.max_chunk_alignment)) {
+    return throw_napi(env, "CNB limits");
+  }
+  return output;
+}
+
+static napi_value cnb_writer_set_limits(napi_env env, napi_callback_info info) {
+  napi_value args[2], entry;
+  CNA_Handle writer = 0;
+  CNA_CnbReadLimits limits;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &writer)) return NULL;
+  /* Seeded from CNA's current limits, so the version header and anything this ABI adds later stay
+     CNA's; only the seven fields a caller can narrow are written over them. */
+  memset(&limits, 0, sizeof(limits));
+  limits.struct_size = (uint32_t) sizeof(limits);
+  limits.struct_version = CNA_CNB_READ_LIMITS_STRUCT_VERSION;
+  const CNA_Result initialized = g_api.cnb_read_limits_init(&limits);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_read_limits_init", initialized);
+  }
+  const CNA_Result current = g_api.cnb_writer_get_limits(writer, &limits);
+  if (current != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_writer_get_limits", current);
+  }
+  struct { const char* name; int wide; void* target; } fields[] = {
+    {"MaxFileSize", 1, &limits.max_file_size},
+    {"MaxChunkSize", 1, &limits.max_chunk_size},
+    {"MaxTotalUncompressedSize", 1, &limits.max_total_uncompressed_size},
+    {"MaxChunkCount", 0, &limits.max_chunk_count},
+    {"MaxStringBytes", 0, &limits.max_string_bytes},
+    {"MaxArrayElementCount", 0, &limits.max_array_element_count},
+    {"MaxChunkAlignment", 0, &limits.max_chunk_alignment},
+  };
+  for (size_t index = 0; index < sizeof(fields) / sizeof(fields[0]); index += 1) {
+    uint64_t value = 0;
+    if (napi_get_named_property(env, args[1], fields[index].name, &entry) != napi_ok ||
+        !read_bounded_u64(env, entry, fields[index].wide ? UINT64_MAX : 0xFFFFFFFFu, &value,
+          "a CNB limit must be a non-negative safe integer within its width")) {
+      return NULL;
+    }
+    if (fields[index].wide) *(uint64_t*) fields[index].target = value;
+    else *(uint32_t*) fields[index].target = (uint32_t) value;
+  }
+  const CNA_Result result = g_api.cnb_writer_set_limits(writer, &limits);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_writer_set_limits", result);
+  }
+  return undefined_result(env, "cna_cnb_writer_set_limits");
+}
+
+static napi_value cnb_writer_append_embedded_texture2d(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle writer = 0, texture = 0;
+  char* label = NULL;
+  size_t labelLength = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &writer) ||
+      !read_handle(env, args[1], &texture) ||
+      !read_utf8(env, args[2], &label, &labelLength)) return NULL;
+  const CNA_StringView view = {label, labelLength};
+  const CNA_Result result =
+    g_api.cnb_writer_append_embedded_texture2d(writer, texture, view);
+  free(label);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_writer_append_embedded_texture2d", result);
+  }
+  return undefined_result(env, "cna_cnb_writer_append_embedded_texture2d");
+}
+
+static napi_value cnb_writer_build(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle writer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &writer)) return NULL;
+  return cnb_copy_out(env, g_api.cnb_writer_build, writer, "cna_cnb_writer_build");
 }
 
 static napi_value cnb_make_chunk_id(napi_env env, napi_callback_info info) {
@@ -15880,6 +16433,33 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "cnbAssetTypeIdFromName", NULL, cnb_asset_type_id_from_name, NULL, NULL, NULL, napi_default, NULL },
     { "cnbIsCustomAssetTypeId", NULL, cnb_is_custom_asset_type_id, NULL, NULL, NULL, napi_default, NULL },
     { "cnbMakeChunkId", NULL, cnb_make_chunk_id, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterCreate", NULL, cnb_byte_writer_create, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterDestroy", NULL, cnb_byte_writer_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterWriteU8", NULL, cnb_byte_writer_write_u8, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterWriteU16", NULL, cnb_byte_writer_write_u16, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterWriteU32", NULL, cnb_byte_writer_write_u32, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterWriteU64", NULL, cnb_byte_writer_write_u64, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterWriteI32", NULL, cnb_byte_writer_write_i32, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterWriteF32", NULL, cnb_byte_writer_write_f32, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterWriteF64", NULL, cnb_byte_writer_write_f64, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterWriteString", NULL, cnb_byte_writer_write_string, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterWriteBytes", NULL, cnb_byte_writer_write_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterWriteZeros", NULL, cnb_byte_writer_write_zeros, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterGetSize", NULL, cnb_byte_writer_get_size, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterCopyBytes", NULL, cnb_byte_writer_copy_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbByteWriterTake", NULL, cnb_byte_writer_take, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterCreate", NULL, cnb_writer_create, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterDestroy", NULL, cnb_writer_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterSetMetadata", NULL, cnb_writer_set_metadata, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterAddExternalReference", NULL, cnb_writer_add_external_reference, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterClearExternalReferences", NULL, cnb_writer_clear_external_references, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterAddChunk", NULL, cnb_writer_add_chunk, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterGetSchemaChunkCount", NULL, cnb_writer_get_schema_chunk_count, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterSetCompression", NULL, cnb_writer_set_compression, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterSetLimits", NULL, cnb_writer_set_limits, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterGetLimits", NULL, cnb_writer_get_limits, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterBuild", NULL, cnb_writer_build, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbWriterAppendEmbeddedTexture2D", NULL, cnb_writer_append_embedded_texture2d, NULL, NULL, NULL, napi_default, NULL },
     { "cnbChunkIdString", NULL, cnb_chunk_id_string, NULL, NULL, NULL, napi_default, NULL },
     { "cnbIsWellFormedChunkId", NULL, cnb_is_well_formed_chunk_id, NULL, NULL, NULL, napi_default, NULL },
     { "cnbTextureFormatName", NULL, cnb_texture_format_name, NULL, NULL, NULL, napi_default, NULL },

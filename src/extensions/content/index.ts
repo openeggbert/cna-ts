@@ -1820,3 +1820,282 @@ export function CreateSpriteFontFromCnb(
     decoded.Dispose();
   }
 }
+
+
+/* --- CNB's writers --------------------------------------------------------------------------
+ *
+ * The other half of CNB. Everything above decodes an asset CNA has a schema for; this authors a
+ * `.cnb` for one it does not — a game's own asset type, compiled by its own build script and read
+ * back by its own loader.
+ *
+ * {@link CnbByteWriter} lays out a chunk's payload one primitive at a time, in CNB's own byte
+ * order, and {@link CnbWriter} wraps chunks, metadata and external references into a container.
+ * Both produce bytes and neither touches a filesystem: that is the seam
+ * `docs/content-pipeline-boundary.md` draws, so `cna_cnb_writer_write_to_file` is deliberately not
+ * projected — a build script writes the bytes itself, and a browser can build the same image.
+ */
+
+/** How CNB stores a chunk's bytes. Passed to {@link CnbWriter.SetCompression}. */
+export interface CnbLimits {
+  readonly MaxFileSize: number;
+  readonly MaxChunkSize: number;
+  readonly MaxTotalUncompressedSize: number;
+  readonly MaxChunkCount: number;
+  readonly MaxStringBytes: number;
+  readonly MaxArrayElementCount: number;
+  readonly MaxChunkAlignment: number;
+}
+
+function requireInteger(value: number, name: string, min: number, max: number): number {
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new RangeError(`${name} must be an integer from ${min} to ${max}`);
+  }
+  return value;
+}
+
+/**
+ * A chunk payload, written one primitive at a time.
+ *
+ * The widths are CNB's, not JavaScript's: a value that does not fit the width it is written at is
+ * refused rather than truncated, because CNA takes the width it is given and cannot tell a
+ * deliberate `0xFF` from a truncated `0x1FF`. `WriteUInt64` takes a `bigint` for the same reason —
+ * a JavaScript number cannot carry one exactly.
+ */
+export class CnbByteWriter implements IDisposable {
+  readonly #backend: CnaContentBackend;
+  #handle: NativeHandle | null;
+
+  /** Creates an empty writer, or one seeded with bytes already laid out. */
+  public constructor(initial: Uint8Array | null = null) {
+    if (initial != null && !(initial instanceof Uint8Array)) {
+      throw new TypeError("initial must be a Uint8Array or null");
+    }
+    this.#backend = content("new CnbByteWriter()");
+    this.#handle = this.#backend.cnbByteWriterCreate(initial);
+  }
+
+  /** Whether the writer has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the byte writer is disposed");
+    return this.#handle;
+  }
+
+  /** How many bytes have been written so far. */
+  public get Size(): number { return this.#backend.cnbByteWriterGetSize(this.#active()); }
+
+  /** Appends one unsigned byte. */
+  public WriteByte(value: number): this {
+    this.#backend.cnbByteWriterWriteU8(this.#active(), requireInteger(value, "value", 0, 0xFF));
+    return this;
+  }
+
+  /** Appends one unsigned 16-bit value. */
+  public WriteUInt16(value: number): this {
+    this.#backend.cnbByteWriterWriteU16(this.#active(), requireInteger(value, "value", 0, 0xFFFF));
+    return this;
+  }
+
+  /** Appends one unsigned 32-bit value. */
+  public WriteUInt32(value: number): this {
+    this.#backend.cnbByteWriterWriteU32(
+      this.#active(), requireInteger(value, "value", 0, 0xFFFF_FFFF),
+    );
+    return this;
+  }
+
+  /** Appends one unsigned 64-bit value. A `bigint`, because a number cannot carry one exactly. */
+  public WriteUInt64(value: bigint): this {
+    if (typeof value !== "bigint") throw new TypeError("value must be a bigint");
+    if (value < 0n || value > 0xFFFF_FFFF_FFFF_FFFFn) {
+      throw new RangeError("value must fit in 64 unsigned bits");
+    }
+    this.#backend.cnbByteWriterWriteU64(this.#active(), value);
+    return this;
+  }
+
+  /** Appends one signed 32-bit value. */
+  public WriteInt32(value: number): this {
+    this.#backend.cnbByteWriterWriteI32(
+      this.#active(), requireInteger(value, "value", -0x8000_0000, 0x7FFF_FFFF),
+    );
+    return this;
+  }
+
+  /** Appends one 32-bit float. */
+  public WriteSingle(value: number): this {
+    if (typeof value !== "number") throw new TypeError("value must be a number");
+    this.#backend.cnbByteWriterWriteF32(this.#active(), value);
+    return this;
+  }
+
+  /** Appends one 64-bit float. */
+  public WriteDouble(value: number): this {
+    if (typeof value !== "number") throw new TypeError("value must be a number");
+    this.#backend.cnbByteWriterWriteF64(this.#active(), value);
+    return this;
+  }
+
+  /** Appends a string in CNB's own length-prefixed form. */
+  public WriteString(value: string): this {
+    if (typeof value !== "string") throw new TypeError("value must be a string");
+    this.#backend.cnbByteWriterWriteString(this.#active(), value);
+    return this;
+  }
+
+  /** Appends raw bytes, exactly as given. */
+  public WriteBytes(bytes: Uint8Array): this {
+    if (!(bytes instanceof Uint8Array)) throw new TypeError("bytes must be a Uint8Array");
+    this.#backend.cnbByteWriterWriteBytes(this.#active(), bytes);
+    return this;
+  }
+
+  /** Appends a run of zero bytes, which is how a chunk pads to an alignment. */
+  public WriteZeros(byteCount: number): this {
+    this.#backend.cnbByteWriterWriteZeros(
+      this.#active(), requireInteger(byteCount, "byteCount", 0, 0x7FFF_FFFF),
+    );
+    return this;
+  }
+
+  /** Copies what has been written. The writer keeps it. */
+  public ToArray(): Uint8Array {
+    return this.#backend.cnbByteWriterCopyBytes(this.#active());
+  }
+
+  /** Takes what has been written and empties the writer. Distinct from {@link ToArray}. */
+  public Take(): Uint8Array {
+    return this.#backend.cnbByteWriterTake(this.#active());
+  }
+
+  /** Releases the writer. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.cnbByteWriterDestroy(handle);
+  }
+}
+
+/**
+ * A `.cnb` container, built from chunks.
+ *
+ * The result is bytes {@link CnbDocument.Parse} reads back — the same reader every schema above
+ * goes through, so an image built here is a real `.cnb` rather than a shape that happens to
+ * resemble one.
+ */
+export class CnbWriter implements IDisposable {
+  readonly #backend: CnaContentBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(assetTypeId: number, assetSchemaVersion: number) {
+    requireInteger(assetTypeId, "assetTypeId", 0, 0xFFFF_FFFF);
+    requireInteger(assetSchemaVersion, "assetSchemaVersion", 0, 0xFFFF_FFFF);
+    this.#backend = content("new CnbWriter()");
+    this.#handle = this.#backend.cnbWriterCreate(assetTypeId, assetSchemaVersion);
+  }
+
+  /** Whether the writer has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the CNB writer is disposed");
+    return this.#handle;
+  }
+
+  /** How many schema chunks have been added, not counting the container's own. */
+  public get SchemaChunkCount(): number {
+    return this.#backend.cnbWriterGetSchemaChunkCount(this.#active());
+  }
+
+  /** The bounds this writer refuses past, as CNA reports them. */
+  public get Limits(): CnbLimits {
+    return this.#backend.cnbWriterGetLimits(this.#active());
+  }
+  public set Limits(value: CnbLimits) {
+    if (value == null) throw new TypeError("Limits is required");
+    this.#backend.cnbWriterSetLimits(this.#active(), value);
+  }
+
+  /** Writes the `CMET` metadata chunk: what kind of asset this is, and what it is called. */
+  public SetMetadata(assetTypeName: string, contentName: string): this {
+    if (typeof assetTypeName !== "string" || typeof contentName !== "string") {
+      throw new TypeError("assetTypeName and contentName must be strings");
+    }
+    this.#backend.cnbWriterSetMetadata(this.#active(), assetTypeName, contentName);
+    return this;
+  }
+
+  /** Records an asset this file refers to but does not embed. */
+  public AddExternalReference(
+    logicalName: string, expectedAssetTypeId: number, flags = 0,
+  ): this {
+    if (typeof logicalName !== "string") throw new TypeError("logicalName must be a string");
+    requireInteger(expectedAssetTypeId, "expectedAssetTypeId", 0, 0xFFFF_FFFF);
+    requireInteger(flags, "flags", 0, 0xFFFF_FFFF);
+    this.#backend.cnbWriterAddExternalReference(
+      this.#active(), flags, expectedAssetTypeId, logicalName,
+    );
+    return this;
+  }
+
+  /** Forgets every external reference added so far. */
+  public ClearExternalReferences(): this {
+    this.#backend.cnbWriterClearExternalReferences(this.#active());
+    return this;
+  }
+
+  /**
+   * Appends one chunk. The identifier is a four-character code — see
+   * {@link CnbFormat.MakeChunkId}.
+   *
+   * `alignment` is where the chunk's payload starts, and CNB accepts only a power of two up to
+   * `Limits.MaxChunkAlignment`. The default of 1 means unaligned, which is what a chunk read as
+   * bytes wants; a chunk a loader will map as a struct array asks for that struct's alignment.
+   */
+  public AddChunk(chunkId: number, data: Uint8Array, flags = 0, alignment = 1): this {
+    requireInteger(chunkId, "chunkId", 0, 0xFFFF_FFFF);
+    if (!(data instanceof Uint8Array)) throw new TypeError("data must be a Uint8Array");
+    requireInteger(flags, "flags", 0, 0xFFFF_FFFF);
+    requireInteger(alignment, "alignment", 1, 0xFFFF_FFFF);
+    if ((alignment & (alignment - 1)) !== 0) {
+      throw new RangeError("alignment must be a power of two");
+    }
+    this.#backend.cnbWriterAddChunk(this.#active(), chunkId, data, flags, alignment);
+    return this;
+  }
+
+  /** Chooses how chunk payloads are stored. */
+  public SetCompression(codec: CnbCompression, level = 0): this {
+    requireInteger(codec, "codec", 0, 0xFFFF_FFFF);
+    requireInteger(level, "level", -0x8000_0000, 0x7FFF_FFFF);
+    this.#backend.cnbWriterSetCompression(this.#active(), codec, level);
+    return this;
+  }
+
+  /** Embeds a texture CNA encodes itself, under a label a loader can find it by. */
+  public AppendEmbeddedTexture2D(texture: CnbTextureData, label: string): this {
+    if (!(texture instanceof CnbTextureData)) {
+      throw new TypeError("texture must be a CnbTextureData");
+    }
+    if (typeof label !== "string") throw new TypeError("label must be a string");
+    this.#backend.cnbWriterAppendEmbeddedTexture2D(
+      this.#active(), textureHandle(texture, "CnbWriter.AppendEmbeddedTexture2D"), label,
+    );
+    return this;
+  }
+
+  /** Builds the `.cnb` image. */
+  public Build(): Uint8Array {
+    return this.#backend.cnbWriterBuild(this.#active());
+  }
+
+  /** Releases the writer. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.cnbWriterDestroy(handle);
+  }
+}

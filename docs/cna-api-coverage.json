@@ -16,11 +16,11 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 888,
-    "WASM": 247
+    "NODE": 917,
+    "WASM": 276
   },
-  "reachableByAny": 888,
-  "reachableByAll": 247,
+  "reachableByAny": 917,
+  "reachableByAll": 276,
   "reachableExclusively": {
     "NODE": 641,
     "WASM": 0
@@ -31,8 +31,8 @@
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 499,
-      "WASM": 160
+      "NODE": 528,
+      "WASM": 189
     },
     "INTERNAL_RUNTIME_ONLY": {
       "NODE": 1,
@@ -73,8 +73,8 @@
     },
     "cnb.h": {
       "CNA_EXTENSION_BACKING": 272,
-      "REACHABLE_NODE": 128,
-      "REACHABLE_WASM": 120
+      "REACHABLE_NODE": 157,
+      "REACHABLE_WASM": 149
     },
     "color.h": {
       "MANAGED_BY_DESIGN": 24
@@ -4481,70 +4481,100 @@
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_create",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_create_from_bytes",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_destroy",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_get_size",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_take",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_write_bytes",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_write_f32",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_write_f64",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_write_i32",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_write_keyframe",
@@ -4558,42 +4588,60 @@
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_write_u16",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_write_u32",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_write_u64",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_write_u8",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_byte_writer_write_zeros",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_checked_add",
@@ -6180,7 +6228,10 @@
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_reader_copy_context",
@@ -6606,84 +6657,120 @@
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_add_external_reference",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_append_embedded_texture2d",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_build",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_clear_external_references",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_create",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_destroy",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_get_limits",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_get_schema_chunk_count",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_set_compression",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_set_limits",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_set_metadata",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_writer_write_to_file",

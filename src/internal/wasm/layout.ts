@@ -671,4 +671,19 @@ export const WASM_STRUCT_LAYOUTS = {
       kerning: { offset: 44, size: 12 },
     },
   },
+  CNA_CnbReadLimits: {
+    size: 48,
+    align: 8,
+    fields: {
+      struct_size: { offset: 0, size: 4 },
+      struct_version: { offset: 4, size: 4 },
+      max_file_size: { offset: 8, size: 8 },
+      max_chunk_size: { offset: 16, size: 8 },
+      max_total_uncompressed_size: { offset: 24, size: 8 },
+      max_chunk_count: { offset: 32, size: 4 },
+      max_string_bytes: { offset: 36, size: 4 },
+      max_array_element_count: { offset: 40, size: 4 },
+      max_chunk_alignment: { offset: 44, size: 4 },
+    },
+  },
 } as const satisfies Readonly<Record<string, WasmStructLayout>>;

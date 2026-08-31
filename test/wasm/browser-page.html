@@ -235,6 +235,62 @@ try {
       }
 
 
+      // CNB's writers, in a browser. docs/content-pipeline-boundary.md says a .cnb built in a
+      // build script and one built in a page are the same bytes; the Node suite builds exactly
+      // this image from exactly these values, so the assertion on the other side is that the two
+      // are byte for byte identical rather than merely both parseable.
+      const byteWriter = new cnb.CnbByteWriter();
+      let customPayload;
+      try {
+        byteWriter
+          .WriteByte(0xAB)
+          .WriteUInt16(0xBEEF)
+          .WriteUInt32(0xDEADBEEF)
+          .WriteUInt64(0x0123456789ABCDEFn)
+          .WriteInt32(-123456)
+          .WriteSingle(0.5)
+          .WriteDouble(-2.25)
+          .WriteString("hello, cnb")
+          .WriteBytes(Uint8Array.from([1, 2, 3]))
+          .WriteZeros(4);
+        customPayload = byteWriter.ToArray();
+      } finally {
+        byteWriter.Dispose();
+      }
+      const customChunkId = cnb.CnbFormat.MakeChunkId("mydt");
+      const container = new cnb.CnbWriter(9999, 3);
+      let customImage;
+      let limits;
+      try {
+        limits = container.Limits;
+        container.SetMetadata("MyGame.Level", "Levels/One");
+        container.AddExternalReference("Textures/Atlas", cnb.CnbAssetType.Texture2D);
+        container.AddChunk(customChunkId, customPayload);
+        customImage = container.Build();
+      } finally {
+        container.Dispose();
+      }
+      const customDocument = cnb.CnbDocument.Parse(customImage, "Levels/One.cnb");
+      try {
+        const index = customDocument.Chunks.findIndex((chunk) => chunk.RawId === customChunkId);
+        result.cnbWriters = {
+          payloadSize: customPayload.length,
+          payloadHex: [...customPayload].map((b) => b.toString(16).padStart(2, "0")).join(""),
+          imageSize: customImage.length,
+          imageHex: [...customImage].map((b) => b.toString(16).padStart(2, "0")).join(""),
+          assetType: customDocument.AssetType,
+          schemaVersion: customDocument.AssetSchemaVersion,
+          metadata: [customDocument.Metadata.AssetTypeName, customDocument.Metadata.ContentName],
+          chunks: customDocument.Chunks.map((chunk) => chunk.Id),
+          externalReference: customDocument.ExternalReferences[0]?.Name,
+          chunkRoundTrip:
+            [...customDocument.ReadChunk(index)].join(",") === [...customPayload].join(","),
+          maxChunkAlignment: limits.MaxChunkAlignment,
+        };
+      } finally {
+        customDocument.Dispose();
+      }
+
       // The CNB model schema, in a browser. Built with the public API, encoded by CNA's own writer
       // and decoded back inside the page, so what is asserted below is CNA's round trip rather
       // than this page agreeing with itself. Same classes as the Node suite; different backend.
