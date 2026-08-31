@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CNA-TS WebAssembly input harness</title>
+<style>html,body{margin:0}canvas{display:block;touch-action:none}</style>
+</head>
+<body>
+<canvas id="canvas" width="320" height="240"></canvas>
+<script type="module">
+// A step-wise consumer of the built package, for input.
+//
+// The main harness runs a fixed number of frames and then reports; input cannot be tested that way,
+// because the interesting evidence is what the *public XNA API* answers between one frame and the
+// next while a browser event is delivered. So this page exposes one frame at a time and lets the
+// driver interleave real browser input with real CNA frames.
+//
+// Nothing here is browser-specific above the backend: `GamePad.GetState` and `TouchPanel.GetState`
+// are the same `Microsoft.Xna.Framework.Input` members a Node consumer calls.
+const result = { status: "loading", errors: [] };
+globalThis.__cnaInput = result;
+window.onerror = (message, source, line, column, error) => {
+  result.errors.push(`error: ${error && error.stack ? error.stack : `${message} @${source}:${line}:${column}`}`);
+  return false;
+};
+window.addEventListener("unhandledrejection", (event) => result.errors.push(
+  `rejection: ${event.reason && event.reason.stack ? event.reason.stack : String(event.reason)}`,
+));
+
+try {
+  const {
+    Color, Game, GraphicsDeviceManager, Input, LoadWasmBackend, PlayerIndex,
+  } = await import("/cna-ts/index.js");
+  const { ButtonState, Buttons, GamePad, GamePadDeadZone } = Input;
+  const { TouchPanel } = Input.Touch;
+  const createCnaCApi = (await import("/wasm/cna_c_api.mjs")).default;
+  const canvas = document.getElementById("canvas");
+  const module = await createCnaCApi({ canvas });
+  const status = await LoadWasmBackend({ Module: module });
+  result.backend = status.Backend;
+  result.abiVersion = status.AbiVersion;
+
+  /** One `GamePadState`, flattened to values a driver can assert exactly. */
+  function sampleGamePad(player) {
+    const state = GamePad.GetState(player, GamePadDeadZone.None);
+    const buttons = state.Buttons;
+    const dpad = state.DPad;
+    const pressed = (value) => value === ButtonState.Pressed;
+    return {
+      isConnected: state.IsConnected,
+      packetNumber: state.PacketNumber,
+      a: pressed(buttons.A), b: pressed(buttons.B), x: pressed(buttons.X), y: pressed(buttons.Y),
+      back: pressed(buttons.Back), start: pressed(buttons.Start),
+      leftShoulder: pressed(buttons.LeftShoulder), rightShoulder: pressed(buttons.RightShoulder),
+      leftStickButton: pressed(buttons.LeftStick), rightStickButton: pressed(buttons.RightStick),
+      dpadUp: pressed(dpad.Up), dpadDown: pressed(dpad.Down),
+      dpadLeft: pressed(dpad.Left), dpadRight: pressed(dpad.Right),
+      leftX: state.ThumbSticks.Left.X, leftY: state.ThumbSticks.Left.Y,
+      rightX: state.ThumbSticks.Right.X, rightY: state.ThumbSticks.Right.Y,
+      leftTrigger: state.Triggers.Left, rightTrigger: state.Triggers.Right,
+      // IsButtonDown is the API a game actually writes, so it is sampled rather than derived here.
+      aDown: state.IsButtonDown(Buttons.A),
+      aUp: state.IsButtonUp(Buttons.A),
+    };
+  }
+
+  function sampleGamePadCapabilities(player) {
+    const caps = GamePad.GetCapabilities(player);
+    return {
+      isConnected: caps.IsConnected,
+      gamePadType: caps.GamePadType,
+      hasAButton: caps.HasAButton,
+      hasBButton: caps.HasBButton,
+      hasStartButton: caps.HasStartButton,
+      hasDPadUpButton: caps.HasDPadUpButton,
+      hasLeftXThumbStick: caps.HasLeftXThumbStick,
+      hasRightYThumbStick: caps.HasRightYThumbStick,
+      hasLeftTrigger: caps.HasLeftTrigger,
+      hasRightTrigger: caps.HasRightTrigger,
+      hasLeftVibrationMotor: caps.HasLeftVibrationMotor,
+      hasRightVibrationMotor: caps.HasRightVibrationMotor,
+      hasVoiceSupport: caps.HasVoiceSupport,
+    };
+  }
+
+  /** One `TouchCollection`, in the order XNA hands it out. */
+  function sampleTouch() {
+    const collection = TouchPanel.GetState();
+    return {
+      isConnected: collection.IsConnected,
+      isReadOnly: collection.IsReadOnly,
+      count: collection.Count,
+      // Indexed through `Get`, which is how the mapping projects C#'s indexer -- see
+      // docs/xna-typescript-mapping.md. `GetEnumerator` is exercised separately below.
+      touches: Array.from({ length: collection.Count }, (_, index) => collection.Get(index)).map((touch) => {
+        // TryGetPreviousLocation is XNA's own accessor and the only supported way to read the
+        // previous sample, so it is exercised rather than a private field. The mapping projects
+        // C#'s `out` parameter as a returned result, per docs/xna-typescript-mapping.md.
+        const previous = touch.TryGetPreviousLocation();
+        return {
+          id: touch.Id,
+          state: touch.State,
+          x: touch.Position.X,
+          y: touch.Position.Y,
+          previous: {
+            has: previous.Success,
+            state: previous.Value.State,
+            x: previous.Value.Position.X,
+            y: previous.Value.Position.Y,
+          },
+        };
+      }),
+      // The XNA enumerator, walked once, so the collection's own iteration is evidence rather
+      // than an assumption. It must visit exactly the same identifiers in the same order.
+      enumeratedIds: (() => {
+        const ids = [];
+        const enumerator = collection.GetEnumerator();
+        while (enumerator.MoveNext()) ids.push(enumerator.Current.Id);
+        return ids;
+      })(),
+    };
+  }
+
+  class InputGame extends Game {
+    constructor() {
+      super();
+      this.graphics = new GraphicsDeviceManager(this);
+      this.graphics.PreferredBackBufferWidth = 320;
+      this.graphics.PreferredBackBufferHeight = 240;
+      this.IsFixedTimeStep = false;
+      this.samples = [];
+    }
+
+    Update(gameTime) {
+      // Sampled inside Update, which is where an XNA game reads input. A sample taken outside the
+      // frame would not prove the game loop sees it.
+      this.samples.push({ gamePad: sampleGamePad(PlayerIndex.One), touch: sampleTouch() });
+      super.Update(gameTime);
+    }
+
+    Draw(gameTime) {
+      this.GraphicsDevice.Clear(Color.CornflowerBlue);
+      super.Draw(gameTime);
+    }
+  }
+
+  const game = new InputGame();
+
+  /** Runs exactly `count` real frames from requestAnimationFrame and returns the samples taken. */
+  function pump(count) {
+    return new Promise((resolve, reject) => {
+      const before = game.samples.length;
+      let remaining = count;
+      const step = () => {
+        try {
+          game.RunOneFrame();
+          remaining -= 1;
+          if (remaining <= 0) {
+            resolve(game.samples.slice(before));
+            return;
+          }
+          requestAnimationFrame(step);
+        } catch (error) {
+          reject(String(error && error.stack ? error.stack : error));
+        }
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  result.pump = pump;
+  result.gamePadCapabilities = () => sampleGamePadCapabilities(PlayerIndex.One);
+  result.gamePadCapabilitiesFor = (player) => sampleGamePadCapabilities(player);
+  result.gamePadState = () => sampleGamePad(PlayerIndex.One);
+  result.touchState = () => sampleTouch();
+  result.touchPanelDisplay = () => ({
+    width: TouchPanel.DisplayWidth,
+    height: TouchPanel.DisplayHeight,
+    orientation: TouchPanel.DisplayOrientation,
+    enabledGestures: TouchPanel.EnabledGestures,
+    isGestureAvailable: TouchPanel.IsGestureAvailable,
+  });
+  result.setVibration = (left, right) => GamePad.SetVibration(PlayerIndex.One, left, right);
+  result.finish = () => {
+    game.Exit();
+    game.Dispose();
+    result.disposed = game.IsDisposed !== false;
+    result.status = "done";
+    return result.disposed;
+  };
+  result.status = "ready";
+} catch (error) {
+  result.status = "failed";
+  result.error = String(error && error.stack ? error.stack : error);
+}
+</script>
+</body>
+</html>

@@ -64,6 +64,7 @@
     "test:cnb": "npm run build && node --test test/cnb-content.integration.mjs",
     "test:windowed": "npm run build && node --test test/windowed-renderer.integration.mjs",
     "test:wasm-browser": "npm run build && node --test test/wasm-browser.mjs",
+    "test:wasm-browser-input": "npm run build && node --test test/wasm-browser-input.mjs",
     "audit:cna-abi": "node tools/audit-cna-abi.mjs",
     "report:cna-abi": "node tools/audit-cna-abi.mjs --portable --format json --output docs/cna-abi-report.json && node tools/cna-abi/verify-contract.mjs --portable --format json --output docs/cna-abi-contract-report.json && node tools/api-compat/verify-runtime.mjs --format json --output docs/runtime-symbol-report.json && node tools/api-compat/verify.mjs --leak-only --format json --output docs/internal-leak-report.json",
     "verify:cna-contract": "node tools/cna-abi/verify-contract.mjs",

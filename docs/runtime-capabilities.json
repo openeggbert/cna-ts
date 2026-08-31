@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "generatedFrom": "tools/runtime-capabilities/source.json",
   "profile": "XNA 4.0 Windows runtime",
-  "environment": "Linux x86-64 Node with CNA ABI 0.20.0 HEADLESS renderer and NULL audio, plus headless Chromium with the CNA ABI 0.20.0 WEBGL2 WebAssembly artifact",
+  "environment": "Linux x86-64 Node with CNA ABI 0.21.0 HEADLESS renderer and NULL audio, plus headless Chromium with the CNA ABI 0.21.0 WEBGL2 WebAssembly artifact",
   "granularity": "Each row is a reviewed operation family; overloads with the same implementation and evidence share a row.",
   "sourceAudit": {
     "root": "src/Microsoft/Xna/Framework",
@@ -14,7 +14,7 @@
   "counts": {
     "VERIFIED_MANAGED": 20,
     "VERIFIED_NATIVE": 46,
-    "VERIFIED_WEBASSEMBLY": 7,
+    "VERIFIED_WEBASSEMBLY": 9,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 1,
     "FIXTURE_PENDING": 3,
@@ -916,6 +916,18 @@
       ]
     },
     {
+      "operation": "Browser GamePad: connection, capabilities, buttons, thumbsticks and triggers",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "test/wasm-browser-input.mjs drives GamePad.GetState/GetCapabilities from inside an ordinary XNA Update in headless Chromium. With no controller attached all four PlayerIndex slots report IsConnected false rather than an invented device; with a Gamepad API device emulated at the browser boundary -- the integration point SDL3's Emscripten joystick driver actually reads -- the capability table, A and D-pad button states, both thumbstick axes with CNA's Y-inversion, the analog left trigger and an advancing PacketNumber all arrive, and releasing returns every one of them to zero. SetVibration reports false, because the browser's standard mapping exposes no rumble to SDL. Three planted defects -- swapped thumbsticks, an always-connected capability table and a previous-position that reports the current one -- each fail exactly one of these tests",
+      "proof": [
+        "wasmRoute:cna_gamepad_get_capabilities",
+        "wasmRoute:cna_gamepad_get_state_with_dead_zone",
+        "wasmRoute:cna_gamepad_set_vibration",
+        "test:test/wasm-browser-input.mjs"
+      ]
+    },
+    {
       "operation": "Browser off-screen rendering with exact pixel readback",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "CNA-TS",
@@ -951,10 +963,23 @@
       ]
     },
     {
+      "operation": "Browser TouchPanel: the touch collection and XNA's press/move/release states",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "test/wasm-browser-input.mjs dispatches real Chromium touch events and reads TouchPanel.GetState from inside Update. Before the first finger there is no touch device at all, which is distinct from a device with nothing on it. A press arrives as TouchLocationState.Pressed with no previous location, the next frame is Moved at the same point, a move keeps the identifier and reports the press position as its previous one, a second finger is Pressed while the first stays Moved, and lifting reports Released exactly once before the collection empties. The XNA enumerator visits the same identifiers in the same order as the indexer",
+      "proof": [
+        "wasmRoute:cna_touch_get_capabilities",
+        "wasmRoute:cna_touch_get_state",
+        "wasmRoute:cna_touch_panel_get_is_gesture_available",
+        "wasmRoute:cna_touch_panel_read_gesture",
+        "test:test/wasm-browser-input.mjs"
+      ]
+    },
+    {
       "operation": "Browser/Wasm CNA runtime",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "CNA-TS",
-      "evidence": "60 and 600 real frames of the public XNA Game/GraphicsDeviceManager/Texture2D/SpriteBatch path in headless Chromium on a WebGL2 context, ABI 0.20.0, no uncaught page error",
+      "evidence": "60 and 600 real frames of the public XNA Game/GraphicsDeviceManager/Texture2D/SpriteBatch path in headless Chromium on a WebGL2 context, ABI 0.21.0, no uncaught page error",
       "proof": [
         "wasmRoute:cna_game_create",
         "wasmRoute:cna_game_run_one_frame",

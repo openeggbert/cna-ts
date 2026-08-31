@@ -2,7 +2,7 @@
 
 Profile: **XNA 4.0 Windows runtime**
 
-Selected evidence environment: **Linux x86-64 Node with CNA ABI 0.20.0 HEADLESS renderer and NULL audio, plus headless Chromium with the CNA ABI 0.20.0 WEBGL2 WebAssembly artifact**
+Selected evidence environment: **Linux x86-64 Node with CNA ABI 0.21.0 HEADLESS renderer and NULL audio, plus headless Chromium with the CNA ABI 0.21.0 WEBGL2 WebAssembly artifact**
 
 Each row is a reviewed operation family; overloads with the same implementation and evidence share a row.
 This inventory is independent of the strict API verifier: API shape completeness does not imply runtime capability.
@@ -21,7 +21,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | --- | ---: |
 | VERIFIED_MANAGED | 20 |
 | VERIFIED_NATIVE | 46 |
-| VERIFIED_WEBASSEMBLY | 7 |
+| VERIFIED_WEBASSEMBLY | 9 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 5 |
 | UPSTREAM_CNA_BLOCKED | 1 |
 | FIXTURE_PENDING | 3 |
@@ -111,10 +111,12 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
+| Browser GamePad: connection, capabilities, buttons, thumbsticks and triggers | CNA-TS | test/wasm-browser-input.mjs drives GamePad.GetState/GetCapabilities from inside an ordinary XNA Update in headless Chromium. With no controller attached all four PlayerIndex slots report IsConnected false rather than an invented device; with a Gamepad API device emulated at the browser boundary -- the integration point SDL3's Emscripten joystick driver actually reads -- the capability table, A and D-pad button states, both thumbstick axes with CNA's Y-inversion, the analog left trigger and an advancing PacketNumber all arrive, and releasing returns every one of them to zero. SetVibration reports false, because the browser's standard mapping exposes no rumble to SDL. Three planted defects -- swapped thumbsticks, an always-connected capability table and a previous-position that reports the current one -- each fail exactly one of these tests |
 | Browser off-screen rendering with exact pixel readback | CNA-TS | a RenderTarget2D is created, bound, cleared to an exact colour and read back through Texture2D.GetData in headless Chromium on WebGL2; all sixteen texels equal the cleared value, and disposing a still-bound target is refused |
 | Browser sound effects: PCM construction, exact duration and the instance state machine | CNA-TS | a quarter second of 16-bit mono PCM built in the page reports exactly 250 ms and 2,500,000 ticks, volume, pitch, pan and looping round-trip through CNA at float precision, and an instance walks stopped -> playing -> paused -> playing -> stopped. Audibility is deliberately not claimed: a browser will not start a WebAudio context without a user gesture, and SoundEffect.Play reports whether the runtime accepted the sample rather than whether anyone heard it |
 | Browser title storage and ContentManager XNB loading | CNA-TS | the browser harness writes assets into the module filesystem, reads exact title bytes back through TitleContainer.OpenStream, and loads an uncompressed Texture2D XNB and an LZX-compressed SpriteFont XNB through an ordinary ContentManager; a missing asset refuses with CNA_RESULT_IO rather than reading as empty |
-| Browser/Wasm CNA runtime | CNA-TS | 60 and 600 real frames of the public XNA Game/GraphicsDeviceManager/Texture2D/SpriteBatch path in headless Chromium on a WebGL2 context, ABI 0.20.0, no uncaught page error |
+| Browser TouchPanel: the touch collection and XNA's press/move/release states | CNA-TS | test/wasm-browser-input.mjs dispatches real Chromium touch events and reads TouchPanel.GetState from inside Update. Before the first finger there is no touch device at all, which is distinct from a device with nothing on it. A press arrives as TouchLocationState.Pressed with no previous location, the next frame is Moved at the same point, a move keeps the identifier and reports the press position as its previous one, a second finger is Pressed while the first stays Moved, and lifting reports Released exactly once before the collection empties. The XNA enumerator visits the same identifiers in the same order as the indexer |
+| Browser/Wasm CNA runtime | CNA-TS | 60 and 600 real frames of the public XNA Game/GraphicsDeviceManager/Texture2D/SpriteBatch path in headless Chromium on a WebGL2 context, ABI 0.21.0, no uncaught page error |
 | CNB in a browser: the same compiled-content API, on the WebAssembly backend | cna-ts/extensions/content | a page encodes a texture with CNA's own writer, parses the container back and uploads it with CreateTexture2DFromCnb, and the four readback texels are exactly the RGBA the encoder was given -- the same assertion the Node suite makes, through the same public API, against a different backend. The container primitives agree across backends too: the CRC-32C check value and the magic are the same C routines either side |
 | Modern CNA runtime services over WebAssembly | cna-ts/extensions/runtime | the browser harness reads platform, renderer selection and available renderers, and round-trips two by-value CNA_StringView routes |
 | WebAssembly game lifecycle, device creation, Clear, Texture2D transfer, SpriteBatch and input snapshots | CNA-TS | test/wasm-browser.mjs drives the first vertical slice through the same public XNA classes the Node backend serves |

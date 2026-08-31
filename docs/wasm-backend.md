@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=169
+WASM_BACKEND_ROUTES=178
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 169 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 178 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started.
 
@@ -44,13 +44,62 @@ diagnostic naming the member instead of a silent wrong answer.
 In the slice: ABI query, initialization, game create/run-one-frame/exit/destroy,
 graphics-device-manager configuration and device creation, renderer identity, `Clear`, `Texture2D`
 create/upload/read/destroy, `SpriteBatch` begin/submit/end/destroy, keyboard and mouse snapshots,
-the modern runtime-services family, **title storage**, **render targets**, **sound effects**, and
-**CNB**, CNA's own compiled content format.
+**`GamePad`**, **`TouchPanel`**, the modern runtime-services family, **title storage**,
+**render targets**, **sound effects**, and **CNB**, CNA's own compiled content format.
 
 CNB crossing to the browser needed no new public API at all, which is the point of having designed
 it backend-neutrally: a page gets the same `CnbDocument`, `CnbTextureData` and
 `CreateTexture2DFromCnb` a desktop consumer gets, and the browser test makes the same exact-texel
 assertion the Node suite makes.
+
+## Controllers and fingers
+
+`GamePad` and `TouchPanel` are the same `Microsoft.Xna.Framework.Input` classes on both backends.
+What a browser adds is a different device layer underneath — the page's Gamepad API and its touch
+events, by way of SDL3's Emscripten platform — and none of that reaches a consumer.
+
+`npm run test:wasm-browser-input` proves it a frame at a time. The main harness runs sixty frames
+and reports at the end; input needs the opposite shape, because the evidence is what the facade
+answers *between* one frame and the next while a browser event is delivered. So
+`test/wasm/browser-input-page.html` exposes one frame at a time and the driver interleaves real
+input with real frames, sampling inside an ordinary `Update`.
+
+```text
+NO CONTROLLER   GamePad.GetState(One..Four).IsConnected = false, and GetCapabilities agrees
+                SetVibration                             = false
+CONTROLLER      GetCapabilities  IsConnected, GamePadType.GamePad, A/B/Start/D-pad/sticks/triggers
+                                 HasLeftVibrationMotor = false, HasVoiceSupport = false
+                Buttons.A        Released -> Pressed -> Released
+                ThumbSticks      left (0.5, 0.25), right (-0.75, -0.125)
+                Triggers         left 0.5, right 0.0
+                PacketNumber     advances on press and again on release
+TOUCH           before any finger  IsConnected = false, Count = 0
+                press              Pressed, no previous location
+                next frame         Moved, previous = the press
+                move               same Id, previous = the press position
+                two fingers        Ids 1 and 2, the new one Pressed, the old one Moved
+                release            Released once, then the collection empties
+```
+
+Two of those deserve saying out loud. **`HasLeftVibrationMotor` is false and `SetVibration` returns
+false**, because the browser's standard gamepad mapping exposes no rumble to SDL3 — a backend that
+answered true would be lying to a game that uses the return value to decide whether to offer a
+haptics setting. And **the thumbstick Y axes are inverted**: the browser reports Y down-positive and
+XNA reports Y up-positive, so the test asserts the sign as well as the magnitude, which is what
+catches a backend that passed the axis straight through. Releasing the stick returns negative zero
+for exactly that reason, and the test says so rather than rounding the fact away.
+
+The touch half is genuine browser input: Chromium's own touch emulation, dispatched through
+`Input.dispatchTouchEvent`, so the page receives ordinary trusted touch events. The gamepad half is
+emulated **at the browser API boundary** — `navigator.getGamepads` is what SDL3's Emscripten
+joystick driver reads, and neither Playwright nor the DevTools protocol can attach a virtual
+controller — so everything below that one function is the real chain and nothing is stubbed. That
+distinction is stated here rather than blurred, and the "no controller" case above is what keeps it
+honest.
+
+Three planted defects prove the tests can fail: swapping the thumbsticks fails the value test, an
+always-connected capability table fails the no-controller test, and reporting the current touch
+position as the previous one fails the touch test. Each fails exactly one test and no others.
 
 ## Sound
 

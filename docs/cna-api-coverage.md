@@ -6,14 +6,14 @@ two independent axes: what the route is *for*, which is exclusive and must never
 C source and the WebAssembly backend's route table rather than declared.
 
 ```text
-TOTAL_C_API_FUNCTIONS=4051
+TOTAL_C_API_FUNCTIONS=4054
 PUBLIC_HEADERS=57
 XNA_BACKING=1152
-CNA_EXTENSION_BACKING=1736
+CNA_EXTENSION_BACKING=1737
 INTERNAL_RUNTIME_ONLY=1
 MANAGED_BY_DESIGN=457
 TOOLING_ONLY=31
-INTENTIONALLY_DEFERRED=674
+INTENTIONALLY_DEFERRED=676
 UPSTREAM_RUNTIME_UNAVAILABLE=0
 UNEXPLAINED=0
 ```
@@ -22,10 +22,10 @@ UNEXPLAINED=0
 
 ```text
 REACHABLE_NODE=594
-REACHABLE_WASM=169
+REACHABLE_WASM=178
 REACHABLE_BY_ANY_BACKEND=594
-REACHABLE_BY_EVERY_BACKEND=169
-REACHABLE_NODE_ONLY=425
+REACHABLE_BY_EVERY_BACKEND=178
+REACHABLE_NODE_ONLY=416
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -34,12 +34,12 @@ What each backend reaches, by what the routes are for:
 
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
-| `XNA_BACKING` | 1152 | 370 | 64 |
-| `CNA_EXTENSION_BACKING` | 1736 | 223 | 104 |
+| `XNA_BACKING` | 1152 | 370 | 73 |
+| `CNA_EXTENSION_BACKING` | 1737 | 223 | 104 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 457 | 0 | 0 |
 | `TOOLING_ONLY` | 31 | 0 | 0 |
-| `INTENTIONALLY_DEFERRED` | 674 | 0 | 0 |
+| `INTENTIONALLY_DEFERRED` | 676 | 0 | 0 |
 
 ## By header
 
@@ -49,12 +49,12 @@ What each backend reaches, by what the routes are for:
 | `audio.h` | 43 | 20 | 63 | 11 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `cnb.h` | 64 | 64 | 0 | 272 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `color.h` | 0 | 0 | 0 | 0 | 0 | 24 | 0 | 0 | 0 | 0 |
-| `content_readers.h` | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 59 | 0 | 0 |
+| `content_readers.h` | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 61 | 0 | 0 |
 | `content.h` | 0 | 0 | 0 | 4 | 0 | 0 | 0 | 28 | 0 | 0 |
 | `core_ext.h` | 36 | 36 | 0 | 56 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `core.h` | 2 | 2 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `curve.h` | 0 | 0 | 0 | 0 | 0 | 45 | 0 | 0 | 0 | 0 |
-| `devices.h` | 20 | 0 | 0 | 60 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `devices.h` | 20 | 0 | 0 | 61 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `display.h` | 0 | 0 | 0 | 22 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `effects.h` | 80 | 0 | 255 | 35 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `engine_layer.h` | 77 | 0 | 0 | 857 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -68,14 +68,14 @@ What each backend reaches, by what the routes are for:
 | `index_resources.h` | 8 | 0 | 10 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_cursor.h` | 0 | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_devices.h` | 0 | 0 | 0 | 9 | 0 | 0 | 1 | 27 | 0 | 0 |
-| `input_gamepad.h` | 2 | 0 | 40 | 23 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `input_gamepad.h` | 2 | 2 | 40 | 23 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_haptics.h` | 0 | 0 | 0 | 36 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_joystick.h` | 0 | 0 | 0 | 29 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `input_keyboard.h` | 0 | 0 | 0 | 8 | 0 | 0 | 0 | 9 | 0 | 0 |
 | `input_mouse.h` | 3 | 0 | 10 | 9 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `input_text.h` | 0 | 0 | 0 | 16 | 0 | 0 | 1 | 0 | 0 | 0 |
-| `input_touch.h` | 4 | 0 | 33 | 13 | 0 | 0 | 1 | 0 | 0 | 0 |
-| `input.h` | 5 | 2 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `input_touch.h` | 4 | 4 | 33 | 13 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `input.h` | 5 | 5 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `math.h` | 0 | 0 | 0 | 0 | 0 | 52 | 0 | 0 | 0 | 0 |
 | `matrix.h` | 0 | 0 | 0 | 0 | 0 | 57 | 0 | 0 | 0 | 0 |
 | `media_library.h` | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 146 | 0 | 0 |

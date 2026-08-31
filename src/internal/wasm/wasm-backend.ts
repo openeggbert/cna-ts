@@ -33,9 +33,30 @@ import type {
 } from "../backend.js";
 import { NativeUnavailableError } from "../native-error.js";
 import type { NativeHandle, NativeResourceLifetime } from "../ownership.js";
-import { ButtonState, type Keys } from "../../Microsoft/Xna/Framework/Input/Enums.js";
+import { fromCnaGamePadType } from "../cna-enums.js";
+import { ButtonState, type GamePadDeadZone, type Keys } from "../../Microsoft/Xna/Framework/Input/Enums.js";
+import {
+  createGamePadCapabilities,
+  createGamePadState,
+  type GamePadCapabilities,
+  type GamePadState,
+} from "../../Microsoft/Xna/Framework/Input/GamePadValues.js";
 import { KeyboardState } from "../../Microsoft/Xna/Framework/Input/KeyboardState.js";
 import { MouseState } from "../../Microsoft/Xna/Framework/Input/MouseState.js";
+import {
+  createTouchCollection,
+  type TouchCollection,
+} from "../../Microsoft/Xna/Framework/Input/Touch/TouchCollection.js";
+import type { GestureType } from "../../Microsoft/Xna/Framework/Input/Touch/Enums.js";
+import { TouchLocationState } from "../../Microsoft/Xna/Framework/Input/Touch/Enums.js";
+import {
+  createTouchPanelCapabilities,
+  GestureSample,
+  TouchLocation,
+  type TouchPanelCapabilities,
+} from "../../Microsoft/Xna/Framework/Input/Touch/TouchValues.js";
+import { TimeSpan } from "../../Microsoft/Xna/Framework/TimeSpan.js";
+import { Vector2 } from "../../Microsoft/Xna/Framework/Vector2.js";
 import type { PlayerIndex } from "../../Microsoft/Xna/Framework/PlayerIndex.js";
 import { WASM_CALLBACK_SIGNATURES, WASM_STRUCT_LAYOUTS } from "./layout.js";
 import {
@@ -103,6 +124,15 @@ const ROUTES = [
   "cna_sprite_batch_destroy",
   "cna_keyboard_get_state",
   "cna_mouse_get_state",
+  "cna_gamepad_get_capabilities",
+  "cna_gamepad_get_state_with_dead_zone",
+  "cna_gamepad_set_vibration",
+  "cna_touch_get_capabilities",
+  "cna_touch_get_state",
+  "cna_touch_panel_get_window_handle",
+  "cna_touch_panel_set_window_handle",
+  "cna_touch_panel_get_is_gesture_available",
+  "cna_touch_panel_read_gesture",
   "cna_platform_get_current",
   "cna_platform_get_is_apple_ext",
   "cna_platform_get_is_mobile_ext",
@@ -827,6 +857,193 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
     } finally {
       scope.dispose();
     }
+  }
+
+  /**
+   * The same `GamePad.GetState` a Node consumer calls, over the same C route. In a browser SDL3's
+   * Emscripten joystick driver is what stands behind it, and that reads the page's Gamepad API --
+   * so a page with no controller attached gets `IsConnected === false` rather than an invented
+   * device, and one with a controller gets its real buttons, sticks and triggers.
+   *
+   * Dead-zone processing is CNA's, not this backend's: the mode is passed through and the analog
+   * values come back already transformed, which is what keeps the two backends' answers identical
+   * for identical hardware.
+   */
+  public override getGamePadState(playerIndex: PlayerIndex, deadZoneMode: GamePadDeadZone): GamePadState {
+    const scope = new WasmScope(this.#module);
+    try {
+      const state = allocateStruct(this.#module, scope, "CNA_GamePadState");
+      this.#invoke(
+        "cna_gamepad_get_state_with_dead_zone",
+        this.#requireGame(), playerIndex, deadZoneMode, state.pointer,
+      );
+      const analog = state.nested("analog", "CNA_GamePadAnalogState");
+      const left = analog.nested("left_thumb_stick", "CNA_Vector2");
+      const right = analog.nested("right_thumb_stick", "CNA_Vector2");
+      return createGamePadState({
+        IsConnected: state.getU8("is_connected") !== 0,
+        PacketNumber: state.getI32("packet_number"),
+        PressedButtons: state.getU32("pressed_buttons"),
+        LeftX: left.getF32("x"),
+        LeftY: left.getF32("y"),
+        RightX: right.getF32("x"),
+        RightY: right.getF32("y"),
+        LeftTrigger: analog.getF32("left_trigger"),
+        RightTrigger: analog.getF32("right_trigger"),
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override getGamePadCapabilities(playerIndex: PlayerIndex): GamePadCapabilities {
+    const scope = new WasmScope(this.#module);
+    try {
+      const caps = allocateStruct(this.#module, scope, "CNA_GamePadCapabilities");
+      this.#invoke("cna_gamepad_get_capabilities", this.#requireGame(), playerIndex, caps.pointer);
+      const has = (field: string): boolean => caps.getU8(field) !== 0;
+      return createGamePadCapabilities({
+        IsConnected: has("is_connected"),
+        // The one family whose numbering differs between XNA and the C ABI; the translation is
+        // contract-declared in src/internal/cna-enums.ts and proved by a _Static_assert.
+        GamePadType: fromCnaGamePadType(caps.getU32("gamepad_type")),
+        HasAButton: has("has_a_button"),
+        HasBButton: has("has_b_button"),
+        HasXButton: has("has_x_button"),
+        HasYButton: has("has_y_button"),
+        HasBackButton: has("has_back_button"),
+        HasStartButton: has("has_start_button"),
+        HasBigButton: has("has_big_button"),
+        HasDPadUpButton: has("has_dpad_up_button"),
+        HasDPadDownButton: has("has_dpad_down_button"),
+        HasDPadLeftButton: has("has_dpad_left_button"),
+        HasDPadRightButton: has("has_dpad_right_button"),
+        HasLeftShoulderButton: has("has_left_shoulder_button"),
+        HasRightShoulderButton: has("has_right_shoulder_button"),
+        HasLeftStickButton: has("has_left_stick_button"),
+        HasRightStickButton: has("has_right_stick_button"),
+        HasLeftXThumbStick: has("has_left_x_thumb_stick"),
+        HasLeftYThumbStick: has("has_left_y_thumb_stick"),
+        HasRightXThumbStick: has("has_right_x_thumb_stick"),
+        HasRightYThumbStick: has("has_right_y_thumb_stick"),
+        HasLeftTrigger: has("has_left_trigger"),
+        HasRightTrigger: has("has_right_trigger"),
+        HasLeftVibrationMotor: has("has_left_vibration_motor"),
+        HasRightVibrationMotor: has("has_right_vibration_motor"),
+        HasVoiceSupport: has("has_voice_support"),
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /**
+   * Reports whether CNA accepted the vibration request, which is the most a caller can truthfully
+   * be told: XNA's `SetVibration` returns a boolean and a browser's Gamepad API exposes haptics
+   * only where the device and the user agent both provide them.
+   */
+  public override setGamePadVibration(
+    playerIndex: PlayerIndex, leftMotor: number, rightMotor: number,
+  ): boolean {
+    const scope = new WasmScope(this.#module);
+    try {
+      const out = scope.allocate(1);
+      this.#invoke(
+        "cna_gamepad_set_vibration", this.#requireGame(), playerIndex, leftMotor, rightMotor, out,
+      );
+      return this.#module.HEAPU8[out] !== 0;
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /**
+   * `TouchPanel.GetState`, from the browser's own touch events by way of SDL3's Emscripten
+   * platform. The collection is copied out of the module's memory into ordinary JavaScript objects
+   * before this returns, so nothing a consumer holds points into a heap `ALLOW_MEMORY_GROWTH` can
+   * move underneath it.
+   */
+  public override getTouchState(): TouchCollection {
+    const scope = new WasmScope(this.#module);
+    try {
+      const state = allocateStruct(this.#module, scope, "CNA_TouchState");
+      this.#invoke("cna_touch_get_state", this.#requireGame(), state.pointer);
+      // The count is CNA's, but the array is fixed-capacity; clamping to the measured array rather
+      // than trusting the count keeps a malformed answer from reading past the structure.
+      const capacity = WASM_STRUCT_LAYOUTS.CNA_TouchState.fields.touches.size
+        / WASM_STRUCT_LAYOUTS.CNA_TouchLocation.size;
+      const count = Math.min(state.getU32("touch_count"), capacity);
+      const touches: TouchLocation[] = [];
+      for (let index = 0; index < count; index += 1) {
+        const location = state.element("touches", index, "CNA_TouchLocation");
+        const position = location.nested("position", "CNA_Vector2");
+        const previous = location.nested("previous_position", "CNA_Vector2");
+        touches.push(new TouchLocation(
+          location.getI32("id"),
+          location.getU32("state") as TouchLocationState,
+          new Vector2(position.getF32("x"), position.getF32("y")),
+          location.getU32("previous_state") as TouchLocationState,
+          new Vector2(previous.getF32("x"), previous.getF32("y")),
+        ));
+      }
+      return createTouchCollection(touches, state.getU8("is_connected") !== 0);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override getTouchCapabilities(): TouchPanelCapabilities {
+    const scope = new WasmScope(this.#module);
+    try {
+      const caps = allocateStruct(this.#module, scope, "CNA_TouchCapabilities");
+      this.#invoke("cna_touch_get_capabilities", this.#requireGame(), caps.pointer);
+      return createTouchPanelCapabilities({
+        IsConnected: caps.getU8("is_connected") !== 0,
+        MaximumTouchCount: caps.getU32("maximum_touch_count"),
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override isGestureAvailable(): boolean {
+    return this.#outBool("cna_touch_panel_get_is_gesture_available", this.#requireGame());
+  }
+
+  public override readGesture(): GestureSample {
+    const scope = new WasmScope(this.#module);
+    try {
+      const sample = allocateStruct(this.#module, scope, "CNA_GestureSample");
+      this.#invoke("cna_touch_panel_read_gesture", this.#requireGame(), sample.pointer);
+      const vector = (field: string): Vector2 => {
+        const value = sample.nested(field, "CNA_Vector2");
+        return new Vector2(value.getF32("x"), value.getF32("y"));
+      };
+      return new GestureSample(
+        sample.getU32("gesture_type") as GestureType,
+        // Ticks stay a bigint the whole way: TimeSpan's are 100-nanosecond units and an i64 does
+        // not survive a trip through Number.
+        TimeSpan.FromTicks(sample.getI64("timestamp_ticks")),
+        vector("position"), vector("position2"), vector("delta"), vector("delta2"),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override get touchWindowHandle(): bigint {
+    const scope = new WasmScope(this.#module);
+    try {
+      const out = scope.allocate(8);
+      this.#invoke("cna_touch_panel_get_window_handle", this.#requireGame(), out);
+      return new DataView(this.#module.HEAPU8.buffer as ArrayBuffer).getBigInt64(out, true);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override setTouchWindowHandle(value: bigint): void {
+    this.#invoke("cna_touch_panel_set_window_handle", this.#requireGame(), value);
   }
 
   // ---- Process-wide CNA runtime services -------------------------------------------------------

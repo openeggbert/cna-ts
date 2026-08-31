@@ -131,6 +131,81 @@
       "horizontal_scroll_wheel",
       "pressed_buttons"
     ],
+    "CNA_GamePadCapabilities": [
+      "struct_size",
+      "struct_version",
+      "gamepad_type",
+      "is_connected",
+      "has_a_button",
+      "has_b_button",
+      "has_x_button",
+      "has_y_button",
+      "has_back_button",
+      "has_start_button",
+      "has_big_button",
+      "has_dpad_up_button",
+      "has_dpad_down_button",
+      "has_dpad_left_button",
+      "has_dpad_right_button",
+      "has_left_shoulder_button",
+      "has_right_shoulder_button",
+      "has_left_stick_button",
+      "has_right_stick_button",
+      "has_left_x_thumb_stick",
+      "has_left_y_thumb_stick",
+      "has_right_x_thumb_stick",
+      "has_right_y_thumb_stick",
+      "has_left_trigger",
+      "has_right_trigger",
+      "has_left_vibration_motor",
+      "has_right_vibration_motor",
+      "has_voice_support"
+    ],
+    "CNA_GamePadAnalogState": [
+      "left_thumb_stick",
+      "right_thumb_stick",
+      "left_trigger",
+      "right_trigger"
+    ],
+    "CNA_GamePadState": [
+      "struct_size",
+      "struct_version",
+      "is_connected",
+      "packet_number",
+      "pressed_buttons",
+      "analog"
+    ],
+    "CNA_TouchCapabilities": [
+      "struct_size",
+      "struct_version",
+      "is_connected",
+      "maximum_touch_count"
+    ],
+    "CNA_TouchLocation": [
+      "id",
+      "state",
+      "position",
+      "previous_state",
+      "previous_position",
+      "pressure"
+    ],
+    "CNA_TouchState": [
+      "struct_size",
+      "struct_version",
+      "is_connected",
+      "touch_count",
+      "touches"
+    ],
+    "CNA_GestureSample": [
+      "struct_size",
+      "struct_version",
+      "gesture_type",
+      "timestamp_ticks",
+      "position",
+      "position2",
+      "delta",
+      "delta2"
+    ],
     "CNA_GraphicsRendererFallbackRecord": [
       "struct_size",
       "struct_version",

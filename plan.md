@@ -25,7 +25,7 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   the content build rather than in a game.
 - [x] `Game` drives its managed pipeline from real CNA lifecycle callbacks on both backends; the
   default/backendless path remains explicitly unavailable.
-- [x] Linux x86-64 HEADLESS Node execution is verified against a CNA C ABI 0.20.0 artifact built
+- [x] Linux x86-64 HEADLESS Node execution is verified against a CNA C ABI 0.21.0 artifact built
   out of tree from `cnanext` against `sharp-runtimenext`.
 - [x] A windowed Linux qualification exists beside it: against an OPENGLES3/SDL3 CNA library under
   Xvfb, a `RenderTarget2D` cleared through the public API reads back all sixteen texels exactly and
@@ -137,7 +137,7 @@ Electron, or mobile support.
 - [x] Managed lifecycle tests execute the contract through an internal backend and the native
   ownership state machine without exposing public injection.
 - [x] Implement the first real backend as a small N-API adapter over an explicitly supplied CNA
-  ABI 0.20 library.
+  ABI 0.21 library.
 - [x] Implement the second real backend over the `cna_c_api` Emscripten module, answering the same
   private boundary from a browser.
 - [x] Exact ABI version, UTF-8 errors, synchronous callbacks, bigint handles, child ownership, and
@@ -146,9 +146,12 @@ Electron, or mobile support.
 
 ## CNA C ABI status
 
-- [x] Current CNA exposes experimental C ABI 0.20.0 across 61 public headers and 4,051 unique
-  exported declarations, measured from `cnanext`. The historical 0.7.0/2,861 baseline is recorded
-  in `NEXT.md`, not here.
+- [x] Current CNA exposes experimental C ABI 0.21.0 across 61 public headers and 4,054 unique
+  exported declarations, measured from `cnanext` 599d14e5. The 0.20.0/4,051 generation and the
+  historical 0.7.0/2,861 baseline are recorded in `NEXT.md` and `docs/cna-abi-audit.md`, not here.
+  0.21 added exactly three declarations, removed and renamed none, and changed no prototype this
+  binding imports; under the experimental-`0.x` acceptance policy a 0.21 library would have been
+  refused by the 0.20 window rather than mis-driven, so the window was moved deliberately.
 - [x] The ABI covers version/error handling plus runtime, graphics, textures, SpriteBatch routes,
   input, content, audio/XACT, media, storage, events, and resource handles, and beyond XNA it adds
   CNB, the modern engine layer, devices, sensors and the extended input families.
@@ -159,9 +162,14 @@ Electron, or mobile support.
 - [x] The audit measures that artifact directly — its hashes, its exposed route count and whether
   every route the WebAssembly backend resolves is present — rather than looking for a `.wasm`
   committed to the CNA worktree, which is not how the artifact is produced.
-- [x] Define the first exact symbol subset rather than binding all 4,051 routes blindly.
-- [x] The audit extracts and verifies the adapter's exact 581 imported symbols separately from the
-  sentinel list and checks the qualified library exports each.
+- [x] Define the first exact symbol subset rather than binding all 4,054 routes blindly.
+- [x] The audit extracts and verifies the adapter's exact imported symbols separately from the
+  sentinel list and checks the qualified library exports each. Three counts are reported on three
+  independent axes and must not be conflated: **4,054 canonical declarations** (what CNA
+  publishes), **594 Node backend reachability** and **169 WebAssembly backend reachability** (what
+  each adapter actually imports), and the purpose classification in `docs/cna-api-coverage.md`
+  (what each route is *for*). A route can be `XNA_BACKING` and reached by neither backend, or
+  reached by both and `CNA_EXTENSION_BACKING`.
 - [x] Every imported route's declared function-pointer type is verified against the canonical
   headers under `-Wall -Wextra -Werror`; signature mismatches are zero.
 
@@ -237,6 +245,9 @@ Electron, or mobile support.
 - [x] Route polling APIs through the private backend and fail explicitly when unavailable.
 - [x] Verify keyboard/mouse/gamepad/touch polling over real CNA ABI routes under HEADLESS; physical
   device behavior on a windowed platform remains unverified.
+- [x] Verify `GamePad` and `TouchPanel` in a browser with real events reaching the public XNA API,
+  including button/stick/trigger values, the packet number, and XNA's `Pressed`/`Moved`/`Released`
+  touch transitions with identity preserved across frames.
 
 ## Content and models
 
@@ -355,10 +366,15 @@ Electron, or mobile support.
   probe; nothing at that boundary is hand-written.
 - [x] Handles cross the boundary as `bigint` under `WASM_BIGINT` and are never converted through
   `Number`.
-- [x] The browser slice reaches 169 routes: the game loop, the graphics device, `Clear`,
-  `Texture2D`, `SpriteBatch`, keyboard and mouse, the modern runtime services, **title storage and
-  the whole managed content stack**, **render targets with asserted pixel readback**, **sound
-  effects**, and **CNB**.
+- [x] The browser slice reaches 178 routes: the game loop, the graphics device, `Clear`,
+  `Texture2D`, `SpriteBatch`, keyboard and mouse, **`GamePad` and `TouchPanel`**, the modern runtime
+  services, **title storage and the whole managed content stack**, **render targets with asserted
+  pixel readback**, **sound effects**, and **CNB**.
+- [x] Browser `GamePad` and `TouchPanel` answer the same public XNA API a Node consumer uses, a
+  frame at a time, with real Chromium touch events and a Gamepad API device emulated at the browser
+  boundary SDL3 actually reads. Absence is reported as absence: with no controller attached all four
+  `PlayerIndex` slots report `IsConnected` false and `SetVibration` refuses. Three planted defects
+  prove the tests can fail.
 - [ ] It is still a slice: members outside it refuse by name through the generated `CnaBackendBase`
   or `CnaGraphicsBackendBase` instead of returning a plausible value.
 

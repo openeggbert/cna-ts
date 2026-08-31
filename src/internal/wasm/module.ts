@@ -152,6 +152,21 @@ export class WasmStruct {
   public getU64Element(field: string, index: number): bigint {
     return this.#view().getBigUint64(this.#offset(field) + index * 8, true);
   }
+
+  /**
+   * One element of a fixed-size array of structures, striding by the element's own measured
+   * wasm32 size. The bound is the field's measured byte length rather than a constant copied out
+   * of a header, so a shortened array reports a range error instead of reading past its end.
+   */
+  public element(field: string, index: number, name: keyof typeof WASM_STRUCT_LAYOUTS): WasmStruct {
+    const entry = this.#layout.fields[field];
+    if (!entry) throw new Error(`the measured layout has no field ${field}`);
+    const stride = (WASM_STRUCT_LAYOUTS[name] as WasmStructLayout).size;
+    if (index < 0 || (index + 1) * stride > entry.size) {
+      throw new RangeError(`${field}[${index}] lies outside the measured ${entry.size}-byte array`);
+    }
+    return new WasmStruct(this.#module, name, this.#pointer + entry.offset + index * stride);
+  }
 }
 
 /** Allocates and initialises a versioned CNA descriptor with its `struct_size`/`struct_version`. */
