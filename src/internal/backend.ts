@@ -1181,6 +1181,139 @@ export interface TextEditingCandidatesSnapshot {
  * needs the *renderer* to have it, which is why the capability query and the work-group limits live
  * here rather than being assumed. A backend that omits this member has no compute at all.
  */
+/** Three components, as CNA lays out `CNA_Vector3`. */
+export interface Vector3Snapshot {
+  readonly X: number;
+  readonly Y: number;
+  readonly Z: number;
+}
+
+/**
+ * A point light in its own shape. CNA converts it into the uniform clustered shape itself, so this
+ * carries only the fields a point light has -- no direction, no cone angles.
+ */
+export interface PointLightSnapshot {
+  readonly Position: Vector3Snapshot;
+  readonly Color: Vector3Snapshot;
+  readonly Intensity: number;
+  readonly Range: number;
+  readonly CastsShadows: boolean;
+}
+
+/** A spot light in its own shape, converted by CNA rather than here. */
+export interface SpotLightSnapshot {
+  readonly Position: Vector3Snapshot;
+  readonly Direction: Vector3Snapshot;
+  readonly Color: Vector3Snapshot;
+  readonly Intensity: number;
+  readonly Range: number;
+  readonly InnerAngle: number;
+  readonly OuterAngle: number;
+  readonly CastsShadows: boolean;
+}
+
+/** One clustered light in the uniform shape CNA stores every light in. */
+export interface ClusteredLightSnapshot {
+  readonly Type: number;
+  readonly Position: Vector3Snapshot;
+  readonly Direction: Vector3Snapshot;
+  readonly Color: Vector3Snapshot;
+  readonly Intensity: number;
+  readonly Range: number;
+  readonly InnerAngle: number;
+  readonly OuterAngle: number;
+  readonly CastsShadows: boolean;
+}
+
+/** A light's world-space influence, as CNA computes it from the light's own range. */
+export interface BoundingSphereSnapshot {
+  readonly Center: Vector3Snapshot;
+  readonly Radius: number;
+}
+
+/** One cluster's view-space extent. */
+export interface ClusterBoundsSnapshot {
+  readonly Min: Vector3Snapshot;
+  readonly Max: Vector3Snapshot;
+}
+
+/**
+ * CNA's clustered lighting: a light set, the cluster grid it is assigned into, and the
+ * shadow-budget policy that decides which of those lights is worth a shadow map.
+ *
+ * Separate from {@link CnaComputeBackend} because none of it touches the GPU. All four objects
+ * compute on a graphics device handle but hold no GPU state, so they answer identically on a
+ * headless renderer and a windowed one.
+ */
+export interface CnaClusteredLightingBackend {
+  isClusteredLightUsable(light: ClusteredLightSnapshot): boolean;
+  createClusteredLightSet(device: NativeHandle): NativeHandle;
+  addClusteredLight(set: NativeHandle, light: ClusteredLightSnapshot): number;
+  addClusteredPointLight(set: NativeHandle, light: PointLightSnapshot): number;
+  addClusteredSpotLight(set: NativeHandle, light: SpotLightSnapshot): number;
+  replaceClusteredLightAt(set: NativeHandle, index: number, light: ClusteredLightSnapshot): void;
+  removeClusteredLightAt(set: NativeHandle, index: number): void;
+  clearClusteredLightSet(set: NativeHandle): void;
+  getClusteredLightCount(set: NativeHandle): number;
+  isClusteredLightSetEmpty(set: NativeHandle): boolean;
+  getClusteredLightAt(set: NativeHandle, index: number): ClusteredLightSnapshot;
+  copyClusteredLights(set: NativeHandle): readonly ClusteredLightSnapshot[];
+  getClusteredLightBoundsAt(set: NativeHandle, index: number): BoundingSphereSnapshot;
+  copyClusteredLightBounds(set: NativeHandle): readonly BoundingSphereSnapshot[];
+  destroyClusteredLightSet(set: NativeHandle): void;
+  createClusterGrid(
+    device: NativeHandle, tilesX: number, tilesY: number, sliceCount: number,
+  ): NativeHandle;
+  getClusterGridTilesX(grid: NativeHandle): number;
+  getClusterGridTilesY(grid: NativeHandle): number;
+  getClusterGridSliceCount(grid: NativeHandle): number;
+  getClusterGridClusterCount(grid: NativeHandle): number;
+  getClusterIndex(grid: NativeHandle, x: number, y: number, slice: number): number;
+  setClusterGridProjection(
+    grid: NativeHandle, projection: readonly number[], nearPlane: number, farPlane: number,
+  ): void;
+  clusterGridHasProjection(grid: NativeHandle): boolean;
+  getClusterGridNearPlane(grid: NativeHandle): number;
+  getClusterGridFarPlane(grid: NativeHandle): number;
+  getClusterGridInverseProjection(grid: NativeHandle): readonly number[];
+  getClusterSliceDistance(grid: NativeHandle, slice: number): number;
+  getClusterSliceForViewDistance(grid: NativeHandle, viewDistance: number): number;
+  getClusterBounds(
+    grid: NativeHandle, x: number, y: number, slice: number,
+  ): ClusterBoundsSnapshot;
+  destroyClusterGrid(grid: NativeHandle): void;
+  createClusteredLightAssignment(device: NativeHandle): NativeHandle;
+  assignClusteredLights(
+    assignment: NativeHandle, grid: NativeHandle, view: readonly number[],
+    bounds: readonly BoundingSphereSnapshot[],
+  ): void;
+  clearClusteredLightAssignment(assignment: NativeHandle): void;
+  getAssignmentLightCount(assignment: NativeHandle): number;
+  getAssignmentClusterCount(assignment: NativeHandle): number;
+  copyLightsInCluster(assignment: NativeHandle, cluster: number): readonly number[];
+  copyAssignmentIndices(assignment: NativeHandle): readonly number[];
+  copyAssignmentOffsets(assignment: NativeHandle): readonly number[];
+  getAssignmentTotalReferenceCount(assignment: NativeHandle): number;
+  getAssignmentMaxLightsPerCluster(assignment: NativeHandle): number;
+  destroyClusteredLightAssignment(assignment: NativeHandle): void;
+  createClusteredShadowPolicy(device: NativeHandle, budget: number): NativeHandle;
+  getShadowPolicyBudget(policy: NativeHandle): number;
+  setShadowPolicyBudget(policy: NativeHandle, budget: number): void;
+  getShadowPolicyHysteresis(policy: NativeHandle): number;
+  setShadowPolicyHysteresis(policy: NativeHandle, hysteresis: number): void;
+  copyShadowPolicySelected(policy: NativeHandle): readonly number[];
+  isShadowPolicySelected(policy: NativeHandle, lightIndex: number): boolean;
+  getShadowPolicyScore(policy: NativeHandle, lightIndex: number): number;
+  getShadowPolicyRequestCount(policy: NativeHandle): number;
+  getShadowPolicyRefusedCount(policy: NativeHandle): number;
+  resetShadowPolicy(policy: NativeHandle): void;
+  selectShadowCasters(
+    policy: NativeHandle, lights: NativeHandle, view: readonly number[],
+    projection: readonly number[], cameraPosition: Vector3Snapshot,
+  ): void;
+  destroyClusteredShadowPolicy(policy: NativeHandle): void;
+}
+
 export interface CnaComputeBackend {
   supportsGraphicsCapability(device: NativeHandle, capability: number): boolean;
   getMaxComputeWorkGroupCount(device: NativeHandle, axis: number): number;
@@ -1633,6 +1766,7 @@ export interface CnaBackend {
   readonly RuntimeServices?: CnaRuntimeServicesBackend;
   readonly GraphicsExtensions?: CnaGraphicsExtensionBackend;
   readonly Compute?: CnaComputeBackend;
+  readonly ClusteredLighting?: CnaClusteredLightingBackend;
   readonly Content?: CnaContentBackend;
   readonly Devices?: CnaDeviceBackend;
   readonly GamerServices?: CnaGamerServicesBackend;

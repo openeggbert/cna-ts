@@ -486,6 +486,42 @@ typedef CNA_Result (*HandleU32Fn)(CNA_Handle, uint32_t);
 
 typedef CNA_Result (*VideoPlayerFrameFn)(CNA_VideoPlayerHandle, CNA_VideoFrameEXT*);
 
+/* --- the engine layer's clustered lighting ---------------------------------------------------- */
+typedef CNA_Result (*ClusteredLightInitFn)(CNA_ClusteredLightEXT*);
+typedef CNA_Result (*ClusteredLightUsableFn)(const CNA_ClusteredLightEXT*, CNA_Bool*);
+typedef CNA_Result (*ClusteredLightAddFn)(CNA_Handle, const CNA_ClusteredLightEXT*, int32_t*);
+typedef CNA_Result (*ClusteredLightReplaceFn)(CNA_Handle, int32_t, const CNA_ClusteredLightEXT*);
+typedef CNA_Result (*PointLightInitFn)(CNA_PointLightEXT*);
+typedef CNA_Result (*SpotLightInitFn)(CNA_SpotLightEXT*);
+typedef CNA_Result (*ClusteredAddPointFn)(CNA_Handle, const CNA_PointLightEXT*, int32_t*);
+typedef CNA_Result (*ClusteredAddSpotFn)(CNA_Handle, const CNA_SpotLightEXT*, int32_t*);
+typedef CNA_Result (*ClusteredLightGetAtFn)(CNA_Handle, int32_t, CNA_ClusteredLightEXT*);
+typedef CNA_Result (*ClusteredLightCopyFn)(
+  CNA_Handle, CNA_ClusteredLightEXT*, uint64_t, uint64_t*);
+typedef CNA_Result (*ClusteredBoundsAtFn)(CNA_Handle, int32_t, CNA_BoundingSphere*);
+typedef CNA_Result (*ClusteredBoundsCopyFn)(CNA_Handle, CNA_BoundingSphere*, uint64_t, uint64_t*);
+typedef CNA_Result (*ClusteredGridCreateFn)(
+  CNA_Handle, int32_t, int32_t, int32_t, CNA_ClusteredLightGridHandle*);
+typedef CNA_Result (*ClusteredClusterIndexFn)(CNA_Handle, int32_t, int32_t, int32_t, int32_t*);
+typedef CNA_Result (*ClusteredSetProjectionFn)(CNA_Handle, const CNA_Matrix*, float, float);
+typedef CNA_Result (*ClusteredMatrixOutFn)(CNA_Handle, CNA_Matrix*);
+typedef CNA_Result (*ClusteredSliceDistanceFn)(CNA_Handle, int32_t, float*);
+typedef CNA_Result (*ClusteredSliceForDistanceFn)(CNA_Handle, float, int32_t*);
+typedef CNA_Result (*ClusteredClusterBoundsFn)(
+  CNA_Handle, int32_t, int32_t, int32_t, CNA_BoundingBox*);
+typedef CNA_Result (*ClusteredAssignFn)(
+  CNA_Handle, CNA_ClusteredLightGridHandle, const CNA_Matrix*, const CNA_BoundingSphere*, uint64_t);
+typedef CNA_Result (*ClusteredCopyI32Fn)(CNA_Handle, int32_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*ClusteredClusterListFn)(
+  CNA_Handle, int32_t, int32_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*ClusteredPolicyCreateFn)(
+  CNA_Handle, int32_t, CNA_ClusteredShadowPolicyHandle*);
+typedef CNA_Result (*ClusteredIsSelectedFn)(CNA_Handle, int32_t, CNA_Bool*);
+typedef CNA_Result (*ClusteredScoreFn)(CNA_Handle, int32_t, float*);
+typedef CNA_Result (*ClusteredSelectFn)(
+  CNA_Handle, CNA_ClusteredLightSetHandle, const CNA_Matrix*, const CNA_Matrix*,
+  const CNA_Vector3*);
+
 /* --- the engine layer's compute path ---------------------------------------------------------- */
 /*
  * Storage buffers, compute shaders and GPU timers. The handle typedefs in `engine_layer.h` are all
@@ -1241,6 +1277,65 @@ typedef struct Api {
   GameHandleFn post_process_chain_destroy;
   TwoHandleFn post_process_chain_add_pass;
   TwoHandleFn post_process_chain_add_owned_pass;
+
+  /* the engine layer's clustered lighting */
+  ClusteredLightInitFn clustered_light_ext_init;
+  ClusteredLightUsableFn clustered_light_set_is_usable;
+  HandleHandleOutFn clustered_light_set_create;
+  ClusteredLightAddFn clustered_light_set_add;
+  PointLightInitFn point_light_ext_init;
+  SpotLightInitFn spot_light_ext_init;
+  ClusteredAddPointFn clustered_light_set_add_point;
+  ClusteredAddSpotFn clustered_light_set_add_spot;
+  ClusteredLightReplaceFn clustered_light_set_replace_at;
+  HandleI32Fn clustered_light_set_remove_at;
+  GameHandleFn clustered_light_set_clear;
+  HandleI32OutFn clustered_light_set_get_count;
+  HandleBoolOutFn clustered_light_set_is_empty;
+  ClusteredLightGetAtFn clustered_light_set_get_at;
+  ClusteredLightCopyFn clustered_light_set_copy_lights;
+  ClusteredBoundsAtFn clustered_light_set_get_bounds_at;
+  ClusteredBoundsCopyFn clustered_light_set_copy_bounds;
+  GameHandleFn clustered_light_set_destroy;
+  ClusteredGridCreateFn clustered_light_grid_create;
+  HandleI32OutFn clustered_light_grid_get_tiles_x;
+  HandleI32OutFn clustered_light_grid_get_tiles_y;
+  HandleI32OutFn clustered_light_grid_get_slice_count;
+  HandleI32OutFn clustered_light_grid_get_cluster_count;
+  ClusteredClusterIndexFn clustered_light_grid_cluster_index;
+  ClusteredSetProjectionFn clustered_light_grid_set_projection;
+  HandleBoolOutFn clustered_light_grid_has_projection;
+  HandleFloatOutFn clustered_light_grid_get_near_plane;
+  HandleFloatOutFn clustered_light_grid_get_far_plane;
+  ClusteredMatrixOutFn clustered_light_grid_get_inverse_projection;
+  ClusteredSliceDistanceFn clustered_light_grid_slice_distance;
+  ClusteredSliceForDistanceFn clustered_light_grid_slice_for_view_distance;
+  ClusteredClusterBoundsFn clustered_light_grid_cluster_bounds;
+  GameHandleFn clustered_light_grid_destroy;
+  HandleHandleOutFn clustered_light_assignment_create;
+  ClusteredAssignFn clustered_light_assignment_assign;
+  GameHandleFn clustered_light_assignment_clear;
+  HandleI32OutFn clustered_light_assignment_get_light_count;
+  HandleI32OutFn clustered_light_assignment_get_cluster_count;
+  ClusteredClusterListFn clustered_light_assignment_copy_lights_in_cluster;
+  ClusteredCopyI32Fn clustered_light_assignment_copy_indices;
+  ClusteredCopyI32Fn clustered_light_assignment_copy_offsets;
+  HandleI32OutFn clustered_light_assignment_get_total_reference_count;
+  HandleI32OutFn clustered_light_assignment_get_max_lights_per_cluster;
+  GameHandleFn clustered_light_assignment_destroy;
+  ClusteredPolicyCreateFn clustered_shadow_policy_create;
+  HandleI32OutFn clustered_shadow_policy_get_budget;
+  HandleI32Fn clustered_shadow_policy_set_budget;
+  HandleFloatOutFn clustered_shadow_policy_get_hysteresis;
+  HandleFloatFn clustered_shadow_policy_set_hysteresis;
+  ClusteredCopyI32Fn clustered_shadow_policy_copy_selected;
+  ClusteredIsSelectedFn clustered_shadow_policy_is_selected;
+  ClusteredScoreFn clustered_shadow_policy_get_score;
+  HandleI32OutFn clustered_shadow_policy_get_request_count;
+  HandleI32OutFn clustered_shadow_policy_get_refused_count;
+  GameHandleFn clustered_shadow_policy_reset;
+  ClusteredSelectFn clustered_shadow_policy_select;
+  GameHandleFn clustered_shadow_policy_destroy;
 
   /* the engine layer's compute path */
   GraphicsCapabilityFn graphics_device_supports_capability;
@@ -2389,6 +2484,64 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(post_process_chain_add_pass, TwoHandleFn, "cna_post_process_chain_add_pass");
   LOAD_REQUIRED(post_process_chain_add_owned_pass, TwoHandleFn, "cna_post_process_chain_add_owned_pass");
 
+  LOAD_REQUIRED(clustered_light_ext_init, ClusteredLightInitFn, "cna_clustered_light_ext_init");
+  LOAD_REQUIRED(clustered_light_set_is_usable, ClusteredLightUsableFn, "cna_clustered_light_set_is_usable");
+  LOAD_REQUIRED(clustered_light_set_create, HandleHandleOutFn, "cna_clustered_light_set_create");
+  LOAD_REQUIRED(clustered_light_set_add, ClusteredLightAddFn, "cna_clustered_light_set_add");
+  LOAD_REQUIRED(point_light_ext_init, PointLightInitFn, "cna_point_light_ext_init");
+  LOAD_REQUIRED(spot_light_ext_init, SpotLightInitFn, "cna_spot_light_ext_init");
+  LOAD_REQUIRED(clustered_light_set_add_point, ClusteredAddPointFn, "cna_clustered_light_set_add_point");
+  LOAD_REQUIRED(clustered_light_set_add_spot, ClusteredAddSpotFn, "cna_clustered_light_set_add_spot");
+  LOAD_REQUIRED(clustered_light_set_replace_at, ClusteredLightReplaceFn, "cna_clustered_light_set_replace_at");
+  LOAD_REQUIRED(clustered_light_set_remove_at, HandleI32Fn, "cna_clustered_light_set_remove_at");
+  LOAD_REQUIRED(clustered_light_set_clear, GameHandleFn, "cna_clustered_light_set_clear");
+  LOAD_REQUIRED(clustered_light_set_get_count, HandleI32OutFn, "cna_clustered_light_set_get_count");
+  LOAD_REQUIRED(clustered_light_set_is_empty, HandleBoolOutFn, "cna_clustered_light_set_is_empty");
+  LOAD_REQUIRED(clustered_light_set_get_at, ClusteredLightGetAtFn, "cna_clustered_light_set_get_at");
+  LOAD_REQUIRED(clustered_light_set_copy_lights, ClusteredLightCopyFn, "cna_clustered_light_set_copy_lights");
+  LOAD_REQUIRED(clustered_light_set_get_bounds_at, ClusteredBoundsAtFn, "cna_clustered_light_set_get_bounds_at");
+  LOAD_REQUIRED(clustered_light_set_copy_bounds, ClusteredBoundsCopyFn, "cna_clustered_light_set_copy_bounds");
+  LOAD_REQUIRED(clustered_light_set_destroy, GameHandleFn, "cna_clustered_light_set_destroy");
+  LOAD_REQUIRED(clustered_light_grid_create, ClusteredGridCreateFn, "cna_clustered_light_grid_create");
+  LOAD_REQUIRED(clustered_light_grid_get_tiles_x, HandleI32OutFn, "cna_clustered_light_grid_get_tiles_x");
+  LOAD_REQUIRED(clustered_light_grid_get_tiles_y, HandleI32OutFn, "cna_clustered_light_grid_get_tiles_y");
+  LOAD_REQUIRED(clustered_light_grid_get_slice_count, HandleI32OutFn, "cna_clustered_light_grid_get_slice_count");
+  LOAD_REQUIRED(clustered_light_grid_get_cluster_count, HandleI32OutFn, "cna_clustered_light_grid_get_cluster_count");
+  LOAD_REQUIRED(clustered_light_grid_cluster_index, ClusteredClusterIndexFn, "cna_clustered_light_grid_cluster_index");
+  LOAD_REQUIRED(clustered_light_grid_set_projection, ClusteredSetProjectionFn, "cna_clustered_light_grid_set_projection");
+  LOAD_REQUIRED(clustered_light_grid_has_projection, HandleBoolOutFn, "cna_clustered_light_grid_has_projection");
+  LOAD_REQUIRED(clustered_light_grid_get_near_plane, HandleFloatOutFn, "cna_clustered_light_grid_get_near_plane");
+  LOAD_REQUIRED(clustered_light_grid_get_far_plane, HandleFloatOutFn, "cna_clustered_light_grid_get_far_plane");
+  LOAD_REQUIRED(clustered_light_grid_get_inverse_projection, ClusteredMatrixOutFn, "cna_clustered_light_grid_get_inverse_projection");
+  LOAD_REQUIRED(clustered_light_grid_slice_distance, ClusteredSliceDistanceFn, "cna_clustered_light_grid_slice_distance");
+  LOAD_REQUIRED(clustered_light_grid_slice_for_view_distance, ClusteredSliceForDistanceFn, "cna_clustered_light_grid_slice_for_view_distance");
+  LOAD_REQUIRED(clustered_light_grid_cluster_bounds, ClusteredClusterBoundsFn, "cna_clustered_light_grid_cluster_bounds");
+  LOAD_REQUIRED(clustered_light_grid_destroy, GameHandleFn, "cna_clustered_light_grid_destroy");
+  LOAD_REQUIRED(clustered_light_assignment_create, HandleHandleOutFn, "cna_clustered_light_assignment_create");
+  LOAD_REQUIRED(clustered_light_assignment_assign, ClusteredAssignFn, "cna_clustered_light_assignment_assign");
+  LOAD_REQUIRED(clustered_light_assignment_clear, GameHandleFn, "cna_clustered_light_assignment_clear");
+  LOAD_REQUIRED(clustered_light_assignment_get_light_count, HandleI32OutFn, "cna_clustered_light_assignment_get_light_count");
+  LOAD_REQUIRED(clustered_light_assignment_get_cluster_count, HandleI32OutFn, "cna_clustered_light_assignment_get_cluster_count");
+  LOAD_REQUIRED(clustered_light_assignment_copy_lights_in_cluster, ClusteredClusterListFn, "cna_clustered_light_assignment_copy_lights_in_cluster");
+  LOAD_REQUIRED(clustered_light_assignment_copy_indices, ClusteredCopyI32Fn, "cna_clustered_light_assignment_copy_indices");
+  LOAD_REQUIRED(clustered_light_assignment_copy_offsets, ClusteredCopyI32Fn, "cna_clustered_light_assignment_copy_offsets");
+  LOAD_REQUIRED(clustered_light_assignment_get_total_reference_count, HandleI32OutFn, "cna_clustered_light_assignment_get_total_reference_count");
+  LOAD_REQUIRED(clustered_light_assignment_get_max_lights_per_cluster, HandleI32OutFn, "cna_clustered_light_assignment_get_max_lights_per_cluster");
+  LOAD_REQUIRED(clustered_light_assignment_destroy, GameHandleFn, "cna_clustered_light_assignment_destroy");
+  LOAD_REQUIRED(clustered_shadow_policy_create, ClusteredPolicyCreateFn, "cna_clustered_shadow_policy_create");
+  LOAD_REQUIRED(clustered_shadow_policy_get_budget, HandleI32OutFn, "cna_clustered_shadow_policy_get_budget");
+  LOAD_REQUIRED(clustered_shadow_policy_set_budget, HandleI32Fn, "cna_clustered_shadow_policy_set_budget");
+  LOAD_REQUIRED(clustered_shadow_policy_get_hysteresis, HandleFloatOutFn, "cna_clustered_shadow_policy_get_hysteresis");
+  LOAD_REQUIRED(clustered_shadow_policy_set_hysteresis, HandleFloatFn, "cna_clustered_shadow_policy_set_hysteresis");
+  LOAD_REQUIRED(clustered_shadow_policy_copy_selected, ClusteredCopyI32Fn, "cna_clustered_shadow_policy_copy_selected");
+  LOAD_REQUIRED(clustered_shadow_policy_is_selected, ClusteredIsSelectedFn, "cna_clustered_shadow_policy_is_selected");
+  LOAD_REQUIRED(clustered_shadow_policy_get_score, ClusteredScoreFn, "cna_clustered_shadow_policy_get_score");
+  LOAD_REQUIRED(clustered_shadow_policy_get_request_count, HandleI32OutFn, "cna_clustered_shadow_policy_get_request_count");
+  LOAD_REQUIRED(clustered_shadow_policy_get_refused_count, HandleI32OutFn, "cna_clustered_shadow_policy_get_refused_count");
+  LOAD_REQUIRED(clustered_shadow_policy_reset, GameHandleFn, "cna_clustered_shadow_policy_reset");
+  LOAD_REQUIRED(clustered_shadow_policy_select, ClusteredSelectFn, "cna_clustered_shadow_policy_select");
+  LOAD_REQUIRED(clustered_shadow_policy_destroy, GameHandleFn, "cna_clustered_shadow_policy_destroy");
+
   LOAD_REQUIRED(graphics_device_supports_capability, GraphicsCapabilityFn, "cna_graphics_device_supports_capability");
   LOAD_REQUIRED(graphics_device_get_max_compute_work_group_count_ext, DeviceAxisI32OutFn, "cna_graphics_device_get_max_compute_work_group_count_ext");
   LOAD_REQUIRED(graphics_device_get_max_compute_work_group_size_ext, DeviceAxisI32OutFn, "cna_graphics_device_get_max_compute_work_group_size_ext");
@@ -2943,6 +3096,49 @@ static int set_float_array(
     }
   }
   return napi_set_named_property(env, object, name, array) == napi_ok;
+}
+
+static int set_vector3(napi_env env, napi_value object, const char* name, const CNA_Vector3* value) {
+  napi_value nested;
+  if (napi_create_object(env, &nested) != napi_ok) return 0;
+  return set_number(env, nested, "X", (double) value->x) &&
+    set_number(env, nested, "Y", (double) value->y) &&
+    set_number(env, nested, "Z", (double) value->z) &&
+    napi_set_named_property(env, object, name, nested) == napi_ok;
+}
+
+/* Reads X, Y and Z from the object itself, for a vector that is an argument rather than a field. */
+static int read_vector3_fields(napi_env env, napi_value object, CNA_Vector3* out) {
+  napi_value component;
+  double values[3] = {0, 0, 0};
+  static const char* const names[] = {"X", "Y", "Z"};
+  for (size_t index = 0; index < 3; index += 1) {
+    if (napi_get_named_property(env, object, names[index], &component) != napi_ok ||
+        napi_get_value_double(env, component, &values[index]) != napi_ok) {
+      return 0;
+    }
+  }
+  out->x = (float) values[0];
+  out->y = (float) values[1];
+  out->z = (float) values[2];
+  return 1;
+}
+
+static int read_vector3(napi_env env, napi_value object, const char* name, CNA_Vector3* out) {
+  napi_value nested, component;
+  double values[3] = {0, 0, 0};
+  static const char* const names[] = {"X", "Y", "Z"};
+  if (napi_get_named_property(env, object, name, &nested) != napi_ok) return 0;
+  for (size_t index = 0; index < 3; index += 1) {
+    if (napi_get_named_property(env, nested, names[index], &component) != napi_ok ||
+        napi_get_value_double(env, component, &values[index]) != napi_ok) {
+      return 0;
+    }
+  }
+  out->x = (float) values[0];
+  out->y = (float) values[1];
+  out->z = (float) values[2];
+  return 1;
 }
 
 static int read_byte_view(
@@ -12584,6 +12780,870 @@ static napi_value get_video_player_frame(napi_env env, napi_callback_info info) 
   return output;
 }
 
+/* --- the engine layer's clustered lighting ---------------------------------------------------- */
+/*
+ * A light set, a cluster grid, the assignment between them, and the shadow-budget policy that
+ * decides which of those lights is worth a shadow map. All four are pure CPU objects: they compute
+ * on a graphics device handle but touch no GPU state, so they answer identically on HEADLESS and
+ * on a windowed renderer -- which is what lets the qualification assert exact numbers on the
+ * default backend rather than only under Xvfb.
+ *
+ * `engine_layer.h` names the first parameter of all four creates `game` and documents it as "the
+ * owning game". It is not: each one borrows a graphics device from that handle, and an actual game
+ * handle is refused with INVALID_HANDLE. Measured on all four; see
+ * docs/upstream-cna-findings.md. This bridge passes a device, because that is what works.
+ */
+
+static int read_matrix16(napi_env env, napi_value value, CNA_Matrix* out, const char* what) {
+  bool is_array = false;
+  uint32_t length = 0;
+  if (napi_is_array(env, value, &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, value, &length) != napi_ok || length != 16) {
+    throw_message(env, what);
+    return 0;
+  }
+  float* const fields[] = {
+    &out->m11, &out->m12, &out->m13, &out->m14,
+    &out->m21, &out->m22, &out->m23, &out->m24,
+    &out->m31, &out->m32, &out->m33, &out->m34,
+    &out->m41, &out->m42, &out->m43, &out->m44,
+  };
+  for (uint32_t index = 0; index < 16; index += 1) {
+    napi_value element;
+    double number = 0;
+    if (napi_get_element(env, value, index, &element) != napi_ok ||
+        napi_get_value_double(env, element, &number) != napi_ok) {
+      throw_message(env, what);
+      return 0;
+    }
+    *fields[index] = (float) number;
+  }
+  return 1;
+}
+
+static napi_value make_matrix16(napi_env env, const CNA_Matrix* matrix, const char* operation) {
+  const float values[16] = {
+    matrix->m11, matrix->m12, matrix->m13, matrix->m14,
+    matrix->m21, matrix->m22, matrix->m23, matrix->m24,
+    matrix->m31, matrix->m32, matrix->m33, matrix->m34,
+    matrix->m41, matrix->m42, matrix->m43, matrix->m44,
+  };
+  napi_value output;
+  if (napi_create_array_with_length(env, 16, &output) != napi_ok) {
+    return throw_napi(env, operation);
+  }
+  for (uint32_t index = 0; index < 16; index += 1) {
+    napi_value number;
+    if (napi_create_double(env, (double) values[index], &number) != napi_ok ||
+        napi_set_element(env, output, index, number) != napi_ok) {
+      return throw_napi(env, operation);
+    }
+  }
+  return output;
+}
+
+/* A clustered light in the uniform shape CNA stores every light in. */
+static int read_clustered_light(napi_env env, napi_value value, CNA_ClusteredLightEXT* light) {
+  const CNA_Result initialized = g_api.clustered_light_ext_init(light);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_clustered_light_ext_init", initialized);
+    return 0;
+  }
+  napi_value entry;
+  uint32_t type = 0;
+  double scalars[4] = {0, 0, 0, 0};
+  static const char* const names[] = {"Intensity", "Range", "InnerAngle", "OuterAngle"};
+  bool castsShadows = false;
+  if (napi_get_named_property(env, value, "Type", &entry) != napi_ok ||
+      napi_get_value_uint32(env, entry, &type) != napi_ok ||
+      !read_vector3(env, value, "Position", &light->position) ||
+      !read_vector3(env, value, "Direction", &light->direction) ||
+      !read_vector3(env, value, "Color", &light->color)) {
+    throw_message(env, "a clustered light needs Type, Position, Direction and Color");
+    return 0;
+  }
+  for (size_t index = 0; index < 4; index += 1) {
+    if (napi_get_named_property(env, value, names[index], &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &scalars[index]) != napi_ok) {
+      throw_message(env, "a clustered light's scalars must be numbers");
+      return 0;
+    }
+  }
+  if (napi_get_named_property(env, value, "CastsShadows", &entry) != napi_ok ||
+      napi_get_value_bool(env, entry, &castsShadows) != napi_ok) {
+    throw_message(env, "a clustered light's CastsShadows must be a boolean");
+    return 0;
+  }
+  light->type = type;
+  light->intensity = (float) scalars[0];
+  light->range = (float) scalars[1];
+  light->inner_angle = (float) scalars[2];
+  light->outer_angle = (float) scalars[3];
+  light->casts_shadows = castsShadows ? CNA_TRUE : CNA_FALSE;
+  return 1;
+}
+
+static napi_value make_clustered_light(napi_env env, const CNA_ClusteredLightEXT* light) {
+  napi_value output, number, flag;
+  if (napi_create_object(env, &output) != napi_ok) return throw_napi(env, "clustered light");
+  if (napi_create_uint32(env, light->type, &number) != napi_ok ||
+      napi_set_named_property(env, output, "Type", number) != napi_ok ||
+      !set_vector3(env, output, "Position", &light->position) ||
+      !set_vector3(env, output, "Direction", &light->direction) ||
+      !set_vector3(env, output, "Color", &light->color)) {
+    return throw_napi(env, "clustered light");
+  }
+  const float scalars[4] = {
+    light->intensity, light->range, light->inner_angle, light->outer_angle};
+  static const char* const names[] = {"Intensity", "Range", "InnerAngle", "OuterAngle"};
+  for (size_t index = 0; index < 4; index += 1) {
+    if (napi_create_double(env, (double) scalars[index], &number) != napi_ok ||
+        napi_set_named_property(env, output, names[index], number) != napi_ok) {
+      return throw_napi(env, "clustered light");
+    }
+  }
+  if (napi_get_boolean(env, light->casts_shadows == CNA_TRUE, &flag) != napi_ok ||
+      napi_set_named_property(env, output, "CastsShadows", flag) != napi_ok) {
+    return throw_napi(env, "clustered light");
+  }
+  return output;
+}
+
+static napi_value make_bounding_sphere(napi_env env, const CNA_BoundingSphere* sphere) {
+  napi_value output, radius;
+  if (napi_create_object(env, &output) != napi_ok) return throw_napi(env, "bounding sphere");
+  if (!set_vector3(env, output, "Center", &sphere->center) ||
+      napi_create_double(env, (double) sphere->radius, &radius) != napi_ok ||
+      napi_set_named_property(env, output, "Radius", radius) != napi_ok) {
+    return throw_napi(env, "bounding sphere");
+  }
+  return output;
+}
+
+static napi_value clustered_light_is_usable(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_ClusteredLightEXT light;
+  CNA_Bool usable = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_clustered_light(env, args[0], &light)) return NULL;
+  const CNA_Result result = g_api.clustered_light_set_is_usable(&light, &usable);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_set_is_usable", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, usable == CNA_TRUE, &output), "light usability");
+  return output;
+}
+
+static napi_value clustered_light_set_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.clustered_light_set_create, "cna_clustered_light_set_create");
+}
+
+static napi_value clustered_light_set_add(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle set = 0;
+  CNA_ClusteredLightEXT light;
+  int32_t index = -1;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &set) ||
+      !read_clustered_light(env, args[1], &light)) return NULL;
+  const CNA_Result result = g_api.clustered_light_set_add(set, &light, &index);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_set_add", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, index, &output), "light index");
+  return output;
+}
+
+/*
+ * The two shaped adds. CNA converts a point or a spot into its uniform clustered shape itself, and
+ * these exist so that conversion stays CNA's -- filling a point light's unused direction and cone
+ * angles here would be this binding quietly restating a rule it does not own.
+ */
+static napi_value clustered_light_set_add_point(napi_env env, napi_callback_info info) {
+  napi_value args[2], entry, output;
+  CNA_Handle set = 0;
+  CNA_PointLightEXT light;
+  int32_t index = -1;
+  double intensity = 0, range = 0;
+  bool castsShadows = false;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &set)) return NULL;
+  const CNA_Result initialized = g_api.point_light_ext_init(&light);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_point_light_ext_init", initialized);
+  }
+  if (!read_vector3(env, args[1], "Position", &light.position) ||
+      !read_vector3(env, args[1], "Color", &light.color) ||
+      napi_get_named_property(env, args[1], "Intensity", &entry) != napi_ok ||
+      napi_get_value_double(env, entry, &intensity) != napi_ok ||
+      napi_get_named_property(env, args[1], "Range", &entry) != napi_ok ||
+      napi_get_value_double(env, entry, &range) != napi_ok ||
+      napi_get_named_property(env, args[1], "CastsShadows", &entry) != napi_ok ||
+      napi_get_value_bool(env, entry, &castsShadows) != napi_ok) {
+    return throw_message(
+      env, "a point light needs Position, Color, Intensity, Range and CastsShadows");
+  }
+  light.intensity = (float) intensity;
+  light.range = (float) range;
+  light.casts_shadows = castsShadows ? CNA_TRUE : CNA_FALSE;
+  const CNA_Result result = g_api.clustered_light_set_add_point(set, &light, &index);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_set_add_point", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, index, &output), "light index");
+  return output;
+}
+
+static napi_value clustered_light_set_add_spot(napi_env env, napi_callback_info info) {
+  napi_value args[2], entry, output;
+  CNA_Handle set = 0;
+  CNA_SpotLightEXT light;
+  int32_t index = -1;
+  double scalars[4] = {0, 0, 0, 0};
+  static const char* const names[] = {"Intensity", "Range", "InnerAngle", "OuterAngle"};
+  bool castsShadows = false;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &set)) return NULL;
+  const CNA_Result initialized = g_api.spot_light_ext_init(&light);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_spot_light_ext_init", initialized);
+  }
+  if (!read_vector3(env, args[1], "Position", &light.position) ||
+      !read_vector3(env, args[1], "Direction", &light.direction) ||
+      !read_vector3(env, args[1], "Color", &light.color)) {
+    return throw_message(env, "a spot light needs Position, Direction and Color");
+  }
+  for (size_t index2 = 0; index2 < 4; index2 += 1) {
+    if (napi_get_named_property(env, args[1], names[index2], &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &scalars[index2]) != napi_ok) {
+      return throw_message(env, "a spot light's scalars must be numbers");
+    }
+  }
+  if (napi_get_named_property(env, args[1], "CastsShadows", &entry) != napi_ok ||
+      napi_get_value_bool(env, entry, &castsShadows) != napi_ok) {
+    return throw_message(env, "a spot light's CastsShadows must be a boolean");
+  }
+  light.intensity = (float) scalars[0];
+  light.range = (float) scalars[1];
+  light.inner_angle = (float) scalars[2];
+  light.outer_angle = (float) scalars[3];
+  light.casts_shadows = castsShadows ? CNA_TRUE : CNA_FALSE;
+  const CNA_Result result = g_api.clustered_light_set_add_spot(set, &light, &index);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_set_add_spot", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, index, &output), "light index");
+  return output;
+}
+
+static napi_value clustered_light_set_replace_at(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle set = 0;
+  int32_t index = 0;
+  CNA_ClusteredLightEXT light;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &set) ||
+      napi_get_value_int32(env, args[1], &index) != napi_ok ||
+      !read_clustered_light(env, args[2], &light)) return NULL;
+  const CNA_Result result = g_api.clustered_light_set_replace_at(set, index, &light);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_set_replace_at", result);
+  }
+  return undefined_result(env, "cna_clustered_light_set_replace_at");
+}
+
+static napi_value clustered_light_set_remove_at(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, g_api.clustered_light_set_remove_at,
+    "cna_clustered_light_set_remove_at");
+}
+static napi_value clustered_light_set_clear(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_light_set_clear,
+    "cna_clustered_light_set_clear");
+}
+static napi_value clustered_light_set_get_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.clustered_light_set_get_count,
+    "cna_clustered_light_set_get_count");
+}
+static napi_value clustered_light_set_is_empty(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.clustered_light_set_is_empty,
+    "cna_clustered_light_set_is_empty");
+}
+static napi_value clustered_light_set_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_light_set_destroy,
+    "cna_clustered_light_set_destroy");
+}
+
+static napi_value clustered_light_set_get_at(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle set = 0;
+  int32_t index = 0;
+  CNA_ClusteredLightEXT light;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &set) ||
+      napi_get_value_int32(env, args[1], &index) != napi_ok) return NULL;
+  const CNA_Result initialized = g_api.clustered_light_ext_init(&light);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_ext_init", initialized);
+  }
+  const CNA_Result result = g_api.clustered_light_set_get_at(set, index, &light);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_set_get_at", result);
+  }
+  return make_clustered_light(env, &light);
+}
+
+static napi_value clustered_light_set_get_bounds_at(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle set = 0;
+  int32_t index = 0;
+  CNA_BoundingSphere sphere;
+  memset(&sphere, 0, sizeof(sphere));
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &set) ||
+      napi_get_value_int32(env, args[1], &index) != napi_ok) return NULL;
+  const CNA_Result result = g_api.clustered_light_set_get_bounds_at(set, index, &sphere);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_set_get_bounds_at", result);
+  }
+  return make_bounding_sphere(env, &sphere);
+}
+
+/*
+ * The two bulk copies. Both ask CNA for the count first with a zero capacity, so the array this
+ * allocates is the size CNA reports rather than one the caller guessed.
+ */
+static napi_value clustered_light_set_copy_lights(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle set = 0;
+  int32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &set)) return NULL;
+  CNA_Result result = g_api.clustered_light_set_get_count(set, &count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_set_get_count", result);
+  }
+  if (count < 0) return throw_message(env, "CNA reported a negative light count");
+  CNA_ClusteredLightEXT* lights = count == 0
+    ? NULL : (CNA_ClusteredLightEXT*) malloc((size_t) count * sizeof(CNA_ClusteredLightEXT));
+  if (count != 0 && !lights) return throw_message(env, "light-array allocation failed");
+  for (int32_t index = 0; index < count; index += 1) {
+    if (g_api.clustered_light_ext_init(&lights[index]) != CNA_RESULT_SUCCESS) {
+      free(lights);
+      return throw_message(env, "a clustered light could not be initialised");
+    }
+  }
+  uint64_t produced = 0;
+  result = g_api.clustered_light_set_copy_lights(set, lights, (uint64_t) count, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != (uint64_t) count) {
+    free(lights);
+    return throw_result(env, "cna_clustered_light_set_copy_lights", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) count, &output) != napi_ok) {
+    free(lights);
+    return throw_napi(env, "clustered light array");
+  }
+  for (int32_t index = 0; index < count; index += 1) {
+    napi_value element = make_clustered_light(env, &lights[index]);
+    if (element == NULL || napi_set_element(env, output, (uint32_t) index, element) != napi_ok) {
+      free(lights);
+      return NULL;
+    }
+  }
+  free(lights);
+  return output;
+}
+
+static napi_value clustered_light_set_copy_bounds(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle set = 0;
+  int32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &set)) return NULL;
+  CNA_Result result = g_api.clustered_light_set_get_count(set, &count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_set_get_count", result);
+  }
+  if (count < 0) return throw_message(env, "CNA reported a negative light count");
+  CNA_BoundingSphere* spheres = count == 0
+    ? NULL : (CNA_BoundingSphere*) calloc((size_t) count, sizeof(CNA_BoundingSphere));
+  if (count != 0 && !spheres) return throw_message(env, "bounds-array allocation failed");
+  uint64_t produced = 0;
+  result = g_api.clustered_light_set_copy_bounds(set, spheres, (uint64_t) count, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != (uint64_t) count) {
+    free(spheres);
+    return throw_result(env, "cna_clustered_light_set_copy_bounds", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) count, &output) != napi_ok) {
+    free(spheres);
+    return throw_napi(env, "bounding sphere array");
+  }
+  for (int32_t index = 0; index < count; index += 1) {
+    napi_value element = make_bounding_sphere(env, &spheres[index]);
+    if (element == NULL || napi_set_element(env, output, (uint32_t) index, element) != napi_ok) {
+      free(spheres);
+      return NULL;
+    }
+  }
+  free(spheres);
+  return output;
+}
+
+/* --- the cluster grid --- */
+
+static napi_value clustered_light_grid_create(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle device = 0, grid = 0;
+  int32_t tilesX = 0, tilesY = 0, slices = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &tilesX) != napi_ok ||
+      napi_get_value_int32(env, args[2], &tilesY) != napi_ok ||
+      napi_get_value_int32(env, args[3], &slices) != napi_ok) return NULL;
+  const CNA_Result result =
+    g_api.clustered_light_grid_create(device, tilesX, tilesY, slices, &grid);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_grid_create", result);
+  }
+  return make_handle(env, grid);
+}
+
+static napi_value clustered_light_grid_get_tiles_x(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.clustered_light_grid_get_tiles_x,
+    "cna_clustered_light_grid_get_tiles_x");
+}
+static napi_value clustered_light_grid_get_tiles_y(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.clustered_light_grid_get_tiles_y,
+    "cna_clustered_light_grid_get_tiles_y");
+}
+static napi_value clustered_light_grid_get_slice_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.clustered_light_grid_get_slice_count,
+    "cna_clustered_light_grid_get_slice_count");
+}
+static napi_value clustered_light_grid_get_cluster_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.clustered_light_grid_get_cluster_count,
+    "cna_clustered_light_grid_get_cluster_count");
+}
+static napi_value clustered_light_grid_has_projection(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.clustered_light_grid_has_projection,
+    "cna_clustered_light_grid_has_projection");
+}
+static napi_value clustered_light_grid_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_light_grid_destroy,
+    "cna_clustered_light_grid_destroy");
+}
+
+static napi_value clustered_light_grid_get_near_plane(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.clustered_light_grid_get_near_plane,
+    "cna_clustered_light_grid_get_near_plane");
+}
+static napi_value clustered_light_grid_get_far_plane(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.clustered_light_grid_get_far_plane,
+    "cna_clustered_light_grid_get_far_plane");
+}
+
+static napi_value clustered_light_grid_cluster_index(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  CNA_Handle grid = 0;
+  int32_t x = 0, y = 0, slice = 0, index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &grid) ||
+      napi_get_value_int32(env, args[1], &x) != napi_ok ||
+      napi_get_value_int32(env, args[2], &y) != napi_ok ||
+      napi_get_value_int32(env, args[3], &slice) != napi_ok) return NULL;
+  const CNA_Result result = g_api.clustered_light_grid_cluster_index(grid, x, y, slice, &index);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_grid_cluster_index", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, index, &output), "cluster index");
+  return output;
+}
+
+static napi_value clustered_light_grid_set_projection(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle grid = 0;
+  CNA_Matrix projection;
+  double nearPlane = 0, farPlane = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &grid) ||
+      !read_matrix16(env, args[1], &projection, "a projection must be a 16-number array") ||
+      napi_get_value_double(env, args[2], &nearPlane) != napi_ok ||
+      napi_get_value_double(env, args[3], &farPlane) != napi_ok) return NULL;
+  const CNA_Result result = g_api.clustered_light_grid_set_projection(
+    grid, &projection, (float) nearPlane, (float) farPlane);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_grid_set_projection", result);
+  }
+  return undefined_result(env, "cna_clustered_light_grid_set_projection");
+}
+
+static napi_value clustered_light_grid_get_inverse_projection(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1];
+  CNA_Handle grid = 0;
+  CNA_Matrix matrix;
+  memset(&matrix, 0, sizeof(matrix));
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &grid)) return NULL;
+  const CNA_Result result = g_api.clustered_light_grid_get_inverse_projection(grid, &matrix);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_grid_get_inverse_projection", result);
+  }
+  return make_matrix16(env, &matrix, "inverse projection");
+}
+
+static napi_value clustered_light_grid_slice_distance(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle grid = 0;
+  int32_t slice = 0;
+  float distance = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &grid) ||
+      napi_get_value_int32(env, args[1], &slice) != napi_ok) return NULL;
+  const CNA_Result result = g_api.clustered_light_grid_slice_distance(grid, slice, &distance);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_grid_slice_distance", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) distance, &output), "slice distance");
+  return output;
+}
+
+static napi_value clustered_light_grid_slice_for_view_distance(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  CNA_Handle grid = 0;
+  double distance = 0;
+  int32_t slice = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &grid) ||
+      napi_get_value_double(env, args[1], &distance) != napi_ok) return NULL;
+  const CNA_Result result =
+    g_api.clustered_light_grid_slice_for_view_distance(grid, (float) distance, &slice);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_grid_slice_for_view_distance", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, slice, &output), "slice for distance");
+  return output;
+}
+
+static napi_value clustered_light_grid_cluster_bounds(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  CNA_Handle grid = 0;
+  int32_t x = 0, y = 0, slice = 0;
+  CNA_BoundingBox box;
+  memset(&box, 0, sizeof(box));
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &grid) ||
+      napi_get_value_int32(env, args[1], &x) != napi_ok ||
+      napi_get_value_int32(env, args[2], &y) != napi_ok ||
+      napi_get_value_int32(env, args[3], &slice) != napi_ok) return NULL;
+  const CNA_Result result = g_api.clustered_light_grid_cluster_bounds(grid, x, y, slice, &box);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_grid_cluster_bounds", result);
+  }
+  if (napi_create_object(env, &output) != napi_ok) return throw_napi(env, "cluster bounds");
+  if (!set_vector3(env, output, "Min", &box.min) ||
+      !set_vector3(env, output, "Max", &box.max)) {
+    return throw_napi(env, "cluster bounds");
+  }
+  return output;
+}
+
+/* --- the assignment --- */
+
+static napi_value clustered_light_assignment_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.clustered_light_assignment_create,
+    "cna_clustered_light_assignment_create");
+}
+static napi_value clustered_light_assignment_clear(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_light_assignment_clear,
+    "cna_clustered_light_assignment_clear");
+}
+static napi_value clustered_light_assignment_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_light_assignment_destroy,
+    "cna_clustered_light_assignment_destroy");
+}
+static napi_value clustered_light_assignment_get_light_count(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(env, info, g_api.clustered_light_assignment_get_light_count,
+    "cna_clustered_light_assignment_get_light_count");
+}
+static napi_value clustered_light_assignment_get_cluster_count(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(env, info, g_api.clustered_light_assignment_get_cluster_count,
+    "cna_clustered_light_assignment_get_cluster_count");
+}
+static napi_value clustered_light_assignment_get_total_reference_count(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(env, info, g_api.clustered_light_assignment_get_total_reference_count,
+    "cna_clustered_light_assignment_get_total_reference_count");
+}
+static napi_value clustered_light_assignment_get_max_lights_per_cluster(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(env, info, g_api.clustered_light_assignment_get_max_lights_per_cluster,
+    "cna_clustered_light_assignment_get_max_lights_per_cluster");
+}
+
+static napi_value clustered_light_assignment_assign(napi_env env, napi_callback_info info) {
+  napi_value args[4], element, entry;
+  CNA_Handle assignment = 0, grid = 0;
+  CNA_Matrix view;
+  uint32_t count = 0;
+  bool isArray = false;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &assignment) ||
+      !read_handle(env, args[1], &grid) ||
+      !read_matrix16(env, args[2], &view, "a view matrix must be a 16-number array")) return NULL;
+  if (napi_is_array(env, args[3], &isArray) != napi_ok || !isArray ||
+      napi_get_array_length(env, args[3], &count) != napi_ok) {
+    return throw_message(env, "the light bounds must be an array of spheres");
+  }
+  CNA_BoundingSphere* spheres = count == 0
+    ? NULL : (CNA_BoundingSphere*) calloc(count, sizeof(CNA_BoundingSphere));
+  if (count != 0 && !spheres) return throw_message(env, "bounds-array allocation failed");
+  for (uint32_t index = 0; index < count; index += 1) {
+    double radius = 0;
+    if (napi_get_element(env, args[3], index, &element) != napi_ok ||
+        !read_vector3(env, element, "Center", &spheres[index].center) ||
+        napi_get_named_property(env, element, "Radius", &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &radius) != napi_ok) {
+      free(spheres);
+      return throw_message(env, "each bound needs a Center and a Radius");
+    }
+    spheres[index].radius = (float) radius;
+  }
+  const CNA_Result result =
+    g_api.clustered_light_assignment_assign(assignment, grid, &view, spheres, count);
+  free(spheres);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_assignment_assign", result);
+  }
+  return undefined_result(env, "cna_clustered_light_assignment_assign");
+}
+
+/*
+ * The three int32 bulk reads. Each asks with a zero capacity first, so the array is the size CNA
+ * reports rather than one this bridge assumed.
+ */
+static napi_value copy_int32_list(
+  napi_env env, ClusteredCopyI32Fn route, CNA_Handle handle, const char* name
+) {
+  napi_value output;
+  uint64_t required = 0;
+  CNA_Result result = route(handle, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, name, result);
+  }
+  if (required > SIZE_MAX / sizeof(int32_t)) {
+    return throw_message(env, "the list exceeds the host address space");
+  }
+  int32_t* values = required == 0
+    ? NULL : (int32_t*) malloc((size_t) required * sizeof(int32_t));
+  if (required != 0 && !values) return throw_message(env, "index-list allocation failed");
+  uint64_t produced = 0;
+  result = route(handle, values, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(values);
+    return throw_result(env, name, result);
+  }
+  if (napi_create_array_with_length(env, (size_t) required, &output) != napi_ok) {
+    free(values);
+    return throw_napi(env, name);
+  }
+  for (uint64_t index = 0; index < required; index += 1) {
+    napi_value number;
+    if (napi_create_int32(env, values[index], &number) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, number) != napi_ok) {
+      free(values);
+      return throw_napi(env, name);
+    }
+  }
+  free(values);
+  return output;
+}
+
+static napi_value clustered_light_assignment_copy_indices(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle assignment = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &assignment)) return NULL;
+  return copy_int32_list(env, g_api.clustered_light_assignment_copy_indices, assignment,
+    "cna_clustered_light_assignment_copy_indices");
+}
+static napi_value clustered_light_assignment_copy_offsets(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle assignment = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &assignment)) return NULL;
+  return copy_int32_list(env, g_api.clustered_light_assignment_copy_offsets, assignment,
+    "cna_clustered_light_assignment_copy_offsets");
+}
+static napi_value clustered_shadow_policy_copy_selected(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle policy = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &policy)) return NULL;
+  return copy_int32_list(env, g_api.clustered_shadow_policy_copy_selected, policy,
+    "cna_clustered_shadow_policy_copy_selected");
+}
+
+static napi_value clustered_light_assignment_copy_lights_in_cluster(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  CNA_Handle assignment = 0;
+  int32_t cluster = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &assignment) ||
+      napi_get_value_int32(env, args[1], &cluster) != napi_ok) return NULL;
+  uint64_t required = 0;
+  CNA_Result result = g_api.clustered_light_assignment_copy_lights_in_cluster(
+    assignment, cluster, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_clustered_light_assignment_copy_lights_in_cluster", result);
+  }
+  if (required > SIZE_MAX / sizeof(int32_t)) {
+    return throw_message(env, "the cluster list exceeds the host address space");
+  }
+  int32_t* values = required == 0
+    ? NULL : (int32_t*) malloc((size_t) required * sizeof(int32_t));
+  if (required != 0 && !values) return throw_message(env, "cluster-list allocation failed");
+  uint64_t produced = 0;
+  result = g_api.clustered_light_assignment_copy_lights_in_cluster(
+    assignment, cluster, values, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(values);
+    return throw_result(env, "cna_clustered_light_assignment_copy_lights_in_cluster", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) required, &output) != napi_ok) {
+    free(values);
+    return throw_napi(env, "cluster light list");
+  }
+  for (uint64_t index = 0; index < required; index += 1) {
+    napi_value number;
+    if (napi_create_int32(env, values[index], &number) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, number) != napi_ok) {
+      free(values);
+      return throw_napi(env, "cluster light list");
+    }
+  }
+  free(values);
+  return output;
+}
+
+/* --- the shadow-budget policy --- */
+
+static napi_value clustered_shadow_policy_create(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0, policy = 0;
+  int32_t budget = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &budget) != napi_ok) return NULL;
+  const CNA_Result result = g_api.clustered_shadow_policy_create(device, budget, &policy);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_shadow_policy_create", result);
+  }
+  return make_handle(env, policy);
+}
+
+static napi_value clustered_shadow_policy_get_budget(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.clustered_shadow_policy_get_budget,
+    "cna_clustered_shadow_policy_get_budget");
+}
+static napi_value clustered_shadow_policy_set_budget(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, g_api.clustered_shadow_policy_set_budget,
+    "cna_clustered_shadow_policy_set_budget");
+}
+static napi_value clustered_shadow_policy_get_hysteresis(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.clustered_shadow_policy_get_hysteresis,
+    "cna_clustered_shadow_policy_get_hysteresis");
+}
+static napi_value clustered_shadow_policy_set_hysteresis(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.clustered_shadow_policy_set_hysteresis,
+    "cna_clustered_shadow_policy_set_hysteresis");
+}
+static napi_value clustered_shadow_policy_get_request_count(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(env, info, g_api.clustered_shadow_policy_get_request_count,
+    "cna_clustered_shadow_policy_get_request_count");
+}
+static napi_value clustered_shadow_policy_get_refused_count(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(env, info, g_api.clustered_shadow_policy_get_refused_count,
+    "cna_clustered_shadow_policy_get_refused_count");
+}
+static napi_value clustered_shadow_policy_reset(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_shadow_policy_reset,
+    "cna_clustered_shadow_policy_reset");
+}
+static napi_value clustered_shadow_policy_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_shadow_policy_destroy,
+    "cna_clustered_shadow_policy_destroy");
+}
+
+static napi_value clustered_shadow_policy_is_selected(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle policy = 0;
+  int32_t light = 0;
+  CNA_Bool selected = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &policy) ||
+      napi_get_value_int32(env, args[1], &light) != napi_ok) return NULL;
+  const CNA_Result result = g_api.clustered_shadow_policy_is_selected(policy, light, &selected);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_shadow_policy_is_selected", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, selected == CNA_TRUE, &output), "shadow selection");
+  return output;
+}
+
+static napi_value clustered_shadow_policy_get_score(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle policy = 0;
+  int32_t light = 0;
+  float score = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &policy) ||
+      napi_get_value_int32(env, args[1], &light) != napi_ok) return NULL;
+  const CNA_Result result = g_api.clustered_shadow_policy_get_score(policy, light, &score);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_shadow_policy_get_score", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) score, &output), "shadow score");
+  return output;
+}
+
+static napi_value clustered_shadow_policy_select(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle policy = 0, lights = 0;
+  CNA_Matrix view, projection;
+  CNA_Vector3 camera;
+  memset(&camera, 0, sizeof(camera));
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &policy) ||
+      !read_handle(env, args[1], &lights) ||
+      !read_matrix16(env, args[2], &view, "a view matrix must be a 16-number array") ||
+      !read_matrix16(env, args[3], &projection,
+        "a projection matrix must be a 16-number array")) return NULL;
+  if (!read_vector3_fields(env, args[4], &camera)) {
+    return throw_message(env, "the camera position needs X, Y and Z");
+  }
+  const CNA_Result result =
+    g_api.clustered_shadow_policy_select(policy, lights, &view, &projection, &camera);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_shadow_policy_select", result);
+  }
+  return undefined_result(env, "cna_clustered_shadow_policy_select");
+}
+
 /* --- the engine layer's compute path ----------------------------------------------------------- */
 /*
  * Storage buffers, compute shaders and GPU timers: the part of the engine layer that computes
@@ -13842,31 +14902,6 @@ static int set_timestamp(napi_env env, napi_value object, const CNA_DateTimeOffs
     napi_set_named_property(env, object, "TimestampOffsetTicks", offset_value) == napi_ok;
 }
 
-static int set_vector3(napi_env env, napi_value object, const char* name, const CNA_Vector3* value) {
-  napi_value nested;
-  if (napi_create_object(env, &nested) != napi_ok) return 0;
-  return set_number(env, nested, "X", (double) value->x) &&
-    set_number(env, nested, "Y", (double) value->y) &&
-    set_number(env, nested, "Z", (double) value->z) &&
-    napi_set_named_property(env, object, name, nested) == napi_ok;
-}
-
-static int read_vector3(napi_env env, napi_value object, const char* name, CNA_Vector3* out) {
-  napi_value nested, component;
-  double values[3] = {0, 0, 0};
-  static const char* const names[] = {"X", "Y", "Z"};
-  if (napi_get_named_property(env, object, name, &nested) != napi_ok) return 0;
-  for (size_t index = 0; index < 3; index += 1) {
-    if (napi_get_named_property(env, nested, names[index], &component) != napi_ok ||
-        napi_get_value_double(env, component, &values[index]) != napi_ok) {
-      return 0;
-    }
-  }
-  out->x = (float) values[0];
-  out->y = (float) values[1];
-  out->z = (float) values[2];
-  return 1;
-}
 
 static napi_value sensor_bool_out(
   napi_env env, napi_callback_info info, BoolGetFn function, const char* operation
@@ -14841,6 +15876,60 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "setPostProcessChainGpuTimingEnabled", NULL, post_process_chain_set_gpu_timing, NULL, NULL, NULL, napi_default, NULL },
     { "applyPostProcessChain", NULL, post_process_chain_apply, NULL, NULL, NULL, napi_default, NULL },
     { "getPostProcessChainPassTimings", NULL, post_process_chain_timings, NULL, NULL, NULL, napi_default, NULL },
+    { "isClusteredLightUsable", NULL, clustered_light_is_usable, NULL, NULL, NULL, napi_default, NULL },
+    { "createClusteredLightSet", NULL, clustered_light_set_create, NULL, NULL, NULL, napi_default, NULL },
+    { "addClusteredLight", NULL, clustered_light_set_add, NULL, NULL, NULL, napi_default, NULL },
+    { "addClusteredPointLight", NULL, clustered_light_set_add_point, NULL, NULL, NULL, napi_default, NULL },
+    { "addClusteredSpotLight", NULL, clustered_light_set_add_spot, NULL, NULL, NULL, napi_default, NULL },
+    { "replaceClusteredLightAt", NULL, clustered_light_set_replace_at, NULL, NULL, NULL, napi_default, NULL },
+    { "removeClusteredLightAt", NULL, clustered_light_set_remove_at, NULL, NULL, NULL, napi_default, NULL },
+    { "clearClusteredLightSet", NULL, clustered_light_set_clear, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredLightCount", NULL, clustered_light_set_get_count, NULL, NULL, NULL, napi_default, NULL },
+    { "isClusteredLightSetEmpty", NULL, clustered_light_set_is_empty, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredLightAt", NULL, clustered_light_set_get_at, NULL, NULL, NULL, napi_default, NULL },
+    { "copyClusteredLights", NULL, clustered_light_set_copy_lights, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredLightBoundsAt", NULL, clustered_light_set_get_bounds_at, NULL, NULL, NULL, napi_default, NULL },
+    { "copyClusteredLightBounds", NULL, clustered_light_set_copy_bounds, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyClusteredLightSet", NULL, clustered_light_set_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "createClusterGrid", NULL, clustered_light_grid_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusterGridTilesX", NULL, clustered_light_grid_get_tiles_x, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusterGridTilesY", NULL, clustered_light_grid_get_tiles_y, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusterGridSliceCount", NULL, clustered_light_grid_get_slice_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusterGridClusterCount", NULL, clustered_light_grid_get_cluster_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusterIndex", NULL, clustered_light_grid_cluster_index, NULL, NULL, NULL, napi_default, NULL },
+    { "setClusterGridProjection", NULL, clustered_light_grid_set_projection, NULL, NULL, NULL, napi_default, NULL },
+    { "clusterGridHasProjection", NULL, clustered_light_grid_has_projection, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusterGridNearPlane", NULL, clustered_light_grid_get_near_plane, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusterGridFarPlane", NULL, clustered_light_grid_get_far_plane, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusterGridInverseProjection", NULL, clustered_light_grid_get_inverse_projection, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusterSliceDistance", NULL, clustered_light_grid_slice_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusterSliceForViewDistance", NULL, clustered_light_grid_slice_for_view_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusterBounds", NULL, clustered_light_grid_cluster_bounds, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyClusterGrid", NULL, clustered_light_grid_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "createClusteredLightAssignment", NULL, clustered_light_assignment_create, NULL, NULL, NULL, napi_default, NULL },
+    { "assignClusteredLights", NULL, clustered_light_assignment_assign, NULL, NULL, NULL, napi_default, NULL },
+    { "clearClusteredLightAssignment", NULL, clustered_light_assignment_clear, NULL, NULL, NULL, napi_default, NULL },
+    { "getAssignmentLightCount", NULL, clustered_light_assignment_get_light_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getAssignmentClusterCount", NULL, clustered_light_assignment_get_cluster_count, NULL, NULL, NULL, napi_default, NULL },
+    { "copyLightsInCluster", NULL, clustered_light_assignment_copy_lights_in_cluster, NULL, NULL, NULL, napi_default, NULL },
+    { "copyAssignmentIndices", NULL, clustered_light_assignment_copy_indices, NULL, NULL, NULL, napi_default, NULL },
+    { "copyAssignmentOffsets", NULL, clustered_light_assignment_copy_offsets, NULL, NULL, NULL, napi_default, NULL },
+    { "getAssignmentTotalReferenceCount", NULL, clustered_light_assignment_get_total_reference_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getAssignmentMaxLightsPerCluster", NULL, clustered_light_assignment_get_max_lights_per_cluster, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyClusteredLightAssignment", NULL, clustered_light_assignment_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "createClusteredShadowPolicy", NULL, clustered_shadow_policy_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowPolicyBudget", NULL, clustered_shadow_policy_get_budget, NULL, NULL, NULL, napi_default, NULL },
+    { "setShadowPolicyBudget", NULL, clustered_shadow_policy_set_budget, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowPolicyHysteresis", NULL, clustered_shadow_policy_get_hysteresis, NULL, NULL, NULL, napi_default, NULL },
+    { "setShadowPolicyHysteresis", NULL, clustered_shadow_policy_set_hysteresis, NULL, NULL, NULL, napi_default, NULL },
+    { "copyShadowPolicySelected", NULL, clustered_shadow_policy_copy_selected, NULL, NULL, NULL, napi_default, NULL },
+    { "isShadowPolicySelected", NULL, clustered_shadow_policy_is_selected, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowPolicyScore", NULL, clustered_shadow_policy_get_score, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowPolicyRequestCount", NULL, clustered_shadow_policy_get_request_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowPolicyRefusedCount", NULL, clustered_shadow_policy_get_refused_count, NULL, NULL, NULL, napi_default, NULL },
+    { "resetShadowPolicy", NULL, clustered_shadow_policy_reset, NULL, NULL, NULL, napi_default, NULL },
+    { "selectShadowCasters", NULL, clustered_shadow_policy_select, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyClusteredShadowPolicy", NULL, clustered_shadow_policy_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "supportsGraphicsCapability", NULL, graphics_device_supports_capability, NULL, NULL, NULL, napi_default, NULL },
     { "getMaxComputeWorkGroupCount", NULL, get_max_compute_work_group_count, NULL, NULL, NULL, napi_default, NULL },
     { "getMaxComputeWorkGroupSize", NULL, get_max_compute_work_group_size, NULL, NULL, NULL, napi_default, NULL },

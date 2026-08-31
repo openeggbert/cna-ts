@@ -24,9 +24,13 @@ import type {
   BackendKind,
   BackendRendererInfo,
   BlendStateSnapshot,
+  BoundingSphereSnapshot,
   CameraInventorySnapshot,
+  ClusterBoundsSnapshot,
+  ClusteredLightSnapshot,
   CnaAudioBackend,
   CnaBackend,
+  CnaClusteredLightingBackend,
   CnaComputeBackend,
   CnaContentBackend,
   CnaDeviceBackend,
@@ -84,6 +88,7 @@ import type {
   PassTimingSnapshot,
   PbrMaterialDefaults,
   PlatformSnapshot,
+  PointLightSnapshot,
   PostProcessFrameSnapshot,
   PreferredLocaleSnapshot,
   RasterizerStateSnapshot,
@@ -99,6 +104,7 @@ import type {
   SensorStateSnapshot,
   SensorSupportSnapshot,
   SoundEffectInstanceSnapshot,
+  SpotLightSnapshot,
   SpriteBatchCommand,
   StockEffectSnapshot,
   StorageDeviceSnapshot,
@@ -108,6 +114,7 @@ import type {
   Texture2DTransfer,
   Texture3DInfo,
   TextureCubeInfo,
+  Vector3Snapshot,
   VertexBufferBindingSnapshot,
   VertexElementSnapshot,
   VideoFrameSnapshot,
@@ -1145,6 +1152,205 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public getPostProcessChainPassTimings(
     _chain: NativeHandle,
   ): readonly PassTimingSnapshot[] { return this.unsupported("getPostProcessChainPassTimings"); }
+}
+
+/** Refusing base for {@link CnaClusteredLightingBackend}. */
+export abstract class CnaClusteredLightingBackendBase implements CnaClusteredLightingBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public isClusteredLightUsable(
+    _light: ClusteredLightSnapshot,
+  ): boolean { return this.unsupported("isClusteredLightUsable"); }
+  public createClusteredLightSet(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createClusteredLightSet"); }
+  public addClusteredLight(
+    _set: NativeHandle,
+    _light: ClusteredLightSnapshot,
+  ): number { return this.unsupported("addClusteredLight"); }
+  public addClusteredPointLight(
+    _set: NativeHandle,
+    _light: PointLightSnapshot,
+  ): number { return this.unsupported("addClusteredPointLight"); }
+  public addClusteredSpotLight(
+    _set: NativeHandle,
+    _light: SpotLightSnapshot,
+  ): number { return this.unsupported("addClusteredSpotLight"); }
+  public replaceClusteredLightAt(
+    _set: NativeHandle,
+    _index: number,
+    _light: ClusteredLightSnapshot,
+  ): void { return this.unsupported("replaceClusteredLightAt"); }
+  public removeClusteredLightAt(
+    _set: NativeHandle,
+    _index: number,
+  ): void { return this.unsupported("removeClusteredLightAt"); }
+  public clearClusteredLightSet(
+    _set: NativeHandle,
+  ): void { return this.unsupported("clearClusteredLightSet"); }
+  public getClusteredLightCount(
+    _set: NativeHandle,
+  ): number { return this.unsupported("getClusteredLightCount"); }
+  public isClusteredLightSetEmpty(
+    _set: NativeHandle,
+  ): boolean { return this.unsupported("isClusteredLightSetEmpty"); }
+  public getClusteredLightAt(
+    _set: NativeHandle,
+    _index: number,
+  ): ClusteredLightSnapshot { return this.unsupported("getClusteredLightAt"); }
+  public copyClusteredLights(
+    _set: NativeHandle,
+  ): readonly ClusteredLightSnapshot[] { return this.unsupported("copyClusteredLights"); }
+  public getClusteredLightBoundsAt(
+    _set: NativeHandle,
+    _index: number,
+  ): BoundingSphereSnapshot { return this.unsupported("getClusteredLightBoundsAt"); }
+  public copyClusteredLightBounds(
+    _set: NativeHandle,
+  ): readonly BoundingSphereSnapshot[] { return this.unsupported("copyClusteredLightBounds"); }
+  public destroyClusteredLightSet(
+    _set: NativeHandle,
+  ): void { return this.unsupported("destroyClusteredLightSet"); }
+  public createClusterGrid(
+    _device: NativeHandle,
+    _tilesX: number,
+    _tilesY: number,
+    _sliceCount: number,
+  ): NativeHandle { return this.unsupported("createClusterGrid"); }
+  public getClusterGridTilesX(
+    _grid: NativeHandle,
+  ): number { return this.unsupported("getClusterGridTilesX"); }
+  public getClusterGridTilesY(
+    _grid: NativeHandle,
+  ): number { return this.unsupported("getClusterGridTilesY"); }
+  public getClusterGridSliceCount(
+    _grid: NativeHandle,
+  ): number { return this.unsupported("getClusterGridSliceCount"); }
+  public getClusterGridClusterCount(
+    _grid: NativeHandle,
+  ): number { return this.unsupported("getClusterGridClusterCount"); }
+  public getClusterIndex(
+    _grid: NativeHandle,
+    _x: number,
+    _y: number,
+    _slice: number,
+  ): number { return this.unsupported("getClusterIndex"); }
+  public setClusterGridProjection(
+    _grid: NativeHandle,
+    _projection: readonly number[],
+    _nearPlane: number,
+    _farPlane: number,
+  ): void { return this.unsupported("setClusterGridProjection"); }
+  public clusterGridHasProjection(
+    _grid: NativeHandle,
+  ): boolean { return this.unsupported("clusterGridHasProjection"); }
+  public getClusterGridNearPlane(
+    _grid: NativeHandle,
+  ): number { return this.unsupported("getClusterGridNearPlane"); }
+  public getClusterGridFarPlane(
+    _grid: NativeHandle,
+  ): number { return this.unsupported("getClusterGridFarPlane"); }
+  public getClusterGridInverseProjection(
+    _grid: NativeHandle,
+  ): readonly number[] { return this.unsupported("getClusterGridInverseProjection"); }
+  public getClusterSliceDistance(
+    _grid: NativeHandle,
+    _slice: number,
+  ): number { return this.unsupported("getClusterSliceDistance"); }
+  public getClusterSliceForViewDistance(
+    _grid: NativeHandle,
+    _viewDistance: number,
+  ): number { return this.unsupported("getClusterSliceForViewDistance"); }
+  public getClusterBounds(
+    _grid: NativeHandle,
+    _x: number,
+    _y: number,
+    _slice: number,
+  ): ClusterBoundsSnapshot { return this.unsupported("getClusterBounds"); }
+  public destroyClusterGrid(_grid: NativeHandle): void { return this.unsupported("destroyClusterGrid"); }
+  public createClusteredLightAssignment(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createClusteredLightAssignment"); }
+  public assignClusteredLights(
+    _assignment: NativeHandle,
+    _grid: NativeHandle,
+    _view: readonly number[],
+    _bounds: readonly BoundingSphereSnapshot[],
+  ): void { return this.unsupported("assignClusteredLights"); }
+  public clearClusteredLightAssignment(
+    _assignment: NativeHandle,
+  ): void { return this.unsupported("clearClusteredLightAssignment"); }
+  public getAssignmentLightCount(
+    _assignment: NativeHandle,
+  ): number { return this.unsupported("getAssignmentLightCount"); }
+  public getAssignmentClusterCount(
+    _assignment: NativeHandle,
+  ): number { return this.unsupported("getAssignmentClusterCount"); }
+  public copyLightsInCluster(
+    _assignment: NativeHandle,
+    _cluster: number,
+  ): readonly number[] { return this.unsupported("copyLightsInCluster"); }
+  public copyAssignmentIndices(
+    _assignment: NativeHandle,
+  ): readonly number[] { return this.unsupported("copyAssignmentIndices"); }
+  public copyAssignmentOffsets(
+    _assignment: NativeHandle,
+  ): readonly number[] { return this.unsupported("copyAssignmentOffsets"); }
+  public getAssignmentTotalReferenceCount(
+    _assignment: NativeHandle,
+  ): number { return this.unsupported("getAssignmentTotalReferenceCount"); }
+  public getAssignmentMaxLightsPerCluster(
+    _assignment: NativeHandle,
+  ): number { return this.unsupported("getAssignmentMaxLightsPerCluster"); }
+  public destroyClusteredLightAssignment(
+    _assignment: NativeHandle,
+  ): void { return this.unsupported("destroyClusteredLightAssignment"); }
+  public createClusteredShadowPolicy(
+    _device: NativeHandle,
+    _budget: number,
+  ): NativeHandle { return this.unsupported("createClusteredShadowPolicy"); }
+  public getShadowPolicyBudget(
+    _policy: NativeHandle,
+  ): number { return this.unsupported("getShadowPolicyBudget"); }
+  public setShadowPolicyBudget(
+    _policy: NativeHandle,
+    _budget: number,
+  ): void { return this.unsupported("setShadowPolicyBudget"); }
+  public getShadowPolicyHysteresis(
+    _policy: NativeHandle,
+  ): number { return this.unsupported("getShadowPolicyHysteresis"); }
+  public setShadowPolicyHysteresis(
+    _policy: NativeHandle,
+    _hysteresis: number,
+  ): void { return this.unsupported("setShadowPolicyHysteresis"); }
+  public copyShadowPolicySelected(
+    _policy: NativeHandle,
+  ): readonly number[] { return this.unsupported("copyShadowPolicySelected"); }
+  public isShadowPolicySelected(
+    _policy: NativeHandle,
+    _lightIndex: number,
+  ): boolean { return this.unsupported("isShadowPolicySelected"); }
+  public getShadowPolicyScore(
+    _policy: NativeHandle,
+    _lightIndex: number,
+  ): number { return this.unsupported("getShadowPolicyScore"); }
+  public getShadowPolicyRequestCount(
+    _policy: NativeHandle,
+  ): number { return this.unsupported("getShadowPolicyRequestCount"); }
+  public getShadowPolicyRefusedCount(
+    _policy: NativeHandle,
+  ): number { return this.unsupported("getShadowPolicyRefusedCount"); }
+  public resetShadowPolicy(_policy: NativeHandle): void { return this.unsupported("resetShadowPolicy"); }
+  public selectShadowCasters(
+    _policy: NativeHandle,
+    _lights: NativeHandle,
+    _view: readonly number[],
+    _projection: readonly number[],
+    _cameraPosition: Vector3Snapshot,
+  ): void { return this.unsupported("selectShadowCasters"); }
+  public destroyClusteredShadowPolicy(
+    _policy: NativeHandle,
+  ): void { return this.unsupported("destroyClusteredShadowPolicy"); }
 }
 
 /** Refusing base for {@link CnaComputeBackend}. */

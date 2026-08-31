@@ -13,7 +13,7 @@ verified here** — see items 3 and 4 below.
 Re-checked against `cnanext` 599d14e5 (CNA C ABI 0.21.0) on 2026-08-31. Items 5 and 6 are new,
 found while projecting the sensor families; item 7 is new, found while widening the windowed
 qualification to three renderers; items 8 and 9 are new, found while projecting the engine
-layer's compute path.
+layer's compute path, and item 10 while projecting its clustered lighting.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -348,3 +348,44 @@ fully working.
 draws — the only point at which they are meaningful — and then asserts the zeros after one `Clear`,
 together with the capability query still answering `true`. Both halves have to change together for
 that assertion to pass again, which is what a repair would look like.
+
+## 10. Four clustered-lighting creates document a game handle and require a device handle
+
+**Measured:** CNA ABI 0.21.0, revision 599d14e5, HEADLESS. Four routes in `engine_layer.h` declare
+their first parameter as `CNA_Handle game` and document it as "The owning game":
+
+```c
+CNA_C_API CNA_Result cna_clustered_light_set_create(CNA_Handle game, ...);
+CNA_C_API CNA_Result cna_clustered_light_grid_create(CNA_Handle game, ...);
+CNA_C_API CNA_Result cna_clustered_light_assignment_create(CNA_Handle game, ...);
+CNA_C_API CNA_Result cna_clustered_shadow_policy_create(CNA_Handle game, ...);
+```
+
+The grid's handle type reinforces it: *"A pure CPU object; it is parented to a game only so its
+lifetime is accounted for."* But each implementation calls
+`GetBorrowedGraphicsDevice(gameHandle, &graphicsDevice)`, so a real game handle is refused:
+
+```text
+route                                    with the GAME handle   with the DEVICE handle
+cna_clustered_light_set_create           INVALID_HANDLE (2)     SUCCESS
+cna_clustered_light_assignment_create    INVALID_HANDLE (2)     SUCCESS
+cna_clustered_light_grid_create          INVALID_HANDLE (2)     SUCCESS
+cna_clustered_shadow_policy_create       INVALID_HANDLE (2)     SUCCESS
+cna_gpu_timer_create (documented device) INVALID_HANDLE (2)     SUCCESS
+```
+
+The last row is the control: a route whose header correctly says "graphics device" behaves
+identically. So the *behaviour* is uniform across the engine layer and it is the documentation of
+those four that is wrong — which is the worse way round, because a caller who reads the header gets
+`INVALID_HANDLE` with nothing to suggest that the parameter name is the problem.
+
+**Cost of the difference.** These are the only routes in the family that a consumer reaches first,
+so the whole clustered-lighting API is unreachable until someone guesses. A one-word change in four
+`@param` lines fixes it; the alternative — accepting a game handle and resolving the device from it
+— would match the documentation instead, and would also be consistent with `parented to a game`.
+
+**Detector in cna-ts:** `ClusteredLightSet`, `ClusterGrid`, `ClusteredLightAssignment` and
+`ClusteredShadowPolicy` all take a `GraphicsDevice`, because that is what works, and each says so in
+its own documentation. `test/native-cna.integration.mjs` constructs all four from a live device, so
+if CNA ever switches to accepting a game handle *instead*, that test fails rather than the
+difference passing unnoticed.

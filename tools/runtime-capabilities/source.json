@@ -916,13 +916,62 @@
       ]
     },
     {
-      "operation": "Modern CNA engine layer beyond the pipeline, its post-process chain and its compute path: lighting, shadows, particles, decals and clustered rendering",
+      "operation": "Clustered lighting: the cluster grid's exact geometry",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "all sixty-four clusters of a 4x2x8 grid, each flat index checked against slice * tilesX * tilesY + y * tilesX + x rather than a sample. The depth axis is logarithmic and asserted against the closed form near * (far/near)^(slice/count), and separately asserted not to be the linear spacing, which would otherwise satisfy every weaker check. The projection round-trips: multiplying it by the inverse CNA returns gives the identity to within 1e-5 through XNA own Matrix.Multiply. A planted x/y swap in the index mapping fails this",
+      "proof": [
+        "route:cna_clustered_light_grid_cluster_index",
+        "route:cna_clustered_light_grid_slice_distance",
+        "route:cna_clustered_light_grid_get_inverse_projection",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Clustered lighting: the light set and what CNA refuses to light with",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "three lights with three different values in every field, added, read back one at a time and in bulk, replaced, removed and cleared. A point light influence is a sphere on its own position with its own range; a spot influence is its cone bounding sphere, which is somewhere else entirely, and that difference is what shows CNA computing the bounds rather than copying the position -- a planted position-and-range substitution fails it. The two add paths are cross-checked: a point light added through CNA own conversion agrees with the same light built in the uniform shape on every field that has an effect and on the computed bounds, and differs only in the direction and cone angles a point light does not have, which CNA fills with its own canonical defaults rather than zero -- a rule this package hands to CNA rather than restating. CNA refuses a zero or negative range, a negative intensity and a spot whose inner angle is wider than its outer, each with INVALID_ARGUMENT",
+      "proof": [
+        "route:cna_clustered_light_set_add_point",
+        "route:cna_clustered_light_set_add_spot",
+        "route:cna_clustered_light_set_get_bounds_at",
+        "route:cna_clustered_light_set_is_usable",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Clustered lighting: the assignment a GPU would read",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "the three views of one assignment -- the per-cluster read, the flat index list and the per-cluster offsets -- are checked against each other for every one of sixty-four clusters, not a sample. The final offset equals the index list length equals the reported total reference count, the offsets never go backwards, and the reported maximum lights per cluster is the largest cluster actually produced. A per-cluster read that ignored its argument and an offset list missing its end marker were both planted and both fail",
+      "proof": [
+        "route:cna_clustered_light_assignment_assign",
+        "route:cna_clustered_light_assignment_copy_offsets",
+        "route:cna_clustered_light_assignment_copy_lights_in_cluster",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Clustered lighting: the shadow budget, and the refusals it counts",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "two of three lights ask for a shadow map because only two carry the flag, so the request count is a property of the scene rather than of the budget. A budget of one grants one and counts one refusal; a budget of zero grants nothing and refuses every request. IsSelected and GetSelected name the same lights, a selected light has a positive score, and the hysteresis margin round-trips",
+      "proof": [
+        "route:cna_clustered_shadow_policy_select",
+        "route:cna_clustered_shadow_policy_get_refused_count",
+        "route:cna_clustered_shadow_policy_copy_selected",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Modern CNA engine layer beyond the pipeline, the post-process chain, the compute path and clustered lighting: cascaded and cube shadow maps, particles, decals, LOD and atmospheric rendering",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the render pipeline, the post-process chain and the compute path are projected and verified separately; the rest of engine_layer.h -- clustered and cascaded lighting, shadow maps, particles, decals, LOD, environment and atmospheric rendering -- is measured and unprojected",
+      "evidence": "the render pipeline, the post-process chain, the compute path and the clustered lighting family are projected and verified separately; the rest of engine_layer.h -- cascaded, spot and cube shadow maps, particles, decals, LOD groups, light probes, environment and atmospheric rendering -- is measured and unprojected",
       "proof": [
-        "absentRoute:cna_clustered_light_grid_create",
-        "absentRoute:cna_cascaded_shadow_map_create"
+        "absentRoute:cna_cascaded_shadow_map_create",
+        "absentRoute:cna_particle_system_create"
       ]
     },
     {

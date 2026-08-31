@@ -9,8 +9,15 @@ import type {
   CnaEffectBackend,
   CnaGameWindowBackend,
   BackendRendererInfo,
+  BoundingSphereSnapshot,
+  ClusterBoundsSnapshot,
+  ClusteredLightSnapshot,
+  PointLightSnapshot,
+  SpotLightSnapshot,
+  CnaClusteredLightingBackend,
   CnaComputeBackend,
   CnaGraphicsExtensionBackend,
+  Vector3Snapshot,
   CnaContentBackend,
   CnaDeviceBackend,
   CnaGamerServicesBackend,
@@ -496,6 +503,60 @@ interface NativeBridge {
   cnbModelGetLight(model: bigint, index: number): { readonly Direction: readonly number[]; readonly DiffuseColor: readonly number[] };
   cnbEncodeModel(model: bigint, contentName: string): Uint8Array;
   cnbDecodeModel(document: bigint): bigint;
+  isClusteredLightUsable(light: ClusteredLightSnapshot): boolean;
+  createClusteredLightSet(device: bigint): bigint;
+  addClusteredLight(set: bigint, light: ClusteredLightSnapshot): number;
+  addClusteredPointLight(set: bigint, light: PointLightSnapshot): number;
+  addClusteredSpotLight(set: bigint, light: SpotLightSnapshot): number;
+  replaceClusteredLightAt(set: bigint, index: number, light: ClusteredLightSnapshot): void;
+  removeClusteredLightAt(set: bigint, index: number): void;
+  clearClusteredLightSet(set: bigint): void;
+  getClusteredLightCount(set: bigint): number;
+  isClusteredLightSetEmpty(set: bigint): boolean;
+  getClusteredLightAt(set: bigint, index: number): ClusteredLightSnapshot;
+  copyClusteredLights(set: bigint): readonly ClusteredLightSnapshot[];
+  getClusteredLightBoundsAt(set: bigint, index: number): BoundingSphereSnapshot;
+  copyClusteredLightBounds(set: bigint): readonly BoundingSphereSnapshot[];
+  destroyClusteredLightSet(set: bigint): void;
+  createClusterGrid(device: bigint, tilesX: number, tilesY: number, sliceCount: number): bigint;
+  getClusterGridTilesX(grid: bigint): number;
+  getClusterGridTilesY(grid: bigint): number;
+  getClusterGridSliceCount(grid: bigint): number;
+  getClusterGridClusterCount(grid: bigint): number;
+  getClusterIndex(grid: bigint, x: number, y: number, slice: number): number;
+  setClusterGridProjection(grid: bigint, projection: readonly number[], nearPlane: number, farPlane: number): void;
+  clusterGridHasProjection(grid: bigint): boolean;
+  getClusterGridNearPlane(grid: bigint): number;
+  getClusterGridFarPlane(grid: bigint): number;
+  getClusterGridInverseProjection(grid: bigint): readonly number[];
+  getClusterSliceDistance(grid: bigint, slice: number): number;
+  getClusterSliceForViewDistance(grid: bigint, viewDistance: number): number;
+  getClusterBounds(grid: bigint, x: number, y: number, slice: number): ClusterBoundsSnapshot;
+  destroyClusterGrid(grid: bigint): void;
+  createClusteredLightAssignment(device: bigint): bigint;
+  assignClusteredLights(assignment: bigint, grid: bigint, view: readonly number[], bounds: readonly BoundingSphereSnapshot[]): void;
+  clearClusteredLightAssignment(assignment: bigint): void;
+  getAssignmentLightCount(assignment: bigint): number;
+  getAssignmentClusterCount(assignment: bigint): number;
+  copyLightsInCluster(assignment: bigint, cluster: number): readonly number[];
+  copyAssignmentIndices(assignment: bigint): readonly number[];
+  copyAssignmentOffsets(assignment: bigint): readonly number[];
+  getAssignmentTotalReferenceCount(assignment: bigint): number;
+  getAssignmentMaxLightsPerCluster(assignment: bigint): number;
+  destroyClusteredLightAssignment(assignment: bigint): void;
+  createClusteredShadowPolicy(device: bigint, budget: number): bigint;
+  getShadowPolicyBudget(policy: bigint): number;
+  setShadowPolicyBudget(policy: bigint, budget: number): void;
+  getShadowPolicyHysteresis(policy: bigint): number;
+  setShadowPolicyHysteresis(policy: bigint, hysteresis: number): void;
+  copyShadowPolicySelected(policy: bigint): readonly number[];
+  isShadowPolicySelected(policy: bigint, lightIndex: number): boolean;
+  getShadowPolicyScore(policy: bigint, lightIndex: number): number;
+  getShadowPolicyRequestCount(policy: bigint): number;
+  getShadowPolicyRefusedCount(policy: bigint): number;
+  resetShadowPolicy(policy: bigint): void;
+  selectShadowCasters(policy: bigint, lights: bigint, view: readonly number[], projection: readonly number[], cameraPosition: Vector3Snapshot): void;
+  destroyClusteredShadowPolicy(policy: bigint): void;
   supportsGraphicsCapability(device: bigint, capability: number): boolean;
   getMaxComputeWorkGroupCount(device: bigint, axis: number): number;
   getMaxComputeWorkGroupSize(device: bigint, axis: number): number;
@@ -907,6 +968,7 @@ export class NodeNativeBackend
   public readonly RuntimeServices: CnaRuntimeServicesBackend = this;
   public readonly GraphicsExtensions: CnaGraphicsExtensionBackend = this;
   public readonly Compute: CnaComputeBackend = this;
+  public readonly ClusteredLighting: CnaClusteredLightingBackend = this;
   public readonly Content: CnaContentBackend = this;
   public readonly Devices: CnaDeviceBackend = this;
   public readonly GamerServices: CnaGamerServicesBackend = this;
@@ -1758,6 +1820,168 @@ export class NodeNativeBackend
     return this.#bridge.cnbDecodeModel(document);
   }
 
+  public isClusteredLightUsable(light: ClusteredLightSnapshot): boolean {
+    return this.#bridge.isClusteredLightUsable(light);
+  }
+  public createClusteredLightSet(device: NativeHandle): NativeHandle {
+    return this.#bridge.createClusteredLightSet(device);
+  }
+  public addClusteredLight(set: NativeHandle, light: ClusteredLightSnapshot): number {
+    return this.#bridge.addClusteredLight(set, light);
+  }
+  public addClusteredPointLight(set: NativeHandle, light: PointLightSnapshot): number {
+    return this.#bridge.addClusteredPointLight(set, light);
+  }
+  public addClusteredSpotLight(set: NativeHandle, light: SpotLightSnapshot): number {
+    return this.#bridge.addClusteredSpotLight(set, light);
+  }
+  public replaceClusteredLightAt(set: NativeHandle, index: number, light: ClusteredLightSnapshot): void {
+    this.#bridge.replaceClusteredLightAt(set, index, light);
+  }
+  public removeClusteredLightAt(set: NativeHandle, index: number): void {
+    this.#bridge.removeClusteredLightAt(set, index);
+  }
+  public clearClusteredLightSet(set: NativeHandle): void {
+    this.#bridge.clearClusteredLightSet(set);
+  }
+  public getClusteredLightCount(set: NativeHandle): number {
+    return this.#bridge.getClusteredLightCount(set);
+  }
+  public isClusteredLightSetEmpty(set: NativeHandle): boolean {
+    return this.#bridge.isClusteredLightSetEmpty(set);
+  }
+  public getClusteredLightAt(set: NativeHandle, index: number): ClusteredLightSnapshot {
+    return this.#bridge.getClusteredLightAt(set, index);
+  }
+  public copyClusteredLights(set: NativeHandle): readonly ClusteredLightSnapshot[] {
+    return this.#bridge.copyClusteredLights(set);
+  }
+  public getClusteredLightBoundsAt(set: NativeHandle, index: number): BoundingSphereSnapshot {
+    return this.#bridge.getClusteredLightBoundsAt(set, index);
+  }
+  public copyClusteredLightBounds(set: NativeHandle): readonly BoundingSphereSnapshot[] {
+    return this.#bridge.copyClusteredLightBounds(set);
+  }
+  public destroyClusteredLightSet(set: NativeHandle): void {
+    this.#bridge.destroyClusteredLightSet(set);
+  }
+  public createClusterGrid(device: NativeHandle, tilesX: number, tilesY: number, sliceCount: number): NativeHandle {
+    return this.#bridge.createClusterGrid(device, tilesX, tilesY, sliceCount);
+  }
+  public getClusterGridTilesX(grid: NativeHandle): number {
+    return this.#bridge.getClusterGridTilesX(grid);
+  }
+  public getClusterGridTilesY(grid: NativeHandle): number {
+    return this.#bridge.getClusterGridTilesY(grid);
+  }
+  public getClusterGridSliceCount(grid: NativeHandle): number {
+    return this.#bridge.getClusterGridSliceCount(grid);
+  }
+  public getClusterGridClusterCount(grid: NativeHandle): number {
+    return this.#bridge.getClusterGridClusterCount(grid);
+  }
+  public getClusterIndex(grid: NativeHandle, x: number, y: number, slice: number): number {
+    return this.#bridge.getClusterIndex(grid, x, y, slice);
+  }
+  public setClusterGridProjection(grid: NativeHandle, projection: readonly number[], nearPlane: number, farPlane: number): void {
+    this.#bridge.setClusterGridProjection(grid, projection, nearPlane, farPlane);
+  }
+  public clusterGridHasProjection(grid: NativeHandle): boolean {
+    return this.#bridge.clusterGridHasProjection(grid);
+  }
+  public getClusterGridNearPlane(grid: NativeHandle): number {
+    return this.#bridge.getClusterGridNearPlane(grid);
+  }
+  public getClusterGridFarPlane(grid: NativeHandle): number {
+    return this.#bridge.getClusterGridFarPlane(grid);
+  }
+  public getClusterGridInverseProjection(grid: NativeHandle): readonly number[] {
+    return this.#bridge.getClusterGridInverseProjection(grid);
+  }
+  public getClusterSliceDistance(grid: NativeHandle, slice: number): number {
+    return this.#bridge.getClusterSliceDistance(grid, slice);
+  }
+  public getClusterSliceForViewDistance(grid: NativeHandle, viewDistance: number): number {
+    return this.#bridge.getClusterSliceForViewDistance(grid, viewDistance);
+  }
+  public getClusterBounds(grid: NativeHandle, x: number, y: number, slice: number): ClusterBoundsSnapshot {
+    return this.#bridge.getClusterBounds(grid, x, y, slice);
+  }
+  public destroyClusterGrid(grid: NativeHandle): void {
+    this.#bridge.destroyClusterGrid(grid);
+  }
+  public createClusteredLightAssignment(device: NativeHandle): NativeHandle {
+    return this.#bridge.createClusteredLightAssignment(device);
+  }
+  public assignClusteredLights(assignment: NativeHandle, grid: NativeHandle, view: readonly number[], bounds: readonly BoundingSphereSnapshot[]): void {
+    this.#bridge.assignClusteredLights(assignment, grid, view, bounds);
+  }
+  public clearClusteredLightAssignment(assignment: NativeHandle): void {
+    this.#bridge.clearClusteredLightAssignment(assignment);
+  }
+  public getAssignmentLightCount(assignment: NativeHandle): number {
+    return this.#bridge.getAssignmentLightCount(assignment);
+  }
+  public getAssignmentClusterCount(assignment: NativeHandle): number {
+    return this.#bridge.getAssignmentClusterCount(assignment);
+  }
+  public copyLightsInCluster(assignment: NativeHandle, cluster: number): readonly number[] {
+    return this.#bridge.copyLightsInCluster(assignment, cluster);
+  }
+  public copyAssignmentIndices(assignment: NativeHandle): readonly number[] {
+    return this.#bridge.copyAssignmentIndices(assignment);
+  }
+  public copyAssignmentOffsets(assignment: NativeHandle): readonly number[] {
+    return this.#bridge.copyAssignmentOffsets(assignment);
+  }
+  public getAssignmentTotalReferenceCount(assignment: NativeHandle): number {
+    return this.#bridge.getAssignmentTotalReferenceCount(assignment);
+  }
+  public getAssignmentMaxLightsPerCluster(assignment: NativeHandle): number {
+    return this.#bridge.getAssignmentMaxLightsPerCluster(assignment);
+  }
+  public destroyClusteredLightAssignment(assignment: NativeHandle): void {
+    this.#bridge.destroyClusteredLightAssignment(assignment);
+  }
+  public createClusteredShadowPolicy(device: NativeHandle, budget: number): NativeHandle {
+    return this.#bridge.createClusteredShadowPolicy(device, budget);
+  }
+  public getShadowPolicyBudget(policy: NativeHandle): number {
+    return this.#bridge.getShadowPolicyBudget(policy);
+  }
+  public setShadowPolicyBudget(policy: NativeHandle, budget: number): void {
+    this.#bridge.setShadowPolicyBudget(policy, budget);
+  }
+  public getShadowPolicyHysteresis(policy: NativeHandle): number {
+    return this.#bridge.getShadowPolicyHysteresis(policy);
+  }
+  public setShadowPolicyHysteresis(policy: NativeHandle, hysteresis: number): void {
+    this.#bridge.setShadowPolicyHysteresis(policy, hysteresis);
+  }
+  public copyShadowPolicySelected(policy: NativeHandle): readonly number[] {
+    return this.#bridge.copyShadowPolicySelected(policy);
+  }
+  public isShadowPolicySelected(policy: NativeHandle, lightIndex: number): boolean {
+    return this.#bridge.isShadowPolicySelected(policy, lightIndex);
+  }
+  public getShadowPolicyScore(policy: NativeHandle, lightIndex: number): number {
+    return this.#bridge.getShadowPolicyScore(policy, lightIndex);
+  }
+  public getShadowPolicyRequestCount(policy: NativeHandle): number {
+    return this.#bridge.getShadowPolicyRequestCount(policy);
+  }
+  public getShadowPolicyRefusedCount(policy: NativeHandle): number {
+    return this.#bridge.getShadowPolicyRefusedCount(policy);
+  }
+  public resetShadowPolicy(policy: NativeHandle): void {
+    this.#bridge.resetShadowPolicy(policy);
+  }
+  public selectShadowCasters(policy: NativeHandle, lights: NativeHandle, view: readonly number[], projection: readonly number[], cameraPosition: Vector3Snapshot): void {
+    this.#bridge.selectShadowCasters(policy, lights, view, projection, cameraPosition);
+  }
+  public destroyClusteredShadowPolicy(policy: NativeHandle): void {
+    this.#bridge.destroyClusteredShadowPolicy(policy);
+  }
   public supportsGraphicsCapability(device: NativeHandle, capability: number): boolean {
     return this.#bridge.supportsGraphicsCapability(device, capability);
   }

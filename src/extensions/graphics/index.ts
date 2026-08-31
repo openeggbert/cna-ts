@@ -14,7 +14,14 @@
  */
 
 import { getBackend } from "../../internal/backend.js";
-import type { CnaComputeBackend, CnaGraphicsExtensionBackend } from "../../internal/backend.js";
+import type {
+  BoundingSphereSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
+  CnaGraphicsExtensionBackend,
+} from "../../internal/backend.js";
+import { BoundingBox } from "../../Microsoft/Xna/Framework/BoundingBox.js";
+import { BoundingSphere } from "../../Microsoft/Xna/Framework/BoundingSphere.js";
+import { Matrix } from "../../Microsoft/Xna/Framework/Matrix.js";
+import { Vector3 } from "../../Microsoft/Xna/Framework/Vector3.js";
 import { NativeUnavailableError } from "../../internal/native-error.js";
 import { Color } from "../../Microsoft/Xna/Framework/Color.js";
 import type { GraphicsDevice } from "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
@@ -1175,5 +1182,610 @@ export class GpuTimer implements IDisposable {
     if (handle == null) return;
     this.#handle = null;
     this.#backend.destroyGpuTimer(handle);
+  }
+}
+
+
+/* --- clustered lighting ---------------------------------------------------------------------
+ *
+ * A light set, the cluster grid it is assigned into, and the shadow-budget policy that decides
+ * which of those lights is worth a shadow map. This is how a modern renderer lights a scene with
+ * hundreds of lights: the screen is divided into tiles and the view frustum into depth slices, and
+ * each resulting cluster carries only the lights that actually reach it. XNA 4.0 had no equivalent
+ * — `BasicEffect` lit with three directional lights and nothing else.
+ *
+ * None of it touches the GPU. All four objects compute on a graphics device handle but hold no GPU
+ * state, so they answer identically on a headless renderer and a windowed one, and their results
+ * are exact numbers rather than pixels.
+ *
+ * CNA's headers name the first parameter of all four creates `game`; it is a **graphics device**,
+ * and an actual game handle is refused. That is measured and recorded in
+ * `docs/upstream-cna-findings.md`, and the reason these constructors take a `GraphicsDevice`.
+ */
+
+/** Which kind of light a clustered light is. CNA has no directional light in a cluster set. */
+export enum ClusteredLightType {
+  Point = 0,
+  Spot = 1,
+}
+
+/** The most lights one {@link ClusteredLightSet} holds. */
+export const ClusteredLightSetMaximum = 256;
+
+/** The most lights one {@link ClusteredLightAssignment} sorts. */
+export const ClusteredAssignmentMaximumLights = 1024;
+
+/** The bounds a {@link ClusterGrid} axis accepts. */
+export const ClusterGridMaximumTilesPerAxis = 128;
+/** The bounds a {@link ClusterGrid}'s depth axis accepts. */
+export const ClusterGridMaximumSliceCount = 256;
+
+/** One light in the uniform shape CNA stores every clustered light in. */
+export interface ClusteredLight {
+  readonly Type: ClusteredLightType;
+  readonly Position: Vector3;
+  /** Ignored for a point light. */
+  readonly Direction: Vector3;
+  /** Linear RGB, not an XNA `Color`: a light's colour is not a display value. */
+  readonly Color: Vector3;
+  readonly Intensity: number;
+  readonly Range: number;
+  /** Radians. Ignored for a point light. */
+  readonly InnerAngle: number;
+  /** Radians. Ignored for a point light. */
+  readonly OuterAngle: number;
+  readonly CastsShadows: boolean;
+}
+
+/**
+ * The live handles of a light set and a cluster grid, for the two calls in this module that take
+ * the object rather than the handle: `ClusteredLightAssignment.Assign` needs a grid, and
+ * `ClusteredShadowPolicy.Select` needs a light set. A disposed object is absent from its map, so
+ * passing one is a named refusal rather than a stale handle reaching CNA.
+ */
+const clusteredLightSetHandles = new WeakMap<ClusteredLightSet, NativeHandle>();
+const clusterGridHandles = new WeakMap<ClusterGrid, NativeHandle>();
+
+function clusteredLightSetHandle(set: ClusteredLightSet): NativeHandle {
+  const handle = clusteredLightSetHandles.get(set);
+  if (handle == null) throw new NativeUnavailableError("the light set is disposed");
+  return handle;
+}
+
+function clusterGridHandle(grid: ClusterGrid): NativeHandle {
+  const handle = clusterGridHandles.get(grid);
+  if (handle == null) throw new NativeUnavailableError("the cluster grid is disposed");
+  return handle;
+}
+
+function clusteredLighting(): CnaClusteredLightingBackend {
+  const backend = getBackend();
+  if (!backend.IsAvailable || backend.ClusteredLighting == null) {
+    throw new NativeUnavailableError(
+      `CNA's clustered lighting requires a loaded backend that has it: ${backend.Detail}`,
+    );
+  }
+  return backend.ClusteredLighting;
+}
+
+function vectorSnapshot(vector: Vector3, what: string): { X: number; Y: number; Z: number } {
+  if (vector == null) throw new TypeError(`${what} is required`);
+  return { X: vector.X, Y: vector.Y, Z: vector.Z };
+}
+
+function toVector3(snapshot: { readonly X: number; readonly Y: number; readonly Z: number }): Vector3 {
+  return new Vector3(snapshot.X, snapshot.Y, snapshot.Z);
+}
+
+function lightSnapshot(light: ClusteredLight): ClusteredLightSnapshot {
+  if (light == null) throw new TypeError("light is required");
+  if (light.Type !== ClusteredLightType.Point && light.Type !== ClusteredLightType.Spot) {
+    throw new RangeError("a clustered light's Type must be Point or Spot");
+  }
+  for (const name of ["Intensity", "Range", "InnerAngle", "OuterAngle"] as const) {
+    if (typeof light[name] !== "number" || !Number.isFinite(light[name])) {
+      throw new TypeError(`a clustered light's ${name} must be a finite number`);
+    }
+  }
+  return {
+    Type: light.Type,
+    Position: vectorSnapshot(light.Position, "a clustered light's Position"),
+    Direction: vectorSnapshot(light.Direction, "a clustered light's Direction"),
+    Color: vectorSnapshot(light.Color, "a clustered light's Color"),
+    Intensity: light.Intensity,
+    Range: light.Range,
+    InnerAngle: light.InnerAngle,
+    OuterAngle: light.OuterAngle,
+    CastsShadows: light.CastsShadows === true,
+  };
+}
+
+function toLight(snapshot: ClusteredLightSnapshot): ClusteredLight {
+  return Object.freeze({
+    Type: snapshot.Type as ClusteredLightType,
+    Position: toVector3(snapshot.Position),
+    Direction: toVector3(snapshot.Direction),
+    Color: toVector3(snapshot.Color),
+    Intensity: snapshot.Intensity,
+    Range: snapshot.Range,
+    InnerAngle: snapshot.InnerAngle,
+    OuterAngle: snapshot.OuterAngle,
+    CastsShadows: snapshot.CastsShadows,
+  });
+}
+
+function toSphere(snapshot: BoundingSphereSnapshot): BoundingSphere {
+  return new BoundingSphere(toVector3(snapshot.Center), snapshot.Radius);
+}
+
+/** The sixteen numbers CNA reads a matrix from, in XNA's own row order. */
+function matrixValues(matrix: Matrix, what: string): number[] {
+  if (matrix == null) throw new TypeError(`${what} is required`);
+  return [
+    matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+    matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+    matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+    matrix.M41, matrix.M42, matrix.M43, matrix.M44,
+  ];
+}
+
+function toMatrix(values: readonly number[]): Matrix {
+  return new Matrix(
+    values[0]!, values[1]!, values[2]!, values[3]!,
+    values[4]!, values[5]!, values[6]!, values[7]!,
+    values[8]!, values[9]!, values[10]!, values[11]!,
+    values[12]!, values[13]!, values[14]!, values[15]!,
+  );
+}
+
+function lightIndex(index: number, what = "a light index"): number {
+  if (!Number.isInteger(index) || index < 0) {
+    throw new RangeError(`${what} must be a non-negative integer`);
+  }
+  return index;
+}
+
+/**
+ * A set of point and spot lights, in the order they were added.
+ *
+ * CNA refuses a light it cannot use — a non-positive range, a negative intensity, a spot whose
+ * inner angle is wider than its outer — rather than accepting it and quietly lighting nothing.
+ * {@link IsUsable} asks the same question without adding anything.
+ */
+export class ClusteredLightSet implements IDisposable {
+  readonly #backend: CnaClusteredLightingBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#backend = clusteredLighting();
+    this.#handle = this.#backend.createClusteredLightSet(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+    );
+    clusteredLightSetHandles.set(this, this.#handle);
+  }
+
+  /** Whether CNA would accept this light, asked without adding it. */
+  public static IsUsable(light: ClusteredLight): boolean {
+    // Shaped before the backend is asked for, so a malformed light is a malformed light whether
+    // or not a library is loaded.
+    const snapshot = lightSnapshot(light);
+    return clusteredLighting().isClusteredLightUsable(snapshot);
+  }
+
+  /** Whether the set has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the light set is disposed");
+    return this.#handle;
+  }
+
+  /** How many lights the set holds. */
+  public get Count(): number { return this.#backend.getClusteredLightCount(this.#active()); }
+
+  /** Whether the set holds nothing. */
+  public get IsEmpty(): boolean { return this.#backend.isClusteredLightSetEmpty(this.#active()); }
+
+  /** Adds a light and returns the index it was given. */
+  public Add(light: ClusteredLight): number {
+    return this.#backend.addClusteredLight(this.#active(), lightSnapshot(light));
+  }
+
+  /**
+   * Adds a point light.
+   *
+   * A point light has no direction and no cone, and CNA is what fills those in when it converts
+   * one into its uniform clustered shape. So this hands CNA the point light's own fields rather
+   * than restating that conversion here, where it would drift the day CNA changed it.
+   */
+  public AddPoint(
+    position: Vector3, color: Vector3, intensity: number, range: number, castsShadows = false,
+  ): number {
+    for (const [name, value] of [["intensity", intensity], ["range", range]] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    return this.#backend.addClusteredPointLight(this.#active(), {
+      Position: vectorSnapshot(position, "position"),
+      Color: vectorSnapshot(color, "color"),
+      Intensity: intensity,
+      Range: range,
+      CastsShadows: castsShadows === true,
+    });
+  }
+
+  /** Adds a spot light. The two angles are radians, and the inner must not exceed the outer. */
+  public AddSpot(
+    position: Vector3, direction: Vector3, color: Vector3, intensity: number, range: number,
+    innerAngle: number, outerAngle: number, castsShadows = false,
+  ): number {
+    for (const [name, value] of [
+      ["intensity", intensity], ["range", range],
+      ["innerAngle", innerAngle], ["outerAngle", outerAngle],
+    ] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    return this.#backend.addClusteredSpotLight(this.#active(), {
+      Position: vectorSnapshot(position, "position"),
+      Direction: vectorSnapshot(direction, "direction"),
+      Color: vectorSnapshot(color, "color"),
+      Intensity: intensity,
+      Range: range,
+      InnerAngle: innerAngle,
+      OuterAngle: outerAngle,
+      CastsShadows: castsShadows === true,
+    });
+  }
+
+  /** Replaces one light, keeping its index. */
+  public ReplaceAt(index: number, light: ClusteredLight): void {
+    this.#backend.replaceClusteredLightAt(
+      this.#active(), lightIndex(index), lightSnapshot(light),
+    );
+  }
+
+  /** Removes one light. The lights after it move down. */
+  public RemoveAt(index: number): void {
+    this.#backend.removeClusteredLightAt(this.#active(), lightIndex(index));
+  }
+
+  /** Removes every light. */
+  public Clear(): void { this.#backend.clearClusteredLightSet(this.#active()); }
+
+  /** Reads one light back. */
+  public GetAt(index: number): ClusteredLight {
+    return toLight(this.#backend.getClusteredLightAt(this.#active(), lightIndex(index)));
+  }
+
+  /** Reads every light back, in the set's own order. */
+  public ToArray(): readonly ClusteredLight[] {
+    return Object.freeze(this.#backend.copyClusteredLights(this.#active()).map(toLight));
+  }
+
+  /** One light's world-space influence, which CNA derives from its position and range. */
+  public GetBoundsAt(index: number): BoundingSphere {
+    return toSphere(this.#backend.getClusteredLightBoundsAt(this.#active(), lightIndex(index)));
+  }
+
+  /** Every light's bounds, which is what {@link ClusteredLightAssignment.Assign} consumes. */
+  public GetBounds(): readonly BoundingSphere[] {
+    return Object.freeze(this.#backend.copyClusteredLightBounds(this.#active()).map(toSphere));
+  }
+
+  /** Releases the set. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    clusteredLightSetHandles.delete(this);
+    this.#backend.destroyClusteredLightSet(handle);
+  }
+}
+
+/**
+ * The screen tiles and depth slices a scene's lights are sorted into.
+ *
+ * The depth axis is logarithmic rather than linear, which is what makes clustered lighting work at
+ * all: `SliceDistance(s)` is `near * (far / near) ** (s / sliceCount)`, so the slices near the
+ * camera are thin and the far ones are wide.
+ */
+export class ClusterGrid implements IDisposable {
+  readonly #backend: CnaClusteredLightingBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(
+    graphicsDevice: GraphicsDevice, tilesX: number, tilesY: number, sliceCount: number,
+  ) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    for (const [name, value, limit] of [
+      ["tilesX", tilesX, ClusterGridMaximumTilesPerAxis],
+      ["tilesY", tilesY, ClusterGridMaximumTilesPerAxis],
+      ["sliceCount", sliceCount, ClusterGridMaximumSliceCount],
+    ] as const) {
+      if (!Number.isInteger(value) || value < 1 || value > limit) {
+        throw new RangeError(`${name} must be an integer from 1 to ${limit}`);
+      }
+    }
+    this.#backend = clusteredLighting();
+    this.#handle = this.#backend.createClusterGrid(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), tilesX, tilesY, sliceCount,
+    );
+    clusterGridHandles.set(this, this.#handle);
+  }
+
+  /** Whether the grid has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the cluster grid is disposed");
+    return this.#handle;
+  }
+
+  /** Tiles along X. */
+  public get TilesX(): number { return this.#backend.getClusterGridTilesX(this.#active()); }
+  /** Tiles along Y. */
+  public get TilesY(): number { return this.#backend.getClusterGridTilesY(this.#active()); }
+  /** Depth slices. */
+  public get SliceCount(): number {
+    return this.#backend.getClusterGridSliceCount(this.#active());
+  }
+  /** `TilesX * TilesY * SliceCount`. */
+  public get ClusterCount(): number {
+    return this.#backend.getClusterGridClusterCount(this.#active());
+  }
+  /** Whether a projection has been set. Nothing depth-related answers before it has. */
+  public get HasProjection(): boolean {
+    return this.#backend.clusterGridHasProjection(this.#active());
+  }
+  /** The near plane the projection was set with. */
+  public get NearPlane(): number {
+    return this.#backend.getClusterGridNearPlane(this.#active());
+  }
+  /** The far plane the projection was set with. */
+  public get FarPlane(): number { return this.#backend.getClusterGridFarPlane(this.#active()); }
+
+  /** The inverse of the projection, which is what unprojects a cluster into view space. */
+  public get InverseProjection(): Matrix {
+    return toMatrix(this.#backend.getClusterGridInverseProjection(this.#active()));
+  }
+
+  /** The flat index of one cluster. */
+  public ClusterIndex(x: number, y: number, slice: number): number {
+    return this.#backend.getClusterIndex(
+      this.#active(), lightIndex(x, "x"), lightIndex(y, "y"), lightIndex(slice, "slice"),
+    );
+  }
+
+  /** Gives the grid the camera's projection and its depth range. */
+  public SetProjection(projection: Matrix, nearPlane: number, farPlane: number): void {
+    for (const [name, value] of [["nearPlane", nearPlane], ["farPlane", farPlane]] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    this.#backend.setClusterGridProjection(
+      this.#active(), matrixValues(projection, "projection"), nearPlane, farPlane,
+    );
+  }
+
+  /** The view-space distance at which a slice boundary lies. */
+  public SliceDistance(slice: number): number {
+    return this.#backend.getClusterSliceDistance(this.#active(), lightIndex(slice, "slice"));
+  }
+
+  /** Which slice a view-space distance falls in. */
+  public SliceForViewDistance(viewDistance: number): number {
+    if (typeof viewDistance !== "number" || !Number.isFinite(viewDistance)) {
+      throw new TypeError("viewDistance must be a finite number");
+    }
+    return this.#backend.getClusterSliceForViewDistance(this.#active(), viewDistance);
+  }
+
+  /** One cluster's view-space extent. */
+  public ClusterBounds(x: number, y: number, slice: number): BoundingBox {
+    const bounds = this.#backend.getClusterBounds(
+      this.#active(), lightIndex(x, "x"), lightIndex(y, "y"), lightIndex(slice, "slice"),
+    );
+    return new BoundingBox(toVector3(bounds.Min), toVector3(bounds.Max));
+  }
+
+  /** Releases the grid. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    clusterGridHandles.delete(this);
+    this.#backend.destroyClusterGrid(handle);
+  }
+}
+
+/**
+ * Which lights reach which cluster.
+ *
+ * The result is the pair a GPU reads: a per-cluster offset list and one flat index list, so a
+ * shader finds a cluster's lights with two lookups and no search. Both are readable here, and
+ * {@link LightsInCluster} is the same information one cluster at a time.
+ */
+export class ClusteredLightAssignment implements IDisposable {
+  readonly #backend: CnaClusteredLightingBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#backend = clusteredLighting();
+    this.#handle = this.#backend.createClusteredLightAssignment(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+    );
+  }
+
+  /** Whether the assignment has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the assignment is disposed");
+    return this.#handle;
+  }
+
+  /** Sorts a set of light bounds into a grid's clusters, in view space. */
+  public Assign(grid: ClusterGrid, view: Matrix, bounds: readonly BoundingSphere[]): void {
+    if (!(grid instanceof ClusterGrid)) throw new TypeError("grid must be a ClusterGrid");
+    if (!Array.isArray(bounds)) throw new TypeError("bounds must be an array of BoundingSphere");
+    this.#backend.assignClusteredLights(
+      this.#active(), clusterGridHandle(grid), matrixValues(view, "view"),
+      bounds.map((sphere, index) => {
+        if (sphere == null) throw new TypeError(`bounds[${index}] is required`);
+        return { Center: vectorSnapshot(sphere.Center, "a bound's Center"), Radius: sphere.Radius };
+      }),
+    );
+  }
+
+  /** Forgets the last assignment. */
+  public Clear(): void { this.#backend.clearClusteredLightAssignment(this.#active()); }
+
+  /** How many lights were sorted. */
+  public get LightCount(): number {
+    return this.#backend.getAssignmentLightCount(this.#active());
+  }
+  /** How many clusters were sorted into. */
+  public get ClusterCount(): number {
+    return this.#backend.getAssignmentClusterCount(this.#active());
+  }
+  /** How many light references there are in total, across every cluster. */
+  public get TotalReferenceCount(): number {
+    return this.#backend.getAssignmentTotalReferenceCount(this.#active());
+  }
+  /** The most lights any one cluster ended up with. */
+  public get MaxLightsPerCluster(): number {
+    return this.#backend.getAssignmentMaxLightsPerCluster(this.#active());
+  }
+
+  /** The light indices one cluster holds. */
+  public LightsInCluster(clusterIndex: number): readonly number[] {
+    return Object.freeze([...this.#backend.copyLightsInCluster(
+      this.#active(), lightIndex(clusterIndex, "a cluster index"),
+    )]);
+  }
+
+  /** The flat light-index list a shader reads. */
+  public GetIndices(): readonly number[] {
+    return Object.freeze([...this.#backend.copyAssignmentIndices(this.#active())]);
+  }
+
+  /** The per-cluster offsets into {@link GetIndices}. */
+  public GetOffsets(): readonly number[] {
+    return Object.freeze([...this.#backend.copyAssignmentOffsets(this.#active())]);
+  }
+
+  /** Releases the assignment. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyClusteredLightAssignment(handle);
+  }
+}
+
+/**
+ * Which shadow-casting lights are worth a shadow map this frame.
+ *
+ * A budget, a score per light, and a hysteresis margin that stops a light flickering in and out of
+ * the set as the camera moves across a threshold. A light that asks for a shadow and does not get
+ * one is *refused*, and the count of refusals is readable — a renderer that silently dropped them
+ * would look the same until someone wondered why a light had no shadow.
+ */
+export class ClusteredShadowPolicy implements IDisposable {
+  readonly #backend: CnaClusteredLightingBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice, budget: number) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (!Number.isInteger(budget) || budget < 0) {
+      throw new RangeError("budget must be a non-negative integer");
+    }
+    this.#backend = clusteredLighting();
+    this.#handle = this.#backend.createClusteredShadowPolicy(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), budget,
+    );
+  }
+
+  /** Whether the policy has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the shadow policy is disposed");
+    return this.#handle;
+  }
+
+  /** How many shadow maps the policy may hand out. */
+  public get Budget(): number { return this.#backend.getShadowPolicyBudget(this.#active()); }
+  public set Budget(value: number) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new RangeError("Budget must be a non-negative integer");
+    }
+    this.#backend.setShadowPolicyBudget(this.#active(), value);
+  }
+
+  /** How much better a light must score to displace one already selected. */
+  public get Hysteresis(): number {
+    return this.#backend.getShadowPolicyHysteresis(this.#active());
+  }
+  public set Hysteresis(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("Hysteresis must be a finite number");
+    }
+    this.#backend.setShadowPolicyHysteresis(this.#active(), value);
+  }
+
+  /** How many lights asked for a shadow map in the last selection. */
+  public get RequestCount(): number {
+    return this.#backend.getShadowPolicyRequestCount(this.#active());
+  }
+  /** How many of those did not get one. */
+  public get RefusedCount(): number {
+    return this.#backend.getShadowPolicyRefusedCount(this.#active());
+  }
+
+  /** Scores a set's shadow casters and selects up to {@link Budget} of them. */
+  public Select(
+    lights: ClusteredLightSet, view: Matrix, projection: Matrix, cameraPosition: Vector3,
+  ): void {
+    if (!(lights instanceof ClusteredLightSet)) {
+      throw new TypeError("lights must be a ClusteredLightSet");
+    }
+    this.#backend.selectShadowCasters(
+      this.#active(), clusteredLightSetHandle(lights), matrixValues(view, "view"),
+      matrixValues(projection, "projection"),
+      vectorSnapshot(cameraPosition, "cameraPosition"),
+    );
+  }
+
+  /** Whether one light was selected. */
+  public IsSelected(lightIndex_: number): boolean {
+    return this.#backend.isShadowPolicySelected(this.#active(), lightIndex(lightIndex_));
+  }
+
+  /** One light's score, as CNA computed it. */
+  public GetScore(lightIndex_: number): number {
+    return this.#backend.getShadowPolicyScore(this.#active(), lightIndex(lightIndex_));
+  }
+
+  /** The indices of the lights that were selected. */
+  public GetSelected(): readonly number[] {
+    return Object.freeze([...this.#backend.copyShadowPolicySelected(this.#active())]);
+  }
+
+  /** Forgets the last selection, so the next one is unaffected by hysteresis. */
+  public Reset(): void { this.#backend.resetShadowPolicy(this.#active()); }
+
+  /** Releases the policy. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyClusteredShadowPolicy(handle);
   }
 }

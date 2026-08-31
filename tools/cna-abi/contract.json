@@ -130,6 +130,26 @@
       "expression": "CNA_GRAPHICS_CAPABILITY_MAXIMUM == CNA_GRAPHICS_CAPABILITY_INDIRECT_DRAW",
       "value": 1,
       "reason": "GraphicsCapability projects every capability up to the maximum; a new one added upstream moves this sentinel and fails here"
+    },
+    {
+      "expression": "CNA_CLUSTERED_LIGHT_SET_MAX_EXT == INT32_C(256)",
+      "value": 1,
+      "reason": "cna-ts publishes this bound as ClusteredLightSetMaximum; a caller sizes a light set or a grid from it, so it is proved against the header rather than copied"
+    },
+    {
+      "expression": "CNA_CLUSTER_GRID_MAX_TILES_PER_AXIS_EXT == INT32_C(128)",
+      "value": 1,
+      "reason": "cna-ts publishes this bound as ClusterGridMaximumTilesPerAxis; a caller sizes a light set or a grid from it, so it is proved against the header rather than copied"
+    },
+    {
+      "expression": "CNA_CLUSTER_GRID_MAX_SLICE_COUNT_EXT == INT32_C(256)",
+      "value": 1,
+      "reason": "cna-ts publishes this bound as ClusterGridMaximumSliceCount; a caller sizes a light set or a grid from it, so it is proved against the header rather than copied"
+    },
+    {
+      "expression": "CNA_CLUSTERED_ASSIGNMENT_MAX_LIGHTS_EXT == INT32_C(1024)",
+      "value": 1,
+      "reason": "cna-ts publishes this bound as ClusteredAssignmentMaximumLights; a caller sizes a light set or a grid from it, so it is proved against the header rather than copied"
     }
   ],
   "resultCodes": {
@@ -833,6 +853,10 @@
     {
       "typeScriptEnum": "GraphicsMemoryBarrier",
       "cnaPrefix": "CNA_GRAPHICS_MEMORY_BARRIER"
+    },
+    {
+      "typeScriptEnum": "ClusteredLightType",
+      "cnaPrefix": "CNA_CLUSTERED_LIGHT_TYPE"
     }
   ]
 }

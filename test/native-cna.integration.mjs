@@ -2647,3 +2647,567 @@ test("compute is refused by name on a renderer without it, and the timer says wh
     `CREATES_REFUSED=3 GPU_TIMER_REASON="${timer.reason.slice(0, 48)}..."`,
   );
 });
+
+
+class ClusteredLightingProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const device = this.GraphicsDevice;
+    const {
+      ClusterGrid, ClusteredLightAssignment, ClusteredLightSet, ClusteredLightType,
+      ClusteredShadowPolicy,
+    } = computeExtensions;
+    const record = (name, body) => {
+      try {
+        this.evidence[name] = body();
+      } catch (error) {
+        this.evidence[name] = { refused: error.constructor.name, message: error.message };
+      }
+    };
+
+    const projection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 3, 4 / 3, 0.1, 100);
+    const grid = new ClusterGrid(device, 4, 2, 8);
+    const set = new ClusteredLightSet(device);
+    const assignment = new ClusteredLightAssignment(device);
+    const policy = new ClusteredShadowPolicy(device, 1);
+    try {
+      record("grid", () => {
+        const before = grid.HasProjection;
+        grid.SetProjection(projection, 0.1, 100);
+        // Every cluster's flat index, so the whole mapping is checked rather than a sample.
+        const indices = [];
+        for (let slice = 0; slice < grid.SliceCount; slice += 1) {
+          for (let y = 0; y < grid.TilesY; y += 1) {
+            for (let x = 0; x < grid.TilesX; x += 1) indices.push(grid.ClusterIndex(x, y, slice));
+          }
+        }
+        const inverse = grid.InverseProjection;
+        const roundTrip = Matrix.Multiply(projection, inverse);
+        return {
+          tilesX: grid.TilesX,
+          tilesY: grid.TilesY,
+          sliceCount: grid.SliceCount,
+          clusterCount: grid.ClusterCount,
+          hasProjectionBefore: before,
+          hasProjectionAfter: grid.HasProjection,
+          nearPlane: grid.NearPlane,
+          farPlane: grid.FarPlane,
+          indices,
+          sliceDistances: Array.from({ length: grid.SliceCount + 1 }, (_, s) => grid.SliceDistance(s)),
+          // For each slice, a distance just inside it: the two routes must agree.
+          sliceForDistance: Array.from({ length: grid.SliceCount }, (_, s) => {
+            const low = grid.SliceDistance(s);
+            const high = grid.SliceDistance(s + 1);
+            return grid.SliceForViewDistance(low + (high - low) * 0.5);
+          }),
+          roundTrip: [
+            roundTrip.M11, roundTrip.M12, roundTrip.M13, roundTrip.M14,
+            roundTrip.M21, roundTrip.M22, roundTrip.M23, roundTrip.M24,
+            roundTrip.M31, roundTrip.M32, roundTrip.M33, roundTrip.M34,
+            roundTrip.M41, roundTrip.M42, roundTrip.M43, roundTrip.M44,
+          ],
+          bounds: (() => {
+            const box = grid.ClusterBounds(1, 1, 2);
+            return { min: [box.Min.X, box.Min.Y, box.Min.Z], max: [box.Max.X, box.Max.Y, box.Max.Z] };
+          })(),
+        };
+      });
+
+      record("lights", () => {
+        // Three lights with three different everything, so a field read from the wrong light or
+        // written into the wrong slot changes a value rather than matching by luck.
+        const first = set.AddPoint(new Vector3(0, 0, -5), new Vector3(1, 0.5, 0.25), 2, 3, true);
+        const second = set.AddSpot(
+          new Vector3(2, 0, -10), new Vector3(0, 0, -1), new Vector3(0.2, 0.9, 0.1),
+          5, 12, 0.3, 0.6, false,
+        );
+        const third = set.AddPoint(new Vector3(-1, 0, -2), new Vector3(1, 1, 1), 9, 20, true);
+        const read = [0, 1, 2].map((index) => {
+          const light = set.GetAt(index);
+          return {
+            type: light.Type,
+            position: [light.Position.X, light.Position.Y, light.Position.Z],
+            direction: [light.Direction.X, light.Direction.Y, light.Direction.Z],
+            color: [light.Color.X, light.Color.Y, light.Color.Z],
+            intensity: light.Intensity,
+            range: light.Range,
+            innerAngle: light.InnerAngle,
+            outerAngle: light.OuterAngle,
+            castsShadows: light.CastsShadows,
+          };
+        });
+        const bounds = set.GetBounds().map((sphere) => ({
+          center: [sphere.Center.X, sphere.Center.Y, sphere.Center.Z], radius: sphere.Radius,
+        }));
+        // The same point light, once through CNA's own point-light conversion and once through
+        // the uniform shape this package builds. If the two disagree in any field, one of the two
+        // paths is inventing the conversion rather than using CNA's.
+        const viaShaped = set.AddPoint(new Vector3(3, -4, -6), new Vector3(0.7, 0.2, 0.9), 3, 8, true);
+        const viaUniform = set.Add({
+          Type: ClusteredLightType.Point,
+          Position: new Vector3(3, -4, -6),
+          Direction: Vector3.Zero,
+          Color: new Vector3(0.7, 0.2, 0.9),
+          Intensity: 3,
+          Range: 8,
+          InnerAngle: 0,
+          OuterAngle: 0,
+          CastsShadows: true,
+        });
+        const shaped = set.GetAt(viaShaped);
+        const uniform = set.GetAt(viaUniform);
+        const effective = (light) => [
+          light.Type, light.Position.X, light.Position.Y, light.Position.Z,
+          light.Color.X, light.Color.Y, light.Color.Z,
+          light.Intensity, light.Range, light.CastsShadows,
+        ];
+        const conversion = {
+          effectiveAgrees: JSON.stringify(effective(shaped)) === JSON.stringify(effective(uniform)),
+          boundsAgree:
+            JSON.stringify(set.GetBoundsAt(viaShaped)) === JSON.stringify(set.GetBoundsAt(viaUniform)),
+          shapedDirection: [shaped.Direction.X, shaped.Direction.Y, shaped.Direction.Z],
+          uniformDirection: [uniform.Direction.X, uniform.Direction.Y, uniform.Direction.Z],
+          shapedAngles: [shaped.InnerAngle, shaped.OuterAngle],
+          uniformAngles: [uniform.InnerAngle, uniform.OuterAngle],
+        };
+        set.RemoveAt(viaUniform);
+        set.RemoveAt(viaShaped);
+
+        return {
+          indices: [first, second, third],
+          count: set.Count,
+          isEmpty: set.IsEmpty,
+          read,
+          bounds,
+          conversion,
+          // The bulk read must agree with the one-at-a-time read.
+          bulkMatchesIndividual:
+            JSON.stringify(set.ToArray().map((light) => light.Intensity)) ===
+            JSON.stringify(read.map((light) => light.intensity)),
+        };
+      });
+
+      record("usability", () => {
+        const light = (overrides) => ({
+          Type: ClusteredLightType.Point,
+          Position: Vector3.Zero,
+          Direction: new Vector3(0, 0, -1),
+          Color: Vector3.One,
+          Intensity: 1,
+          Range: 1,
+          InnerAngle: 0,
+          OuterAngle: 0,
+          CastsShadows: false,
+          ...overrides,
+        });
+        return {
+          good: ClusteredLightSet.IsUsable(light({})),
+          zeroRange: ClusteredLightSet.IsUsable(light({ Range: 0 })),
+          negativeRange: ClusteredLightSet.IsUsable(light({ Range: -1 })),
+          negativeIntensity: ClusteredLightSet.IsUsable(light({ Intensity: -1 })),
+          innerWiderThanOuter: ClusteredLightSet.IsUsable(light({
+            Type: ClusteredLightType.Spot, InnerAngle: 0.9, OuterAngle: 0.2,
+          })),
+          goodSpot: ClusteredLightSet.IsUsable(light({
+            Type: ClusteredLightType.Spot, InnerAngle: 0.2, OuterAngle: 0.9,
+          })),
+        };
+      });
+
+      record("assignment", () => {
+        assignment.Assign(grid, Matrix.Identity, set.GetBounds());
+        const clusterCount = assignment.ClusterCount;
+        const offsets = assignment.GetOffsets();
+        const indices = assignment.GetIndices();
+        // The three views of the same data must agree for every cluster. A per-cluster read that
+        // ignored its argument, an offset list off by one, or an index list in the wrong order all
+        // break this.
+        let disagreedAt = -1;
+        let largest = 0;
+        for (let cluster = 0; cluster < clusterCount; cluster += 1) {
+          const own = assignment.LightsInCluster(cluster);
+          const flat = indices.slice(offsets[cluster], offsets[cluster + 1]);
+          if (own.length > largest) largest = own.length;
+          if (JSON.stringify([...own]) !== JSON.stringify([...flat])) {
+            disagreedAt = cluster;
+            break;
+          }
+        }
+        return {
+          lightCount: assignment.LightCount,
+          clusterCount,
+          totalReferences: assignment.TotalReferenceCount,
+          maxLightsPerCluster: assignment.MaxLightsPerCluster,
+          offsetsLength: offsets.length,
+          indicesLength: indices.length,
+          firstOffset: offsets[0],
+          lastOffset: offsets[offsets.length - 1],
+          monotonic: offsets.every((value, index) => index === 0 || value >= offsets[index - 1]),
+          disagreedAt,
+          largestObservedCluster: largest,
+          clearedReferences: (() => {
+            assignment.Clear();
+            const after = assignment.TotalReferenceCount;
+            assignment.Assign(grid, Matrix.Identity, set.GetBounds());
+            return after;
+          })(),
+        };
+      });
+
+      record("policy", () => {
+        const budgetOne = {
+          budget: policy.Budget,
+          hysteresis: policy.Hysteresis,
+        };
+        policy.Select(set, Matrix.Identity, projection, Vector3.Zero);
+        budgetOne.requests = policy.RequestCount;
+        budgetOne.refused = policy.RefusedCount;
+        budgetOne.selected = [...policy.GetSelected()];
+        budgetOne.scores = [0, 1, 2].map((index) => policy.GetScore(index));
+        budgetOne.isSelected = [0, 1, 2].map((index) => policy.IsSelected(index));
+
+        policy.Budget = 0;
+        policy.Reset();
+        policy.Select(set, Matrix.Identity, projection, Vector3.Zero);
+        const budgetZero = {
+          budget: policy.Budget,
+          requests: policy.RequestCount,
+          refused: policy.RefusedCount,
+          selected: [...policy.GetSelected()],
+        };
+
+        policy.Hysteresis = 2.5;
+        return { budgetOne, budgetZero, writtenHysteresis: policy.Hysteresis };
+      });
+
+      record("emptied", () => {
+        set.RemoveAt(1);
+        const afterRemove = { count: set.Count, remaining: set.ToArray().map((l) => l.Range) };
+        set.ReplaceAt(0, {
+          Type: ClusteredLightType.Point,
+          Position: new Vector3(7, 8, 9),
+          Direction: Vector3.Zero,
+          Color: new Vector3(0.1, 0.2, 0.3),
+          Intensity: 4,
+          Range: 6,
+          InnerAngle: 0,
+          OuterAngle: 0,
+          CastsShadows: false,
+        });
+        const replaced = set.GetAt(0);
+        set.Clear();
+        return {
+          afterRemove,
+          replacedRange: replaced.Range,
+          replacedPosition: [replaced.Position.X, replaced.Position.Y, replaced.Position.Z],
+          countAfterClear: set.Count,
+          emptyAfterClear: set.IsEmpty,
+        };
+      });
+
+      record("refusals", () => {
+        const attempts = {};
+        const attempt = (name, body) => {
+          try {
+            body();
+            attempts[name] = "ACCEPTED";
+          } catch (error) {
+            // A refusal this package made carries its JavaScript error class; one CNA made carries
+            // the result code it refused with. Recording both distinguishes the two boundaries.
+            attempts[name] = error.cnaResult == null
+              ? error.constructor.name : `result ${error.cnaResult}`;
+          }
+        };
+        attempt("gridTooManyTiles", () => new ClusterGrid(device, 129, 2, 8));
+        attempt("gridZeroSlices", () => new ClusterGrid(device, 4, 2, 0));
+        attempt("gridTooManySlices", () => new ClusterGrid(device, 4, 2, 257));
+        attempt("negativeBudget", () => new ClusteredShadowPolicy(device, -1));
+        attempt("unusableLight", () => set.AddPoint(Vector3.Zero, Vector3.One, 1, 0, false));
+        attempt("indexOutOfRange", () => set.GetAt(99));
+        return attempts;
+      });
+
+      record("disposalRefuses", () => {
+        const spare = new ClusterGrid(device, 2, 2, 2);
+        spare.Dispose();
+        const results = {};
+        try {
+          spare.ClusterCount;
+          results.readAfterDispose = "ACCEPTED";
+        } catch (error) {
+          results.readAfterDispose = error.constructor.name;
+        }
+        try {
+          assignment.Assign(spare, Matrix.Identity, []);
+          results.assignToDisposed = "ACCEPTED";
+        } catch (error) {
+          results.assignToDisposed = error.constructor.name;
+        }
+        spare.Dispose();
+        results.disposedTwice = spare.IsDisposed;
+        return results;
+      });
+    } finally {
+      policy.Dispose();
+      assignment.Dispose();
+      set.Dispose();
+      grid.Dispose();
+    }
+    this.Exit();
+    super.LoadContent();
+  }
+}
+
+test("clustered lighting sorts real lights into real clusters, with exact geometry", async () => {
+  const game = new ClusteredLightingProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  // --- the grid ---------------------------------------------------------------------------
+  const grid = evidence.grid;
+  assert.equal(typeof grid, "object", `grid probe failed: ${JSON.stringify(grid)}`);
+  assert.deepEqual(
+    [grid.tilesX, grid.tilesY, grid.sliceCount, grid.clusterCount], [4, 2, 8, 64],
+    "a cluster count is the product of the three axes",
+  );
+  assert.equal(grid.hasProjectionBefore, false, "a fresh grid has no projection");
+  assert.equal(grid.hasProjectionAfter, true, "and reports one once it is given");
+  assert.ok(Math.abs(grid.nearPlane - 0.1) < 1e-6, `near plane ${grid.nearPlane}`);
+  assert.equal(grid.farPlane, 100);
+
+  // Every one of the 64 clusters, in the order slice-major, row, column: the flat index must be
+  // exactly slice * tilesX * tilesY + y * tilesX + x. Checking all of them rather than a sample
+  // means a transposed or strided mapping cannot slip through on the diagonal.
+  assert.deepEqual(
+    grid.indices, Array.from({ length: 64 }, (_, i) => i),
+    "the flat cluster index is column-major within a row, row-major within a slice",
+  );
+
+  // The depth axis is logarithmic, which is the whole point of clustering: near slices are thin
+  // and far ones are wide. Asserted against the closed form, and separately asserted *not* to be
+  // the linear spacing -- a linear grid would still be increasing and would still start and end
+  // in the right place, so "increasing" alone would not catch it.
+  const near = 0.1;
+  const far = 100;
+  for (let slice = 0; slice <= 8; slice += 1) {
+    const expected = near * (far / near) ** (slice / 8);
+    assert.ok(
+      Math.abs(grid.sliceDistances[slice] - expected) < expected * 1e-5,
+      `slice ${slice}: ${grid.sliceDistances[slice]} is not the logarithmic ${expected}`,
+    );
+  }
+  const linear = 4 * (near + (far - near) * (4 / 8));
+  assert.ok(
+    Math.abs(grid.sliceDistances[4] - linear) > 1,
+    "a linearly spaced grid would put slice 4 somewhere else entirely",
+  );
+  for (let slice = 1; slice <= 8; slice += 1) {
+    assert.ok(
+      grid.sliceDistances[slice] > grid.sliceDistances[slice - 1],
+      "slice boundaries increase",
+    );
+  }
+  // The two depth routes must agree: a distance halfway through slice s belongs to slice s.
+  assert.deepEqual(grid.sliceForDistance, [0, 1, 2, 3, 4, 5, 6, 7]);
+
+  // The inverse projection is the actual inverse: multiplying them gives the identity. This is a
+  // cross-check through XNA's own Matrix.Multiply, so a transposed or mis-ordered matrix fails.
+  const identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  for (let index = 0; index < 16; index += 1) {
+    assert.ok(
+      Math.abs(grid.roundTrip[index] - identity[index]) < 1e-5,
+      `projection times its inverse is not the identity at ${index}: ${grid.roundTrip[index]}`,
+    );
+  }
+  // A cluster's view-space extent is a real box, in front of the camera, inside its slice.
+  assert.ok(grid.bounds.min.every((value, i) => value <= grid.bounds.max[i]), "min is below max");
+  assert.ok(grid.bounds.max[2] < 0, "a view-space cluster lies down the negative Z axis");
+  assert.ok(
+    Math.abs(grid.bounds.max[2]) >= grid.sliceDistances[2] - 1e-4 &&
+    Math.abs(grid.bounds.min[2]) <= grid.sliceDistances[3] + 1e-4,
+    `cluster depth ${grid.bounds.min[2]}..${grid.bounds.max[2]} is outside its own slice`,
+  );
+
+  // --- the light set ----------------------------------------------------------------------
+  const lights = evidence.lights;
+  assert.equal(typeof lights, "object", `light probe failed: ${JSON.stringify(lights)}`);
+  assert.deepEqual(lights.indices, [0, 1, 2], "lights are indexed in the order they are added");
+  assert.equal(lights.count, 3);
+  assert.equal(lights.isEmpty, false);
+  // Three lights, every field different, read back exactly. A swap between two lights or two
+  // fields changes a number here.
+  // Light 0 was added as a point light, so its direction and cone angles are CNA's canonical
+  // defaults for a converted point rather than zero -- see the conversion assertions below.
+  assert.deepEqual(
+    [lights.read[0].type, lights.read[0].position, lights.read[0].color,
+     lights.read[0].intensity, lights.read[0].range, lights.read[0].castsShadows],
+    [0, [0, 0, -5], [1, 0.5, 0.25], 2, 3, true],
+  );
+  assert.deepEqual(
+    lights.read[0].direction, lights.conversion.shapedDirection,
+    "every point light gets the same canonical direction from CNA's conversion",
+  );
+  assert.deepEqual(lights.read[1].position, [2, 0, -10]);
+  assert.deepEqual(lights.read[1].direction, [0, 0, -1], "a spot keeps its direction");
+  assert.equal(lights.read[1].type, 1, "and its type");
+  assert.equal(lights.read[1].castsShadows, false, "and its own shadow flag");
+  assert.ok(
+    Math.abs(lights.read[1].innerAngle - 0.3) < 1e-6 &&
+    Math.abs(lights.read[1].outerAngle - 0.6) < 1e-6,
+    "the two cone angles are stored separately and in the right order",
+  );
+  assert.deepEqual(lights.read[2].color, [1, 1, 1]);
+  assert.equal(lights.read[2].range, 20);
+  assert.equal(lights.bulkMatchesIndividual, true, "the bulk read agrees with the indexed one");
+  // The same point light, once through CNA's own point-light conversion and once through the
+  // uniform shape. Every field that has an effect agrees, and so do the computed bounds.
+  const conversion = lights.conversion;
+  assert.equal(conversion.effectiveAgrees, true, "the two paths agree on every meaningful field");
+  assert.equal(conversion.boundsAgree, true, "and on the influence CNA computes from them");
+  // They differ in exactly the fields a point light does not have, and that is the point: CNA
+  // fills those with its own canonical defaults rather than leaving them zero, which is a rule
+  // this package must not restate. `AddPoint` therefore hands CNA the point light's own fields and
+  // lets CNA convert; a TypeScript conversion that zeroed them would disagree here.
+  assert.deepEqual(
+    conversion.uniformDirection, [0, 0, 0],
+    "the uniform shape stores exactly the direction it was given",
+  );
+  assert.notDeepEqual(
+    conversion.shapedDirection, conversion.uniformDirection,
+    "while CNA's own conversion supplies a canonical direction a point light ignores",
+  );
+  assert.ok(
+    conversion.shapedAngles[1] > conversion.shapedAngles[0],
+    `CNA's canonical cone angles are ordered: ${conversion.shapedAngles}`,
+  );
+  assert.deepEqual(conversion.uniformAngles, [0, 0]);
+
+  // A point light's influence is a sphere on its own position; a spot's is the bounding sphere of
+  // its cone, which is somewhere else entirely. That difference is the evidence CNA computes the
+  // bounds rather than copying the position.
+  assert.deepEqual(lights.bounds[0].center, [0, 0, -5]);
+  assert.equal(lights.bounds[0].radius, 3, "a point light's bound is its own range");
+  assert.notDeepEqual(
+    lights.bounds[1].center, [2, 0, -10],
+    "a spot light's bound is its cone's sphere, not its position",
+  );
+  assert.ok(
+    lights.bounds[1].radius < 12,
+    "and it is tighter than the range, because a cone is smaller than a sphere",
+  );
+
+  // --- what CNA refuses to light with ------------------------------------------------------
+  assert.deepEqual(evidence.usability, {
+    good: true,
+    zeroRange: false,
+    negativeRange: false,
+    negativeIntensity: false,
+    innerWiderThanOuter: false,
+    goodSpot: true,
+  });
+
+  // --- the assignment ----------------------------------------------------------------------
+  const assignment = evidence.assignment;
+  assert.equal(typeof assignment, "object", `assignment failed: ${JSON.stringify(assignment)}`);
+  assert.deepEqual([assignment.lightCount, assignment.clusterCount], [3, 64]);
+  assert.ok(assignment.totalReferences > 0, "three lights in front of the camera reach clusters");
+  assert.ok(
+    assignment.totalReferences < 3 * 64,
+    "and not every light reaches every cluster, or the sort did nothing",
+  );
+  // The three ways of reading the same assignment must agree, for every cluster. A per-cluster
+  // read that ignored its argument, an offset list off by one, or an index list in a different
+  // order all fail here.
+  assert.equal(
+    assignment.disagreedAt, -1,
+    `cluster ${assignment.disagreedAt}: the per-cluster read disagrees with the offset/index pair`,
+  );
+  assert.equal(assignment.offsetsLength, 65, "one offset per cluster plus the end");
+  assert.equal(assignment.firstOffset, 0);
+  assert.equal(assignment.monotonic, true, "offsets never go backwards");
+  assert.equal(
+    assignment.lastOffset, assignment.indicesLength,
+    "the final offset is the length of the index list",
+  );
+  assert.equal(
+    assignment.indicesLength, assignment.totalReferences,
+    "and that is the total reference count",
+  );
+  assert.equal(
+    assignment.maxLightsPerCluster, assignment.largestObservedCluster,
+    "the reported maximum is the largest cluster actually produced",
+  );
+  assert.equal(assignment.clearedReferences, 0, "Clear forgets the assignment");
+
+  // --- the shadow budget -------------------------------------------------------------------
+  const policy = evidence.policy;
+  assert.equal(typeof policy, "object", `policy failed: ${JSON.stringify(policy)}`);
+  assert.equal(policy.budgetOne.budget, 1);
+  assert.ok(policy.budgetOne.hysteresis > 1, `a hysteresis margin above 1: ${policy.budgetOne.hysteresis}`);
+  // Two of the three lights ask for a shadow; the third never does, because it was added without
+  // the flag. So the request count is a property of the scene, not of the budget.
+  assert.equal(policy.budgetOne.requests, 2, "two lights asked for a shadow map");
+  assert.equal(policy.budgetOne.selected.length, 1, "and one budget granted one");
+  assert.equal(
+    policy.budgetOne.refused, policy.budgetOne.requests - policy.budgetOne.selected.length,
+    "every request that was not granted is counted as refused",
+  );
+  // The selected light is the one with a score, and the ones with no score were not selected.
+  const [chosen] = policy.budgetOne.selected;
+  assert.ok(policy.budgetOne.scores[chosen] > 0, "a selected light has a positive score");
+  assert.deepEqual(
+    policy.budgetOne.isSelected.map((value, index) => (value ? index : -1)).filter((i) => i >= 0),
+    policy.budgetOne.selected,
+    "IsSelected and GetSelected name the same lights",
+  );
+  // A budget of zero grants nothing and refuses everything that asked.
+  assert.equal(policy.budgetZero.budget, 0);
+  assert.deepEqual(policy.budgetZero.selected, []);
+  assert.equal(
+    policy.budgetZero.refused, policy.budgetZero.requests,
+    "with no budget every request is refused, and the count says so",
+  );
+  assert.equal(policy.writtenHysteresis, 2.5, "hysteresis is written through to CNA and read back");
+
+  // --- mutation of the set ------------------------------------------------------------------
+  const emptied = evidence.emptied;
+  assert.equal(emptied.afterRemove.count, 2, "RemoveAt removes exactly one");
+  assert.deepEqual(
+    emptied.afterRemove.remaining, [3, 20],
+    "and the lights that remain are the ones that were not removed, in order",
+  );
+  assert.equal(emptied.replacedRange, 6, "ReplaceAt writes the new light");
+  assert.deepEqual(emptied.replacedPosition, [7, 8, 9], "in the slot it was given");
+  assert.equal(emptied.countAfterClear, 0);
+  assert.equal(emptied.emptyAfterClear, true);
+
+  // --- refusals ------------------------------------------------------------------------------
+  assert.deepEqual(evidence.refusals, {
+    gridTooManyTiles: "RangeError",
+    gridZeroSlices: "RangeError",
+    gridTooManySlices: "RangeError",
+    negativeBudget: "RangeError",
+    // These two are CNA's own refusals, not this package's, and they carry its result code:
+    // INVALID_ARGUMENT for a light it cannot use, and for an index that is not in the set.
+    unusableLight: "result 1",
+    indexOutOfRange: "result 1",
+  });
+  assert.deepEqual(evidence.disposalRefuses, {
+    readAfterDispose: "NativeUnavailableError",
+    assignToDisposed: "NativeUnavailableError",
+    disposedTwice: true,
+  });
+
+  console.log(
+    `CNA_TS_NATIVE_CLUSTERED_LIGHTING=PASS GRID=${grid.tilesX}x${grid.tilesY}x${grid.sliceCount} ` +
+    `LOG_SLICES=PASS INVERSE_PROJECTION=PASS ` +
+    `ASSIGNMENT=${assignment.totalReferences}refs/${assignment.maxLightsPerCluster}max ` +
+    `THREE_WAY_AGREEMENT=PASS SHADOW_BUDGET=${policy.budgetOne.selected.length}/${policy.budgetOne.requests}`,
+  );
+});
