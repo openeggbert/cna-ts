@@ -14,8 +14,10 @@ import {
   InvalidOperationException,
   ObjectDisposedException,
 } from "../../../../internal/exceptions.js";
+import { getBackend } from "../../../../internal/backend.js";
 import { NativeUnavailableError } from "../../../../internal/native-error.js";
-import type { NativeHandle, NativeResourceLifetime } from "../../../../internal/ownership.js";
+import { NativeResourceLifetime } from "../../../../internal/ownership.js";
+import type { NativeHandle } from "../../../../internal/ownership.js";
 import { resolveVertexCodec } from "../../../../internal/vertex-transfer.js";
 import { Color } from "../Color.js";
 import type { IDisposable, XnaEvent } from "../Contracts.js";
@@ -30,7 +32,7 @@ import {
   GraphicsProfile,
 } from "./DeviceEnums.js";
 import type { DisplayMode } from "./DisplayMode.js";
-import { defaultGraphicsAdapterOrNull, type GraphicsAdapter } from "./GraphicsAdapter.js";
+import { defaultGraphicsAdapterOrNull, GraphicsAdapter } from "./GraphicsAdapter.js";
 import {
   resolveIndexBufferHandleForInternalUse,
   type IndexBuffer,
@@ -210,49 +212,102 @@ export class GraphicsDevice implements IDisposable {
     internalState?: GraphicsDeviceInternalState,
   ) {
     if (internalState) {
-      const viewport = new Viewport(internalState.PresentationParameters.Bounds);
-      const samplerStates = createSamplerStateCollectionForInternalUse(
-        this, 16, SamplerState.LinearWrap,
-        (index, value) => this.#setSamplerState(0, index, value),
-      );
-      const textures = createTextureCollectionForInternalUse(
-        this, 16, (index, value) => this.#setTexture(0, index, value),
-      );
-      const vertexSamplerStates = createSamplerStateCollectionForInternalUse(
-        this, 4, SamplerState.LinearWrap,
-        (index, value) => this.#setSamplerState(1, index, value),
-      );
-      const vertexTextures = createTextureCollectionForInternalUse(
-        this, 4, (index, value) => this.#setTexture(1, index, value),
-      );
-      states.set(this, {
-        ...internalState,
-        PresentationParameters: internalState.PresentationParameters.Clone(),
-        Disposed: false,
-        BlendFactor: Color.White,
-        BlendState: BlendState.Opaque,
-        DepthStencilState: DepthStencilState.Default,
-        Indices: null,
-        MultiSampleMask: -1,
-        RasterizerState: RasterizerState.CullCounterClockwise,
-        ReferenceStencil: 0,
-        ScissorRectangle: internalState.PresentationParameters.Bounds,
-        Viewport: viewport,
-        SamplerStates: samplerStates,
-        Textures: textures,
-        VertexSamplerStates: vertexSamplerStates,
-        VertexTextures: vertexTextures,
-        RenderTargets: [],
-        VertexBuffers: [],
-      });
-      resourceCreatedDispatchers.set(this, this.#resourceCreated);
-      resourceDestroyedDispatchers.set(this, this.#resourceDestroyed);
+      this.#initialise(internalState);
       return;
     }
     if (adapter == null) throw new ArgumentNullException("adapter");
     if (presentationParameters == null) throw new ArgumentNullException("presentationParameters");
-    void graphicsProfile;
-    throw new NativeUnavailableError("Direct GraphicsDevice construction requires a CNA standalone-device route");
+
+    // XNA's public constructor: a device that belongs to no game. CNA's own route takes an adapter
+    // *index* rather than an adapter, and indexes it the way its adapter enumeration reports -- so
+    // the index is this adapter's position in that same list, not a number invented here.
+    const backend = getBackend();
+    if (!backend.IsAvailable || backend.createStandaloneGraphicsDevice == null ||
+        backend.destroyStandaloneGraphicsDevice == null) {
+      throw new NativeUnavailableError(
+        `Direct GraphicsDevice construction requires a CNA standalone-device route: ${backend.Detail}`,
+      );
+    }
+    const adapterIndex = GraphicsAdapter.Adapters.indexOf(adapter);
+    if (adapterIndex < 0) {
+      throw new ArgumentException("adapter is not one of GraphicsAdapter.Adapters");
+    }
+    const parameters = presentationParameters.Clone();
+    const handle = backend.createStandaloneGraphicsDevice(adapterIndex, graphicsProfile, {
+      BackBufferFormat: parameters.BackBufferFormat,
+      BackBufferWidth: parameters.BackBufferWidth,
+      BackBufferHeight: parameters.BackBufferHeight,
+      DepthStencilFormat: parameters.DepthStencilFormat,
+      MultiSampleCount: parameters.MultiSampleCount,
+      PresentationInterval: parameters.PresentationInterval,
+      DisplayOrientation: parameters.DisplayOrientation,
+      RenderTargetUsage: parameters.RenderTargetUsage,
+      IsFullScreen: parameters.IsFullScreen,
+    });
+    // Owned, not borrowed: this device's handle stays valid outside any callback, and releasing it
+    // releases everything made on it -- which is CNA's documented rule for a caller-created device
+    // and the reason its resources do not gate a game's destruction.
+    const release = backend.destroyStandaloneGraphicsDevice.bind(backend);
+    const lifetime = new NativeResourceLifetime({
+      Handle: handle,
+      Ownership: "owned",
+      Release: (value) => release(value),
+      Label: "caller-created GraphicsDevice",
+    });
+    ownedDeviceLifetimes.set(this, lifetime);
+    this.#initialise({
+      Backend: backend,
+      ResolveHandle: () => lifetime.Handle,
+      ParentLifetime: lifetime,
+      Adapter: adapter,
+      GraphicsProfile: graphicsProfile,
+      PresentationParameters: parameters,
+      DisplayMode: null,
+    });
+  }
+
+  /**
+   * Builds the device's state. Shared by both constructor branches so a device a manager made and
+   * one a caller made differ only in where their handle comes from and who releases it.
+   */
+  #initialise(internalState: GraphicsDeviceInternalState): void {
+    const viewport = new Viewport(internalState.PresentationParameters.Bounds);
+    const samplerStates = createSamplerStateCollectionForInternalUse(
+      this, 16, SamplerState.LinearWrap,
+      (index, value) => this.#setSamplerState(0, index, value),
+    );
+    const textures = createTextureCollectionForInternalUse(
+      this, 16, (index, value) => this.#setTexture(0, index, value),
+    );
+    const vertexSamplerStates = createSamplerStateCollectionForInternalUse(
+      this, 4, SamplerState.LinearWrap,
+      (index, value) => this.#setSamplerState(1, index, value),
+    );
+    const vertexTextures = createTextureCollectionForInternalUse(
+      this, 4, (index, value) => this.#setTexture(1, index, value),
+    );
+    states.set(this, {
+      ...internalState,
+      PresentationParameters: internalState.PresentationParameters.Clone(),
+      Disposed: false,
+      BlendFactor: Color.White,
+      BlendState: BlendState.Opaque,
+      DepthStencilState: DepthStencilState.Default,
+      Indices: null,
+      MultiSampleMask: -1,
+      RasterizerState: RasterizerState.CullCounterClockwise,
+      ReferenceStencil: 0,
+      ScissorRectangle: internalState.PresentationParameters.Bounds,
+      Viewport: viewport,
+      SamplerStates: samplerStates,
+      Textures: textures,
+      VertexSamplerStates: vertexSamplerStates,
+      VertexTextures: vertexTextures,
+      RenderTargets: [],
+      VertexBuffers: [],
+    });
+    resourceCreatedDispatchers.set(this, this.#resourceCreated);
+    resourceDestroyedDispatchers.set(this, this.#resourceDestroyed);
   }
 
   public get Adapter(): GraphicsAdapter {
@@ -442,6 +497,14 @@ export class GraphicsDevice implements IDisposable {
     this.#disposing.Dispatch(this, EventArgs.Empty);
     state.Disposed = true;
     if (liveGraphicsDevice === this) liveGraphicsDevice = null;
+    // A device this object created is this object's to release, and releasing it releases every
+    // resource made on it. A device a GraphicsDeviceManager made is not: that one belongs to the
+    // manager, and disposing it here would free a handle the manager still holds.
+    const owned = ownedDeviceLifetimes.get(this);
+    if (owned) {
+      ownedDeviceLifetimes.delete(this);
+      owned.Dispose();
+    }
   }
 
   public DrawIndexedPrimitives(
@@ -768,6 +831,12 @@ export class GraphicsDevice implements IDisposable {
  * "the live one" is unambiguous rather than a guess. A frame texture asked for with no live device
  * refuses instead of inventing one.
  */
+/**
+ * The lifetimes of devices this class created itself, which are the only ones it may release.
+ * A device a GraphicsDeviceManager made is absent from this map.
+ */
+const ownedDeviceLifetimes = new WeakMap<GraphicsDevice, NativeResourceLifetime>();
+
 let liveGraphicsDevice: GraphicsDevice | null = null;
 
 /** The live device, or null when none has been created or the last one was disposed. */

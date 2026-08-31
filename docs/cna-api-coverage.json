@@ -16,22 +16,22 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 876,
+    "NODE": 879,
     "WASM": 247
   },
-  "reachableByAny": 876,
+  "reachableByAny": 879,
   "reachableByAll": 247,
   "reachableExclusively": {
-    "NODE": 629,
+    "NODE": 632,
     "WASM": 0
   },
   "reachabilityByCategory": {
     "XNA_BACKING": {
-      "NODE": 371,
+      "NODE": 373,
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 489,
+      "NODE": 490,
       "WASM": 160
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -110,7 +110,7 @@
     },
     "display.h": {
       "CNA_EXTENSION_BACKING": 22,
-      "REACHABLE_NODE": 13
+      "REACHABLE_NODE": 14
     },
     "effects.h": {
       "XNA_BACKING": 255,
@@ -130,7 +130,7 @@
     },
     "graphics_device.h": {
       "XNA_BACKING": 73,
-      "REACHABLE_NODE": 25,
+      "REACHABLE_NODE": 27,
       "REACHABLE_WASM": 2,
       "CNA_EXTENSION_BACKING": 14
     },
@@ -13319,14 +13319,18 @@
       "header": "graphics_device.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_graphics_device_destroy",
       "header": "graphics_device.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_graphics_device_dispose",
@@ -23411,7 +23415,9 @@
       "header": "display.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_primitive_type_get_vertex_count",

@@ -16,6 +16,7 @@ import type {
   SpotLightSnapshot,
   CnaClusteredLightingBackend,
   CnaComputeBackend,
+  StandaloneDeviceParameters,
   CnaGraphicsExtensionBackend,
   Vector3Snapshot,
   CnaContentBackend,
@@ -557,6 +558,10 @@ interface NativeBridge {
   resetShadowPolicy(policy: bigint): void;
   selectShadowCasters(policy: bigint, lights: bigint, view: readonly number[], projection: readonly number[], cameraPosition: Vector3Snapshot): void;
   destroyClusteredShadowPolicy(policy: bigint): void;
+  createStandaloneGraphicsDevice(
+    adapterIndex: number, graphicsProfile: number, parameters: StandaloneDeviceParameters,
+  ): bigint;
+  destroyStandaloneGraphicsDevice(device: bigint): void;
   supportsGraphicsCapability(device: bigint, capability: number): boolean;
   getMaxComputeWorkGroupCount(device: bigint, axis: number): number;
   getMaxComputeWorkGroupSize(device: bigint, axis: number): number;
@@ -1981,6 +1986,14 @@ export class NodeNativeBackend
   }
   public destroyClusteredShadowPolicy(policy: NativeHandle): void {
     this.#bridge.destroyClusteredShadowPolicy(policy);
+  }
+  public createStandaloneGraphicsDevice(
+    adapterIndex: number, graphicsProfile: number, parameters: StandaloneDeviceParameters,
+  ): NativeHandle {
+    return this.#bridge.createStandaloneGraphicsDevice(adapterIndex, graphicsProfile, parameters);
+  }
+  public destroyStandaloneGraphicsDevice(device: NativeHandle): void {
+    this.#bridge.destroyStandaloneGraphicsDevice(device);
   }
   public supportsGraphicsCapability(device: NativeHandle, capability: number): boolean {
     return this.#bridge.supportsGraphicsCapability(device, capability);

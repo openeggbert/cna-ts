@@ -150,6 +150,31 @@
       "expression": "CNA_CLUSTERED_ASSIGNMENT_MAX_LIGHTS_EXT == INT32_C(1024)",
       "value": 1,
       "reason": "cna-ts publishes this bound as ClusteredAssignmentMaximumLights; a caller sizes a light set or a grid from it, so it is proved against the header rather than copied"
+    },
+    {
+      "expression": "sizeof(CNA_SurfaceFormat)",
+      "value": 4,
+      "reason": "the Node adapter writes this field of CNA_PresentationParameters through a 32-bit word when it builds a caller-created GraphicsDevice, so its width is proved rather than assumed"
+    },
+    {
+      "expression": "sizeof(CNA_DepthFormat)",
+      "value": 4,
+      "reason": "the Node adapter writes this field of CNA_PresentationParameters through a 32-bit word when it builds a caller-created GraphicsDevice, so its width is proved rather than assumed"
+    },
+    {
+      "expression": "sizeof(CNA_PresentInterval)",
+      "value": 4,
+      "reason": "the Node adapter writes this field of CNA_PresentationParameters through a 32-bit word when it builds a caller-created GraphicsDevice, so its width is proved rather than assumed"
+    },
+    {
+      "expression": "sizeof(CNA_DisplayOrientation)",
+      "value": 4,
+      "reason": "the Node adapter writes this field of CNA_PresentationParameters through a 32-bit word when it builds a caller-created GraphicsDevice, so its width is proved rather than assumed"
+    },
+    {
+      "expression": "sizeof(CNA_RenderTargetUsage)",
+      "value": 4,
+      "reason": "the Node adapter writes this field of CNA_PresentationParameters through a 32-bit word when it builds a caller-created GraphicsDevice, so its width is proved rather than assumed"
     }
   ],
   "resultCodes": {

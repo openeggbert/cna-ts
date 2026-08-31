@@ -551,6 +551,9 @@ typedef CNA_Result (*ComputeShaderDispatchFn)(
 typedef CNA_Result (*ComputeShaderBarrierFn)(CNA_ComputeShaderHandle, CNA_GraphicsMemoryBarrier);
 typedef CNA_Result (*GpuTimerDoubleOutFn)(CNA_GpuTimerHandle, double*);
 typedef CNA_Result (*GraphicsCapabilityFn)(CNA_Handle, CNA_GraphicsCapability, CNA_Bool*);
+typedef CNA_Result (*PresentationParametersInitFn)(CNA_PresentationParameters*);
+typedef CNA_Result (*StandaloneDeviceCreateFn)(
+  uint32_t, uint32_t, const CNA_PresentationParameters*, CNA_Handle*);
 typedef CNA_Result (*DeviceAxisI32OutFn)(CNA_Handle, int32_t, int32_t*);
 
 /* --- the extended device layer ---------------------------------------------------------------- */
@@ -1338,6 +1341,9 @@ typedef struct Api {
   GameHandleFn clustered_shadow_policy_destroy;
 
   /* the engine layer's compute path */
+  PresentationParametersInitFn presentation_parameters_init;
+  StandaloneDeviceCreateFn graphics_device_create;
+  GameHandleFn graphics_device_destroy;
   GraphicsCapabilityFn graphics_device_supports_capability;
   DeviceAxisI32OutFn graphics_device_get_max_compute_work_group_count_ext;
   DeviceAxisI32OutFn graphics_device_get_max_compute_work_group_size_ext;
@@ -2542,6 +2548,9 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(clustered_shadow_policy_select, ClusteredSelectFn, "cna_clustered_shadow_policy_select");
   LOAD_REQUIRED(clustered_shadow_policy_destroy, GameHandleFn, "cna_clustered_shadow_policy_destroy");
 
+  LOAD_REQUIRED(presentation_parameters_init, PresentationParametersInitFn, "cna_presentation_parameters_init");
+  LOAD_REQUIRED(graphics_device_create, StandaloneDeviceCreateFn, "cna_graphics_device_create");
+  LOAD_REQUIRED(graphics_device_destroy, GameHandleFn, "cna_graphics_device_destroy");
   LOAD_REQUIRED(graphics_device_supports_capability, GraphicsCapabilityFn, "cna_graphics_device_supports_capability");
   LOAD_REQUIRED(graphics_device_get_max_compute_work_group_count_ext, DeviceAxisI32OutFn, "cna_graphics_device_get_max_compute_work_group_count_ext");
   LOAD_REQUIRED(graphics_device_get_max_compute_work_group_size_ext, DeviceAxisI32OutFn, "cna_graphics_device_get_max_compute_work_group_size_ext");
@@ -13661,6 +13670,70 @@ static napi_value clustered_shadow_policy_select(napi_env env, napi_callback_inf
  * cross-checks against the buffer's declared ones, and a disagreement is CNA's INVALID_ARGUMENT.
  */
 
+/*
+ * A caller-created GraphicsDevice, which is what XNA's public `GraphicsDevice` constructor makes.
+ * It has no game: `cna_graphics_device_create` takes an adapter index and presentation parameters
+ * and nothing else, and the resulting device owns its own resources rather than a game's.
+ *
+ * The presentation parameters are seeded from CNA's own initialiser first, so the reserved bytes
+ * and the two struct-header fields are CNA's rather than this bridge's, and only the fields XNA
+ * actually has are then written over them.
+ */
+static napi_value create_standalone_graphics_device(napi_env env, napi_callback_info info) {
+  napi_value args[3], entry;
+  uint32_t adapterIndex = 0, profile = 0;
+  CNA_PresentationParameters parameters;
+  CNA_Handle device = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      napi_get_value_uint32(env, args[0], &adapterIndex) != napi_ok ||
+      napi_get_value_uint32(env, args[1], &profile) != napi_ok) return NULL;
+  const CNA_Result initialized = g_api.presentation_parameters_init(&parameters);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_presentation_parameters_init", initialized);
+  }
+  struct { const char* name; int isBool; void* target; } fields[] = {
+    {"BackBufferFormat", 0, &parameters.back_buffer_format},
+    {"BackBufferWidth", 0, &parameters.back_buffer_width},
+    {"BackBufferHeight", 0, &parameters.back_buffer_height},
+    {"DepthStencilFormat", 0, &parameters.depth_stencil_format},
+    {"MultiSampleCount", 0, &parameters.multi_sample_count},
+    {"PresentationInterval", 0, &parameters.presentation_interval},
+    {"DisplayOrientation", 0, &parameters.display_orientation},
+    {"RenderTargetUsage", 0, &parameters.render_target_usage},
+    {"IsFullScreen", 1, &parameters.is_full_screen},
+  };
+  for (size_t index = 0; index < sizeof(fields) / sizeof(fields[0]); index += 1) {
+    if (napi_get_named_property(env, args[2], fields[index].name, &entry) != napi_ok) {
+      return throw_message(env, "the presentation parameters are incomplete");
+    }
+    if (fields[index].isBool) {
+      bool flag = false;
+      if (napi_get_value_bool(env, entry, &flag) != napi_ok) {
+        return throw_message(env, "IsFullScreen must be a boolean");
+      }
+      *(CNA_Bool*) fields[index].target = flag ? CNA_TRUE : CNA_FALSE;
+    } else {
+      int32_t value = 0;
+      if (napi_get_value_int32(env, entry, &value) != napi_ok) {
+        return throw_message(env, "a presentation parameter must be a number");
+      }
+      /* Every non-boolean field in this struct is a 32-bit word: the three enum typedefs and
+       * the three counts are all four bytes wide, which the ABI contract asserts. */
+      *(int32_t*) fields[index].target = value;
+    }
+  }
+  const CNA_Result result =
+    g_api.graphics_device_create(adapterIndex, profile, &parameters, &device);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_device_create", result);
+  }
+  return make_handle(env, device);
+}
+
+static napi_value destroy_standalone_graphics_device(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.graphics_device_destroy, "cna_graphics_device_destroy");
+}
+
 static napi_value graphics_device_supports_capability(napi_env env, napi_callback_info info) {
   napi_value args[2], output;
   CNA_Handle device = 0;
@@ -15931,6 +16004,8 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "selectShadowCasters", NULL, clustered_shadow_policy_select, NULL, NULL, NULL, napi_default, NULL },
     { "destroyClusteredShadowPolicy", NULL, clustered_shadow_policy_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "supportsGraphicsCapability", NULL, graphics_device_supports_capability, NULL, NULL, NULL, napi_default, NULL },
+    { "createStandaloneGraphicsDevice", NULL, create_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyStandaloneGraphicsDevice", NULL, destroy_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },
     { "getMaxComputeWorkGroupCount", NULL, get_max_compute_work_group_count, NULL, NULL, NULL, napi_default, NULL },
     { "getMaxComputeWorkGroupSize", NULL, get_max_compute_work_group_size, NULL, NULL, NULL, napi_default, NULL },
     { "getMaxComputeWorkGroupInvocations", NULL, get_max_compute_work_group_invocations, NULL, NULL, NULL, napi_default, NULL },

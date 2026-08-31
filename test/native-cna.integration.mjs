@@ -3211,3 +3211,228 @@ test("clustered lighting sorts real lights into real clusters, with exact geomet
     `THREE_WAY_AGREEMENT=PASS SHADOW_BUDGET=${policy.budgetOne.selected.length}/${policy.budgetOne.requests}`,
   );
 });
+
+
+class StandaloneDeviceProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.manager.PreferredBackBufferWidth = 320;
+    this.manager.PreferredBackBufferHeight = 240;
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const { GraphicsAdapter, GraphicsProfile, PresentationParameters, Texture2D } = Graphics;
+    const record = (name, body) => {
+      try {
+        this.evidence[name] = body();
+      } catch (error) {
+        this.evidence[name] = { refused: error.constructor.name, message: error.message };
+      }
+    };
+
+    // XNA's public constructor needs an adapter, and CNA's route indexes adapters the way its own
+    // enumeration reports them -- which needs a live device. So this runs inside LoadContent, with
+    // the game's device already up, and builds a *second* device beside it.
+    const adapter = GraphicsAdapter.DefaultAdapter;
+    const parameters = new PresentationParameters();
+    // Deliberately different from the game's 320x240, so a device that answered with the game's
+    // state instead of its own is visible rather than plausible.
+    parameters.BackBufferWidth = 64;
+    parameters.BackBufferHeight = 48;
+
+    record("standalone", () => {
+      const own = new Graphics.GraphicsDevice(adapter, GraphicsProfile.Reach, parameters);
+      try {
+        const texture = new Texture2D(own, 2, 2);
+        texture.SetData([Color.Red, Color.Green, Color.Blue, Color.White]);
+        const readback = new Array(4);
+        texture.GetData(readback);
+        const result = {
+          isDistinctObject: own !== this.GraphicsDevice,
+          profile: own.GraphicsProfile,
+          gameProfile: this.GraphicsDevice.GraphicsProfile,
+          size: [own.PresentationParameters.BackBufferWidth, own.PresentationParameters.BackBufferHeight],
+          gameSize: [
+            this.GraphicsDevice.PresentationParameters.BackBufferWidth,
+            this.GraphicsDevice.PresentationParameters.BackBufferHeight,
+          ],
+          viewport: [own.Viewport.Width, own.Viewport.Height],
+          adapterIsTheOneGiven: own.Adapter === adapter,
+          texels: readback.map((color) => color.PackedValue),
+          textureDeviceIsTheStandaloneOne: texture.GraphicsDevice === own,
+          isDisposedBefore: own.IsDisposed,
+        };
+        own.Clear(new Color(12, 34, 56, 255));
+        result.clearAccepted = true;
+        // A resource from one device is not usable with another: XNA's rule, and this is the first
+        // place in this package where two devices exist at once to check it.
+        try {
+          new Graphics.SpriteBatch(this.GraphicsDevice).Draw(texture, Vector2.Zero, Color.White);
+          result.crossDeviceDraw = "ACCEPTED";
+        } catch (error) {
+          result.crossDeviceDraw = error.constructor.name;
+        }
+        texture.Dispose();
+        own.Dispose();
+        result.isDisposedAfter = own.IsDisposed;
+        // Disposing twice is harmless, and the game's own device is untouched by any of it.
+        own.Dispose();
+        result.gameDeviceStillWorks = this.GraphicsDevice.Viewport.Width === 320;
+        return result;
+      } catch (error) {
+        return { failed: `${error.constructor.name}: ${error.message}` };
+      }
+    });
+
+    record("refusals", () => {
+      const attempts = {};
+      const attempt = (name, body) => {
+        try {
+          const made = body();
+          made?.Dispose?.();
+          attempts[name] = "ACCEPTED";
+        } catch (error) {
+          attempts[name] = error.constructor.name;
+        }
+      };
+      attempt("nullAdapter",
+        () => new Graphics.GraphicsDevice(null, GraphicsProfile.Reach, parameters));
+      attempt("nullParameters",
+        () => new Graphics.GraphicsDevice(adapter, GraphicsProfile.Reach, null));
+      attempt("foreignAdapter", () => new Graphics.GraphicsDevice(
+        Object.create(Object.getPrototypeOf(adapter)), GraphicsProfile.Reach, parameters,
+      ));
+      return attempts;
+    });
+
+    // Two devices at once, each with its own presentation parameters, so neither can be reading
+    // the other's state.
+    record("twoAtOnce", () => {
+      const first = new PresentationParameters();
+      first.BackBufferWidth = 16;
+      first.BackBufferHeight = 16;
+      const second = new PresentationParameters();
+      second.BackBufferWidth = 128;
+      second.BackBufferHeight = 96;
+      const a = new Graphics.GraphicsDevice(adapter, GraphicsProfile.Reach, first);
+      const b = new Graphics.GraphicsDevice(adapter, GraphicsProfile.HiDef, second);
+      try {
+        return {
+          sizes: [
+            [a.PresentationParameters.BackBufferWidth, a.PresentationParameters.BackBufferHeight],
+            [b.PresentationParameters.BackBufferWidth, b.PresentationParameters.BackBufferHeight],
+          ],
+          profiles: [a.GraphicsProfile, b.GraphicsProfile],
+          distinct: a !== b,
+        };
+      } finally {
+        a.Dispose();
+        b.Dispose();
+      }
+    });
+
+    // Disposing a *manager*-created device must not release the game's native lifetime -- that
+    // handle belongs to the game, and freeing it here would tear down everything. Read directly
+    // off the lifetime rather than inferred from a later symptom, because the symptom of getting
+    // this wrong is a use-after-free rather than a failed assertion.
+    record("managerDeviceDisposal", () => {
+      const gameLifetime = getBackend().ParentLifetime;
+      const before = gameLifetime.State;
+      this.GraphicsDevice.Dispose();
+      this.deviceDisposed = true;
+      return {
+        before,
+        after: gameLifetime.State,
+        deviceReportsDisposed: this.GraphicsDevice.IsDisposed,
+      };
+    });
+
+    this.Exit();
+    super.LoadContent();
+  }
+
+  Draw(gameTime) {
+    if (!this.deviceDisposed) this.GraphicsDevice.Clear(Color.CornflowerBlue);
+    this.Exit();
+    super.Draw(gameTime);
+  }
+}
+
+test("XNA's public GraphicsDevice constructor makes a real second device", async () => {
+  const game = new StandaloneDeviceProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const own = evidence.standalone;
+  assert.equal(typeof own, "object", `standalone device failed: ${JSON.stringify(own)}`);
+  assert.equal(own.failed, undefined, own.failed);
+  assert.equal(own.isDistinctObject, true, "a caller-created device is not the game's");
+  assert.equal(own.profile, Graphics.GraphicsProfile.Reach, "it keeps the profile it was given");
+  // Its presentation parameters are its own, not the manager's: 64x48 against the game's 320x240.
+  assert.deepEqual(own.size, [64, 48], "the device reports the parameters it was constructed with");
+  assert.deepEqual(own.gameSize, [320, 240], "and the game's device still reports the manager's");
+  assert.deepEqual(own.viewport, [64, 48], "its viewport follows its own back buffer");
+  assert.equal(own.adapterIsTheOneGiven, true, "GraphicsDevice.Adapter is the adapter passed in");
+
+  // A texture created on that device round-trips its exact four texels. This is the assertion that
+  // separates "a handle came back" from "a real device that stores real pixels".
+  assert.deepEqual(
+    own.texels,
+    [Color.Red, Color.Green, Color.Blue, Color.White].map((color) => color.PackedValue),
+    "four exact texels through a caller-created device",
+  );
+  assert.equal(own.textureDeviceIsTheStandaloneOne, true, "the texture belongs to that device");
+  assert.equal(own.clearAccepted, true);
+
+  // XNA forbids using a resource from one device with another, and two devices existing at once is
+  // the only way to check it.
+  assert.notEqual(
+    own.crossDeviceDraw, "ACCEPTED",
+    "a texture from one device must not be drawable through another device's SpriteBatch",
+  );
+
+  assert.equal(own.isDisposedBefore, false);
+  assert.equal(own.isDisposedAfter, true, "Dispose releases a device this package owns");
+  assert.equal(
+    own.gameDeviceStillWorks, true,
+    "and releasing it leaves the game's own device untouched",
+  );
+
+  assert.deepEqual(evidence.refusals, {
+    nullAdapter: "ArgumentNullException",
+    nullParameters: "ArgumentNullException",
+    foreignAdapter: "ArgumentException",
+  });
+
+  // Two caller-created devices alive at once, each answering with its own state.
+  const two = evidence.twoAtOnce;
+  assert.equal(typeof two, "object", `two devices failed: ${JSON.stringify(two)}`);
+  assert.equal(two.distinct, true);
+  assert.deepEqual(two.sizes, [[16, 16], [128, 96]], "neither device reads the other's parameters");
+  assert.deepEqual(
+    two.profiles, [Graphics.GraphicsProfile.Reach, Graphics.GraphicsProfile.HiDef],
+    "nor the other's profile",
+  );
+
+  // The ownership rule, stated where it can be checked: a caller-created device owns its handle
+  // and releases it; a manager-created one does not, and disposing it must leave the game's native
+  // lifetime alive. Without this, a Dispose that released whatever lifetime it found would pass
+  // every other assertion here and free the game's handle in production.
+  const managed = evidence.managerDeviceDisposal;
+  assert.equal(typeof managed, "object", `manager disposal failed: ${JSON.stringify(managed)}`);
+  assert.equal(managed.before, "active", "the game's native lifetime is live before the test");
+  assert.equal(
+    managed.after, "active",
+    "disposing a manager-created GraphicsDevice must not release the game's native lifetime",
+  );
+  assert.equal(managed.deviceReportsDisposed, true, "while the device itself does report disposed");
+
+  console.log(
+    `CNA_TS_NATIVE_STANDALONE_DEVICE=PASS SIZE=${own.size.join("x")} ` +
+    `GAME_SIZE=${own.gameSize.join("x")} TEXELS=EXACT CROSS_DEVICE=${own.crossDeviceDraw} ` +
+    `TWO_AT_ONCE=${two.sizes.map((s) => s.join("x")).join("|")}`,
+  );
+});

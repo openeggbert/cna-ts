@@ -13,14 +13,14 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 62,
+    "VERIFIED_NATIVE": 63,
     "VERIFIED_WEBASSEMBLY": 12,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 1,
     "FIXTURE_PENDING": 3,
     "HARDWARE_PENDING": 6,
     "PLATFORM_PENDING": 3,
-    "UNIMPLEMENTED_CNA_TS": 5,
+    "UNIMPLEMENTED_CNA_TS": 4,
     "LANGUAGE_MAPPING_LIMITATION": 3,
     "NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT": 1
   },
@@ -172,16 +172,6 @@
         "absentRoute:cna_cnb_loader_registry_register",
         "absentRoute:cna_cnb_compile_cnj",
         "absentRoute:cna_cnb_model_get_morph"
-      ]
-    },
-    {
-      "operation": "Direct standalone GraphicsDevice construction",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime exists upstream. GraphicsAdapter itself is now filled -- its fourteen routes are bound and it reports a real adapter on four renderers -- but XNA's GraphicsDevice constructor takes an adapter *and* creates a device from it, and CNA's owned-device route is not reached by any path this package can exercise: every device here comes from a GraphicsDeviceManager. Implementing the standalone constructor would add a second device-creation path with no test able to drive it",
-      "proof": [
-        "absentRoute:cna_graphics_device_create",
-        "absentRoute:cna_graphics_device_destroy"
       ]
     },
     {
@@ -636,6 +626,18 @@
         "route:cna_storage_buffer_get_elements",
         "test:test/windowed-renderer.integration.mjs",
         "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Direct standalone GraphicsDevice construction",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "XNA public GraphicsDevice constructor now creates a real second device beside the game one, with no game of its own: cna_graphics_device_create takes an adapter index and presentation parameters and nothing else. A Texture2D made on it round-trips its four exact texels, its viewport and presentation parameters are its own rather than the manager (64x48 against the game 320x240), two caller-created devices live at once each answering with its own profile and size, and a texture from one device is refused by another device SpriteBatch with InvalidOperationException. The ownership rule is asserted directly off the native lifetime rather than inferred from a symptom: a caller-created device releases its own handle exactly once, and disposing a manager-created device leaves the game native lifetime active -- a Dispose that released whatever lifetime it found passed every other assertion and is caught only by that one. The adapter index is the adapter own position in CNA enumeration, which one physical adapter cannot discriminate, so test/standalone-device.test.mjs supplies two deterministic adapters and proves the index and the reported adapter are both the given one",
+      "proof": [
+        "route:cna_graphics_device_create",
+        "route:cna_graphics_device_destroy",
+        "test:test/native-cna.integration.mjs",
+        "test:test/standalone-device.test.mjs"
       ]
     },
     {

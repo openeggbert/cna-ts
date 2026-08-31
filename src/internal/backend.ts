@@ -24,6 +24,25 @@ import type {
 
 export type BackendKind = "unavailable" | "wasm" | "node-native";
 
+/**
+ * The presentation parameters a caller-created `GraphicsDevice` is made with.
+ *
+ * These are XNA's own fields, in CNA's numbering. CNA seeds the rest of its structure -- the
+ * version header and its reserved bytes -- from its own initialiser, so nothing here restates a
+ * layout this package does not own.
+ */
+export interface StandaloneDeviceParameters {
+  readonly BackBufferFormat: number;
+  readonly BackBufferWidth: number;
+  readonly BackBufferHeight: number;
+  readonly DepthStencilFormat: number;
+  readonly MultiSampleCount: number;
+  readonly PresentationInterval: number;
+  readonly DisplayOrientation: number;
+  readonly RenderTargetUsage: number;
+  readonly IsFullScreen: boolean;
+}
+
 export interface GraphicsManagerConfiguration {
   readonly GraphicsProfile: GraphicsProfile;
   readonly IsFullScreen: boolean;
@@ -1784,6 +1803,15 @@ export interface CnaBackend {
   runGameOneFrame(game: NativeHandle): void;
   exitGame(game: NativeHandle): void;
   destroyGame(game: NativeHandle): void;
+  /**
+   * Creates a GraphicsDevice that belongs to no game, which is what XNA's public `GraphicsDevice`
+   * constructor makes. Optional: a backend without it leaves that constructor refusing by name.
+   */
+  createStandaloneGraphicsDevice?(
+    adapterIndex: number, graphicsProfile: number, parameters: StandaloneDeviceParameters,
+  ): NativeHandle;
+  /** Releases a caller-created device and everything made on it. */
+  destroyStandaloneGraphicsDevice?(device: NativeHandle): void;
   createGraphicsDeviceManager(game: NativeHandle): NativeHandle;
   configureGraphicsDeviceManager(
     manager: NativeHandle,

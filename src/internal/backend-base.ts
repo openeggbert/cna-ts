@@ -106,6 +106,7 @@ import type {
   SoundEffectInstanceSnapshot,
   SpotLightSnapshot,
   SpriteBatchCommand,
+  StandaloneDeviceParameters,
   StockEffectSnapshot,
   StorageDeviceSnapshot,
   TextEditingCandidatesSnapshot,
