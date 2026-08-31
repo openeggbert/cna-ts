@@ -2018,3 +2018,93 @@ verified count equals the imported count again.
 ```
 
 Four of twelve closed. Nothing in `cnanext` was edited from here to make any of them go away.
+
+## 2026-08-31: seven modern-graphics families, and where the next session picks up
+
+Seven families of the CNA engine layer were bound and qualified in one run, each committed on its
+own with its own evidence. `native/cna_node_bridge.c` went from **1014 to 1547 imported symbols**,
+every one of them compiler-verified against the real headers with `NODE_BRIDGE_SIGNATURE_MISMATCHES=0`
+— a gate that earned its keep twice, catching a create route given a plain handle signature and a
+draw route typed `int32_t` where the header says `CNA_PrimitiveType`.
+
+```text
+commit    family                        routes   the evidence that makes it more than "returned success"
+6a79212   post-process passes             93     a LUT this test wrote, applied byte-exactly through
+                                                 both a strip and a volume; the tonemapper predicted
+                                                 texel by texel from CNA's own CPU curve; eight
+                                                 byte-exact identities; CRT scanlines at exactly
+                                                 source x (1 - intensity)
+0e3260f   PBR materials and effects      121     two independent paths into one state -- a whole
+                                                 material applied, read back through the per-field
+                                                 accessors, then through the extractor; ApplyState
+                                                 read back from CNA rather than the wrapper
+b8c5c85   volumetric passes                39     Kasten-Young, Rayleigh-plus-Mie and a fog integral
+                                                 written out from their own closed forms; a
+                                                 three-state fallback ladder that names its missing
+                                                 input
+a376d7a   culling                          24     CNA's frustum culler against this package's own
+                                                 XNA BoundingFrustum on the same geometry
+9113f9f   debug draw                       20     every gizmo read back as its line list: a box's
+                                                 exact ordered edges, a sphere's rings, a frustum's
+                                                 eight BoundingFrustum corners
+5a3edee   HDR display and exposure         35     SMPTE ST 2084 and BT.2087 from their own constants;
+                                                 the composite encode bit-identical to its parts
+e3a6418   render-pipeline settings         26     forty-seven fields moved by offsetof table; floors,
+                                                 refused enums, a preset ladder, a parser that counts
+```
+
+Sixty-two planted binding defects were run across the seven batches. Fifty-eight fail. Four survive
+and are recorded rather than hidden: two are **equivalent mutants** (a Reinhard roll-off and an "are
+these sizes equal" predicate are both symmetric in the arguments the mutation swaps), one cannot be
+observed while upstream finding 20 stands, and one replaces a constant-valued route with the constant
+it returns, which no test can distinguish.
+
+### Gates at the end of the run
+
+```text
+api:verify           TOTAL_DIFFERENCES=0  ALLOWLIST_SIZE=0   (Windows and LIVE profiles)
+verify:runtime       RUNTIME_DIFFERENCES=0   TARGET_TYPES=348
+verify:leaks         INTERNAL_LEAK=0
+audit:cna-abi        IMPORTED=1547  VERIFIED=1547  MISMATCHES=0  MISSING=0
+verify:cna-contract  DIAGNOSTICS=0  ENUM_MEMBER_CLAIMS=978+
+coverage:cna-abi     REACHABLE_NODE=1547  UNEXPLAINED=0  REACHABLE_BUT_DEFERRED=0
+runtime:inventory    ENTRIES=158  CONSISTENCY_GATE=PASS  PROVED=137
+npm test             332/332      native 41/41      windowed 16/16
+```
+
+### Upstream findings 17 to 20, all new here
+
+```text
+17  effect-pass borrow says "do not destroy it" and leaks if obeyed   NEW, measured
+18  a REFUSED cna_game_destroy makes the process segfault at exit     NEW, measured, general
+19  a PBR effect's texture slots have two sources of truth            NEW, measured
+20  the GPU instance culler runs, reports success and culls nothing   NEW, measured
+```
+
+Item 18 is the one to read first: it multiplies every leak finding in the document, and it was found
+by noticing that a probe process died *after* printing everything it meant to print.
+
+### Where the next session picks up
+
+`ACTIONABLE_LOCAL` is **162 unbound engine-layer routes**, by family:
+
+```text
+26  clustered_forward_effect        9  transparent            6  render_target_pool
+17  contact_shadow_pass             9  area_light_brdf_table  2  render_pipeline (draw callbacks)
+16  effect (get/set extras)         8  clustered_light        2  image_based_light_ext
+14  instanced_renderer_ext          7  clustered_light_buffer 2  indirect
+13  weighted_blended_transparency   6  shader_effect_factory  ~15 singles
+```
+
+Two are deliberate non-bindings rather than work, and both are recorded in the bridge beside the
+routes they belong to: the **instanced renderer's object** and
+`cna_debug_draw_add_cluster_slice_gizmo` need a `CNA_ModelMeshPartHandle` and a
+`CNA_ClusteredLightGridHandle` respectively, and this package's `ModelMeshPart` is a managed
+projection with no native handle while the clustered light *grid* is not projected at all. Binding
+either would offer routes that could only ever be handed zero — the same reason
+`cna_lod_group_ext_select` is unbound. The clustered grid is the one worth revisiting: projecting it
+would unlock the cluster-slice gizmo and most of the 15 remaining clustered routes.
+
+The obvious next batch is **`clustered_forward_effect` (26) with `clustered_light` and
+`clustered_light_buffer` (15)**, which are one family and would close the clustered lighting story.
+`contact_shadow_pass` (17) is a screen-space pass and should qualify the way the volumetric ones did.
