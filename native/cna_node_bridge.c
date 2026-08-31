@@ -486,6 +486,37 @@ typedef CNA_Result (*HandleU32Fn)(CNA_Handle, uint32_t);
 
 typedef CNA_Result (*VideoPlayerFrameFn)(CNA_VideoPlayerHandle, CNA_VideoFrameEXT*);
 
+/* --- the engine layer's compute path ---------------------------------------------------------- */
+/*
+ * Storage buffers, compute shaders and GPU timers. The handle typedefs in `engine_layer.h` are all
+ * `CNA_Handle`, so several of these reuse the generic pointer types above; the ones written out
+ * here are the shapes nothing else in this bridge has.
+ */
+typedef CNA_Result (*StorageBufferCreateFn)(CNA_Handle, uint64_t, CNA_StorageBufferHandle*);
+typedef CNA_Result (*StorageBufferCreateTypedFn)(
+  CNA_Handle, uint64_t, uint64_t, CNA_StorageBufferHandle*);
+typedef CNA_Result (*StorageBufferSetBytesFn)(CNA_StorageBufferHandle, const void*, uint64_t);
+typedef CNA_Result (*StorageBufferGetBytesFn)(CNA_StorageBufferHandle, void*, uint64_t);
+typedef CNA_Result (*StorageBufferSetElementsFn)(
+  CNA_StorageBufferHandle, const void*, uint64_t, uint64_t);
+typedef CNA_Result (*StorageBufferGetElementsFn)(
+  CNA_StorageBufferHandle, void*, uint64_t, uint64_t);
+typedef CNA_Result (*ComputeShaderCreateFn)(CNA_Handle, CNA_StringView, CNA_ComputeShaderHandle*);
+typedef CNA_Result (*ComputeShaderUniformIntFn)(CNA_ComputeShaderHandle, CNA_StringView, int32_t);
+typedef CNA_Result (*ComputeShaderUniformFloatFn)(CNA_ComputeShaderHandle, CNA_StringView, float);
+typedef CNA_Result (*ComputeShaderBindBufferFn)(
+  CNA_ComputeShaderHandle, int32_t, CNA_StorageBufferHandle);
+typedef CNA_Result (*ComputeShaderBindTextureFn)(
+  CNA_ComputeShaderHandle, int32_t, CNA_StringView, CNA_Handle);
+typedef CNA_Result (*ComputeShaderBindImageFn)(
+  CNA_ComputeShaderHandle, int32_t, CNA_Handle, CNA_GraphicsImageAccess);
+typedef CNA_Result (*ComputeShaderDispatchFn)(
+  CNA_ComputeShaderHandle, int32_t, int32_t, int32_t);
+typedef CNA_Result (*ComputeShaderBarrierFn)(CNA_ComputeShaderHandle, CNA_GraphicsMemoryBarrier);
+typedef CNA_Result (*GpuTimerDoubleOutFn)(CNA_GpuTimerHandle, double*);
+typedef CNA_Result (*GraphicsCapabilityFn)(CNA_Handle, CNA_GraphicsCapability, CNA_Bool*);
+typedef CNA_Result (*DeviceAxisI32OutFn)(CNA_Handle, int32_t, int32_t*);
+
 /* --- the extended device layer ---------------------------------------------------------------- */
 typedef CNA_Result (*DevicesLocaleCopyFn)(CNA_Handle, uint64_t, char*, uint64_t, uint64_t*);
 typedef CNA_Result (*DevicesIndexSizeFn)(CNA_Handle, uint64_t, uint64_t*);
@@ -1210,6 +1241,45 @@ typedef struct Api {
   GameHandleFn post_process_chain_destroy;
   TwoHandleFn post_process_chain_add_pass;
   TwoHandleFn post_process_chain_add_owned_pass;
+
+  /* the engine layer's compute path */
+  GraphicsCapabilityFn graphics_device_supports_capability;
+  DeviceAxisI32OutFn graphics_device_get_max_compute_work_group_count_ext;
+  DeviceAxisI32OutFn graphics_device_get_max_compute_work_group_size_ext;
+  HandleI32OutFn graphics_device_get_max_compute_work_group_invocations_ext;
+  StorageBufferCreateFn storage_buffer_create;
+  StorageBufferCreateTypedFn storage_buffer_create_typed;
+  StorageBufferSetBytesFn storage_buffer_set_bytes;
+  StorageBufferGetBytesFn storage_buffer_get_bytes;
+  HandleU64OutFn storage_buffer_get_byte_size;
+  StorageBufferSetElementsFn storage_buffer_set_elements;
+  StorageBufferGetElementsFn storage_buffer_get_elements;
+  HandleU64OutFn storage_buffer_get_element_count;
+  HandleU64OutFn storage_buffer_get_element_byte_size;
+  GameHandleFn storage_buffer_destroy;
+  ComputeShaderCreateFn compute_shader_create;
+  ComputeShaderUniformIntFn compute_shader_set_uniform_int;
+  ComputeShaderUniformFloatFn compute_shader_set_uniform_float;
+  ComputeShaderBindBufferFn compute_shader_bind_storage_buffer;
+  ComputeShaderBindTextureFn compute_shader_bind_texture;
+  HandleBoolOutFn compute_shader_is_image_binding_supported;
+  ComputeShaderBindImageFn compute_shader_bind_image;
+  ComputeShaderDispatchFn compute_shader_dispatch;
+  ComputeShaderBarrierFn compute_shader_barrier;
+  HandleBoolOutFn compute_shader_is_valid;
+  HandleCopyStringFn compute_shader_copy_compile_error;
+  GameHandleFn compute_shader_destroy;
+  HandleHandleOutFn gpu_timer_create;
+  HandleBoolOutFn gpu_timer_is_supported;
+  HandleCopyStringFn gpu_timer_copy_unsupported_reason;
+  GameHandleFn gpu_timer_begin;
+  GameHandleFn gpu_timer_end;
+  HandleBoolOutFn gpu_timer_is_result_available;
+  HandleBoolOutFn gpu_timer_poll;
+  GpuTimerDoubleOutFn gpu_timer_get_last_milliseconds;
+  HandleI32OutFn gpu_timer_get_sample_count;
+  HandleBoolOutFn gpu_timer_is_open;
+  GameHandleFn gpu_timer_destroy;
   GameHandleFn post_process_chain_clear;
   HandleI32OutFn post_process_chain_get_pass_count;
   PostProcessChainApplyFn post_process_chain_apply;
@@ -2318,6 +2388,44 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(post_process_chain_destroy, GameHandleFn, "cna_post_process_chain_destroy");
   LOAD_REQUIRED(post_process_chain_add_pass, TwoHandleFn, "cna_post_process_chain_add_pass");
   LOAD_REQUIRED(post_process_chain_add_owned_pass, TwoHandleFn, "cna_post_process_chain_add_owned_pass");
+
+  LOAD_REQUIRED(graphics_device_supports_capability, GraphicsCapabilityFn, "cna_graphics_device_supports_capability");
+  LOAD_REQUIRED(graphics_device_get_max_compute_work_group_count_ext, DeviceAxisI32OutFn, "cna_graphics_device_get_max_compute_work_group_count_ext");
+  LOAD_REQUIRED(graphics_device_get_max_compute_work_group_size_ext, DeviceAxisI32OutFn, "cna_graphics_device_get_max_compute_work_group_size_ext");
+  LOAD_REQUIRED(graphics_device_get_max_compute_work_group_invocations_ext, HandleI32OutFn, "cna_graphics_device_get_max_compute_work_group_invocations_ext");
+  LOAD_REQUIRED(storage_buffer_create, StorageBufferCreateFn, "cna_storage_buffer_create");
+  LOAD_REQUIRED(storage_buffer_create_typed, StorageBufferCreateTypedFn, "cna_storage_buffer_create_typed");
+  LOAD_REQUIRED(storage_buffer_set_bytes, StorageBufferSetBytesFn, "cna_storage_buffer_set_bytes");
+  LOAD_REQUIRED(storage_buffer_get_bytes, StorageBufferGetBytesFn, "cna_storage_buffer_get_bytes");
+  LOAD_REQUIRED(storage_buffer_get_byte_size, HandleU64OutFn, "cna_storage_buffer_get_byte_size");
+  LOAD_REQUIRED(storage_buffer_set_elements, StorageBufferSetElementsFn, "cna_storage_buffer_set_elements");
+  LOAD_REQUIRED(storage_buffer_get_elements, StorageBufferGetElementsFn, "cna_storage_buffer_get_elements");
+  LOAD_REQUIRED(storage_buffer_get_element_count, HandleU64OutFn, "cna_storage_buffer_get_element_count");
+  LOAD_REQUIRED(storage_buffer_get_element_byte_size, HandleU64OutFn, "cna_storage_buffer_get_element_byte_size");
+  LOAD_REQUIRED(storage_buffer_destroy, GameHandleFn, "cna_storage_buffer_destroy");
+  LOAD_REQUIRED(compute_shader_create, ComputeShaderCreateFn, "cna_compute_shader_create");
+  LOAD_REQUIRED(compute_shader_set_uniform_int, ComputeShaderUniformIntFn, "cna_compute_shader_set_uniform_int");
+  LOAD_REQUIRED(compute_shader_set_uniform_float, ComputeShaderUniformFloatFn, "cna_compute_shader_set_uniform_float");
+  LOAD_REQUIRED(compute_shader_bind_storage_buffer, ComputeShaderBindBufferFn, "cna_compute_shader_bind_storage_buffer");
+  LOAD_REQUIRED(compute_shader_bind_texture, ComputeShaderBindTextureFn, "cna_compute_shader_bind_texture");
+  LOAD_REQUIRED(compute_shader_is_image_binding_supported, HandleBoolOutFn, "cna_compute_shader_is_image_binding_supported");
+  LOAD_REQUIRED(compute_shader_bind_image, ComputeShaderBindImageFn, "cna_compute_shader_bind_image");
+  LOAD_REQUIRED(compute_shader_dispatch, ComputeShaderDispatchFn, "cna_compute_shader_dispatch");
+  LOAD_REQUIRED(compute_shader_barrier, ComputeShaderBarrierFn, "cna_compute_shader_barrier");
+  LOAD_REQUIRED(compute_shader_is_valid, HandleBoolOutFn, "cna_compute_shader_is_valid");
+  LOAD_REQUIRED(compute_shader_copy_compile_error, HandleCopyStringFn, "cna_compute_shader_copy_compile_error");
+  LOAD_REQUIRED(compute_shader_destroy, GameHandleFn, "cna_compute_shader_destroy");
+  LOAD_REQUIRED(gpu_timer_create, HandleHandleOutFn, "cna_gpu_timer_create");
+  LOAD_REQUIRED(gpu_timer_is_supported, HandleBoolOutFn, "cna_gpu_timer_is_supported");
+  LOAD_REQUIRED(gpu_timer_copy_unsupported_reason, HandleCopyStringFn, "cna_gpu_timer_copy_unsupported_reason");
+  LOAD_REQUIRED(gpu_timer_begin, GameHandleFn, "cna_gpu_timer_begin");
+  LOAD_REQUIRED(gpu_timer_end, GameHandleFn, "cna_gpu_timer_end");
+  LOAD_REQUIRED(gpu_timer_is_result_available, HandleBoolOutFn, "cna_gpu_timer_is_result_available");
+  LOAD_REQUIRED(gpu_timer_poll, HandleBoolOutFn, "cna_gpu_timer_poll");
+  LOAD_REQUIRED(gpu_timer_get_last_milliseconds, GpuTimerDoubleOutFn, "cna_gpu_timer_get_last_milliseconds");
+  LOAD_REQUIRED(gpu_timer_get_sample_count, HandleI32OutFn, "cna_gpu_timer_get_sample_count");
+  LOAD_REQUIRED(gpu_timer_is_open, HandleBoolOutFn, "cna_gpu_timer_is_open");
+  LOAD_REQUIRED(gpu_timer_destroy, GameHandleFn, "cna_gpu_timer_destroy");
   LOAD_REQUIRED(post_process_chain_clear, GameHandleFn, "cna_post_process_chain_clear");
   LOAD_REQUIRED(post_process_chain_get_pass_count, HandleI32OutFn, "cna_post_process_chain_get_pass_count");
   LOAD_REQUIRED(post_process_chain_apply, PostProcessChainApplyFn, "cna_post_process_chain_apply");
@@ -12476,6 +12584,488 @@ static napi_value get_video_player_frame(napi_env env, napi_callback_info info) 
   return output;
 }
 
+/* --- the engine layer's compute path ----------------------------------------------------------- */
+/*
+ * Storage buffers, compute shaders and GPU timers: the part of the engine layer that computes
+ * rather than draws.
+ *
+ * Two boundaries shape this code. The first is that compute is a *renderer* capability, not just a
+ * build option, so `cna_graphics_device_supports_capability` is bound here beside it -- a caller
+ * that asks first gets a documented `false` rather than a refusal to catch. Measured on this
+ * machine at ABI 0.21.0: HEADLESS, SDL_RENDERER and SOFTWARE all refuse a storage-buffer create
+ * with NOT_SUPPORTED; OPENGLES3 runs the whole family.
+ *
+ * The second is that a storage buffer's payload is bytes. The byte routes take a view and pass
+ * *its own* length, never a length the caller also supplied, so a short array cannot become a
+ * native overrun. The element routes additionally carry the count and element size CNA
+ * cross-checks against the buffer's declared ones, and a disagreement is CNA's INVALID_ARGUMENT.
+ */
+
+static napi_value graphics_device_supports_capability(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle device = 0;
+  uint32_t capability = 0;
+  CNA_Bool supported = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &capability) != napi_ok) return NULL;
+  const CNA_Result result =
+    g_api.graphics_device_supports_capability(device, capability, &supported);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_device_supports_capability", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, supported == CNA_TRUE, &output), "capability answer");
+  return output;
+}
+
+static napi_value device_axis_i32(
+  napi_env env, napi_callback_info info, DeviceAxisI32OutFn route, const char* name
+) {
+  napi_value args[2], output;
+  CNA_Handle device = 0;
+  int32_t axis = 0, value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &axis) != napi_ok) return NULL;
+  const CNA_Result result = route(device, axis, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_int32(env, value, &output), name);
+  return output;
+}
+
+static napi_value get_max_compute_work_group_count(napi_env env, napi_callback_info info) {
+  return device_axis_i32(env, info, g_api.graphics_device_get_max_compute_work_group_count_ext,
+    "cna_graphics_device_get_max_compute_work_group_count_ext");
+}
+
+static napi_value get_max_compute_work_group_size(napi_env env, napi_callback_info info) {
+  return device_axis_i32(env, info, g_api.graphics_device_get_max_compute_work_group_size_ext,
+    "cna_graphics_device_get_max_compute_work_group_size_ext");
+}
+
+static napi_value get_max_compute_work_group_invocations(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.graphics_device_get_max_compute_work_group_invocations_ext,
+    "cna_graphics_device_get_max_compute_work_group_invocations_ext");
+}
+
+/*
+ * A `uint64_t` count argument that must not silently wrap. A JavaScript number that is not a
+ * non-negative safe integer is refused here rather than truncated into a plausible-looking length.
+ */
+static int read_count(napi_env env, napi_value value, uint64_t* out, const char* what) {
+  double number = 0;
+  if (napi_get_value_double(env, value, &number) != napi_ok ||
+      !(number >= 0) || number > 9007199254740991.0 ||
+      number != (double) (uint64_t) number) {
+    throw_message(env, what);
+    return 0;
+  }
+  *out = (uint64_t) number;
+  return 1;
+}
+
+static napi_value storage_buffer_create(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0;
+  uint64_t byteSize = 0;
+  CNA_StorageBufferHandle buffer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      !read_count(env, args[1], &byteSize,
+        "a storage buffer's byte size must be a non-negative safe integer")) return NULL;
+  const CNA_Result result = g_api.storage_buffer_create(device, byteSize, &buffer);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_storage_buffer_create", result);
+  return make_handle(env, buffer);
+}
+
+static napi_value storage_buffer_create_typed(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle device = 0;
+  uint64_t count = 0, elementSize = 0;
+  CNA_StorageBufferHandle buffer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &device) ||
+      !read_count(env, args[1], &count,
+        "a storage buffer's element count must be a non-negative safe integer") ||
+      !read_count(env, args[2], &elementSize,
+        "a storage buffer's element size must be a non-negative safe integer")) return NULL;
+  const CNA_Result result = g_api.storage_buffer_create_typed(device, count, elementSize, &buffer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_storage_buffer_create_typed", result);
+  }
+  return make_handle(env, buffer);
+}
+
+static napi_value storage_buffer_set_bytes(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle buffer = 0;
+  const uint8_t* bytes = NULL;
+  size_t byteLength = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &buffer) ||
+      !read_byte_view(env, args[1], &bytes, &byteLength)) return NULL;
+  /* The length is the view's own, never a separate argument. */
+  const CNA_Result result = g_api.storage_buffer_set_bytes(buffer, bytes, (uint64_t) byteLength);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_storage_buffer_set_bytes", result);
+  return undefined_result(env, "cna_storage_buffer_set_bytes");
+}
+
+static napi_value storage_buffer_get_bytes(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle buffer = 0;
+  uint64_t byteLength = 0;
+  void* data = NULL;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &buffer) ||
+      !read_count(env, args[1], &byteLength,
+        "a read length must be a non-negative safe integer")) return NULL;
+  if (byteLength > SIZE_MAX) return throw_message(env, "the read exceeds the host address space");
+  if (napi_create_buffer(env, (size_t) byteLength, &data, &output) != napi_ok) {
+    return throw_napi(env, "storage-buffer read allocation");
+  }
+  const CNA_Result result = g_api.storage_buffer_get_bytes(buffer, data, byteLength);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_storage_buffer_get_bytes", result);
+  return output;
+}
+
+static napi_value storage_buffer_set_elements(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle buffer = 0;
+  const uint8_t* bytes = NULL;
+  size_t byteLength = 0;
+  uint64_t elementSize = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &buffer) ||
+      !read_byte_view(env, args[1], &bytes, &byteLength) ||
+      !read_count(env, args[2], &elementSize,
+        "an element size must be a non-negative safe integer")) return NULL;
+  if (elementSize == 0) return throw_message(env, "an element size must be positive");
+  if (byteLength % (size_t) elementSize != 0) {
+    return throw_message(env, "the payload is not a whole number of elements");
+  }
+  /* The count is derived from the view rather than trusted from the caller, so the two can never
+   * disagree in a direction that would read past the array. */
+  const CNA_Result result = g_api.storage_buffer_set_elements(
+    buffer, bytes, (uint64_t) (byteLength / (size_t) elementSize), elementSize);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_storage_buffer_set_elements", result);
+  }
+  return undefined_result(env, "cna_storage_buffer_set_elements");
+}
+
+static napi_value storage_buffer_get_elements(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  CNA_Handle buffer = 0;
+  uint64_t count = 0, elementSize = 0;
+  void* data = NULL;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &buffer) ||
+      !read_count(env, args[1], &count,
+        "an element count must be a non-negative safe integer") ||
+      !read_count(env, args[2], &elementSize,
+        "an element size must be a non-negative safe integer")) return NULL;
+  if (elementSize == 0) return throw_message(env, "an element size must be positive");
+  if (count != 0 && elementSize > SIZE_MAX / count) {
+    return throw_message(env, "the read exceeds the host address space");
+  }
+  if (napi_create_buffer(env, (size_t) (count * elementSize), &data, &output) != napi_ok) {
+    return throw_napi(env, "storage-buffer element read allocation");
+  }
+  const CNA_Result result = g_api.storage_buffer_get_elements(buffer, data, count, elementSize);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_storage_buffer_get_elements", result);
+  }
+  return output;
+}
+
+static napi_value storage_buffer_u64(
+  napi_env env, napi_callback_info info, HandleU64OutFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle buffer = 0;
+  uint64_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &buffer)) return NULL;
+  const CNA_Result result = route(buffer, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  if (value > 9007199254740991ULL) {
+    return throw_message(env, "the size exceeds an exact JavaScript integer");
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) value, &output), name);
+  return output;
+}
+
+static napi_value storage_buffer_get_byte_size(napi_env env, napi_callback_info info) {
+  return storage_buffer_u64(env, info, g_api.storage_buffer_get_byte_size,
+    "cna_storage_buffer_get_byte_size");
+}
+static napi_value storage_buffer_get_element_count(napi_env env, napi_callback_info info) {
+  return storage_buffer_u64(env, info, g_api.storage_buffer_get_element_count,
+    "cna_storage_buffer_get_element_count");
+}
+static napi_value storage_buffer_get_element_byte_size(napi_env env, napi_callback_info info) {
+  return storage_buffer_u64(env, info, g_api.storage_buffer_get_element_byte_size,
+    "cna_storage_buffer_get_element_byte_size");
+}
+static napi_value storage_buffer_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.storage_buffer_destroy, "cna_storage_buffer_destroy");
+}
+
+/*
+ * `cna_compute_shader_create` is documented to succeed even when the source does not compile, so
+ * that a caller can read the compiler log through `is_valid` and `copy_compile_error`. The
+ * implementation throws instead, which the C ABI's exception barrier turns into INTERNAL with no
+ * handle -- see docs/upstream-cna-findings.md. Both routes are bound anyway: they are the
+ * documented contract, this binding does not paper over the difference, and
+ * test/native-cna.integration.mjs asserts what CNA actually does today so the day it changes is
+ * visible here.
+ */
+static napi_value compute_shader_create(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0;
+  char* source = NULL;
+  size_t sourceLength = 0;
+  CNA_ComputeShaderHandle shader = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      !read_utf8(env, args[1], &source, &sourceLength)) return NULL;
+  const CNA_StringView view = {source, sourceLength};
+  const CNA_Result result = g_api.compute_shader_create(device, view, &shader);
+  free(source);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_compute_shader_create", result);
+  return make_handle(env, shader);
+}
+
+static napi_value compute_shader_set_uniform_int(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle shader = 0;
+  char* name = NULL;
+  size_t nameLength = 0;
+  int32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &shader) ||
+      !read_utf8(env, args[1], &name, &nameLength)) return NULL;
+  if (napi_get_value_int32(env, args[2], &value) != napi_ok) {
+    free(name);
+    return throw_message(env, "a uniform's integer value must be a number");
+  }
+  const CNA_StringView view = {name, nameLength};
+  const CNA_Result result = g_api.compute_shader_set_uniform_int(shader, view, value);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_compute_shader_set_uniform_int", result);
+  }
+  return undefined_result(env, "cna_compute_shader_set_uniform_int");
+}
+
+static napi_value compute_shader_set_uniform_float(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle shader = 0;
+  char* name = NULL;
+  size_t nameLength = 0;
+  double value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &shader) ||
+      !read_utf8(env, args[1], &name, &nameLength)) return NULL;
+  if (napi_get_value_double(env, args[2], &value) != napi_ok) {
+    free(name);
+    return throw_message(env, "a uniform's float value must be a number");
+  }
+  const CNA_StringView view = {name, nameLength};
+  const CNA_Result result = g_api.compute_shader_set_uniform_float(shader, view, (float) value);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_compute_shader_set_uniform_float", result);
+  }
+  return undefined_result(env, "cna_compute_shader_set_uniform_float");
+}
+
+static napi_value compute_shader_bind_storage_buffer(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle shader = 0, buffer = 0;
+  int32_t binding = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &shader) ||
+      napi_get_value_int32(env, args[1], &binding) != napi_ok ||
+      !read_handle(env, args[2], &buffer)) return NULL;
+  const CNA_Result result = g_api.compute_shader_bind_storage_buffer(shader, binding, buffer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_compute_shader_bind_storage_buffer", result);
+  }
+  return undefined_result(env, "cna_compute_shader_bind_storage_buffer");
+}
+
+static napi_value compute_shader_bind_texture(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle shader = 0, texture = 0;
+  int32_t unit = 0;
+  char* name = NULL;
+  size_t nameLength = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &shader) ||
+      napi_get_value_int32(env, args[1], &unit) != napi_ok ||
+      !read_utf8(env, args[2], &name, &nameLength)) return NULL;
+  if (!read_handle(env, args[3], &texture)) {
+    free(name);
+    return NULL;
+  }
+  const CNA_StringView view = {name, nameLength};
+  const CNA_Result result = g_api.compute_shader_bind_texture(shader, unit, view, texture);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_compute_shader_bind_texture", result);
+  }
+  return undefined_result(env, "cna_compute_shader_bind_texture");
+}
+
+static napi_value compute_shader_bind_image(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle shader = 0, texture = 0;
+  int32_t unit = 0;
+  uint32_t access = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &shader) ||
+      napi_get_value_int32(env, args[1], &unit) != napi_ok ||
+      !read_handle(env, args[2], &texture) ||
+      napi_get_value_uint32(env, args[3], &access) != napi_ok) return NULL;
+  const CNA_Result result = g_api.compute_shader_bind_image(shader, unit, texture, access);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_compute_shader_bind_image", result);
+  }
+  return undefined_result(env, "cna_compute_shader_bind_image");
+}
+
+static napi_value compute_shader_dispatch(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle shader = 0;
+  int32_t x = 0, y = 0, z = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &shader) ||
+      napi_get_value_int32(env, args[1], &x) != napi_ok ||
+      napi_get_value_int32(env, args[2], &y) != napi_ok ||
+      napi_get_value_int32(env, args[3], &z) != napi_ok) return NULL;
+  const CNA_Result result = g_api.compute_shader_dispatch(shader, x, y, z);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_compute_shader_dispatch", result);
+  return undefined_result(env, "cna_compute_shader_dispatch");
+}
+
+static napi_value compute_shader_barrier(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle shader = 0;
+  uint32_t bits = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &shader) ||
+      napi_get_value_uint32(env, args[1], &bits) != napi_ok) return NULL;
+  const CNA_Result result = g_api.compute_shader_barrier(shader, bits);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_compute_shader_barrier", result);
+  return undefined_result(env, "cna_compute_shader_barrier");
+}
+
+/*
+ * Neither of the two copy-text routes here has a separate size route: CNA's contract is to ask
+ * with a zero capacity first, which reports the byte count without writing anything.
+ */
+static napi_value copy_sized_text(
+  napi_env env, napi_callback_info info, HandleCopyStringFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle handle = 0;
+  uint64_t length = 0, copied = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &handle)) return NULL;
+  CNA_Result result = route(handle, NULL, 0, &length);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, name, result);
+  }
+  if (length > SIZE_MAX) return throw_message(env, "native string exceeds host address space");
+  char* value = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !value) return throw_message(env, "native string allocation failed");
+  result = route(handle, value, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(value);
+    return throw_result(env, name, result);
+  }
+  const napi_status status =
+    napi_create_string_utf8(env, value ? value : "", (size_t) length, &output);
+  free(value);
+  if (status != napi_ok) return throw_napi(env, name);
+  return output;
+}
+
+static napi_value compute_shader_copy_compile_error(napi_env env, napi_callback_info info) {
+  return copy_sized_text(env, info, g_api.compute_shader_copy_compile_error,
+    "cna_compute_shader_copy_compile_error");
+}
+static napi_value compute_shader_is_valid(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.compute_shader_is_valid, "cna_compute_shader_is_valid");
+}
+static napi_value compute_shader_is_image_binding_supported(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.compute_shader_is_image_binding_supported,
+    "cna_compute_shader_is_image_binding_supported");
+}
+static napi_value compute_shader_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.compute_shader_destroy, "cna_compute_shader_destroy");
+}
+
+/*
+ * A GPU timer creates on every renderer, including those with no timer query at all: CNA answers
+ * that through `is_supported` and a written reason rather than by refusing the create. Measured:
+ * HEADLESS creates one and reports unsupported with a reason naming the missing GL extension,
+ * OPENGLES3 reports supported, and SDL_RENDERER and SOFTWARE refuse the create outright.
+ */
+static napi_value gpu_timer_create(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle device = 0, timer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  const CNA_Result result = g_api.gpu_timer_create(device, &timer);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_gpu_timer_create", result);
+  return make_handle(env, timer);
+}
+
+static napi_value gpu_timer_copy_unsupported_reason(napi_env env, napi_callback_info info) {
+  return copy_sized_text(env, info, g_api.gpu_timer_copy_unsupported_reason,
+    "cna_gpu_timer_copy_unsupported_reason");
+}
+static napi_value gpu_timer_is_supported(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.gpu_timer_is_supported, "cna_gpu_timer_is_supported");
+}
+static napi_value gpu_timer_is_result_available(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.gpu_timer_is_result_available,
+    "cna_gpu_timer_is_result_available");
+}
+static napi_value gpu_timer_poll(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.gpu_timer_poll, "cna_gpu_timer_poll");
+}
+static napi_value gpu_timer_is_open(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.gpu_timer_is_open, "cna_gpu_timer_is_open");
+}
+static napi_value gpu_timer_get_sample_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.gpu_timer_get_sample_count, "cna_gpu_timer_get_sample_count");
+}
+static napi_value gpu_timer_get_last_milliseconds(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle timer = 0;
+  double value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &timer)) return NULL;
+  const CNA_Result result = g_api.gpu_timer_get_last_milliseconds(timer, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gpu_timer_get_last_milliseconds", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, value, &output), "GPU timer measurement");
+  return output;
+}
+static napi_value gpu_timer_begin(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.gpu_timer_begin, "cna_gpu_timer_begin");
+}
+static napi_value gpu_timer_end(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.gpu_timer_end, "cna_gpu_timer_end");
+}
+static napi_value gpu_timer_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.gpu_timer_destroy, "cna_gpu_timer_destroy");
+}
+
 /* --- the extended device layer ---------------------------------------------------------------- */
 /*
  * Host facts a game reads once at startup: how many cores it has, how much memory, whether it is on
@@ -14251,6 +14841,43 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "setPostProcessChainGpuTimingEnabled", NULL, post_process_chain_set_gpu_timing, NULL, NULL, NULL, napi_default, NULL },
     { "applyPostProcessChain", NULL, post_process_chain_apply, NULL, NULL, NULL, napi_default, NULL },
     { "getPostProcessChainPassTimings", NULL, post_process_chain_timings, NULL, NULL, NULL, napi_default, NULL },
+    { "supportsGraphicsCapability", NULL, graphics_device_supports_capability, NULL, NULL, NULL, napi_default, NULL },
+    { "getMaxComputeWorkGroupCount", NULL, get_max_compute_work_group_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getMaxComputeWorkGroupSize", NULL, get_max_compute_work_group_size, NULL, NULL, NULL, napi_default, NULL },
+    { "getMaxComputeWorkGroupInvocations", NULL, get_max_compute_work_group_invocations, NULL, NULL, NULL, napi_default, NULL },
+    { "createStorageBuffer", NULL, storage_buffer_create, NULL, NULL, NULL, napi_default, NULL },
+    { "createTypedStorageBuffer", NULL, storage_buffer_create_typed, NULL, NULL, NULL, napi_default, NULL },
+    { "setStorageBufferBytes", NULL, storage_buffer_set_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "getStorageBufferBytes", NULL, storage_buffer_get_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "getStorageBufferByteSize", NULL, storage_buffer_get_byte_size, NULL, NULL, NULL, napi_default, NULL },
+    { "setStorageBufferElements", NULL, storage_buffer_set_elements, NULL, NULL, NULL, napi_default, NULL },
+    { "getStorageBufferElements", NULL, storage_buffer_get_elements, NULL, NULL, NULL, napi_default, NULL },
+    { "getStorageBufferElementCount", NULL, storage_buffer_get_element_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getStorageBufferElementByteSize", NULL, storage_buffer_get_element_byte_size, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyStorageBuffer", NULL, storage_buffer_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "createComputeShader", NULL, compute_shader_create, NULL, NULL, NULL, napi_default, NULL },
+    { "setComputeShaderUniformInt", NULL, compute_shader_set_uniform_int, NULL, NULL, NULL, napi_default, NULL },
+    { "setComputeShaderUniformFloat", NULL, compute_shader_set_uniform_float, NULL, NULL, NULL, napi_default, NULL },
+    { "bindComputeStorageBuffer", NULL, compute_shader_bind_storage_buffer, NULL, NULL, NULL, napi_default, NULL },
+    { "bindComputeTexture", NULL, compute_shader_bind_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "isComputeImageBindingSupported", NULL, compute_shader_is_image_binding_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "bindComputeImage", NULL, compute_shader_bind_image, NULL, NULL, NULL, napi_default, NULL },
+    { "dispatchComputeShader", NULL, compute_shader_dispatch, NULL, NULL, NULL, napi_default, NULL },
+    { "computeShaderBarrier", NULL, compute_shader_barrier, NULL, NULL, NULL, napi_default, NULL },
+    { "isComputeShaderValid", NULL, compute_shader_is_valid, NULL, NULL, NULL, napi_default, NULL },
+    { "getComputeShaderCompileError", NULL, compute_shader_copy_compile_error, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyComputeShader", NULL, compute_shader_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "createGpuTimer", NULL, gpu_timer_create, NULL, NULL, NULL, napi_default, NULL },
+    { "isGpuTimerSupported", NULL, gpu_timer_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "getGpuTimerUnsupportedReason", NULL, gpu_timer_copy_unsupported_reason, NULL, NULL, NULL, napi_default, NULL },
+    { "beginGpuTimer", NULL, gpu_timer_begin, NULL, NULL, NULL, napi_default, NULL },
+    { "endGpuTimer", NULL, gpu_timer_end, NULL, NULL, NULL, napi_default, NULL },
+    { "isGpuTimerResultAvailable", NULL, gpu_timer_is_result_available, NULL, NULL, NULL, napi_default, NULL },
+    { "pollGpuTimer", NULL, gpu_timer_poll, NULL, NULL, NULL, napi_default, NULL },
+    { "getGpuTimerLastMilliseconds", NULL, gpu_timer_get_last_milliseconds, NULL, NULL, NULL, napi_default, NULL },
+    { "getGpuTimerSampleCount", NULL, gpu_timer_get_sample_count, NULL, NULL, NULL, napi_default, NULL },
+    { "isGpuTimerOpen", NULL, gpu_timer_is_open, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyGpuTimer", NULL, gpu_timer_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "getVideoPlayerFrame", NULL, get_video_player_frame, NULL, NULL, NULL, napi_default, NULL },
     { "isDeviceExtensionLayerAvailable", NULL, devices_ext_available, NULL, NULL, NULL, napi_default, NULL },
     { "getHostDeviceInfo", NULL, get_host_device_info, NULL, NULL, NULL, napi_default, NULL },

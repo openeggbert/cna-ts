@@ -12,7 +12,8 @@ verified here** — see items 3 and 4 below.
 
 Re-checked against `cnanext` 599d14e5 (CNA C ABI 0.21.0) on 2026-08-31. Items 5 and 6 are new,
 found while projecting the sensor families; item 7 is new, found while widening the windowed
-qualification to three renderers.
+qualification to three renderers; items 8 and 9 are new, found while projecting the engine
+layer's compute path.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -251,3 +252,99 @@ renderer it is pointed at and **asserts this defect as measured** for OPENGLES3 
 fails when it is repaired, which is what it is for — while asserting the exact texels on
 SDL_RENDERER and SOFTWARE, which both produce them. The windowed pixel qualification therefore
 still exists; it has moved to the two renderers that currently earn it.
+
+## 8. `cna_compute_shader_create` cannot behave as its own header documents
+
+**Measured:** CNA ABI 0.21.0, revision 599d14e5, `CNA_GRAPHICS_RENDERER=OPENGLES3` under Xvfb.
+
+`engine_layer.h` documents creation as succeeding for source that does not compile, so that a
+caller can read the compiler's log:
+
+> Creation succeeds even when the source does not compile: ask `cna_compute_shader_is_valid` and
+> read `cna_compute_shader_copy_compile_error`. That mirrors the canonical class, which records
+> the failure rather than throwing, because a renderer without compute is a documented boundary
+> rather than a defect.
+
+The canonical class does throw. `modules/graphics-ext/src/ComputeShader.cpp:35`:
+
+```cpp
+        if (!renderer_->IsValid())
+        {
+            compileError_ = renderer_->GetCompileError();
+            throw std::runtime_error("CNA::Graphics::ComputeShader: the program did not compile: "
+                                     + compileError_);
+        }
+```
+
+`cna_compute_shader_create` constructs that class inside `CallWithExceptionBarrier`, so the throw
+becomes `CNA_RESULT_INTERNAL` and `*out_shader` is left invalid. Measured with a shader containing
+`void main() { this is not glsl }`:
+
+```text
+create -> 12 (INTERNAL), out_shader = 0
+the compile log is unreachable: no handle was produced
+```
+
+The consequence is that `cna_compute_shader_is_valid` can never answer `false` and
+`cna_compute_shader_copy_compile_error` can never return a non-empty log — the two routes exist
+only to describe a case that no reachable handle can be in. A caller that follows the header gets
+a refusal it was told not to expect; one that follows the implementation never uses either route.
+
+**Not a blocker.** A compile failure is still reported, with the compiler's log in the exception
+message, and CNA's own `ComputeTest.ABrokenShaderThrowsWithItsCompilerLog` asserts exactly the
+throwing behaviour — so the header is the part that is out of date, not the code. Either half could
+be made to match the other; which one is upstream's call.
+
+**Detector in cna-ts:** `test/windowed-renderer.integration.mjs` asserts the behaviour as measured
+(`created: false`, `cnaResult: 12`) with a message naming this finding, so the day the header and
+the implementation agree, that assertion fails rather than the difference going unnoticed.
+`ComputeShader.IsValid` and `ComputeShader.CompileError` are projected regardless, because they are
+the documented contract.
+
+## 9. OPENGLES3 compute work-group limits go to zero at the first draw and never return
+
+**Measured:** CNA ABI 0.21.0, revision 599d14e5, `CNA_GRAPHICS_RENDERER=OPENGLES3`, Mesa 25.0.7
+(OpenGL ES 3.2), under Xvfb. All three `_ext` limit routes, read repeatedly on one device:
+
+```text
+                                    supports(COMPUTE)   sizeX/invocations, three reads
+1. fresh device                     true                1024/1024  1024/1024  1024/1024
+2. immediately again                true                1024/1024  1024/1024  1024/1024
+3. after one device.Clear()         true                   0/0        0/0        0/0
+4. again, no operation in between   true                   0/0        0/0        0/0
+5. while a render target is bound   true                   0/0        0/0        0/0
+6. unbound again                    true                   0/0        0/0        0/0
+7. render target disposed           true                   0/0        0/0        0/0
+```
+
+One `Clear` is enough, and the values never come back for the life of the device.
+
+What makes this a defect rather than a boundary is that everything around it keeps working.
+`cna_graphics_device_supports_capability(CNA_GRAPHICS_CAPABILITY_COMPUTE_SHADERS)` keeps answering
+`true`, and compute keeps producing exact results: a 64-element dispatch measured immediately after
+the zeroed read still computes `values[i] * uScale + uOffset + i` correctly for every element. So
+the device reports that it supports compute, computes correctly, and simultaneously reports that
+its maximum work-group size is zero — which no legal dispatch could satisfy.
+
+CNA's own `ComputeTest.TheCapabilityAndTheLimitsAgreeWithEachOther` checks exactly this agreement:
+
+> a device that claims compute must be able to say how large a dispatch it takes, and one that does
+> not must report zero rather than a plausible-looking number
+
+It passes on this renderer, because the test's fixture is a bare `GraphicsDevice` that never draws
+before asking. That is why the disagreement is invisible upstream.
+
+The zeros are the correct answer on a renderer with no compute at all — HEADLESS reports
+`[[0,0],[0,0],[0,0]]` and `supports(COMPUTE) == false`, which agree — so the defect is specifically
+the combination of `true` support with zero limits, and only after a draw.
+
+**Relationship to finding 7.** Both are OPENGLES3, both are a GL read returning zeros where the
+renderer's own context ought to be current, and both appeared at the same revision. They are
+recorded separately because only one mechanism is hypothesised, and this one has a sharper trigger
+that a bisection could use: the transition happens at the first draw, on a device that is otherwise
+fully working.
+
+**Detector in cna-ts:** `test/windowed-renderer.integration.mjs` reads the limits before anything
+draws — the only point at which they are meaningful — and then asserts the zeros after one `Clear`,
+together with the capability query still answering `true`. Both halves have to change together for
+that assertion to pass again, which is what a repair would look like.

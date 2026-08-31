@@ -30,6 +30,106 @@
       "expression": "(uint64_t) CNA_INVALID_HANDLE",
       "value": 0,
       "reason": "the adapter treats 0n as the absent handle"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_THREE_D == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_THREE_D)",
+      "value": 1,
+      "reason": "the THREE_D capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_DEPTH_STENCIL_BUFFER == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_DEPTH_STENCIL_BUFFER)",
+      "value": 1,
+      "reason": "the DEPTH_STENCIL_BUFFER capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_MULTI_SAMPLE_ANTI_ALIASING == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_MULTI_SAMPLE_ANTI_ALIASING)",
+      "value": 1,
+      "reason": "the MULTI_SAMPLE_ANTI_ALIASING capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_MULTIPLE_RENDER_TARGETS == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_MULTIPLE_RENDER_TARGETS)",
+      "value": 1,
+      "reason": "the MULTIPLE_RENDER_TARGETS capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_ANISOTROPIC_FILTERING == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_ANISOTROPIC_FILTERING)",
+      "value": 1,
+      "reason": "the ANISOTROPIC_FILTERING capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_WIRE_FRAME == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_WIRE_FRAME)",
+      "value": 1,
+      "reason": "the WIRE_FRAME capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_OCCLUSION_QUERY == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_OCCLUSION_QUERY)",
+      "value": 1,
+      "reason": "the OCCLUSION_QUERY capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_CUSTOM_EFFECTS == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_CUSTOM_EFFECTS)",
+      "value": 1,
+      "reason": "the CUSTOM_EFFECTS capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_TEXTURE_3D == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_TEXTURE_3D)",
+      "value": 1,
+      "reason": "the TEXTURE_3D capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_MULTI_STREAM_VERTEX_INPUT == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_MULTI_STREAM_VERTEX_INPUT)",
+      "value": 1,
+      "reason": "the MULTI_STREAM_VERTEX_INPUT capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_INSTANCING == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_INSTANCING)",
+      "value": 1,
+      "reason": "the INSTANCING capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_STENCIL_BUFFER == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_STENCIL_BUFFER)",
+      "value": 1,
+      "reason": "the STENCIL_BUFFER capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_ADDITIVE_BLENDING == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_ADDITIVE_BLENDING)",
+      "value": 1,
+      "reason": "the ADDITIVE_BLENDING capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_COMPILED_EFFECTS == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_COMPILED_EFFECTS)",
+      "value": 1,
+      "reason": "the COMPILED_EFFECTS capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_FLOAT_RENDER_TARGETS == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_FLOAT_RENDER_TARGETS)",
+      "value": 1,
+      "reason": "the FLOAT_RENDER_TARGETS capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_HALF_FLOAT_RENDER_TARGETS == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_HALF_FLOAT_RENDER_TARGETS)",
+      "value": 1,
+      "reason": "the HALF_FLOAT_RENDER_TARGETS capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_HALF_FLOAT_TEXTURE_LINEAR_FILTERING == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_HALF_FLOAT_TEXTURE_LINEAR_FILTERING)",
+      "value": 1,
+      "reason": "the HALF_FLOAT_TEXTURE_LINEAR_FILTERING capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_COMPUTE_SHADERS == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_COMPUTE_SHADERS)",
+      "value": 1,
+      "reason": "the COMPUTE_SHADERS capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_FLAG_INDIRECT_DRAW == (UINT64_C(1) << CNA_GRAPHICS_CAPABILITY_INDIRECT_DRAW)",
+      "value": 1,
+      "reason": "the INDIRECT_DRAW capability bit is one shifted by its ordinal, which is what lets a capability answer be checked against the renderer capability mask"
+    },
+    {
+      "expression": "CNA_GRAPHICS_CAPABILITY_MAXIMUM == CNA_GRAPHICS_CAPABILITY_INDIRECT_DRAW",
+      "value": 1,
+      "reason": "GraphicsCapability projects every capability up to the maximum; a new one added upstream moves this sentinel and fails here"
     }
   ],
   "resultCodes": {
@@ -118,6 +218,26 @@
       "CNA_GAMER_ZONE_MAXIMUM",
       "CNA_GAME_DIFFICULTY_MAXIMUM",
       "CNA_GESTURE_TYPE_ALL",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_ADDITIVE_BLENDING",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_ANISOTROPIC_FILTERING",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_COMPILED_EFFECTS",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_COMPUTE_SHADERS",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_CUSTOM_EFFECTS",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_DEPTH_STENCIL_BUFFER",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_FLOAT_RENDER_TARGETS",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_HALF_FLOAT_RENDER_TARGETS",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_HALF_FLOAT_TEXTURE_LINEAR_FILTERING",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_INDIRECT_DRAW",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_INSTANCING",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_MULTIPLE_RENDER_TARGETS",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_MULTI_SAMPLE_ANTI_ALIASING",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_MULTI_STREAM_VERTEX_INPUT",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_OCCLUSION_QUERY",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_STENCIL_BUFFER",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_TEXTURE_3D",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_THREE_D",
+      "CNA_GRAPHICS_CAPABILITY_FLAG_WIRE_FRAME",
+      "CNA_GRAPHICS_CAPABILITY_MAXIMUM",
       "CNA_GRAPHICS_RENDERER_FALLBACK_MAXIMUM",
       "CNA_GRAPHICS_RENDERER_MAXIMUM",
       "CNA_HAPTIC_FEATURE_ALL",
@@ -698,6 +818,21 @@
         "SizeNwse": "SIZE_NWSE",
         "SizeWe": "SIZE_WE"
       }
+    },
+    {
+      "typeScriptEnum": "GraphicsCapability",
+      "cnaPrefix": "CNA_GRAPHICS_CAPABILITY",
+      "suffixOverrides": {
+        "Texture3D": "TEXTURE_3D"
+      }
+    },
+    {
+      "typeScriptEnum": "GraphicsImageAccess",
+      "cnaPrefix": "CNA_GRAPHICS_IMAGE_ACCESS"
+    },
+    {
+      "typeScriptEnum": "GraphicsMemoryBarrier",
+      "cnaPrefix": "CNA_GRAPHICS_MEMORY_BARRIER"
     }
   ]
 }

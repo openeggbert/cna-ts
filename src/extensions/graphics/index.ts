@@ -14,7 +14,7 @@
  */
 
 import { getBackend } from "../../internal/backend.js";
-import type { CnaGraphicsExtensionBackend } from "../../internal/backend.js";
+import type { CnaComputeBackend, CnaGraphicsExtensionBackend } from "../../internal/backend.js";
 import { NativeUnavailableError } from "../../internal/native-error.js";
 import { Color } from "../../Microsoft/Xna/Framework/Color.js";
 import type { GraphicsDevice } from "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
@@ -679,3 +679,501 @@ export class PostProcessChain implements IDisposable {
 }
 
 export { IsGraphicsExtensionLayerAvailable } from "../runtime/index.js";
+
+
+/* --- the compute path ---------------------------------------------------------------------------
+ *
+ * Storage buffers, compute shaders and GPU timers: the engine layer's general-purpose GPU work,
+ * which XNA 4.0 had no concept of at all.
+ *
+ * This family answers to a boundary the post-process family does not. A post-process pass needs the
+ * extended layer to have been *compiled in*; compute additionally needs the *renderer* to implement
+ * it, and those are different questions with different answers on the same build. So
+ * {@link GraphicsDeviceCapabilities.Supports} is part of the public surface rather than an
+ * implementation detail: ask before creating, and a renderer that cannot compute says so instead of
+ * throwing. Measured against CNA 0.21.0 on this project's own qualification renderers: OPENGLES3
+ * computes; HEADLESS, SDL_RENDERER and SOFTWARE do not.
+ *
+ * Every object here owns a GPU resource and must be disposed. A device handle may be borrowed only
+ * inside a game lifecycle callback, so all of them are constructed from `LoadContent` or another
+ * callback -- the same rule XNA's own graphics resources follow.
+ */
+
+/** A capability a renderer either implements or does not, asked before it is used. */
+export enum GraphicsCapability {
+  ThreeD = 0,
+  DepthStencilBuffer = 1,
+  MultiSampleAntiAliasing = 2,
+  MultipleRenderTargets = 3,
+  AnisotropicFiltering = 4,
+  WireFrame = 5,
+  OcclusionQuery = 6,
+  CustomEffects = 7,
+  Texture3D = 8,
+  MultiStreamVertexInput = 9,
+  Instancing = 10,
+  StencilBuffer = 11,
+  AdditiveBlending = 12,
+  CompiledEffects = 13,
+  FloatRenderTargets = 14,
+  HalfFloatRenderTargets = 15,
+  HalfFloatTextureLinearFiltering = 16,
+  ComputeShaders = 17,
+  IndirectDraw = 18,
+}
+
+/** How a compute shader may touch an image it has bound. */
+export enum GraphicsImageAccess {
+  ReadOnly = 0,
+  WriteOnly = 1,
+  ReadWrite = 2,
+}
+
+/**
+ * Which accesses a {@link ComputeShader.Barrier} orders. These are flags: combine them with `|`.
+ */
+export enum GraphicsMemoryBarrier {
+  None = 0,
+  VertexAttribArray = 1 << 0,
+  ElementArray = 1 << 1,
+  Uniform = 1 << 2,
+  TextureFetch = 1 << 3,
+  ShaderImageAccess = 1 << 4,
+  ShaderStorage = 1 << 5,
+  BufferUpdate = 1 << 6,
+  Framebuffer = 1 << 7,
+  IndirectCommand = 1 << 8,
+  /** Every bit above. What a caller that has just written a buffer from a shader wants. */
+  All = (1 << 9) - 1,
+}
+
+/**
+ * A storage buffer's live handle, for the one caller in this module that needs it.
+ *
+ * `ComputeShader.BindStorageBuffer` takes a `StorageBuffer` rather than a handle, so the handle has
+ * to cross between two classes without becoming public API. A disposed buffer is absent from the
+ * map, which is what makes binding one a named refusal rather than a stale handle reaching CNA.
+ */
+const storageBufferHandles = new WeakMap<StorageBuffer, NativeHandle>();
+
+function storageBufferHandle(buffer: StorageBuffer): NativeHandle {
+  const handle = storageBufferHandles.get(buffer);
+  if (handle == null) throw new NativeUnavailableError("the storage buffer is disposed");
+  return handle;
+}
+
+function compute(): CnaComputeBackend {
+  const backend = getBackend();
+  if (!backend.IsAvailable || backend.Compute == null) {
+    throw new NativeUnavailableError(
+      `CNA's compute path requires a loaded backend that has it: ${backend.Detail}`,
+    );
+  }
+  return backend.Compute;
+}
+
+function axisIndex(axis: number): number {
+  if (!Number.isInteger(axis) || axis < 0 || axis > 2) {
+    throw new RangeError("a work-group axis must be 0, 1 or 2");
+  }
+  return axis;
+}
+
+/**
+ * What a renderer can do, asked rather than assumed.
+ *
+ * XNA had `GraphicsProfile`, a two-value tier that stood in for a capability list. CNA answers per
+ * capability, and this is that query. It is the honest precondition for everything else in this
+ * section: `Supports(device, GraphicsCapability.ComputeShaders)` is `false` on a renderer with no
+ * compute, and a game that asks gets to offer a different path instead of catching a refusal.
+ */
+export const GraphicsDeviceCapabilities = {
+  /** Whether the device's renderer implements a capability. */
+  Supports(graphicsDevice: GraphicsDevice, capability: GraphicsCapability): boolean {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (!Number.isInteger(capability) || capability < 0 || capability > 18) {
+      throw new RangeError("capability must be a GraphicsCapability");
+    }
+    return compute().supportsGraphicsCapability(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), capability,
+    );
+  },
+
+  /** The largest number of work groups a dispatch may ask for along one axis. */
+  MaxComputeWorkGroupCount(graphicsDevice: GraphicsDevice, axis: number): number {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    // Validated before the backend is asked for, so a bad axis is a bad axis whether or not a
+    // library is loaded.
+    const index = axisIndex(axis);
+    return compute().getMaxComputeWorkGroupCount(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), index,
+    );
+  },
+
+  /** The largest `local_size` a shader may declare along one axis. */
+  MaxComputeWorkGroupSize(graphicsDevice: GraphicsDevice, axis: number): number {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    // Validated before the backend is asked for, so a bad axis is a bad axis whether or not a
+    // library is loaded.
+    const index = axisIndex(axis);
+    return compute().getMaxComputeWorkGroupSize(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), index,
+    );
+  },
+
+  /** The largest number of invocations one work group may contain. */
+  MaxComputeWorkGroupInvocations(graphicsDevice: GraphicsDevice): number {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    return compute().getMaxComputeWorkGroupInvocations(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+    );
+  },
+} as const;
+
+/**
+ * A block of GPU memory a compute shader reads and writes.
+ *
+ * Two shapes, and the difference matters. {@link StorageBuffer.Create} makes an untyped blob whose
+ * only unit is the byte. {@link StorageBuffer.CreateTyped} declares a count and an element size,
+ * and CNA then cross-checks both against every element transfer -- so a buffer of 64 four-byte
+ * elements refuses a read that asks for eight-byte ones, rather than returning half as many
+ * elements of nonsense.
+ */
+export class StorageBuffer implements IDisposable {
+  readonly #backend: CnaComputeBackend;
+  #handle: NativeHandle | null;
+
+  private constructor(backend: CnaComputeBackend, handle: NativeHandle) {
+    this.#backend = backend;
+    this.#handle = handle;
+    storageBufferHandles.set(this, handle);
+  }
+
+  /** Creates an untyped buffer of `byteSize` bytes. */
+  public static Create(graphicsDevice: GraphicsDevice, byteSize: number): StorageBuffer {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (!Number.isSafeInteger(byteSize) || byteSize < 0) {
+      throw new RangeError("byteSize must be a non-negative safe integer");
+    }
+    const backend = compute();
+    return new StorageBuffer(backend, backend.createStorageBuffer(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), byteSize,
+    ));
+  }
+
+  /** Creates a buffer of `elementCount` elements of `elementByteSize` bytes each. */
+  public static CreateTyped(
+    graphicsDevice: GraphicsDevice, elementCount: number, elementByteSize: number,
+  ): StorageBuffer {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (!Number.isSafeInteger(elementCount) || elementCount < 0) {
+      throw new RangeError("elementCount must be a non-negative safe integer");
+    }
+    if (!Number.isSafeInteger(elementByteSize) || elementByteSize <= 0) {
+      throw new RangeError("elementByteSize must be a positive safe integer");
+    }
+    const backend = compute();
+    return new StorageBuffer(backend, backend.createTypedStorageBuffer(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), elementCount, elementByteSize,
+    ));
+  }
+
+  /** Whether the buffer has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the storage buffer is disposed");
+    return this.#handle;
+  }
+
+  /** The buffer's total size in bytes. */
+  public get ByteSize(): number {
+    return this.#backend.getStorageBufferByteSize(this.#active());
+  }
+
+  /** How many elements a typed buffer holds; zero for an untyped one. */
+  public get ElementCount(): number {
+    return this.#backend.getStorageBufferElementCount(this.#active());
+  }
+
+  /** How large a typed buffer's element is; zero for an untyped one. */
+  public get ElementByteSize(): number {
+    return this.#backend.getStorageBufferElementByteSize(this.#active());
+  }
+
+  /**
+   * Uploads raw bytes. The length written is the view's own, so a short view cannot become a long
+   * write; CNA refuses a view that does not match the buffer's size.
+   */
+  public SetBytes(bytes: Uint8Array): void {
+    if (!(bytes instanceof Uint8Array)) throw new TypeError("bytes must be a Uint8Array");
+    this.#backend.setStorageBufferBytes(this.#active(), bytes);
+  }
+
+  /** Downloads `byteLength` raw bytes into a fresh array. */
+  public GetBytes(byteLength: number): Uint8Array {
+    if (!Number.isSafeInteger(byteLength) || byteLength < 0) {
+      throw new RangeError("byteLength must be a non-negative safe integer");
+    }
+    return this.#backend.getStorageBufferBytes(this.#active(), byteLength);
+  }
+
+  /**
+   * Uploads a typed array, telling CNA the element size it must agree with.
+   *
+   * The element *count* is never a parameter: it is the view's byte length divided by the element
+   * size, so the count and the payload can never disagree.
+   */
+  public SetElements(elements: ArrayBufferView, elementByteSize: number): void {
+    if (!ArrayBuffer.isView(elements)) throw new TypeError("elements must be a typed array");
+    if (!Number.isSafeInteger(elementByteSize) || elementByteSize <= 0) {
+      throw new RangeError("elementByteSize must be a positive safe integer");
+    }
+    const bytes = new Uint8Array(
+      elements.buffer, elements.byteOffset, elements.byteLength,
+    );
+    this.#backend.setStorageBufferElements(this.#active(), bytes, elementByteSize);
+  }
+
+  /** Downloads `elementCount` elements of `elementByteSize` bytes as raw bytes. */
+  public GetElements(elementCount: number, elementByteSize: number): Uint8Array {
+    if (!Number.isSafeInteger(elementCount) || elementCount < 0) {
+      throw new RangeError("elementCount must be a non-negative safe integer");
+    }
+    if (!Number.isSafeInteger(elementByteSize) || elementByteSize <= 0) {
+      throw new RangeError("elementByteSize must be a positive safe integer");
+    }
+    return this.#backend.getStorageBufferElements(this.#active(), elementCount, elementByteSize);
+  }
+
+  /** Downloads the whole buffer as `Float32Array`. Convenience over {@link GetElements}. */
+  public GetFloats(elementCount: number): Float32Array {
+    const bytes = this.GetElements(elementCount, 4);
+    return new Float32Array(bytes.buffer, bytes.byteOffset, elementCount);
+  }
+
+  /** Downloads the whole buffer as `Int32Array`. Convenience over {@link GetElements}. */
+  public GetInt32s(elementCount: number): Int32Array {
+    const bytes = this.GetElements(elementCount, 4);
+    return new Int32Array(bytes.buffer, bytes.byteOffset, elementCount);
+  }
+
+  /** Releases the buffer. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    storageBufferHandles.delete(this);
+    this.#backend.destroyStorageBuffer(handle);
+  }
+}
+
+/**
+ * A GLSL ES 3.10 compute shader.
+ *
+ * `engine_layer.h` documents construction as succeeding even for source that does not compile, so
+ * that {@link IsValid} and {@link CompileError} can report the compiler's log. CNA does not
+ * currently behave that way -- the underlying class throws and the C ABI turns that into a failed
+ * create with no handle, so a compile failure arrives here as a thrown error carrying the log in
+ * its message. Both members are projected regardless: they are the documented contract, and
+ * `docs/upstream-cna-findings.md` records the difference rather than hiding it.
+ */
+export class ComputeShader implements IDisposable {
+  readonly #backend: CnaComputeBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice, source: string) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (typeof source !== "string" || source.length === 0) {
+      throw new TypeError("source must be a non-empty string");
+    }
+    this.#backend = compute();
+    this.#handle = this.#backend.createComputeShader(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), source,
+    );
+  }
+
+  /** Whether the shader has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the compute shader is disposed");
+    return this.#handle;
+  }
+
+  /** Whether the program compiled and linked. */
+  public get IsValid(): boolean {
+    return this.#backend.isComputeShaderValid(this.#active());
+  }
+
+  /** The compiler's log, empty when the program compiled. */
+  public get CompileError(): string {
+    return this.#backend.getComputeShaderCompileError(this.#active());
+  }
+
+  /** Whether this shader can bind an image, which not every renderer allows. */
+  public get IsImageBindingSupported(): boolean {
+    return this.#backend.isComputeImageBindingSupported(this.#active());
+  }
+
+  /** Sets an `int` uniform by name. */
+  public SetUniform(name: string, value: number): void;
+  /** Sets a `float` uniform by name. */
+  public SetUniform(name: string, value: number, asFloat: true): void;
+  public SetUniform(name: string, value: number, asFloat = false): void {
+    if (typeof name !== "string" || name.length === 0) {
+      throw new TypeError("a uniform name must be a non-empty string");
+    }
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("a uniform value must be a finite number");
+    }
+    if (asFloat) {
+      this.#backend.setComputeShaderUniformFloat(this.#active(), name, value);
+      return;
+    }
+    if (!Number.isInteger(value)) {
+      throw new TypeError("an int uniform needs an integer; pass asFloat for a float uniform");
+    }
+    this.#backend.setComputeShaderUniformInt(this.#active(), name, value);
+  }
+
+  /** Binds a storage buffer to a `std430` binding point. */
+  public BindStorageBuffer(binding: number, buffer: StorageBuffer): void {
+    if (!Number.isInteger(binding) || binding < 0) {
+      throw new RangeError("a binding point must be a non-negative integer");
+    }
+    if (!(buffer instanceof StorageBuffer)) throw new TypeError("buffer must be a StorageBuffer");
+    this.#backend.bindComputeStorageBuffer(
+      this.#active(), binding, storageBufferHandle(buffer),
+    );
+  }
+
+  /** Binds a texture to a sampler by name. */
+  public BindTexture(unit: number, samplerName: string, texture: Texture2D): void {
+    if (!Number.isInteger(unit) || unit < 0) {
+      throw new RangeError("a texture unit must be a non-negative integer");
+    }
+    if (typeof samplerName !== "string" || samplerName.length === 0) {
+      throw new TypeError("a sampler name must be a non-empty string");
+    }
+    if (texture == null) throw new TypeError("texture is required");
+    this.#backend.bindComputeTexture(
+      this.#active(), unit, samplerName, resolveTexture2DHandleForInternalUse(texture),
+    );
+  }
+
+  /** Binds a texture as a readable or writable image. */
+  public BindImage(unit: number, texture: Texture2D, access: GraphicsImageAccess): void {
+    if (!Number.isInteger(unit) || unit < 0) {
+      throw new RangeError("a texture unit must be a non-negative integer");
+    }
+    if (texture == null) throw new TypeError("texture is required");
+    if (access !== GraphicsImageAccess.ReadOnly && access !== GraphicsImageAccess.WriteOnly &&
+        access !== GraphicsImageAccess.ReadWrite) {
+      throw new RangeError("access must be a GraphicsImageAccess");
+    }
+    this.#backend.bindComputeImage(
+      this.#active(), unit, resolveTexture2DHandleForInternalUse(texture), access,
+    );
+  }
+
+  /** Runs `groupsX * groupsY * groupsZ` work groups. */
+  public Dispatch(groupsX: number, groupsY = 1, groupsZ = 1): void {
+    for (const [name, value] of [["groupsX", groupsX], ["groupsY", groupsY], ["groupsZ", groupsZ]] as const) {
+      if (!Number.isInteger(value)) throw new TypeError(`${name} must be an integer`);
+    }
+    this.#backend.dispatchComputeShader(this.#active(), groupsX, groupsY, groupsZ);
+  }
+
+  /** Orders the accesses in `bits` against what follows. */
+  public Barrier(bits: GraphicsMemoryBarrier = GraphicsMemoryBarrier.All): void {
+    if (!Number.isInteger(bits) || bits < 0) {
+      throw new RangeError("barrier bits must be a non-negative integer");
+    }
+    this.#backend.computeShaderBarrier(this.#active(), bits);
+  }
+
+  /** Releases the shader. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyComputeShader(handle);
+  }
+}
+
+/**
+ * A non-blocking GPU timer.
+ *
+ * It creates on renderers that cannot time at all, and says so through {@link IsSupported} and
+ * {@link UnsupportedReason} rather than by refusing -- measured on HEADLESS, which answers with the
+ * GL extension it is missing by name. {@link Poll} never blocks: it collects a result if one is
+ * ready and answers whether it did.
+ */
+export class GpuTimer implements IDisposable {
+  readonly #backend: CnaComputeBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#backend = compute();
+    this.#handle = this.#backend.createGpuTimer(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+    );
+  }
+
+  /** Whether the timer has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the GPU timer is disposed");
+    return this.#handle;
+  }
+
+  /** Whether this renderer can actually time GPU work. */
+  public get IsSupported(): boolean {
+    return this.#backend.isGpuTimerSupported(this.#active());
+  }
+
+  /** Why it cannot, in CNA's own words; empty when it can. */
+  public get UnsupportedReason(): string {
+    return this.#backend.getGpuTimerUnsupportedReason(this.#active());
+  }
+
+  /** Whether a measurement is currently open between `Begin` and `End`. */
+  public get IsOpen(): boolean {
+    return this.#backend.isGpuTimerOpen(this.#active());
+  }
+
+  /** Whether a completed result is waiting to be collected. */
+  public get IsResultAvailable(): boolean {
+    return this.#backend.isGpuTimerResultAvailable(this.#active());
+  }
+
+  /** The most recently collected measurement in milliseconds. */
+  public get LastMilliseconds(): number {
+    return this.#backend.getGpuTimerLastMilliseconds(this.#active());
+  }
+
+  /** How many measurements have been collected. */
+  public get SampleCount(): number {
+    return this.#backend.getGpuTimerSampleCount(this.#active());
+  }
+
+  /** Opens a measurement. */
+  public Begin(): void { this.#backend.beginGpuTimer(this.#active()); }
+
+  /** Closes a measurement. The result becomes available some frames later. */
+  public End(): void { this.#backend.endGpuTimer(this.#active()); }
+
+  /** Collects a result if one is ready. Never blocks; answers whether it collected. */
+  public Poll(): boolean { return this.#backend.pollGpuTimer(this.#active()); }
+
+  /** Releases the timer. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyGpuTimer(handle);
+  }
+}

@@ -31,6 +31,7 @@ import {
 } from "../dist/index.js";
 import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../dist/internal/abi.js";
 import * as renderPipelineModule from "../dist/extensions/graphics/index.js";
+import * as computeExtensions from "../dist/extensions/graphics/index.js";
 import * as extensionsModule from "../dist/extensions/index.js";
 import * as devicesModule from "../dist/extensions/devices/index.js";
 import * as inputModule from "../dist/extensions/input/index.js";
@@ -2478,4 +2479,171 @@ test("GraphicsAdapter reports CNA's real adapter, its modes and its format answe
 
   assert.equal(evidence.deviceAdapterIsDefault, true, "GraphicsDevice.Adapter is the default one");
   assert.equal(evidence.stableIdentity, true, "the adapter list is read once, not per access");
+});
+
+
+class ComputeProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const device = this.GraphicsDevice;
+    const record = (name, body) => {
+      try {
+        this.evidence[name] = body();
+      } catch (error) {
+        this.evidence[name] = { refused: `${error.constructor.name}`, cnaResult: error.cnaResult };
+      }
+    };
+
+    record("computeSupported", () => computeExtensions.GraphicsDeviceCapabilities.Supports(
+      device, computeExtensions.GraphicsCapability.ComputeShaders,
+    ));
+    // Every capability, so the query is shown answering per capability here too. HEADLESS is the
+    // interesting case: it is not a "nothing works" renderer, so the answers differ from each other.
+    record("capabilities", () => Object.entries(computeExtensions.GraphicsCapability)
+      .filter(([, bit]) => typeof bit === "number")
+      .map(([name, bit]) => [
+        name, bit, computeExtensions.GraphicsDeviceCapabilities.Supports(device, bit),
+      ]));
+    record("limits", () => [0, 1, 2].map((axis) => [
+      computeExtensions.GraphicsDeviceCapabilities.MaxComputeWorkGroupCount(device, axis),
+      computeExtensions.GraphicsDeviceCapabilities.MaxComputeWorkGroupSize(device, axis),
+    ]));
+    record("invocations",
+      () => computeExtensions.GraphicsDeviceCapabilities.MaxComputeWorkGroupInvocations(device));
+
+    // The three creates, each recorded with the result CNA refused with rather than a boolean.
+    record("storageBuffer", () => {
+      const buffer = computeExtensions.StorageBuffer.CreateTyped(device, 64, 4);
+      buffer.Dispose();
+      return "CREATED";
+    });
+    record("untypedStorageBuffer", () => {
+      const buffer = computeExtensions.StorageBuffer.Create(device, 256);
+      buffer.Dispose();
+      return "CREATED";
+    });
+    record("computeShader", () => {
+      const shader = new computeExtensions.ComputeShader(
+        device, "#version 310 es\nlayout(local_size_x=1) in;\nvoid main() {}\n",
+      );
+      shader.Dispose();
+      return "CREATED";
+    });
+
+    // A GPU timer is the one member of the family that creates on a renderer without the feature,
+    // because CNA reports the absence through the object rather than by refusing.
+    record("gpuTimer", () => {
+      const timer = new computeExtensions.GpuTimer(device);
+      try {
+        return {
+          supported: timer.IsSupported,
+          reason: timer.UnsupportedReason,
+          open: timer.IsOpen,
+          samples: timer.SampleCount,
+        };
+      } finally {
+        timer.Dispose();
+      }
+    });
+
+    // Argument validation is this package's, so it holds on a renderer that has none of this.
+    record("rejectedArguments", () => {
+      const attempts = {};
+      const attempt = (name, body) => {
+        try {
+          body();
+          attempts[name] = "ACCEPTED";
+        } catch (error) {
+          attempts[name] = error.constructor.name;
+        }
+      };
+      attempt("negativeSize", () => computeExtensions.StorageBuffer.Create(device, -1));
+      attempt("fractionalCount",
+        () => computeExtensions.StorageBuffer.CreateTyped(device, 1.5, 4));
+      attempt("zeroElementSize",
+        () => computeExtensions.StorageBuffer.CreateTyped(device, 4, 0));
+      attempt("emptySource", () => new computeExtensions.ComputeShader(device, ""));
+      attempt("badAxis",
+        () => computeExtensions.GraphicsDeviceCapabilities.MaxComputeWorkGroupSize(device, 3));
+      attempt("badCapability",
+        () => computeExtensions.GraphicsDeviceCapabilities.Supports(device, 99));
+      return attempts;
+    });
+
+    this.Exit();
+    super.LoadContent();
+  }
+}
+
+test("compute is refused by name on a renderer without it, and the timer says why", async () => {
+  const game = new ComputeProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  // HEADLESS has no compute. That is the answer being asserted, not worked around: the qualified
+  // computation itself lives in test/windowed-renderer.integration.mjs, which runs on OPENGLES3.
+  assert.equal(evidence.computeSupported, false, "HEADLESS reports no compute shaders");
+
+  // The capability query is not a constant here either: HEADLESS implements some of the nineteen
+  // and not others, so the answers must differ from each other.
+  const answers = evidence.capabilities;
+  assert.equal(answers.length, 19);
+  const trueCount = answers.filter(([, , supported]) => supported).length;
+  assert.ok(
+    trueCount > 0 && trueCount < 19,
+    `HEADLESS must answer per capability, got ${trueCount}/19 true`,
+  );
+  assert.equal(
+    answers.find(([name]) => name === "ComputeShaders")?.[2], false,
+    "and the compute answer is the one the enum names",
+  );
+
+  // Zero limits are the *correct* answer for a device with no compute -- CNA's own test asserts
+  // exactly this agreement. On OPENGLES3 the same zeros after a draw are a defect, which is why
+  // the windowed suite asserts them separately.
+  assert.deepEqual(evidence.limits, [[0, 0], [0, 0], [0, 0]], "no compute means no work groups");
+  assert.equal(evidence.invocations, 0);
+
+  // The three creates refuse with NOT_SUPPORTED (6) rather than handing back a handle that would
+  // fail later, or an object that pretends.
+  for (const name of ["storageBuffer", "untypedStorageBuffer", "computeShader"]) {
+    assert.equal(
+      evidence[name]?.cnaResult, 6,
+      `${name} must refuse with NOT_SUPPORTED, got ${JSON.stringify(evidence[name])}`,
+    );
+  }
+
+  // The timer is the exception, and the reason is CNA's own words rather than a label invented
+  // here: it names the GL extension the renderer is missing.
+  const timer = evidence.gpuTimer;
+  assert.equal(typeof timer, "object", `GPU timer create failed: ${JSON.stringify(timer)}`);
+  assert.equal(timer.supported, false, "HEADLESS cannot time GPU work");
+  assert.ok(timer.reason.length > 20, `an unsupported timer explains itself: ${timer.reason}`);
+  assert.match(
+    timer.reason, /HEADLESS/,
+    "and the explanation names the renderer that cannot do it",
+  );
+  assert.equal(timer.open, false);
+  assert.equal(timer.samples, 0, "a timer that never ran has no samples");
+
+  // This package's own argument validation, which holds regardless of the renderer.
+  assert.deepEqual(evidence.rejectedArguments, {
+    negativeSize: "RangeError",
+    fractionalCount: "RangeError",
+    zeroElementSize: "RangeError",
+    emptySource: "TypeError",
+    badAxis: "RangeError",
+    badCapability: "RangeError",
+  });
+
+  console.log(
+    `CNA_TS_NATIVE_COMPUTE=PASS COMPUTE=NOT_SUPPORTED CAPABILITIES=${trueCount}/19 ` +
+    `CREATES_REFUSED=3 GPU_TIMER_REASON="${timer.reason.slice(0, 48)}..."`,
+  );
 });

@@ -27,6 +27,7 @@ import type {
   CameraInventorySnapshot,
   CnaAudioBackend,
   CnaBackend,
+  CnaComputeBackend,
   CnaContentBackend,
   CnaDeviceBackend,
   CnaEffectBackend,
@@ -1144,6 +1145,140 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public getPostProcessChainPassTimings(
     _chain: NativeHandle,
   ): readonly PassTimingSnapshot[] { return this.unsupported("getPostProcessChainPassTimings"); }
+}
+
+/** Refusing base for {@link CnaComputeBackend}. */
+export abstract class CnaComputeBackendBase implements CnaComputeBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public supportsGraphicsCapability(
+    _device: NativeHandle,
+    _capability: number,
+  ): boolean { return this.unsupported("supportsGraphicsCapability"); }
+  public getMaxComputeWorkGroupCount(
+    _device: NativeHandle,
+    _axis: number,
+  ): number { return this.unsupported("getMaxComputeWorkGroupCount"); }
+  public getMaxComputeWorkGroupSize(
+    _device: NativeHandle,
+    _axis: number,
+  ): number { return this.unsupported("getMaxComputeWorkGroupSize"); }
+  public getMaxComputeWorkGroupInvocations(
+    _device: NativeHandle,
+  ): number { return this.unsupported("getMaxComputeWorkGroupInvocations"); }
+  public createStorageBuffer(
+    _device: NativeHandle,
+    _byteSize: number,
+  ): NativeHandle { return this.unsupported("createStorageBuffer"); }
+  public createTypedStorageBuffer(
+    _device: NativeHandle,
+    _elementCount: number,
+    _elementByteSize: number,
+  ): NativeHandle { return this.unsupported("createTypedStorageBuffer"); }
+  public setStorageBufferBytes(
+    _buffer: NativeHandle,
+    _bytes: Uint8Array,
+  ): void { return this.unsupported("setStorageBufferBytes"); }
+  public getStorageBufferBytes(
+    _buffer: NativeHandle,
+    _byteLength: number,
+  ): Uint8Array { return this.unsupported("getStorageBufferBytes"); }
+  public getStorageBufferByteSize(
+    _buffer: NativeHandle,
+  ): number { return this.unsupported("getStorageBufferByteSize"); }
+  public setStorageBufferElements(
+    _buffer: NativeHandle,
+    _bytes: Uint8Array,
+    _elementByteSize: number,
+  ): void { return this.unsupported("setStorageBufferElements"); }
+  public getStorageBufferElements(
+    _buffer: NativeHandle,
+    _elementCount: number,
+    _elementByteSize: number,
+  ): Uint8Array { return this.unsupported("getStorageBufferElements"); }
+  public getStorageBufferElementCount(
+    _buffer: NativeHandle,
+  ): number { return this.unsupported("getStorageBufferElementCount"); }
+  public getStorageBufferElementByteSize(
+    _buffer: NativeHandle,
+  ): number { return this.unsupported("getStorageBufferElementByteSize"); }
+  public destroyStorageBuffer(
+    _buffer: NativeHandle,
+  ): void { return this.unsupported("destroyStorageBuffer"); }
+  public createComputeShader(
+    _device: NativeHandle,
+    _source: string,
+  ): NativeHandle { return this.unsupported("createComputeShader"); }
+  public setComputeShaderUniformInt(
+    _shader: NativeHandle,
+    _name: string,
+    _value: number,
+  ): void { return this.unsupported("setComputeShaderUniformInt"); }
+  public setComputeShaderUniformFloat(
+    _shader: NativeHandle,
+    _name: string,
+    _value: number,
+  ): void { return this.unsupported("setComputeShaderUniformFloat"); }
+  public bindComputeStorageBuffer(
+    _shader: NativeHandle,
+    _binding: number,
+    _buffer: NativeHandle,
+  ): void { return this.unsupported("bindComputeStorageBuffer"); }
+  public bindComputeTexture(
+    _shader: NativeHandle,
+    _unit: number,
+    _samplerName: string,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("bindComputeTexture"); }
+  public isComputeImageBindingSupported(
+    _shader: NativeHandle,
+  ): boolean { return this.unsupported("isComputeImageBindingSupported"); }
+  public bindComputeImage(
+    _shader: NativeHandle,
+    _unit: number,
+    _texture: NativeHandle,
+    _access: number,
+  ): void { return this.unsupported("bindComputeImage"); }
+  public dispatchComputeShader(
+    _shader: NativeHandle,
+    _x: number,
+    _y: number,
+    _z: number,
+  ): void { return this.unsupported("dispatchComputeShader"); }
+  public computeShaderBarrier(
+    _shader: NativeHandle,
+    _bits: number,
+  ): void { return this.unsupported("computeShaderBarrier"); }
+  public isComputeShaderValid(
+    _shader: NativeHandle,
+  ): boolean { return this.unsupported("isComputeShaderValid"); }
+  public getComputeShaderCompileError(
+    _shader: NativeHandle,
+  ): string { return this.unsupported("getComputeShaderCompileError"); }
+  public destroyComputeShader(
+    _shader: NativeHandle,
+  ): void { return this.unsupported("destroyComputeShader"); }
+  public createGpuTimer(_device: NativeHandle): NativeHandle { return this.unsupported("createGpuTimer"); }
+  public isGpuTimerSupported(
+    _timer: NativeHandle,
+  ): boolean { return this.unsupported("isGpuTimerSupported"); }
+  public getGpuTimerUnsupportedReason(
+    _timer: NativeHandle,
+  ): string { return this.unsupported("getGpuTimerUnsupportedReason"); }
+  public beginGpuTimer(_timer: NativeHandle): void { return this.unsupported("beginGpuTimer"); }
+  public endGpuTimer(_timer: NativeHandle): void { return this.unsupported("endGpuTimer"); }
+  public isGpuTimerResultAvailable(
+    _timer: NativeHandle,
+  ): boolean { return this.unsupported("isGpuTimerResultAvailable"); }
+  public pollGpuTimer(_timer: NativeHandle): boolean { return this.unsupported("pollGpuTimer"); }
+  public getGpuTimerLastMilliseconds(
+    _timer: NativeHandle,
+  ): number { return this.unsupported("getGpuTimerLastMilliseconds"); }
+  public getGpuTimerSampleCount(
+    _timer: NativeHandle,
+  ): number { return this.unsupported("getGpuTimerSampleCount"); }
+  public isGpuTimerOpen(_timer: NativeHandle): boolean { return this.unsupported("isGpuTimerOpen"); }
+  public destroyGpuTimer(_timer: NativeHandle): void { return this.unsupported("destroyGpuTimer"); }
 }
 
 /** Refusing base for {@link CnaExtendedInputBackend}. */

@@ -9,6 +9,7 @@ import type {
   CnaEffectBackend,
   CnaGameWindowBackend,
   BackendRendererInfo,
+  CnaComputeBackend,
   CnaGraphicsExtensionBackend,
   CnaContentBackend,
   CnaDeviceBackend,
@@ -495,6 +496,43 @@ interface NativeBridge {
   cnbModelGetLight(model: bigint, index: number): { readonly Direction: readonly number[]; readonly DiffuseColor: readonly number[] };
   cnbEncodeModel(model: bigint, contentName: string): Uint8Array;
   cnbDecodeModel(document: bigint): bigint;
+  supportsGraphicsCapability(device: bigint, capability: number): boolean;
+  getMaxComputeWorkGroupCount(device: bigint, axis: number): number;
+  getMaxComputeWorkGroupSize(device: bigint, axis: number): number;
+  getMaxComputeWorkGroupInvocations(device: bigint): number;
+  createStorageBuffer(device: bigint, byteSize: number): bigint;
+  createTypedStorageBuffer(device: bigint, elementCount: number, elementByteSize: number): bigint;
+  setStorageBufferBytes(buffer: bigint, bytes: Uint8Array): void;
+  getStorageBufferBytes(buffer: bigint, byteLength: number): Uint8Array;
+  getStorageBufferByteSize(buffer: bigint): number;
+  setStorageBufferElements(buffer: bigint, bytes: Uint8Array, elementByteSize: number): void;
+  getStorageBufferElements(buffer: bigint, elementCount: number, elementByteSize: number): Uint8Array;
+  getStorageBufferElementCount(buffer: bigint): number;
+  getStorageBufferElementByteSize(buffer: bigint): number;
+  destroyStorageBuffer(buffer: bigint): void;
+  createComputeShader(device: bigint, source: string): bigint;
+  setComputeShaderUniformInt(shader: bigint, name: string, value: number): void;
+  setComputeShaderUniformFloat(shader: bigint, name: string, value: number): void;
+  bindComputeStorageBuffer(shader: bigint, binding: number, buffer: bigint): void;
+  bindComputeTexture(shader: bigint, unit: number, samplerName: string, texture: bigint): void;
+  isComputeImageBindingSupported(shader: bigint): boolean;
+  bindComputeImage(shader: bigint, unit: number, texture: bigint, access: number): void;
+  dispatchComputeShader(shader: bigint, x: number, y: number, z: number): void;
+  computeShaderBarrier(shader: bigint, bits: number): void;
+  isComputeShaderValid(shader: bigint): boolean;
+  getComputeShaderCompileError(shader: bigint): string;
+  destroyComputeShader(shader: bigint): void;
+  createGpuTimer(device: bigint): bigint;
+  isGpuTimerSupported(timer: bigint): boolean;
+  getGpuTimerUnsupportedReason(timer: bigint): string;
+  beginGpuTimer(timer: bigint): void;
+  endGpuTimer(timer: bigint): void;
+  isGpuTimerResultAvailable(timer: bigint): boolean;
+  pollGpuTimer(timer: bigint): boolean;
+  getGpuTimerLastMilliseconds(timer: bigint): number;
+  getGpuTimerSampleCount(timer: bigint): number;
+  isGpuTimerOpen(timer: bigint): boolean;
+  destroyGpuTimer(timer: bigint): void;
   createBlitPass(device: bigint): bigint;
   createBloomPass(device: bigint): bigint;
   createTonemapPass(device: bigint): bigint;
@@ -868,6 +906,7 @@ export class NodeNativeBackend
   public readonly Window: CnaGameWindowBackend = this;
   public readonly RuntimeServices: CnaRuntimeServicesBackend = this;
   public readonly GraphicsExtensions: CnaGraphicsExtensionBackend = this;
+  public readonly Compute: CnaComputeBackend = this;
   public readonly Content: CnaContentBackend = this;
   public readonly Devices: CnaDeviceBackend = this;
   public readonly GamerServices: CnaGamerServicesBackend = this;
@@ -1719,6 +1758,117 @@ export class NodeNativeBackend
     return this.#bridge.cnbDecodeModel(document);
   }
 
+  public supportsGraphicsCapability(device: NativeHandle, capability: number): boolean {
+    return this.#bridge.supportsGraphicsCapability(device, capability);
+  }
+  public getMaxComputeWorkGroupCount(device: NativeHandle, axis: number): number {
+    return this.#bridge.getMaxComputeWorkGroupCount(device, axis);
+  }
+  public getMaxComputeWorkGroupSize(device: NativeHandle, axis: number): number {
+    return this.#bridge.getMaxComputeWorkGroupSize(device, axis);
+  }
+  public getMaxComputeWorkGroupInvocations(device: NativeHandle): number {
+    return this.#bridge.getMaxComputeWorkGroupInvocations(device);
+  }
+  public createStorageBuffer(device: NativeHandle, byteSize: number): NativeHandle {
+    return this.#bridge.createStorageBuffer(device, byteSize);
+  }
+  public createTypedStorageBuffer(device: NativeHandle, elementCount: number, elementByteSize: number): NativeHandle {
+    return this.#bridge.createTypedStorageBuffer(device, elementCount, elementByteSize);
+  }
+  public setStorageBufferBytes(buffer: NativeHandle, bytes: Uint8Array): void {
+    this.#bridge.setStorageBufferBytes(buffer, bytes);
+  }
+  public getStorageBufferBytes(buffer: NativeHandle, byteLength: number): Uint8Array {
+    return this.#bridge.getStorageBufferBytes(buffer, byteLength);
+  }
+  public getStorageBufferByteSize(buffer: NativeHandle): number {
+    return this.#bridge.getStorageBufferByteSize(buffer);
+  }
+  public setStorageBufferElements(buffer: NativeHandle, bytes: Uint8Array, elementByteSize: number): void {
+    this.#bridge.setStorageBufferElements(buffer, bytes, elementByteSize);
+  }
+  public getStorageBufferElements(buffer: NativeHandle, elementCount: number, elementByteSize: number): Uint8Array {
+    return this.#bridge.getStorageBufferElements(buffer, elementCount, elementByteSize);
+  }
+  public getStorageBufferElementCount(buffer: NativeHandle): number {
+    return this.#bridge.getStorageBufferElementCount(buffer);
+  }
+  public getStorageBufferElementByteSize(buffer: NativeHandle): number {
+    return this.#bridge.getStorageBufferElementByteSize(buffer);
+  }
+  public destroyStorageBuffer(buffer: NativeHandle): void {
+    this.#bridge.destroyStorageBuffer(buffer);
+  }
+  public createComputeShader(device: NativeHandle, source: string): NativeHandle {
+    return this.#bridge.createComputeShader(device, source);
+  }
+  public setComputeShaderUniformInt(shader: NativeHandle, name: string, value: number): void {
+    this.#bridge.setComputeShaderUniformInt(shader, name, value);
+  }
+  public setComputeShaderUniformFloat(shader: NativeHandle, name: string, value: number): void {
+    this.#bridge.setComputeShaderUniformFloat(shader, name, value);
+  }
+  public bindComputeStorageBuffer(shader: NativeHandle, binding: number, buffer: NativeHandle): void {
+    this.#bridge.bindComputeStorageBuffer(shader, binding, buffer);
+  }
+  public bindComputeTexture(shader: NativeHandle, unit: number, samplerName: string, texture: NativeHandle): void {
+    this.#bridge.bindComputeTexture(shader, unit, samplerName, texture);
+  }
+  public isComputeImageBindingSupported(shader: NativeHandle): boolean {
+    return this.#bridge.isComputeImageBindingSupported(shader);
+  }
+  public bindComputeImage(shader: NativeHandle, unit: number, texture: NativeHandle, access: number): void {
+    this.#bridge.bindComputeImage(shader, unit, texture, access);
+  }
+  public dispatchComputeShader(shader: NativeHandle, x: number, y: number, z: number): void {
+    this.#bridge.dispatchComputeShader(shader, x, y, z);
+  }
+  public computeShaderBarrier(shader: NativeHandle, bits: number): void {
+    this.#bridge.computeShaderBarrier(shader, bits);
+  }
+  public isComputeShaderValid(shader: NativeHandle): boolean {
+    return this.#bridge.isComputeShaderValid(shader);
+  }
+  public getComputeShaderCompileError(shader: NativeHandle): string {
+    return this.#bridge.getComputeShaderCompileError(shader);
+  }
+  public destroyComputeShader(shader: NativeHandle): void {
+    this.#bridge.destroyComputeShader(shader);
+  }
+  public createGpuTimer(device: NativeHandle): NativeHandle {
+    return this.#bridge.createGpuTimer(device);
+  }
+  public isGpuTimerSupported(timer: NativeHandle): boolean {
+    return this.#bridge.isGpuTimerSupported(timer);
+  }
+  public getGpuTimerUnsupportedReason(timer: NativeHandle): string {
+    return this.#bridge.getGpuTimerUnsupportedReason(timer);
+  }
+  public beginGpuTimer(timer: NativeHandle): void {
+    this.#bridge.beginGpuTimer(timer);
+  }
+  public endGpuTimer(timer: NativeHandle): void {
+    this.#bridge.endGpuTimer(timer);
+  }
+  public isGpuTimerResultAvailable(timer: NativeHandle): boolean {
+    return this.#bridge.isGpuTimerResultAvailable(timer);
+  }
+  public pollGpuTimer(timer: NativeHandle): boolean {
+    return this.#bridge.pollGpuTimer(timer);
+  }
+  public getGpuTimerLastMilliseconds(timer: NativeHandle): number {
+    return this.#bridge.getGpuTimerLastMilliseconds(timer);
+  }
+  public getGpuTimerSampleCount(timer: NativeHandle): number {
+    return this.#bridge.getGpuTimerSampleCount(timer);
+  }
+  public isGpuTimerOpen(timer: NativeHandle): boolean {
+    return this.#bridge.isGpuTimerOpen(timer);
+  }
+  public destroyGpuTimer(timer: NativeHandle): void {
+    this.#bridge.destroyGpuTimer(timer);
+  }
   public createBlitPass(device: NativeHandle): NativeHandle {
     return this.#bridge.createBlitPass(device);
   }

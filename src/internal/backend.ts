@@ -1173,6 +1173,62 @@ export interface TextEditingCandidatesSnapshot {
   readonly IsHorizontal: boolean;
 }
 
+/**
+ * The engine layer's compute path: storage buffers, compute shaders and GPU timers.
+ *
+ * Separate from {@link CnaGraphicsExtensionBackend} because it answers to a different boundary. The
+ * post-process family needs the extended layer to have been *compiled in*; compute additionally
+ * needs the *renderer* to have it, which is why the capability query and the work-group limits live
+ * here rather than being assumed. A backend that omits this member has no compute at all.
+ */
+export interface CnaComputeBackend {
+  supportsGraphicsCapability(device: NativeHandle, capability: number): boolean;
+  getMaxComputeWorkGroupCount(device: NativeHandle, axis: number): number;
+  getMaxComputeWorkGroupSize(device: NativeHandle, axis: number): number;
+  getMaxComputeWorkGroupInvocations(device: NativeHandle): number;
+  createStorageBuffer(device: NativeHandle, byteSize: number): NativeHandle;
+  createTypedStorageBuffer(
+    device: NativeHandle, elementCount: number, elementByteSize: number,
+  ): NativeHandle;
+  setStorageBufferBytes(buffer: NativeHandle, bytes: Uint8Array): void;
+  getStorageBufferBytes(buffer: NativeHandle, byteLength: number): Uint8Array;
+  getStorageBufferByteSize(buffer: NativeHandle): number;
+  setStorageBufferElements(buffer: NativeHandle, bytes: Uint8Array, elementByteSize: number): void;
+  getStorageBufferElements(
+    buffer: NativeHandle, elementCount: number, elementByteSize: number,
+  ): Uint8Array;
+  getStorageBufferElementCount(buffer: NativeHandle): number;
+  getStorageBufferElementByteSize(buffer: NativeHandle): number;
+  destroyStorageBuffer(buffer: NativeHandle): void;
+  createComputeShader(device: NativeHandle, source: string): NativeHandle;
+  setComputeShaderUniformInt(shader: NativeHandle, name: string, value: number): void;
+  setComputeShaderUniformFloat(shader: NativeHandle, name: string, value: number): void;
+  bindComputeStorageBuffer(shader: NativeHandle, binding: number, buffer: NativeHandle): void;
+  bindComputeTexture(
+    shader: NativeHandle, unit: number, samplerName: string, texture: NativeHandle,
+  ): void;
+  isComputeImageBindingSupported(shader: NativeHandle): boolean;
+  bindComputeImage(
+    shader: NativeHandle, unit: number, texture: NativeHandle, access: number,
+  ): void;
+  dispatchComputeShader(shader: NativeHandle, x: number, y: number, z: number): void;
+  computeShaderBarrier(shader: NativeHandle, bits: number): void;
+  isComputeShaderValid(shader: NativeHandle): boolean;
+  getComputeShaderCompileError(shader: NativeHandle): string;
+  destroyComputeShader(shader: NativeHandle): void;
+  createGpuTimer(device: NativeHandle): NativeHandle;
+  isGpuTimerSupported(timer: NativeHandle): boolean;
+  getGpuTimerUnsupportedReason(timer: NativeHandle): string;
+  beginGpuTimer(timer: NativeHandle): void;
+  endGpuTimer(timer: NativeHandle): void;
+  isGpuTimerResultAvailable(timer: NativeHandle): boolean;
+  pollGpuTimer(timer: NativeHandle): boolean;
+  getGpuTimerLastMilliseconds(timer: NativeHandle): number;
+  getGpuTimerSampleCount(timer: NativeHandle): number;
+  isGpuTimerOpen(timer: NativeHandle): boolean;
+  destroyGpuTimer(timer: NativeHandle): void;
+}
+
 export interface CnaExtendedInputBackend {
   getJoystickCount(): number;
   getJoystickInfoAt(index: number): JoystickInfoSnapshot;
@@ -1576,6 +1632,7 @@ export interface CnaBackend {
   readonly Window?: CnaGameWindowBackend;
   readonly RuntimeServices?: CnaRuntimeServicesBackend;
   readonly GraphicsExtensions?: CnaGraphicsExtensionBackend;
+  readonly Compute?: CnaComputeBackend;
   readonly Content?: CnaContentBackend;
   readonly Devices?: CnaDeviceBackend;
   readonly GamerServices?: CnaGamerServicesBackend;

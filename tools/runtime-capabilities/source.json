@@ -878,13 +878,51 @@
       ]
     },
     {
-      "operation": "Modern CNA engine layer beyond the pipeline and its post-process chain: lighting, shadows, particles, decals, compute and clustered rendering",
+      "operation": "GraphicsDevice capability query and the compute work-group limits",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "XNA had GraphicsProfile, a two-value tier standing in for a capability list; CNA answers per capability and cna-ts asks rather than assumes. All nineteen answers are cross-checked against the renderer own capability bitmask, which reaches the test through a different route, on three windowed renderers whose masks differ (OPENGLES3 0x7ffff, SOFTWARE 0x1af7, SDL_RENDERER 0x1000) and on HEADLESS, which answers ten of nineteen. That the bitmask form is one shifted by the ordinal form is a compile-time fact rather than an assumption: tools/cna-abi/contract.json asserts it for all nineteen",
+      "proof": [
+        "route:cna_graphics_device_supports_capability",
+        "route:cna_graphics_device_get_max_compute_work_group_invocations_ext",
+        "test:test/native-cna.integration.mjs",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Compute shaders and storage buffers: exact GPU computation",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "a dispatch computes values[i] * uScale + uOffset + i over 64 float elements, and all four inputs are separately load-bearing: every element differs, so a dispatch that did nothing leaves the seed, one that ignored either uniform produces a different sequence, and one that ignored the invocation index produces a constant. Two work groups of sixteen touch exactly the first thirty-two elements, which is what proves the dispatch count reaches the GPU. Measured on OPENGLES3 under Xvfb; HEADLESS, SDL_RENDERER and SOFTWARE refuse every create with NOT_SUPPORTED and that refusal is asserted rather than skipped. A typed buffer refuses an element transfer whose element size disagrees with its own",
+      "proof": [
+        "route:cna_compute_shader_dispatch",
+        "route:cna_storage_buffer_set_elements",
+        "route:cna_storage_buffer_get_elements",
+        "test:test/windowed-renderer.integration.mjs",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "GPU timers: a measured frame duration",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "a non-blocking timer query wrapped around one real frame of drawing and polled on later frames, collecting a sub-millisecond measurement on OPENGLES3 with exactly one sample. A timer creates even where the renderer has no timer query at all, which is CNA reporting the absence through the object rather than by refusing: on HEADLESS it answers IsSupported false and names the missing GL extension in CNA own words",
+      "proof": [
+        "route:cna_gpu_timer_poll",
+        "route:cna_gpu_timer_get_last_milliseconds",
+        "route:cna_gpu_timer_copy_unsupported_reason",
+        "test:test/windowed-renderer.integration.mjs",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Modern CNA engine layer beyond the pipeline, its post-process chain and its compute path: lighting, shadows, particles, decals and clustered rendering",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the render pipeline and the post-process chain are projected and verified above; the rest of engine_layer.h -- clustered and cascaded lighting, shadow maps, particles, decals, LOD, compute and storage buffers, environment and atmospheric rendering -- is measured and unprojected",
+      "evidence": "the render pipeline, the post-process chain and the compute path are projected and verified separately; the rest of engine_layer.h -- clustered and cascaded lighting, shadow maps, particles, decals, LOD, environment and atmospheric rendering -- is measured and unprojected",
       "proof": [
         "absentRoute:cna_clustered_light_grid_create",
-        "absentRoute:cna_compute_shader_create"
+        "absentRoute:cna_cascaded_shadow_map_create"
       ]
     },
     {
