@@ -76,6 +76,7 @@ import type {
   ContentLostResourceKind,
   CueSnapshot,
   CullableInstanceSnapshot,
+  DebugVertexSnapshot,
   DepthStencilStateSnapshot,
   DirectionalLightSnapshot,
   DisplayModeSnapshot,
@@ -1721,13 +1722,6 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   ): number { return this.unsupported("getGpuInstanceCullerVisibleCount"); }
   public getGpuInstanceCullerInstanceLookupGlsl(
   ): string { return this.unsupported("getGpuInstanceCullerInstanceLookupGlsl"); }
-  public createInstancedRenderer(
-    _graphicsDevice: NativeHandle,
-    _part: NativeHandle,
-  ): NativeHandle { return this.unsupported("createInstancedRenderer"); }
-  public destroyInstancedRenderer(
-    _renderer: NativeHandle,
-  ): void { return this.unsupported("destroyInstancedRenderer"); }
   public getInstancedRendererInstanceElements(
   ): readonly VertexElementSnapshot[] { return this.unsupported("getInstancedRendererInstanceElements"); }
   public getInstancedRendererInstanceStride(
@@ -1736,47 +1730,95 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   ): readonly VertexElementSnapshot[] { return this.unsupported("getInstancedRendererTintElements"); }
   public getInstancedRendererTintStride(
   ): number { return this.unsupported("getInstancedRendererTintStride"); }
-  public setInstancedRendererInstances(
-    _renderer: NativeHandle,
-    _transforms: readonly (readonly number[])[],
-  ): void { return this.unsupported("setInstancedRendererInstances"); }
-  public setInstancedRendererInstanceTints(
-    _renderer: NativeHandle,
-    _tints: readonly number[],
-  ): void { return this.unsupported("setInstancedRendererInstanceTints"); }
-  public isInstancedRendererTintsEnabled(
-    _renderer: NativeHandle,
-  ): boolean { return this.unsupported("isInstancedRendererTintsEnabled"); }
-  public setInstancedRendererTintsEnabled(
-    _renderer: NativeHandle,
-    _enabled: boolean,
-  ): void { return this.unsupported("setInstancedRendererTintsEnabled"); }
-  public instancedRendererDraw(
-    _renderer: NativeHandle,
-    _effect: NativeHandle,
-  ): void { return this.unsupported("instancedRendererDraw"); }
-  public isInstancedRendererInstancingSupported(
-    _renderer: NativeHandle,
-  ): boolean { return this.unsupported("isInstancedRendererInstancingSupported"); }
-  public isInstancedRendererFallbackEnabled(
-    _renderer: NativeHandle,
-  ): boolean { return this.unsupported("isInstancedRendererFallbackEnabled"); }
-  public setInstancedRendererFallbackEnabled(
-    _renderer: NativeHandle,
-    _enabled: boolean,
-  ): void { return this.unsupported("setInstancedRendererFallbackEnabled"); }
-  public getInstancedRendererInstanceCount(
-    _renderer: NativeHandle,
-  ): number { return this.unsupported("getInstancedRendererInstanceCount"); }
-  public getInstancedRendererInstanceCapacity(
-    _renderer: NativeHandle,
-  ): number { return this.unsupported("getInstancedRendererInstanceCapacity"); }
-  public getInstancedRendererLastDrawCallCount(
-    _renderer: NativeHandle,
-  ): number { return this.unsupported("getInstancedRendererLastDrawCallCount"); }
-  public didInstancedRendererLastDrawInstance(
-    _renderer: NativeHandle,
-  ): boolean { return this.unsupported("didInstancedRendererLastDrawInstance"); }
+  public createDebugDraw(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createDebugDraw"); }
+  public destroyDebugDraw(_debug: NativeHandle): void { return this.unsupported("destroyDebugDraw"); }
+  public beginDebugDraw(
+    _debug: NativeHandle,
+    _view: readonly number[],
+    _projection: readonly number[],
+  ): void { return this.unsupported("beginDebugDraw"); }
+  public endDebugDraw(_debug: NativeHandle): void { return this.unsupported("endDebugDraw"); }
+  public clearDebugDraw(_debug: NativeHandle): void { return this.unsupported("clearDebugDraw"); }
+  public addDebugDrawLine(
+    _debug: NativeHandle,
+    _from: Vector3Snapshot,
+    _to: Vector3Snapshot,
+    _color: number,
+  ): void { return this.unsupported("addDebugDrawLine"); }
+  public addDebugDrawBox(
+    _debug: NativeHandle,
+    _bounds: ClusterBoundsSnapshot,
+    _color: number,
+  ): void { return this.unsupported("addDebugDrawBox"); }
+  public addDebugDrawSphere(
+    _debug: NativeHandle,
+    _centre: Vector3Snapshot,
+    _radius: number,
+    _color: number,
+    _segments: number,
+  ): void { return this.unsupported("addDebugDrawSphere"); }
+  public addDebugDrawBoundingSphere(
+    _debug: NativeHandle,
+    _sphere: BoundingSphereSnapshot,
+    _color: number,
+    _segments: number,
+  ): void { return this.unsupported("addDebugDrawBoundingSphere"); }
+  public addDebugDrawFrustum(
+    _debug: NativeHandle,
+    _viewProjection: readonly number[],
+    _color: number,
+  ): void { return this.unsupported("addDebugDrawFrustum"); }
+  public addDebugDrawCross(
+    _debug: NativeHandle,
+    _position: Vector3Snapshot,
+    _size: number,
+    _color: number,
+  ): void { return this.unsupported("addDebugDrawCross"); }
+  public isDebugDrawDepthTested(
+    _debug: NativeHandle,
+  ): boolean { return this.unsupported("isDebugDrawDepthTested"); }
+  public setDebugDrawDepthTested(
+    _debug: NativeHandle,
+    _value: boolean,
+  ): void { return this.unsupported("setDebugDrawDepthTested"); }
+  public getDebugDrawLineCount(
+    _debug: NativeHandle,
+  ): number { return this.unsupported("getDebugDrawLineCount"); }
+  public getDebugDrawVertices(
+    _debug: NativeHandle,
+    _depthTested: boolean,
+  ): readonly DebugVertexSnapshot[] { return this.unsupported("getDebugDrawVertices"); }
+  public addDebugDrawPointLightGizmo(
+    _debug: NativeHandle,
+    _light: PointLightSnapshot,
+    _color: number,
+  ): void { return this.unsupported("addDebugDrawPointLightGizmo"); }
+  public addDebugDrawSpotLightGizmo(
+    _debug: NativeHandle,
+    _light: SpotLightSnapshot,
+    _color: number,
+    _segments: number,
+  ): void { return this.unsupported("addDebugDrawSpotLightGizmo"); }
+  public addDebugDrawDirectionalLightGizmo(
+    _debug: NativeHandle,
+    _light: DirectionalLightSnapshot,
+    _at: Vector3Snapshot,
+    _length: number,
+    _color: number,
+  ): void { return this.unsupported("addDebugDrawDirectionalLightGizmo"); }
+  public addDebugDrawProbeVolumeGizmo(
+    _debug: NativeHandle,
+    _volume: NativeHandle,
+    _color: number,
+    _crossSize: number,
+  ): void { return this.unsupported("addDebugDrawProbeVolumeGizmo"); }
+  public addDebugDrawCascadeGizmo(
+    _debug: NativeHandle,
+    _cascades: NativeHandle,
+    _color: number,
+  ): void { return this.unsupported("addDebugDrawCascadeGizmo"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,

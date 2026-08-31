@@ -51,6 +51,7 @@ import type {
   GltfMaterialSourceSnapshot,
   GltfMaterialTexturesSnapshot,
   CullableInstanceSnapshot,
+  DebugVertexSnapshot,
   PassTimingSnapshot,
   PbrMaterialExtSnapshot,
   PostProcessFrameSnapshot,
@@ -1142,6 +1143,26 @@ interface NativeBridge {
   getInstancedRendererInstanceStride(): number;
   getInstancedRendererTintElements(): VertexElementSnapshot[];
   getInstancedRendererTintStride(): number;
+  createDebugDraw(graphicsDevice: bigint): bigint;
+  destroyDebugDraw(debug: bigint): void;
+  beginDebugDraw(debug: bigint, view: readonly number[], projection: readonly number[]): void;
+  endDebugDraw(debug: bigint): void;
+  clearDebugDraw(debug: bigint): void;
+  addDebugDrawLine(debug: bigint, from: Vector3Snapshot, to: Vector3Snapshot, color: number): void;
+  addDebugDrawBox(debug: bigint, bounds: ClusterBoundsSnapshot, color: number): void;
+  addDebugDrawSphere(debug: bigint, centre: Vector3Snapshot, radius: number, color: number, segments: number): void;
+  addDebugDrawBoundingSphere(debug: bigint, sphere: BoundingSphereSnapshot, color: number, segments: number): void;
+  addDebugDrawFrustum(debug: bigint, viewProjection: readonly number[], color: number): void;
+  addDebugDrawCross(debug: bigint, position: Vector3Snapshot, size: number, color: number): void;
+  isDebugDrawDepthTested(debug: bigint): boolean;
+  setDebugDrawDepthTested(debug: bigint, value: boolean): void;
+  getDebugDrawLineCount(debug: bigint): number;
+  getDebugDrawVertices(debug: bigint, depthTested: boolean): DebugVertexSnapshot[];
+  addDebugDrawPointLightGizmo(debug: bigint, light: PointLightSnapshot, color: number): void;
+  addDebugDrawSpotLightGizmo(debug: bigint, light: SpotLightSnapshot, color: number, segments: number): void;
+  addDebugDrawDirectionalLightGizmo(debug: bigint, light: DirectionalLightSnapshot, at: Vector3Snapshot, length: number, color: number): void;
+  addDebugDrawProbeVolumeGizmo(debug: bigint, volume: bigint, color: number, crossSize: number): void;
+  addDebugDrawCascadeGizmo(debug: bigint, cascades: bigint, color: number): void;
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: bigint): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -3548,6 +3569,28 @@ export class NodeNativeBackend
   public getInstancedRendererInstanceStride(): number { return this.#bridge.getInstancedRendererInstanceStride(); }
   public getInstancedRendererTintElements(): readonly VertexElementSnapshot[] { return this.#bridge.getInstancedRendererTintElements(); }
   public getInstancedRendererTintStride(): number { return this.#bridge.getInstancedRendererTintStride(); }
+
+  // The debug drawer.
+  public createDebugDraw(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createDebugDraw(graphicsDevice); }
+  public destroyDebugDraw(debug: NativeHandle): void { this.#bridge.destroyDebugDraw(debug); }
+  public beginDebugDraw(debug: NativeHandle, view: readonly number[], projection: readonly number[]): void { this.#bridge.beginDebugDraw(debug, view, projection); }
+  public endDebugDraw(debug: NativeHandle): void { this.#bridge.endDebugDraw(debug); }
+  public clearDebugDraw(debug: NativeHandle): void { this.#bridge.clearDebugDraw(debug); }
+  public addDebugDrawLine(debug: NativeHandle, from: Vector3Snapshot, to: Vector3Snapshot, color: number): void { this.#bridge.addDebugDrawLine(debug, from, to, color); }
+  public addDebugDrawBox(debug: NativeHandle, bounds: ClusterBoundsSnapshot, color: number): void { this.#bridge.addDebugDrawBox(debug, bounds, color); }
+  public addDebugDrawSphere(debug: NativeHandle, centre: Vector3Snapshot, radius: number, color: number, segments: number): void { this.#bridge.addDebugDrawSphere(debug, centre, radius, color, segments); }
+  public addDebugDrawBoundingSphere(debug: NativeHandle, sphere: BoundingSphereSnapshot, color: number, segments: number): void { this.#bridge.addDebugDrawBoundingSphere(debug, sphere, color, segments); }
+  public addDebugDrawFrustum(debug: NativeHandle, viewProjection: readonly number[], color: number): void { this.#bridge.addDebugDrawFrustum(debug, viewProjection, color); }
+  public addDebugDrawCross(debug: NativeHandle, position: Vector3Snapshot, size: number, color: number): void { this.#bridge.addDebugDrawCross(debug, position, size, color); }
+  public isDebugDrawDepthTested(debug: NativeHandle): boolean { return this.#bridge.isDebugDrawDepthTested(debug); }
+  public setDebugDrawDepthTested(debug: NativeHandle, value: boolean): void { this.#bridge.setDebugDrawDepthTested(debug, value); }
+  public getDebugDrawLineCount(debug: NativeHandle): number { return this.#bridge.getDebugDrawLineCount(debug); }
+  public getDebugDrawVertices(debug: NativeHandle, depthTested: boolean): readonly DebugVertexSnapshot[] { return this.#bridge.getDebugDrawVertices(debug, depthTested); }
+  public addDebugDrawPointLightGizmo(debug: NativeHandle, light: PointLightSnapshot, color: number): void { this.#bridge.addDebugDrawPointLightGizmo(debug, light, color); }
+  public addDebugDrawSpotLightGizmo(debug: NativeHandle, light: SpotLightSnapshot, color: number, segments: number): void { this.#bridge.addDebugDrawSpotLightGizmo(debug, light, color, segments); }
+  public addDebugDrawDirectionalLightGizmo(debug: NativeHandle, light: DirectionalLightSnapshot, at: Vector3Snapshot, length: number, color: number): void { this.#bridge.addDebugDrawDirectionalLightGizmo(debug, light, at, length, color); }
+  public addDebugDrawProbeVolumeGizmo(debug: NativeHandle, volume: NativeHandle, color: number, crossSize: number): void { this.#bridge.addDebugDrawProbeVolumeGizmo(debug, volume, color, crossSize); }
+  public addDebugDrawCascadeGizmo(debug: NativeHandle, cascades: NativeHandle, color: number): void { this.#bridge.addDebugDrawCascadeGizmo(debug, cascades, color); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }
   public extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot { return this.#bridge.extractPbrEffectMaterial(effect); }
   public applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applySkinnedPbrEffectMaterial(effect, material); }

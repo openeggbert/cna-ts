@@ -8223,3 +8223,414 @@ test("the frustum culler answers what this package's own BoundingFrustum answers
     `${InstanceStreams.TintStride}`,
   );
 });
+
+test("every debug gizmo is a line list that can be read rather than looked at", async () => {
+  const { DebugDraw } = computeExtensions;
+  const device = null; // filled in by the probe game below
+
+  class DebugProbeGame extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+
+    LoadContent() {
+      const graphics = computeExtensions;
+      const RED = new Color(200, 100, 40, 255);
+      const BLUE = new Color(10, 20, 250, 128);
+      const record = (name, body) => {
+        try {
+          this.evidence[name] = body();
+        } catch (error) {
+          this.evidence[name] = `${error.constructor.name}(${error.cnaResult ?? "-"}): ` +
+            `${(error.message ?? "").slice(0, 140)}`;
+        }
+      };
+      // Every shape is built into its own drawer, so no shape's lines can be another's.
+      const shape = (build) => {
+        const drawer = new graphics.DebugDraw(this.GraphicsDevice);
+        try {
+          const empty = {
+            lines: drawer.LineCount,
+            depthTested: drawer.DepthTested,
+            tested: drawer.GetVertices(true).length,
+            overlay: drawer.GetVertices(false).length,
+          };
+          build(drawer);
+          return {
+            empty,
+            lines: drawer.LineCount,
+            vertices: drawer.GetVertices(true).map((vertex) => ({
+              position: [vertex.Position.X, vertex.Position.Y, vertex.Position.Z],
+              color: [vertex.Color.R, vertex.Color.G, vertex.Color.B, vertex.Color.A],
+            })),
+            overlay: drawer.GetVertices(false).length,
+          };
+        } finally {
+          drawer.Dispose();
+        }
+      };
+      record("line", () => shape(
+        (drawer) => drawer.AddLine(new Vector3(1, 2, 3), new Vector3(4, 5, 6), RED)));
+      record("cross", () => shape(
+        (drawer) => drawer.AddCross(new Vector3(10, 20, 30), 2, RED)));
+      // Asymmetric in all three axes and not centred on the origin, so a swapped Min and Max is a
+      // different picture rather than the same eight corners in a different order.
+      record("box", () => shape((drawer) => drawer.AddBox(
+        new BoundingBox(new Vector3(1, 2, 3), new Vector3(4, 6, 9)), RED)));
+      record("sphere8", () => shape(
+        (drawer) => drawer.AddSphere(new Vector3(5, 0, 0), 3, RED, 8)));
+      record("sphere16", () => shape(
+        (drawer) => drawer.AddSphere(new Vector3(5, 0, 0), 3, RED, 16)));
+      record("boundingSphere", () => shape((drawer) => drawer.AddBoundingSphere(
+        new BoundingSphere(new Vector3(5, 0, 0), 3), RED, 8)));
+      record("frustum", () => {
+        const view = Matrix.CreateLookAt(new Vector3(0, 0, 10), Vector3.Zero, Vector3.Up);
+        const projection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 4, 1, 1, 20);
+        const viewProjection = Matrix.Multiply(view, projection);
+        const result = shape((drawer) => drawer.AddFrustum(viewProjection, RED));
+        result.corners = new BoundingFrustum(viewProjection).GetCorners()
+          .map((corner) => [corner.X, corner.Y, corner.Z]);
+        return result;
+      });
+      record("pointGizmo", () => shape((drawer) => drawer.AddPointLightGizmo({
+        Position: new Vector3(1, 2, 3), Color: new Vector3(1, 1, 1), Intensity: 1, Range: 4,
+      }, RED)));
+      record("spotGizmo", () => shape((drawer) => drawer.AddSpotLightGizmo({
+        Position: new Vector3(0, 5, 0), Direction: new Vector3(0, -1, 0),
+        Color: new Vector3(1, 1, 1), Intensity: 1, Range: 10,
+        InnerAngle: 0.3, OuterAngle: 0.6,
+      }, RED, 8)));
+      record("directionalGizmo", () => shape((drawer) => drawer.AddDirectionalLightGizmo(
+        { Direction: new Vector3(0, -1, 0), Color: new Vector3(1, 1, 1), Intensity: 1 },
+        new Vector3(0, 10, 0), 5, RED)));
+      record("lists", () => {
+        const drawer = new graphics.DebugDraw(this.GraphicsDevice);
+        try {
+          drawer.DepthTested = true;
+          drawer.AddLine(Vector3.Zero, new Vector3(1, 0, 0), RED);
+          drawer.DepthTested = false;
+          drawer.AddLine(Vector3.Zero, new Vector3(0, 1, 0), BLUE);
+          const state = {
+            tested: drawer.GetVertices(true).map((v) => [v.Position.X, v.Position.Y, v.Position.Z]),
+            overlay: drawer.GetVertices(false).map((v) => [v.Position.X, v.Position.Y, v.Position.Z]),
+            testedColor: (() => {
+              const c = drawer.GetVertices(true)[0].Color;
+              return [c.R, c.G, c.B, c.A];
+            })(),
+            overlayColor: (() => {
+              const c = drawer.GetVertices(false)[0].Color;
+              return [c.R, c.G, c.B, c.A];
+            })(),
+            lines: drawer.LineCount,
+            depthTestedFlag: drawer.DepthTested,
+          };
+          drawer.Clear();
+          state.afterClear = [
+            drawer.GetVertices(true).length, drawer.GetVertices(false).length, drawer.LineCount,
+          ];
+          return state;
+        } finally {
+          drawer.Dispose();
+        }
+      });
+      record("frame", () => {
+        const drawer = new graphics.DebugDraw(this.GraphicsDevice);
+        try {
+          drawer.AddLine(Vector3.Zero, new Vector3(1, 0, 0), RED);
+          const view = Matrix.CreateLookAt(new Vector3(0, 0, 10), Vector3.Zero, Vector3.Up);
+          const projection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 4, 1, 1, 100);
+          const attempt = (body) => {
+            try {
+              body();
+              return "OK";
+            } catch (error) {
+              return `result ${error.cnaResult}`;
+            }
+          };
+          const before = drawer.LineCount;
+          const begin = attempt(() => drawer.Begin(view, projection));
+          const afterBegin = drawer.LineCount;
+          drawer.AddLine(Vector3.Zero, new Vector3(0, 1, 0), RED);
+          const queued = drawer.LineCount;
+          const end = attempt(() => drawer.End());
+          return { before, begin, afterBegin, queued, end, afterEnd: drawer.LineCount };
+        } finally {
+          drawer.Dispose();
+        }
+      });
+      record("refusals", () => {
+        const drawer = new graphics.DebugDraw(this.GraphicsDevice);
+        const attempt = (body) => {
+          try {
+            body();
+            return "SUCCEEDED";
+          } catch (error) {
+            return error.constructor.name;
+          }
+        };
+        const answers = {
+          nullFrom: attempt(() => drawer.AddLine(null, Vector3.Zero, RED)),
+          nullColor: attempt(() => drawer.AddLine(Vector3.Zero, Vector3.Zero, null)),
+          fractionalSegments: attempt(
+            () => drawer.AddSphere(Vector3.Zero, 1, RED, 8.5)),
+          nonFiniteRadius: attempt(
+            () => drawer.AddSphere(Vector3.Zero, Number.NaN, RED, 8)),
+          nullVolume: attempt(() => drawer.AddProbeVolumeGizmo(null, RED, 1)),
+          nullCascades: attempt(() => drawer.AddCascadeGizmo(null, RED)),
+        };
+        drawer.Dispose();
+        answers.disposedAdd = attempt(() => drawer.AddLine(Vector3.Zero, Vector3.Zero, RED));
+        answers.disposedRead = attempt(() => drawer.GetVertices(true));
+        answers.disposedTwice = attempt(() => drawer.Dispose());
+        answers.isDisposed = drawer.IsDisposed;
+        return answers;
+      });
+      this.Exit();
+      super.LoadContent();
+    }
+
+    Update(gameTime) {
+      this.Exit();
+      super.Update(gameTime);
+    }
+  }
+
+  const game = new DebugProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+  assert.equal(typeof DebugDraw, "function");
+  assert.equal(device, null);
+
+  const RED_BYTES = [200, 100, 40, 255];
+  const near = (actual, expected, what, tolerance = 1e-4) => assert.ok(
+    Math.abs(actual - expected) < tolerance, `${what}: ${actual} vs ${expected}`);
+  const allRed = (shape) => {
+    for (const vertex of shape.vertices) {
+      assert.deepEqual(vertex.color, RED_BYTES, "every vertex carries the colour it was given");
+    }
+  };
+  // A drawer starts empty, and every shape below lands in the depth-tested list, not the overlay.
+  for (const [name, shape] of Object.entries(evidence)) {
+    if (typeof shape !== "object" || shape.empty === undefined) continue;
+    assert.deepEqual(
+      [shape.empty.lines, shape.empty.tested, shape.empty.overlay], [0, 0, 0],
+      `${name}: a fresh drawer holds nothing`,
+    );
+    assert.equal(shape.empty.depthTested, true, `${name}: and starts depth-tested`);
+    assert.equal(shape.overlay, 0, `${name}: nothing went to the overlay list`);
+    assert.equal(
+      shape.vertices.length, shape.lines * 2,
+      `${name}: a line list is two vertices per line`,
+    );
+    allRed(shape);
+  }
+
+  // --- a line is its own two endpoints -------------------------------------------------------------
+  assert.equal(evidence.line.lines, 1);
+  assert.deepEqual(
+    evidence.line.vertices.map((vertex) => vertex.position), [[1, 2, 3], [4, 5, 6]],
+    "a line is exactly the two points it was given, in that order",
+  );
+
+  // --- a cross is three lines through a point ------------------------------------------------------
+  assert.equal(evidence.cross.lines, 3, "one per axis");
+  const crossEnds = evidence.cross.vertices.map((vertex) => vertex.position);
+  assert.deepEqual(
+    crossEnds,
+    [[8, 20, 30], [12, 20, 30], [10, 18, 30], [10, 22, 30], [10, 20, 28], [10, 20, 32]],
+    "each reaches the size in both directions along its own axis and nowhere else",
+  );
+
+  // --- a box is twelve edges at eight corners --------------------------------------------------------
+  assert.equal(evidence.box.lines, 12, "a box is twelve edges");
+  // The exact edge list, in order: four edges around the far face, four around the near one, and
+  // four joining them. A swapped Min and Max keeps the same eight corners and changes this order,
+  // which is why the order is what is asserted.
+  assert.deepEqual(
+    evidence.box.vertices.map((vertex) => vertex.position),
+    [
+      [1, 6, 9], [4, 6, 9], [4, 6, 9], [4, 2, 9], [4, 2, 9], [1, 2, 9], [1, 2, 9], [1, 6, 9],
+      [1, 6, 3], [4, 6, 3], [4, 6, 3], [4, 2, 3], [4, 2, 3], [1, 2, 3], [1, 2, 3], [1, 6, 3],
+      [1, 6, 9], [1, 6, 3], [4, 6, 9], [4, 6, 3], [4, 2, 9], [4, 2, 3], [1, 2, 9], [1, 2, 3],
+    ],
+    "a box's twelve edges, in the order it emits them",
+  );
+  const corners = new Set(
+    evidence.box.vertices.map((vertex) => vertex.position.join(",")));
+  const expectedCorners = new Set();
+  for (const x of [1, 4]) for (const y of [2, 6]) for (const z of [3, 9]) {
+    expectedCorners.add(`${x},${y},${z}`);
+  }
+  assert.deepEqual(
+    [...corners].sort(), [...expectedCorners].sort(),
+    "and every vertex is one of the box's eight corners",
+  );
+  // Twelve edges over eight corners means each corner is an endpoint of exactly three of them.
+  const corneruses = new Map();
+  for (const vertex of evidence.box.vertices) {
+    const key = vertex.position.join(",");
+    corneruses.set(key, (corneruses.get(key) ?? 0) + 1);
+  }
+  for (const [corner, count] of corneruses) {
+    assert.equal(count, 3, `corner ${corner} is used ${count} times, not three`);
+  }
+
+  // --- a sphere is three rings, and every vertex is on it ---------------------------------------------
+  for (const [name, segments] of [["sphere8", 8], ["sphere16", 16]]) {
+    const sphere = evidence[name];
+    assert.equal(
+      sphere.lines, segments * 3,
+      `${name}: three rings of ${segments} segments each`,
+    );
+    for (const vertex of sphere.vertices) {
+      const [x, y, z] = vertex.position;
+      near(Math.hypot(x - 5, y, z), 3, `${name}: a vertex off the sphere`, 1e-3);
+      // Each ring lies in one of the three axis planes through the centre, so exactly one
+      // coordinate equals the centre's on every vertex.
+      const onPlane = [Math.abs(x - 5), Math.abs(y), Math.abs(z)].filter((v) => v < 1e-3).length;
+      assert.ok(
+        onPlane >= 1,
+        `${name}: a vertex at ${vertex.position} is not on any axis plane through the centre`,
+      );
+    }
+  }
+  assert.equal(
+    evidence.sphere16.lines, evidence.sphere8.lines * 2,
+    "twice the segments is twice the lines",
+  );
+  // A BoundingSphere draws exactly what the same centre and radius draw.
+  assert.deepEqual(
+    evidence.boundingSphere.vertices, evidence.sphere8.vertices,
+    "AddBoundingSphere and AddSphere must agree for the same sphere",
+  );
+
+  // --- a frustum's corners are the ones BoundingFrustum gives ------------------------------------------
+  const frustum = evidence.frustum;
+  assert.equal(frustum.lines, 12, "a frustum is twelve edges, like a box");
+  const frustumPoints = frustum.vertices.map((vertex) => vertex.position);
+  for (const point of frustumPoints) {
+    const match = frustum.corners.some((corner) =>
+      corner.every((value, axis) => Math.abs(value - point[axis]) < 1e-3));
+    assert.ok(
+      match,
+      `a frustum vertex at ${point} is not one of BoundingFrustum's own corners`,
+    );
+  }
+  // And all eight corners are used, so it is the whole frustum rather than one face twice.
+  for (const corner of frustum.corners) {
+    assert.ok(
+      frustumPoints.some((point) => point.every((v, axis) => Math.abs(v - corner[axis]) < 1e-3)),
+      `BoundingFrustum's corner ${corner} was not drawn`,
+    );
+  }
+
+  // --- the light gizmos ---------------------------------------------------------------------------------
+  // A point light is a sphere of its own range, plus a cross at its position.
+  const point = evidence.pointGizmo;
+  assert.equal(point.lines, 75, "twenty-four segments over three rings, and a three-line cross");
+  let onRange = 0;
+  for (const vertex of point.vertices) {
+    const [x, y, z] = vertex.position;
+    if (Math.abs(Math.hypot(x - 1, y - 2, z - 3) - 4) < 1e-3) onRange += 1;
+  }
+  assert.equal(
+    onRange, 24 * 3 * 2,
+    "every vertex of the sphere is at exactly the light's range from its position",
+  );
+
+  // A spot light is its cone: an apex at the light and a rim of range * tan(outer angle).
+  const spot = evidence.spotGizmo;
+  const apex = [0, 5, 0];
+  // Two cones, not one: the inner angle and the outer angle each get their own rim, at exactly
+  // range times the tangent of that angle, on the plane the range reaches.
+  const outerRadius = 10 * Math.tan(0.6);
+  const innerRadius = 10 * Math.tan(0.3);
+  let atApex = 0;
+  let onOuter = 0;
+  let onInner = 0;
+  for (const vertex of spot.vertices) {
+    const [x, y, z] = vertex.position;
+    if (Math.hypot(x - apex[0], y - apex[1], z - apex[2]) < 1e-4) {
+      atApex += 1;
+      continue;
+    }
+    near(y, -5, "a spot rim vertex is not at the cone's far end", 1e-3);
+    const radius = Math.hypot(x, z);
+    if (Math.abs(radius - outerRadius) < 1e-3) onOuter += 1;
+    else if (Math.abs(radius - innerRadius) < 1e-3) onInner += 1;
+    else {
+      assert.fail(
+        `a spot rim vertex at radius ${radius} is on neither cone: ` +
+        `outer ${outerRadius}, inner ${innerRadius}`,
+      );
+    }
+  }
+  assert.ok(atApex > 0, "a cone has an apex at the light");
+  assert.ok(onOuter > 0, "and a rim at range times the tangent of its outer angle");
+  assert.ok(onInner > 0, "and another at the tangent of its inner angle");
+  assert.equal(atApex + onOuter + onInner, spot.vertices.length);
+
+  // A directional light has no position, so it is an arrow through a place, pointing its way.
+  const directional = evidence.directionalGizmo;
+  assert.equal(directional.lines, 5, "a shaft and a four-line head");
+  assert.deepEqual(
+    directional.vertices[0].position, [0, 15, 0],
+    "the shaft starts a length back along the direction",
+  );
+  assert.deepEqual(
+    directional.vertices[1].position, [0, 10, 0],
+    "and ends at the place it was drawn through",
+  );
+  for (let index = 2; index < directional.vertices.length; index += 2) {
+    assert.deepEqual(
+      directional.vertices[index].position, [0, 10, 0],
+      "every head line starts at the tip",
+    );
+    near(
+      directional.vertices[index + 1].position[1], 10.75,
+      "and ends behind it, along the direction", 1e-4,
+    );
+  }
+
+  // --- the two lists, and clearing them -------------------------------------------------------------------
+  const lists = evidence.lists;
+  assert.deepEqual(lists.tested, [[0, 0, 0], [1, 0, 0]], "the depth-tested list has its own line");
+  assert.deepEqual(lists.overlay, [[0, 0, 0], [0, 1, 0]], "and the overlay has its own");
+  assert.deepEqual(lists.testedColor, RED_BYTES);
+  assert.deepEqual(lists.overlayColor, [10, 20, 250, 128], "each keeps its own colour, alpha and all");
+  assert.equal(lists.lines, 2, "and the line count is both lists together");
+  assert.equal(lists.depthTestedFlag, false, "the flag is where it was last put");
+  assert.deepEqual(lists.afterClear, [0, 0, 0], "clearing empties both lists");
+
+  // --- a frame ----------------------------------------------------------------------------------------------
+  assert.equal(evidence.frame.before, 1, "a line queued outside a frame is held");
+  assert.equal(evidence.frame.begin, "OK", "a drawer takes a camera");
+  assert.equal(
+    evidence.frame.afterBegin, 0,
+    "and beginning a frame starts it empty, discarding whatever was queued before it",
+  );
+  assert.equal(evidence.frame.queued, 1, "lines added inside the frame are held until it ends");
+  assert.equal(evidence.frame.end, "OK");
+  assert.equal(evidence.frame.afterEnd, 0, "ending a frame draws the queue and empties it");
+
+  // --- refusals ------------------------------------------------------------------------------------------------
+  const refusals = evidence.refusals;
+  assert.equal(refusals.nullFrom, "TypeError");
+  assert.equal(refusals.nullColor, "TypeError");
+  assert.equal(refusals.fractionalSegments, "TypeError", "a segment count is a whole number");
+  assert.equal(refusals.nonFiniteRadius, "TypeError");
+  assert.equal(refusals.nullVolume, "TypeError");
+  assert.equal(refusals.nullCascades, "TypeError");
+  assert.equal(refusals.disposedAdd, "NativeUnavailableError");
+  assert.equal(refusals.disposedRead, "NativeUnavailableError");
+  assert.equal(refusals.disposedTwice, "SUCCEEDED", "disposing twice is harmless");
+  assert.equal(refusals.isDisposed, true);
+
+  console.log(
+    `CNA_TS_NATIVE_DEBUG_DRAW=PASS LINE=2 CROSS=6 BOX=12_EDGES SPHERE=3x8/3x16 ` +
+    `FRUSTUM=BoundingFrustum_CORNERS POINT=${point.lines} SPOT=CONE DIRECTIONAL=ARROW`,
+  );
+});

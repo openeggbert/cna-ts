@@ -1853,6 +1853,33 @@
         "route:cna_gpu_instance_culler_copy_instance_lookup_glsl",
         "test:test/windowed-renderer.integration.mjs"
       ]
+    },
+    {
+      "operation": "The debug drawer: lines, shapes and light gizmos, read back as geometry",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "everything the drawer draws is a line list and cna_debug_draw_copy_vertices hands the whole list back, so what a gizmo consists of is read rather than looked at -- which is why this family needs no renderer to be qualified. A line is exactly its two endpoints in order; a cross is three lines reaching its size along each axis and nowhere else; a box is twelve edges over eight corners, asserted as the exact ordered edge list over a box asymmetric in all three axes so that a swapped Min and Max is a different picture rather than the same corners reordered, with each corner used by exactly three edges. A sphere is three rings of its segment count, every vertex exactly on the sphere and on one of the three axis planes through its centre, and twice the segments is twice the lines; a BoundingSphere draws exactly what the same centre and radius draw. A frustum's twelve edges use all eight of the corners BoundingFrustum gives for the same matrix and nothing else -- a second independent implementation, as with the frustum culler. The gizmos are checked against the light they describe: a point light is a sphere at exactly its range plus a cross, a spot light is two cones whose rims are at range times the tangent of the outer and the inner angle on the plane the range reaches, and a directional light is an arrow starting a length back along its direction with a head a fixed fraction of that length. The depth-tested and overlay lists are separate and keep their own colours including alpha, the line count is both together, clearing empties both, and beginning a frame starts it empty. Seven planted binding defects fail and none survives",
+      "proof": [
+        "route:cna_debug_draw_create",
+        "route:cna_debug_draw_begin",
+        "route:cna_debug_draw_end",
+        "route:cna_debug_draw_clear",
+        "route:cna_debug_draw_add_line",
+        "route:cna_debug_draw_add_box",
+        "route:cna_debug_draw_add_sphere",
+        "route:cna_debug_draw_add_bounding_sphere",
+        "route:cna_debug_draw_add_frustum",
+        "route:cna_debug_draw_add_cross",
+        "route:cna_debug_draw_copy_vertices",
+        "route:cna_debug_draw_get_line_count",
+        "route:cna_debug_draw_set_depth_tested",
+        "route:cna_debug_draw_add_point_light_gizmo",
+        "route:cna_debug_draw_add_spot_light_gizmo",
+        "route:cna_debug_draw_add_directional_light_gizmo",
+        "route:cna_debug_draw_add_probe_volume_gizmo",
+        "route:cna_debug_draw_add_cascade_gizmo",
+        "test:test/native-cna.integration.mjs"
+      ]
     }
   ]
 }

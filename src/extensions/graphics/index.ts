@@ -4651,6 +4651,8 @@ function spotLightSnapshot(light: SpotLight, what: string): {
  * {@link ShadowMapMath.ComputeCascadeSplitDistances} for the same camera and the same
  * {@link SplitLambda}, which is a pure route touching no map at all.
  */
+let handleOfCascadedShadowMapForDebug!: (map: CascadedShadowMap) => NativeHandle;
+
 export class CascadedShadowMap implements IDisposable {
   readonly #backend: CnaShadowBackend;
   readonly #device: GraphicsDevice;
@@ -4681,6 +4683,10 @@ export class CascadedShadowMap implements IDisposable {
       throw new NativeUnavailableError("the cascaded shadow map is disposed");
     }
     return this.#handle;
+  }
+
+  static {
+    handleOfCascadedShadowMapForDebug = (map: CascadedShadowMap) => map.#active();
   }
 
   /** Whether this renderer can actually render into it. */
@@ -7501,3 +7507,180 @@ export const InstanceStreams = {
     return extensions().getInstancedRendererTintStride();
   },
 } as const;
+
+/* ================================================================================================
+ * The debug drawer
+ * ==============================================================================================*/
+
+/** One vertex of the line list a debug drawer builds. */
+export interface DebugVertex {
+  /** Where it is, in world space. */
+  readonly Position: Vector3;
+  /** What colour it is. */
+  readonly Color: Color;
+}
+
+/**
+ * Lines drawn over a scene to show what is going on in it.
+ *
+ * Everything it draws is a line list, and {@link GetVertices} hands the whole list back — so what a
+ * gizmo actually consists of can be *read* rather than looked at, which is why nothing here needs a
+ * renderer to be checked. A box is twelve edges at eight corners; a cross is three lines through a
+ * point; a frustum's eight corners are the ones `BoundingFrustum.GetCorners` gives for the same
+ * matrix.
+ *
+ * The depth-tested and overlay lists are separate. {@link DepthTested} chooses which one an added
+ * shape lands in, and {@link GetVertices} reads either.
+ */
+export class DebugDraw implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#handle = extensions().createDebugDraw(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice));
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the debug drawer is disposed");
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Harmless twice. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroyDebugDraw(handle);
+  }
+
+  /** Whether shapes added from now on go in the depth-tested list rather than the overlay. */
+  public get DepthTested(): boolean {
+    return extensions().isDebugDrawDepthTested(this.#active());
+  }
+  public set DepthTested(value: boolean) {
+    extensions().setDebugDrawDepthTested(this.#active(), Boolean(value));
+  }
+
+  /** How many lines are queued across both lists. */
+  public get LineCount(): number {
+    return extensions().getDebugDrawLineCount(this.#active());
+  }
+
+  /** Starts a frame's worth of drawing, against a camera. */
+  public Begin(view: Matrix, projection: Matrix): void {
+    extensions().beginDebugDraw(
+      this.#active(), matrixValues(view, "view"), matrixValues(projection, "projection"));
+  }
+
+  /** Draws everything queued and empties the queue. */
+  public End(): void { extensions().endDebugDraw(this.#active()); }
+
+  /** Empties the queue without drawing it. */
+  public Clear(): void { extensions().clearDebugDraw(this.#active()); }
+
+  /** One line. */
+  public AddLine(from: Vector3, to: Vector3, color: Color): void {
+    extensions().addDebugDrawLine(
+      this.#active(), vectorSnapshot(from, "from"), vectorSnapshot(to, "to"),
+      packedColor(color, "color"));
+  }
+
+  /** A box's twelve edges. */
+  public AddBox(bounds: BoundingBox, color: Color): void {
+    extensions().addDebugDrawBox(this.#active(), boundsSnapshot(bounds), packedColor(color, "color"));
+  }
+
+  /** A sphere, as three rings of `segments` sides each. */
+  public AddSphere(centre: Vector3, radius: number, color: Color, segments: number): void {
+    extensions().addDebugDrawSphere(
+      this.#active(), vectorSnapshot(centre, "centre"), finite(radius, "radius"),
+      packedColor(color, "color"), wholeNumber(segments, "segments"));
+  }
+
+  /** The same, from a `BoundingSphere`. */
+  public AddBoundingSphere(sphere: BoundingSphere, color: Color, segments: number): void {
+    extensions().addDebugDrawBoundingSphere(
+      this.#active(), sphereSnapshot(sphere, "sphere"), packedColor(color, "color"),
+      wholeNumber(segments, "segments"));
+  }
+
+  /** A frustum's twelve edges, from the view-projection a `BoundingFrustum` holds. */
+  public AddFrustum(viewProjection: Matrix, color: Color): void {
+    extensions().addDebugDrawFrustum(
+      this.#active(), matrixValues(viewProjection, "viewProjection"), packedColor(color, "color"));
+  }
+
+  /** Three lines through a point, one along each axis, `size` long in each direction. */
+  public AddCross(position: Vector3, size: number, color: Color): void {
+    extensions().addDebugDrawCross(
+      this.#active(), vectorSnapshot(position, "position"), finite(size, "size"),
+      packedColor(color, "color"));
+  }
+
+  /** A point light as a sphere of its own range. */
+  public AddPointLightGizmo(light: PointLight, color: Color): void {
+    extensions().addDebugDrawPointLightGizmo(
+      this.#active(), pointLightSnapshot(light, "light"), packedColor(color, "color"));
+  }
+
+  /** A spot light as its cone. */
+  public AddSpotLightGizmo(light: SpotLight, color: Color, segments: number): void {
+    extensions().addDebugDrawSpotLightGizmo(
+      this.#active(), spotLightSnapshot(light, "light"), packedColor(color, "color"),
+      wholeNumber(segments, "segments"));
+  }
+
+  /** A directional light as an arrow through a place, since it has no position of its own. */
+  public AddDirectionalLightGizmo(
+    light: DirectionalLight, at: Vector3, length: number, color: Color,
+  ): void {
+    if (light == null) throw new TypeError("light is required");
+    extensions().addDebugDrawDirectionalLightGizmo(
+      this.#active(),
+      {
+        Direction: vectorSnapshot(light.Direction, "light.Direction"),
+        Color: vectorSnapshot(light.Color, "light.Color"),
+        Intensity: finite(light.Intensity, "light.Intensity"),
+      },
+      vectorSnapshot(at, "at"), finite(length, "length"), packedColor(color, "color"));
+  }
+
+  /** A light probe volume as a cross at each probe. */
+  public AddProbeVolumeGizmo(volume: LightProbeVolume, color: Color, crossSize: number): void {
+    if (volume == null) throw new TypeError("volume is required");
+    extensions().addDebugDrawProbeVolumeGizmo(
+      this.#active(), handleOfLightProbeVolume(volume), packedColor(color, "color"),
+      finite(crossSize, "crossSize"));
+  }
+
+  /** A cascaded shadow map's cascades, each as the box it covers. */
+  public AddCascadeGizmo(cascades: CascadedShadowMap, color: Color): void {
+    if (cascades == null) throw new TypeError("cascades is required");
+    extensions().addDebugDrawCascadeGizmo(
+      this.#active(), handleOfCascadedShadowMapForDebug(cascades), packedColor(color, "color"));
+  }
+
+  /**
+   * The line list itself, two vertices per line, in the order the shapes were added.
+   *
+   * This is what makes the drawer checkable without drawing anything: a caller — or a test — can
+   * read exactly which lines a gizmo turned into.
+   */
+  public GetVertices(depthTested: boolean): DebugVertex[] {
+    return extensions().getDebugDrawVertices(this.#active(), Boolean(depthTested))
+      .map((vertex) => {
+        const color = new Color(0, 0, 0, 0);
+        color.PackedValue = vertex.Color;
+        return { Position: toVector3(vertex.Position), Color: color };
+      });
+  }
+}
+
+function packedColor(color: Color, what: string): number {
+  if (color == null) throw new TypeError(`${what} is required`);
+  return color.PackedValue;
+}

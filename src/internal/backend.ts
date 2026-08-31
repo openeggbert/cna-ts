@@ -1188,6 +1188,50 @@ export interface CnaGraphicsExtensionBackend {
   getInstancedRendererInstanceStride(): number;
   getInstancedRendererTintElements(): readonly VertexElementSnapshot[];
   getInstancedRendererTintStride(): number;
+  // --- the debug drawer -------------------------------------------------------------------------
+  createDebugDraw(graphicsDevice: NativeHandle): NativeHandle;
+  destroyDebugDraw(debug: NativeHandle): void;
+  beginDebugDraw(
+    debug: NativeHandle, view: readonly number[], projection: readonly number[],
+  ): void;
+  endDebugDraw(debug: NativeHandle): void;
+  clearDebugDraw(debug: NativeHandle): void;
+  addDebugDrawLine(
+    debug: NativeHandle, from: Vector3Snapshot, to: Vector3Snapshot, color: number,
+  ): void;
+  addDebugDrawBox(debug: NativeHandle, bounds: ClusterBoundsSnapshot, color: number): void;
+  addDebugDrawSphere(
+    debug: NativeHandle, centre: Vector3Snapshot, radius: number, color: number, segments: number,
+  ): void;
+  addDebugDrawBoundingSphere(
+    debug: NativeHandle, sphere: BoundingSphereSnapshot, color: number, segments: number,
+  ): void;
+  addDebugDrawFrustum(
+    debug: NativeHandle, viewProjection: readonly number[], color: number,
+  ): void;
+  addDebugDrawCross(
+    debug: NativeHandle, position: Vector3Snapshot, size: number, color: number,
+  ): void;
+  isDebugDrawDepthTested(debug: NativeHandle): boolean;
+  setDebugDrawDepthTested(debug: NativeHandle, value: boolean): void;
+  getDebugDrawLineCount(debug: NativeHandle): number;
+  getDebugDrawVertices(
+    debug: NativeHandle, depthTested: boolean,
+  ): readonly DebugVertexSnapshot[];
+  addDebugDrawPointLightGizmo(
+    debug: NativeHandle, light: PointLightSnapshot, color: number,
+  ): void;
+  addDebugDrawSpotLightGizmo(
+    debug: NativeHandle, light: SpotLightSnapshot, color: number, segments: number,
+  ): void;
+  addDebugDrawDirectionalLightGizmo(
+    debug: NativeHandle, light: DirectionalLightSnapshot, at: Vector3Snapshot, length: number,
+    color: number,
+  ): void;
+  addDebugDrawProbeVolumeGizmo(
+    debug: NativeHandle, volume: NativeHandle, color: number, crossSize: number,
+  ): void;
+  addDebugDrawCascadeGizmo(debug: NativeHandle, cascades: NativeHandle, color: number): void;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
@@ -1752,6 +1796,12 @@ export interface GltfExtensionTexturesSnapshot {
 export interface CullableInstanceSnapshot {
   readonly World: readonly number[];
   readonly Bounds: ClusterBoundsSnapshot;
+}
+
+/** One vertex of a debug line list: where it is and what colour it is. */
+export interface DebugVertexSnapshot {
+  readonly Position: Vector3Snapshot;
+  readonly Color: number;
 }
 
 export interface Vector4Snapshot {

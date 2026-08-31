@@ -940,6 +940,20 @@ typedef CNA_Result (*GpuCullFn)(CNA_Handle, const CNA_Matrix*, const CNA_Matrix*
 typedef CNA_Result (*GpuCullGlslFn)(char*, uint64_t, uint64_t*);
 typedef CNA_Result (*GpuCullDrawFn)(CNA_Handle, CNA_PrimitiveType);
 
+typedef CNA_Result (*DebugDrawLineFn)(CNA_Handle, const CNA_Vector3*, const CNA_Vector3*, CNA_Color);
+typedef CNA_Result (*DebugDrawBoxFn)(CNA_Handle, const CNA_BoundingBox*, CNA_Color);
+typedef CNA_Result (*DebugDrawSphereFn)(CNA_Handle, const CNA_Vector3*, float, CNA_Color, int32_t);
+typedef CNA_Result (*DebugDrawBoundingSphereFn)(CNA_Handle, const CNA_BoundingSphere*, CNA_Color, int32_t);
+typedef CNA_Result (*DebugDrawFrustumFn)(CNA_Handle, CNA_BoundingFrustum, CNA_Color);
+typedef CNA_Result (*DebugDrawCrossFn)(CNA_Handle, const CNA_Vector3*, float, CNA_Color);
+typedef CNA_Result (*DebugDrawBeginFn)(CNA_Handle, const CNA_Matrix*, const CNA_Matrix*);
+typedef CNA_Result (*DebugDrawCopyVerticesFn)(CNA_Handle, CNA_Bool, CNA_VertexPositionColor*, uint64_t, uint64_t*);
+typedef CNA_Result (*DebugDrawPointGizmoFn)(CNA_Handle, const CNA_PointLightEXT*, CNA_Color);
+typedef CNA_Result (*DebugDrawSpotGizmoFn)(CNA_Handle, const CNA_SpotLightEXT*, CNA_Color, int32_t);
+typedef CNA_Result (*DebugDrawDirectionalGizmoFn)(CNA_Handle, const CNA_DirectionalLightEXT*, const CNA_Vector3*, float, CNA_Color);
+typedef CNA_Result (*DebugDrawVolumeGizmoFn)(CNA_Handle, CNA_Handle, CNA_Color, float);
+typedef CNA_Result (*DebugDrawCascadeGizmoFn)(CNA_Handle, CNA_Handle, CNA_Color);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2426,6 +2440,26 @@ typedef struct Api {
   GpuCullDrawFn gpu_instance_culler_draw;
   HandleI32OutFn gpu_instance_culler_read_visible_count_ext;
   GpuCullGlslFn gpu_instance_culler_copy_instance_lookup_glsl;
+  PostProcessPassCreateFn debug_draw_create;
+  GameHandleFn debug_draw_destroy;
+  DebugDrawBeginFn debug_draw_begin;
+  GameHandleFn debug_draw_end;
+  GameHandleFn debug_draw_clear;
+  DebugDrawLineFn debug_draw_add_line;
+  DebugDrawBoxFn debug_draw_add_box;
+  DebugDrawSphereFn debug_draw_add_sphere;
+  DebugDrawBoundingSphereFn debug_draw_add_bounding_sphere;
+  DebugDrawFrustumFn debug_draw_add_frustum;
+  DebugDrawCrossFn debug_draw_add_cross;
+  BoolGetFn debug_draw_is_depth_tested;
+  HandleBoolFn debug_draw_set_depth_tested;
+  HandleI32OutFn debug_draw_get_line_count;
+  DebugDrawCopyVerticesFn debug_draw_copy_vertices;
+  DebugDrawPointGizmoFn debug_draw_add_point_light_gizmo;
+  DebugDrawSpotGizmoFn debug_draw_add_spot_light_gizmo;
+  DebugDrawDirectionalGizmoFn debug_draw_add_directional_light_gizmo;
+  DebugDrawVolumeGizmoFn debug_draw_add_probe_volume_gizmo;
+  DebugDrawCascadeGizmoFn debug_draw_add_cascade_gizmo;
 } Api;
 
 typedef struct GameContext {
@@ -4199,6 +4233,26 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(instanced_renderer_ext_get_instance_stride, StrideOutFn, "cna_instanced_renderer_ext_get_instance_stride");
   LOAD_REQUIRED(instanced_renderer_ext_copy_tint_elements, InstanceElementsFn, "cna_instanced_renderer_ext_copy_tint_elements");
   LOAD_REQUIRED(instanced_renderer_ext_get_tint_stride, StrideOutFn, "cna_instanced_renderer_ext_get_tint_stride");
+  LOAD_REQUIRED(debug_draw_create, PostProcessPassCreateFn, "cna_debug_draw_create");
+  LOAD_REQUIRED(debug_draw_destroy, GameHandleFn, "cna_debug_draw_destroy");
+  LOAD_REQUIRED(debug_draw_begin, DebugDrawBeginFn, "cna_debug_draw_begin");
+  LOAD_REQUIRED(debug_draw_end, GameHandleFn, "cna_debug_draw_end");
+  LOAD_REQUIRED(debug_draw_clear, GameHandleFn, "cna_debug_draw_clear");
+  LOAD_REQUIRED(debug_draw_add_line, DebugDrawLineFn, "cna_debug_draw_add_line");
+  LOAD_REQUIRED(debug_draw_add_box, DebugDrawBoxFn, "cna_debug_draw_add_box");
+  LOAD_REQUIRED(debug_draw_add_sphere, DebugDrawSphereFn, "cna_debug_draw_add_sphere");
+  LOAD_REQUIRED(debug_draw_add_bounding_sphere, DebugDrawBoundingSphereFn, "cna_debug_draw_add_bounding_sphere");
+  LOAD_REQUIRED(debug_draw_add_frustum, DebugDrawFrustumFn, "cna_debug_draw_add_frustum");
+  LOAD_REQUIRED(debug_draw_add_cross, DebugDrawCrossFn, "cna_debug_draw_add_cross");
+  LOAD_REQUIRED(debug_draw_is_depth_tested, BoolGetFn, "cna_debug_draw_is_depth_tested");
+  LOAD_REQUIRED(debug_draw_set_depth_tested, HandleBoolFn, "cna_debug_draw_set_depth_tested");
+  LOAD_REQUIRED(debug_draw_get_line_count, HandleI32OutFn, "cna_debug_draw_get_line_count");
+  LOAD_REQUIRED(debug_draw_copy_vertices, DebugDrawCopyVerticesFn, "cna_debug_draw_copy_vertices");
+  LOAD_REQUIRED(debug_draw_add_point_light_gizmo, DebugDrawPointGizmoFn, "cna_debug_draw_add_point_light_gizmo");
+  LOAD_REQUIRED(debug_draw_add_spot_light_gizmo, DebugDrawSpotGizmoFn, "cna_debug_draw_add_spot_light_gizmo");
+  LOAD_REQUIRED(debug_draw_add_directional_light_gizmo, DebugDrawDirectionalGizmoFn, "cna_debug_draw_add_directional_light_gizmo");
+  LOAD_REQUIRED(debug_draw_add_probe_volume_gizmo, DebugDrawVolumeGizmoFn, "cna_debug_draw_add_probe_volume_gizmo");
+  LOAD_REQUIRED(debug_draw_add_cascade_gizmo, DebugDrawCascadeGizmoFn, "cna_debug_draw_add_cascade_gizmo");
   LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
   LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
   LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
@@ -24273,10 +24327,335 @@ static napi_value bridge_gpu_instance_culler_read_visible_count_ext(napi_env env
   return pp_get_i32(env, info, g_api.gpu_instance_culler_read_visible_count_ext, "cna_gpu_instance_culler_read_visible_count_ext");
 }
 
+/* ---- the debug drawer -------------------------------------------------------------------------
+   Everything it draws is a line list, and `cna_debug_draw_copy_vertices` hands the whole list back,
+   so what a gizmo actually consists of can be read rather than looked at. That is the whole reason
+   this family is qualifiable without a renderer. */
+
+static napi_value bridge_debug_draw_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.debug_draw_create, "cna_debug_draw_create");
+}
+
+static napi_value bridge_debug_draw_begin(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle debug = 0;
+  CNA_Matrix view, projection;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &debug) ||
+      !read_matrix16(env, args[1], &view, "a view") ||
+      !read_matrix16(env, args[2], &projection, "a projection")) return NULL;
+  const CNA_Result result = g_api.debug_draw_begin(debug, &view, &projection);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_debug_draw_begin", result);
+  return undefined_result(env, "cna_debug_draw_begin");
+}
+
+static int read_packed_colour(napi_env env, napi_value value, CNA_Color* out) {
+  uint32_t packed = 0;
+  if (napi_get_value_uint32(env, value, &packed) != napi_ok) {
+    throw_message(env, "expected a packed colour");
+    return 0;
+  }
+  *out = unpack_color(packed);
+  return 1;
+}
+
+static napi_value bridge_debug_draw_add_line(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle debug = 0;
+  CNA_Vector3 from = {0, 0, 0}, to = {0, 0, 0};
+  CNA_Color colour;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &debug) ||
+      !read_vector3_fields(env, args[1], &from) ||
+      !read_vector3_fields(env, args[2], &to) ||
+      !read_packed_colour(env, args[3], &colour)) return NULL;
+  const CNA_Result result = g_api.debug_draw_add_line(debug, &from, &to, colour);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_debug_draw_add_line", result);
+  return undefined_result(env, "cna_debug_draw_add_line");
+}
+
+static napi_value bridge_debug_draw_add_box(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle debug = 0;
+  CNA_BoundingBox box;
+  CNA_Color colour;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &debug) ||
+      !read_bounding_box(env, args[1], &box) ||
+      !read_packed_colour(env, args[2], &colour)) return NULL;
+  const CNA_Result result = g_api.debug_draw_add_box(debug, &box, colour);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_debug_draw_add_box", result);
+  return undefined_result(env, "cna_debug_draw_add_box");
+}
+
+static napi_value bridge_debug_draw_add_sphere(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle debug = 0;
+  CNA_Vector3 centre = {0, 0, 0};
+  CNA_Color colour;
+  double radius = 0;
+  int32_t segments = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &debug) ||
+      !read_vector3_fields(env, args[1], &centre) ||
+      napi_get_value_double(env, args[2], &radius) != napi_ok ||
+      !read_packed_colour(env, args[3], &colour) ||
+      napi_get_value_int32(env, args[4], &segments) != napi_ok) {
+    return throw_message(env, "expected a centre, a radius, a colour and a segment count");
+  }
+  const CNA_Result result =
+    g_api.debug_draw_add_sphere(debug, &centre, (float) radius, colour, segments);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_debug_draw_add_sphere", result);
+  return undefined_result(env, "cna_debug_draw_add_sphere");
+}
+
+static napi_value bridge_debug_draw_add_bounding_sphere(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle debug = 0;
+  CNA_BoundingSphere sphere;
+  CNA_Color colour;
+  int32_t segments = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &debug) ||
+      !read_bounding_sphere(env, args[1], &sphere) ||
+      !read_packed_colour(env, args[2], &colour) ||
+      napi_get_value_int32(env, args[3], &segments) != napi_ok) {
+    return throw_message(env, "expected a sphere, a colour and a segment count");
+  }
+  const CNA_Result result =
+    g_api.debug_draw_add_bounding_sphere(debug, &sphere, colour, segments);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_debug_draw_add_bounding_sphere", result);
+  }
+  return undefined_result(env, "cna_debug_draw_add_bounding_sphere");
+}
+
+static napi_value bridge_debug_draw_add_frustum(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle debug = 0;
+  CNA_BoundingFrustum frustum;
+  CNA_Color colour;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &debug) ||
+      !read_matrix16(env, args[1], &frustum.matrix, "a frustum's view-projection") ||
+      !read_packed_colour(env, args[2], &colour)) return NULL;
+  const CNA_Result result = g_api.debug_draw_add_frustum(debug, frustum, colour);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_debug_draw_add_frustum", result);
+  return undefined_result(env, "cna_debug_draw_add_frustum");
+}
+
+static napi_value bridge_debug_draw_add_cross(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle debug = 0;
+  CNA_Vector3 position = {0, 0, 0};
+  CNA_Color colour;
+  double size = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &debug) ||
+      !read_vector3_fields(env, args[1], &position) ||
+      napi_get_value_double(env, args[2], &size) != napi_ok ||
+      !read_packed_colour(env, args[3], &colour)) {
+    return throw_message(env, "expected a position, a size and a colour");
+  }
+  const CNA_Result result =
+    g_api.debug_draw_add_cross(debug, &position, (float) size, colour);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_debug_draw_add_cross", result);
+  return undefined_result(env, "cna_debug_draw_add_cross");
+}
+
+static napi_value bridge_debug_draw_copy_vertices(napi_env env, napi_callback_info info) {
+  napi_value args[2], output, entry, position;
+  CNA_Handle debug = 0;
+  bool depth_tested = false;
+  uint64_t capacity = 0, produced = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &debug) ||
+      napi_get_value_bool(env, args[1], &depth_tested) != napi_ok) {
+    return throw_message(env, "expected a debug drawer and whether to read the depth-tested list");
+  }
+  const CNA_Bool tested = depth_tested ? CNA_TRUE : CNA_FALSE;
+  CNA_Result result = g_api.debug_draw_copy_vertices(debug, tested, NULL, 0, &capacity);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_debug_draw_copy_vertices", result);
+  }
+  if (capacity > (uint64_t) 1 << 24) return throw_message(env, "an implausible vertex count");
+  CNA_VertexPositionColor* vertices = capacity == 0
+    ? NULL : (CNA_VertexPositionColor*) calloc((size_t) capacity, sizeof(CNA_VertexPositionColor));
+  if (capacity != 0 && !vertices) return throw_message(env, "vertex allocation failed");
+  result = g_api.debug_draw_copy_vertices(debug, tested, vertices, capacity, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != capacity) {
+    free(vertices);
+    return throw_result(env, "cna_debug_draw_copy_vertices", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) produced, &output) != napi_ok) {
+    free(vertices);
+    return throw_napi(env, "cna_debug_draw_copy_vertices");
+  }
+  for (uint64_t index = 0; index < produced; index += 1) {
+    if (napi_create_object(env, &entry) != napi_ok ||
+        napi_create_object(env, &position) != napi_ok ||
+        !set_vector3_fields(env, position, &vertices[index].position) ||
+        napi_set_named_property(env, entry, "Position", position) != napi_ok ||
+        !set_u32_property(env, entry, "Color", pack_color(vertices[index].color)) ||
+        napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      free(vertices);
+      return throw_napi(env, "cna_debug_draw_copy_vertices");
+    }
+  }
+  free(vertices);
+  return output;
+}
+
+static napi_value bridge_debug_draw_add_point_light_gizmo(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle debug = 0;
+  CNA_PointLightEXT light;
+  CNA_Color colour;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &debug) ||
+      !read_point_light(env, args[1], &light) ||
+      !read_packed_colour(env, args[2], &colour)) return NULL;
+  const CNA_Result result = g_api.debug_draw_add_point_light_gizmo(debug, &light, colour);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_debug_draw_add_point_light_gizmo", result);
+  }
+  return undefined_result(env, "cna_debug_draw_add_point_light_gizmo");
+}
+
+static napi_value bridge_debug_draw_add_spot_light_gizmo(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle debug = 0;
+  CNA_SpotLightEXT light;
+  CNA_Color colour;
+  int32_t segments = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &debug) ||
+      !read_spot_light(env, args[1], &light) ||
+      !read_packed_colour(env, args[2], &colour) ||
+      napi_get_value_int32(env, args[3], &segments) != napi_ok) {
+    return throw_message(env, "expected a spot light, a colour and a segment count");
+  }
+  const CNA_Result result =
+    g_api.debug_draw_add_spot_light_gizmo(debug, &light, colour, segments);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_debug_draw_add_spot_light_gizmo", result);
+  }
+  return undefined_result(env, "cna_debug_draw_add_spot_light_gizmo");
+}
+
+static napi_value bridge_debug_draw_add_directional_light_gizmo(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[5];
+  CNA_Handle debug = 0;
+  CNA_DirectionalLightEXT light;
+  CNA_Vector3 at = {0, 0, 0};
+  CNA_Color colour;
+  double length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &debug) ||
+      !read_directional_light(env, args[1], &light) ||
+      !read_vector3_fields(env, args[2], &at) ||
+      napi_get_value_double(env, args[3], &length) != napi_ok ||
+      !read_packed_colour(env, args[4], &colour)) {
+    return throw_message(env, "expected a light, a place, a length and a colour");
+  }
+  const CNA_Result result = g_api.debug_draw_add_directional_light_gizmo(
+    debug, &light, &at, (float) length, colour);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_debug_draw_add_directional_light_gizmo", result);
+  }
+  return undefined_result(env, "cna_debug_draw_add_directional_light_gizmo");
+}
+
+static napi_value bridge_debug_draw_add_probe_volume_gizmo(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle debug = 0, volume = 0;
+  CNA_Color colour;
+  double size = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &debug) || !read_handle(env, args[1], &volume) ||
+      !read_packed_colour(env, args[2], &colour) ||
+      napi_get_value_double(env, args[3], &size) != napi_ok) {
+    return throw_message(env, "expected a probe volume, a colour and a cross size");
+  }
+  const CNA_Result result =
+    g_api.debug_draw_add_probe_volume_gizmo(debug, volume, colour, (float) size);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_debug_draw_add_probe_volume_gizmo", result);
+  }
+  return undefined_result(env, "cna_debug_draw_add_probe_volume_gizmo");
+}
+
+
+/*
+ * `cna_debug_draw_add_cluster_slice_gizmo` is left unbound for now: it takes a
+ * `CNA_ClusteredLightGridHandle`, and the clustered light *grid* is not projected here yet -- the
+ * set, the assignment and the shadow policy are. Binding it would offer a route that could only
+ * ever be handed zero, which is the same reason the LOD group's select route is unbound.
+ */
+static napi_value bridge_debug_draw_add_cascade_gizmo(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle debug = 0, cascades = 0;
+  CNA_Color colour;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &debug) || !read_handle(env, args[1], &cascades) ||
+      !read_packed_colour(env, args[2], &colour)) return NULL;
+  const CNA_Result result = g_api.debug_draw_add_cascade_gizmo(debug, cascades, colour);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_debug_draw_add_cascade_gizmo", result);
+  }
+  return undefined_result(env, "cna_debug_draw_add_cascade_gizmo");
+}
+
+static napi_value bridge_debug_draw_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.debug_draw_destroy, "cna_debug_draw_destroy");
+}
+
+static napi_value bridge_debug_draw_end(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.debug_draw_end, "cna_debug_draw_end");
+}
+
+static napi_value bridge_debug_draw_clear(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.debug_draw_clear, "cna_debug_draw_clear");
+}
+
+static napi_value bridge_debug_draw_is_depth_tested(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.debug_draw_is_depth_tested, "cna_debug_draw_is_depth_tested");
+}
+
+static napi_value bridge_debug_draw_set_depth_tested(napi_env env, napi_callback_info info) {
+  return pp_set_bool(env, info, g_api.debug_draw_set_depth_tested, "cna_debug_draw_set_depth_tested");
+}
+
+static napi_value bridge_debug_draw_get_line_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.debug_draw_get_line_count, "cna_debug_draw_get_line_count");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "createDebugDraw", NULL, bridge_debug_draw_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyDebugDraw", NULL, bridge_debug_draw_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "beginDebugDraw", NULL, bridge_debug_draw_begin, NULL, NULL, NULL, napi_default, NULL },
+    { "endDebugDraw", NULL, bridge_debug_draw_end, NULL, NULL, NULL, napi_default, NULL },
+    { "clearDebugDraw", NULL, bridge_debug_draw_clear, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawLine", NULL, bridge_debug_draw_add_line, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawBox", NULL, bridge_debug_draw_add_box, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawSphere", NULL, bridge_debug_draw_add_sphere, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawBoundingSphere", NULL, bridge_debug_draw_add_bounding_sphere, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawFrustum", NULL, bridge_debug_draw_add_frustum, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawCross", NULL, bridge_debug_draw_add_cross, NULL, NULL, NULL, napi_default, NULL },
+    { "isDebugDrawDepthTested", NULL, bridge_debug_draw_is_depth_tested, NULL, NULL, NULL, napi_default, NULL },
+    { "setDebugDrawDepthTested", NULL, bridge_debug_draw_set_depth_tested, NULL, NULL, NULL, napi_default, NULL },
+    { "getDebugDrawLineCount", NULL, bridge_debug_draw_get_line_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getDebugDrawVertices", NULL, bridge_debug_draw_copy_vertices, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawPointLightGizmo", NULL, bridge_debug_draw_add_point_light_gizmo, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawSpotLightGizmo", NULL, bridge_debug_draw_add_spot_light_gizmo, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawDirectionalLightGizmo", NULL, bridge_debug_draw_add_directional_light_gizmo, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawProbeVolumeGizmo", NULL, bridge_debug_draw_add_probe_volume_gizmo, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawCascadeGizmo", NULL, bridge_debug_draw_add_cascade_gizmo, NULL, NULL, NULL, napi_default, NULL },
     { "getInstancedRendererInstanceElements", NULL, bridge_instanced_renderer_ext_copy_instance_elements, NULL, NULL, NULL, napi_default, NULL },
     { "getInstancedRendererInstanceStride", NULL, bridge_instanced_renderer_ext_get_instance_stride, NULL, NULL, NULL, napi_default, NULL },
     { "getInstancedRendererTintElements", NULL, bridge_instanced_renderer_ext_copy_tint_elements, NULL, NULL, NULL, napi_default, NULL },

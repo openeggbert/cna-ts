@@ -509,6 +509,20 @@ Electron, or mobile support.
   units outside a hundred-unit frustum. Two planted defects survive and are recorded rather than
   hidden — one cannot be observed while the cull rejects nothing, and the other replaces a constant
   route with the constant it returns, which no test can distinguish.
+- [x] **The debug drawer**, which is the easiest family in the layer to qualify well and was
+  qualified accordingly: everything it draws is a line list, and CNA hands the whole list back, so
+  what a gizmo *consists of* is read rather than looked at. A line is its two endpoints in order; a
+  cross is three lines reaching its size along each axis and nowhere else; a box is the exact ordered
+  list of twelve edges over eight corners, on a box asymmetric in all three axes so a swapped `Min`
+  and `Max` is a different picture rather than the same corners reordered, with each corner used by
+  exactly three edges. A sphere is three rings of its segment count with every vertex exactly on the
+  sphere and on one of the three axis planes through its centre. A frustum's edges use all eight of
+  the corners `BoundingFrustum` gives for the same matrix — a second independent implementation
+  again. The gizmos are checked against the light they describe: a point light is a sphere at
+  exactly its range, a spot light is *two* cones whose rims sit at range times the tangent of the
+  outer and the inner angle, and a directional light is an arrow starting a length back along its
+  direction. Seven planted defects fail and none survives. `cna_debug_draw_add_cluster_slice_gizmo`
+  is left unbound: it needs a clustered light *grid*, which is not projected yet.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -603,7 +617,7 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 153 operation families: 21 verified managed, 91 verified native, 13
+- [x] Current baseline is 154 operation families: 21 verified managed, 92 verified native, 13
   verified WebAssembly, five explicitly unavailable on the qualified backend, five upstream-CNA
   blocked, three fixture pending, six hardware pending, three platform pending, two unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.
