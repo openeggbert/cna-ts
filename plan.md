@@ -336,10 +336,27 @@ Electron, or mobile support.
   and `Random` is the deterministic generator the emitter draws from, so the simulation is checked
   against arithmetic rather than recorded numbers. Two half steps and one whole step both reach the
   same velocity but land in different places, which is what shows a stepwise integrator.
-- [ ] The two draw passes — a shadow map's depth pass and a particle system's draw — are
-  unprojected. Each needs a real depth or sprite pass with geometry, a camera and an effect. Until
-  CNA fixed upstream findings 7 and 9 there was also no evidence to accept them on, because
-  render-target readback answered zeros; that obstacle is gone.
+- [x] Both draw passes. **A shadow map's depth pass** runs on a windowed OPENGLES3 renderer and is
+  accepted on its texels: an empty pass leaves all 262144 at exactly the far plane, an asymmetric
+  quad in an asymmetric scene box darkens exactly the rectangle its corners project to through the
+  light transform CNA reports, at exactly the depth that transform predicts, and the same draw
+  outside `Begin`/`End` reaches none of the map. The transform is cross-checked first against
+  `ComputeLightView` times `ComputeLightProjection` for the same light and box — pure routes that
+  touch no shadow map — so the geometry checks cannot move with a defect that corrupts the matrix.
+  The two lent caster programs are told apart by what they rasterise, because their handles cannot:
+  every borrow is a new handle. **A particle system's draw** is accepted the same way: with the
+  simulation pinned to the CPU and every variance zero, all 32 particles stand on the emitter, and
+  two systems at different world positions with different particle sizes paint two squares exactly
+  where the test's own `CreateLookAt`/`CreateOrthographic` camera puts them, in the particle
+  texture's colour; moving the camera slides both by what the new view predicts, and a system with
+  nothing alive paints nothing and does not fail. Both were blocked until CNA fixed upstream
+  findings 7 and 9 in `48ab0de7f`, because render-target readback answered zeros and there was no
+  picture to accept anything on.
+- [ ] Soft particles are the one part of the particle draw not accepted. The depth image and the
+  softness reach CNA, store and read back, and the drawn particle does not change — not even given
+  a depth image saying every pixel is at the camera, which should erase it. The GPU draw path is
+  the one running, which its texel count shows. That is `docs/upstream-cna-findings.md` item 12,
+  asserted as it currently behaves so a repair is noticed.
 - [x] And the rest of the shadow-map maths: a cascaded map's split distances checked against both
   closed forms and their midpoint, the bounding sphere that sizes a cascade snugly, a spot light's
   cone, and a cube map's six faces proved to be three opposite pairs.

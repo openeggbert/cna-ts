@@ -1867,3 +1867,154 @@ cna_c_api_wasm MIN/MAX_WEBGL_VERSION     STILL PRESENT (verified in the live CMa
 
 Neither Emscripten workaround was removed on the strength of the build merely continuing to
 succeed with it; both were re-read out of `cnanext`'s own CMake.
+
+## 2026-08-31: the engine layer end to end, and two draw passes accepted on their pixels
+
+### Repository invariants
+
+```text
+CNA_TS_START=4068b21 (clean, == origin/develop)
+CNA_TS_END=a2b1a45 + this record   (29 commits; 26 pushed, the last 3 local)
+CNA_TS_TEMPLATE=8a806d8 (2 commits this session, pushed, clean)
+CNANEXT=0fd4d4e39         read-only, 0 modified, 0 untracked, unchanged all session
+SHARP_RUNTIMENEXT=4a49afb0 read-only, 0 modified, 0 untracked, unchanged all session
+CNA_SAMPLES               another workflow's; it advanced a0c50e205 -> 154502d at 13:45
+                          under that workflow while this session ran. Not touched here.
+LIBRARIES  cmake-build-tsnext (HEADLESS)   cmake-build-debug (OPENGLES3)
+           cmake-build-sdlrenderer (SDL_RENDERER)   cmake-build-software (SOFTWARE)
+           cmake-build-tswasm (WEBGL2) — all read-only, none reconfigured or rebuilt here
+```
+
+### What was built
+
+The compute path, clustered lighting, level-of-detail groups, the shadow-map maths for all four
+shadow kinds, the particle simulation, XNA's public `GraphicsDevice` constructor, camera frame
+capture, CNB's writers on both backends, a `.cnj` compiler, the Guide's two async screens — and
+then the two things the plan had left standing: **a shadow map's depth pass** and **a particle
+system's draw**.
+
+Both were blocked on the same thing until this week. A render target read back as zeros on the one
+renderer that could run either pass, which this package had recorded as upstream finding 7 and
+*asserted* rather than worked around. CNA fixed it in `48ab0de7f`, along with finding 9, and the
+assertions fired the moment the repair landed. That is what made both passes writable.
+
+### The two draw passes, and what they are accepted on
+
+Neither is accepted on a call returning success. Each is accepted on a picture, checked against a
+prediction the test computes from inputs it chose itself.
+
+**The depth pass.** An empty `Begin`/`End` leaves all 262144 texels at exactly 1.0. Then one
+asymmetric quad in an asymmetric scene box, cast at two heights. The pass transform is
+cross-checked first: it must equal `ComputeLightView` times `ComputeLightProjection` for the same
+light and box — pure routes that touch no shadow map — multiplied by the test itself. Only then are
+the quad's corners projected through it, and the rendered rectangle has to match within 1.5 texels
+on every edge, fill 98% of its predicted area, and hold exactly the predicted depth to 1e-5. Two
+heights eight units apart differ by exactly the projection's depth scale times eight and cover
+identical texels; the same draw outside the pass reaches none of the map.
+
+The borrow contract is the part that needed measuring rather than guessing. CNA counts the effects
+and the texture it lends, hands out a *fresh handle for every borrow*, and refuses to destroy a map
+while one is outstanding. So each is taken once and returned before the map. That handle behaviour
+also broke the first version of the test: comparing the two caster facades by identity let a
+swapped getter through, because two borrows are always two objects. They are told apart now by what
+they rasterise — the skinned program writes nothing from vertices carrying no bone weights.
+
+**The particle draw.** Pinned to the CPU simulation with every variance zero and the emitter's
+speed zero, all 32 particles stand exactly on the emitter, which the pool read back confirms. Two
+systems at different world positions with different particle sizes paint two squares, each checked
+against where the test's own `CreateLookAt`/`CreateOrthographic` camera puts that emitter and how
+wide that particle size is there — within 1.5 texels, in the particle texture's colour and no
+other. Drawing either alone puts its square in the same place, an emission rate of zero paints
+nothing and does not fail, and moving the camera two units slides both by what the new view
+predicts.
+
+### Mutation results
+
+```text
+SHADOW DEPTH PASS      15 killed, 2 survived
+PARTICLE DRAW           9 killed, 1 survived
+HEADLESS BOUNDARY       2 killed, 0 survived
+```
+
+Killed: a dropped scene box; the box's Max sent as both corners; Color read as the light direction;
+a negated light direction; an `End` reporting success without closing the pass; the shadow-texture
+route wired to the caster-effect route; either caster getter wired to the other; a skinned caster
+ignoring the palette length; a depth texture re-borrowed on every read; a `Dispose` destroying the
+map before returning its borrows; a binding pre-empting CNA's own bone-palette limit; `Begin`
+inventing a refusal on a renderer that cannot cast; a caster getter wrapping the invalid handle CNA
+answers with; a particle draw swapping view and projection; one sending the view as both; one
+dropping the texture; a settings setter losing the particle size; a softness setter never reaching
+CNA; a stated shader binding point instead of CNA's.
+
+Survived, each with a measured reason rather than an excuse:
+
+- **Swapping the scene box's Min and Max.** Not an escape — CNA normalises the box. Measured: the
+  pure-maths routes return a bit-identical matrix for a box and its swapped twin, so no route can
+  distinguish them.
+- **Ignoring a light's Intensity.** Every consumer of `CNA_DirectionalLightEXT` in the ABI — the
+  shadow pass, the shadow maths, a cascaded update, the pipeline's shadow scene, the debug gizmo —
+  takes it as input and none reports it back. Unobservable.
+- **Creating at the default capacity by asking for 1024 explicitly.** Indistinguishable, because no
+  route says which create was used. The number itself is not free-floating: the ABI contract now
+  compiles `_Static_assert((uint32_t) CNA_PARTICLE_SYSTEM_DEFAULT_CAPACITY == 1024)`.
+
+### Upstream finding 12: soft particles never fade
+
+The depth image and the softness reach CNA, store, and read back, and the drawn particle does not
+change — not even given a depth image saying every pixel is at the camera, which should erase it.
+The GPU draw path is genuinely the one running: it paints 144 texels where the CPU billboard path
+paints 169 for the same particle, so this is not a quiet fallback to the path that never had a
+fade. Both extremes of the depth image were tried, in `Color` and `Single` render-target form and
+as a plain `Texture2D`. No cause is claimed beyond the observable. `SetDepthInput` documents it on
+itself, and the windowed test asserts the current behaviour so a repair fails it and says so.
+
+### Boundaries asserted, not skipped
+
+HEADLESS cannot compile a caster effect, and CNA's documented answer is to accept the pass and
+render unshadowed rather than fail the frame, returning success with `CNA_INVALID_HANDLE` from both
+effect getters. The binding passes the first through and refuses the second by name — it used to
+raise an `AggregateError` about a failed reflection rollback, which is what wrapping a zero looks
+like. The SDL_RENDERER and SOFTWARE builds have the engine layer compiled out entirely, so there is
+no shadow map and no particle system to make; that `NOT_SUPPORTED` is checked against the separate
+route that reports whether the layer is present.
+
+### Final qualification
+
+```text
+npm test 332/332          test:differential 182/182    test:native 30/30 (HEADLESS)
+test:extensions 10/10     test:cnb 39/39               test:content 10/10
+test:wasm-browser 11/11   test:windowed 7/7 on each of OPENGLES3, SDL_RENDERER, SOFTWARE
+verify:runtime RUNTIME_DIFFERENCES=0   verify:leaks PASS   verify:package PASS
+
+audit:cna-abi   ABI=0.21.0 HEADERS=61 EXPORTS=4054 REQUIRED=46 MISSING_REQUIRED=0
+                IMPORTS=1014 SIGNATURES_VERIFIED=1014 SIGNATURE_MISMATCHES=0
+coverage:cna-abi UNEXPLAINED=0 REACHABLE_BUT_DEFERRED=0 NODE=1014 WASM=276
+verify:cna-contract SCALAR_ASSERTIONS=37 DIAGNOSTICS=0 STATIC_ASSERTIONS_COMPILED=PASS
+runtime:inventory ENTRIES=133 CONSISTENCY_GATE=PASS PROVED=112
+                  VERIFIED_NATIVE=73 VERIFIED_MANAGED=21 VERIFIED_WEBASSEMBLY=13
+```
+
+Every one of the 1014 imported symbols is compiler-verified: the audit assigns each to its declared
+function-pointer type in a C translation unit built with `-std=c11 -Wall -Wextra -Werror`. Four of
+the six new particle routes were briefly invisible to that gate because they were loaded through
+inline function-pointer types the audit's parser skips; they are named typedefs now, and the
+verified count equals the imported count again.
+
+### Upstream status
+
+```text
+ 1  add_owned_pass owned-resource leak         still present
+ 2  SDL3 mixer stderr notice on success        still present
+ 3  cna_c_api_wasm WebGL version pin           FIXED in 0.21.0
+ 4  -sASYNCIFY=1 on every Emscripten link      FIXED in 0.21.0
+ 5  motion sensor IsDataValid disagreement     still present
+ 6  gyroscope has no synthetic test backend    still present
+ 7  OPENGLES3 render-target readback zeros     FIXED in 48ab0de7f
+ 8  cna_compute_shader_create vs its header    still present
+ 9  OPENGLES3 compute limits zeroed by a draw  FIXED in 48ab0de7f
+10  four clustered creates document a game     still present
+11  test-backend camera leaves a dangling      still present (SIGSEGV, child-process detector)
+12  soft particles never fade                  NEW, measured, not fixed here
+```
+
+Four of twelve closed. Nothing in `cnanext` was edited from here to make any of them go away.
