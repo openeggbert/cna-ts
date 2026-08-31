@@ -380,6 +380,25 @@
       "direction",
       "diffuse_color"
     ],
+    "CNA_CnbSoundEffectInfo": [
+      "struct_size",
+      "struct_version",
+      "format",
+      "sample_rate",
+      "channels",
+      "frame_count",
+      "loop_start",
+      "loop_length"
+    ],
+    "CNA_CnbVideoInfo": [
+      "struct_size",
+      "struct_version",
+      "duration_milliseconds",
+      "width",
+      "height",
+      "frames_per_second",
+      "soundtrack_type"
+    ],
     "CNA_SpriteFontGlyph": [
       "struct_size",
       "struct_version",

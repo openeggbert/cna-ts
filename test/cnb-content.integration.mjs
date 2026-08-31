@@ -30,17 +30,25 @@ import {
 import {
   CnbAssetType,
   CnbCompression,
+  CnbAudioFormat,
   CnbDocument,
   CnbEffectKind,
   CnbFormat,
   CnbMaterialTextureSlot,
   CnbModelData,
   CnbSkeletonMatrixSet,
+  CnbSoundEffectData,
   CnbSpriteFontData,
   CnbTextureData,
   CnbTextureFormat,
+  CreateSoundEffectFromCnb,
+  CreateSoundEffectFromCnbSoundEffectData,
   CreateSpriteFontFromCnb,
   CreateTexture2DFromCnb,
+  DecodeCnbSong,
+  DecodeCnbVideo,
+  EncodeCnbSong,
+  EncodeCnbVideo,
 } from "../dist/extensions/content/index.js";
 
 const library = process.env.CNA_NATIVE_LIBRARY;
@@ -396,6 +404,34 @@ class CnbProbeGame extends Game {
       measuredWidth: measured.X,
       measuredHeight: measured.Y,
     };
+    // A compiled sound effect, ending in a real XNA SoundEffect. This lives inside the game
+    // because a SoundEffect owns a native audio resource and CNA requires an active game for one.
+    const samples = pcm16Samples();
+    const authored = CnbSoundEffectData.Create({
+      Format: CnbAudioFormat.Pcm16, SampleRate: PCM_SAMPLE_RATE, Channels: 1,
+      FrameCount: PCM_FRAMES, LoopStart: 0, LoopLength: 0,
+    }, samples);
+    let soundImage;
+    try {
+      soundImage = authored.Encode("Audio/Beep");
+    } finally {
+      authored.Dispose();
+    }
+    const soundDocument = CnbDocument.Parse(soundImage, "Beep.cnb");
+    try {
+      this.sound = CreateSoundEffectFromCnb(soundDocument);
+    } finally {
+      soundDocument.Dispose();
+    }
+    this.sound.Name = "Beep";
+    this.results.sound = {
+      durationMilliseconds: this.sound.Duration.TotalMilliseconds,
+      // A real CNA round trip through cna_sound_effect_set_name/_copy_name, which does not depend
+      // on a mixer and so is measurable in this configuration.
+      name: this.sound.Name,
+      sampleBytes: samples.byteLength,
+    };
+
     this.spriteBatch = new Graphics.SpriteBatch(this.GraphicsDevice);
     super.LoadContent();
   }
@@ -413,6 +449,7 @@ class CnbProbeGame extends Game {
   }
 
   UnloadContent() {
+    this.sound?.Dispose();
     this.spriteBatch?.Dispose();
     this.texture?.Dispose();
     super.UnloadContent();
@@ -436,6 +473,21 @@ test("a CNB texture and font become real XNA resources with the exact pixels CNA
   assert.deepEqual(
     [game.results.font.measuredWidth, game.results.font.measuredHeight],
     [3, 8],
+  );
+
+  // The compiled sound effect reached a real XNA SoundEffect owning a native audio resource, and
+  // its name round-trips through CNA.
+  assert.equal(game.results.sound.name, "Beep");
+  assert.equal(game.results.sound.sampleBytes, PCM_FRAMES * 2);
+  // Duration is zero here, and that is a property of this artifact rather than of the CNB path:
+  // it is built with CNA_AUDIO_PLATFORM=NULL, and docs/cna-abi-audit.md records CNA's own
+  // CApi_AudioSmoke reporting the same zero for a PCM16 effect without a mixer. The real
+  // measurement -- 250 ms and 2,500,000 ticks for a quarter second of 8 kHz mono -- is made in
+  // test/wasm-browser.mjs, whose artifact has SDL3 audio. Asserting it here would be asserting the
+  // configuration, not the schema.
+  assert.equal(
+    game.results.sound.durationMilliseconds, 0,
+    "NULL audio reports no duration; when this artifact gains a mixer, this expectation changes",
   );
   game.Dispose();
 });
@@ -873,4 +925,214 @@ test("a skeleton whose matrix sets disagree with its hierarchy is refused here",
   } finally {
     model.Dispose();
   }
+});
+
+/* ---- the CNB media schemas ------------------------------------------------------------------- */
+
+/**
+ * A quarter second of 8 kHz mono 16-bit PCM. The sample values are a ramp rather than silence, so
+ * a payload that came back zeroed, truncated or byte-swapped is visible rather than plausible.
+ */
+const PCM_SAMPLE_RATE = 8000;
+const PCM_FRAMES = PCM_SAMPLE_RATE / 4;
+function pcm16Samples() {
+  const view = new DataView(new ArrayBuffer(PCM_FRAMES * 2));
+  for (let index = 0; index < PCM_FRAMES; index += 1) {
+    view.setInt16(index * 2, (index * 7) % 32768 - 16384, true);
+  }
+  return new Uint8Array(view.buffer);
+}
+
+/** A minimal RIFF/WAVE image around those samples, so CNA's own WAV decoder has real input. */
+function wavImage(samples) {
+  const bytes = new Uint8Array(44 + samples.byteLength);
+  const view = new DataView(bytes.buffer);
+  const ascii = (offset, text) => {
+    for (let index = 0; index < text.length; index += 1) bytes[offset + index] = text.charCodeAt(index);
+  };
+  ascii(0, "RIFF");
+  view.setUint32(4, 36 + samples.byteLength, true);
+  ascii(8, "WAVE");
+  ascii(12, "fmt ");
+  view.setUint32(16, 16, true);          // PCM chunk size
+  view.setUint16(20, 1, true);           // format 1 = PCM
+  view.setUint16(22, 1, true);           // channels
+  view.setUint32(24, PCM_SAMPLE_RATE, true);
+  view.setUint32(28, PCM_SAMPLE_RATE * 2, true); // byte rate
+  view.setUint16(32, 2, true);           // block align
+  view.setUint16(34, 16, true);          // bits per sample
+  ascii(36, "data");
+  view.setUint32(40, samples.byteLength, true);
+  bytes.set(samples, 44);
+  return bytes;
+}
+
+test("a sound effect CNA encoded decodes back with its exact description and samples", { skip }, () => {
+  const samples = pcm16Samples();
+  const authored = CnbSoundEffectData.Create({
+    Format: CnbAudioFormat.Pcm16,
+    SampleRate: PCM_SAMPLE_RATE,
+    Channels: 1,
+    FrameCount: PCM_FRAMES,
+    LoopStart: 100,
+    LoopLength: 400,
+  }, samples);
+  let image;
+  try {
+    image = authored.Encode("Reference/Beep");
+  } finally {
+    authored.Dispose();
+  }
+  const document = CnbDocument.Parse(image, "Reference/Beep.cnb");
+  try {
+    assert.equal(document.AssetType, CnbAssetType.SoundEffect);
+    assert.equal(document.Metadata.ContentName, "Reference/Beep");
+    const decoded = CnbSoundEffectData.Decode(document);
+    try {
+      const description = decoded.Description;
+      assert.equal(description.Format, CnbAudioFormat.Pcm16);
+      assert.equal(description.SampleRate, PCM_SAMPLE_RATE);
+      assert.equal(description.Channels, 1);
+      assert.equal(description.FrameCount, PCM_FRAMES);
+      // The loop region is two independent numbers, given two different values so a reader that
+      // returned one for both would fail here rather than round-trip.
+      assert.equal(description.LoopStart, 100);
+      assert.equal(description.LoopLength, 400);
+      // Byte for byte. A truncated payload, a zeroed one and a byte-swapped one all fail.
+      assert.deepEqual([...decoded.ReadSamples()], [...samples]);
+    } finally {
+      decoded.Dispose();
+    }
+  } finally {
+    document.Dispose();
+  }
+});
+
+test("CNA's own WAV decoder reads a RIFF image into a CNB sound effect", { skip }, () => {
+  const samples = pcm16Samples();
+  const decoded = CnbSoundEffectData.DecodeWav(wavImage(samples), "beep.wav");
+  try {
+    const description = decoded.Description;
+    assert.equal(description.Format, CnbAudioFormat.Pcm16);
+    assert.equal(description.SampleRate, PCM_SAMPLE_RATE);
+    assert.equal(description.Channels, 1);
+    assert.equal(description.FrameCount, PCM_FRAMES);
+    // The header said these bytes; the decoder must produce exactly them rather than a resampled
+    // or re-quantised approximation.
+    assert.deepEqual([...decoded.ReadSamples()], [...samples]);
+  } finally {
+    decoded.Dispose();
+  }
+  // A file that is not a WAV is refused rather than read as one.
+  assert.throws(
+    () => CnbSoundEffectData.DecodeWav(Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8]), "not-a-wav"),
+    /cna_cnb_decode_wav_as_sound_effect/,
+  );
+});
+
+test("a CNB sound effect XNA cannot represent is refused by name", { skip }, () => {
+  // Eight-bit PCM read as sixteen would play as noise, so this must refuse rather than convert.
+  const eightBit = CnbSoundEffectData.Create({
+    Format: CnbAudioFormat.Pcm8, SampleRate: PCM_SAMPLE_RATE, Channels: 1,
+    FrameCount: 8, LoopStart: 0, LoopLength: 0,
+  }, new Uint8Array(8));
+  try {
+    assert.throws(
+      () => CreateSoundEffectFromCnbSoundEffectData(eightBit),
+      /Pcm8 cannot become an XNA SoundEffect/,
+    );
+    // And the data itself is still readable, which is the point of refusing rather than throwing
+    // the container away: a caller can convert the samples themselves.
+    assert.equal(eightBit.Description.Format, CnbAudioFormat.Pcm8);
+    assert.equal(eightBit.ReadSamples().byteLength, 8);
+  } finally {
+    eightBit.Dispose();
+  }
+});
+
+test("a song container round-trips its name, duration and stream reference", { skip }, () => {
+  // A song carries a *reference* to its audio rather than the audio, so the whole schema is
+  // testable with no encoded music at all. Three distinguishable values, so a field read through
+  // its neighbour's route is caught.
+  const image = EncodeCnbSong({
+    StreamReference: "Music/Theme.ogg",
+    Name: "Main Theme",
+    DurationMilliseconds: 123456,
+  }, "Reference/Theme");
+  const document = CnbDocument.Parse(image, "Reference/Theme.cnb");
+  try {
+    assert.equal(document.AssetType, CnbAssetType.Song);
+    assert.equal(document.Metadata.ContentName, "Reference/Theme");
+    const song = DecodeCnbSong(document);
+    assert.equal(song.StreamReference, "Music/Theme.ogg");
+    assert.equal(song.Name, "Main Theme", "the display name is not the stream reference");
+    assert.equal(song.DurationMilliseconds, 123456);
+  } finally {
+    document.Dispose();
+  }
+});
+
+test("a video container round-trips its description and stream reference", { skip }, () => {
+  // Every field a different value, and none of them derivable from another: a 1280x720 clip at
+  // 29.97 fps is not square, not a common duration and not an integer frame rate.
+  const image = EncodeCnbVideo({
+    StreamReference: "Movies/Intro.ogv",
+    DurationMilliseconds: 45678,
+    Width: 1280,
+    Height: 720,
+    FramesPerSecond: 29.97,
+    SoundtrackType: 2,
+  }, "Reference/Intro");
+  const document = CnbDocument.Parse(image, "Reference/Intro.cnb");
+  try {
+    assert.equal(document.AssetType, CnbAssetType.Video);
+    const video = DecodeCnbVideo(document);
+    assert.equal(video.StreamReference, "Movies/Intro.ogv");
+    assert.equal(video.DurationMilliseconds, 45678);
+    assert.equal(video.Width, 1280);
+    assert.equal(video.Height, 720, "width and height are distinct fields");
+    // Stored as a float, so exact equality against 29.97 would be wrong.
+    assert.ok(Math.abs(video.FramesPerSecond - 29.97) < 1e-4, `fps was ${video.FramesPerSecond}`);
+    assert.equal(video.SoundtrackType, 2);
+  } finally {
+    document.Dispose();
+  }
+});
+
+test("a media container decoded as the wrong schema is refused", { skip }, () => {
+  // Each of the three refuses the others: the asset type is what distinguishes them, and reading a
+  // song's chunks as a video's would produce a plausible-looking description of nothing.
+  const song = CnbDocument.Parse(
+    EncodeCnbSong({ StreamReference: "a", Name: "b", DurationMilliseconds: 1 }, "S"), "S.cnb",
+  );
+  try {
+    assert.throws(() => DecodeCnbVideo(song), /cna_cnb_decode_video/);
+    assert.throws(() => CnbSoundEffectData.Decode(song), /cna_cnb_decode_sound_effect/);
+  } finally {
+    song.Dispose();
+  }
+  const video = CnbDocument.Parse(
+    EncodeCnbVideo({
+      StreamReference: "a", DurationMilliseconds: 1, Width: 2, Height: 2,
+      FramesPerSecond: 1, SoundtrackType: 0,
+    }, "V"), "V.cnb",
+  );
+  try {
+    assert.throws(() => DecodeCnbSong(video), /cna_cnb_decode_song/);
+  } finally {
+    video.Dispose();
+  }
+});
+
+test("a disposed sound effect refuses by name and disposes idempotently", { skip }, () => {
+  const sound = CnbSoundEffectData.Create({
+    Format: CnbAudioFormat.Pcm16, SampleRate: 8000, Channels: 1,
+    FrameCount: 4, LoopStart: 0, LoopLength: 0,
+  }, new Uint8Array(8));
+  sound.Dispose();
+  assert.equal(sound.IsDisposed, true);
+  sound.Dispose();
+  assert.throws(() => sound.Description, /CnbSoundEffectData\.Description/);
+  assert.throws(() => sound.ReadSamples(), /CnbSoundEffectData\.ReadSamples/);
+  assert.throws(() => sound.Encode("x"), /CnbSoundEffectData\.Encode/);
 });

@@ -89,6 +89,7 @@
       "CNA_CNB_ASSET_TYPE_CUSTOM_RANGE_FIRST",
       "CNA_CNB_ASSET_TYPE_EFFECT",
       "CNA_CNB_ASSET_TYPE_RESERVED_RANGE_FIRST",
+      "CNA_CNB_AUDIO_FORMAT_MAXIMUM",
       "CNA_CNB_COMPRESSION_MAXIMUM",
       "CNA_CNB_EFFECT_KIND_MAXIMUM",
       "CNA_CNB_MATERIAL_TEXTURE_MAXIMUM",
@@ -635,6 +636,15 @@
     {
       "typeScriptEnum": "CnbSkeletonMatrixSet",
       "cnaPrefix": "CNA_CNB_SKELETON_MATRIX"
+    },
+    {
+      "typeScriptEnum": "CnbAudioFormat",
+      "cnaPrefix": "CNA_CNB_AUDIO_FORMAT",
+      "suffixOverrides": {
+        "Pcm16": "PCM16",
+        "Pcm8": "PCM8",
+        "PcmFloat32": "PCM_FLOAT32"
+      }
     },
     {
       "typeScriptEnum": "PowerState",

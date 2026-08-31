@@ -1012,6 +1012,25 @@ export interface CnbMaterialSnapshot {
   readonly DoubleSided: boolean;
 }
 
+/** A `.cnb` sound effect's description: format, rate, channels, frames and its loop region. */
+export interface CnbSoundEffectInfoSnapshot {
+  readonly Format: number;
+  readonly SampleRate: number;
+  readonly Channels: number;
+  readonly FrameCount: number;
+  readonly LoopStart: number;
+  readonly LoopLength: number;
+}
+
+/** A `.cnb` video's description. The media itself is a stream reference, not an embedded payload. */
+export interface CnbVideoInfoSnapshot {
+  readonly DurationMilliseconds: number;
+  readonly Width: number;
+  readonly Height: number;
+  readonly FramesPerSecond: number;
+  readonly SoundtrackType: number;
+}
+
 export interface CnaContentBackend {
   cnbHasMagic(bytes: Uint8Array): boolean;
   cnbFormatMagic(): Uint8Array;
@@ -1070,6 +1089,24 @@ export interface CnaContentBackend {
   cnbSpriteFontDataSetAtlas(font: NativeHandle, atlas: NativeHandle): void;
   cnbSpriteFontDataCopyAtlas(font: NativeHandle): NativeHandle;
   cnbEncodeSpriteFont(font: NativeHandle, contentName: string): Uint8Array;
+  cnbSoundEffectDataCreate(info: CnbSoundEffectInfoSnapshot, samples: Uint8Array): NativeHandle;
+  cnbSoundEffectDataDestroy(sound: NativeHandle): void;
+  cnbSoundEffectDataGetInfo(sound: NativeHandle): CnbSoundEffectInfoSnapshot;
+  cnbSoundEffectDataCopySamples(sound: NativeHandle): Uint8Array;
+  cnbEncodeSoundEffect(sound: NativeHandle, contentName: string): Uint8Array;
+  cnbDecodeSoundEffect(document: NativeHandle): NativeHandle;
+  cnbDecodeWavAsSoundEffect(bytes: Uint8Array, origin: string): NativeHandle;
+  cnbEncodeSong(
+    streamReference: string, name: string, durationMilliseconds: number, contentName: string,
+  ): Uint8Array;
+  cnbDecodeSongDuration(document: NativeHandle): number;
+  cnbDecodeSongName(document: NativeHandle): string;
+  cnbDecodeSongStreamReference(document: NativeHandle): string;
+  cnbEncodeVideo(
+    streamReference: string, info: CnbVideoInfoSnapshot, contentName: string,
+  ): Uint8Array;
+  cnbDecodeVideo(document: NativeHandle): CnbVideoInfoSnapshot;
+  cnbDecodeVideoStreamReference(document: NativeHandle): string;
   cnbModelCreate(): NativeHandle;
   cnbModelDestroy(model: NativeHandle): void;
   cnbModelSetFlags(

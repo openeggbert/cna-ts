@@ -16,11 +16,11 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 630,
-    "WASM": 209
+    "NODE": 647,
+    "WASM": 226
   },
-  "reachableByAny": 630,
-  "reachableByAll": 209,
+  "reachableByAny": 647,
+  "reachableByAll": 226,
   "reachableExclusively": {
     "NODE": 421,
     "WASM": 0
@@ -31,8 +31,8 @@
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 259,
-      "WASM": 135
+      "NODE": 276,
+      "WASM": 152
     },
     "INTERNAL_RUNTIME_ONLY": {
       "NODE": 1,
@@ -73,8 +73,8 @@
     },
     "cnb.h": {
       "CNA_EXTENSION_BACKING": 272,
-      "REACHABLE_NODE": 100,
-      "REACHABLE_WASM": 95
+      "REACHABLE_NODE": 117,
+      "REACHABLE_WASM": 112
     },
     "color.h": {
       "MANAGED_BY_DESIGN": 24
@@ -4698,42 +4698,60 @@
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_decode_song_name",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_decode_song_name_size",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_decode_song_stream_reference",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_decode_song_stream_reference_size",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_decode_sound_effect",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_decode_sprite_font",
@@ -4774,28 +4792,40 @@
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_decode_video_stream_reference",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_decode_video_stream_reference_size",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_decode_wav_as_sound_effect",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_document_copy_chunk_data",
@@ -5095,14 +5125,20 @@
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_encode_sound_effect",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_encode_sprite_font",
@@ -5143,7 +5179,10 @@
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_get_asset_type_name_size",
@@ -6144,28 +6183,40 @@
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_sound_effect_data_create",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_sound_effect_data_destroy",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_sound_effect_data_get_info",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE",
+        "WASM"
+      ]
     },
     {
       "name": "cna_cnb_sprite_font_data_add_glyph",

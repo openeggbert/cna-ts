@@ -34,6 +34,7 @@ import { NativeUnavailableError } from "../../internal/native-error.js";
 import {
   ArgumentException,
   ArgumentNullException,
+  NotSupportedException,
   ObjectDisposedException,
 } from "../../internal/exceptions.js";
 import type { IDisposable } from "../../Microsoft/Xna/Framework/Contracts.js";
@@ -47,6 +48,8 @@ import {
   setTexture2DLevelBytesForInternalUse,
   Texture2D,
 } from "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
+import { AudioChannels } from "../../Microsoft/Xna/Framework/Audio/Enums.js";
+import { SoundEffect } from "../../Microsoft/Xna/Framework/Audio/SoundEffect.js";
 import type { SpriteFont } from "../../Microsoft/Xna/Framework/Graphics/SpriteFont.js";
 import { createSpriteFontForInternalUse } from "../../Microsoft/Xna/Framework/Graphics/SpriteFont.js";
 import type { NativeHandle } from "../../internal/ownership.js";
@@ -733,6 +736,215 @@ function adoptTextureData(handle: NativeHandle): CnbTextureData {
 
 
 /**
+ * How a `.cnb` sound effect's samples are stored.
+ *
+ * Wire values, proved against `cnb.h`. Only {@link Pcm16} converts directly to an XNA
+ * {@link SoundEffect}, because XNA's constructor takes 16-bit PCM and nothing else;
+ * {@link CreateSoundEffectFromCnb} refuses the others by name rather than reinterpreting them.
+ */
+export enum CnbAudioFormat {
+  Unknown = 0,
+  Pcm16 = 1,
+  Pcm8 = 2,
+  PcmFloat32 = 3,
+  Adpcm = 4,
+  Vorbis = 5,
+}
+
+/** A `.cnb` sound effect's description. */
+export interface CnbSoundEffectDescription {
+  readonly Format: CnbAudioFormat;
+  readonly SampleRate: number;
+  readonly Channels: number;
+  /** Frames, not bytes and not samples: one frame is one sample per channel. */
+  readonly FrameCount: number;
+  /** First frame of the loop region. */
+  readonly LoopStart: number;
+  /** Length of the loop region in frames; zero where the effect does not loop. */
+  readonly LoopLength: number;
+}
+
+const soundHandles = new WeakMap<CnbSoundEffectData, NativeHandle>();
+
+function soundHandle(sound: CnbSoundEffectData, operation: string): NativeHandle {
+  const handle = soundHandles.get(sound);
+  if (handle == null) throw new ObjectDisposedException(`CnbSoundEffectData.${operation}`);
+  return handle;
+}
+
+/**
+ * A decoded compiled sound effect: its description and its sample bytes.
+ *
+ * This is the one media schema that carries its own payload — a song and a video carry a
+ * *reference* to a stream the runtime resolves later, which is why they are plain functions below
+ * rather than owned objects.
+ */
+export class CnbSoundEffectData implements IDisposable {
+  private constructor(handle: NativeHandle) { soundHandles.set(this, handle); }
+
+  /** Decodes the sound effect a document carries. */
+  public static Decode(document: CnbDocument): CnbSoundEffectData {
+    if (document == null) throw new ArgumentNullException("document");
+    return new CnbSoundEffectData(
+      content("CnbSoundEffectData.Decode").cnbDecodeSoundEffect(documentHandle(document, "Decode")),
+    );
+  }
+
+  /**
+   * Reads a RIFF/WAVE image with CNA's own decoder.
+   *
+   * From bytes rather than from a path, so it works in a browser as well as in a build script: the
+   * one route that takes a filesystem path is a build-time convenience this package does not need.
+   */
+  public static DecodeWav(bytes: Uint8Array, origin = ""): CnbSoundEffectData {
+    if (bytes == null) throw new ArgumentNullException("bytes");
+    if (typeof origin !== "string") throw new ArgumentException("origin must be a string");
+    return new CnbSoundEffectData(
+      content("CnbSoundEffectData.DecodeWav").cnbDecodeWavAsSoundEffect(bytes, origin),
+    );
+  }
+
+  /** Builds a description from samples the caller already holds. */
+  public static Create(
+    description: CnbSoundEffectDescription, samples: Uint8Array,
+  ): CnbSoundEffectData {
+    if (description == null) throw new ArgumentNullException("description");
+    if (samples == null) throw new ArgumentNullException("samples");
+    return new CnbSoundEffectData(content("CnbSoundEffectData.Create").cnbSoundEffectDataCreate({
+      Format: description.Format,
+      SampleRate: description.SampleRate,
+      Channels: description.Channels,
+      FrameCount: description.FrameCount,
+      LoopStart: description.LoopStart,
+      LoopLength: description.LoopLength,
+    }, samples));
+  }
+
+  /** Format, rate, channels, frame count and the loop region. */
+  public get Description(): CnbSoundEffectDescription {
+    const info = content("CnbSoundEffectData.Description")
+      .cnbSoundEffectDataGetInfo(soundHandle(this, "Description"));
+    return Object.freeze({
+      Format: info.Format as CnbAudioFormat,
+      SampleRate: info.SampleRate,
+      Channels: info.Channels,
+      FrameCount: info.FrameCount,
+      LoopStart: info.LoopStart,
+      LoopLength: info.LoopLength,
+    });
+  }
+
+  /** A copy of the sample bytes, which outlives this object. */
+  public ReadSamples(): Uint8Array {
+    return content("CnbSoundEffectData.ReadSamples")
+      .cnbSoundEffectDataCopySamples(soundHandle(this, "ReadSamples"));
+  }
+
+  /** Writes this sound effect as a complete `.cnb` container image. */
+  public Encode(contentName: string): Uint8Array {
+    if (typeof contentName !== "string") {
+      throw new ArgumentException("contentName must be a string");
+    }
+    return content("CnbSoundEffectData.Encode")
+      .cnbEncodeSoundEffect(soundHandle(this, "Encode"), contentName);
+  }
+
+  /** Whether this description has been released. */
+  public get IsDisposed(): boolean { return !soundHandles.has(this); }
+
+  /** Releases the decoded sound effect. Idempotent. */
+  public Dispose(): void {
+    const handle = soundHandles.get(this);
+    if (handle == null) return;
+    soundHandles.delete(this);
+    content("CnbSoundEffectData.Dispose").cnbSoundEffectDataDestroy(handle);
+  }
+}
+
+/**
+ * What a `.cnb` song container carries.
+ *
+ * Not the audio: a song is a **stream reference**, a name the runtime resolves when the song is
+ * played, plus the metadata `MediaPlayer` needs to show it. That is why this schema is projected
+ * while `MediaPlayer` playback of a compiled song stays fixture-blocked — the container is
+ * complete and testable, the stream it names is not this package's to supply.
+ */
+export interface CnbSong {
+  /** The asset this song's audio lives in. */
+  readonly StreamReference: string;
+  /** The song's display name. */
+  readonly Name: string;
+  readonly DurationMilliseconds: number;
+}
+
+/** Writes a `.cnb` song container. */
+export function EncodeCnbSong(song: CnbSong, contentName: string): Uint8Array {
+  if (song == null) throw new ArgumentNullException("song");
+  if (typeof contentName !== "string") throw new ArgumentException("contentName must be a string");
+  return content("EncodeCnbSong").cnbEncodeSong(
+    song.StreamReference, song.Name, Math.trunc(song.DurationMilliseconds) >>> 0, contentName,
+  );
+}
+
+/** Reads a `.cnb` song container's metadata and its stream reference. */
+export function DecodeCnbSong(document: CnbDocument): CnbSong {
+  if (document == null) throw new ArgumentNullException("document");
+  const handle = documentHandle(document, "DecodeCnbSong");
+  const backend = content("DecodeCnbSong");
+  return Object.freeze({
+    StreamReference: backend.cnbDecodeSongStreamReference(handle),
+    Name: backend.cnbDecodeSongName(handle),
+    DurationMilliseconds: backend.cnbDecodeSongDuration(handle),
+  });
+}
+
+/**
+ * What a `.cnb` video container carries: its dimensions, its frame rate, its duration, its
+ * soundtrack kind, and a reference to the stream holding the encoded movie.
+ *
+ * As with a song, the container is complete without the movie. Decoding frames is a different
+ * claim entirely and this package does not make it from here.
+ */
+export interface CnbVideo {
+  readonly StreamReference: string;
+  readonly DurationMilliseconds: number;
+  readonly Width: number;
+  readonly Height: number;
+  readonly FramesPerSecond: number;
+  /** XNA's `VideoSoundtrackType` as its numeric value. */
+  readonly SoundtrackType: number;
+}
+
+/** Writes a `.cnb` video container. */
+export function EncodeCnbVideo(video: CnbVideo, contentName: string): Uint8Array {
+  if (video == null) throw new ArgumentNullException("video");
+  if (typeof contentName !== "string") throw new ArgumentException("contentName must be a string");
+  return content("EncodeCnbVideo").cnbEncodeVideo(video.StreamReference, {
+    DurationMilliseconds: Math.trunc(video.DurationMilliseconds) >>> 0,
+    Width: Math.trunc(video.Width) >>> 0,
+    Height: Math.trunc(video.Height) >>> 0,
+    FramesPerSecond: video.FramesPerSecond,
+    SoundtrackType: Math.trunc(video.SoundtrackType) >>> 0,
+  }, contentName);
+}
+
+/** Reads a `.cnb` video container's description and its stream reference. */
+export function DecodeCnbVideo(document: CnbDocument): CnbVideo {
+  if (document == null) throw new ArgumentNullException("document");
+  const handle = documentHandle(document, "DecodeCnbVideo");
+  const backend = content("DecodeCnbVideo");
+  const info = backend.cnbDecodeVideo(handle);
+  return Object.freeze({
+    StreamReference: backend.cnbDecodeVideoStreamReference(handle),
+    DurationMilliseconds: info.DurationMilliseconds,
+    Width: info.Width,
+    Height: info.Height,
+    FramesPerSecond: info.FramesPerSecond,
+    SoundtrackType: info.SoundtrackType,
+  });
+}
+
+/**
  * Which stock effect a part is authored to draw with, or that it names one of its own.
  *
  * Wire values, proved against `cnb.h` by `npm run verify:cna-contract`. `External` is the one that
@@ -1322,6 +1534,53 @@ export function CreateTexture2DFromCnb(
   const decoded = CnbTextureData.Decode(document);
   try {
     return CreateTexture2DFromCnbTextureData(graphicsDevice, decoded, representation);
+  } finally {
+    decoded.Dispose();
+  }
+}
+
+/**
+ * Builds a real XNA {@link SoundEffect} from a `.cnb` sound effect.
+ *
+ * XNA's `SoundEffect` constructor takes 16-bit PCM and nothing else, so a container storing its
+ * samples any other way is **refused by name** rather than reinterpreted: eight-bit PCM read as
+ * sixteen would play as noise, and a Vorbis payload read as PCM would play as noise at the wrong
+ * rate. `CnbSoundEffectData.Description` reports the format, so a caller can decide what to do.
+ *
+ * The loop region crosses too. XNA measures `loopStart` and `loopLength` in samples, which is what
+ * CNB's frame counts are for a mono effect and half of them for a stereo one, so the conversion is
+ * explicit rather than assumed.
+ */
+export function CreateSoundEffectFromCnbSoundEffectData(sound: CnbSoundEffectData): SoundEffect {
+  if (sound == null) throw new ArgumentNullException("sound");
+  const description = sound.Description;
+  if (description.Format !== CnbAudioFormat.Pcm16) {
+    throw new NotSupportedException(
+      `a CNB sound effect stored as ${CnbAudioFormat[description.Format] ?? description.Format} ` +
+      "cannot become an XNA SoundEffect, which takes 16-bit PCM; read Description and its samples " +
+      "instead",
+    );
+  }
+  if (description.Channels !== 1 && description.Channels !== 2) {
+    throw new NotSupportedException(
+      `an XNA SoundEffect is mono or stereo; this one declares ${description.Channels} channels`,
+    );
+  }
+  const samples = sound.ReadSamples();
+  // XNA's SoundEffect takes a byte[], and this projection keeps that signature exactly.
+  const buffer = Array.from(samples);
+  return new SoundEffect(
+    buffer, 0, buffer.length, description.SampleRate,
+    description.Channels as AudioChannels,
+    description.LoopStart, description.LoopLength,
+  );
+}
+
+/** Decodes and builds a `.cnb` sound effect in one call. */
+export function CreateSoundEffectFromCnb(document: CnbDocument): SoundEffect {
+  const decoded = CnbSoundEffectData.Decode(document);
+  try {
+    return CreateSoundEffectFromCnbSoundEffectData(decoded);
   } finally {
     decoded.Dispose();
   }

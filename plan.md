@@ -318,9 +318,16 @@ Electron, or mobile support.
   producing an XNA `Model`: CNB records a part's `VertexStride` and no vertex declaration, so a
   `ModelMeshPart` would need an invented `VertexDeclaration`, which is the trade
   `docs/content-pipeline-boundary.md` rejects.
-- [ ] CNB's sound-effect, song, video, curve and animation-clip schemas, the model's morph targets
-  and per-slot texture arrays, its bounded byte cursor, its loader registry and the `.cnj` compile
-  path are measured and unprojected.
+- [x] The same subpath projects **CNB's three media schemas**. A sound effect round-trips its
+  format, rate, channels, frame count, both loop numbers and its exact sample bytes, CNA's own WAV
+  decoder reads a RIFF image into one, and `CreateSoundEffectFromCnb` produces a real XNA
+  `SoundEffect` — refusing by name for a format XNA cannot represent rather than reinterpreting it.
+  A song and a video carry a **stream reference** rather than the media, so both schemas are
+  complete and fully testable with no encoded audio or video: this package projects the containers
+  truthfully and makes no claim about decoding what they name.
+- [ ] CNB's curve and animation-clip schemas, the model's morph targets and per-slot texture
+  arrays, its bounded byte cursor, its primitive byte writer, its loader registry and the `.cnj`
+  compile path are measured and unprojected.
 - [x] `cna-ts/extensions/devices` projects CNA's extended device layer: the host's cores and
   memory, its power state with absences reported as absences, the display's content scale and safe
   area, the user's preferred locales, the clipboard, and camera enumeration that keeps "no camera
@@ -379,7 +386,7 @@ Electron, or mobile support.
   probe; nothing at that boundary is hand-written.
 - [x] Handles cross the boundary as `bigint` under `WASM_BIGINT` and are never converted through
   `Number`.
-- [x] The browser slice reaches 209 routes: the game loop, the graphics device, `Clear`,
+- [x] The browser slice reaches 226 routes: the game loop, the graphics device, `Clear`,
   `Texture2D`, `SpriteBatch`, keyboard and mouse, **`GamePad` and `TouchPanel`**, the modern runtime
   services, **title storage and the whole managed content stack**, **render targets with asserted
   pixel readback**, **sound effects**, and **CNB including its model schema**.

@@ -369,6 +369,53 @@ test("a browser reads CNA's compiled model schema through the same API Node uses
   assert.deepEqual(consoleErrors, []);
 });
 
+test("a browser reads CNA's compiled media schemas, and measures a real duration", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+
+  // The sound effect. This artifact has SDL3 audio, so unlike the NULL-audio Node artifact it can
+  // report a duration -- and duration is arithmetic on the frame count, so it is exact evidence
+  // that the samples and the rate both survived the encode/decode cycle. A quarter second of 8 kHz
+  // mono is 250 ms and 2,500,000 ticks.
+  const sound = result.cnbSoundEffect;
+  assert.ok(sound, "no CNB sound-effect evidence was produced");
+  assert.equal(sound.assetType, 8, "CnbAssetType.SoundEffect");
+  assert.equal(sound.format, 1, "CnbAudioFormat.Pcm16");
+  assert.equal(sound.sampleRate, 8000);
+  assert.equal(sound.channels, 1);
+  assert.equal(sound.frameCount, 2000);
+  // Two different loop numbers, so a reader that returned one for both fails here.
+  assert.equal(sound.loopStart, 25);
+  assert.equal(sound.loopLength, 75);
+  assert.equal(sound.sampleBytesMatch, true, "the sample bytes came back exactly");
+  assert.equal(sound.durationMilliseconds, 250);
+  assert.equal(sound.durationTicks, "2500000");
+
+  // A song: a stream reference plus metadata, complete without a byte of music.
+  const song = result.cnbSong;
+  assert.ok(song, "no CNB song evidence was produced");
+  assert.equal(song.assetType, 9, "CnbAssetType.Song");
+  assert.equal(song.streamReference, "Music/Theme.ogg");
+  assert.equal(song.name, "Main Theme", "the display name is not the stream reference");
+  assert.equal(song.durationMilliseconds, 123456);
+
+  // A video: the same idea, with a description whose fields are none of them derivable from
+  // another -- 1280x720 is not square, 29.97 is not an integer, and neither is the duration.
+  const video = result.cnbVideo;
+  assert.ok(video, "no CNB video evidence was produced");
+  assert.equal(video.assetType, 10, "CnbAssetType.Video");
+  assert.equal(video.streamReference, "Movies/Intro.ogv");
+  assert.equal(video.durationMilliseconds, 45678);
+  assert.equal(video.width, 1280);
+  assert.equal(video.height, 720, "width and height are distinct fields");
+  assert.ok(Math.abs(video.framesPerSecond - 29.97) < 1e-4, `fps was ${video.framesPerSecond}`);
+  assert.equal(video.soundtrackType, 2);
+
+  // Decoding frames from that video is a different claim entirely, and nothing here makes it.
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(consoleErrors, []);
+});
+
 test("the WebAssembly backend runs 600 real browser frames without drift", { skip }, async () => {
   const { result, consoleErrors } = await runFrames(600);
   assert.equal(result.status, "ok", result.error ?? "");

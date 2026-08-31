@@ -25,8 +25,10 @@ import type {
   CnbMaterialSnapshot,
   CnbModelInfoSnapshot,
   CnbModelPartSnapshot,
+  CnbSoundEffectInfoSnapshot,
   CnbSpriteFontInfoSnapshot,
   CnbTextureInfoSnapshot,
+  CnbVideoInfoSnapshot,
 } from "../backend.js";
 import { CnaResult } from "../cna-results.js";
 import type { NativeHandle } from "../ownership.js";
@@ -629,6 +631,164 @@ export class WasmContentBackend extends CnaContentBackendBase {
     }
   }
 
+
+  // ---- the CNB media schemas -------------------------------------------------------------------
+  // Songs and videos carry a stream reference rather than the media, so both schemas cross intact
+  // and neither needs a byte of encoded audio or video to be exercised in a page.
+
+  public override cnbSoundEffectDataCreate(
+    info: CnbSoundEffectInfoSnapshot, samples: Uint8Array,
+  ): NativeHandle {
+    const scope = this.#routes.scope();
+    try {
+      const description = allocateStruct(this.#routes.module, scope, "CNA_CnbSoundEffectInfo");
+      description
+        .setU32("format", info.Format)
+        .setU32("sample_rate", info.SampleRate)
+        .setU32("channels", info.Channels)
+        .setU32("frame_count", info.FrameCount)
+        .setU32("loop_start", info.LoopStart)
+        .setU32("loop_length", info.LoopLength);
+      const bytes = scope.allocateBytes(samples);
+      return this.#routes.outHandle(
+        "cna_cnb_sound_effect_data_create", description.pointer, bytes,
+        BigInt(samples.byteLength),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbSoundEffectDataDestroy(sound: NativeHandle): void {
+    this.#routes.invoke("cna_cnb_sound_effect_data_destroy", sound);
+  }
+
+  public override cnbSoundEffectDataGetInfo(sound: NativeHandle): CnbSoundEffectInfoSnapshot {
+    const scope = this.#routes.scope();
+    try {
+      const info = allocateStruct(this.#routes.module, scope, "CNA_CnbSoundEffectInfo");
+      this.#routes.invoke("cna_cnb_sound_effect_data_get_info", sound, info.pointer);
+      return Object.freeze({
+        Format: info.getU32("format"),
+        SampleRate: info.getU32("sample_rate"),
+        Channels: info.getU32("channels"),
+        FrameCount: info.getU32("frame_count"),
+        LoopStart: info.getU32("loop_start"),
+        LoopLength: info.getU32("loop_length"),
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbSoundEffectDataCopySamples(sound: NativeHandle): Uint8Array {
+    return this.#countAndCopy("cna_cnb_sound_effect_data_copy_samples", [sound], "bytes");
+  }
+
+  public override cnbEncodeSoundEffect(sound: NativeHandle, contentName: string): Uint8Array {
+    const scope = this.#routes.scope();
+    try {
+      const name = this.#stringView(scope, contentName);
+      return this.#countAndCopy("cna_cnb_encode_sound_effect", [sound, name], "bytes");
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbDecodeSoundEffect(document: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_cnb_decode_sound_effect", document);
+  }
+
+  public override cnbDecodeWavAsSoundEffect(bytes: Uint8Array, origin: string): NativeHandle {
+    const scope = this.#routes.scope();
+    try {
+      const image = scope.allocateBytes(bytes);
+      const view = this.#stringView(scope, origin);
+      return this.#routes.outHandle(
+        "cna_cnb_decode_wav_as_sound_effect", image, BigInt(bytes.byteLength), view,
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbEncodeSong(
+    streamReference: string, name: string, durationMilliseconds: number, contentName: string,
+  ): Uint8Array {
+    const scope = this.#routes.scope();
+    try {
+      const stream = this.#stringView(scope, streamReference);
+      const display = this.#stringView(scope, name);
+      const content = this.#stringView(scope, contentName);
+      return this.#countAndCopy(
+        "cna_cnb_encode_song", [stream, display, durationMilliseconds, content], "bytes",
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbDecodeSongDuration(document: NativeHandle): number {
+    return this.#u32Of("cna_cnb_decode_song_duration_milliseconds", document);
+  }
+
+  public override cnbDecodeSongName(document: NativeHandle): string {
+    return this.#routes.copyString(
+      "cna_cnb_decode_song_name_size", "cna_cnb_decode_song_name", document,
+    );
+  }
+
+  public override cnbDecodeSongStreamReference(document: NativeHandle): string {
+    return this.#routes.copyString(
+      "cna_cnb_decode_song_stream_reference_size", "cna_cnb_decode_song_stream_reference", document,
+    );
+  }
+
+  public override cnbEncodeVideo(
+    streamReference: string, info: CnbVideoInfoSnapshot, contentName: string,
+  ): Uint8Array {
+    const scope = this.#routes.scope();
+    try {
+      const stream = this.#stringView(scope, streamReference);
+      const description = allocateStruct(this.#routes.module, scope, "CNA_CnbVideoInfo");
+      description
+        .setU32("duration_milliseconds", info.DurationMilliseconds)
+        .setU32("width", info.Width)
+        .setU32("height", info.Height)
+        .setF32("frames_per_second", info.FramesPerSecond)
+        .setU32("soundtrack_type", info.SoundtrackType);
+      const content = this.#stringView(scope, contentName);
+      return this.#countAndCopy(
+        "cna_cnb_encode_video", [stream, description.pointer, content], "bytes",
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbDecodeVideo(document: NativeHandle): CnbVideoInfoSnapshot {
+    const scope = this.#routes.scope();
+    try {
+      const info = allocateStruct(this.#routes.module, scope, "CNA_CnbVideoInfo");
+      this.#routes.invoke("cna_cnb_decode_video", document, info.pointer);
+      return Object.freeze({
+        DurationMilliseconds: info.getU32("duration_milliseconds"),
+        Width: info.getU32("width"),
+        Height: info.getU32("height"),
+        FramesPerSecond: info.getF32("frames_per_second"),
+        SoundtrackType: info.getU32("soundtrack_type"),
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbDecodeVideoStreamReference(document: NativeHandle): string {
+    return this.#routes.copyString(
+      "cna_cnb_decode_video_stream_reference_size", "cna_cnb_decode_video_stream_reference",
+      document,
+    );
+  }
   // ---- the CNB model schema --------------------------------------------------------------------
   // The same routes the Node adapter imports, over the same structures, measured for wasm32 by the
   // same Emscripten probe. Nothing above this file distinguishes them: `CnbModelData.Decode` in a

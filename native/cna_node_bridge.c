@@ -315,6 +315,28 @@ typedef CNA_Result (*CnbSpriteFontAddGlyphFn)(CNA_CnbSpriteFontDataHandle, const
 typedef CNA_Result (*CnbSpriteFontSetAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle);
 typedef CNA_Result (*CnbSpriteFontCopyAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle*);
 typedef CNA_Result (*CnbEncodeSpriteFontFn)(CNA_CnbSpriteFontDataHandle, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbSoundEffectCreateFn)(
+  const CNA_CnbSoundEffectInfo*, const uint8_t*, uint64_t, CNA_CnbSoundEffectDataHandle*);
+typedef CNA_Result (*CnbSoundEffectDestroyFn)(CNA_CnbSoundEffectDataHandle);
+typedef CNA_Result (*CnbSoundEffectInfoFn)(
+  CNA_CnbSoundEffectDataHandle, CNA_CnbSoundEffectInfo*);
+typedef CNA_Result (*CnbSoundEffectCopySamplesFn)(
+  CNA_CnbSoundEffectDataHandle, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbEncodeSoundEffectFn)(
+  CNA_CnbSoundEffectDataHandle, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbDecodeSoundEffectFn)(
+  CNA_CnbDocumentHandle, CNA_CnbSoundEffectDataHandle*);
+typedef CNA_Result (*CnbDecodeWavFn)(
+  const uint8_t*, uint64_t, CNA_StringView, CNA_CnbSoundEffectDataHandle*);
+typedef CNA_Result (*CnbEncodeSongFn)(
+  CNA_StringView, CNA_StringView, uint32_t, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbDecodeSongDurationFn)(CNA_CnbDocumentHandle, uint32_t*);
+typedef CNA_Result (*CnbDocumentTextSizeFn)(CNA_CnbDocumentHandle, uint64_t*);
+typedef CNA_Result (*CnbDocumentTextCopyFn)(
+  CNA_CnbDocumentHandle, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbEncodeVideoFn)(
+  CNA_StringView, const CNA_CnbVideoInfo*, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbDecodeVideoFn)(CNA_CnbDocumentHandle, CNA_CnbVideoInfo*);
 typedef CNA_Result (*CnbModelCreateFn)(CNA_CnbModelDataHandle*);
 typedef CNA_Result (*CnbModelDestroyFn)(CNA_CnbModelDataHandle);
 typedef CNA_Result (*CnbModelSetFlagsFn)(CNA_CnbModelDataHandle, CNA_Bool, CNA_Bool);
@@ -875,6 +897,23 @@ typedef struct Api {
   CnbSpriteFontSetAtlasFn cnb_sprite_font_data_set_atlas;
   CnbSpriteFontCopyAtlasFn cnb_sprite_font_data_copy_atlas;
   CnbEncodeSpriteFontFn cnb_encode_sprite_font;
+  CnbSoundEffectCreateFn cnb_sound_effect_data_create;
+  CnbSoundEffectDestroyFn cnb_sound_effect_data_destroy;
+  CnbSoundEffectInfoFn cnb_sound_effect_data_get_info;
+  CnbSoundEffectCopySamplesFn cnb_sound_effect_data_copy_samples;
+  CnbEncodeSoundEffectFn cnb_encode_sound_effect;
+  CnbDecodeSoundEffectFn cnb_decode_sound_effect;
+  CnbDecodeWavFn cnb_decode_wav_as_sound_effect;
+  CnbEncodeSongFn cnb_encode_song;
+  CnbDecodeSongDurationFn cnb_decode_song_duration;
+  CnbDocumentTextSizeFn cnb_decode_song_name_size;
+  CnbDocumentTextCopyFn cnb_decode_song_name;
+  CnbDocumentTextSizeFn cnb_decode_song_stream_reference_size;
+  CnbDocumentTextCopyFn cnb_decode_song_stream_reference;
+  CnbEncodeVideoFn cnb_encode_video;
+  CnbDecodeVideoFn cnb_decode_video;
+  CnbDocumentTextSizeFn cnb_decode_video_stream_reference_size;
+  CnbDocumentTextCopyFn cnb_decode_video_stream_reference;
   CnbModelCreateFn cnb_model_create;
   CnbModelDestroyFn cnb_model_destroy;
   CnbModelSetFlagsFn cnb_model_set_flags;
@@ -1820,6 +1859,23 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(cnb_sprite_font_data_set_atlas, CnbSpriteFontSetAtlasFn, "cna_cnb_sprite_font_data_set_atlas");
   LOAD_REQUIRED(cnb_sprite_font_data_copy_atlas, CnbSpriteFontCopyAtlasFn, "cna_cnb_sprite_font_data_copy_atlas");
   LOAD_REQUIRED(cnb_encode_sprite_font, CnbEncodeSpriteFontFn, "cna_cnb_encode_sprite_font");
+  LOAD_REQUIRED(cnb_sound_effect_data_create, CnbSoundEffectCreateFn, "cna_cnb_sound_effect_data_create");
+  LOAD_REQUIRED(cnb_sound_effect_data_destroy, CnbSoundEffectDestroyFn, "cna_cnb_sound_effect_data_destroy");
+  LOAD_REQUIRED(cnb_sound_effect_data_get_info, CnbSoundEffectInfoFn, "cna_cnb_sound_effect_data_get_info");
+  LOAD_REQUIRED(cnb_sound_effect_data_copy_samples, CnbSoundEffectCopySamplesFn, "cna_cnb_sound_effect_data_copy_samples");
+  LOAD_REQUIRED(cnb_encode_sound_effect, CnbEncodeSoundEffectFn, "cna_cnb_encode_sound_effect");
+  LOAD_REQUIRED(cnb_decode_sound_effect, CnbDecodeSoundEffectFn, "cna_cnb_decode_sound_effect");
+  LOAD_REQUIRED(cnb_decode_wav_as_sound_effect, CnbDecodeWavFn, "cna_cnb_decode_wav_as_sound_effect");
+  LOAD_REQUIRED(cnb_encode_song, CnbEncodeSongFn, "cna_cnb_encode_song");
+  LOAD_REQUIRED(cnb_decode_song_duration, CnbDecodeSongDurationFn, "cna_cnb_decode_song_duration_milliseconds");
+  LOAD_REQUIRED(cnb_decode_song_name_size, CnbDocumentTextSizeFn, "cna_cnb_decode_song_name_size");
+  LOAD_REQUIRED(cnb_decode_song_name, CnbDocumentTextCopyFn, "cna_cnb_decode_song_name");
+  LOAD_REQUIRED(cnb_decode_song_stream_reference_size, CnbDocumentTextSizeFn, "cna_cnb_decode_song_stream_reference_size");
+  LOAD_REQUIRED(cnb_decode_song_stream_reference, CnbDocumentTextCopyFn, "cna_cnb_decode_song_stream_reference");
+  LOAD_REQUIRED(cnb_encode_video, CnbEncodeVideoFn, "cna_cnb_encode_video");
+  LOAD_REQUIRED(cnb_decode_video, CnbDecodeVideoFn, "cna_cnb_decode_video");
+  LOAD_REQUIRED(cnb_decode_video_stream_reference_size, CnbDocumentTextSizeFn, "cna_cnb_decode_video_stream_reference_size");
+  LOAD_REQUIRED(cnb_decode_video_stream_reference, CnbDocumentTextCopyFn, "cna_cnb_decode_video_stream_reference");
   LOAD_REQUIRED(cnb_model_create, CnbModelCreateFn, "cna_cnb_model_create");
   LOAD_REQUIRED(cnb_model_destroy, CnbModelDestroyFn, "cna_cnb_model_destroy");
   LOAD_REQUIRED(cnb_model_set_flags, CnbModelSetFlagsFn, "cna_cnb_model_set_flags");
@@ -8425,6 +8481,423 @@ static napi_value cnb_encode_sprite_font(napi_env env, napi_callback_info info) 
   return output;
 }
 
+/* --- the CNB media schemas: sound effects, songs and videos ----------------------------------- */
+/*
+ * Three schemas that share one property worth stating: a song and a video container carry a
+ * **stream reference** rather than the media itself -- a name the runtime resolves later. So both
+ * schemas are completely testable without any encoded audio or video, which is why they are
+ * projected here while actual playback stays fixture-blocked.
+ *
+ * The sound effect is the one that carries its own samples, and it ends in a real XNA SoundEffect.
+ */
+
+static int read_sound_effect_info(napi_env env, napi_value value, CNA_CnbSoundEffectInfo* out) {
+  static const char* const names[] = {
+    "Format", "SampleRate", "Channels", "FrameCount", "LoopStart", "LoopLength",
+  };
+  uint32_t numbers[6] = {0, 0, 0, 0, 0, 0};
+  memset(out, 0, sizeof(*out));
+  out->struct_size = (uint32_t) sizeof(*out);
+  out->struct_version = CNA_CNB_SOUND_EFFECT_INFO_STRUCT_VERSION;
+  for (size_t index = 0; index < 6; index += 1) {
+    napi_value entry;
+    if (napi_get_named_property(env, value, names[index], &entry) != napi_ok ||
+        napi_get_value_uint32(env, entry, &numbers[index]) != napi_ok) {
+      throw_message(env, "a CNB sound effect needs its six numeric fields");
+      return 0;
+    }
+  }
+  out->format = numbers[0];
+  out->sample_rate = numbers[1];
+  out->channels = numbers[2];
+  out->frame_count = numbers[3];
+  out->loop_start = numbers[4];
+  out->loop_length = numbers[5];
+  return 1;
+}
+
+static napi_value make_sound_effect_info(napi_env env, const CNA_CnbSoundEffectInfo* info) {
+  napi_value output;
+  if (napi_create_object(env, &output) != napi_ok) return throw_napi(env, "CNB sound effect info");
+  if (!set_u32(env, output, "Format", info->format) ||
+      !set_u32(env, output, "SampleRate", info->sample_rate) ||
+      !set_u32(env, output, "Channels", info->channels) ||
+      !set_u32(env, output, "FrameCount", info->frame_count) ||
+      !set_u32(env, output, "LoopStart", info->loop_start) ||
+      !set_u32(env, output, "LoopLength", info->loop_length)) {
+    return throw_napi(env, "CNB sound effect info");
+  }
+  return output;
+}
+
+static napi_value cnb_sound_effect_data_create(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_CnbSoundEffectInfo description;
+  const uint8_t* samples = NULL;
+  size_t length = 0;
+  CNA_CnbSoundEffectDataHandle sound = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_sound_effect_info(env, args[0], &description) ||
+      !read_byte_view(env, args[1], &samples, &length)) return NULL;
+  const CNA_Result result =
+    g_api.cnb_sound_effect_data_create(&description, samples, (uint64_t) length, &sound);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_sound_effect_data_create", result);
+  }
+  return make_handle(env, sound);
+}
+
+static napi_value cnb_sound_effect_data_destroy(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle sound = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &sound)) return NULL;
+  const CNA_Result result = g_api.cnb_sound_effect_data_destroy(sound);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_sound_effect_data_destroy", result);
+  }
+  return undefined_result(env, "CNB sound effect release");
+}
+
+static napi_value cnb_sound_effect_data_get_info(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle sound = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &sound)) return NULL;
+  CNA_CnbSoundEffectInfo description;
+  memset(&description, 0, sizeof(description));
+  description.struct_size = (uint32_t) sizeof(description);
+  description.struct_version = CNA_CNB_SOUND_EFFECT_INFO_STRUCT_VERSION;
+  const CNA_Result result = g_api.cnb_sound_effect_data_get_info(sound, &description);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_sound_effect_data_get_info", result);
+  }
+  return make_sound_effect_info(env, &description);
+}
+
+static napi_value cnb_sound_effect_data_copy_samples(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle sound = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &sound)) return NULL;
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_sound_effect_data_copy_samples(sound, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_cnb_sound_effect_data_copy_samples", result);
+  }
+  if (required > SIZE_MAX) return throw_message(env, "CNB samples exceed the address space");
+  uint8_t* bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) return throw_message(env, "CNB sample allocation failed");
+  uint64_t produced = 0;
+  result = g_api.cnb_sound_effect_data_copy_samples(sound, bytes, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(bytes);
+    return throw_result(
+      env, "cna_cnb_sound_effect_data_copy_samples",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) produced, "CNB sample copy");
+  free(bytes);
+  return output;
+}
+
+static napi_value cnb_encode_sound_effect(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle sound = 0;
+  char* name = NULL;
+  size_t name_length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &sound) ||
+      !read_utf8(env, args[1], &name, &name_length)) return NULL;
+  const CNA_StringView view = {name, name_length};
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_encode_sound_effect(sound, view, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    free(name);
+    return throw_result(env, "cna_cnb_encode_sound_effect", result);
+  }
+  if (required > SIZE_MAX) {
+    free(name);
+    return throw_message(env, "CNB image exceeds the Node address space");
+  }
+  uint8_t* bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) {
+    free(name);
+    return throw_message(env, "CNB image allocation failed");
+  }
+  uint64_t written = 0;
+  result = g_api.cnb_encode_sound_effect(sound, view, bytes, required, &written);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS || written != required) {
+    free(bytes);
+    return throw_result(
+      env, "cna_cnb_encode_sound_effect",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) written, "CNB image copy");
+  free(bytes);
+  return output;
+}
+
+static napi_value cnb_decode_sound_effect(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle document = 0;
+  CNA_CnbSoundEffectDataHandle sound = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &document)) return NULL;
+  const CNA_Result result = g_api.cnb_decode_sound_effect(document, &sound);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_decode_sound_effect", result);
+  }
+  return make_handle(env, sound);
+}
+
+static napi_value cnb_decode_wav_as_sound_effect(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  const uint8_t* bytes = NULL;
+  size_t length = 0;
+  char* origin = NULL;
+  size_t origin_length = 0;
+  CNA_CnbSoundEffectDataHandle sound = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_byte_view(env, args[0], &bytes, &length) ||
+      !read_utf8(env, args[1], &origin, &origin_length)) return NULL;
+  const CNA_StringView view = {origin, origin_length};
+  const CNA_Result result =
+    g_api.cnb_decode_wav_as_sound_effect(bytes, (uint64_t) length, view, &sound);
+  free(origin);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_decode_wav_as_sound_effect", result);
+  }
+  return make_handle(env, sound);
+}
+
+static napi_value cnb_encode_song(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  char* stream = NULL;
+  char* name = NULL;
+  char* content = NULL;
+  size_t stream_length = 0, name_length = 0, content_length = 0;
+  uint32_t duration = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_utf8(env, args[0], &stream, &stream_length) ||
+      !read_utf8(env, args[1], &name, &name_length)) {
+    free(stream);
+    return NULL;
+  }
+  if (napi_get_value_uint32(env, args[2], &duration) != napi_ok ||
+      !read_utf8(env, args[3], &content, &content_length)) {
+    free(stream);
+    free(name);
+    return throw_message(env, "expected a duration and a content name");
+  }
+  const CNA_StringView stream_view = {stream, stream_length};
+  const CNA_StringView name_view = {name, name_length};
+  const CNA_StringView content_view = {content, content_length};
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_encode_song(
+    stream_view, name_view, duration, content_view, NULL, 0, &required);
+  uint8_t* bytes = NULL;
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) goto fail;
+  if (required > SIZE_MAX) {
+    free(stream); free(name); free(content);
+    return throw_message(env, "CNB image exceeds the Node address space");
+  }
+  bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) {
+    free(stream); free(name); free(content);
+    return throw_message(env, "CNB image allocation failed");
+  }
+  uint64_t written = 0;
+  result = g_api.cnb_encode_song(
+    stream_view, name_view, duration, content_view, bytes, required, &written);
+  if (result != CNA_RESULT_SUCCESS || written != required) {
+    free(bytes);
+    if (result == CNA_RESULT_SUCCESS) result = CNA_RESULT_INTERNAL;
+    goto fail;
+  }
+  free(stream); free(name); free(content);
+  {
+    napi_value output = copy_bytes(env, bytes, (size_t) written, "CNB image copy");
+    free(bytes);
+    return output;
+  }
+fail:
+  free(stream); free(name); free(content);
+  return throw_result(env, "cna_cnb_encode_song", result);
+}
+
+static napi_value document_u32(
+  napi_env env, napi_callback_info info, CnbDecodeSongDurationFn function, const char* operation
+) {
+  napi_value args[1], output;
+  CNA_Handle document = 0;
+  uint32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &document)) return NULL;
+  const CNA_Result result = function(document, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, value, &output), operation);
+  return output;
+}
+
+/* One document-level `(size, copy)` text pair, sized from the first call. */
+static napi_value document_text(
+  napi_env env,
+  napi_callback_info info,
+  CnbDocumentTextSizeFn size_fn,
+  CnbDocumentTextCopyFn copy_fn,
+  const char* const operation
+) {
+  napi_value args[1], output;
+  CNA_Handle document = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &document)) return NULL;
+  uint64_t required = 0;
+  CNA_Result result = size_fn(document, &required);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  if (required > SIZE_MAX - 1) return throw_message(env, "CNB text exceeds the address space");
+  char* text = (char*) malloc((size_t) required + 1);
+  if (!text) return throw_message(env, "CNB text allocation failed");
+  uint64_t produced = 0;
+  result = copy_fn(document, text, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(text);
+    return throw_result(env, operation, result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  if (napi_create_string_utf8(env, text, (size_t) produced, &output) != napi_ok) {
+    free(text);
+    return throw_napi(env, operation);
+  }
+  free(text);
+  return output;
+}
+
+static napi_value cnb_decode_song_duration(napi_env env, napi_callback_info info) {
+  return document_u32(
+    env, info, g_api.cnb_decode_song_duration, "cna_cnb_decode_song_duration_milliseconds");
+}
+
+static napi_value cnb_decode_song_name(napi_env env, napi_callback_info info) {
+  return document_text(
+    env, info, g_api.cnb_decode_song_name_size, g_api.cnb_decode_song_name,
+    "cna_cnb_decode_song_name");
+}
+
+static napi_value cnb_decode_song_stream_reference(napi_env env, napi_callback_info info) {
+  return document_text(
+    env, info, g_api.cnb_decode_song_stream_reference_size,
+    g_api.cnb_decode_song_stream_reference, "cna_cnb_decode_song_stream_reference");
+}
+
+static napi_value cnb_decode_video_stream_reference(napi_env env, napi_callback_info info) {
+  return document_text(
+    env, info, g_api.cnb_decode_video_stream_reference_size,
+    g_api.cnb_decode_video_stream_reference, "cna_cnb_decode_video_stream_reference");
+}
+
+static int read_video_info(napi_env env, napi_value value, CNA_CnbVideoInfo* out) {
+  static const char* const names[] = {
+    "DurationMilliseconds", "Width", "Height", "SoundtrackType",
+  };
+  uint32_t numbers[4] = {0, 0, 0, 0};
+  memset(out, 0, sizeof(*out));
+  out->struct_size = (uint32_t) sizeof(*out);
+  out->struct_version = CNA_CNB_VIDEO_INFO_STRUCT_VERSION;
+  for (size_t index = 0; index < 4; index += 1) {
+    napi_value entry;
+    if (napi_get_named_property(env, value, names[index], &entry) != napi_ok ||
+        napi_get_value_uint32(env, entry, &numbers[index]) != napi_ok) {
+      throw_message(env, "a CNB video needs its four integer fields");
+      return 0;
+    }
+  }
+  napi_value entry;
+  double fps = 0;
+  if (napi_get_named_property(env, value, "FramesPerSecond", &entry) != napi_ok ||
+      napi_get_value_double(env, entry, &fps) != napi_ok) {
+    throw_message(env, "a CNB video needs a FramesPerSecond");
+    return 0;
+  }
+  out->duration_milliseconds = numbers[0];
+  out->width = numbers[1];
+  out->height = numbers[2];
+  out->soundtrack_type = numbers[3];
+  out->frames_per_second = (float) fps;
+  return 1;
+}
+
+static napi_value cnb_encode_video(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  char* stream = NULL;
+  char* content = NULL;
+  size_t stream_length = 0, content_length = 0;
+  CNA_CnbVideoInfo description;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_utf8(env, args[0], &stream, &stream_length)) return NULL;
+  if (!read_video_info(env, args[1], &description) ||
+      !read_utf8(env, args[2], &content, &content_length)) {
+    free(stream);
+    return NULL;
+  }
+  const CNA_StringView stream_view = {stream, stream_length};
+  const CNA_StringView content_view = {content, content_length};
+  uint64_t required = 0;
+  CNA_Result result =
+    g_api.cnb_encode_video(stream_view, &description, content_view, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    free(stream);
+    free(content);
+    return throw_result(env, "cna_cnb_encode_video", result);
+  }
+  if (required > SIZE_MAX) {
+    free(stream);
+    free(content);
+    return throw_message(env, "CNB image exceeds the Node address space");
+  }
+  uint8_t* bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) {
+    free(stream);
+    free(content);
+    return throw_message(env, "CNB image allocation failed");
+  }
+  uint64_t written = 0;
+  result =
+    g_api.cnb_encode_video(stream_view, &description, content_view, bytes, required, &written);
+  free(stream);
+  free(content);
+  if (result != CNA_RESULT_SUCCESS || written != required) {
+    free(bytes);
+    return throw_result(
+      env, "cna_cnb_encode_video", result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) written, "CNB image copy");
+  free(bytes);
+  return output;
+}
+
+static napi_value cnb_decode_video(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle document = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &document)) return NULL;
+  CNA_CnbVideoInfo description;
+  memset(&description, 0, sizeof(description));
+  description.struct_size = (uint32_t) sizeof(description);
+  description.struct_version = CNA_CNB_VIDEO_INFO_STRUCT_VERSION;
+  const CNA_Result result = g_api.cnb_decode_video(document, &description);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_decode_video", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB video info");
+  if (!set_u32(env, output, "DurationMilliseconds", description.duration_milliseconds) ||
+      !set_u32(env, output, "Width", description.width) ||
+      !set_u32(env, output, "Height", description.height) ||
+      !set_number(env, output, "FramesPerSecond", (double) description.frames_per_second) ||
+      !set_u32(env, output, "SoundtrackType", description.soundtrack_type)) {
+    return throw_napi(env, "CNB video info");
+  }
+  return output;
+}
+
 /* --- the CNB model schema --------------------------------------------------------------------- */
 /*
  * `cnb.h`'s largest schema, and the only one whose C shape is a decision rather than a
@@ -10775,6 +11248,20 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "cnbSpriteFontDataSetAtlas", NULL, cnb_sprite_font_data_set_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbSpriteFontDataCopyAtlas", NULL, cnb_sprite_font_data_copy_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbEncodeSpriteFont", NULL, cnb_encode_sprite_font, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSoundEffectDataCreate", NULL, cnb_sound_effect_data_create, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSoundEffectDataDestroy", NULL, cnb_sound_effect_data_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSoundEffectDataGetInfo", NULL, cnb_sound_effect_data_get_info, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbSoundEffectDataCopySamples", NULL, cnb_sound_effect_data_copy_samples, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbEncodeSoundEffect", NULL, cnb_encode_sound_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeSoundEffect", NULL, cnb_decode_sound_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeWavAsSoundEffect", NULL, cnb_decode_wav_as_sound_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbEncodeSong", NULL, cnb_encode_song, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeSongDuration", NULL, cnb_decode_song_duration, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeSongName", NULL, cnb_decode_song_name, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeSongStreamReference", NULL, cnb_decode_song_stream_reference, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbEncodeVideo", NULL, cnb_encode_video, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeVideo", NULL, cnb_decode_video, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeVideoStreamReference", NULL, cnb_decode_video_stream_reference, NULL, NULL, NULL, napi_default, NULL },
     { "cnbModelCreate", NULL, cnb_model_create, NULL, NULL, NULL, napi_default, NULL },
     { "cnbModelDestroy", NULL, cnb_model_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "cnbModelSetFlags", NULL, cnb_model_set_flags, NULL, NULL, NULL, napi_default, NULL },

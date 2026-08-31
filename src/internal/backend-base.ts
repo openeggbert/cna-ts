@@ -50,8 +50,10 @@ import type {
   CnbMaterialSnapshot,
   CnbModelInfoSnapshot,
   CnbModelPartSnapshot,
+  CnbSoundEffectInfoSnapshot,
   CnbSpriteFontInfoSnapshot,
   CnbTextureInfoSnapshot,
+  CnbVideoInfoSnapshot,
   ContentLostResourceKind,
   CueSnapshot,
   DepthStencilStateSnapshot,
@@ -1231,6 +1233,54 @@ export abstract class CnaContentBackendBase implements CnaContentBackend {
     _font: NativeHandle,
     _contentName: string,
   ): Uint8Array { return this.unsupported("cnbEncodeSpriteFont"); }
+  public cnbSoundEffectDataCreate(
+    _info: CnbSoundEffectInfoSnapshot,
+    _samples: Uint8Array,
+  ): NativeHandle { return this.unsupported("cnbSoundEffectDataCreate"); }
+  public cnbSoundEffectDataDestroy(
+    _sound: NativeHandle,
+  ): void { return this.unsupported("cnbSoundEffectDataDestroy"); }
+  public cnbSoundEffectDataGetInfo(
+    _sound: NativeHandle,
+  ): CnbSoundEffectInfoSnapshot { return this.unsupported("cnbSoundEffectDataGetInfo"); }
+  public cnbSoundEffectDataCopySamples(
+    _sound: NativeHandle,
+  ): Uint8Array { return this.unsupported("cnbSoundEffectDataCopySamples"); }
+  public cnbEncodeSoundEffect(
+    _sound: NativeHandle,
+    _contentName: string,
+  ): Uint8Array { return this.unsupported("cnbEncodeSoundEffect"); }
+  public cnbDecodeSoundEffect(
+    _document: NativeHandle,
+  ): NativeHandle { return this.unsupported("cnbDecodeSoundEffect"); }
+  public cnbDecodeWavAsSoundEffect(
+    _bytes: Uint8Array,
+    _origin: string,
+  ): NativeHandle { return this.unsupported("cnbDecodeWavAsSoundEffect"); }
+  public cnbEncodeSong(
+    _streamReference: string,
+    _name: string,
+    _durationMilliseconds: number,
+    _contentName: string,
+  ): Uint8Array { return this.unsupported("cnbEncodeSong"); }
+  public cnbDecodeSongDuration(
+    _document: NativeHandle,
+  ): number { return this.unsupported("cnbDecodeSongDuration"); }
+  public cnbDecodeSongName(_document: NativeHandle): string { return this.unsupported("cnbDecodeSongName"); }
+  public cnbDecodeSongStreamReference(
+    _document: NativeHandle,
+  ): string { return this.unsupported("cnbDecodeSongStreamReference"); }
+  public cnbEncodeVideo(
+    _streamReference: string,
+    _info: CnbVideoInfoSnapshot,
+    _contentName: string,
+  ): Uint8Array { return this.unsupported("cnbEncodeVideo"); }
+  public cnbDecodeVideo(
+    _document: NativeHandle,
+  ): CnbVideoInfoSnapshot { return this.unsupported("cnbDecodeVideo"); }
+  public cnbDecodeVideoStreamReference(
+    _document: NativeHandle,
+  ): string { return this.unsupported("cnbDecodeVideoStreamReference"); }
   public cnbModelCreate(): NativeHandle { return this.unsupported("cnbModelCreate"); }
   public cnbModelDestroy(_model: NativeHandle): void { return this.unsupported("cnbModelDestroy"); }
   public cnbModelSetFlags(

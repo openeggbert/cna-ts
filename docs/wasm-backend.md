@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=209
+WASM_BACKEND_ROUTES=226
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 209 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 226 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started.
 
@@ -46,7 +46,7 @@ graphics-device-manager configuration and device creation, renderer identity, `C
 create/upload/read/destroy, `SpriteBatch` begin/submit/end/destroy, keyboard and mouse snapshots,
 **`GamePad`**, **`TouchPanel`**, the modern runtime-services family, **title storage**,
 **render targets**, **sound effects**, and **CNB**, CNA's own compiled content format — including
-its **model schema**, the largest one it carries.
+its **model schema**, the largest one it carries, and its three **media schemas**.
 
 CNB crossing to the browser needed no new public API at all, which is the point of having designed
 it backend-neutrally: a page gets the same `CnbDocument`, `CnbTextureData`, `CnbModelData` and
@@ -134,6 +134,15 @@ VOLUME/PITCH/PAN/LOOPED=round-trip at float precision
 Duration is arithmetic on the sample count, so it is exact evidence that does not depend on anything
 being heard. XACT, microphones, 3D positioning and dynamic buffers are outside the slice and refuse
 by name.
+
+That arithmetic is also why the **compiled** sound effect is measured here rather than on Node. This
+artifact is built with SDL3 audio; the Node one is built with `CNA_AUDIO_PLATFORM=NULL`, and CNA's
+own `CApi_AudioSmoke` records that a PCM16 effect has no duration without a mixer. So a quarter
+second of 8 kHz mono encoded to `.cnb`, decoded back and turned into an XNA `SoundEffect` reports
+exactly 250 ms and 2,500,000 ticks **in a page**, and the Node suite asserts the zero it actually
+gets rather than the number it would like. A song and a video cross too: both containers carry a
+stream reference rather than the media, so both schemas are complete in a browser with no encoded
+audio or video at all.
 
 ## Content in a browser
 

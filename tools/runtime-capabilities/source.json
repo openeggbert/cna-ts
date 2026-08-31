@@ -820,6 +820,19 @@
       ]
     },
     {
+      "operation": "CNB media in a browser, including a measured sound-effect duration",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "cna-ts/extensions/content",
+      "evidence": "the same three schemas over the WebAssembly backend. The browser artifact is built with SDL3 audio rather than NULL, so this is where the sound effect's duration is actually measurable: a quarter second of 8 kHz mono PCM16 encoded to .cnb, decoded back and turned into an XNA SoundEffect reports exactly 250 ms and 2,500,000 ticks, which is arithmetic on the frame count and therefore exact evidence that the samples and the rate both survived. Both loop numbers, the sample bytes, and the song and video descriptions are asserted as on Node",
+      "proof": [
+        "wasmRoute:cna_cnb_decode_sound_effect",
+        "wasmRoute:cna_cnb_encode_sound_effect",
+        "wasmRoute:cna_cnb_encode_song",
+        "wasmRoute:cna_cnb_decode_video",
+        "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
       "operation": "Extended graphics layer availability probe",
       "category": "VERIFIED_NATIVE",
       "owner": "cna-ts/extensions/runtime",
@@ -848,15 +861,16 @@
       ]
     },
     {
-      "operation": "CNB audio, media, curve and clip schemas, and the compilation front ends",
+      "operation": "CNB curve and animation-clip schemas, and the compilation front ends",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the container, the Texture2D schema, the SpriteFont schema and the model graph are projected and verified above; the remaining cnb.h families -- sound effects, songs, videos, curves, animation clips, the model's morph targets and per-slot texture arrays, the bounded byte cursor, the loader registry and the .cnj compile path -- are measured and unprojected",
+      "evidence": "the container, the Texture2D, SpriteFont, model, sound-effect, song and video schemas are projected and verified above; what remains -- the curve and animation-clip schemas, the model's morph targets and per-slot texture arrays, the bounded byte cursor, the primitive byte writer, the loader registry and the .cnj compile path -- is measured and unprojected",
       "proof": [
-        "absentRoute:cna_cnb_decode_sound_effect",
+        "absentRoute:cna_cnb_decode_curve",
+        "absentRoute:cna_cnb_decode_animation_clip",
         "absentRoute:cna_cnb_compile_cnj",
         "absentRoute:cna_cnb_loader_registry_register",
-        "absentRoute:cna_cnb_document_open_chunk",
+        "absentRoute:cna_cnb_byte_writer_create",
         "absentRoute:cna_cnb_model_get_morph"
       ]
     },
@@ -1041,6 +1055,22 @@
         "route:cna_cnb_model_copy_part_vertex_bytes",
         "route:cna_cnb_model_copy_material_texture",
         "route:cna_cnb_model_copy_skeleton_matrices",
+        "test:test/cnb-content.integration.mjs"
+      ]
+    },
+    {
+      "operation": "CNB sound effects, songs and videos: the compiled media schemas",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/content",
+      "evidence": "A sound effect round-trips its format, rate, channels, frame count, both loop numbers and its sample bytes exactly, and CNA's own WAV decoder reads a RIFF image into one with the same bytes the header declared; a file that is not a WAV is refused. CreateSoundEffectFromCnb produces a real XNA SoundEffect owning a native audio resource whose name round-trips through CNA, and refuses by name for a format XNA cannot represent -- eight-bit PCM read as sixteen would play as noise -- while leaving the samples readable. Songs and videos carry a stream reference rather than the media, so both schemas are complete and fully testable with no encoded audio or video at all: name, duration and stream reference for a song; dimensions, a non-integer frame rate, duration, soundtrack kind and stream reference for a video. Each of the three refuses the other two's containers. Duration is zero on this artifact because it is built with CNA_AUDIO_PLATFORM=NULL, which is a property of the configuration rather than of the schema; the real 250 ms measurement is made in the browser suite, whose artifact has SDL3 audio",
+      "proof": [
+        "route:cna_cnb_decode_sound_effect",
+        "route:cna_cnb_encode_sound_effect",
+        "route:cna_cnb_decode_wav_as_sound_effect",
+        "route:cna_cnb_encode_song",
+        "route:cna_cnb_decode_song_stream_reference",
+        "route:cna_cnb_encode_video",
+        "route:cna_cnb_decode_video",
         "test:test/cnb-content.integration.mjs"
       ]
     },

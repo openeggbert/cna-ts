@@ -28,6 +28,8 @@ import type {
   CnbGlyphSnapshot,
   CnbMaterialSnapshot,
   CnbModelInfoSnapshot,
+  CnbSoundEffectInfoSnapshot,
+  CnbVideoInfoSnapshot,
   CnbModelPartSnapshot,
   CnbSpriteFontInfoSnapshot,
   CnbTextureInfoSnapshot,
@@ -412,6 +414,20 @@ interface NativeBridge {
   cnbSpriteFontDataSetAtlas(font: bigint, atlas: bigint): void;
   cnbSpriteFontDataCopyAtlas(font: bigint): bigint;
   cnbEncodeSpriteFont(font: bigint, contentName: string): Uint8Array;
+  cnbSoundEffectDataCreate(info: CnbSoundEffectInfoSnapshot, samples: Uint8Array): bigint;
+  cnbSoundEffectDataDestroy(sound: bigint): void;
+  cnbSoundEffectDataGetInfo(sound: bigint): CnbSoundEffectInfoSnapshot;
+  cnbSoundEffectDataCopySamples(sound: bigint): Uint8Array;
+  cnbEncodeSoundEffect(sound: bigint, contentName: string): Uint8Array;
+  cnbDecodeSoundEffect(document: bigint): bigint;
+  cnbDecodeWavAsSoundEffect(bytes: Uint8Array, origin: string): bigint;
+  cnbEncodeSong(streamReference: string, name: string, durationMilliseconds: number, contentName: string): Uint8Array;
+  cnbDecodeSongDuration(document: bigint): number;
+  cnbDecodeSongName(document: bigint): string;
+  cnbDecodeSongStreamReference(document: bigint): string;
+  cnbEncodeVideo(streamReference: string, info: CnbVideoInfoSnapshot, contentName: string): Uint8Array;
+  cnbDecodeVideo(document: bigint): CnbVideoInfoSnapshot;
+  cnbDecodeVideoStreamReference(document: bigint): string;
   cnbModelCreate(): bigint;
   cnbModelDestroy(model: bigint): void;
   cnbModelSetFlags(model: bigint, lighting: boolean, hierarchy: boolean): void;
@@ -1356,6 +1372,61 @@ export class NodeNativeBackend
     return new Uint8Array(this.#bridge.cnbEncodeSpriteFont(font, contentName));
   }
 
+
+  // ---- the CNB media schemas -------------------------------------------------------------------
+  // A song and a video container carry a *stream reference* rather than the media, so both are
+  // fully testable with no encoded audio or video at all. The sound effect is the one that carries
+  // its own samples.
+  public cnbSoundEffectDataCreate(
+    info: CnbSoundEffectInfoSnapshot, samples: Uint8Array,
+  ): NativeHandle {
+    return this.#bridge.cnbSoundEffectDataCreate(info, samples);
+  }
+  public cnbSoundEffectDataDestroy(sound: NativeHandle): void {
+    this.#bridge.cnbSoundEffectDataDestroy(sound);
+  }
+  public cnbSoundEffectDataGetInfo(sound: NativeHandle): CnbSoundEffectInfoSnapshot {
+    return this.#bridge.cnbSoundEffectDataGetInfo(sound);
+  }
+  public cnbSoundEffectDataCopySamples(sound: NativeHandle): Uint8Array {
+    return new Uint8Array(this.#bridge.cnbSoundEffectDataCopySamples(sound));
+  }
+  public cnbEncodeSoundEffect(sound: NativeHandle, contentName: string): Uint8Array {
+    return new Uint8Array(this.#bridge.cnbEncodeSoundEffect(sound, contentName));
+  }
+  public cnbDecodeSoundEffect(document: NativeHandle): NativeHandle {
+    return this.#bridge.cnbDecodeSoundEffect(document);
+  }
+  public cnbDecodeWavAsSoundEffect(bytes: Uint8Array, origin: string): NativeHandle {
+    return this.#bridge.cnbDecodeWavAsSoundEffect(bytes, origin);
+  }
+  public cnbEncodeSong(
+    streamReference: string, name: string, durationMilliseconds: number, contentName: string,
+  ): Uint8Array {
+    return new Uint8Array(
+      this.#bridge.cnbEncodeSong(streamReference, name, durationMilliseconds, contentName),
+    );
+  }
+  public cnbDecodeSongDuration(document: NativeHandle): number {
+    return this.#bridge.cnbDecodeSongDuration(document);
+  }
+  public cnbDecodeSongName(document: NativeHandle): string {
+    return this.#bridge.cnbDecodeSongName(document);
+  }
+  public cnbDecodeSongStreamReference(document: NativeHandle): string {
+    return this.#bridge.cnbDecodeSongStreamReference(document);
+  }
+  public cnbEncodeVideo(
+    streamReference: string, info: CnbVideoInfoSnapshot, contentName: string,
+  ): Uint8Array {
+    return new Uint8Array(this.#bridge.cnbEncodeVideo(streamReference, info, contentName));
+  }
+  public cnbDecodeVideo(document: NativeHandle): CnbVideoInfoSnapshot {
+    return this.#bridge.cnbDecodeVideo(document);
+  }
+  public cnbDecodeVideoStreamReference(document: NativeHandle): string {
+    return this.#bridge.cnbDecodeVideoStreamReference(document);
+  }
   // ---- the CNB model schema --------------------------------------------------------------------
   // Straight delegation, because the shaping is already done: the bridge returns plain objects and
   // arrays, and the payload copies are Buffers this wraps as Uint8Array so nothing above holds a

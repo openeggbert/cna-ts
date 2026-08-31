@@ -325,6 +325,92 @@ try {
         rigDocument.Dispose();
       }
 
+
+      // The CNB media schemas. This artifact has SDL3 audio, so the *duration* of a compiled sound
+      // effect is measurable here in a way it is not on the NULL-audio Node artifact -- and the
+      // duration is arithmetic on the frame count, so it is exact evidence that the samples and
+      // the sample rate both survived the encode/decode cycle.
+      const beepRate = 8000;
+      const beepFrames = beepRate / 4;
+      const beepSamples = new DataView(new ArrayBuffer(beepFrames * 2));
+      for (let index = 0; index < beepFrames; index += 1) {
+        beepSamples.setInt16(index * 2, (index * 7) % 32768 - 16384, true);
+      }
+      const beepBytes = new Uint8Array(beepSamples.buffer);
+      const beepData = cnb.CnbSoundEffectData.Create({
+        Format: cnb.CnbAudioFormat.Pcm16, SampleRate: beepRate, Channels: 1,
+        FrameCount: beepFrames, LoopStart: 25, LoopLength: 75,
+      }, beepBytes);
+      let beepImage;
+      try {
+        beepImage = beepData.Encode("Browser/Beep");
+      } finally {
+        beepData.Dispose();
+      }
+      const beepDocument = cnb.CnbDocument.Parse(beepImage, "Browser/Beep.cnb");
+      try {
+        const decodedBeep = cnb.CnbSoundEffectData.Decode(beepDocument);
+        let description;
+        let sampleBytes;
+        try {
+          description = decodedBeep.Description;
+          sampleBytes = [...decodedBeep.ReadSamples()];
+        } finally {
+          decodedBeep.Dispose();
+        }
+        this.cnbSound = cnb.CreateSoundEffectFromCnb(beepDocument);
+        result.cnbSoundEffect = {
+          assetType: beepDocument.AssetType,
+          format: description.Format,
+          sampleRate: description.SampleRate,
+          channels: description.Channels,
+          frameCount: description.FrameCount,
+          loopStart: description.LoopStart,
+          loopLength: description.LoopLength,
+          sampleBytesMatch: sampleBytes.length === beepBytes.length &&
+            sampleBytes.every((value, index) => value === beepBytes[index]),
+          durationMilliseconds: this.cnbSound.Duration.TotalMilliseconds,
+          durationTicks: String(this.cnbSound.Duration.Ticks),
+        };
+      } finally {
+        beepDocument.Dispose();
+      }
+
+      // A song and a video: containers that carry a stream reference rather than the media, so
+      // both are complete and testable in a page with no encoded audio or video at all.
+      const songDocument = cnb.CnbDocument.Parse(cnb.EncodeCnbSong({
+        StreamReference: "Music/Theme.ogg", Name: "Main Theme", DurationMilliseconds: 123456,
+      }, "Browser/Theme"), "Browser/Theme.cnb");
+      try {
+        const song = cnb.DecodeCnbSong(songDocument);
+        result.cnbSong = {
+          assetType: songDocument.AssetType,
+          streamReference: song.StreamReference,
+          name: song.Name,
+          durationMilliseconds: song.DurationMilliseconds,
+        };
+      } finally {
+        songDocument.Dispose();
+      }
+      const videoDocument = cnb.CnbDocument.Parse(cnb.EncodeCnbVideo({
+        StreamReference: "Movies/Intro.ogv", DurationMilliseconds: 45678,
+        Width: 1280, Height: 720, FramesPerSecond: 29.97, SoundtrackType: 2,
+      }, "Browser/Intro"), "Browser/Intro.cnb");
+      try {
+        const video = cnb.DecodeCnbVideo(videoDocument);
+        result.cnbVideo = {
+          assetType: videoDocument.AssetType,
+          streamReference: video.StreamReference,
+          durationMilliseconds: video.DurationMilliseconds,
+          width: video.Width,
+          height: video.Height,
+          framesPerSecond: video.FramesPerSecond,
+          soundtrackType: video.SoundtrackType,
+        };
+      } finally {
+        videoDocument.Dispose();
+      }
+
       super.LoadContent();
     }
 
@@ -344,6 +430,8 @@ try {
     }
 
     UnloadContent() {
+      this.cnbSound?.Dispose();
+      this.cnbSound = null;
       this.cnbTexture?.Dispose();
       this.cnbTexture = null;
       this.soundInstance?.Dispose();

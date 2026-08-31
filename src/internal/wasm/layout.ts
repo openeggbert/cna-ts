@@ -582,6 +582,33 @@ export const WASM_STRUCT_LAYOUTS = {
       diffuse_color: { offset: 12, size: 12 },
     },
   },
+  CNA_CnbSoundEffectInfo: {
+    size: 32,
+    align: 4,
+    fields: {
+      struct_size: { offset: 0, size: 4 },
+      struct_version: { offset: 4, size: 4 },
+      format: { offset: 8, size: 4 },
+      sample_rate: { offset: 12, size: 4 },
+      channels: { offset: 16, size: 4 },
+      frame_count: { offset: 20, size: 4 },
+      loop_start: { offset: 24, size: 4 },
+      loop_length: { offset: 28, size: 4 },
+    },
+  },
+  CNA_CnbVideoInfo: {
+    size: 32,
+    align: 4,
+    fields: {
+      struct_size: { offset: 0, size: 4 },
+      struct_version: { offset: 4, size: 4 },
+      duration_milliseconds: { offset: 8, size: 4 },
+      width: { offset: 12, size: 4 },
+      height: { offset: 16, size: 4 },
+      frames_per_second: { offset: 20, size: 4 },
+      soundtrack_type: { offset: 24, size: 4 },
+    },
+  },
   CNA_SpriteFontGlyph: {
     size: 56,
     align: 4,
