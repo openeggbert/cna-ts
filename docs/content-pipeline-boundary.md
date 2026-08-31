@@ -146,10 +146,22 @@ build the same container from the same calls, and the browser test asserts the p
 byte what the desktop ABI lays out and the image is the same 326 bytes — so "a `.cnb` built in a
 build script and one built in a page are the same bytes" is a measurement.
 
-What remains of `cnb.h`'s build-time surface is the loader registry and the `.cnj` compile front
-ends. The registry is the harder one: teaching CNA a new asset type means handing it callbacks, and
-this package will not publish `void*`, raw function pointers or a table of them, so it needs a
-typed abstraction designed rather than transcribed.
+The `.cnj` compile front end is projected too, in the build-time package where a path-taking route
+belongs. `.cnj` is CNA's own source format for content — a small JSON document declaring an asset
+type and either carrying its values inline or naming binary sidecars — and it is the closest thing
+CNA has to an XNA `.contentproj` item, with the difference that the document *is* the asset
+description rather than a build file naming a processor to run. All eight of CNA's asset types
+compile through it.
+
+What makes it worth more than the bytes is the pair of lists on the result: `AbsorbedFiles` is
+every file the compiler read and folded in, which is a build system's dependency set, and
+`ExternalReferences` is every asset the image names but does not carry, which is what has to be
+compiled next.
+
+What remains of `cnb.h`'s build-time surface is the loader registry. That one is harder: teaching
+CNA a new asset type means handing it callbacks, and this package will not publish `void*`, raw
+function pointers or a table of them, so it needs a typed abstraction designed rather than
+transcribed.
 
 ## What that means for this package
 

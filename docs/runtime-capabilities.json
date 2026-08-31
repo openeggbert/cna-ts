@@ -13,7 +13,7 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 65,
+    "VERIFIED_NATIVE": 66,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 2,
@@ -154,13 +154,13 @@
       "evidence": "no qualified artifact/job on either OS"
     },
     {
-      "operation": "CNB's remaining build-time tooling: the loader registry and the .cnj front ends",
+      "operation": "CNB's remaining build-time tooling: the loader registry",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the primitive byte writer and the container writer are projected and verified separately; what is left is teaching CNA a new asset type through cna_cnb_loader_registry_*, which means handing it callbacks, and the two .cnj compile front ends. The registry needs a typed abstraction designed rather than transcribed, because this package will not publish void*, raw function pointers or a table of them. cna_cnb_writer_write_to_file is deliberately unprojected: it is the one writer route that touches a filesystem, and the runtime package draws its boundary at bytes",
+      "evidence": "the primitive byte writer, the container writer and the .cnj compile front end are projected and verified separately; what is left is teaching CNA a new asset type through cna_cnb_loader_registry_register, which means handing it callbacks. That needs a typed abstraction designed rather than transcribed, because this package will not publish void*, raw function pointers or a table of them. cna_cnb_build_model_from_cnj is unprojected too: cna_cnb_compile_cnj already compiles a Model .cnj, so the second front end would be a duplicate route with no consumer",
       "proof": [
         "absentRoute:cna_cnb_loader_registry_register",
-        "absentRoute:cna_cnb_compile_cnj"
+        "absentRoute:cna_cnb_build_model_from_cnj"
       ]
     },
     {
@@ -1076,6 +1076,17 @@
         "route:cna_texture2d_get_data",
         "route:cna_texture2d_create_from_encoded_memory",
         "route:cna_texture2d_copy_encoded"
+      ]
+    },
+    {
+      "operation": "The .cnj compile front end, and the dependency lists a build system needs",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "a .cnj document authored here from its own specification -- so what the runtime decodes is evidence about the compiler rather than CNA agreeing with itself -- compiles into a .cnb the runtime package reads back with every key's position, value and continuity exactly as the JSON declared, and with the loop kinds it named. The content name defaults to the document stem and honours an override. A document naming a PNG sidecar reports both files in AbsorbedFiles, which is the dependency set a build system watches, and the four texels the PNG carried arrive through the compiler unchanged. An unsupported asset type, a missing sidecar and a missing document are each refused with CNA's own IO result rather than a message match, which is what distinguishes CNA refusing from this package refusing first. It lives in cna-ts-content because it takes filesystem paths",
+      "proof": [
+        "route:cna_cnb_compile_cnj",
+        "route:cna_cnb_cnj_result_copy_absorbed_file",
+        "test:content/test/content-pipeline.test.mjs"
       ]
     },
     {

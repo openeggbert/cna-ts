@@ -65,6 +65,27 @@ export interface ImportedSoundEffect {
   readonly LoopLength: number;
 }
 
+/**
+ * What compiling one `.cnj` produced.
+ *
+ * The two lists are why this is worth more than the bytes alone: `AbsorbedFiles` is every sidecar
+ * the compiler read and folded into the image, which is a build system's dependency set, and
+ * `ExternalReferences` is every asset the image names but does not carry, which is what a build
+ * system must compile next.
+ */
+export interface CompiledCnj {
+  /** CNA's numeric identity for the asset type the document declared. */
+  readonly AssetTypeId: number;
+  /** Its name, as CNA reports it. */
+  readonly AssetTypeName: string;
+  /** The compiled `.cnb` image. */
+  readonly Bytes: Uint8Array;
+  /** Every file the compiler read and absorbed, as paths. */
+  readonly AbsorbedFiles: readonly string[];
+  /** Every asset the image refers to but does not carry, as logical names. */
+  readonly ExternalReferences: readonly string[];
+}
+
 /** A colour to treat as transparent while importing, as three 0-255 components. */
 export interface ColorKey {
   readonly R: number;
@@ -96,6 +117,7 @@ interface ContentBridge {
   ): ImportedTexture;
   cnbImportDdsAsTextureCube(ddsPath: string, contentName: string): ImportedTexture;
   cnbImportWavAsSoundEffect(wavPath: string, contentName: string): ImportedSoundEffect;
+  cnbCompileCnj(cnjPath: string, contentRoot: string, contentName: string): CompiledCnj;
 }
 
 let bridge: ContentBridge | null = null;
@@ -193,4 +215,48 @@ export function ImportSoundEffect(wavPath: string, contentName: string): Importe
   const imported = toolchain("ImportSoundEffect")
     .cnbImportWavAsSoundEffect(path.resolve(wavPath), contentName);
   return Object.freeze({ ...imported, Image: new Uint8Array(imported.Image) });
+}
+
+/**
+ * Compiles one `.cnj` document, and the binary sidecars it names, into a `.cnb` image.
+ *
+ * `.cnj` is CNA's own source format for content: a small JSON document declaring an asset type and
+ * either carrying its values inline or pointing at files beside it. It is the closest thing CNA has
+ * to XNA's `.contentproj` item — with the difference that the document *is* the asset description,
+ * rather than a build file naming a processor to run.
+ *
+ * Every one of CNA's eight asset types compiles: `Curve`, `AnimationClip`, `Model`, `Texture2D`,
+ * `Texture3D`, `TextureCube`, `SpriteFont` and `SoundEffect`. Anything else is refused by name
+ * rather than producing an empty file.
+ *
+ * The two lists on the result are what make this useful to a build system rather than only to a
+ * loader: {@link CompiledCnj.AbsorbedFiles} is the dependency set to watch, and
+ * {@link CompiledCnj.ExternalReferences} is what still has to be compiled.
+ *
+ * @param cnjPath The document to compile.
+ * @param contentRoot Where sidecar references resolve against; empty for the document's own
+ *        directory, which is where CNA's content tools write them.
+ * @param contentName The logical name recorded in the image; empty for the document's stem.
+ */
+export function CompileCnj(
+  cnjPath: string, contentRoot = "", contentName = "",
+): CompiledCnj {
+  if (typeof cnjPath !== "string" || cnjPath.length === 0) {
+    throw new TypeError("cnjPath must be a non-empty path");
+  }
+  if (typeof contentRoot !== "string") throw new TypeError("contentRoot must be a string");
+  if (typeof contentName !== "string") throw new TypeError("contentName must be a string");
+  const compiled = toolchain("CompileCnj").cnbCompileCnj(
+    path.resolve(cnjPath),
+    // An empty root stays empty: that is how CNA is told to use the document's own directory, and
+    // resolving it here would substitute the build script's working directory for that.
+    contentRoot === "" ? "" : path.resolve(contentRoot),
+    contentName,
+  );
+  return Object.freeze({
+    ...compiled,
+    Bytes: new Uint8Array(compiled.Bytes),
+    AbsorbedFiles: Object.freeze([...compiled.AbsorbedFiles]),
+    ExternalReferences: Object.freeze([...compiled.ExternalReferences]),
+  });
 }

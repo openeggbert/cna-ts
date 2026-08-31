@@ -492,6 +492,11 @@ typedef CNA_Result (*CnbWriterGetLimitsFn)(CNA_CnbWriterHandle, CNA_CnbReadLimit
 typedef CNA_Result (*CnbReadLimitsInitFn)(CNA_CnbReadLimits*);
 typedef CNA_Result (*CnbWriterAppendTextureFn)(
   CNA_CnbWriterHandle, CNA_CnbTextureDataHandle, CNA_StringView);
+typedef CNA_Result (*CnbCompileCnjFn)(
+  CNA_StringView, CNA_StringView, CNA_StringView, CNA_CnjToCnbResultHandle*);
+typedef CNA_Result (*CnjIndexSizeFn)(CNA_CnjToCnbResultHandle, uint64_t, uint64_t*);
+typedef CNA_Result (*CnjIndexCopyFn)(
+  CNA_CnjToCnbResultHandle, uint64_t, char*, uint64_t, uint64_t*);
 
 
 
@@ -1101,6 +1106,18 @@ typedef struct Api {
   CnbReadLimitsInitFn cnb_read_limits_init;
   StorageStreamReadFn cnb_writer_build;
   CnbWriterAppendTextureFn cnb_writer_append_embedded_texture2d;
+  CnbCompileCnjFn cnb_compile_cnj;
+  GameHandleFn cnb_cnj_result_destroy;
+  GameU32OutFn cnb_cnj_result_get_asset_type_id;
+  HandleU64OutFn cnb_cnj_result_get_asset_type_name_size;
+  HandleCopyStringFn cnb_cnj_result_copy_asset_type_name;
+  StorageStreamReadFn cnb_cnj_result_copy_bytes;
+  HandleU64OutFn cnb_cnj_result_get_absorbed_file_count;
+  CnjIndexSizeFn cnb_cnj_result_get_absorbed_file_size;
+  CnjIndexCopyFn cnb_cnj_result_copy_absorbed_file;
+  HandleU64OutFn cnb_cnj_result_get_external_reference_count;
+  CnjIndexSizeFn cnb_cnj_result_get_external_reference_size;
+  CnjIndexCopyFn cnb_cnj_result_copy_external_reference;
   HandleU64OutFn cnb_document_get_origin_size;
   HandleCopyStringFn cnb_document_copy_origin;
   CnbDocumentU16OutFn cnb_document_get_container_major;
@@ -2358,6 +2375,18 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(cnb_read_limits_init, CnbReadLimitsInitFn, "cna_cnb_read_limits_init");
   LOAD_REQUIRED(cnb_writer_build, StorageStreamReadFn, "cna_cnb_writer_build");
   LOAD_REQUIRED(cnb_writer_append_embedded_texture2d, CnbWriterAppendTextureFn, "cna_cnb_writer_append_embedded_texture2d");
+  LOAD_REQUIRED(cnb_compile_cnj, CnbCompileCnjFn, "cna_cnb_compile_cnj");
+  LOAD_REQUIRED(cnb_cnj_result_destroy, GameHandleFn, "cna_cnb_cnj_result_destroy");
+  LOAD_REQUIRED(cnb_cnj_result_get_asset_type_id, GameU32OutFn, "cna_cnb_cnj_result_get_asset_type_id");
+  LOAD_REQUIRED(cnb_cnj_result_get_asset_type_name_size, HandleU64OutFn, "cna_cnb_cnj_result_get_asset_type_name_size");
+  LOAD_REQUIRED(cnb_cnj_result_copy_asset_type_name, HandleCopyStringFn, "cna_cnb_cnj_result_copy_asset_type_name");
+  LOAD_REQUIRED(cnb_cnj_result_copy_bytes, StorageStreamReadFn, "cna_cnb_cnj_result_copy_bytes");
+  LOAD_REQUIRED(cnb_cnj_result_get_absorbed_file_count, HandleU64OutFn, "cna_cnb_cnj_result_get_absorbed_file_count");
+  LOAD_REQUIRED(cnb_cnj_result_get_absorbed_file_size, CnjIndexSizeFn, "cna_cnb_cnj_result_get_absorbed_file_size");
+  LOAD_REQUIRED(cnb_cnj_result_copy_absorbed_file, CnjIndexCopyFn, "cna_cnb_cnj_result_copy_absorbed_file");
+  LOAD_REQUIRED(cnb_cnj_result_get_external_reference_count, HandleU64OutFn, "cna_cnb_cnj_result_get_external_reference_count");
+  LOAD_REQUIRED(cnb_cnj_result_get_external_reference_size, CnjIndexSizeFn, "cna_cnb_cnj_result_get_external_reference_size");
+  LOAD_REQUIRED(cnb_cnj_result_copy_external_reference, CnjIndexCopyFn, "cna_cnb_cnj_result_copy_external_reference");
   LOAD_REQUIRED(cnb_document_get_origin_size, HandleU64OutFn, "cna_cnb_document_get_origin_size");
   LOAD_REQUIRED(cnb_document_copy_origin, HandleCopyStringFn, "cna_cnb_document_copy_origin");
   LOAD_REQUIRED(cnb_document_get_container_major, CnbDocumentU16OutFn, "cna_cnb_document_get_container_major");
@@ -10973,6 +11002,216 @@ fail:
  * the runtime package and the build-time package share this module through Node's require cache --
  * so a build script that also runs a game must be able to ask rather than guess.
  */
+/* --- the `.cnj` compile front end ---------------------------------------------------------- */
+/*
+ * CNA's own source format for content: a small JSON document naming an asset type and either
+ * carrying its values inline or pointing at binary sidecars. Compiling one produces a `.cnb` image
+ * plus the two lists a build system needs -- what the compiler absorbed, and what it recorded as
+ * an external reference -- which is why the result is a handle rather than just bytes.
+ *
+ * This is a build-time route: it takes filesystem paths, so it belongs to `cna-ts-content` and not
+ * to the runtime package. It follows the same rule as the importers beside it -- the whole
+ * operation happens inside one native call and the result is released before returning, so the
+ * build-time package owns no native lifetime and has nothing to leak.
+ */
+
+/** One `index`-addressed string on the compile result, read with CNB's two-pass shape. */
+static int cnj_copy_indexed_string(
+  napi_env env,
+  CNA_CnjToCnbResultHandle result,
+  uint64_t index,
+  CnjIndexSizeFn sizeRoute,
+  CnjIndexCopyFn copyRoute,
+  const char* operation,
+  napi_value* out
+) {
+  uint64_t required = 0;
+  CNA_Result status = sizeRoute(result, index, &required);
+  if (status != CNA_RESULT_SUCCESS) {
+    throw_result(env, operation, status);
+    return 0;
+  }
+  if (required > SIZE_MAX) {
+    throw_message(env, "a compile result path exceeds the host address space");
+    return 0;
+  }
+  char* text = required == 0 ? NULL : (char*) malloc((size_t) required);
+  if (required != 0 && !text) {
+    throw_message(env, "compile-result path allocation failed");
+    return 0;
+  }
+  uint64_t produced = 0;
+  status = copyRoute(result, index, text, required, &produced);
+  if (status != CNA_RESULT_SUCCESS || produced != required) {
+    free(text);
+    throw_result(env, operation, status);
+    return 0;
+  }
+  const napi_status created =
+    napi_create_string_utf8(env, text ? text : "", (size_t) required, out);
+  free(text);
+  if (created != napi_ok) {
+    throw_napi(env, operation);
+    return 0;
+  }
+  return 1;
+}
+
+/** The list of paths one of the two indexed families reports. */
+static int cnj_string_list(
+  napi_env env,
+  CNA_CnjToCnbResultHandle result,
+  HandleU64OutFn countRoute,
+  CnjIndexSizeFn sizeRoute,
+  CnjIndexCopyFn copyRoute,
+  const char* operation,
+  napi_value* out
+) {
+  uint64_t count = 0;
+  const CNA_Result status = countRoute(result, &count);
+  if (status != CNA_RESULT_SUCCESS) {
+    throw_result(env, operation, status);
+    return 0;
+  }
+  if (count > UINT32_MAX) {
+    throw_message(env, "a compile result lists more paths than can be enumerated");
+    return 0;
+  }
+  if (napi_create_array_with_length(env, (size_t) count, out) != napi_ok) {
+    throw_napi(env, operation);
+    return 0;
+  }
+  for (uint64_t index = 0; index < count; index += 1) {
+    napi_value element;
+    if (!cnj_copy_indexed_string(env, result, index, sizeRoute, copyRoute, operation, &element) ||
+        napi_set_element(env, *out, (uint32_t) index, element) != napi_ok) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static napi_value cnb_compile_cnj(napi_env env, napi_callback_info info) {
+  napi_value args[3], output = NULL, value = NULL;
+  char* cnjPath = NULL;
+  char* contentRoot = NULL;
+  char* contentName = NULL;
+  size_t cnjLength = 0, rootLength = 0, nameLength = 0;
+  CNA_CnjToCnbResultHandle result = 0;
+  uint8_t* bytes = NULL;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_utf8(env, args[0], &cnjPath, &cnjLength)) return NULL;
+  if (!read_utf8(env, args[1], &contentRoot, &rootLength)) {
+    free(cnjPath);
+    return NULL;
+  }
+  if (!read_utf8(env, args[2], &contentName, &nameLength)) {
+    free(cnjPath);
+    free(contentRoot);
+    return NULL;
+  }
+  const CNA_StringView pathView = {cnjPath, cnjLength};
+  const CNA_StringView rootView = {contentRoot, rootLength};
+  const CNA_StringView nameView = {contentName, nameLength};
+  CNA_Result status = g_api.cnb_compile_cnj(pathView, rootView, nameView, &result);
+  free(cnjPath);
+  free(contentRoot);
+  free(contentName);
+  if (status != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_compile_cnj", status);
+  }
+
+  uint32_t assetTypeId = 0;
+  status = g_api.cnb_cnj_result_get_asset_type_id(result, &assetTypeId);
+  if (status != CNA_RESULT_SUCCESS) {
+    g_api.cnb_cnj_result_destroy(result);
+    return throw_result(env, "cna_cnb_cnj_result_get_asset_type_id", status);
+  }
+
+  uint64_t nameSize = 0;
+  status = g_api.cnb_cnj_result_get_asset_type_name_size(result, &nameSize);
+  if (status != CNA_RESULT_SUCCESS || nameSize > SIZE_MAX) {
+    g_api.cnb_cnj_result_destroy(result);
+    return throw_result(env, "cna_cnb_cnj_result_get_asset_type_name_size", status);
+  }
+  char* typeName = nameSize == 0 ? NULL : (char*) malloc((size_t) nameSize);
+  if (nameSize != 0 && !typeName) {
+    g_api.cnb_cnj_result_destroy(result);
+    return throw_message(env, "compile-result type-name allocation failed");
+  }
+  uint64_t produced = 0;
+  status = g_api.cnb_cnj_result_copy_asset_type_name(result, typeName, nameSize, &produced);
+  if (status != CNA_RESULT_SUCCESS || produced != nameSize) {
+    free(typeName);
+    g_api.cnb_cnj_result_destroy(result);
+    return throw_result(env, "cna_cnb_cnj_result_copy_asset_type_name", status);
+  }
+
+  uint64_t required = 0;
+  status = g_api.cnb_cnj_result_copy_bytes(result, NULL, 0, &required);
+  if (status != CNA_RESULT_SUCCESS && status != CNA_RESULT_BUFFER_TOO_SMALL) {
+    free(typeName);
+    g_api.cnb_cnj_result_destroy(result);
+    return throw_result(env, "cna_cnb_cnj_result_copy_bytes", status);
+  }
+  if (required > SIZE_MAX) {
+    free(typeName);
+    g_api.cnb_cnj_result_destroy(result);
+    return throw_message(env, "the compiled image exceeds the host address space");
+  }
+  bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) {
+    free(typeName);
+    g_api.cnb_cnj_result_destroy(result);
+    return throw_message(env, "compiled-image allocation failed");
+  }
+  uint64_t written = 0;
+  status = g_api.cnb_cnj_result_copy_bytes(result, bytes, required, &written);
+  if (status != CNA_RESULT_SUCCESS || written != required) {
+    free(bytes);
+    free(typeName);
+    g_api.cnb_cnj_result_destroy(result);
+    return throw_result(env, "cna_cnb_cnj_result_copy_bytes", status);
+  }
+
+  napi_value absorbed = NULL, references = NULL, imageValue = NULL, nameValue = NULL;
+  int ok =
+    cnj_string_list(env, result, g_api.cnb_cnj_result_get_absorbed_file_count,
+      g_api.cnb_cnj_result_get_absorbed_file_size, g_api.cnb_cnj_result_copy_absorbed_file,
+      "cna_cnb_cnj_result_copy_absorbed_file", &absorbed) &&
+    cnj_string_list(env, result, g_api.cnb_cnj_result_get_external_reference_count,
+      g_api.cnb_cnj_result_get_external_reference_size,
+      g_api.cnb_cnj_result_copy_external_reference,
+      "cna_cnb_cnj_result_copy_external_reference", &references);
+  /* Released before anything is returned: the build-time package owns no native lifetime. */
+  g_api.cnb_cnj_result_destroy(result);
+  if (!ok) {
+    free(bytes);
+    free(typeName);
+    return NULL;
+  }
+  void* copied = NULL;
+  if (napi_create_buffer_copy(env, (size_t) required, bytes ? (const void*) bytes : (const void*) "", &copied, &imageValue)
+        != napi_ok ||
+      napi_create_string_utf8(env, typeName ? typeName : "", (size_t) nameSize, &nameValue)
+        != napi_ok ||
+      napi_create_object(env, &output) != napi_ok ||
+      napi_create_uint32(env, assetTypeId, &value) != napi_ok ||
+      napi_set_named_property(env, output, "AssetTypeId", value) != napi_ok ||
+      napi_set_named_property(env, output, "AssetTypeName", nameValue) != napi_ok ||
+      napi_set_named_property(env, output, "Bytes", imageValue) != napi_ok ||
+      napi_set_named_property(env, output, "AbsorbedFiles", absorbed) != napi_ok ||
+      napi_set_named_property(env, output, "ExternalReferences", references) != napi_ok) {
+    free(bytes);
+    free(typeName);
+    return throw_napi(env, "cna_cnb_compile_cnj result");
+  }
+  (void) copied;
+  free(bytes);
+  free(typeName);
+  return output;
+}
+
 static napi_value is_library_loaded(napi_env env, napi_callback_info info) {
   napi_value output;
   (void) info;
@@ -16542,6 +16781,7 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "cnbImportDdsAsTextureCube", NULL, cnb_import_dds_as_texture_cube, NULL, NULL, NULL, napi_default, NULL },
     { "cnbImportWavAsSoundEffect", NULL, cnb_import_wav_as_sound_effect, NULL, NULL, NULL, napi_default, NULL },
     { "isLibraryLoaded", NULL, is_library_loaded, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbCompileCnj", NULL, cnb_compile_cnj, NULL, NULL, NULL, napi_default, NULL },
     { "cnbEncodeCurve", NULL, cnb_encode_curve, NULL, NULL, NULL, napi_default, NULL },
     { "cnbDecodeCurve", NULL, cnb_decode_curve, NULL, NULL, NULL, napi_default, NULL },
     { "cnbEncodeAnimationClip", NULL, cnb_encode_animation_clip, NULL, NULL, NULL, napi_default, NULL },

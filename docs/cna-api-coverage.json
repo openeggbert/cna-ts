@@ -16,13 +16,13 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 917,
+    "NODE": 929,
     "WASM": 276
   },
-  "reachableByAny": 917,
+  "reachableByAny": 929,
   "reachableByAll": 276,
   "reachableExclusively": {
-    "NODE": 641,
+    "NODE": 653,
     "WASM": 0
   },
   "reachabilityByCategory": {
@@ -31,7 +31,7 @@
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 528,
+      "NODE": 540,
       "WASM": 189
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -73,7 +73,7 @@
     },
     "cnb.h": {
       "CNA_EXTENSION_BACKING": 272,
-      "REACHABLE_NODE": 157,
+      "REACHABLE_NODE": 169,
       "REACHABLE_WASM": 149
     },
     "color.h": {
@@ -4669,84 +4669,108 @@
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_cnj_result_copy_asset_type_name",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_cnj_result_copy_bytes",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_cnj_result_copy_external_reference",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_cnj_result_destroy",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_cnj_result_get_absorbed_file_count",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_cnj_result_get_absorbed_file_size",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_cnj_result_get_asset_type_id",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_cnj_result_get_asset_type_name_size",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_cnj_result_get_external_reference_count",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_cnj_result_get_external_reference_size",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_compile_cnj",
       "header": "cnb.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cnb_copy_asset_type_name",

@@ -23,6 +23,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
+  CompileCnj,
   ImportSoundEffect,
   ImportTexture2D,
   ImportTextureCube,
@@ -308,4 +309,159 @@ test("the importers validate their arguments before reaching CNA", { skip }, () 
     () => ImportTexture2D(png, "X", { R: -1, G: 0, B: 0 }),
     /colour-key component must be between 0 and 255/,
   );
+});
+
+test("a .cnj document compiles into a .cnb the runtime reads back", { skip }, () => {
+  // `.cnj` is CNA's own source format for content, and this document is authored here from its
+  // specification -- the values below are chosen, not produced by CNA, so what the runtime decodes
+  // on the other side is evidence about the compiler rather than about CNA agreeing with itself.
+  const directory = path.join(workspace, "cnj");
+  fs.mkdirSync(directory, { recursive: true });
+  const cnjPath = path.join(directory, "Ramp.cnj");
+  fs.writeFileSync(cnjPath, JSON.stringify({
+    cnjVersion: 1,
+    type: "Curve",
+    preLoop: "Constant",
+    postLoop: "Linear",
+    keys: [
+      { position: 0, value: 2.5 },
+      { position: 1, value: 7.5, continuity: "Step" },
+      { position: 2.5, value: -1.25 },
+    ],
+  }));
+
+  const compiled = CompileCnj(cnjPath);
+  assert.equal(compiled.AssetTypeName, "Microsoft.Xna.Framework.Curve");
+  assert.ok(compiled.Bytes.length > 0);
+  assert.equal(runtimeContent.CnbFormat.HasMagic(compiled.Bytes), true, "what comes out is a .cnb");
+  // The dependency list a build system watches: the document itself, as it was written in the
+  // source rather than as an absolute path.
+  assert.deepEqual([...compiled.AbsorbedFiles], ["Ramp.cnj"]);
+  assert.deepEqual([...compiled.ExternalReferences], [], "an inline curve refers to nothing");
+
+  // Decoded through the runtime package, which never saw the JSON.
+  const document = runtimeContent.CnbDocument.Parse(compiled.Bytes, "Ramp.cnb");
+  try {
+    assert.equal(document.AssetType, compiled.AssetTypeId, "the two halves name the same type");
+    assert.equal(document.Metadata.ContentName, "Ramp", "the content name defaults to the stem");
+    const curve = runtimeContent.DecodeCnbCurve(document);
+    // Constant is 0 and Linear is 4 in XNA's CurveLoopType; Step is 1 in CurveContinuity. Every
+    // key differs from every other in position, value and continuity, so a dropped field or a
+    // transposed pair changes a number here.
+    assert.equal(curve.PreLoop, 0, "preLoop: Constant");
+    assert.equal(curve.PostLoop, 4, "postLoop: Linear");
+    assert.equal(curve.Keys.Count, 3);
+    assert.deepEqual(
+      [0, 1, 2].map((index) => {
+        const key = curve.Keys.Get(index);
+        return [key.Position, key.Value, key.Continuity];
+      }),
+      [[0, 2.5, 0], [1, 7.5, 1], [2.5, -1.25, 0]],
+      "every key's position, value and continuity is the one the document declared",
+    );
+  } finally {
+    document.Dispose();
+  }
+
+  // An explicit content name is recorded instead of the stem.
+  const named = CompileCnj(cnjPath, directory, "Curves/Ramp");
+  const namedDocument = runtimeContent.CnbDocument.Parse(named.Bytes, "Ramp.cnb");
+  try {
+    assert.equal(namedDocument.Metadata.ContentName, "Curves/Ramp");
+  } finally {
+    namedDocument.Dispose();
+  }
+
+  console.log(
+    `CNA_TS_CONTENT_CNJ_CURVE=PASS TYPE=${compiled.AssetTypeName} BYTES=${compiled.Bytes.length} ` +
+    `KEYS=3 ABSORBED=${compiled.AbsorbedFiles.join("|")}`,
+  );
+});
+
+test("a .cnj document that names a sidecar absorbs it, and reports it", { skip }, () => {
+  // The case the dependency list exists for: a document that points at a binary file beside it.
+  // The PNG is written from the PNG specification by this suite, so the texels the runtime decodes
+  // are the ones this test chose.
+  const directory = path.join(workspace, "cnj-texture");
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(path.join(directory, "atlas.png"), encodePng(2, 2, TEXELS));
+  const cnjPath = path.join(directory, "Atlas.cnj");
+  fs.writeFileSync(cnjPath, JSON.stringify({
+    cnjVersion: 1,
+    type: "Texture2D",
+    sourceFile: "atlas.png",
+  }));
+
+  const compiled = CompileCnj(cnjPath);
+  assert.equal(compiled.AssetTypeName, "Microsoft.Xna.Framework.Graphics.Texture2D");
+  // Both files: the document and the sidecar it read. That is exactly the set a build system has
+  // to watch to know when this asset is stale.
+  assert.deepEqual(
+    [...compiled.AbsorbedFiles].sort(), ["Atlas.cnj", "atlas.png"],
+    "the compiler reports the sidecar it absorbed, not only the document",
+  );
+
+  const document = runtimeContent.CnbDocument.Parse(compiled.Bytes, "Atlas.cnb");
+  try {
+    const texture = runtimeContent.CnbTextureData.Decode(document);
+    try {
+      assert.deepEqual(
+        [...texture.ReadLevel(0, 0)], [...TEXELS],
+        "the four texels the PNG carried arrive through the compiler unchanged",
+      );
+    } finally {
+      texture.Dispose();
+    }
+  } finally {
+    document.Dispose();
+  }
+
+  console.log(
+    `CNA_TS_CONTENT_CNJ_TEXTURE=PASS ABSORBED=${[...compiled.AbsorbedFiles].sort().join("|")} ` +
+    "TEXELS=EXACT",
+  );
+});
+
+test("the .cnj compiler refuses what it cannot express", { skip }, () => {
+  const directory = path.join(workspace, "cnj-bad");
+  fs.mkdirSync(directory, { recursive: true });
+
+  // Each of these is refused *by CNA*, which is what the result code distinguishes: a message
+  // match alone would also be satisfied by this package refusing before the call, and that is a
+  // different failure with the same words in it.
+  const refusedByCna = (body, what) => {
+    try {
+      body();
+      assert.fail(`${what} was accepted`);
+    } catch (error) {
+      assert.equal(error.cnaResult, 5, `${what}: expected CNA's IO refusal, got ${error.message}`);
+    }
+  };
+
+  // An asset type CNA has no schema for is refused rather than producing an empty file.
+  const unsupported = path.join(directory, "Unsupported.cnj");
+  fs.writeFileSync(unsupported, JSON.stringify({ cnjVersion: 1, type: "NotAThing" }));
+  refusedByCna(() => CompileCnj(unsupported), "an unsupported asset type");
+
+  // A document that names a sidecar which is not there.
+  const missingSidecar = path.join(directory, "Missing.cnj");
+  fs.writeFileSync(missingSidecar, JSON.stringify({
+    cnjVersion: 1, type: "Texture2D", sourceFile: "absent.png",
+  }));
+  refusedByCna(() => CompileCnj(missingSidecar), "a missing sidecar");
+
+  // A document that is not there at all.
+  refusedByCna(() => CompileCnj(path.join(directory, "Nothing.cnj")), "a missing document");
+
+  // And this package's own argument checks, which hold before any of that.
+  for (const call of [
+    () => CompileCnj(""),
+    () => CompileCnj(7),
+    () => CompileCnj(unsupported, 7),
+    () => CompileCnj(unsupported, "", 7),
+  ]) {
+    assert.throws(call, TypeError, call.toString());
+  }
+
+  console.log("CNA_TS_CONTENT_CNJ_REFUSALS=PASS UNSUPPORTED_TYPE=REFUSED MISSING_SIDECAR=REFUSED");
 });
