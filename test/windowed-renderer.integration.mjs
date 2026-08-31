@@ -1645,6 +1645,369 @@ class WindowedProbeGame extends Game {
       }
     });
 
+    // --- the other three shadow passes ------------------------------------------------------------
+    //
+    // A cascade, a spot cone and a point light's cube. Each has pure maths beside it that was
+    // verified separately and touches no pass at all, so each pass can be checked against those
+    // rather than against numbers recorded here: a cascade's splits against
+    // ComputeCascadeSplitDistances, a spot's transform against ComputeSpotLightView times
+    // ComputeSpotLightProjection, and a cube's face size against CubeSizeForQuality.
+    record("otherShadowPasses", () => {
+      const {
+        CascadedShadowMap, CubeShadowMap, IsGraphicsExtensionLayerAvailable, ShadowMapMath,
+        ShadowQuality, SpotShadowMap,
+      } = computeModule;
+      const NEAR = 1;
+      const FAR = 200;
+      const CASCADES = 3;
+      const owned = [];
+      try {
+        let cascaded;
+        try {
+          cascaded = new CascadedShadowMap(device, ShadowQuality.Low, CASCADES);
+        } catch (error) {
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(cascaded);
+
+        // A camera that looks across a wide scene, so the three cascades are three different
+        // slices rather than three copies of one.
+        const cameraView = Matrix.CreateLookAt(new Vector3(0, 5, 20), Vector3.Zero, Vector3.Up);
+        const cameraProjection =
+          Matrix.CreatePerspectiveFieldOfView(Math.PI / 3, 4 / 3, NEAR, FAR);
+        const light = {
+          Direction: new Vector3(-0.4, -1, -0.3), Color: new Vector3(1, 1, 1), Intensity: 1,
+        };
+        const LAMBDA = 0.6;
+        const result = {
+          near: NEAR,
+          far: FAR,
+          cascadeCount: CASCADES,
+          lambda: LAMBDA,
+          cascaded: {
+            supported: cascaded.IsSupported,
+            count: cascaded.CascadeCount,
+            size: cascaded.CascadeSize,
+            defaultLambda: cascaded.SplitLambda,
+            defaultBand: cascaded.BlendBand,
+            defaultTint: cascaded.IsDebugTintEnabled,
+          },
+        };
+        cascaded.SplitLambda = LAMBDA;
+        cascaded.BlendBand = 0.25;
+        cascaded.IsDebugTintEnabled = true;
+        result.cascaded.set = {
+          lambda: cascaded.SplitLambda,
+          band: cascaded.BlendBand,
+          tint: cascaded.IsDebugTintEnabled,
+        };
+        cascaded.IsDebugTintEnabled = false;
+        result.cascaded.tintOff = cascaded.IsDebugTintEnabled;
+        cascaded.Update(light, cameraView, cameraProjection);
+        result.cascaded.splits = Array.from(
+          { length: CASCADES }, (_, index) => cascaded.GetSplitDistance(index),
+        );
+        // The same four numbers through a pure route that touches no map at all.
+        result.cascaded.pureSplits = [...ShadowMapMath.ComputeCascadeSplitDistances(
+          NEAR, FAR, CASCADES, LAMBDA,
+        )];
+        result.cascaded.matrices = Array.from(
+          { length: CASCADES }, (_, index) => matrixRow(cascaded.GetCascadeMatrix(index)),
+        );
+        // The same camera under a different light. The splits cannot move -- they are the camera's
+        // -- but every cascade's transform must, because a cascade is framed from the light.
+        cascaded.Update(
+          { Direction: new Vector3(0.9, -0.4, 0.1), Color: new Vector3(1, 1, 1), Intensity: 1 },
+          cameraView, cameraProjection,
+        );
+        result.cascaded.underOtherLight = {
+          matrices: Array.from(
+            { length: CASCADES }, (_, index) => matrixRow(cascaded.GetCascadeMatrix(index)),
+          ),
+          splits: Array.from({ length: CASCADES }, (_, index) =>
+            cascaded.GetSplitDistance(index)),
+        };
+        cascaded.Update(light, cameraView, cameraProjection);
+        result.cascaded.selections = [0.5, 10, 30, 50, 90, 150, 400].map(
+          (depth) => [depth, cascaded.SelectCascade(depth)],
+        );
+        // Snapping is a pure function and quantises to the cascade's own texel: two centres less
+        // than a texel apart land on the same one, and the result is a whole number of texels.
+        const SNAP_RADIUS = 10;
+        const SNAP_SIZE = 512;
+        result.cascaded.snap = {
+          radius: SNAP_RADIUS,
+          size: SNAP_SIZE,
+          first: (() => {
+            const value = CascadedShadowMap.SnapToTexelGrid(
+              new Vector3(1.234, 5.678, -9.1), SNAP_RADIUS, SNAP_SIZE,
+            );
+            return [value.X, value.Y, value.Z];
+          })(),
+          nearby: (() => {
+            const value = CascadedShadowMap.SnapToTexelGrid(
+              new Vector3(1.24, 5.68, -9.1), SNAP_RADIUS, SNAP_SIZE,
+            );
+            return [value.X, value.Y, value.Z];
+          })(),
+          farther: (() => {
+            const value = CascadedShadowMap.SnapToTexelGrid(
+              new Vector3(1.4, 5.9, -9.1), SNAP_RADIUS, SNAP_SIZE,
+            );
+            return [value.X, value.Y, value.Z];
+          })(),
+        };
+        const cascadeTexture = cascaded.ShadowTexture;
+        result.cascaded.texture = {
+          width: cascadeTexture.Width, height: cascadeTexture.Height,
+          format: cascadeTexture.Format, cached: cascaded.ShadowTexture === cascadeTexture,
+        };
+        try {
+          result.cascaded.effect = cascaded.CasterEffect.CurrentTechnique.Name;
+        } catch (error) {
+          result.cascaded.effect = `${error.constructor.name}`;
+        }
+
+        // A ground quad, cast into one cascade at a time. Each cascade owns its own slice of the
+        // atlas, so which columns darken is what says Begin bound the cascade it was asked for.
+        if (result.cascaded.supported) {
+          const white = new Color(255, 255, 255, 255);
+          const quad = (extent) => {
+            const at = (x, z) => new Graphics.VertexPositionColor(
+              new Vector3(x, 0, z), white,
+            );
+            return [
+              at(-extent, -extent), at(extent, -extent), at(extent, extent),
+              at(-extent, -extent), at(extent, extent), at(-extent, extent),
+            ];
+          };
+          const texels = new Float32Array(cascadeTexture.Width * cascadeTexture.Height);
+          const castInto = (index, extent) => {
+            device.RasterizerState = Graphics.RasterizerState.CullNone;
+            cascaded.Begin(index);
+            try {
+              cascaded.CasterEffect.CurrentTechnique.Passes.Get(0).Apply();
+              device.DrawUserPrimitives(
+                Graphics.PrimitiveType.TriangleList, quad(extent), 0, 2,
+              );
+            } finally {
+              cascaded.End();
+            }
+            return survey();
+          };
+          // Every slice of the atlas separately: how many texels in it are nearer than the far
+          // plane, and the nearest depth among them. A pass writes into one cascade's viewport and
+          // leaves the others exactly as they were, so comparing whole surveys between casts is
+          // what shows which slice each Begin actually bound.
+          const survey = () => {
+            cascadeTexture.GetData(texels);
+            const slices = Array.from({ length: CASCADES }, () => ({ occluded: 0, low: Infinity }));
+            for (let position = 0; position < texels.length; position += 1) {
+              const x = position % cascadeTexture.Width;
+              const slice = slices[Math.floor(x / result.cascaded.size)];
+              if (texels[position] >= 1) continue;
+              slice.occluded += 1;
+              if (texels[position] < slice.low) slice.low = texels[position];
+            }
+            return slices.map((slice) => [slice.occluded, slice.low === Infinity ? 1 : slice.low]);
+          };
+          const emptyPass = (index) => {
+            cascaded.Begin(index);
+            cascaded.End();
+            return survey();
+          };
+          // Every step surveyed, so what each one did is measured rather than assumed: a fresh
+          // atlas, then one empty pass, then another over a different cascade, then two real casts.
+          result.cascaded.steps = {
+            fresh: survey(),
+            emptyFirst: emptyPass(0),
+            emptyMiddle: emptyPass(1),
+            castFirst: castInto(0, 6),
+            castLast: castInto(CASCADES - 1, 60),
+            emptyMiddleAgain: emptyPass(1),
+          };
+        }
+
+        // --- the spot cone -------------------------------------------------------------------
+        const spot = new SpotShadowMap(device, ShadowQuality.Low);
+        owned.push(spot);
+        const SPOT_LIGHT = {
+          Position: new Vector3(2, 8, -3),
+          Direction: new Vector3(0, -1, 0.2),
+          Color: new Vector3(1, 1, 1),
+          Intensity: 2,
+          Range: 40,
+          InnerAngle: 0.3,
+          OuterAngle: 0.6,
+        };
+        result.spot = {
+          supported: spot.IsSupported,
+          quality: spot.Quality,
+          size: spot.Size,
+          sizeForQuality: ShadowMapMath.SizeForQuality(ShadowQuality.Low),
+          defaultBias: spot.DepthBias,
+        };
+        spot.DepthBias = 0.0123;
+        result.spot.biasSet = spot.DepthBias;
+        spot.Begin(SPOT_LIGHT);
+        spot.End();
+        result.spot.position = [
+          spot.LightPosition.X, spot.LightPosition.Y, spot.LightPosition.Z,
+        ];
+        result.spot.range = spot.LightRange;
+        result.spot.lightViewProjection = matrixRow(spot.LightViewProjection);
+        // The same light through the two pure routes, which take a clustered light and touch no
+        // map. The test multiplies them itself and checks the pass agrees.
+        const asClustered = {
+          Type: computeModule.ClusteredLightType.Spot,
+          Position: SPOT_LIGHT.Position,
+          Direction: SPOT_LIGHT.Direction,
+          Color: SPOT_LIGHT.Color,
+          Intensity: SPOT_LIGHT.Intensity,
+          Range: SPOT_LIGHT.Range,
+          InnerAngle: SPOT_LIGHT.InnerAngle,
+          OuterAngle: SPOT_LIGHT.OuterAngle,
+          CastsShadows: true,
+        };
+        result.spot.pureView = matrixRow(ShadowMapMath.ComputeSpotLightView(asClustered));
+        result.spot.pureProjection =
+          matrixRow(ShadowMapMath.ComputeSpotLightProjection(asClustered));
+        const spotTexture = spot.ShadowTexture;
+        result.spot.texture = {
+          width: spotTexture.Width, height: spotTexture.Height, format: spotTexture.Format,
+        };
+        try {
+          result.spot.effect = spot.CasterEffect.CurrentTechnique.Name;
+        } catch (error) {
+          result.spot.effect = `${error.constructor.name}`;
+        }
+        if (result.spot.supported) {
+          const texels = new Float32Array(spotTexture.Width * spotTexture.Height);
+          const white = new Color(255, 255, 255, 255);
+          const groundAt = (y) => {
+            const at = (x, z) => new Graphics.VertexPositionColor(
+              new Vector3(x, y, z), white,
+            );
+            return [at(-6, -6), at(6, -6), at(6, 6), at(-6, -6), at(6, 6), at(-6, 6)];
+          };
+          const cast = (y) => {
+            device.RasterizerState = Graphics.RasterizerState.CullNone;
+            spot.Begin(SPOT_LIGHT);
+            try {
+              spot.CasterEffect.CurrentTechnique.Passes.Get(0).Apply();
+              device.DrawUserPrimitives(
+                Graphics.PrimitiveType.TriangleList, groundAt(y), 0, 2,
+              );
+            } finally {
+              spot.End();
+            }
+            spotTexture.GetData(texels);
+            let occluded = 0, low = Infinity;
+            for (const depth of texels) {
+              if (depth < 1) {
+                occluded += 1;
+                if (depth < low) low = depth;
+              }
+            }
+            return { occluded, low };
+          };
+          // A floor under the light, and the same floor raised towards it: nearer the light is a
+          // smaller recorded depth, and the closer surface covers more of the cone.
+          result.spot.castLow = cast(0);
+          result.spot.castHigh = cast(4);
+          spot.Begin(SPOT_LIGHT);
+          spot.End();
+          spotTexture.GetData(texels);
+          result.spot.emptyPass = {
+            low: texels.reduce((lowest, value) => Math.min(lowest, value), Infinity),
+          };
+        }
+
+        // --- the point light's cube ------------------------------------------------------------
+        const cube = new CubeShadowMap(device, ShadowQuality.Low);
+        owned.push(cube);
+        const POINT_LIGHT = {
+          Position: new Vector3(-1, 3, 2), Color: new Vector3(1, 1, 1), Intensity: 1, Range: 25,
+        };
+        result.cube = {
+          supported: cube.IsSupported,
+          quality: cube.Quality,
+          size: cube.Size,
+          cubeSizeForQuality: ShadowMapMath.CubeSizeForQuality(ShadowQuality.Low),
+          flatSizeForQuality: ShadowMapMath.SizeForQuality(ShadowQuality.Low),
+          defaultBias: cube.DepthBias,
+        };
+        cube.DepthBias = 0.006;
+        result.cube.biasSet = cube.DepthBias;
+        cube.Update(POINT_LIGHT);
+        result.cube.position = [
+          cube.LightPosition.X, cube.LightPosition.Y, cube.LightPosition.Z,
+        ];
+        result.cube.range = cube.LightRange;
+        const cubeTexture = cube.ShadowTexture;
+        result.cube.texture = {
+          size: cubeTexture.Size, format: cubeTexture.Format, levels: cubeTexture.LevelCount,
+          cached: cube.ShadowTexture === cubeTexture,
+        };
+        try {
+          result.cube.effect = cube.CasterEffect.CurrentTechnique.Name;
+        } catch (error) {
+          result.cube.effect = `${error.constructor.name}`;
+        }
+        const attempt = (body) => {
+          try {
+            body();
+            return "ACCEPTED";
+          } catch (error) {
+            return error.cnaResult ?? error.constructor.name;
+          }
+        };
+        result.cube.faces = Array.from({ length: 6 }, (_, face) => attempt(() => {
+          cube.Begin(face);
+          cube.End();
+        }));
+        // The managed TextureCube transfer covers exact Color elements only, and a shadow cube is
+        // Single -- an honest boundary rather than a reinterpretation.
+        result.cube.readBack = attempt(
+          () => cubeTexture.GetData(0, new Array(cubeTexture.Size * cubeTexture.Size)),
+        );
+
+        result.refusals = {
+          cascadeOutside: attempt(() => cascaded.GetCascadeMatrix(CASCADES)),
+          splitOutside: attempt(() => cascaded.GetSplitDistance(-1)),
+          beginOutside: attempt(() => {
+            cascaded.Begin(CASCADES);
+            cascaded.End();
+          }),
+          faceOutside: attempt(() => {
+            cube.Begin(6);
+            cube.End();
+          }),
+          fractionalCascade: attempt(() => cascaded.GetCascadeMatrix(0.5)),
+          nullSpotLight: attempt(() => spot.Begin(null)),
+          nullPointLight: attempt(() => cube.Update(null)),
+        };
+        const spare = new SpotShadowMap(device, ShadowQuality.Low);
+        spare.Dispose();
+        result.refusals.disposed = attempt(() => spare.Begin(SPOT_LIGHT));
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch (error) {
+            (this.evidence.otherShadowCleanup ??= []).push(
+              `${error.constructor.name}: ${(error.message ?? "").slice(0, 90)}`,
+            );
+          }
+        }
+      }
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -3429,6 +3792,290 @@ test("a windowed CNA renderer draws the sky its own model predicts", { skip }, a
       .map(([name, summary]) => `${name}=${summary.exact}/${summary.total}`)
       .join(" ") +
     ` SKYBOX=${skybox.supported ? "6_FACES" : "UNSUPPORTED"}`,
+  );
+});
+
+test("a windowed CNA renderer renders the cascaded, spot and cube shadow passes", { skip }, async () => {
+  const game = new WindowedProbeGame(2);
+  try {
+    await game.Run();
+  } finally {
+    game.Dispose();
+  }
+  const evidence = game.evidence.otherShadowPasses;
+  assert.equal(typeof evidence, "object", `the shadow-pass probe did not run: ${evidence}`);
+  assert.equal(
+    game.evidence.otherShadowCleanup, undefined,
+    `every shadow pass released: ${JSON.stringify(game.evidence.otherShadowCleanup)}`,
+  );
+
+  if (evidence.layerAbsent) {
+    assert.equal(evidence.extensionLayer, false, "a refused create must mean the layer is absent");
+    assert.equal(evidence.cnaResult, CnaResult.NotSupported);
+    console.log("CNA_TS_WINDOWED_SHADOW_PASSES=LAYER_ABSENT");
+    return;
+  }
+
+  /*
+   * The cascade, against the pure maths beside it.
+   *
+   * `ComputeCascadeSplitDistances` takes a near plane, a far plane, a count and a lambda and
+   * touches no shadow map at all. The map computed its own splits from a camera the test built, so
+   * the two have to be the same four numbers -- and a map that ignored the lambda, the camera or
+   * the count cannot be.
+   */
+  const cascaded = evidence.cascaded;
+  assert.equal(cascaded.count, evidence.cascadeCount, "the map holds the cascades it was asked for");
+  assert.ok(cascaded.size > 0);
+  assert.deepEqual(
+    [cascaded.set.lambda, cascaded.set.band, cascaded.set.tint, cascaded.tintOff],
+    [Math.fround(evidence.lambda), 0.25, true, false],
+    "the split lambda, the blend band and the debug tint all round-trip",
+  );
+  assert.equal(cascaded.splits.length, evidence.cascadeCount);
+  for (const [index, split] of cascaded.splits.entries()) {
+    const pure = cascaded.pureSplits[index];
+    assert.ok(
+      Math.abs(split - pure) < Math.abs(pure) * 1e-4 + 1e-3,
+      `cascade ${index} splits at ${split}; the pure route says ${pure}`,
+    );
+  }
+  // And they are a real division of the range rather than three copies of the far plane.
+  assert.ok(
+    cascaded.splits[0] < cascaded.splits[1] && cascaded.splits[1] < cascaded.splits[2],
+    `the splits increase: ${cascaded.splits}`,
+  );
+  assert.ok(
+    Math.abs(cascaded.splits[cascaded.splits.length - 1] - evidence.far) < 1,
+    "and the last one is the far plane",
+  );
+  // Which cascade a depth belongs to is the first split that reaches it, which the test works out
+  // from the splits themselves rather than from a table.
+  for (const [depth, selected] of cascaded.selections) {
+    let expected = cascaded.splits.findIndex((split) => depth <= split);
+    if (expected < 0) expected = cascaded.splits.length - 1;
+    assert.equal(
+      selected, expected,
+      `a view depth of ${depth} belongs to cascade ${expected}, not ${selected}`,
+    );
+  }
+  // Three cascades are three different transforms.
+  for (let index = 1; index < cascaded.matrices.length; index += 1) {
+    assert.notDeepEqual(
+      cascaded.matrices[index], cascaded.matrices[index - 1],
+      `cascade ${index} must have its own transform`,
+    );
+  }
+  /*
+   * And a cascade is framed from the light, not only from the camera: under a different light
+   * direction, with the same camera, every transform moves and not one split does. That separation
+   * is the whole shape of the update -- the camera decides where the slices are, the light decides
+   * how each one is looked at.
+   */
+  for (const [index, matrix] of cascaded.underOtherLight.matrices.entries()) {
+    assert.notDeepEqual(
+      matrix, cascaded.matrices[index],
+      `cascade ${index}'s transform must move when the light does`,
+    );
+  }
+  assert.deepEqual(
+    cascaded.underOtherLight.splits, cascaded.splits,
+    "while the splits stay where the camera put them",
+  );
+  /*
+   * Snapping, which is why a cascade does not shimmer. A centre is quantised to a whole number of
+   * its own texels -- the texel being twice the radius over the cascade's size -- so two centres
+   * less than a texel apart land on the same one and a centre further away does not.
+   */
+  const texel = (2 * cascaded.snap.radius) / cascaded.snap.size;
+  assert.deepEqual(
+    cascaded.snap.first, cascaded.snap.nearby,
+    "two centres inside one texel snap to the same place",
+  );
+  assert.notDeepEqual(
+    cascaded.snap.first, cascaded.snap.farther, "and two further apart do not",
+  );
+  for (const axis of [0, 1]) {
+    const quotient = cascaded.snap.first[axis] / texel;
+    assert.ok(
+      Math.abs(quotient - Math.round(quotient)) < 1e-3,
+      `the snapped centre is a whole number of texels on axis ${axis}: ${quotient}`,
+    );
+  }
+  assert.equal(
+    cascaded.snap.first[2], cascaded.snap.farther[2],
+    "and the axis the light looks along is left alone",
+  );
+  // The atlas is the cascades side by side, which is what makes the columns below meaningful.
+  assert.equal(
+    cascaded.texture.width, cascaded.size * cascaded.count,
+    "the atlas is one cascade wide per cascade",
+  );
+  assert.equal(cascaded.texture.height, cascaded.size);
+  assert.equal(cascaded.texture.cached, true, "the borrow is taken once, not once per read");
+
+  if (cascaded.supported) {
+    assert.equal(cascaded.effect, "Default", "the caster program is lent and is real");
+    /*
+     * What each step did to the atlas, measured slice by slice.
+     *
+     * A fresh atlas is untouched storage reading as zero -- the nearest possible surface -- rather
+     * than a cleared one. Then every step is compared against the one before it, so the assertions
+     * are about *changes*: which cascade a `Begin` cleared, which one a cast wrote into, and which
+     * ones neither touched. A `Begin` that ignored its argument fails every one of them.
+     */
+    const steps = cascaded.steps;
+    const wholeSlice = cascaded.size * cascaded.size;
+    assert.deepEqual(
+      steps.fresh, new Array(cascaded.count).fill([wholeSlice, 0]),
+      "a new atlas is untouched storage in every cascade, not a cleared one",
+    );
+    const changed = (before, after) =>
+      after.map((slice, index) =>
+        (slice[0] !== before[index][0] || slice[1] !== before[index][1] ? index : -1))
+        .filter((index) => index >= 0);
+    // The first pass clears the whole atlas, which is the one step that is not per-cascade: the
+    // storage had never been written, so there is nothing to preserve in the other slices yet.
+    assert.deepEqual(
+      steps.emptyFirst, new Array(cascaded.count).fill([0, 1]),
+      "the first pass leaves every cascade at the far plane",
+    );
+    assert.deepEqual(
+      changed(steps.emptyFirst, steps.emptyMiddle), [],
+      "a second empty pass over an already-cleared atlas changes nothing",
+    );
+    assert.deepEqual(
+      changed(steps.emptyMiddle, steps.castFirst), [0],
+      `casting into cascade 0 must change cascade 0 alone: ${JSON.stringify(steps.castFirst)}`,
+    );
+    assert.deepEqual(
+      changed(steps.castFirst, steps.castLast), [cascaded.count - 1],
+      `casting into the last cascade must change that one alone: ${JSON.stringify(steps.castLast)}`,
+    );
+    assert.deepEqual(
+      steps.castLast[0], steps.castFirst[0],
+      "and must leave the first cascade exactly as the first cast had it, which is what says a " +
+      "Begin clears its own viewport rather than the whole atlas",
+    );
+    for (const [name, index] of [["castFirst", 0], ["castLast", cascaded.count - 1]]) {
+      const [occluded, low] = steps[name][index];
+      assert.ok(occluded > 0, `${name} darkened texels in cascade ${index}`);
+      assert.ok(low >= 0 && low < 1, `and wrote a depth nearer than the far plane (${low})`);
+    }
+    // And the same property from the other direction: an empty pass over the middle cascade puts
+    // that one back to the far plane and leaves the two that carry casters alone.
+    assert.deepEqual(
+      changed(steps.castLast, steps.emptyMiddleAgain), [],
+      "the middle cascade was already clear, so clearing it again changes nothing",
+    );
+    assert.deepEqual(steps.emptyMiddleAgain[1], [0, 1]);
+  }
+
+  /*
+   * The spot cone: its transform against the two pure routes, multiplied here.
+   */
+  const spot = evidence.spot;
+  assert.equal(spot.size, spot.sizeForQuality, "a spot map is the flat map's size at its tier");
+  assert.deepEqual(spot.position, [2, 8, -3], "the light's position round-trips through the pass");
+  assert.equal(spot.range, 40);
+  // A value that is not the default, so a setter that never reached CNA cannot pass by standing
+  // still.
+  assert.notEqual(spot.defaultBias, 0.0123);
+  assert.ok(
+    Math.abs(spot.biasSet - 0.0123) < 1e-6, `the depth bias round-trips (${spot.biasSet})`,
+  );
+  const multiply = (left, right) => {
+    const product = new Array(16).fill(0);
+    for (let row = 0; row < 4; row += 1) {
+      for (let column = 0; column < 4; column += 1) {
+        let sum = 0;
+        for (let k = 0; k < 4; k += 1) sum += left[row * 4 + k] * right[k * 4 + column];
+        product[row * 4 + column] = sum;
+      }
+    }
+    return product;
+  };
+  const expectedSpot = multiply(spot.pureView, spot.pureProjection);
+  for (let index = 0; index < 16; index += 1) {
+    assert.ok(
+      Math.abs(spot.lightViewProjection[index] - expectedSpot[index]) < 1e-4,
+      `the spot pass transform disagrees with view * projection at element ${index}: ` +
+      `${spot.lightViewProjection[index]} against ${expectedSpot[index]}`,
+    );
+  }
+  // And it is a real transform, not an identity that would agree with anything.
+  assert.ok(
+    spot.lightViewProjection.slice(12, 15).some((value) => Math.abs(value) > 1e-3),
+    "a light away from the origin gives the transform real translation terms",
+  );
+  assert.deepEqual(
+    [spot.texture.width, spot.texture.height], [spot.size, spot.size],
+    "and its map is the square its tier bought",
+  );
+  if (spot.supported) {
+    assert.equal(spot.effect, "Default");
+    assert.equal(spot.emptyPass.low, 1, "an empty spot pass clears its map to the far plane");
+    assert.ok(spot.castLow.occluded > 0, "a floor under the light is recorded");
+    assert.ok(spot.castHigh.occluded > 0, "and so is one raised towards it");
+    // Nearer the light is a smaller depth, and a closer floor fills more of the cone.
+    assert.ok(
+      spot.castHigh.low < spot.castLow.low,
+      `a surface nearer the light records a smaller depth: ${spot.castHigh.low} against ` +
+      spot.castLow.low,
+    );
+    assert.ok(
+      spot.castHigh.occluded > spot.castLow.occluded,
+      `and covers more of the cone: ${spot.castHigh.occluded} against ${spot.castLow.occluded}`,
+    );
+  }
+
+  /*
+   * The point light's cube: six faces, at the face size its own tier bought -- which is not the
+   * flat map's, because a cube is paying for six of them.
+   */
+  const cube = evidence.cube;
+  assert.equal(
+    cube.size, cube.cubeSizeForQuality,
+    "a cube's face is the size the cube route reports for its tier",
+  );
+  assert.deepEqual(cube.position, [-1, 3, 2], "the light's position round-trips");
+  assert.equal(cube.range, 25);
+  assert.ok(Math.abs(cube.biasSet - 0.006) < 1e-6);
+  assert.equal(
+    cube.texture.size, cube.size, "and its storage is a cube of that face size",
+  );
+  assert.equal(cube.texture.levels, 1);
+  assert.equal(cube.texture.cached, true, "the borrow is taken once, not once per read");
+  // The managed cube transfer covers exact Color elements only, and a depth cube is not one. That
+  // is a boundary this package states rather than a format it reinterprets.
+  assert.match(
+    cube.readBack, /^NotSupportedException$/,
+    `reading a Single cube back is refused by name: ${cube.readBack}`,
+  );
+  if (cube.supported) {
+    assert.equal(cube.effect, "Default");
+    assert.deepEqual(
+      cube.faces, new Array(6).fill("ACCEPTED"), "all six faces open and close",
+    );
+  }
+
+  // What is refused, and by whom.
+  for (const name of ["cascadeOutside", "splitOutside", "beginOutside", "faceOutside"]) {
+    assert.equal(
+      evidence.refusals[name], CnaResult.InvalidArgument,
+      `${name} is CNA's own argument refusal: ${evidence.refusals[name]}`,
+    );
+  }
+  assert.equal(evidence.refusals.fractionalCascade, "TypeError");
+  assert.equal(evidence.refusals.nullSpotLight, "TypeError");
+  assert.equal(evidence.refusals.nullPointLight, "TypeError");
+  assert.equal(evidence.refusals.disposed, "NativeUnavailableError");
+
+  console.log(
+    `CNA_TS_WINDOWED_SHADOW_PASSES=OK CASCADES=${cascaded.count}x${cascaded.size} ` +
+    `SPLITS=${cascaded.splits.map((value) => value.toFixed(1)).join("/")} ` +
+    `ATLAS=${cascaded.texture.width}x${cascaded.texture.height} ` +
+    `SPOT=${spot.size}px CUBE=${cube.size}px/face`,
   );
 });
 

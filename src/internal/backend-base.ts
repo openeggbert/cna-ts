@@ -1819,6 +1819,151 @@ export abstract class CnaShadowBackendBase implements CnaShadowBackend {
     readonly Center: Vector3Snapshot;
     readonly Radius: number;
 } { return this.unsupported("computeCascadeBoundingSphere"); }
+  public createCascadedShadowMap(
+    _device: NativeHandle,
+    _quality: number,
+    _cascadeCount: number,
+  ): NativeHandle { return this.unsupported("createCascadedShadowMap"); }
+  public destroyCascadedShadowMap(
+    _map: NativeHandle,
+  ): void { return this.unsupported("destroyCascadedShadowMap"); }
+  public updateCascadedShadowMap(
+    _map: NativeHandle,
+    _light: DirectionalLightSnapshot,
+    _cameraView: readonly number[],
+    _cameraProjection: readonly number[],
+  ): void { return this.unsupported("updateCascadedShadowMap"); }
+  public beginCascadedShadowPass(
+    _map: NativeHandle,
+    _cascadeIndex: number,
+  ): void { return this.unsupported("beginCascadedShadowPass"); }
+  public endCascadedShadowPass(_map: NativeHandle): void { return this.unsupported("endCascadedShadowPass"); }
+  public getCascadeMatrix(
+    _map: NativeHandle,
+    _cascadeIndex: number,
+  ): readonly number[] { return this.unsupported("getCascadeMatrix"); }
+  public getCascadeSplitDistance(
+    _map: NativeHandle,
+    _cascadeIndex: number,
+  ): number { return this.unsupported("getCascadeSplitDistance"); }
+  public selectCascade(
+    _map: NativeHandle,
+    _viewDepth: number,
+  ): number { return this.unsupported("selectCascade"); }
+  public applyCascadesToReceiver(
+    _map: NativeHandle,
+    _effect: NativeHandle,
+  ): void { return this.unsupported("applyCascadesToReceiver"); }
+  public snapCascadeToTexelGrid(
+    _centre: Vector3Snapshot,
+    _radius: number,
+    _cascadeSize: number,
+  ): Vector3Snapshot { return this.unsupported("snapCascadeToTexelGrid"); }
+  public getCascadeSize(_map: NativeHandle): number { return this.unsupported("getCascadeSize"); }
+  public getCascadeCount(_map: NativeHandle): number { return this.unsupported("getCascadeCount"); }
+  public getCascadeBlendBand(_map: NativeHandle): number { return this.unsupported("getCascadeBlendBand"); }
+  public setCascadeBlendBand(
+    _map: NativeHandle,
+    _band: number,
+  ): void { return this.unsupported("setCascadeBlendBand"); }
+  public getCascadeSplitLambda(
+    _map: NativeHandle,
+  ): number { return this.unsupported("getCascadeSplitLambda"); }
+  public setCascadeSplitLambda(
+    _map: NativeHandle,
+    _lambda: number,
+  ): void { return this.unsupported("setCascadeSplitLambda"); }
+  public isCascadeDebugTintEnabled(
+    _map: NativeHandle,
+  ): boolean { return this.unsupported("isCascadeDebugTintEnabled"); }
+  public setCascadeDebugTintEnabled(
+    _map: NativeHandle,
+    _enabled: boolean,
+  ): void { return this.unsupported("setCascadeDebugTintEnabled"); }
+  public getCascadedCasterEffect(
+    _map: NativeHandle,
+  ): NativeHandle { return this.unsupported("getCascadedCasterEffect"); }
+  public getCascadedShadowTexture(
+    _map: NativeHandle,
+  ): NativeHandle { return this.unsupported("getCascadedShadowTexture"); }
+  public isCascadedShadowMapSupported(
+    _map: NativeHandle,
+  ): boolean { return this.unsupported("isCascadedShadowMapSupported"); }
+  public createSpotShadowMap(
+    _device: NativeHandle,
+    _quality: number,
+  ): NativeHandle { return this.unsupported("createSpotShadowMap"); }
+  public destroySpotShadowMap(_map: NativeHandle): void { return this.unsupported("destroySpotShadowMap"); }
+  public beginSpotShadowPass(
+    _map: NativeHandle,
+    _light: SpotLightSnapshot,
+  ): void { return this.unsupported("beginSpotShadowPass"); }
+  public endSpotShadowPass(_map: NativeHandle): void { return this.unsupported("endSpotShadowPass"); }
+  public getSpotShadowLightViewProjection(
+    _map: NativeHandle,
+  ): readonly number[] { return this.unsupported("getSpotShadowLightViewProjection"); }
+  public getSpotShadowLightPosition(
+    _map: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getSpotShadowLightPosition"); }
+  public getSpotShadowLightRange(
+    _map: NativeHandle,
+  ): number { return this.unsupported("getSpotShadowLightRange"); }
+  public getSpotShadowQuality(_map: NativeHandle): number { return this.unsupported("getSpotShadowQuality"); }
+  public getSpotShadowSize(_map: NativeHandle): number { return this.unsupported("getSpotShadowSize"); }
+  public getSpotShadowDepthBias(
+    _map: NativeHandle,
+  ): number { return this.unsupported("getSpotShadowDepthBias"); }
+  public setSpotShadowDepthBias(
+    _map: NativeHandle,
+    _bias: number,
+  ): void { return this.unsupported("setSpotShadowDepthBias"); }
+  public getSpotShadowCasterEffect(
+    _map: NativeHandle,
+  ): NativeHandle { return this.unsupported("getSpotShadowCasterEffect"); }
+  public getSpotShadowTexture(
+    _map: NativeHandle,
+  ): NativeHandle { return this.unsupported("getSpotShadowTexture"); }
+  public isSpotShadowMapSupported(
+    _map: NativeHandle,
+  ): boolean { return this.unsupported("isSpotShadowMapSupported"); }
+  public createCubeShadowMap(
+    _device: NativeHandle,
+    _quality: number,
+  ): NativeHandle { return this.unsupported("createCubeShadowMap"); }
+  public destroyCubeShadowMap(_map: NativeHandle): void { return this.unsupported("destroyCubeShadowMap"); }
+  public updateCubeShadowMap(
+    _map: NativeHandle,
+    _light: PointLightSnapshot,
+  ): void { return this.unsupported("updateCubeShadowMap"); }
+  public beginCubeShadowPass(
+    _map: NativeHandle,
+    _faceIndex: number,
+  ): void { return this.unsupported("beginCubeShadowPass"); }
+  public endCubeShadowPass(_map: NativeHandle): void { return this.unsupported("endCubeShadowPass"); }
+  public getCubeShadowLightPosition(
+    _map: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getCubeShadowLightPosition"); }
+  public getCubeShadowLightRange(
+    _map: NativeHandle,
+  ): number { return this.unsupported("getCubeShadowLightRange"); }
+  public getCubeShadowQuality(_map: NativeHandle): number { return this.unsupported("getCubeShadowQuality"); }
+  public getCubeShadowSize(_map: NativeHandle): number { return this.unsupported("getCubeShadowSize"); }
+  public getCubeShadowDepthBias(
+    _map: NativeHandle,
+  ): number { return this.unsupported("getCubeShadowDepthBias"); }
+  public setCubeShadowDepthBias(
+    _map: NativeHandle,
+    _bias: number,
+  ): void { return this.unsupported("setCubeShadowDepthBias"); }
+  public getCubeShadowCasterEffect(
+    _map: NativeHandle,
+  ): NativeHandle { return this.unsupported("getCubeShadowCasterEffect"); }
+  public getCubeShadowTexture(
+    _map: NativeHandle,
+  ): NativeHandle { return this.unsupported("getCubeShadowTexture"); }
+  public isCubeShadowMapSupported(
+    _map: NativeHandle,
+  ): boolean { return this.unsupported("isCubeShadowMapSupported"); }
   public computeSpotShadowLightView(
     _light: SpotLightSnapshot,
   ): readonly number[] { return this.unsupported("computeSpotShadowLightView"); }

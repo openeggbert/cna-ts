@@ -49,6 +49,8 @@ import { graphicsDeviceBackendForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
 import { adoptNativeEffectForInternalUse, type Effect } from
   "../../Microsoft/Xna/Framework/Graphics/Effect.js";
+import { resolveEffectHandleForInternalUse } from
+  "../../Microsoft/Xna/Framework/Graphics/Effect.js";
 import type { IDisposable } from "../../Microsoft/Xna/Framework/Contracts.js";
 import type { PassTimingSnapshot, PostProcessFrameSnapshot } from "../../internal/backend.js";
 import type { RenderTarget2D } from "../../Microsoft/Xna/Framework/Graphics/RenderTargets.js";
@@ -2172,7 +2174,7 @@ function adoptNativeTexture2DForInternalUse(
 
 /** The same, for a cube map. Its size and format come from CNA rather than from the caller. */
 function adoptNativeTextureCubeForInternalUse(
-  device: GraphicsDevice, handle: NativeHandle,
+  device: GraphicsDevice, handle: NativeHandle, label = "EnvironmentProcessor cube map",
 ): TextureCube {
   const backend = graphicsBackendFor(device);
   let info;
@@ -2194,8 +2196,28 @@ function adoptNativeTextureCubeForInternalUse(
     },
   ) => TextureCube)(
     device, info.Size, info.LevelCount > 1, info.Format as SurfaceFormat,
-    { Handle: handle, LevelCount: info.LevelCount, Label: "EnvironmentProcessor cube map" },
+    { Handle: handle, LevelCount: info.LevelCount, Label: label },
   );
+}
+
+/**
+ * Wraps a caster program CNA lends, or refuses by name where it lends none.
+ *
+ * All four shadow passes answer their effect getters the same way on a renderer that cannot cast:
+ * `CNA_RESULT_SUCCESS` with `CNA_INVALID_HANDLE`. HEADLESS says so in its own log line, because it
+ * cannot compile the effect. A handle that cannot be used is not an `Effect`, so this names the
+ * capability that is missing instead of wrapping a zero -- which is what wrapping a zero used to
+ * look like: an `AggregateError` about a failed reflection rollback.
+ */
+function borrowCasterEffectForInternalUse(
+  device: GraphicsDevice, handle: NativeHandle, what: string, question: string,
+): Effect {
+  if (handle === 0n) {
+    throw new NativeUnavailableError(
+      `this renderer lends no ${what}: it cannot cast shadows, which ${question} reports`,
+    );
+  }
+  return adoptNativeEffectForInternalUse(device, effectBackendFor(device), handle);
 }
 
 function boundsSnapshot(bounds: BoundingBox): ClusterBoundsSnapshot {
@@ -2328,7 +2350,9 @@ export const ShadowMapMath = {
  * light view-projection it last rendered with.
  *
  * Whether it can render at all is a renderer question, and {@link ShadowMap.IsSupported} is how to
- * ask; this package does not project the depth pass itself.
+ * ask. The depth pass itself is projected too — {@link ShadowMap.Begin} opens it — and so are the
+ * other three shapes a game needs: {@link CascadedShadowMap}, {@link SpotShadowMap} and
+ * {@link CubeShadowMap}.
  */
 export class ShadowMap implements IDisposable {
   readonly #backend: CnaShadowBackend;
@@ -2469,16 +2493,8 @@ export class ShadowMap implements IDisposable {
   }
 
   #borrowEffect(handle: NativeHandle, what: string): Effect {
-    // CNA documents both getters as answering SUCCESS with CNA_INVALID_HANDLE on a renderer that
-    // cannot cast -- HEADLESS says so in its own log line, because it cannot compile the effect.
-    // That is a boundary to report, not a handle to wrap.
-    if (handle === 0n) {
-      throw new NativeUnavailableError(
-        `this renderer lends no ${what}: it cannot cast shadows, which ShadowMap.IsSupported reports`,
-      );
-    }
-    return adoptNativeEffectForInternalUse(
-      this.#device, effectBackendFor(this.#device), handle,
+    return borrowCasterEffectForInternalUse(
+      this.#device, handle, what, "ShadowMap.IsSupported",
     );
   }
 
@@ -4404,3 +4420,516 @@ export const EnvironmentProcessorMath = {
     return new Vector2(point.X, point.Y);
   },
 } as const;
+
+
+/* --- the other three shadow passes --------------------------------------------------------------
+ *
+ * {@link ShadowMap} is one map for one directional light. These are the other three shapes a game
+ * needs: {@link CascadedShadowMap} splits a directional light's view across several maps so the
+ * near ground gets the texels it deserves, {@link SpotShadowMap} is one perspective map down a
+ * cone, and {@link CubeShadowMap} is six faces around a point light.
+ *
+ * The maths behind all three is already on {@link ShadowMapMath}, and it is pure — no device, no
+ * pass. That is what makes these checkable: a cascade's split distances have to be the ones
+ * `ComputeCascadeSplitDistances` returns for the same camera, and a spot map's light
+ * view-projection has to be `ComputeSpotLightView` times `ComputeSpotLightProjection` for the same
+ * light. Two routes, one identity, and the multiplication done by the caller.
+ */
+
+/** A point light: a position, a colour and a radius, with no direction and no cone. */
+export interface PointLight {
+  readonly Position: Vector3;
+  /** Linear RGB, not an XNA `Color`. */
+  readonly Color: Vector3;
+  readonly Intensity: number;
+  /** The distance at which it stops contributing. */
+  readonly Range: number;
+}
+
+/** A spot light: a point light with a direction and a cone, both angles in radians. */
+export interface SpotLight extends PointLight {
+  readonly Direction: Vector3;
+  readonly InnerAngle: number;
+  readonly OuterAngle: number;
+}
+
+function pointLightSnapshot(light: PointLight, what: string): {
+  Position: { X: number; Y: number; Z: number };
+  Color: { X: number; Y: number; Z: number };
+  Intensity: number;
+  Range: number;
+  CastsShadows: boolean;
+} {
+  if (light == null) throw new TypeError(`${what} is required`);
+  for (const [name, value] of [
+    ["Intensity", light.Intensity], ["Range", light.Range],
+  ] as const) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError(`${what}.${name} must be a finite number`);
+    }
+  }
+  return {
+    Position: vectorSnapshot(light.Position, `${what}.Position`),
+    Color: vectorSnapshot(light.Color, `${what}.Color`),
+    Intensity: light.Intensity,
+    Range: light.Range,
+    // These lights are the shadow pass's own subject, so of course they cast; the flag exists for
+    // the clustered light set, where a light may be in the scene without asking for a map.
+    CastsShadows: true,
+  };
+}
+
+function spotLightSnapshot(light: SpotLight, what: string): {
+  Position: { X: number; Y: number; Z: number };
+  Direction: { X: number; Y: number; Z: number };
+  Color: { X: number; Y: number; Z: number };
+  Intensity: number;
+  Range: number;
+  InnerAngle: number;
+  OuterAngle: number;
+  CastsShadows: boolean;
+} {
+  const point = pointLightSnapshot(light, what);
+  for (const [name, value] of [
+    ["InnerAngle", light.InnerAngle], ["OuterAngle", light.OuterAngle],
+  ] as const) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError(`${what}.${name} must be a finite number`);
+    }
+  }
+  return {
+    ...point,
+    Direction: vectorSnapshot(light.Direction, `${what}.Direction`),
+    InnerAngle: light.InnerAngle,
+    OuterAngle: light.OuterAngle,
+  };
+}
+
+/**
+ * A directional light's shadow, split into several maps by distance.
+ *
+ * One map over a whole outdoor view spends most of its texels where nothing is looked at closely.
+ * A cascade splits the camera's depth range and gives each slice its own map, so the near ground
+ * gets the resolution and the far hills get what is left.
+ *
+ * {@link Update} recomputes every cascade from a light and a camera, and then each cascade is
+ * rendered in its own {@link Begin}/{@link End}. The split distances it chooses are
+ * {@link ShadowMapMath.ComputeCascadeSplitDistances} for the same camera and the same
+ * {@link SplitLambda}, which is a pure route touching no map at all.
+ */
+export class CascadedShadowMap implements IDisposable {
+  readonly #backend: CnaShadowBackend;
+  readonly #device: GraphicsDevice;
+  #handle: NativeHandle | null;
+  #casterEffect: Effect | null = null;
+  #shadowTexture: Texture2D | null = null;
+
+  public constructor(
+    graphicsDevice: GraphicsDevice, quality: ShadowQuality, cascadeCount: number,
+  ) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (!Number.isInteger(cascadeCount)) {
+      throw new TypeError("cascadeCount must be an integer");
+    }
+    this.#backend = shadows();
+    this.#device = graphicsDevice;
+    this.#handle = this.#backend.createCascadedShadowMap(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), shadowQuality(quality),
+      cascadeCount,
+    );
+  }
+
+  /** Whether the map has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the cascaded shadow map is disposed");
+    }
+    return this.#handle;
+  }
+
+  /** Whether this renderer can actually render into it. */
+  public get IsSupported(): boolean {
+    return this.#backend.isCascadedShadowMapSupported(this.#active());
+  }
+
+  /** How many cascades it holds, which CNA clamped into its own range at construction. */
+  public get CascadeCount(): number {
+    return this.#backend.getCascadeCount(this.#active());
+  }
+
+  /** Each cascade's own texture is this square, which the quality tier chose. */
+  public get CascadeSize(): number {
+    return this.#backend.getCascadeSize(this.#active());
+  }
+
+  /**
+   * How the camera's depth range is divided: zero splits it evenly, one splits it
+   * logarithmically, and the values between mix the two.
+   */
+  public get SplitLambda(): number {
+    return this.#backend.getCascadeSplitLambda(this.#active());
+  }
+  public set SplitLambda(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("SplitLambda must be a finite number");
+    }
+    this.#backend.setCascadeSplitLambda(this.#active(), value);
+  }
+
+  /** How wide the fade between one cascade and the next is, so the seam does not show. */
+  public get BlendBand(): number {
+    return this.#backend.getCascadeBlendBand(this.#active());
+  }
+  public set BlendBand(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("BlendBand must be a finite number");
+    }
+    this.#backend.setCascadeBlendBand(this.#active(), value);
+  }
+
+  /** Whether each cascade tints what it lights, which is how a cascade split is looked at. */
+  public get IsDebugTintEnabled(): boolean {
+    return this.#backend.isCascadeDebugTintEnabled(this.#active());
+  }
+  public set IsDebugTintEnabled(value: boolean) {
+    this.#backend.setCascadeDebugTintEnabled(this.#active(), value === true);
+  }
+
+  /** Recomputes every cascade's split, centre and transform from a light and a camera. */
+  public Update(light: DirectionalLight, cameraView: Matrix, cameraProjection: Matrix): void {
+    if (light == null) throw new TypeError("light is required");
+    if (typeof light.Intensity !== "number" || !Number.isFinite(light.Intensity)) {
+      throw new TypeError("a light's Intensity must be a finite number");
+    }
+    this.#backend.updateCascadedShadowMap(
+      this.#active(),
+      {
+        Direction: vectorSnapshot(light.Direction, "light.Direction"),
+        Color: vectorSnapshot(light.Color, "light.Color"),
+        Intensity: light.Intensity,
+      },
+      matrixValues(cameraView, "cameraView"), matrixValues(cameraProjection, "cameraProjection"),
+    );
+  }
+
+  /** Opens one cascade's depth pass. Apply {@link CasterEffect} before drawing into it. */
+  public Begin(cascadeIndex: number): void {
+    if (!Number.isInteger(cascadeIndex)) {
+      throw new TypeError("cascadeIndex must be an integer");
+    }
+    this.#backend.beginCascadedShadowPass(this.#active(), cascadeIndex);
+  }
+
+  /** Closes the open cascade and restores the frame's previous target. */
+  public End(): void { this.#backend.endCascadedShadowPass(this.#active()); }
+
+  /** One cascade's light view-projection, which a shader needs to sample that slice. */
+  public GetCascadeMatrix(cascadeIndex: number): Matrix {
+    if (!Number.isInteger(cascadeIndex)) {
+      throw new TypeError("cascadeIndex must be an integer");
+    }
+    return toMatrix(this.#backend.getCascadeMatrix(this.#active(), cascadeIndex));
+  }
+
+  /** Where one cascade stops, in view depth. */
+  public GetSplitDistance(cascadeIndex: number): number {
+    if (!Number.isInteger(cascadeIndex)) {
+      throw new TypeError("cascadeIndex must be an integer");
+    }
+    return this.#backend.getCascadeSplitDistance(this.#active(), cascadeIndex);
+  }
+
+  /** Which cascade covers a view depth. The answer a receiver's shader needs per pixel. */
+  public SelectCascade(viewDepth: number): number {
+    if (typeof viewDepth !== "number" || !Number.isFinite(viewDepth)) {
+      throw new TypeError("viewDepth must be a finite number");
+    }
+    return this.#backend.selectCascade(this.#active(), viewDepth);
+  }
+
+  /** Hands every cascade's matrix, split and texture to an effect that shades receivers. */
+  public ApplyToReceiver(effect: Effect): void {
+    if (effect == null) throw new TypeError("effect is required");
+    this.#backend.applyCascadesToReceiver(
+      this.#active(), resolveEffectHandleForInternalUse(effect),
+    );
+  }
+
+  /**
+   * The rigid caster program, borrowed on the same counted terms {@link ShadowMap} lends its own.
+   *
+   * Taken once and given back by {@link Dispose}; a renderer that cannot cast lends nothing and
+   * this refuses by name rather than wrapping the invalid handle CNA answers with.
+   */
+  public get CasterEffect(): Effect {
+    this.#casterEffect ??= borrowCasterEffectForInternalUse(
+      this.#device, this.#backend.getCascadedCasterEffect(this.#active()),
+      "cascaded shadow caster effect", "CascadedShadowMap.IsSupported",
+    );
+    return this.#casterEffect;
+  }
+
+  /** The atlas every cascade renders into, borrowed on the same terms. */
+  public get ShadowTexture(): Texture2D {
+    this.#shadowTexture ??= borrowNativeTextureForInternalUse(
+      this.#device, this.#backend.getCascadedShadowTexture(this.#active()),
+      "CascadedShadowMap depth texture",
+    );
+    return this.#shadowTexture;
+  }
+
+  /** Releases the map. Every borrow goes back first, and disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#casterEffect?.Dispose();
+    this.#casterEffect = null;
+    this.#shadowTexture?.Dispose();
+    this.#shadowTexture = null;
+    this.#backend.destroyCascadedShadowMap(handle);
+  }
+
+  /**
+   * Moves a cascade's centre onto its own texel grid.
+   *
+   * A pure function of its arguments, and the reason a cascade does not shimmer: a centre that
+   * moves by a fraction of a texel as the camera moves makes every shadow edge crawl, so it is
+   * quantised to whole texels of the map it will be rendered into.
+   */
+  public static SnapToTexelGrid(centre: Vector3, radius: number, cascadeSize: number): Vector3 {
+    if (typeof radius !== "number" || !Number.isFinite(radius)) {
+      throw new TypeError("radius must be a finite number");
+    }
+    if (!Number.isInteger(cascadeSize)) throw new TypeError("cascadeSize must be an integer");
+    return toVector3(shadows().snapCascadeToTexelGrid(
+      vectorSnapshot(centre, "centre"), radius, cascadeSize,
+    ));
+  }
+}
+
+/**
+ * A spot light's shadow: one perspective map down its own cone.
+ *
+ * {@link Begin} takes the light itself rather than a matrix, and the transform it computes is
+ * {@link ShadowMapMath.ComputeSpotLightView} times {@link ShadowMapMath.ComputeSpotLightProjection}
+ * for that light — two pure routes that touch no map, so a caller can check the pass against them.
+ */
+export class SpotShadowMap implements IDisposable {
+  readonly #backend: CnaShadowBackend;
+  readonly #device: GraphicsDevice;
+  #handle: NativeHandle | null;
+  #casterEffect: Effect | null = null;
+  #shadowTexture: Texture2D | null = null;
+
+  public constructor(graphicsDevice: GraphicsDevice, quality: ShadowQuality) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#backend = shadows();
+    this.#device = graphicsDevice;
+    this.#handle = this.#backend.createSpotShadowMap(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), shadowQuality(quality),
+    );
+  }
+
+  /** Whether the map has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the spot shadow map is disposed");
+    return this.#handle;
+  }
+
+  /** Whether this renderer can actually render into it. */
+  public get IsSupported(): boolean {
+    return this.#backend.isSpotShadowMapSupported(this.#active());
+  }
+
+  /** The tier it was created at, and the square its texture is. */
+  public get Quality(): ShadowQuality {
+    return this.#backend.getSpotShadowQuality(this.#active()) as ShadowQuality;
+  }
+  public get Size(): number { return this.#backend.getSpotShadowSize(this.#active()); }
+
+  /** The depth bias that keeps a surface from shadowing itself. */
+  public get DepthBias(): number {
+    return this.#backend.getSpotShadowDepthBias(this.#active());
+  }
+  public set DepthBias(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("DepthBias must be a finite number");
+    }
+    this.#backend.setSpotShadowDepthBias(this.#active(), value);
+  }
+
+  /** Where the light stood when the pass was last opened, and how far it reaches. */
+  public get LightPosition(): Vector3 {
+    return toVector3(this.#backend.getSpotShadowLightPosition(this.#active()));
+  }
+  public get LightRange(): number {
+    return this.#backend.getSpotShadowLightRange(this.#active());
+  }
+
+  /** The combined transform the pass rendered with, which a receiver's shader samples through. */
+  public get LightViewProjection(): Matrix {
+    return toMatrix(this.#backend.getSpotShadowLightViewProjection(this.#active()));
+  }
+
+  /** Opens the depth pass for one spot light, binding and clearing its map. */
+  public Begin(light: SpotLight): void {
+    this.#backend.beginSpotShadowPass(this.#active(), spotLightSnapshot(light, "light"));
+  }
+
+  /** Closes the pass and restores the frame's previous target. */
+  public End(): void { this.#backend.endSpotShadowPass(this.#active()); }
+
+  /** The rigid caster program, borrowed and returned on {@link ShadowMap}'s terms. */
+  public get CasterEffect(): Effect {
+    this.#casterEffect ??= borrowCasterEffectForInternalUse(
+      this.#device, this.#backend.getSpotShadowCasterEffect(this.#active()),
+      "spot shadow caster effect", "SpotShadowMap.IsSupported",
+    );
+    return this.#casterEffect;
+  }
+
+  /** The depth texture the pass wrote, borrowed on the same terms. */
+  public get ShadowTexture(): Texture2D {
+    this.#shadowTexture ??= borrowNativeTextureForInternalUse(
+      this.#device, this.#backend.getSpotShadowTexture(this.#active()),
+      "SpotShadowMap depth texture",
+    );
+    return this.#shadowTexture;
+  }
+
+  /** Releases the map. Every borrow goes back first, and disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#casterEffect?.Dispose();
+    this.#casterEffect = null;
+    this.#shadowTexture?.Dispose();
+    this.#shadowTexture = null;
+    this.#backend.destroySpotShadowMap(handle);
+  }
+}
+
+/**
+ * A point light's shadow: six faces around it, rendered one at a time.
+ *
+ * {@link Update} places the light; each face then gets its own {@link Begin}/{@link End}, and the
+ * camera for face *n* is {@link ShadowMapMath.ComputeCubeFaceView} at that position with
+ * {@link ShadowMapMath.ComputeCubeFaceProjection} for that range — pure routes a caller can check
+ * the pass against.
+ */
+export class CubeShadowMap implements IDisposable {
+  readonly #backend: CnaShadowBackend;
+  readonly #device: GraphicsDevice;
+  #handle: NativeHandle | null;
+  #casterEffect: Effect | null = null;
+  #shadowTexture: TextureCube | null = null;
+
+  public constructor(graphicsDevice: GraphicsDevice, quality: ShadowQuality) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#backend = shadows();
+    this.#device = graphicsDevice;
+    this.#handle = this.#backend.createCubeShadowMap(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), shadowQuality(quality),
+    );
+  }
+
+  /** Whether the map has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the cube shadow map is disposed");
+    return this.#handle;
+  }
+
+  /** Whether this renderer can actually render into it. */
+  public get IsSupported(): boolean {
+    return this.#backend.isCubeShadowMapSupported(this.#active());
+  }
+
+  /**
+   * The tier it was created at, and the square each of its six faces is.
+   *
+   * A cube map's face is smaller than a flat map's at the same tier, because it is paying for six
+   * of them; {@link ShadowMapMath.CubeSizeForQuality} is the number without an object.
+   */
+  public get Quality(): ShadowQuality {
+    return this.#backend.getCubeShadowQuality(this.#active()) as ShadowQuality;
+  }
+  public get Size(): number { return this.#backend.getCubeShadowSize(this.#active()); }
+
+  /** The depth bias that keeps a surface from shadowing itself. */
+  public get DepthBias(): number {
+    return this.#backend.getCubeShadowDepthBias(this.#active());
+  }
+  public set DepthBias(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("DepthBias must be a finite number");
+    }
+    this.#backend.setCubeShadowDepthBias(this.#active(), value);
+  }
+
+  /** Where the light stands, and how far it reaches. */
+  public get LightPosition(): Vector3 {
+    return toVector3(this.#backend.getCubeShadowLightPosition(this.#active()));
+  }
+  public get LightRange(): number {
+    return this.#backend.getCubeShadowLightRange(this.#active());
+  }
+
+  /** Places the light. Every face's camera follows from its position and its range. */
+  public Update(light: PointLight): void {
+    this.#backend.updateCubeShadowMap(this.#active(), pointLightSnapshot(light, "light"));
+  }
+
+  /** Opens one face's depth pass. */
+  public Begin(face: CubeMapFace): void {
+    if (!Number.isInteger(face)) throw new TypeError("face must be a CubeMapFace");
+    this.#backend.beginCubeShadowPass(this.#active(), face);
+  }
+
+  /** Closes the open face and restores the frame's previous target. */
+  public End(): void { this.#backend.endCubeShadowPass(this.#active()); }
+
+  /** The rigid caster program, borrowed and returned on {@link ShadowMap}'s terms. */
+  public get CasterEffect(): Effect {
+    this.#casterEffect ??= borrowCasterEffectForInternalUse(
+      this.#device, this.#backend.getCubeShadowCasterEffect(this.#active()),
+      "cube shadow caster effect", "CubeShadowMap.IsSupported",
+    );
+    return this.#casterEffect;
+  }
+
+  /**
+   * The cube's depth storage, borrowed on the same terms — and a `TextureCube` rather than a
+   * `Texture2D`, because six faces of depth is what a point light's shadow is.
+   *
+   * CNA lends it as a counted borrow whose release is the cube-texture one, not the render-target
+   * one the flat maps use. Getting that wrong is not a type error anywhere: the handle releases,
+   * the borrow does not, and the game refuses to shut down afterwards.
+   */
+  public get ShadowTexture(): TextureCube {
+    this.#shadowTexture ??= adoptNativeTextureCubeForInternalUse(
+      this.#device, this.#backend.getCubeShadowTexture(this.#active()),
+      "CubeShadowMap depth cube",
+    );
+    return this.#shadowTexture;
+  }
+
+  /** Releases the map. Every borrow goes back first, and disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#casterEffect?.Dispose();
+    this.#casterEffect = null;
+    this.#shadowTexture?.Dispose();
+    this.#shadowTexture = null;
+    this.#backend.destroyCubeShadowMap(handle);
+  }
+}

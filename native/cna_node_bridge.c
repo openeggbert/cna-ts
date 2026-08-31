@@ -717,6 +717,23 @@ typedef CNA_Result (*EnvGgxFn)(float, float, const CNA_Vector3*, float, CNA_Vect
 typedef CNA_Result (*EnvFaceDirectionFn)(int32_t, float, float, CNA_Vector3*);
 typedef CNA_Result (*EnvDirectionUvFn)(const CNA_Vector3*, float*, float*);
 
+/* --- the three shadow passes beside the flat one ------------------------------------------------ */
+typedef CNA_Result (*CascadedCreateFn)(
+  CNA_Handle, CNA_ShadowQuality, int32_t, CNA_CascadedShadowMapHandle*);
+typedef CNA_Result (*CascadedUpdateFn)(
+  CNA_CascadedShadowMapHandle, const CNA_DirectionalLightEXT*, const CNA_Matrix*,
+  const CNA_Matrix*);
+typedef CNA_Result (*CascadedMatrixAtFn)(CNA_CascadedShadowMapHandle, int32_t, CNA_Matrix*);
+typedef CNA_Result (*CascadedFloatAtFn)(CNA_CascadedShadowMapHandle, int32_t, float*);
+typedef CNA_Result (*CascadedSelectFn)(CNA_CascadedShadowMapHandle, float, int32_t*);
+typedef CNA_Result (*CascadedSnapFn)(const CNA_Vector3*, float, int32_t, CNA_Vector3*);
+typedef CNA_Result (*SpotShadowCreateFn)(
+  CNA_Handle, CNA_ShadowQuality, CNA_SpotShadowMapHandle*);
+typedef CNA_Result (*SpotShadowBeginFn)(CNA_SpotShadowMapHandle, const CNA_SpotLightEXT*);
+typedef CNA_Result (*CubeShadowCreateFn)(
+  CNA_Handle, CNA_ShadowQuality, CNA_CubeShadowMapHandle*);
+typedef CNA_Result (*CubeShadowUpdateFn)(CNA_CubeShadowMapHandle, const CNA_PointLightEXT*);
+
 /* --- the engine layer's compute path ---------------------------------------------------------- */
 /*
  * Storage buffers, compute shaders and GPU timers. The handle typedefs in `engine_layer.h` are all
@@ -1792,6 +1809,57 @@ typedef struct Api {
   EnvDirectionUvFn environment_processor_direction_to_equirectangular;
   HandleHandleOutFn render_pipeline_get_skybox;
   TwoHandleFn render_pipeline_set_skybox;
+
+  /* the cascaded, spot and cube shadow passes */
+  CascadedCreateFn cascaded_shadow_map_create;
+  GameHandleFn cascaded_shadow_map_destroy;
+  CascadedUpdateFn cascaded_shadow_map_update;
+  HandleI32Fn cascaded_shadow_map_begin;
+  GameHandleFn cascaded_shadow_map_end;
+  CascadedMatrixAtFn cascaded_shadow_map_get_cascade_matrix;
+  CascadedFloatAtFn cascaded_shadow_map_get_split_distance;
+  CascadedSelectFn cascaded_shadow_map_select_cascade;
+  TwoHandleFn cascaded_shadow_map_apply_to_receiver;
+  CascadedSnapFn cascaded_shadow_map_snap_to_texel_grid;
+  HandleI32OutFn cascaded_shadow_map_get_cascade_size;
+  HandleI32OutFn cascaded_shadow_map_get_cascade_count;
+  HandleFloatOutFn cascaded_shadow_map_get_blend_band;
+  HandleFloatFn cascaded_shadow_map_set_blend_band;
+  HandleFloatOutFn cascaded_shadow_map_get_split_lambda;
+  HandleFloatFn cascaded_shadow_map_set_split_lambda;
+  BoolGetFn cascaded_shadow_map_is_debug_tint_enabled;
+  HandleBoolFn cascaded_shadow_map_set_debug_tint_enabled;
+  HandleHandleOutFn cascaded_shadow_map_get_caster_effect;
+  HandleHandleOutFn cascaded_shadow_map_get_shadow_texture;
+  BoolGetFn cascaded_shadow_map_is_supported;
+  SpotShadowCreateFn spot_shadow_map_create;
+  GameHandleFn spot_shadow_map_destroy;
+  SpotShadowBeginFn spot_shadow_map_begin;
+  GameHandleFn spot_shadow_map_end;
+  ShadowMapMatrixOutFn spot_shadow_map_get_light_view_projection;
+  SkyVector3OutFn spot_shadow_map_get_light_position;
+  HandleFloatOutFn spot_shadow_map_get_light_range;
+  ShadowMapQualityOutFn spot_shadow_map_get_quality;
+  HandleI32OutFn spot_shadow_map_get_size;
+  HandleFloatOutFn spot_shadow_map_get_depth_bias;
+  HandleFloatFn spot_shadow_map_set_depth_bias;
+  HandleHandleOutFn spot_shadow_map_get_caster_effect;
+  HandleHandleOutFn spot_shadow_map_get_shadow_texture;
+  BoolGetFn spot_shadow_map_is_supported;
+  CubeShadowCreateFn cube_shadow_map_create;
+  GameHandleFn cube_shadow_map_destroy;
+  CubeShadowUpdateFn cube_shadow_map_update;
+  HandleI32Fn cube_shadow_map_begin;
+  GameHandleFn cube_shadow_map_end;
+  SkyVector3OutFn cube_shadow_map_get_light_position;
+  HandleFloatOutFn cube_shadow_map_get_light_range;
+  ShadowMapQualityOutFn cube_shadow_map_get_quality;
+  HandleI32OutFn cube_shadow_map_get_size;
+  HandleFloatOutFn cube_shadow_map_get_depth_bias;
+  HandleFloatFn cube_shadow_map_set_depth_bias;
+  HandleHandleOutFn cube_shadow_map_get_caster_effect;
+  HandleHandleOutFn cube_shadow_map_get_shadow_texture;
+  BoolGetFn cube_shadow_map_is_supported;
 
   /* the engine layer's compute path */
   PresentationParametersInitFn presentation_parameters_init;
@@ -3279,6 +3347,56 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(environment_processor_direction_to_equirectangular, EnvDirectionUvFn, "cna_environment_processor_direction_to_equirectangular");
   LOAD_REQUIRED(render_pipeline_get_skybox, HandleHandleOutFn, "cna_render_pipeline_get_skybox");
   LOAD_REQUIRED(render_pipeline_set_skybox, TwoHandleFn, "cna_render_pipeline_set_skybox");
+
+  LOAD_REQUIRED(cascaded_shadow_map_create, CascadedCreateFn, "cna_cascaded_shadow_map_create");
+  LOAD_REQUIRED(cascaded_shadow_map_destroy, GameHandleFn, "cna_cascaded_shadow_map_destroy");
+  LOAD_REQUIRED(cascaded_shadow_map_update, CascadedUpdateFn, "cna_cascaded_shadow_map_update");
+  LOAD_REQUIRED(cascaded_shadow_map_begin, HandleI32Fn, "cna_cascaded_shadow_map_begin");
+  LOAD_REQUIRED(cascaded_shadow_map_end, GameHandleFn, "cna_cascaded_shadow_map_end");
+  LOAD_REQUIRED(cascaded_shadow_map_get_cascade_matrix, CascadedMatrixAtFn, "cna_cascaded_shadow_map_get_cascade_matrix");
+  LOAD_REQUIRED(cascaded_shadow_map_get_split_distance, CascadedFloatAtFn, "cna_cascaded_shadow_map_get_split_distance");
+  LOAD_REQUIRED(cascaded_shadow_map_select_cascade, CascadedSelectFn, "cna_cascaded_shadow_map_select_cascade");
+  LOAD_REQUIRED(cascaded_shadow_map_apply_to_receiver, TwoHandleFn, "cna_cascaded_shadow_map_apply_to_receiver");
+  LOAD_REQUIRED(cascaded_shadow_map_snap_to_texel_grid, CascadedSnapFn, "cna_cascaded_shadow_map_snap_to_texel_grid");
+  LOAD_REQUIRED(cascaded_shadow_map_get_cascade_size, HandleI32OutFn, "cna_cascaded_shadow_map_get_cascade_size");
+  LOAD_REQUIRED(cascaded_shadow_map_get_cascade_count, HandleI32OutFn, "cna_cascaded_shadow_map_get_cascade_count");
+  LOAD_REQUIRED(cascaded_shadow_map_get_blend_band, HandleFloatOutFn, "cna_cascaded_shadow_map_get_blend_band");
+  LOAD_REQUIRED(cascaded_shadow_map_set_blend_band, HandleFloatFn, "cna_cascaded_shadow_map_set_blend_band");
+  LOAD_REQUIRED(cascaded_shadow_map_get_split_lambda, HandleFloatOutFn, "cna_cascaded_shadow_map_get_split_lambda");
+  LOAD_REQUIRED(cascaded_shadow_map_set_split_lambda, HandleFloatFn, "cna_cascaded_shadow_map_set_split_lambda");
+  LOAD_REQUIRED(cascaded_shadow_map_is_debug_tint_enabled, BoolGetFn, "cna_cascaded_shadow_map_is_debug_tint_enabled");
+  LOAD_REQUIRED(cascaded_shadow_map_set_debug_tint_enabled, HandleBoolFn, "cna_cascaded_shadow_map_set_debug_tint_enabled");
+  LOAD_REQUIRED(cascaded_shadow_map_get_caster_effect, HandleHandleOutFn, "cna_cascaded_shadow_map_get_caster_effect");
+  LOAD_REQUIRED(cascaded_shadow_map_get_shadow_texture, HandleHandleOutFn, "cna_cascaded_shadow_map_get_shadow_texture");
+  LOAD_REQUIRED(cascaded_shadow_map_is_supported, BoolGetFn, "cna_cascaded_shadow_map_is_supported");
+  LOAD_REQUIRED(spot_shadow_map_create, SpotShadowCreateFn, "cna_spot_shadow_map_create");
+  LOAD_REQUIRED(spot_shadow_map_destroy, GameHandleFn, "cna_spot_shadow_map_destroy");
+  LOAD_REQUIRED(spot_shadow_map_begin, SpotShadowBeginFn, "cna_spot_shadow_map_begin");
+  LOAD_REQUIRED(spot_shadow_map_end, GameHandleFn, "cna_spot_shadow_map_end");
+  LOAD_REQUIRED(spot_shadow_map_get_light_view_projection, ShadowMapMatrixOutFn, "cna_spot_shadow_map_get_light_view_projection");
+  LOAD_REQUIRED(spot_shadow_map_get_light_position, SkyVector3OutFn, "cna_spot_shadow_map_get_light_position");
+  LOAD_REQUIRED(spot_shadow_map_get_light_range, HandleFloatOutFn, "cna_spot_shadow_map_get_light_range");
+  LOAD_REQUIRED(spot_shadow_map_get_quality, ShadowMapQualityOutFn, "cna_spot_shadow_map_get_quality");
+  LOAD_REQUIRED(spot_shadow_map_get_size, HandleI32OutFn, "cna_spot_shadow_map_get_size");
+  LOAD_REQUIRED(spot_shadow_map_get_depth_bias, HandleFloatOutFn, "cna_spot_shadow_map_get_depth_bias");
+  LOAD_REQUIRED(spot_shadow_map_set_depth_bias, HandleFloatFn, "cna_spot_shadow_map_set_depth_bias");
+  LOAD_REQUIRED(spot_shadow_map_get_caster_effect, HandleHandleOutFn, "cna_spot_shadow_map_get_caster_effect");
+  LOAD_REQUIRED(spot_shadow_map_get_shadow_texture, HandleHandleOutFn, "cna_spot_shadow_map_get_shadow_texture");
+  LOAD_REQUIRED(spot_shadow_map_is_supported, BoolGetFn, "cna_spot_shadow_map_is_supported");
+  LOAD_REQUIRED(cube_shadow_map_create, CubeShadowCreateFn, "cna_cube_shadow_map_create");
+  LOAD_REQUIRED(cube_shadow_map_destroy, GameHandleFn, "cna_cube_shadow_map_destroy");
+  LOAD_REQUIRED(cube_shadow_map_update, CubeShadowUpdateFn, "cna_cube_shadow_map_update");
+  LOAD_REQUIRED(cube_shadow_map_begin, HandleI32Fn, "cna_cube_shadow_map_begin");
+  LOAD_REQUIRED(cube_shadow_map_end, GameHandleFn, "cna_cube_shadow_map_end");
+  LOAD_REQUIRED(cube_shadow_map_get_light_position, SkyVector3OutFn, "cna_cube_shadow_map_get_light_position");
+  LOAD_REQUIRED(cube_shadow_map_get_light_range, HandleFloatOutFn, "cna_cube_shadow_map_get_light_range");
+  LOAD_REQUIRED(cube_shadow_map_get_quality, ShadowMapQualityOutFn, "cna_cube_shadow_map_get_quality");
+  LOAD_REQUIRED(cube_shadow_map_get_size, HandleI32OutFn, "cna_cube_shadow_map_get_size");
+  LOAD_REQUIRED(cube_shadow_map_get_depth_bias, HandleFloatOutFn, "cna_cube_shadow_map_get_depth_bias");
+  LOAD_REQUIRED(cube_shadow_map_set_depth_bias, HandleFloatFn, "cna_cube_shadow_map_set_depth_bias");
+  LOAD_REQUIRED(cube_shadow_map_get_caster_effect, HandleHandleOutFn, "cna_cube_shadow_map_get_caster_effect");
+  LOAD_REQUIRED(cube_shadow_map_get_shadow_texture, HandleHandleOutFn, "cna_cube_shadow_map_get_shadow_texture");
+  LOAD_REQUIRED(cube_shadow_map_is_supported, BoolGetFn, "cna_cube_shadow_map_is_supported");
 
   LOAD_REQUIRED(presentation_parameters_init, PresentationParametersInitFn, "cna_presentation_parameters_init");
   LOAD_REQUIRED(graphics_device_create, StandaloneDeviceCreateFn, "cna_graphics_device_create");
@@ -16720,6 +16838,455 @@ static napi_value render_pipeline_set_skybox(napi_env env, napi_callback_info in
     "cna_render_pipeline_set_skybox");
 }
 
+/* --- the cascaded, spot and cube shadow passes -------------------------------------------------- */
+
+/* All three are created from a device and a quality tier; the cascaded one also takes a count. */
+static napi_value shadow_pass_create(
+  napi_env env, napi_callback_info info, SpotShadowCreateFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle device = 0, map = 0;
+  uint32_t quality = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &quality) != napi_ok) {
+    return throw_message(env, "expected a device and a shadow quality");
+  }
+  const CNA_Result result = route(device, quality, &map);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return make_handle(env, map);
+}
+
+static napi_value cascaded_shadow_map_create(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle device = 0, map = 0;
+  uint32_t quality = 0;
+  int32_t cascades = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &quality) != napi_ok ||
+      napi_get_value_int32(env, args[2], &cascades) != napi_ok) {
+    return throw_message(env, "expected a device, a shadow quality and a cascade count");
+  }
+  const CNA_Result result = g_api.cascaded_shadow_map_create(device, quality, cascades, &map);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cascaded_shadow_map_create", result);
+  }
+  return make_handle(env, map);
+}
+
+static napi_value cascaded_shadow_map_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.cascaded_shadow_map_destroy,
+    "cna_cascaded_shadow_map_destroy");
+}
+
+/* A directional light in the shape CNA's own initialiser lays out, so the version header stays
+   CNA's rather than being assembled here. */
+static int read_directional_light(napi_env env, napi_value value, CNA_DirectionalLightEXT* light) {
+  const CNA_Result initialized = g_api.directional_light_ext_init(light);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_directional_light_ext_init", initialized);
+    return 0;
+  }
+  napi_value entry;
+  double intensity = 0;
+  if (!read_vector3(env, value, "Direction", &light->direction) ||
+      !read_vector3(env, value, "Color", &light->color) ||
+      napi_get_named_property(env, value, "Intensity", &entry) != napi_ok ||
+      napi_get_value_double(env, entry, &intensity) != napi_ok) {
+    throw_message(env, "a directional light needs Direction, Color and Intensity");
+    return 0;
+  }
+  light->intensity = (float) intensity;
+  return 1;
+}
+
+static int read_spot_light(napi_env env, napi_value value, CNA_SpotLightEXT* light) {
+  const CNA_Result initialized = g_api.spot_light_ext_init(light);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_spot_light_ext_init", initialized);
+    return 0;
+  }
+  napi_value entry;
+  static const char* const scalars[] = {"Intensity", "Range", "InnerAngle", "OuterAngle"};
+  float* const targets[] = {
+    &light->intensity, &light->range, &light->inner_angle, &light->outer_angle};
+  if (!read_vector3(env, value, "Position", &light->position) ||
+      !read_vector3(env, value, "Direction", &light->direction) ||
+      !read_vector3(env, value, "Color", &light->color)) {
+    throw_message(env, "a spot light needs Position, Direction and Color");
+    return 0;
+  }
+  for (size_t index = 0; index < 4; index += 1) {
+    double number = 0;
+    if (napi_get_named_property(env, value, scalars[index], &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &number) != napi_ok) {
+      throw_message(env, "a spot light's scalars must be numbers");
+      return 0;
+    }
+    *targets[index] = (float) number;
+  }
+  return 1;
+}
+
+static int read_point_light(napi_env env, napi_value value, CNA_PointLightEXT* light) {
+  const CNA_Result initialized = g_api.point_light_ext_init(light);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_point_light_ext_init", initialized);
+    return 0;
+  }
+  napi_value entry;
+  static const char* const scalars[] = {"Intensity", "Range"};
+  float* const targets[] = {&light->intensity, &light->range};
+  if (!read_vector3(env, value, "Position", &light->position) ||
+      !read_vector3(env, value, "Color", &light->color)) {
+    throw_message(env, "a point light needs Position and Color");
+    return 0;
+  }
+  for (size_t index = 0; index < 2; index += 1) {
+    double number = 0;
+    if (napi_get_named_property(env, value, scalars[index], &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &number) != napi_ok) {
+      throw_message(env, "a point light's scalars must be numbers");
+      return 0;
+    }
+    *targets[index] = (float) number;
+  }
+  return 1;
+}
+
+static napi_value cascaded_shadow_map_update(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle map = 0;
+  CNA_DirectionalLightEXT light;
+  CNA_Matrix view, projection;
+  memset(&view, 0, sizeof(view));
+  memset(&projection, 0, sizeof(projection));
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &map) ||
+      !read_directional_light(env, args[1], &light) ||
+      !read_matrix16(env, args[2], &view, "a camera view needs sixteen numbers") ||
+      !read_matrix16(env, args[3], &projection,
+        "a camera projection needs sixteen numbers")) return NULL;
+  const CNA_Result result =
+    g_api.cascaded_shadow_map_update(map, &light, &view, &projection);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cascaded_shadow_map_update", result);
+  }
+  return undefined_result(env, "cna_cascaded_shadow_map_update");
+}
+
+static napi_value cascaded_shadow_map_begin(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, g_api.cascaded_shadow_map_begin,
+    "cna_cascaded_shadow_map_begin");
+}
+static napi_value cascaded_shadow_map_end(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.cascaded_shadow_map_end, "cna_cascaded_shadow_map_end");
+}
+
+static napi_value cascaded_shadow_map_get_cascade_matrix(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle map = 0;
+  int32_t index = 0;
+  CNA_Matrix matrix;
+  memset(&matrix, 0, sizeof(matrix));
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &map) ||
+      napi_get_value_int32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a cascaded shadow map and a cascade index");
+  }
+  const CNA_Result result = g_api.cascaded_shadow_map_get_cascade_matrix(map, index, &matrix);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cascaded_shadow_map_get_cascade_matrix", result);
+  }
+  return make_matrix16(env, &matrix, "cna_cascaded_shadow_map_get_cascade_matrix");
+}
+
+static napi_value cascaded_shadow_map_get_split_distance(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle map = 0;
+  int32_t index = 0;
+  float distance = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &map) ||
+      napi_get_value_int32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a cascaded shadow map and a cascade index");
+  }
+  const CNA_Result result = g_api.cascaded_shadow_map_get_split_distance(map, index, &distance);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cascaded_shadow_map_get_split_distance", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) distance, &output),
+    "cna_cascaded_shadow_map_get_split_distance");
+  return output;
+}
+
+static napi_value cascaded_shadow_map_select_cascade(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle map = 0;
+  double depth = 0;
+  int32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &map) ||
+      napi_get_value_double(env, args[1], &depth) != napi_ok) {
+    return throw_message(env, "expected a cascaded shadow map and a view depth");
+  }
+  const CNA_Result result =
+    g_api.cascaded_shadow_map_select_cascade(map, (float) depth, &index);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cascaded_shadow_map_select_cascade", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, index, &output),
+    "cna_cascaded_shadow_map_select_cascade");
+  return output;
+}
+
+static napi_value cascaded_shadow_map_apply_to_receiver(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle map = 0, effect = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &map) ||
+      !read_handle(env, args[1], &effect)) return NULL;
+  const CNA_Result result = g_api.cascaded_shadow_map_apply_to_receiver(map, effect);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cascaded_shadow_map_apply_to_receiver", result);
+  }
+  return undefined_result(env, "cna_cascaded_shadow_map_apply_to_receiver");
+}
+
+static napi_value cascaded_shadow_map_snap_to_texel_grid(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  CNA_Vector3 centre = {0, 0, 0}, snapped = {0, 0, 0};
+  double radius = 0;
+  int32_t size = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_vector3_fields(env, args[0], &centre) ||
+      napi_get_value_double(env, args[1], &radius) != napi_ok ||
+      napi_get_value_int32(env, args[2], &size) != napi_ok) {
+    return throw_message(env, "expected a centre, a radius and a cascade size");
+  }
+  const CNA_Result result = g_api.cascaded_shadow_map_snap_to_texel_grid(
+    &centre, (float) radius, size, &snapped);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cascaded_shadow_map_snap_to_texel_grid", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "snapped centre");
+  if (!set_vector3_fields(env, output, &snapped)) return throw_napi(env, "snapped centre");
+  return output;
+}
+
+static napi_value cascaded_shadow_map_get_cascade_size(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.cascaded_shadow_map_get_cascade_size,
+    "cna_cascaded_shadow_map_get_cascade_size");
+}
+static napi_value cascaded_shadow_map_get_cascade_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.cascaded_shadow_map_get_cascade_count,
+    "cna_cascaded_shadow_map_get_cascade_count");
+}
+static napi_value cascaded_shadow_map_get_blend_band(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.cascaded_shadow_map_get_blend_band,
+    "cna_cascaded_shadow_map_get_blend_band");
+}
+static napi_value cascaded_shadow_map_set_blend_band(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.cascaded_shadow_map_set_blend_band,
+    "cna_cascaded_shadow_map_set_blend_band");
+}
+static napi_value cascaded_shadow_map_get_split_lambda(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.cascaded_shadow_map_get_split_lambda,
+    "cna_cascaded_shadow_map_get_split_lambda");
+}
+static napi_value cascaded_shadow_map_set_split_lambda(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.cascaded_shadow_map_set_split_lambda,
+    "cna_cascaded_shadow_map_set_split_lambda");
+}
+static napi_value cascaded_shadow_map_is_debug_tint_enabled(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_bool(env, info, g_api.cascaded_shadow_map_is_debug_tint_enabled,
+    "cna_cascaded_shadow_map_is_debug_tint_enabled");
+}
+static napi_value cascaded_shadow_map_set_debug_tint_enabled(
+  napi_env env, napi_callback_info info
+) {
+  return pp_set_bool(env, info, g_api.cascaded_shadow_map_set_debug_tint_enabled,
+    "cna_cascaded_shadow_map_set_debug_tint_enabled");
+}
+static napi_value cascaded_shadow_map_get_caster_effect(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.cascaded_shadow_map_get_caster_effect,
+    "cna_cascaded_shadow_map_get_caster_effect");
+}
+static napi_value cascaded_shadow_map_get_shadow_texture(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.cascaded_shadow_map_get_shadow_texture,
+    "cna_cascaded_shadow_map_get_shadow_texture");
+}
+static napi_value cascaded_shadow_map_is_supported(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.cascaded_shadow_map_is_supported,
+    "cna_cascaded_shadow_map_is_supported");
+}
+
+static napi_value spot_shadow_map_create(napi_env env, napi_callback_info info) {
+  return shadow_pass_create(env, info, g_api.spot_shadow_map_create,
+    "cna_spot_shadow_map_create");
+}
+static napi_value spot_shadow_map_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.spot_shadow_map_destroy, "cna_spot_shadow_map_destroy");
+}
+
+static napi_value spot_shadow_map_begin(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle map = 0;
+  CNA_SpotLightEXT light;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &map) ||
+      !read_spot_light(env, args[1], &light)) return NULL;
+  const CNA_Result result = g_api.spot_shadow_map_begin(map, &light);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_spot_shadow_map_begin", result);
+  }
+  return undefined_result(env, "cna_spot_shadow_map_begin");
+}
+
+static napi_value spot_shadow_map_end(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.spot_shadow_map_end, "cna_spot_shadow_map_end");
+}
+
+static napi_value spot_shadow_map_get_light_view_projection(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1];
+  CNA_Handle map = 0;
+  CNA_Matrix matrix;
+  memset(&matrix, 0, sizeof(matrix));
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &map)) return NULL;
+  const CNA_Result result = g_api.spot_shadow_map_get_light_view_projection(map, &matrix);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_spot_shadow_map_get_light_view_projection", result);
+  }
+  return make_matrix16(env, &matrix, "cna_spot_shadow_map_get_light_view_projection");
+}
+
+static napi_value spot_shadow_map_get_light_position(napi_env env, napi_callback_info info) {
+  return sky_vector3(env, info, g_api.spot_shadow_map_get_light_position,
+    "cna_spot_shadow_map_get_light_position");
+}
+static napi_value spot_shadow_map_get_light_range(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.spot_shadow_map_get_light_range,
+    "cna_spot_shadow_map_get_light_range");
+}
+static napi_value spot_shadow_map_get_quality(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle map = 0;
+  CNA_ShadowQuality quality = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &map)) return NULL;
+  const CNA_Result result = g_api.spot_shadow_map_get_quality(map, &quality);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_spot_shadow_map_get_quality", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_uint32(env, quality, &output),
+    "cna_spot_shadow_map_get_quality");
+  return output;
+}
+static napi_value spot_shadow_map_get_size(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.spot_shadow_map_get_size, "cna_spot_shadow_map_get_size");
+}
+static napi_value spot_shadow_map_get_depth_bias(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.spot_shadow_map_get_depth_bias,
+    "cna_spot_shadow_map_get_depth_bias");
+}
+static napi_value spot_shadow_map_set_depth_bias(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.spot_shadow_map_set_depth_bias,
+    "cna_spot_shadow_map_set_depth_bias");
+}
+static napi_value spot_shadow_map_get_caster_effect(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.spot_shadow_map_get_caster_effect,
+    "cna_spot_shadow_map_get_caster_effect");
+}
+static napi_value spot_shadow_map_get_shadow_texture(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.spot_shadow_map_get_shadow_texture,
+    "cna_spot_shadow_map_get_shadow_texture");
+}
+static napi_value spot_shadow_map_is_supported(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.spot_shadow_map_is_supported,
+    "cna_spot_shadow_map_is_supported");
+}
+
+static napi_value cube_shadow_map_create(napi_env env, napi_callback_info info) {
+  return shadow_pass_create(env, info, g_api.cube_shadow_map_create,
+    "cna_cube_shadow_map_create");
+}
+static napi_value cube_shadow_map_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.cube_shadow_map_destroy, "cna_cube_shadow_map_destroy");
+}
+
+static napi_value cube_shadow_map_update(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle map = 0;
+  CNA_PointLightEXT light;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &map) ||
+      !read_point_light(env, args[1], &light)) return NULL;
+  const CNA_Result result = g_api.cube_shadow_map_update(map, &light);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cube_shadow_map_update", result);
+  }
+  return undefined_result(env, "cna_cube_shadow_map_update");
+}
+
+static napi_value cube_shadow_map_begin(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, g_api.cube_shadow_map_begin, "cna_cube_shadow_map_begin");
+}
+static napi_value cube_shadow_map_end(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.cube_shadow_map_end, "cna_cube_shadow_map_end");
+}
+static napi_value cube_shadow_map_get_light_position(napi_env env, napi_callback_info info) {
+  return sky_vector3(env, info, g_api.cube_shadow_map_get_light_position,
+    "cna_cube_shadow_map_get_light_position");
+}
+static napi_value cube_shadow_map_get_light_range(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.cube_shadow_map_get_light_range,
+    "cna_cube_shadow_map_get_light_range");
+}
+static napi_value cube_shadow_map_get_quality(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle map = 0;
+  CNA_ShadowQuality quality = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &map)) return NULL;
+  const CNA_Result result = g_api.cube_shadow_map_get_quality(map, &quality);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cube_shadow_map_get_quality", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_uint32(env, quality, &output),
+    "cna_cube_shadow_map_get_quality");
+  return output;
+}
+static napi_value cube_shadow_map_get_size(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.cube_shadow_map_get_size, "cna_cube_shadow_map_get_size");
+}
+static napi_value cube_shadow_map_get_depth_bias(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.cube_shadow_map_get_depth_bias,
+    "cna_cube_shadow_map_get_depth_bias");
+}
+static napi_value cube_shadow_map_set_depth_bias(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.cube_shadow_map_set_depth_bias,
+    "cna_cube_shadow_map_set_depth_bias");
+}
+static napi_value cube_shadow_map_get_caster_effect(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.cube_shadow_map_get_caster_effect,
+    "cna_cube_shadow_map_get_caster_effect");
+}
+static napi_value cube_shadow_map_get_shadow_texture(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.cube_shadow_map_get_shadow_texture,
+    "cna_cube_shadow_map_get_shadow_texture");
+}
+static napi_value cube_shadow_map_is_supported(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.cube_shadow_map_is_supported,
+    "cna_cube_shadow_map_is_supported");
+}
+
+
 
 static napi_value decal_pass_is_inside_decal_box(napi_env env, napi_callback_info info) {
   napi_value args[1], output;
@@ -16843,33 +17410,6 @@ static napi_value cascade_bounding_sphere(napi_env env, napi_callback_info info)
   return output;
 }
 
-static int read_spot_light(napi_env env, napi_value value, CNA_SpotLightEXT* light) {
-  const CNA_Result initialized = g_api.spot_light_ext_init(light);
-  if (initialized != CNA_RESULT_SUCCESS) {
-    throw_result(env, "cna_spot_light_ext_init", initialized);
-    return 0;
-  }
-  napi_value entry;
-  static const char* const scalars[] = {"Intensity", "Range", "InnerAngle", "OuterAngle"};
-  float* const targets[] = {
-    &light->intensity, &light->range, &light->inner_angle, &light->outer_angle};
-  if (!read_vector3(env, value, "Position", &light->position) ||
-      !read_vector3(env, value, "Direction", &light->direction) ||
-      !read_vector3(env, value, "Color", &light->color)) {
-    throw_message(env, "a spot light needs Position, Direction and Color");
-    return 0;
-  }
-  for (size_t index = 0; index < 4; index += 1) {
-    double number = 0;
-    if (napi_get_named_property(env, value, scalars[index], &entry) != napi_ok ||
-        napi_get_value_double(env, entry, &number) != napi_ok) {
-      throw_message(env, "a spot light's scalars must be numbers");
-      return 0;
-    }
-    *targets[index] = (float) number;
-  }
-  return 1;
-}
 
 static napi_value spot_shadow_matrix(
   napi_env env, napi_callback_info info, SpotShadowMatrixFn route, const char* name
@@ -20903,6 +21443,55 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "directionToEquirectangular", NULL, environment_processor_direction_to_equirectangular, NULL, NULL, NULL, napi_default, NULL },
     { "getRenderPipelineSkybox", NULL, render_pipeline_get_skybox, NULL, NULL, NULL, napi_default, NULL },
     { "setRenderPipelineSkybox", NULL, render_pipeline_set_skybox, NULL, NULL, NULL, napi_default, NULL },
+    { "createCascadedShadowMap", NULL, cascaded_shadow_map_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyCascadedShadowMap", NULL, cascaded_shadow_map_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "updateCascadedShadowMap", NULL, cascaded_shadow_map_update, NULL, NULL, NULL, napi_default, NULL },
+    { "beginCascadedShadowPass", NULL, cascaded_shadow_map_begin, NULL, NULL, NULL, napi_default, NULL },
+    { "endCascadedShadowPass", NULL, cascaded_shadow_map_end, NULL, NULL, NULL, napi_default, NULL },
+    { "getCascadeMatrix", NULL, cascaded_shadow_map_get_cascade_matrix, NULL, NULL, NULL, napi_default, NULL },
+    { "getCascadeSplitDistance", NULL, cascaded_shadow_map_get_split_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "selectCascade", NULL, cascaded_shadow_map_select_cascade, NULL, NULL, NULL, napi_default, NULL },
+    { "applyCascadesToReceiver", NULL, cascaded_shadow_map_apply_to_receiver, NULL, NULL, NULL, napi_default, NULL },
+    { "snapCascadeToTexelGrid", NULL, cascaded_shadow_map_snap_to_texel_grid, NULL, NULL, NULL, napi_default, NULL },
+    { "getCascadeSize", NULL, cascaded_shadow_map_get_cascade_size, NULL, NULL, NULL, napi_default, NULL },
+    { "getCascadeCount", NULL, cascaded_shadow_map_get_cascade_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getCascadeBlendBand", NULL, cascaded_shadow_map_get_blend_band, NULL, NULL, NULL, napi_default, NULL },
+    { "setCascadeBlendBand", NULL, cascaded_shadow_map_set_blend_band, NULL, NULL, NULL, napi_default, NULL },
+    { "getCascadeSplitLambda", NULL, cascaded_shadow_map_get_split_lambda, NULL, NULL, NULL, napi_default, NULL },
+    { "setCascadeSplitLambda", NULL, cascaded_shadow_map_set_split_lambda, NULL, NULL, NULL, napi_default, NULL },
+    { "isCascadeDebugTintEnabled", NULL, cascaded_shadow_map_is_debug_tint_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "setCascadeDebugTintEnabled", NULL, cascaded_shadow_map_set_debug_tint_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "getCascadedCasterEffect", NULL, cascaded_shadow_map_get_caster_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getCascadedShadowTexture", NULL, cascaded_shadow_map_get_shadow_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "isCascadedShadowMapSupported", NULL, cascaded_shadow_map_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "createSpotShadowMap", NULL, spot_shadow_map_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroySpotShadowMap", NULL, spot_shadow_map_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "beginSpotShadowPass", NULL, spot_shadow_map_begin, NULL, NULL, NULL, napi_default, NULL },
+    { "endSpotShadowPass", NULL, spot_shadow_map_end, NULL, NULL, NULL, napi_default, NULL },
+    { "getSpotShadowLightViewProjection", NULL, spot_shadow_map_get_light_view_projection, NULL, NULL, NULL, napi_default, NULL },
+    { "getSpotShadowLightPosition", NULL, spot_shadow_map_get_light_position, NULL, NULL, NULL, napi_default, NULL },
+    { "getSpotShadowLightRange", NULL, spot_shadow_map_get_light_range, NULL, NULL, NULL, napi_default, NULL },
+    { "getSpotShadowQuality", NULL, spot_shadow_map_get_quality, NULL, NULL, NULL, napi_default, NULL },
+    { "getSpotShadowSize", NULL, spot_shadow_map_get_size, NULL, NULL, NULL, napi_default, NULL },
+    { "getSpotShadowDepthBias", NULL, spot_shadow_map_get_depth_bias, NULL, NULL, NULL, napi_default, NULL },
+    { "setSpotShadowDepthBias", NULL, spot_shadow_map_set_depth_bias, NULL, NULL, NULL, napi_default, NULL },
+    { "getSpotShadowCasterEffect", NULL, spot_shadow_map_get_caster_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getSpotShadowTexture", NULL, spot_shadow_map_get_shadow_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "isSpotShadowMapSupported", NULL, spot_shadow_map_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "createCubeShadowMap", NULL, cube_shadow_map_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyCubeShadowMap", NULL, cube_shadow_map_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "updateCubeShadowMap", NULL, cube_shadow_map_update, NULL, NULL, NULL, napi_default, NULL },
+    { "beginCubeShadowPass", NULL, cube_shadow_map_begin, NULL, NULL, NULL, napi_default, NULL },
+    { "endCubeShadowPass", NULL, cube_shadow_map_end, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeShadowLightPosition", NULL, cube_shadow_map_get_light_position, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeShadowLightRange", NULL, cube_shadow_map_get_light_range, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeShadowQuality", NULL, cube_shadow_map_get_quality, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeShadowSize", NULL, cube_shadow_map_get_size, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeShadowDepthBias", NULL, cube_shadow_map_get_depth_bias, NULL, NULL, NULL, napi_default, NULL },
+    { "setCubeShadowDepthBias", NULL, cube_shadow_map_set_depth_bias, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeShadowCasterEffect", NULL, cube_shadow_map_get_caster_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeShadowTexture", NULL, cube_shadow_map_get_shadow_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "isCubeShadowMapSupported", NULL, cube_shadow_map_is_supported, NULL, NULL, NULL, napi_default, NULL },
     { "supportsGraphicsCapability", NULL, graphics_device_supports_capability, NULL, NULL, NULL, napi_default, NULL },
     { "createStandaloneGraphicsDevice", NULL, create_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },
     { "destroyStandaloneGraphicsDevice", NULL, destroy_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },

@@ -1010,6 +1010,31 @@
       ]
     },
     {
+      "operation": "The cascaded, spot and cube shadow passes, beside the flat one",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "each of the three checked against the pure maths beside it, which touches no pass at all. A cascade's split distances are the ones ComputeCascadeSplitDistances returns for the same camera and lambda, twice over with two lambdas that give different answers -- and a lambda of zero divides the range evenly, which the test writes down as a closed form. The splits stay where the camera put them when the light moves, while every cascade transform moves with it, which is the separation the update is for. A spot map's light view-projection is ComputeSpotLightView times ComputeSpotLightProjection for the same light, multiplied by the test itself, and it carries real translation terms rather than being an identity that would agree with anything. A cube's face size is the cube route's answer for its tier and not the flat route's. Snapping is a pure function checked against its own definition: every axis lands on a whole number of the cascade's texels, never moves further than one, and the axis the light looks along is untouched. On a windowed OPENGLES3 renderer under Xvfb the atlas is surveyed slice by slice at six steps, so what is asserted is the change at each one: a fresh atlas is untouched storage rather than a cleared one, the first pass clears every cascade, a cast into cascade zero changes that slice alone, a later cast into the last changes only that one and leaves the first exactly as it was -- which is what says a Begin clears its own viewport rather than the atlas. A spot pass renders a floor and then the same floor raised towards the light: nearer records a smaller depth and covers more of the cone. All six cube faces open and close. HEADLESS compiles no caster program, so all three still allocate their storage and accept the passes they cannot fill while refusing their effects by name -- except the cube, whose faces are larger than that renderer's back buffer, which it says in a message carried by CNA_RESULT_INTERNAL. Twenty-two planted binding defects were run and twenty-one fail; the survivor is recorded rather than hidden, because upstream finding 16 is exactly why it cannot fail",
+      "proof": [
+        "route:cna_cascaded_shadow_map_create",
+        "route:cna_cascaded_shadow_map_update",
+        "route:cna_cascaded_shadow_map_begin",
+        "route:cna_cascaded_shadow_map_get_split_distance",
+        "route:cna_cascaded_shadow_map_select_cascade",
+        "route:cna_cascaded_shadow_map_snap_to_texel_grid",
+        "route:cna_cascaded_shadow_map_get_shadow_texture",
+        "route:cna_spot_shadow_map_create",
+        "route:cna_spot_shadow_map_begin",
+        "route:cna_spot_shadow_map_get_light_view_projection",
+        "route:cna_spot_shadow_map_get_shadow_texture",
+        "route:cna_cube_shadow_map_create",
+        "route:cna_cube_shadow_map_update",
+        "route:cna_cube_shadow_map_begin",
+        "route:cna_cube_shadow_map_get_shadow_texture",
+        "test:test/windowed-renderer.integration.mjs",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
       "operation": "The particle draw: live particles painted where the camera puts them",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS",

@@ -41,6 +41,9 @@ import * as inputModule from "../dist/extensions/input/index.js";
 import * as sensorsModule from "../dist/extensions/sensors/index.js";
 import * as guideExtensions from "../dist/extensions/gamer-services/index.js";
 import { getBackend } from "../dist/internal/backend.js";
+import { CnaResult } from "../dist/internal/cna-results.js";
+import { resolveGraphicsDeviceHandleForInternalUse } from
+  "../dist/Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
 import {
   getVertexBufferRawForInternalUse,
   setVertexBufferRawForInternalUse,
@@ -5879,6 +5882,377 @@ test("the atmosphere's model and its sampling sequence are exact where no render
     `CNA_TS_NATIVE_ATMOSPHERE=NO_CUBE_STORAGE LUT=${processor.lut.join("x")} ` +
     `ZENITH=${evidence.model.zenithAtNoon.map((v) => v.toFixed(3)).join("/")} ` +
     `MIDNIGHT=${evidence.model.zenithAtMidnight[2].toExponential(2)}`,
+  );
+});
+
+test("the cascaded, spot and cube shadow maps say what a renderer cannot do with them", async () => {
+  const {
+    CascadedShadowMap, CubeShadowMap, ShadowMapMath, ShadowQuality, SpotShadowMap,
+  } = computeExtensions;
+
+  /*
+   * The other side of the three shadow passes.
+   *
+   * `test/windowed-renderer.integration.mjs` renders all three on OPENGLES3 and reads their depths
+   * back. HEADLESS compiles no caster effects, so it can make every one of them and render into
+   * none -- and the state, the splits and the pure maths all still work, which is the part a
+   * capability boundary is easiest to get wrong.
+   */
+  const game = new (class extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+    LoadContent() {
+      const device = this.GraphicsDevice;
+      const attempt = (body) => {
+        try {
+          const value = body();
+          return value === undefined ? "ACCEPTED" : value;
+        } catch (error) {
+          return `${error.constructor.name}(${error.cnaResult ?? "-"}): ${error.message}`;
+        }
+      };
+      const owned = [];
+      try {
+        const NEAR = 1;
+        const FAR = 200;
+        const LAMBDA = 0.6;
+        const CASCADES = 4;
+        const cameraView = Matrix.CreateLookAt(new Vector3(0, 5, 20), Vector3.Zero, Vector3.Up);
+        const cameraProjection =
+          Matrix.CreatePerspectiveFieldOfView(Math.PI / 3, 4 / 3, NEAR, FAR);
+        const light = {
+          Direction: new Vector3(-0.4, -1, -0.3), Color: new Vector3(1, 1, 1), Intensity: 1,
+        };
+        const evidence = { near: NEAR, far: FAR, lambda: LAMBDA, cascadeCount: CASCADES };
+
+        const cascaded = new CascadedShadowMap(device, ShadowQuality.Medium, CASCADES);
+        owned.push(cascaded);
+        cascaded.SplitLambda = LAMBDA;
+        cascaded.Update(light, cameraView, cameraProjection);
+        evidence.cascaded = {
+          supported: cascaded.IsSupported,
+          count: cascaded.CascadeCount,
+          size: cascaded.CascadeSize,
+          splits: Array.from({ length: CASCADES }, (_, index) =>
+            cascaded.GetSplitDistance(index)),
+          pureSplits: [...ShadowMapMath.ComputeCascadeSplitDistances(
+            NEAR, FAR, CASCADES, LAMBDA)],
+          // The same map with a different lambda gives different splits, which is what says the
+          // setting reaches the computation rather than sitting beside it.
+          otherLambda: (() => {
+            cascaded.SplitLambda = 0;
+            cascaded.Update(light, cameraView, cameraProjection);
+            const splits = Array.from({ length: CASCADES }, (_, index) =>
+              cascaded.GetSplitDistance(index));
+            cascaded.SplitLambda = LAMBDA;
+            cascaded.Update(light, cameraView, cameraProjection);
+            return splits;
+          })(),
+          pureOtherLambda: [...ShadowMapMath.ComputeCascadeSplitDistances(
+            NEAR, FAR, CASCADES, 0)],
+          begin: attempt(() => {
+            cascaded.Begin(0);
+            cascaded.End();
+          }),
+          effect: attempt(() => cascaded.CasterEffect),
+          texture: attempt(() => {
+            const texture = cascaded.ShadowTexture;
+            return [texture.Width, texture.Height];
+          }),
+        };
+        // Snapping is a pure function of its arguments and needs no renderer at all: the centre is
+        // quantised to a whole number of the cascade's own texels.
+        const SNAP = { radius: 8, size: 256 };
+        evidence.snap = {
+          ...SNAP,
+          samples: [
+            [0, 0, 0], [1.234, 5.678, -9.1], [-3.7, 0.06, 12], [1000, -1000, 0.5],
+          ].map((position) => {
+            const value = CascadedShadowMap.SnapToTexelGrid(
+              new Vector3(...position), SNAP.radius, SNAP.size,
+            );
+            return [position, [value.X, value.Y, value.Z]];
+          }),
+        };
+
+        const spot = new SpotShadowMap(device, ShadowQuality.Medium);
+        owned.push(spot);
+        const SPOT_LIGHT = {
+          Position: new Vector3(2, 8, -3),
+          Direction: new Vector3(0, -1, 0.2),
+          Color: new Vector3(1, 1, 1),
+          Intensity: 2,
+          Range: 40,
+          InnerAngle: 0.3,
+          OuterAngle: 0.6,
+        };
+        evidence.spot = {
+          supported: spot.IsSupported,
+          size: spot.Size,
+          sizeForQuality: ShadowMapMath.SizeForQuality(ShadowQuality.Medium),
+          quality: spot.Quality,
+          begin: attempt(() => {
+            spot.Begin(SPOT_LIGHT);
+            spot.End();
+          }),
+          position: (() => {
+            const value = spot.LightPosition;
+            return [value.X, value.Y, value.Z];
+          })(),
+          range: spot.LightRange,
+          effect: attempt(() => spot.CasterEffect),
+          texture: attempt(() => {
+            const texture = spot.ShadowTexture;
+            return [texture.Width, texture.Height];
+          }),
+          endTwice: attempt(() => spot.End()),
+        };
+
+        const cube = new CubeShadowMap(device, ShadowQuality.Medium);
+        owned.push(cube);
+        cube.Update({
+          Position: new Vector3(-1, 3, 2), Color: new Vector3(1, 1, 1), Intensity: 1, Range: 25,
+        });
+        evidence.cube = {
+          supported: cube.IsSupported,
+          size: cube.Size,
+          cubeSizeForQuality: ShadowMapMath.CubeSizeForQuality(ShadowQuality.Medium),
+          flatSizeForQuality: ShadowMapMath.SizeForQuality(ShadowQuality.Medium),
+          position: (() => {
+            const value = cube.LightPosition;
+            return [value.X, value.Y, value.Z];
+          })(),
+          range: cube.LightRange,
+          begin: attempt(() => {
+            cube.Begin(0);
+            cube.End();
+          }),
+          effect: attempt(() => cube.CasterEffect),
+          texture: attempt(() => {
+            const texture = cube.ShadowTexture;
+            return [texture.Size, texture.LevelCount];
+          }),
+        };
+        /*
+         * All four maps document the same rule -- "the handle is a borrow that keeps the map
+         * alive; the map refuses to be destroyed while a borrow is outstanding" -- and this asks
+         * each of them directly, below the public API, which always returns its borrows first.
+         * `docs/upstream-cna-findings.md` item 16 is what the answers show.
+         */
+        const shadowBackend = getBackend().Shadows;
+        const graphics = getBackend().Graphics;
+        const deviceHandle = resolveGraphicsDeviceHandleForInternalUse(device);
+        const destroyWhileLending = (create, borrow, destroy, release) => {
+          const map = create(deviceHandle);
+          const lent = borrow(map);
+          let answer;
+          try {
+            destroy(map);
+            answer = "DESTROYED";
+          } catch (error) {
+            answer = error.cnaResult ?? error.constructor.name;
+          }
+          // Whether or not the destroy went through, the borrow is given back through its own
+          // release route -- a flat map lends a render target and a cube map lends a cube, and a
+          // leaked one would stop the game shutting down and hide which map this was asking about.
+          try {
+            release(lent);
+          } catch {
+            // Already gone with the map it was lent from.
+          }
+          if (answer !== "DESTROYED") {
+            try {
+              destroy(map);
+            } catch {
+              // The refusal above is the answer; this is only cleanup.
+            }
+          }
+          return answer;
+        };
+        evidence.borrowRule = {
+          flat: destroyWhileLending(
+            (handle) => shadowBackend.createShadowMap(handle, ShadowQuality.Low),
+            (map) => shadowBackend.getShadowMapTexture(map),
+            (map) => shadowBackend.destroyShadowMap(map),
+            (handle) => graphics.destroyRenderTarget(handle),
+          ),
+          cascaded: destroyWhileLending(
+            (handle) => shadowBackend.createCascadedShadowMap(handle, ShadowQuality.Low, 2),
+            (map) => shadowBackend.getCascadedShadowTexture(map),
+            (map) => shadowBackend.destroyCascadedShadowMap(map),
+            (handle) => graphics.destroyRenderTarget(handle),
+          ),
+          spot: destroyWhileLending(
+            (handle) => shadowBackend.createSpotShadowMap(handle, ShadowQuality.Low),
+            (map) => shadowBackend.getSpotShadowTexture(map),
+            (map) => shadowBackend.destroySpotShadowMap(map),
+            (handle) => graphics.destroyRenderTarget(handle),
+          ),
+          cube: destroyWhileLending(
+            (handle) => shadowBackend.createCubeShadowMap(handle, ShadowQuality.Low),
+            (map) => shadowBackend.getCubeShadowTexture(map),
+            (map) => shadowBackend.destroyCubeShadowMap(map),
+            (handle) => graphics.destroyTextureCube(handle),
+          ),
+        };
+        this.evidence.probe = evidence;
+      } finally {
+        this.evidence.dispose = attempt(() => {
+          for (const resource of owned.reverse()) resource.Dispose();
+        });
+      }
+      this.Exit();
+      super.LoadContent();
+    }
+    Draw(gameTime) {
+      this.GraphicsDevice.Clear(Color.CornflowerBlue);
+      this.Exit();
+      super.Draw(gameTime);
+    }
+  })();
+  await game.Run();
+  const evidence = game.evidence.probe;
+  // A leaked borrow would surface here, as CNA refusing to destroy the game that owns the device.
+  game.Dispose();
+
+  assert.equal(typeof evidence, "object", `shadow-pass probe failed: ${JSON.stringify(evidence)}`);
+  assert.equal(game.evidence.dispose, "ACCEPTED", "every map returns the borrows it took");
+
+  /*
+   * The counted-borrow rule, asked of all four maps: `docs/upstream-cna-findings.md` item 16.
+   *
+   * Every one of the four documents it -- "the map refuses to be destroyed while a borrow is
+   * outstanding" -- and three of them keep it. The spot map destroys itself with a lent handle
+   * still pointing at it, because its destroy is the one that never reads the borrow count its own
+   * resource keeps. Asserted as it behaves, so a repair fails here and says so.
+   */
+  assert.deepEqual(
+    [evidence.borrowRule.flat, evidence.borrowRule.cascaded, evidence.borrowRule.cube],
+    [CnaResult.InvalidState, CnaResult.InvalidState, CnaResult.InvalidState],
+    "three of the four shadow maps refuse to be destroyed while lending",
+  );
+  assert.equal(
+    evidence.borrowRule.spot, "DESTROYED",
+    "UPSTREAM FINDING 16 REPAIRED: the spot shadow map now refuses too. " +
+    "Update docs/upstream-cna-findings.md and assert the rule for all four",
+  );
+
+  /*
+   * The cascade's splits, against the pure route that computes the same thing from plain numbers.
+   * Twice, with two different lambdas, because one agreement could be a coincidence of defaults
+   * and two with different answers cannot be.
+   */
+  const cascaded = evidence.cascaded;
+  assert.equal(cascaded.count, evidence.cascadeCount);
+  assert.ok(cascaded.size > 0);
+  for (const [measured, pure, what] of [
+    [cascaded.splits, cascaded.pureSplits, "a mixed lambda"],
+    [cascaded.otherLambda, cascaded.pureOtherLambda, "a lambda of zero"],
+  ]) {
+    assert.equal(measured.length, evidence.cascadeCount);
+    for (const [index, split] of measured.entries()) {
+      assert.ok(
+        Math.abs(split - pure[index]) < Math.abs(pure[index]) * 1e-4 + 1e-3,
+        `${what}: cascade ${index} splits at ${split}; the pure route says ${pure[index]}`,
+      );
+    }
+  }
+  assert.notDeepEqual(
+    cascaded.splits, cascaded.otherLambda,
+    "and the two lambdas really are two different divisions of the range",
+  );
+  // A lambda of zero divides the range evenly, which is a closed form the test can write down.
+  for (const [index, split] of cascaded.otherLambda.entries()) {
+    const even = evidence.near +
+      ((evidence.far - evidence.near) * (index + 1)) / evidence.cascadeCount;
+    assert.ok(
+      Math.abs(split - even) < 1e-2,
+      `an even division puts cascade ${index} at ${even}, not ${split}`,
+    );
+  }
+
+  /*
+   * Snapping, which needs no renderer: every axis of the answer is a whole number of the cascade's
+   * own texels, and a centre already on the grid does not move.
+   */
+  const texel = (2 * evidence.snap.radius) / evidence.snap.size;
+  for (const [position, snapped] of evidence.snap.samples) {
+    for (const axis of [0, 1]) {
+      const quotient = snapped[axis] / texel;
+      assert.ok(
+        Math.abs(quotient - Math.round(quotient)) < 1e-3,
+        `snapping ${position} left axis ${axis} off the grid: ${snapped[axis]} is ${quotient} texels`,
+      );
+      assert.ok(
+        Math.abs(snapped[axis] - position[axis]) <= texel,
+        `and moved it further than one texel: ${position[axis]} to ${snapped[axis]}`,
+      );
+    }
+    assert.ok(
+      Math.abs(snapped[2] - position[2]) < 1e-5,
+      "while the axis the light looks along is left alone -- it goes out as a float and comes " +
+      `back as the nearest one, and nothing else happens to it (${position[2]} to ${snapped[2]})`,
+    );
+  }
+
+  // The two flat maps' sizes come from the same tier route; a cube's face does not.
+  assert.equal(evidence.spot.size, evidence.spot.sizeForQuality);
+  assert.equal(evidence.cube.size, evidence.cube.cubeSizeForQuality);
+  assert.equal(evidence.spot.quality, ShadowQuality.Medium);
+  // The light state round-trips through both passes without a renderer.
+  assert.deepEqual(evidence.spot.position, [2, 8, -3]);
+  assert.equal(evidence.spot.range, 40);
+  assert.deepEqual(evidence.cube.position, [-1, 3, 2]);
+  assert.equal(evidence.cube.range, 25);
+
+  if (cascaded.supported) {
+    // Not the renderer this test is about; the windowed file renders all three properly.
+    console.log("CNA_TS_NATIVE_SHADOW_PASSES=RENDERER_CASTS");
+    return;
+  }
+
+  /*
+   * And the boundary. A renderer that cannot compile a caster program still makes all three maps,
+   * still allocates their storage, and still accepts the passes it cannot fill -- which is CNA's
+   * documented choice, so the binding passes it through rather than inventing a refusal. It stops
+   * at the effects, where a getter answering success with an invalid handle is a capability to
+   * report rather than a handle to wrap.
+   */
+  assert.deepEqual(
+    [cascaded.begin, evidence.spot.begin], ["ACCEPTED", "ACCEPTED"],
+    "the flat and cascaded passes are accepted and simply write nothing",
+  );
+  for (const [name, answer] of [
+    ["cascaded", cascaded.effect], ["spot", evidence.spot.effect], ["cube", evidence.cube.effect],
+  ]) {
+    assert.match(answer, /^NativeUnavailableError/, `${name} lends no caster program here`);
+    assert.match(answer, /IsSupported/, `and ${name}'s refusal names the question to ask instead`);
+  }
+  // The storage is real -- allocated memory, not a compiled program -- and the atlas is one
+  // cascade wide per cascade.
+  assert.deepEqual(cascaded.texture, [cascaded.size * cascaded.count, cascaded.size]);
+  assert.deepEqual(evidence.spot.texture, [evidence.spot.size, evidence.spot.size]);
+  assert.deepEqual(evidence.cube.texture, [evidence.cube.size, 1]);
+  // CNA's own state checking is still real: this is CNA refusing, not the binding.
+  assert.match(evidence.spot.endTwice, /^Error/, "closing a pass that is not open is refused");
+  /*
+   * The cube is the one that cannot even open a face here, and it says why: its faces are larger
+   * than this renderer's back buffer, so setting the viewport fails. The code that arrives is
+   * `CNA_RESULT_INTERNAL` rather than anything a caller could branch on -- the same missing
+   * translation as `docs/upstream-cna-findings.md` item 14, in a second place.
+   */
+  assert.match(
+    evidence.cube.begin, /^Error\(12\): .*SetViewport/,
+    `a cube face is larger than this renderer's back buffer: ${evidence.cube.begin}`,
+  );
+
+  console.log(
+    `CNA_TS_NATIVE_SHADOW_PASSES=UNSUPPORTED_RENDERER CASCADES=${cascaded.count}x${cascaded.size} ` +
+    `SPOT=${evidence.spot.size}px CUBE=${evidence.cube.size}px ` +
+    `SPLITS=${cascaded.splits.map((value) => value.toFixed(1)).join("/")}`,
   );
 });
 

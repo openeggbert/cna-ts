@@ -16,11 +16,12 @@ qualification to three renderers; items 8 and 9 are new, found while projecting 
 layer's compute path, item 10 while projecting its clustered lighting, item 11 -- a
 segmentation fault -- while projecting camera frame capture, and item 12 while projecting the
 particle draw. Items 13 and 14 are new, found while projecting the depth/normal prepass and the
-decal projector that reads it, and item 15 while projecting the atmosphere.
+decal projector that reads it, item 15 while projecting the atmosphere, and item 16 while
+projecting the cascaded, spot and cube shadow passes.
 
 **Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
 library. Both were found by this package, both were *asserted* rather than worked around, and both
-detectors fired the moment the repair landed. Four of the fifteen findings are now closed.
+detectors fired the moment the repair landed. Four of the sixteen findings are now closed.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -690,3 +691,55 @@ straight back, and documents why on itself; `RenderPipeline.Skybox` deliberately
 what it is given and documents that too. `test/windowed-renderer.integration.mjs` reads both inside
 one game and asserts that the game still destroys cleanly, so either behaviour changing upstream
 fails here.
+
+## 16. Three of the four shadow maps refuse to be destroyed while lending, and the fourth does not
+
+Every object in the engine layer that lends a handle uses the same counted-borrow rule, and all four
+shadow maps document it in the same words. `cna_spot_shadow_map_get_shadow_texture`, for instance:
+
+> The handle is a borrow that keeps the map alive; release it with `cna_render_target_destroy`, which
+> does not dispose the map's own texture. The map refuses to be destroyed while a borrow is
+> outstanding.
+
+Three of the four keep that promise. The spot map does not: it destroys itself with a lent handle
+still pointing at it, and the caller is left holding a texture whose object is gone.
+
+**Measured** on `cmake-build-debug` (OPENGLES3, ABI 0.21.0) under `xvfb-run`, and identically on
+`cmake-build-tsnext` (HEADLESS). Each map is created, its shadow texture borrowed, and the map
+destroyed with the borrow still outstanding:
+
+```text
+map                 destroy while lending
+cna_shadow_map      INVALID_STATE  "The shadow map is still lending an effect or its shadow texture."
+cna_cascaded_...    INVALID_STATE  "The cascaded shadow map is still lending its effect or its atlas."
+cna_cube_shadow_map INVALID_STATE  "The cube shadow map is still lending its effect or its cube."
+cna_spot_shadow_map SUCCESS        -- the map is gone and the borrow is not
+```
+
+**Cause, from the source rather than inferred.** `SpotShadowMapResource` carries an
+`activeBorrowCount` exactly as its three siblings do, and `cna_spot_shadow_map_get_shadow_texture`
+and `_get_caster_effect` increment it. `cna_spot_shadow_map_destroy` is the only one of the four
+whose body never reads it:
+
+```cpp
+// cna_shadow_map_destroy, cna_cascaded_shadow_map_destroy, cna_cube_shadow_map_destroy
+if (map->activeBorrowCount != 0U) {
+    return Fail(CNA_RESULT_INVALID_STATE, CNA_ERROR_CATEGORY_STATE,
+                "The … is still lending …");
+}
+// cna_spot_shadow_map_destroy: no such check
+```
+
+**Consequence.** A caller who releases in the order the other three force -- borrows first, then the
+map -- is unaffected. A caller who does it the other way round gets a refusal from three maps and a
+use-after-free from the fourth, which is the worst possible way for an inconsistency to present: the
+mistake is caught everywhere except in the one place it is not.
+
+**Proposed change.** Add the same `activeBorrowCount` check to `cna_spot_shadow_map_destroy`, with
+the message its siblings use.
+
+**Detector in cna-ts:** `test/native-cna.integration.mjs` asks all four maps directly, below the
+public API, and asserts three refusals and one success. A repair fails the fourth assertion and says
+so. The binding itself returns every borrow before the map it came from in all four cases, so no
+consumer of this package can reach the defect -- which is also why the mutation that reverses that
+order in `SpotShadowMap.Dispose` survives, and is recorded rather than hidden.

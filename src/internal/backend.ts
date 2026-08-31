@@ -1644,6 +1644,62 @@ export interface CnaShadowBackend {
   computeCascadeBoundingSphere(
     corners: readonly Vector3Snapshot[],
   ): { readonly Center: Vector3Snapshot; readonly Radius: number };
+  createCascadedShadowMap(
+    device: NativeHandle, quality: number, cascadeCount: number,
+  ): NativeHandle;
+  destroyCascadedShadowMap(map: NativeHandle): void;
+  updateCascadedShadowMap(
+    map: NativeHandle, light: DirectionalLightSnapshot, cameraView: readonly number[],
+    cameraProjection: readonly number[],
+  ): void;
+  beginCascadedShadowPass(map: NativeHandle, cascadeIndex: number): void;
+  endCascadedShadowPass(map: NativeHandle): void;
+  getCascadeMatrix(map: NativeHandle, cascadeIndex: number): readonly number[];
+  getCascadeSplitDistance(map: NativeHandle, cascadeIndex: number): number;
+  selectCascade(map: NativeHandle, viewDepth: number): number;
+  applyCascadesToReceiver(map: NativeHandle, effect: NativeHandle): void;
+  snapCascadeToTexelGrid(
+    centre: Vector3Snapshot, radius: number, cascadeSize: number,
+  ): Vector3Snapshot;
+  getCascadeSize(map: NativeHandle): number;
+  getCascadeCount(map: NativeHandle): number;
+  getCascadeBlendBand(map: NativeHandle): number;
+  setCascadeBlendBand(map: NativeHandle, band: number): void;
+  getCascadeSplitLambda(map: NativeHandle): number;
+  setCascadeSplitLambda(map: NativeHandle, lambda: number): void;
+  isCascadeDebugTintEnabled(map: NativeHandle): boolean;
+  setCascadeDebugTintEnabled(map: NativeHandle, enabled: boolean): void;
+  getCascadedCasterEffect(map: NativeHandle): NativeHandle;
+  getCascadedShadowTexture(map: NativeHandle): NativeHandle;
+  isCascadedShadowMapSupported(map: NativeHandle): boolean;
+  createSpotShadowMap(device: NativeHandle, quality: number): NativeHandle;
+  destroySpotShadowMap(map: NativeHandle): void;
+  beginSpotShadowPass(map: NativeHandle, light: SpotLightSnapshot): void;
+  endSpotShadowPass(map: NativeHandle): void;
+  getSpotShadowLightViewProjection(map: NativeHandle): readonly number[];
+  getSpotShadowLightPosition(map: NativeHandle): Vector3Snapshot;
+  getSpotShadowLightRange(map: NativeHandle): number;
+  getSpotShadowQuality(map: NativeHandle): number;
+  getSpotShadowSize(map: NativeHandle): number;
+  getSpotShadowDepthBias(map: NativeHandle): number;
+  setSpotShadowDepthBias(map: NativeHandle, bias: number): void;
+  getSpotShadowCasterEffect(map: NativeHandle): NativeHandle;
+  getSpotShadowTexture(map: NativeHandle): NativeHandle;
+  isSpotShadowMapSupported(map: NativeHandle): boolean;
+  createCubeShadowMap(device: NativeHandle, quality: number): NativeHandle;
+  destroyCubeShadowMap(map: NativeHandle): void;
+  updateCubeShadowMap(map: NativeHandle, light: PointLightSnapshot): void;
+  beginCubeShadowPass(map: NativeHandle, faceIndex: number): void;
+  endCubeShadowPass(map: NativeHandle): void;
+  getCubeShadowLightPosition(map: NativeHandle): Vector3Snapshot;
+  getCubeShadowLightRange(map: NativeHandle): number;
+  getCubeShadowQuality(map: NativeHandle): number;
+  getCubeShadowSize(map: NativeHandle): number;
+  getCubeShadowDepthBias(map: NativeHandle): number;
+  setCubeShadowDepthBias(map: NativeHandle, bias: number): void;
+  getCubeShadowCasterEffect(map: NativeHandle): NativeHandle;
+  getCubeShadowTexture(map: NativeHandle): NativeHandle;
+  isCubeShadowMapSupported(map: NativeHandle): boolean;
   computeSpotShadowLightView(light: SpotLightSnapshot): readonly number[];
   computeSpotShadowLightProjection(light: SpotLightSnapshot): readonly number[];
   computeCubeShadowFaceView(face: number, position: Vector3Snapshot): readonly number[];

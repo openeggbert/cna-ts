@@ -554,6 +554,55 @@ interface NativeBridge {
   cnbDecodeModel(document: bigint): bigint;
   isClusteredLightUsable(light: ClusteredLightSnapshot): boolean;
   createLodGroup(): bigint;
+  createCascadedShadowMap(device: bigint, quality: number, cascadeCount: number): bigint;
+  destroyCascadedShadowMap(map: bigint): void;
+  updateCascadedShadowMap(map: bigint, light: DirectionalLightSnapshot, cameraView: readonly number[], cameraProjection: readonly number[]): void;
+  beginCascadedShadowPass(map: bigint, cascadeIndex: number): void;
+  endCascadedShadowPass(map: bigint): void;
+  getCascadeMatrix(map: bigint, cascadeIndex: number): readonly number[];
+  getCascadeSplitDistance(map: bigint, cascadeIndex: number): number;
+  selectCascade(map: bigint, viewDepth: number): number;
+  applyCascadesToReceiver(map: bigint, effect: bigint): void;
+  snapCascadeToTexelGrid(centre: Vector3Snapshot, radius: number, cascadeSize: number): Vector3Snapshot;
+  getCascadeSize(map: bigint): number;
+  getCascadeCount(map: bigint): number;
+  getCascadeBlendBand(map: bigint): number;
+  setCascadeBlendBand(map: bigint, band: number): void;
+  getCascadeSplitLambda(map: bigint): number;
+  setCascadeSplitLambda(map: bigint, lambda: number): void;
+  isCascadeDebugTintEnabled(map: bigint): boolean;
+  setCascadeDebugTintEnabled(map: bigint, enabled: boolean): void;
+  getCascadedCasterEffect(map: bigint): bigint;
+  getCascadedShadowTexture(map: bigint): bigint;
+  isCascadedShadowMapSupported(map: bigint): boolean;
+  createSpotShadowMap(device: bigint, quality: number): bigint;
+  destroySpotShadowMap(map: bigint): void;
+  beginSpotShadowPass(map: bigint, light: SpotLightSnapshot): void;
+  endSpotShadowPass(map: bigint): void;
+  getSpotShadowLightViewProjection(map: bigint): readonly number[];
+  getSpotShadowLightPosition(map: bigint): Vector3Snapshot;
+  getSpotShadowLightRange(map: bigint): number;
+  getSpotShadowQuality(map: bigint): number;
+  getSpotShadowSize(map: bigint): number;
+  getSpotShadowDepthBias(map: bigint): number;
+  setSpotShadowDepthBias(map: bigint, bias: number): void;
+  getSpotShadowCasterEffect(map: bigint): bigint;
+  getSpotShadowTexture(map: bigint): bigint;
+  isSpotShadowMapSupported(map: bigint): boolean;
+  createCubeShadowMap(device: bigint, quality: number): bigint;
+  destroyCubeShadowMap(map: bigint): void;
+  updateCubeShadowMap(map: bigint, light: PointLightSnapshot): void;
+  beginCubeShadowPass(map: bigint, faceIndex: number): void;
+  endCubeShadowPass(map: bigint): void;
+  getCubeShadowLightPosition(map: bigint): Vector3Snapshot;
+  getCubeShadowLightRange(map: bigint): number;
+  getCubeShadowQuality(map: bigint): number;
+  getCubeShadowSize(map: bigint): number;
+  getCubeShadowDepthBias(map: bigint): number;
+  setCubeShadowDepthBias(map: bigint, bias: number): void;
+  getCubeShadowCasterEffect(map: bigint): bigint;
+  getCubeShadowTexture(map: bigint): bigint;
+  isCubeShadowMapSupported(map: bigint): boolean;
   createShadowMap(device: bigint, quality: number): bigint;
   supportsShadowSampling(device: bigint): boolean;
   beginShadowPass(map: bigint, light: DirectionalLightSnapshot, bounds: ClusterBoundsSnapshot): void;
@@ -2479,6 +2528,55 @@ export class NodeNativeBackend
   public isInsideDecalBox(decalLocalPosition: Vector3Snapshot): boolean {
     return this.#bridge.isInsideDecalBox(decalLocalPosition);
   }
+  public createCascadedShadowMap(device: NativeHandle, quality: number, cascadeCount: number): NativeHandle { return this.#bridge.createCascadedShadowMap(device, quality, cascadeCount); }
+  public destroyCascadedShadowMap(map: NativeHandle): void { this.#bridge.destroyCascadedShadowMap(map); }
+  public updateCascadedShadowMap(map: NativeHandle, light: DirectionalLightSnapshot, cameraView: readonly number[], cameraProjection: readonly number[]): void { this.#bridge.updateCascadedShadowMap(map, light, cameraView, cameraProjection); }
+  public beginCascadedShadowPass(map: NativeHandle, cascadeIndex: number): void { this.#bridge.beginCascadedShadowPass(map, cascadeIndex); }
+  public endCascadedShadowPass(map: NativeHandle): void { this.#bridge.endCascadedShadowPass(map); }
+  public getCascadeMatrix(map: NativeHandle, cascadeIndex: number): readonly number[] { return this.#bridge.getCascadeMatrix(map, cascadeIndex); }
+  public getCascadeSplitDistance(map: NativeHandle, cascadeIndex: number): number { return this.#bridge.getCascadeSplitDistance(map, cascadeIndex); }
+  public selectCascade(map: NativeHandle, viewDepth: number): number { return this.#bridge.selectCascade(map, viewDepth); }
+  public applyCascadesToReceiver(map: NativeHandle, effect: NativeHandle): void { this.#bridge.applyCascadesToReceiver(map, effect); }
+  public snapCascadeToTexelGrid(centre: Vector3Snapshot, radius: number, cascadeSize: number): Vector3Snapshot { return this.#bridge.snapCascadeToTexelGrid(centre, radius, cascadeSize); }
+  public getCascadeSize(map: NativeHandle): number { return this.#bridge.getCascadeSize(map); }
+  public getCascadeCount(map: NativeHandle): number { return this.#bridge.getCascadeCount(map); }
+  public getCascadeBlendBand(map: NativeHandle): number { return this.#bridge.getCascadeBlendBand(map); }
+  public setCascadeBlendBand(map: NativeHandle, band: number): void { this.#bridge.setCascadeBlendBand(map, band); }
+  public getCascadeSplitLambda(map: NativeHandle): number { return this.#bridge.getCascadeSplitLambda(map); }
+  public setCascadeSplitLambda(map: NativeHandle, lambda: number): void { this.#bridge.setCascadeSplitLambda(map, lambda); }
+  public isCascadeDebugTintEnabled(map: NativeHandle): boolean { return this.#bridge.isCascadeDebugTintEnabled(map); }
+  public setCascadeDebugTintEnabled(map: NativeHandle, enabled: boolean): void { this.#bridge.setCascadeDebugTintEnabled(map, enabled); }
+  public getCascadedCasterEffect(map: NativeHandle): NativeHandle { return this.#bridge.getCascadedCasterEffect(map); }
+  public getCascadedShadowTexture(map: NativeHandle): NativeHandle { return this.#bridge.getCascadedShadowTexture(map); }
+  public isCascadedShadowMapSupported(map: NativeHandle): boolean { return this.#bridge.isCascadedShadowMapSupported(map); }
+  public createSpotShadowMap(device: NativeHandle, quality: number): NativeHandle { return this.#bridge.createSpotShadowMap(device, quality); }
+  public destroySpotShadowMap(map: NativeHandle): void { this.#bridge.destroySpotShadowMap(map); }
+  public beginSpotShadowPass(map: NativeHandle, light: SpotLightSnapshot): void { this.#bridge.beginSpotShadowPass(map, light); }
+  public endSpotShadowPass(map: NativeHandle): void { this.#bridge.endSpotShadowPass(map); }
+  public getSpotShadowLightViewProjection(map: NativeHandle): readonly number[] { return this.#bridge.getSpotShadowLightViewProjection(map); }
+  public getSpotShadowLightPosition(map: NativeHandle): Vector3Snapshot { return this.#bridge.getSpotShadowLightPosition(map); }
+  public getSpotShadowLightRange(map: NativeHandle): number { return this.#bridge.getSpotShadowLightRange(map); }
+  public getSpotShadowQuality(map: NativeHandle): number { return this.#bridge.getSpotShadowQuality(map); }
+  public getSpotShadowSize(map: NativeHandle): number { return this.#bridge.getSpotShadowSize(map); }
+  public getSpotShadowDepthBias(map: NativeHandle): number { return this.#bridge.getSpotShadowDepthBias(map); }
+  public setSpotShadowDepthBias(map: NativeHandle, bias: number): void { this.#bridge.setSpotShadowDepthBias(map, bias); }
+  public getSpotShadowCasterEffect(map: NativeHandle): NativeHandle { return this.#bridge.getSpotShadowCasterEffect(map); }
+  public getSpotShadowTexture(map: NativeHandle): NativeHandle { return this.#bridge.getSpotShadowTexture(map); }
+  public isSpotShadowMapSupported(map: NativeHandle): boolean { return this.#bridge.isSpotShadowMapSupported(map); }
+  public createCubeShadowMap(device: NativeHandle, quality: number): NativeHandle { return this.#bridge.createCubeShadowMap(device, quality); }
+  public destroyCubeShadowMap(map: NativeHandle): void { this.#bridge.destroyCubeShadowMap(map); }
+  public updateCubeShadowMap(map: NativeHandle, light: PointLightSnapshot): void { this.#bridge.updateCubeShadowMap(map, light); }
+  public beginCubeShadowPass(map: NativeHandle, faceIndex: number): void { this.#bridge.beginCubeShadowPass(map, faceIndex); }
+  public endCubeShadowPass(map: NativeHandle): void { this.#bridge.endCubeShadowPass(map); }
+  public getCubeShadowLightPosition(map: NativeHandle): Vector3Snapshot { return this.#bridge.getCubeShadowLightPosition(map); }
+  public getCubeShadowLightRange(map: NativeHandle): number { return this.#bridge.getCubeShadowLightRange(map); }
+  public getCubeShadowQuality(map: NativeHandle): number { return this.#bridge.getCubeShadowQuality(map); }
+  public getCubeShadowSize(map: NativeHandle): number { return this.#bridge.getCubeShadowSize(map); }
+  public getCubeShadowDepthBias(map: NativeHandle): number { return this.#bridge.getCubeShadowDepthBias(map); }
+  public setCubeShadowDepthBias(map: NativeHandle, bias: number): void { this.#bridge.setCubeShadowDepthBias(map, bias); }
+  public getCubeShadowCasterEffect(map: NativeHandle): NativeHandle { return this.#bridge.getCubeShadowCasterEffect(map); }
+  public getCubeShadowTexture(map: NativeHandle): NativeHandle { return this.#bridge.getCubeShadowTexture(map); }
+  public isCubeShadowMapSupported(map: NativeHandle): boolean { return this.#bridge.isCubeShadowMapSupported(map); }
   public createShadowMap(device: NativeHandle, quality: number): NativeHandle {
     return this.#bridge.createShadowMap(device, quality);
   }

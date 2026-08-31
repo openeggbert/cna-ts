@@ -360,6 +360,18 @@ Electron, or mobile support.
 - [x] And the rest of the shadow-map maths: a cascaded map's split distances checked against both
   closed forms and their midpoint, the bounding sphere that sizes a cascade snugly, a spot light's
   cone, and a cube map's six faces proved to be three opposite pairs.
+- [x] **And the three passes that maths belongs to.** `CascadedShadowMap`, `SpotShadowMap` and
+  `CubeShadowMap` are projected beside the flat one, and each is checked against the pure routes
+  rather than against recorded numbers: a cascade's splits against `ComputeCascadeSplitDistances`
+  for two different lambdas, a spot map's transform against `ComputeSpotLightView` times
+  `ComputeSpotLightProjection` multiplied by the test, and a cube's face size against the cube
+  route rather than the flat one. The atlas is surveyed slice by slice at six steps so what is
+  asserted is the change at each: a cast into cascade zero changes that slice alone and a later cast
+  into the last leaves it exactly as it was, which is what says a `Begin` clears its own viewport.
+  Moving the light moves every cascade transform and not one split. Twenty-two planted defects were
+  run and twenty-one fail; the survivor is `docs/upstream-cna-findings.md` item 16 — three of the
+  four maps refuse to be destroyed while lending and the spot map, alone, does not, so reversing
+  that order in its `Dispose` cannot be observed from outside.
 - [x] **The depth/normal prepass and the decal projector**, which are one pipeline and are
   projected as one. The prepass is accepted against CNA's own rasteriser: the same flat quad drawn
   through a stock `BasicEffect` and through the prepass, into targets of the same size in the same
@@ -588,7 +600,7 @@ Electron, or mobile support.
 
 ## Upstream CNA blockers
 
-Five runtime defects and two build-system gaps remain, all in `cnanext`, all measured here and none
+Six runtime defects and two build-system gaps remain, all in `cnanext`, all measured here and none
 fixed from this session. `docs/upstream-cna-findings.md` records each with its reproduction and a
 proposed change, and each has a test in this package that fails when the behaviour changes.
 
@@ -602,7 +614,10 @@ depth/normal prepass routes answer `INTERNAL` where their header documents `INVA
 source file (item 14). The fifth came out of the atmosphere: two getters document the same
 counted-borrow contract and only one of them keeps it, so a caller who follows the header either
 leaks a handle that makes the game undestroyable or destroys their own skybox, depending which
-route they read (item 15).
+route they read (item 15). The sixth is the same shape one level down: all four shadow maps
+document the counted-borrow rule in the same words and the spot map is the only one whose destroy
+never reads the borrow count its own resource keeps, so the mistake the other three catch is a
+use-after-free there (item 16).
 
 The runtime one: `cna_post_process_chain_add_owned_pass` consumes a pass handle without the
 `RemoveOwnedGraphicsResourceFor` its sibling `_destroy` performs, so the game's
