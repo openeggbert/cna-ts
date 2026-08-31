@@ -18,11 +18,12 @@ segmentation fault -- while projecting camera frame capture, and item 12 while p
 particle draw. Items 13 and 14 are new, found while projecting the depth/normal prepass and the
 decal projector that reads it, item 15 while projecting the atmosphere, item 16 while
 projecting the cascaded, spot and cube shadow passes, items 17 and 18 while projecting the
-post-process passes, and item 19 while projecting the physically-based materials.
+post-process passes, item 19 while projecting the physically-based materials, and item 20 while
+projecting the culling families.
 
 **Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
 library. Both were found by this package, both were *asserted* rather than worked around, and both
-detectors fired the moment the repair landed. Four of the nineteen findings are now closed.
+detectors fired the moment the repair landed. Four of the twenty findings are now closed.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -877,3 +878,49 @@ empty and why; `test/native-cna.integration.mjs` asserts a textureless material 
 while `test/windowed-renderer.integration.mjs` asserts that a material *with* a texture does not, and
 that the difference is exactly the slots. Both files assert all three measured rows, so a repair
 fails here rather than passing unnoticed.
+
+## 20. The GPU instance culler runs, reports success, and culls nothing
+
+`cna_gpu_instance_culler_cull` uploads an indirect draw command with a visible count of zero and
+dispatches a compute shader that tests each instance against the camera's six frustum planes and
+increments that count for the ones it keeps. `cna_gpu_instance_culler_read_visible_count_ext` reads
+the count back. The shader runs — the count is never the zero the CPU wrote — and it keeps every
+instance it is given, wherever the instance is.
+
+**Measured** on `cmake-build-debug` (OPENGLES3, ABI 0.21.0) under `xvfb-run`, camera at
+`(0, 0, 10)` looking at the origin with a 45° field of view and a far plane of 100, one unit box per
+instance. The CPU column is this package's own `BoundingFrustum.Intersects` over the same
+world-space boxes:
+
+```text
+instances                                        offered   CPU keeps   GPU count
+three inside the frustum                         3         3           3
+three at ±10000 units, far outside it            3         0           3
+two inside and two far outside                   4         2           4
+none                                             0         0           0
+```
+
+The last row is the only one where the count is not simply the instance count: it is zero because
+there is nothing to count, not because anything was rejected. Nothing else in the table is rejected
+at all — an instance ten thousand units off the side of a hundred-unit frustum survives.
+
+None of this is announced. `cna_gpu_instance_culler_is_supported` answers true and
+`cna_gpu_instance_culler_copy_unsupported_reason` is empty, so a game that adopts the culler pays
+for the compute dispatch, the buffer upload and the readback, and then draws exactly what it would
+have drawn without any of them. On the other three renderers built here — HEADLESS, SOFTWARE and
+SDL_RENDERER — the culler answers `CNA_RESULT_NOT_SUPPORTED` and the question does not arise, so
+OPENGLES3 is the only place the defect is reachable and the only place it was measured.
+
+**Proposed change.** Compare the compute shader's plane test against
+`CNA::Graphics::FrustumCuller`, which is right — the two are asked the same question about the same
+boxes in the table above and disagree on every row where anything should be rejected. The most
+likely cause is the six plane equations reaching the shader in a different sign or order convention
+from the one it tests against, which would make every instance pass; the plane upload packs
+`frustum.getNearProperty()` and its five siblings into 24 floats, and that packing is where to look
+first.
+
+**Detector in cna-ts:** `test/windowed-renderer.integration.mjs` runs the four rows above and
+asserts the measured counts, with the CPU expectation computed beside them from this package's own
+`BoundingFrustum`. A repaired culler makes the second and third rows fail, which is the point. The
+`FrustumCuller` next to it is checked against `BoundingFrustum` on the same geometry and agrees on
+every case, so the test also shows the two cullers disagreeing with each other.

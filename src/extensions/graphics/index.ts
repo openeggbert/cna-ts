@@ -13,9 +13,11 @@
  * work in either build, and they do.
  */
 
+import { PrimitiveType } from "../../Microsoft/Xna/Framework/Graphics/VertexEnums.js";
 import { getBackend } from "../../internal/backend.js";
 import type {
   BlendStateSnapshot,
+  VertexElementSnapshot,
   BoundingSphereSnapshot,
   RasterizerStateSnapshot,
   PbrMaterialExtSnapshot,
@@ -7257,3 +7259,245 @@ export class VolumetricFogPass extends PostProcessPass {
     );
   }
 }
+
+/* ================================================================================================
+ * Culling, and drawing many copies of one thing
+ * ==============================================================================================*/
+
+function sphereSnapshot(sphere: BoundingSphere, what: string): BoundingSphereSnapshot {
+  if (sphere == null) throw new TypeError(`${what} is required`);
+  return {
+    Center: vectorSnapshot(sphere.Center, `${what}.Center`),
+    Radius: finite(sphere.Radius, `${what}.Radius`),
+  };
+}
+
+/**
+ * Decides what a camera can see, before anything is drawn.
+ *
+ * The frustum it builds is XNA's own: {@link Frustum} hands back the view-projection a
+ * `BoundingFrustum` is constructed from, so a caller can ask this and XNA the same question and
+ * get the same answer — which is what the tests do.
+ */
+export class FrustumCuller implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor() {
+    this.#handle = extensions().createFrustumCuller();
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the frustum culler is disposed");
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Harmless twice. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroyFrustumCuller(handle);
+  }
+
+  /** Points it at a camera, as one combined matrix. */
+  public SetViewProjection(viewProjection: Matrix): void {
+    extensions().setFrustumCullerViewProjection(
+      this.#active(), matrixValues(viewProjection, "viewProjection"));
+  }
+
+  /** The same, from the two matrices a camera actually holds. */
+  public SetCamera(view: Matrix, projection: Matrix): void {
+    extensions().setFrustumCullerCamera(
+      this.#active(), matrixValues(view, "view"), matrixValues(projection, "projection"));
+  }
+
+  /** The view-projection the culler is testing against, as a `BoundingFrustum` would hold it. */
+  public get Frustum(): Matrix {
+    return toMatrix(extensions().getFrustumCullerFrustum(this.#active()));
+  }
+
+  /** Whether a box is at least partly inside. */
+  public IsVisible(bounds: BoundingBox): boolean;
+  /** Whether a sphere is. */
+  public IsVisible(bounds: BoundingSphere): boolean;
+  public IsVisible(bounds: BoundingBox | BoundingSphere): boolean {
+    if (bounds == null) throw new TypeError("bounds is required");
+    return "Radius" in bounds
+      ? extensions().isFrustumCullerSphereVisible(
+        this.#active(), sphereSnapshot(bounds as BoundingSphere, "bounds"))
+      : extensions().isFrustumCullerBoxVisible(
+        this.#active(), boundsSnapshot(bounds as BoundingBox));
+  }
+
+  /** The indices of the boxes that survive, in the order they were given. */
+  public CullBoxes(bounds: readonly BoundingBox[]): number[] {
+    if (!Array.isArray(bounds)) throw new TypeError("bounds must be an array");
+    return [...extensions().frustumCullerCullBoxes(
+      this.#active(), bounds.map((box, index) => boundsSnapshot(box)))];
+  }
+
+  /** The same for spheres. */
+  public CullSpheres(bounds: readonly BoundingSphere[]): number[] {
+    if (!Array.isArray(bounds)) throw new TypeError("bounds must be an array");
+    return [...extensions().frustumCullerCullSpheres(
+      this.#active(), bounds.map((sphere, index) => sphereSnapshot(sphere, `bounds[${index}]`)))];
+  }
+
+  /**
+   * The transforms that survive, rather than their indices.
+   *
+   * Two traps, both measured rather than assumed. The bounds are matched to the transforms **by
+   * index** and are already in **world space**: the transform is the payload being filtered, not
+   * something applied to its bound, so passing one shared local box does not test every transform
+   * against it. And a transform with **no matching bound is kept**, not dropped — CNA's own header
+   * says so, because the canonical body tests `index >= bounds.length || visible(bounds[index])`.
+   * So a short bounds array means "these are always visible", which is the opposite of what a
+   * caller who miscounted would expect. Give one world-space bound per transform, and this answers
+   * exactly what {@link CullBoxes} answers for the same boxes.
+   */
+  public CullTransforms(
+    transforms: readonly Matrix[], bounds: readonly BoundingBox[],
+  ): Matrix[] {
+    if (!Array.isArray(transforms)) throw new TypeError("transforms must be an array");
+    if (!Array.isArray(bounds)) throw new TypeError("bounds must be an array");
+    return extensions().frustumCullerCullTransforms(
+      this.#active(),
+      transforms.map((matrix, index) => matrixValues(matrix, `transforms[${index}]`)),
+      bounds.map((box, index) => boundsSnapshot(box)),
+    ).map((values) => toMatrix(values));
+  }
+}
+
+/** One instance a GPU culler tests: where it is, and how big it is in its own space. */
+export interface CullableInstance {
+  /** Its world transform. */
+  World: Matrix;
+  /** Its bounds, before that transform. */
+  Bounds: BoundingBox;
+}
+
+/**
+ * The same test, run on the GPU over many instances at once.
+ *
+ * Needs compute shaders and indirect drawing, and says so through {@link IsSupported} and
+ * {@link UnsupportedReason} rather than refusing. {@link VisibleCount} reads back how many
+ * instances actually survived, which is the only way to see what a compute pass decided.
+ */
+export class GpuInstanceCuller implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#handle = extensions().createGpuInstanceCuller(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice));
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the GPU instance culler is disposed");
+    }
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Harmless twice. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroyGpuInstanceCuller(handle);
+  }
+
+  /** Whether this device can run the cull at all. */
+  public get IsSupported(): boolean {
+    return extensions().isGpuInstanceCullerSupported(this.#active());
+  }
+
+  /** Why not, in CNA's own words, or `""` when it can. */
+  public get UnsupportedReason(): string {
+    return extensions().getGpuInstanceCullerUnsupportedReason(this.#active());
+  }
+
+  /** How many instances it holds. */
+  public get InstanceCount(): number {
+    return extensions().getGpuInstanceCullerInstanceCount(this.#active());
+  }
+
+  /** How many of them the last cull kept. */
+  public get VisibleCount(): number {
+    return extensions().getGpuInstanceCullerVisibleCount(this.#active());
+  }
+
+  /** Gives it the instances to test. */
+  public SetInstances(instances: readonly CullableInstance[]): void {
+    if (!Array.isArray(instances)) throw new TypeError("instances must be an array");
+    extensions().setGpuInstanceCullerInstances(this.#active(), instances.map((instance, index) => {
+      if (instance == null) throw new TypeError(`instances[${index}] is required`);
+      return {
+        World: matrixValues(instance.World, `instances[${index}].World`),
+        Bounds: boundsSnapshot(instance.Bounds),
+      };
+    }));
+  }
+
+  /** Runs the cull for a camera, recording the draw the survivors would need. */
+  public Cull(
+    view: Matrix, projection: Matrix,
+    indexCount: number, firstIndex: number, baseVertex: number,
+  ): void {
+    extensions().gpuInstanceCullerCull(
+      this.#active(), matrixValues(view, "view"), matrixValues(projection, "projection"),
+      wholeNumber(indexCount, "indexCount"), wholeNumber(firstIndex, "firstIndex"),
+      wholeNumber(baseVertex, "baseVertex"),
+    );
+  }
+
+  /** Draws what survived, indirectly, without reading the count back to the CPU first. */
+  public Draw(primitiveType: PrimitiveType): void {
+    extensions().gpuInstanceCullerDraw(this.#active(), wholeNumber(primitiveType, "primitiveType"));
+  }
+
+  /** The GLSL a shader includes to look an instance up by its index in the surviving list. */
+  public static get InstanceLookupGlsl(): string {
+    return extensions().getGpuInstanceCullerInstanceLookupGlsl();
+  }
+}
+
+/**
+ * The two vertex declarations an instancing stream takes, and their strides.
+ *
+ * CNA's own instanced renderer object is deliberately not projected, for the reason
+ * `cna_lod_group_ext_select` is not: it is built around a `CNA_ModelMeshPartHandle`, and this
+ * package's `ModelMeshPart` is a managed projection with managed vertex and index buffers and no
+ * native handle to give. Binding it would offer routes that could only ever be handed zero.
+ *
+ * What a caller actually needs in order to draw instances themselves is here: the layout of the
+ * per-instance transform stream and of the per-instance tint stream, described by CNA rather than
+ * written down again, so a `VertexBuffer` built to them is built to what the layer's shaders read.
+ */
+export const InstanceStreams = {
+  /** The per-instance transform stream's elements. */
+  get TransformElements(): readonly VertexElementSnapshot[] {
+    return extensions().getInstancedRendererInstanceElements();
+  },
+
+  /** Its stride in bytes, which four rows of four floats fills exactly. */
+  get TransformStride(): number {
+    return extensions().getInstancedRendererInstanceStride();
+  },
+
+  /** The per-instance tint stream's elements. */
+  get TintElements(): readonly VertexElementSnapshot[] {
+    return extensions().getInstancedRendererTintElements();
+  },
+
+  /** And its stride. */
+  get TintStride(): number {
+    return extensions().getInstancedRendererTintStride();
+  },
+} as const;

@@ -921,6 +921,25 @@ typedef CNA_Result (*AerialTransmittanceFn)(float, float, CNA_Vector3*);
 typedef CNA_Result (*HeightFogOpticalDepthFn)(float, float, float, float, float, float, float*);
 typedef CNA_Result (*VolumetricFogSetLightFn)(CNA_Handle, CNA_Handle, const CNA_Vector3*, const CNA_Vector3*);
 
+typedef CNA_Result (*InstancedRendererCreateFn)(CNA_Handle, CNA_Handle, CNA_Handle*);
+typedef CNA_Result (*InstanceElementsFn)(CNA_VertexElement*, uint64_t, uint64_t*);
+typedef CNA_Result (*StrideOutFn)(int32_t*);
+typedef CNA_Result (*InstancedSetTransformsFn)(CNA_Handle, const CNA_Matrix*, uint64_t);
+typedef CNA_Result (*InstancedSetTintsFn)(CNA_Handle, const CNA_Color*, uint64_t);
+typedef CNA_Result (*FrustumCullerCreateFn)(CNA_Handle*);
+typedef CNA_Result (*CullerMatrixFn)(CNA_Handle, const CNA_Matrix*);
+typedef CNA_Result (*CullerCameraFn)(CNA_Handle, const CNA_Matrix*, const CNA_Matrix*);
+typedef CNA_Result (*CullerFrustumFn)(CNA_Handle, CNA_BoundingFrustum*);
+typedef CNA_Result (*CullerBoxVisibleFn)(CNA_Handle, const CNA_BoundingBox*, CNA_Bool*);
+typedef CNA_Result (*CullerSphereVisibleFn)(CNA_Handle, const CNA_BoundingSphere*, CNA_Bool*);
+typedef CNA_Result (*CullBoxesFn)(CNA_Handle, const CNA_BoundingBox*, uint64_t, uint64_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CullSpheresFn)(CNA_Handle, const CNA_BoundingSphere*, uint64_t, uint64_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CullTransformsFn)(CNA_Handle, const CNA_Matrix*, uint64_t, const CNA_BoundingBox*, uint64_t, CNA_Matrix*, uint64_t, uint64_t*);
+typedef CNA_Result (*GpuCullSetInstancesFn)(CNA_Handle, const CNA_GpuCullableInstance*, uint64_t);
+typedef CNA_Result (*GpuCullFn)(CNA_Handle, const CNA_Matrix*, const CNA_Matrix*, int32_t, int32_t, int32_t);
+typedef CNA_Result (*GpuCullGlslFn)(char*, uint64_t, uint64_t*);
+typedef CNA_Result (*GpuCullDrawFn)(CNA_Handle, CNA_PrimitiveType);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2380,6 +2399,33 @@ typedef struct Api {
   AerialTransmittanceFn aerial_perspective_pass_transmittance;
   HeightFogOpticalDepthFn height_fog_pass_optical_depth;
   VolumetricFogSetLightFn volumetric_fog_pass_set_light;
+  InstanceElementsFn instanced_renderer_ext_copy_instance_elements;
+  StrideOutFn instanced_renderer_ext_get_instance_stride;
+  InstanceElementsFn instanced_renderer_ext_copy_tint_elements;
+  StrideOutFn instanced_renderer_ext_get_tint_stride;
+  HandleI32OutFn instanced_renderer_ext_get_instance_count;
+  HandleI32OutFn instanced_renderer_ext_get_instance_capacity;
+  HandleI32OutFn instanced_renderer_ext_get_last_draw_call_count;
+  FrustumCullerCreateFn frustum_culler_ext_create;
+  GameHandleFn frustum_culler_ext_destroy;
+  CullerMatrixFn frustum_culler_ext_set_view_projection;
+  CullerCameraFn frustum_culler_ext_set_camera;
+  CullerFrustumFn frustum_culler_ext_get_frustum;
+  CullerBoxVisibleFn frustum_culler_ext_is_box_visible;
+  CullerSphereVisibleFn frustum_culler_ext_is_sphere_visible;
+  CullBoxesFn frustum_culler_ext_cull_boxes;
+  CullSpheresFn frustum_culler_ext_cull_spheres;
+  CullTransformsFn frustum_culler_ext_cull_transforms;
+  PostProcessPassCreateFn gpu_instance_culler_create;
+  GameHandleFn gpu_instance_culler_destroy;
+  BoolGetFn gpu_instance_culler_is_supported;
+  HandleCopyStringFn gpu_instance_culler_copy_unsupported_reason;
+  GpuCullSetInstancesFn gpu_instance_culler_set_instances;
+  HandleI32OutFn gpu_instance_culler_get_instance_count;
+  GpuCullFn gpu_instance_culler_cull;
+  GpuCullDrawFn gpu_instance_culler_draw;
+  HandleI32OutFn gpu_instance_culler_read_visible_count_ext;
+  GpuCullGlslFn gpu_instance_culler_copy_instance_lookup_glsl;
 } Api;
 
 typedef struct GameContext {
@@ -4149,6 +4195,30 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(aerial_perspective_pass_transmittance, AerialTransmittanceFn, "cna_aerial_perspective_pass_transmittance");
   LOAD_REQUIRED(height_fog_pass_optical_depth, HeightFogOpticalDepthFn, "cna_height_fog_pass_optical_depth");
   LOAD_REQUIRED(volumetric_fog_pass_set_light, VolumetricFogSetLightFn, "cna_volumetric_fog_pass_set_light");
+  LOAD_REQUIRED(instanced_renderer_ext_copy_instance_elements, InstanceElementsFn, "cna_instanced_renderer_ext_copy_instance_elements");
+  LOAD_REQUIRED(instanced_renderer_ext_get_instance_stride, StrideOutFn, "cna_instanced_renderer_ext_get_instance_stride");
+  LOAD_REQUIRED(instanced_renderer_ext_copy_tint_elements, InstanceElementsFn, "cna_instanced_renderer_ext_copy_tint_elements");
+  LOAD_REQUIRED(instanced_renderer_ext_get_tint_stride, StrideOutFn, "cna_instanced_renderer_ext_get_tint_stride");
+  LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
+  LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
+  LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
+  LOAD_REQUIRED(frustum_culler_ext_set_camera, CullerCameraFn, "cna_frustum_culler_ext_set_camera");
+  LOAD_REQUIRED(frustum_culler_ext_get_frustum, CullerFrustumFn, "cna_frustum_culler_ext_get_frustum");
+  LOAD_REQUIRED(frustum_culler_ext_is_box_visible, CullerBoxVisibleFn, "cna_frustum_culler_ext_is_box_visible");
+  LOAD_REQUIRED(frustum_culler_ext_is_sphere_visible, CullerSphereVisibleFn, "cna_frustum_culler_ext_is_sphere_visible");
+  LOAD_REQUIRED(frustum_culler_ext_cull_boxes, CullBoxesFn, "cna_frustum_culler_ext_cull_boxes");
+  LOAD_REQUIRED(frustum_culler_ext_cull_spheres, CullSpheresFn, "cna_frustum_culler_ext_cull_spheres");
+  LOAD_REQUIRED(frustum_culler_ext_cull_transforms, CullTransformsFn, "cna_frustum_culler_ext_cull_transforms");
+  LOAD_REQUIRED(gpu_instance_culler_create, PostProcessPassCreateFn, "cna_gpu_instance_culler_create");
+  LOAD_REQUIRED(gpu_instance_culler_destroy, GameHandleFn, "cna_gpu_instance_culler_destroy");
+  LOAD_REQUIRED(gpu_instance_culler_is_supported, BoolGetFn, "cna_gpu_instance_culler_is_supported");
+  LOAD_REQUIRED(gpu_instance_culler_copy_unsupported_reason, HandleCopyStringFn, "cna_gpu_instance_culler_copy_unsupported_reason");
+  LOAD_REQUIRED(gpu_instance_culler_set_instances, GpuCullSetInstancesFn, "cna_gpu_instance_culler_set_instances");
+  LOAD_REQUIRED(gpu_instance_culler_get_instance_count, HandleI32OutFn, "cna_gpu_instance_culler_get_instance_count");
+  LOAD_REQUIRED(gpu_instance_culler_cull, GpuCullFn, "cna_gpu_instance_culler_cull");
+  LOAD_REQUIRED(gpu_instance_culler_draw, GpuCullDrawFn, "cna_gpu_instance_culler_draw");
+  LOAD_REQUIRED(gpu_instance_culler_read_visible_count_ext, HandleI32OutFn, "cna_gpu_instance_culler_read_visible_count_ext");
+  LOAD_REQUIRED(gpu_instance_culler_copy_instance_lookup_glsl, GpuCullGlslFn, "cna_gpu_instance_culler_copy_instance_lookup_glsl");
   LOAD_REQUIRED(pbr_material_extensions_get_attenuation_color, SkyVector3OutFn, "cna_pbr_material_extensions_get_attenuation_color");
   LOAD_REQUIRED(pbr_material_extensions_get_attenuation_distance, HandleFloatOutFn, "cna_pbr_material_extensions_get_attenuation_distance");
   LOAD_REQUIRED(pbr_material_extensions_get_clearcoat_factor, HandleFloatOutFn, "cna_pbr_material_extensions_get_clearcoat_factor");
@@ -23728,10 +23798,509 @@ static napi_value bridge_aerial_perspective_pass_copy_fallback_reason(napi_env e
   return copy_sized_text(env, info, g_api.aerial_perspective_pass_copy_fallback_reason, "cna_aerial_perspective_pass_copy_fallback_reason");
 }
 
+/* ---- frustum culling, GPU instance culling and the instanced renderer -------------------------
+   Geometry rather than pixels: what a culler answers can be predicted from the same frustum this
+   package already builds for XNA, so the two are compared against each other. */
+
+static int read_bounding_sphere(napi_env env, napi_value value, CNA_BoundingSphere* sphere) {
+  double radius = 0;
+  if (!read_vector3(env, value, "Center", &sphere->center) ||
+      !get_named_double(env, value, "Radius", &radius)) {
+    throw_message(env, "a bounding sphere needs a Center and a Radius");
+    return 0;
+  }
+  sphere->radius = (float) radius;
+  return 1;
+}
+
+/** Reads an array of one shape, allocating for it; the caller frees. */
+static void* read_struct_array(
+  napi_env env, napi_value value, size_t element_size, uint32_t* out_count,
+  int (*reader)(napi_env, napi_value, void*), const char* what
+) {
+  napi_value entry;
+  uint32_t count = 0;
+  if (napi_get_array_length(env, value, &count) != napi_ok) {
+    throw_message(env, what);
+    return NULL;
+  }
+  *out_count = count;
+  if (count == 0) return NULL;
+  void* items = calloc(count, element_size);
+  if (!items) {
+    throw_message(env, "array allocation failed");
+    return NULL;
+  }
+  for (uint32_t index = 0; index < count; index += 1) {
+    if (napi_get_element(env, value, index, &entry) != napi_ok ||
+        !reader(env, entry, (char*) items + (size_t) index * element_size)) {
+      free(items);
+      return NULL;
+    }
+  }
+  return items;
+}
+
+static int read_box_element(napi_env env, napi_value value, void* out) {
+  return read_bounding_box(env, value, (CNA_BoundingBox*) out);
+}
+
+static int read_sphere_element(napi_env env, napi_value value, void* out) {
+  return read_bounding_sphere(env, value, (CNA_BoundingSphere*) out);
+}
+
+static int read_matrix_element(napi_env env, napi_value value, void* out) {
+  return read_matrix16(env, value, (CNA_Matrix*) out, "a transform");
+}
+
+static int read_cullable_instance(napi_env env, napi_value value, void* out) {
+  CNA_GpuCullableInstance* instance = (CNA_GpuCullableInstance*) out;
+  napi_value entry;
+  memset(instance, 0, sizeof(*instance));
+  instance->struct_size = sizeof(*instance);
+  instance->struct_version = 1;
+  if (!get_named_value(env, value, "World", &entry) ||
+      !read_matrix16(env, entry, &instance->world, "an instance world transform") ||
+      !get_named_value(env, value, "Bounds", &entry) ||
+      !read_bounding_box(env, entry, &instance->bounds)) return 0;
+  return 1;
+}
+
+static napi_value bridge_frustum_culler_ext_create(napi_env env, napi_callback_info info) {
+  (void) info;
+  CNA_Handle culler = 0;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.frustum_culler_ext_create(&culler);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_frustum_culler_ext_create", result);
+  }
+  return make_handle(env, culler);
+}
+
+static napi_value bridge_frustum_culler_ext_set_view_projection(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2];
+  CNA_Handle culler = 0;
+  CNA_Matrix matrix;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &culler) ||
+      !read_matrix16(env, args[1], &matrix, "a view-projection")) return NULL;
+  const CNA_Result result = g_api.frustum_culler_ext_set_view_projection(culler, &matrix);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_frustum_culler_ext_set_view_projection", result);
+  }
+  return undefined_result(env, "cna_frustum_culler_ext_set_view_projection");
+}
+
+static napi_value bridge_frustum_culler_ext_set_camera(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle culler = 0;
+  CNA_Matrix view, projection;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &culler) ||
+      !read_matrix16(env, args[1], &view, "a view") ||
+      !read_matrix16(env, args[2], &projection, "a projection")) return NULL;
+  const CNA_Result result = g_api.frustum_culler_ext_set_camera(culler, &view, &projection);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_frustum_culler_ext_set_camera", result);
+  }
+  return undefined_result(env, "cna_frustum_culler_ext_set_camera");
+}
+
+static napi_value bridge_frustum_culler_ext_get_frustum(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle culler = 0;
+  CNA_BoundingFrustum frustum;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &culler)) return NULL;
+  memset(&frustum, 0, sizeof(frustum));
+  const CNA_Result result = g_api.frustum_culler_ext_get_frustum(culler, &frustum);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_frustum_culler_ext_get_frustum", result);
+  }
+  return make_matrix16(env, &frustum.matrix, "a culler's frustum");
+}
+
+static napi_value bridge_frustum_culler_ext_is_box_visible(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle culler = 0;
+  CNA_BoundingBox box;
+  CNA_Bool visible = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &culler) || !read_bounding_box(env, args[1], &box)) return NULL;
+  const CNA_Result result = g_api.frustum_culler_ext_is_box_visible(culler, &box, &visible);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_frustum_culler_ext_is_box_visible", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_get_boolean(env, visible != CNA_FALSE, &output),
+    "cna_frustum_culler_ext_is_box_visible");
+  return output;
+}
+
+static napi_value bridge_frustum_culler_ext_is_sphere_visible(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  CNA_Handle culler = 0;
+  CNA_BoundingSphere sphere;
+  CNA_Bool visible = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &culler) ||
+      !read_bounding_sphere(env, args[1], &sphere)) return NULL;
+  const CNA_Result result = g_api.frustum_culler_ext_is_sphere_visible(culler, &sphere, &visible);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_frustum_culler_ext_is_sphere_visible", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_get_boolean(env, visible != CNA_FALSE, &output),
+    "cna_frustum_culler_ext_is_sphere_visible");
+  return output;
+}
+
+/** The surviving indices, which is what both cull-by-bounds routes answer. */
+static napi_value cull_indices(
+  napi_env env, napi_callback_info info, size_t element_size,
+  int (*reader)(napi_env, napi_value, void*),
+  CNA_Result (*route)(CNA_Handle, const void*, uint64_t, uint64_t*, uint64_t, uint64_t*),
+  const char* name
+) {
+  napi_value args[2], output, entry;
+  CNA_Handle culler = 0;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &culler)) return NULL;
+  void* items = read_struct_array(
+    env, args[1], element_size, &count, reader, "a cull needs an array of bounds");
+  if (count != 0 && !items) return NULL;
+  uint64_t* indices = count == 0 ? NULL : (uint64_t*) calloc(count, sizeof(uint64_t));
+  if (count != 0 && !indices) {
+    free(items);
+    return throw_message(env, "cull index allocation failed");
+  }
+  uint64_t produced = 0;
+  const CNA_Result result = route(culler, items, count, indices, count, &produced);
+  free(items);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(indices);
+    return throw_result(env, name, result);
+  }
+  if (napi_create_array_with_length(env, (size_t) produced, &output) != napi_ok) {
+    free(indices);
+    return throw_napi(env, name);
+  }
+  for (uint64_t index = 0; index < produced; index += 1) {
+    if (napi_create_uint32(env, (uint32_t) indices[index], &entry) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      free(indices);
+      return throw_napi(env, name);
+    }
+  }
+  free(indices);
+  return output;
+}
+
+static napi_value bridge_frustum_culler_ext_cull_boxes(napi_env env, napi_callback_info info) {
+  return cull_indices(
+    env, info, sizeof(CNA_BoundingBox), read_box_element,
+    (CNA_Result (*)(CNA_Handle, const void*, uint64_t, uint64_t*, uint64_t, uint64_t*))
+      g_api.frustum_culler_ext_cull_boxes,
+    "cna_frustum_culler_ext_cull_boxes");
+}
+
+static napi_value bridge_frustum_culler_ext_cull_spheres(napi_env env, napi_callback_info info) {
+  return cull_indices(
+    env, info, sizeof(CNA_BoundingSphere), read_sphere_element,
+    (CNA_Result (*)(CNA_Handle, const void*, uint64_t, uint64_t*, uint64_t, uint64_t*))
+      g_api.frustum_culler_ext_cull_spheres,
+    "cna_frustum_culler_ext_cull_spheres");
+}
+
+static napi_value bridge_frustum_culler_ext_cull_transforms(napi_env env, napi_callback_info info) {
+  napi_value args[3], output, entry;
+  CNA_Handle culler = 0;
+  uint32_t transform_count = 0, bounds_count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &culler)) return NULL;
+  CNA_Matrix* transforms = (CNA_Matrix*) read_struct_array(
+    env, args[1], sizeof(CNA_Matrix), &transform_count, read_matrix_element,
+    "a cull needs an array of transforms");
+  if (transform_count != 0 && !transforms) return NULL;
+  CNA_BoundingBox* bounds = (CNA_BoundingBox*) read_struct_array(
+    env, args[2], sizeof(CNA_BoundingBox), &bounds_count, read_box_element,
+    "a cull needs an array of bounds");
+  if (bounds_count != 0 && !bounds) {
+    free(transforms);
+    return NULL;
+  }
+  CNA_Matrix* kept = transform_count == 0
+    ? NULL : (CNA_Matrix*) calloc(transform_count, sizeof(CNA_Matrix));
+  if (transform_count != 0 && !kept) {
+    free(transforms);
+    free(bounds);
+    return throw_message(env, "cull transform allocation failed");
+  }
+  uint64_t produced = 0;
+  const CNA_Result result = g_api.frustum_culler_ext_cull_transforms(
+    culler, transforms, transform_count, bounds, bounds_count, kept, transform_count, &produced);
+  free(transforms);
+  free(bounds);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(kept);
+    return throw_result(env, "cna_frustum_culler_ext_cull_transforms", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) produced, &output) != napi_ok) {
+    free(kept);
+    return throw_napi(env, "cna_frustum_culler_ext_cull_transforms");
+  }
+  for (uint64_t index = 0; index < produced; index += 1) {
+    entry = make_matrix16(env, &kept[index], "a kept transform");
+    if (!entry || napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      free(kept);
+      return throw_napi(env, "cna_frustum_culler_ext_cull_transforms");
+    }
+  }
+  free(kept);
+  return output;
+}
+
+static napi_value bridge_gpu_instance_culler_set_instances(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle culler = 0;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &culler)) return NULL;
+  CNA_GpuCullableInstance* instances = (CNA_GpuCullableInstance*) read_struct_array(
+    env, args[1], sizeof(CNA_GpuCullableInstance), &count, read_cullable_instance,
+    "instances must be an array of a World and a Bounds");
+  if (count != 0 && !instances) return NULL;
+  const CNA_Result result = g_api.gpu_instance_culler_set_instances(culler, instances, count);
+  free(instances);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gpu_instance_culler_set_instances", result);
+  }
+  return undefined_result(env, "cna_gpu_instance_culler_set_instances");
+}
+
+static napi_value bridge_gpu_instance_culler_cull(napi_env env, napi_callback_info info) {
+  napi_value args[6];
+  CNA_Handle culler = 0;
+  CNA_Matrix view, projection;
+  int32_t index_count = 0, first_index = 0, base_vertex = 0;
+  if (!require_loaded(env) || !get_args(env, info, 6, args) ||
+      !read_handle(env, args[0], &culler) ||
+      !read_matrix16(env, args[1], &view, "a view") ||
+      !read_matrix16(env, args[2], &projection, "a projection") ||
+      napi_get_value_int32(env, args[3], &index_count) != napi_ok ||
+      napi_get_value_int32(env, args[4], &first_index) != napi_ok ||
+      napi_get_value_int32(env, args[5], &base_vertex) != napi_ok) {
+    return throw_message(env, "expected a culler, a camera and three draw counts");
+  }
+  const CNA_Result result = g_api.gpu_instance_culler_cull(
+    culler, &view, &projection, index_count, first_index, base_vertex);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gpu_instance_culler_cull", result);
+  }
+  return undefined_result(env, "cna_gpu_instance_culler_cull");
+}
+
+static napi_value bridge_gpu_instance_culler_copy_instance_lookup_glsl(
+  napi_env env, napi_callback_info info
+) {
+  (void) info;
+  napi_value output;
+  uint64_t length = 0, copied = 0;
+  if (!require_loaded(env)) return NULL;
+  CNA_Result result = g_api.gpu_instance_culler_copy_instance_lookup_glsl(NULL, 0, &length);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_gpu_instance_culler_copy_instance_lookup_glsl", result);
+  }
+  if (length > SIZE_MAX) return throw_message(env, "native string exceeds host address space");
+  char* text = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !text) return throw_message(env, "native string allocation failed");
+  result = g_api.gpu_instance_culler_copy_instance_lookup_glsl(text, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(text);
+    return throw_result(env, "cna_gpu_instance_culler_copy_instance_lookup_glsl", result);
+  }
+  const napi_status status =
+    napi_create_string_utf8(env, text ? text : "", (size_t) length, &output);
+  free(text);
+  if (status != napi_ok) {
+    return throw_napi(env, "cna_gpu_instance_culler_copy_instance_lookup_glsl");
+  }
+  return output;
+}
+
+
+
+
+/** The vertex declaration one of the instancing streams needs, as CNA describes it. */
+static napi_value copy_vertex_elements(
+  napi_env env, InstanceElementsFn route, const char* name
+) {
+  napi_value output, entry;
+  uint64_t capacity = 0, produced = 0;
+  if (!require_loaded(env)) return NULL;
+  CNA_Result result = route(NULL, 0, &capacity);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, name, result);
+  }
+  if (capacity > 4096) return throw_message(env, "an implausible vertex element count");
+  CNA_VertexElement* elements = capacity == 0
+    ? NULL : (CNA_VertexElement*) calloc((size_t) capacity, sizeof(CNA_VertexElement));
+  if (capacity != 0 && !elements) return throw_message(env, "vertex element allocation failed");
+  result = route(elements, capacity, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != capacity) {
+    free(elements);
+    return throw_result(env, name, result);
+  }
+  if (napi_create_array_with_length(env, (size_t) produced, &output) != napi_ok) {
+    free(elements);
+    return throw_napi(env, name);
+  }
+  for (uint64_t index = 0; index < produced; index += 1) {
+    if (napi_create_object(env, &entry) != napi_ok ||
+        !set_i32_property(env, entry, "Offset", elements[index].offset) ||
+        !set_u32_property(env, entry, "VertexElementFormat", elements[index].format) ||
+        !set_u32_property(env, entry, "VertexElementUsage", elements[index].usage) ||
+        !set_i32_property(env, entry, "UsageIndex", elements[index].usage_index) ||
+        napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      free(elements);
+      return throw_napi(env, name);
+    }
+  }
+  free(elements);
+  return output;
+}
+
+/*
+ * The instanced renderer's own object is deliberately not bound, and for the reason the LOD group
+ * above records: `cna_instanced_renderer_ext_create` takes a `CNA_ModelMeshPartHandle`, and this
+ * package's `ModelMeshPart` is a managed projection built from XNB readers with managed vertex and
+ * index buffers and no native handle to give. Binding it would project routes that could only ever
+ * be handed zero. What *is* bound is the part a caller needs whatever draws the instances: the two
+ * vertex declarations the instancing streams take and their strides, which are static and describe
+ * the buffers a consumer builds themselves.
+ */
+static napi_value bridge_instanced_renderer_ext_copy_instance_elements(
+  napi_env env, napi_callback_info info
+) {
+  (void) info;
+  return copy_vertex_elements(
+    env, g_api.instanced_renderer_ext_copy_instance_elements,
+    "cna_instanced_renderer_ext_copy_instance_elements");
+}
+
+static napi_value bridge_instanced_renderer_ext_copy_tint_elements(
+  napi_env env, napi_callback_info info
+) {
+  (void) info;
+  return copy_vertex_elements(
+    env, g_api.instanced_renderer_ext_copy_tint_elements,
+    "cna_instanced_renderer_ext_copy_tint_elements");
+}
+
+static napi_value stride_only(napi_env env, StrideOutFn route, const char* name) {
+  napi_value output;
+  int32_t stride = 0;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = route(&stride);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_int32(env, stride, &output), name);
+  return output;
+}
+
+static napi_value bridge_instanced_renderer_ext_get_instance_stride(
+  napi_env env, napi_callback_info info
+) {
+  (void) info;
+  return stride_only(
+    env, g_api.instanced_renderer_ext_get_instance_stride,
+    "cna_instanced_renderer_ext_get_instance_stride");
+}
+
+static napi_value bridge_instanced_renderer_ext_get_tint_stride(
+  napi_env env, napi_callback_info info
+) {
+  (void) info;
+  return stride_only(
+    env, g_api.instanced_renderer_ext_get_tint_stride,
+    "cna_instanced_renderer_ext_get_tint_stride");
+}
+
+
+
+
+
+
+
+
+
+
+
+
+static napi_value bridge_frustum_culler_ext_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.frustum_culler_ext_destroy, "cna_frustum_culler_ext_destroy");
+}
+
+static napi_value bridge_gpu_instance_culler_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.gpu_instance_culler_create, "cna_gpu_instance_culler_create");
+}
+
+static napi_value bridge_gpu_instance_culler_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.gpu_instance_culler_destroy, "cna_gpu_instance_culler_destroy");
+}
+
+static napi_value bridge_gpu_instance_culler_is_supported(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.gpu_instance_culler_is_supported, "cna_gpu_instance_culler_is_supported");
+}
+
+static napi_value bridge_gpu_instance_culler_copy_unsupported_reason(napi_env env, napi_callback_info info) {
+  return copy_sized_text(env, info, g_api.gpu_instance_culler_copy_unsupported_reason, "cna_gpu_instance_culler_copy_unsupported_reason");
+}
+
+static napi_value bridge_gpu_instance_culler_get_instance_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.gpu_instance_culler_get_instance_count, "cna_gpu_instance_culler_get_instance_count");
+}
+
+static napi_value bridge_gpu_instance_culler_draw(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, (HandleI32Fn) (void*) g_api.gpu_instance_culler_draw, "cna_gpu_instance_culler_draw");
+}
+
+static napi_value bridge_gpu_instance_culler_read_visible_count_ext(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.gpu_instance_culler_read_visible_count_ext, "cna_gpu_instance_culler_read_visible_count_ext");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "getInstancedRendererInstanceElements", NULL, bridge_instanced_renderer_ext_copy_instance_elements, NULL, NULL, NULL, napi_default, NULL },
+    { "getInstancedRendererInstanceStride", NULL, bridge_instanced_renderer_ext_get_instance_stride, NULL, NULL, NULL, napi_default, NULL },
+    { "getInstancedRendererTintElements", NULL, bridge_instanced_renderer_ext_copy_tint_elements, NULL, NULL, NULL, napi_default, NULL },
+    { "getInstancedRendererTintStride", NULL, bridge_instanced_renderer_ext_get_tint_stride, NULL, NULL, NULL, napi_default, NULL },
+    { "createFrustumCuller", NULL, bridge_frustum_culler_ext_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyFrustumCuller", NULL, bridge_frustum_culler_ext_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "setFrustumCullerViewProjection", NULL, bridge_frustum_culler_ext_set_view_projection, NULL, NULL, NULL, napi_default, NULL },
+    { "setFrustumCullerCamera", NULL, bridge_frustum_culler_ext_set_camera, NULL, NULL, NULL, napi_default, NULL },
+    { "getFrustumCullerFrustum", NULL, bridge_frustum_culler_ext_get_frustum, NULL, NULL, NULL, napi_default, NULL },
+    { "isFrustumCullerBoxVisible", NULL, bridge_frustum_culler_ext_is_box_visible, NULL, NULL, NULL, napi_default, NULL },
+    { "isFrustumCullerSphereVisible", NULL, bridge_frustum_culler_ext_is_sphere_visible, NULL, NULL, NULL, napi_default, NULL },
+    { "frustumCullerCullBoxes", NULL, bridge_frustum_culler_ext_cull_boxes, NULL, NULL, NULL, napi_default, NULL },
+    { "frustumCullerCullSpheres", NULL, bridge_frustum_culler_ext_cull_spheres, NULL, NULL, NULL, napi_default, NULL },
+    { "frustumCullerCullTransforms", NULL, bridge_frustum_culler_ext_cull_transforms, NULL, NULL, NULL, napi_default, NULL },
+    { "createGpuInstanceCuller", NULL, bridge_gpu_instance_culler_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyGpuInstanceCuller", NULL, bridge_gpu_instance_culler_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "isGpuInstanceCullerSupported", NULL, bridge_gpu_instance_culler_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "getGpuInstanceCullerUnsupportedReason", NULL, bridge_gpu_instance_culler_copy_unsupported_reason, NULL, NULL, NULL, napi_default, NULL },
+    { "setGpuInstanceCullerInstances", NULL, bridge_gpu_instance_culler_set_instances, NULL, NULL, NULL, napi_default, NULL },
+    { "getGpuInstanceCullerInstanceCount", NULL, bridge_gpu_instance_culler_get_instance_count, NULL, NULL, NULL, napi_default, NULL },
+    { "gpuInstanceCullerCull", NULL, bridge_gpu_instance_culler_cull, NULL, NULL, NULL, napi_default, NULL },
+    { "gpuInstanceCullerDraw", NULL, bridge_gpu_instance_culler_draw, NULL, NULL, NULL, napi_default, NULL },
+    { "getGpuInstanceCullerVisibleCount", NULL, bridge_gpu_instance_culler_read_visible_count_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getGpuInstanceCullerInstanceLookupGlsl", NULL, bridge_gpu_instance_culler_copy_instance_lookup_glsl, NULL, NULL, NULL, napi_default, NULL },
     { "createAerialPerspectivePass", NULL, bridge_aerial_perspective_pass_create, NULL, NULL, NULL, napi_default, NULL },
     { "getAerialPerspectiveSunDirection", NULL, bridge_aerial_perspective_pass_get_sun_direction, NULL, NULL, NULL, napi_default, NULL },
     { "setAerialPerspectiveSunDirection", NULL, bridge_aerial_perspective_pass_set_sun_direction, NULL, NULL, NULL, napi_default, NULL },

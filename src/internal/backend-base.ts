@@ -75,6 +75,7 @@ import type {
   CompassReadingSnapshot,
   ContentLostResourceKind,
   CueSnapshot,
+  CullableInstanceSnapshot,
   DepthStencilStateSnapshot,
   DirectionalLightSnapshot,
   DisplayModeSnapshot,
@@ -1647,6 +1648,135 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
     _direction: Vector3Snapshot,
     _color: Vector3Snapshot,
   ): void { return this.unsupported("setVolumetricFogLight"); }
+  public createFrustumCuller(): NativeHandle { return this.unsupported("createFrustumCuller"); }
+  public destroyFrustumCuller(
+    _culler: NativeHandle,
+  ): void { return this.unsupported("destroyFrustumCuller"); }
+  public setFrustumCullerViewProjection(
+    _culler: NativeHandle,
+    _viewProjection: readonly number[],
+  ): void { return this.unsupported("setFrustumCullerViewProjection"); }
+  public setFrustumCullerCamera(
+    _culler: NativeHandle,
+    _view: readonly number[],
+    _projection: readonly number[],
+  ): void { return this.unsupported("setFrustumCullerCamera"); }
+  public getFrustumCullerFrustum(
+    _culler: NativeHandle,
+  ): readonly number[] { return this.unsupported("getFrustumCullerFrustum"); }
+  public isFrustumCullerBoxVisible(
+    _culler: NativeHandle,
+    _box: ClusterBoundsSnapshot,
+  ): boolean { return this.unsupported("isFrustumCullerBoxVisible"); }
+  public isFrustumCullerSphereVisible(
+    _culler: NativeHandle,
+    _sphere: BoundingSphereSnapshot,
+  ): boolean { return this.unsupported("isFrustumCullerSphereVisible"); }
+  public frustumCullerCullBoxes(
+    _culler: NativeHandle,
+    _bounds: readonly ClusterBoundsSnapshot[],
+  ): readonly number[] { return this.unsupported("frustumCullerCullBoxes"); }
+  public frustumCullerCullSpheres(
+    _culler: NativeHandle,
+    _bounds: readonly BoundingSphereSnapshot[],
+  ): readonly number[] { return this.unsupported("frustumCullerCullSpheres"); }
+  public frustumCullerCullTransforms(
+    _culler: NativeHandle,
+    _transforms: readonly (readonly number[])[],
+    _bounds: readonly ClusterBoundsSnapshot[],
+  ): readonly (readonly number[])[] { return this.unsupported("frustumCullerCullTransforms"); }
+  public createGpuInstanceCuller(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createGpuInstanceCuller"); }
+  public destroyGpuInstanceCuller(
+    _culler: NativeHandle,
+  ): void { return this.unsupported("destroyGpuInstanceCuller"); }
+  public isGpuInstanceCullerSupported(
+    _culler: NativeHandle,
+  ): boolean { return this.unsupported("isGpuInstanceCullerSupported"); }
+  public getGpuInstanceCullerUnsupportedReason(
+    _culler: NativeHandle,
+  ): string { return this.unsupported("getGpuInstanceCullerUnsupportedReason"); }
+  public setGpuInstanceCullerInstances(
+    _culler: NativeHandle,
+    _instances: readonly CullableInstanceSnapshot[],
+  ): void { return this.unsupported("setGpuInstanceCullerInstances"); }
+  public getGpuInstanceCullerInstanceCount(
+    _culler: NativeHandle,
+  ): number { return this.unsupported("getGpuInstanceCullerInstanceCount"); }
+  public gpuInstanceCullerCull(
+    _culler: NativeHandle,
+    _view: readonly number[],
+    _projection: readonly number[],
+    _indexCount: number,
+    _firstIndex: number,
+    _baseVertex: number,
+  ): void { return this.unsupported("gpuInstanceCullerCull"); }
+  public gpuInstanceCullerDraw(
+    _culler: NativeHandle,
+    _primitiveType: number,
+  ): void { return this.unsupported("gpuInstanceCullerDraw"); }
+  public getGpuInstanceCullerVisibleCount(
+    _culler: NativeHandle,
+  ): number { return this.unsupported("getGpuInstanceCullerVisibleCount"); }
+  public getGpuInstanceCullerInstanceLookupGlsl(
+  ): string { return this.unsupported("getGpuInstanceCullerInstanceLookupGlsl"); }
+  public createInstancedRenderer(
+    _graphicsDevice: NativeHandle,
+    _part: NativeHandle,
+  ): NativeHandle { return this.unsupported("createInstancedRenderer"); }
+  public destroyInstancedRenderer(
+    _renderer: NativeHandle,
+  ): void { return this.unsupported("destroyInstancedRenderer"); }
+  public getInstancedRendererInstanceElements(
+  ): readonly VertexElementSnapshot[] { return this.unsupported("getInstancedRendererInstanceElements"); }
+  public getInstancedRendererInstanceStride(
+  ): number { return this.unsupported("getInstancedRendererInstanceStride"); }
+  public getInstancedRendererTintElements(
+  ): readonly VertexElementSnapshot[] { return this.unsupported("getInstancedRendererTintElements"); }
+  public getInstancedRendererTintStride(
+  ): number { return this.unsupported("getInstancedRendererTintStride"); }
+  public setInstancedRendererInstances(
+    _renderer: NativeHandle,
+    _transforms: readonly (readonly number[])[],
+  ): void { return this.unsupported("setInstancedRendererInstances"); }
+  public setInstancedRendererInstanceTints(
+    _renderer: NativeHandle,
+    _tints: readonly number[],
+  ): void { return this.unsupported("setInstancedRendererInstanceTints"); }
+  public isInstancedRendererTintsEnabled(
+    _renderer: NativeHandle,
+  ): boolean { return this.unsupported("isInstancedRendererTintsEnabled"); }
+  public setInstancedRendererTintsEnabled(
+    _renderer: NativeHandle,
+    _enabled: boolean,
+  ): void { return this.unsupported("setInstancedRendererTintsEnabled"); }
+  public instancedRendererDraw(
+    _renderer: NativeHandle,
+    _effect: NativeHandle,
+  ): void { return this.unsupported("instancedRendererDraw"); }
+  public isInstancedRendererInstancingSupported(
+    _renderer: NativeHandle,
+  ): boolean { return this.unsupported("isInstancedRendererInstancingSupported"); }
+  public isInstancedRendererFallbackEnabled(
+    _renderer: NativeHandle,
+  ): boolean { return this.unsupported("isInstancedRendererFallbackEnabled"); }
+  public setInstancedRendererFallbackEnabled(
+    _renderer: NativeHandle,
+    _enabled: boolean,
+  ): void { return this.unsupported("setInstancedRendererFallbackEnabled"); }
+  public getInstancedRendererInstanceCount(
+    _renderer: NativeHandle,
+  ): number { return this.unsupported("getInstancedRendererInstanceCount"); }
+  public getInstancedRendererInstanceCapacity(
+    _renderer: NativeHandle,
+  ): number { return this.unsupported("getInstancedRendererInstanceCapacity"); }
+  public getInstancedRendererLastDrawCallCount(
+    _renderer: NativeHandle,
+  ): number { return this.unsupported("getInstancedRendererLastDrawCallCount"); }
+  public didInstancedRendererLastDrawInstance(
+    _renderer: NativeHandle,
+  ): boolean { return this.unsupported("didInstancedRendererLastDrawInstance"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,

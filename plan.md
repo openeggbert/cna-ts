@@ -491,6 +491,24 @@ Electron, or mobile support.
   position out of the depth image was falling back through it. It now carries the projection, both
   inverses, the previous frame's view-projection and whether there was one. Eight planted defects
   fail and none survives.
+- [x] **Culling**, where the acceptance is two implementations of one predicate. CNA's
+  `FrustumCuller` and this package's own XNA `BoundingFrustum` are asked about the same eleven boxes
+  and five spheres for the same camera and agree on every one, with the fixture asserted to be
+  mixed so the agreement cannot be vacuous. The batch routes are checked against the single test —
+  culling a batch keeps exactly what testing one at a time keeps, in order. Culling *transforms*
+  carries two traps and both are pinned: the bounds match by index and are already world-space, so a
+  single shared local box keeps every transform rather than testing them all against it, and a
+  transform with no matching bound is **kept** rather than dropped, which is the opposite of what a
+  caller who miscounted expects. The instancing streams are described by CNA rather than restated:
+  four `Vector4` rows on consecutive texture-coordinate channels at sixteen-byte offsets, stride
+  sixty-four; one packed `Color` for a tint, stride four. The renderer object around them is
+  deliberately not projected, for the reason the LOD group is not — it is built on a
+  `CNA_ModelMeshPartHandle` and this package's `ModelMeshPart` is managed with no native handle to
+  give, so binding it would offer routes that could only ever be handed zero. The GPU instance
+  culler is item 20: it runs, reports success, and keeps every instance, including ones ten thousand
+  units outside a hundred-unit frustum. Two planted defects survive and are recorded rather than
+  hidden — one cannot be observed while the cull rejects nothing, and the other replaces a constant
+  route with the constant it returns, which no test can distinguish.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -585,8 +603,8 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 151 operation families: 21 verified managed, 90 verified native, 13
-  verified WebAssembly, five explicitly unavailable on the qualified backend, four upstream-CNA
+- [x] Current baseline is 153 operation families: 21 verified managed, 91 verified native, 13
+  verified WebAssembly, five explicitly unavailable on the qualified backend, five upstream-CNA
   blocked, three fixture pending, six hardware pending, three platform pending, two unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.
 - [x] Audit every `NativeUnavailableError` and `NotSupportedException` construction site in the
@@ -672,7 +690,7 @@ Electron, or mobile support.
 
 ## Upstream CNA blockers
 
-Nine runtime defects and two build-system gaps remain, all in `cnanext`, all measured here and none
+Ten runtime defects and two build-system gaps remain, all in `cnanext`, all measured here and none
 fixed from this session. `docs/upstream-cna-findings.md` records each with its reproduction and a
 proposed change, and each has a test in this package that fails when the behaviour changes.
 
@@ -707,6 +725,13 @@ effect's pointers; the slot setter writes the C API's own retained-handle table,
 thing the slot getter reads. Measured identically on HEADLESS and OPENGLES3, a texture applied with
 a material is invisible to the getter, a texture placed through the setter is invisible to the
 extractor, and applying a material with an empty slot does not clear one the setter filled (item 19).
+
+The tenth is the quietest and the most expensive to adopt. The GPU instance culler dispatches a
+compute shader that tests every instance against the camera's six frustum planes and increments a
+visible count — and it keeps everything. Three instances ten thousand units outside a hundred-unit
+frustum all survive, on the only renderer built here that supports the culler at all. `is_supported`
+answers true and the unsupported reason is empty, so a game that adopts it pays for the dispatch,
+the upload and the readback and then draws exactly what it would have drawn (item 20).
 
 The runtime one: `cna_post_process_chain_add_owned_pass` consumes a pass handle without the
 `RemoveOwnedGraphicsResourceFor` its sibling `_destroy` performs, so the game's

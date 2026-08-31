@@ -1815,6 +1815,44 @@
         "route:cna_post_process_pass_apply",
         "test:test/windowed-renderer.integration.mjs"
       ]
+    },
+    {
+      "operation": "Frustum culling, and the vertex declarations an instancing stream takes",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the acceptance is two implementations of one predicate, neither derived from the other: CNA's culler and this package's own XNA BoundingFrustum, asked about the same eleven boxes and five spheres built for the same camera. They agree on every one, and the fixture is asserted to be mixed -- neither all visible nor nearly none -- so the agreement cannot be vacuous. The batch routes are checked against the single test rather than against recorded indices: culling a batch keeps exactly what testing them one at a time keeps, in order, and an empty batch keeps nothing. A culler set from one view-projection matrix agrees with one set from two on every case. Culling *transforms* has two traps and both are pinned: the bounds are matched by index and are already world-space, so one shared local box keeps every transform rather than testing them all against it, and a transform with no matching bound is KEPT rather than dropped -- CNA's own header says so, and a caller who miscounted would expect the opposite. Given one world-space bound per transform it answers exactly what culling those bounds answers. The instancing streams are described by CNA rather than written down here: four Vector4 rows on consecutive texture-coordinate channels at sixteen-byte offsets with a stride of sixty-four, and one packed Color for a tint with a stride of four. Five planted binding defects fail; a sixth, replacing the stride route with the constant it returns, survives and is recorded rather than hidden -- a test cannot distinguish a correct constant from the route that produces it",
+      "proof": [
+        "route:cna_frustum_culler_ext_create",
+        "route:cna_frustum_culler_ext_set_camera",
+        "route:cna_frustum_culler_ext_set_view_projection",
+        "route:cna_frustum_culler_ext_get_frustum",
+        "route:cna_frustum_culler_ext_is_box_visible",
+        "route:cna_frustum_culler_ext_is_sphere_visible",
+        "route:cna_frustum_culler_ext_cull_boxes",
+        "route:cna_frustum_culler_ext_cull_spheres",
+        "route:cna_frustum_culler_ext_cull_transforms",
+        "route:cna_instanced_renderer_ext_copy_instance_elements",
+        "route:cna_instanced_renderer_ext_get_instance_stride",
+        "route:cna_instanced_renderer_ext_copy_tint_elements",
+        "route:cna_instanced_renderer_ext_get_tint_stride",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "GPU instance culling",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA",
+      "evidence": "the culler runs and keeps everything. Its compute shader tests each instance against the camera's six frustum planes and increments a visible count the CPU uploaded as zero; the count comes back as the instance count in every case, including three instances ten thousand units outside a hundred-unit frustum. Measured on OPENGLES3, the only renderer built here that supports it -- HEADLESS, SOFTWARE and SDL_RENDERER answer NOT_SUPPORTED and the question does not arise. Nothing is announced: is_supported answers true and the unsupported reason is empty, so a game that adopts it pays for the dispatch, the upload and the readback and draws what it would have drawn anyway. Written up as upstream finding 20, with this package's own BoundingFrustum computing the expected count beside each measured one, so the two cullers are compared with each other. One planted defect -- ignoring an instance's world transform -- survives, and that is recorded rather than hidden: while the cull rejects nothing, whether the transform arrived cannot be observed from outside. A repaired culler kills that mutation and fails two of the four asserted rows, which is the point of asserting them",
+      "proof": [
+        "route:cna_gpu_instance_culler_create",
+        "route:cna_gpu_instance_culler_is_supported",
+        "route:cna_gpu_instance_culler_copy_unsupported_reason",
+        "route:cna_gpu_instance_culler_set_instances",
+        "route:cna_gpu_instance_culler_cull",
+        "route:cna_gpu_instance_culler_read_visible_count_ext",
+        "route:cna_gpu_instance_culler_copy_instance_lookup_glsl",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
     }
   ]
 }

@@ -28,6 +28,7 @@ import test, { after } from "node:test";
 
 import {
   BoundingBox,
+  BoundingFrustum,
   Color,
   Game,
   Graphics,
@@ -2743,6 +2744,87 @@ class WindowedProbeGame extends Game {
       }
     });
 
+    // --- the GPU instance culler, which is upstream finding 20 --------------------------------------
+    //
+    // Only a renderer with compute shaders can run it, and only OPENGLES3 here does. What is
+    // recorded is the count it reads back beside what this package's own BoundingFrustum says
+    // about the same boxes, so the two cullers are compared with each other rather than with a
+    // number written down.
+    record("gpuCulling", () => {
+      const { GpuInstanceCuller, IsGraphicsExtensionLayerAvailable } = computeModule;
+      const view = Matrix.CreateLookAt(new Vector3(0, 0, 10), Vector3.Zero, Vector3.Up);
+      const projection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 4, 1, 1, 100);
+      const reference = new BoundingFrustum(Matrix.Multiply(view, projection));
+      const unit = new BoundingBox(new Vector3(-1, -1, -1), new Vector3(1, 1, 1));
+      const cases = {
+        allInside: [Vector3.Zero, new Vector3(0, 0, -5), new Vector3(0, 0, -20)],
+        allOutside: [new Vector3(10000, 0, 0), new Vector3(-10000, 0, 0), new Vector3(0, 10000, 0)],
+        mixed: [Vector3.Zero, new Vector3(10000, 0, 0), new Vector3(0, 0, -20), new Vector3(0, 0, 5000)],
+        none: [],
+      };
+      let probe;
+      try {
+        probe = new GpuInstanceCuller(device);
+      } catch (error) {
+        return {
+          layerAbsent: true,
+          cnaResult: error.cnaResult,
+          extensionLayer: IsGraphicsExtensionLayerAvailable(),
+        };
+      }
+      const result = { supported: probe.IsSupported, reason: probe.UnsupportedReason };
+      probe.Dispose();
+      result.glslLength = GpuInstanceCuller.InstanceLookupGlsl.length;
+      result.glsl = GpuInstanceCuller.InstanceLookupGlsl;
+      result.rows = [];
+      for (const [name, places] of Object.entries(cases)) {
+        const culler = new GpuInstanceCuller(device);
+        try {
+          culler.SetInstances(places.map((place) => ({
+            World: Matrix.CreateTranslation(place), Bounds: unit,
+          })));
+          const cpuVisible = places.filter((place) => reference.Intersects(new BoundingBox(
+            Vector3.Add(place, unit.Min), Vector3.Add(place, unit.Max)))).length;
+          const row = {
+            name, offered: places.length, instanceCount: culler.InstanceCount, cpuVisible,
+            beforeCull: culler.VisibleCount,
+          };
+          try {
+            culler.Cull(view, projection, 36, 0, 0);
+            row.culled = "ACCEPTED";
+            row.gpuVisible = culler.VisibleCount;
+          } catch (error) {
+            row.culled = `result ${error.cnaResult}`;
+          }
+          result.rows.push(row);
+        } finally {
+          culler.Dispose();
+        }
+      }
+      // What a bad draw is refused for, which is what makes the accepted ones mean something.
+      const culler = new GpuInstanceCuller(device);
+      try {
+        culler.SetInstances([{ World: Matrix.Identity, Bounds: unit }]);
+        const attempt = (body) => {
+          try {
+            body();
+            return "SUCCEEDED";
+          } catch (error) {
+            return `${error.constructor.name}:${error.cnaResult ?? "-"}`;
+          }
+        };
+        result.refusals = {
+          zeroIndexCount: attempt(() => culler.Cull(view, projection, 0, 0, 0)),
+          negativeFirstIndex: attempt(() => culler.Cull(view, projection, 36, -1, 0)),
+          fractionalCount: attempt(() => culler.Cull(view, projection, 1.5, 0, 0)),
+          nullView: attempt(() => culler.Cull(null, projection, 36, 0, 0)),
+        };
+      } finally {
+        culler.Dispose();
+      }
+      return result;
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -5330,5 +5412,82 @@ test("a windowed CNA renderer draws the volumetric passes, and says when it cann
     `CNA_TS_WINDOWED_VOLUMETRIC=PASS LADDER=3_STATES IDENTITIES=` +
     `${Object.keys(volumetric.identities).length} FOG=MONOTONE_TO_${target.join("/")} ` +
     `PACKED_DEPTH=${volumetric.usesPackedDepth}`,
+  );
+});
+
+test("a windowed CNA renderer's GPU instance culler runs and keeps everything", { skip }, async () => {
+  const game = new WindowedProbeGame(6);
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const gpu = evidence.gpuCulling;
+  assert.equal(typeof gpu, "object", `the GPU culling block did not run: ${gpu}`);
+  if (gpu.layerAbsent) {
+    assert.equal(gpu.extensionLayer, false);
+    console.log(`CNA_TS_WINDOWED_GPU_CULL=SKIPPED_NO_LAYER RESULT=${gpu.cnaResult}`);
+    return;
+  }
+
+  // A renderer without compute shaders says so and refuses the cull, which is the honest answer
+  // and the one three of the four renderers built here give.
+  if (!gpu.supported) {
+    assert.ok(gpu.reason.length > 0, "an unsupported culler must say why");
+    for (const row of gpu.rows) {
+      if (row.offered === 0) continue;
+      assert.match(
+        String(row.culled), /^result \d+$/,
+        `an unsupported culler must refuse the cull, not accept it: ${row.culled}`,
+      );
+    }
+    console.log(`CNA_TS_WINDOWED_GPU_CULL=UNSUPPORTED REASON=${gpu.reason.slice(0, 60)}`);
+    return;
+  }
+
+  assert.equal(gpu.reason, "", "a supported culler names no reason");
+  assert.ok(gpu.glslLength > 50, "and hands out the GLSL a shader includes to index the survivors");
+  assert.ok(
+    gpu.glsl.includes("gl_InstanceID"),
+    "which indexes what survived rather than what was offered",
+  );
+
+  // Upstream finding 20. The culler runs -- the count is never the zero the CPU uploaded -- and it
+  // keeps every instance, wherever it is. The CPU column beside it is this package's own
+  // BoundingFrustum over the same world-space boxes, so the two cullers are compared with each
+  // other. A repair makes the second and third rows fail, which is the point of asserting them.
+  const rows = Object.fromEntries(gpu.rows.map((row) => [row.name, row]));
+  for (const row of gpu.rows) {
+    assert.equal(row.instanceCount, row.offered, `${row.name}: the culler holds what it was given`);
+    assert.equal(row.beforeCull, 0, `${row.name}: nothing is visible before a cull has run`);
+    assert.equal(row.culled, "ACCEPTED", `${row.name}: a supported culler accepts the cull`);
+    assert.equal(
+      row.gpuVisible, row.offered,
+      `${row.name}: the GPU culler kept ${row.gpuVisible} of ${row.offered}, ` +
+      `where the CPU frustum keeps ${row.cpuVisible} -- see docs/upstream-cna-findings.md item 20`,
+    );
+  }
+  // The table is only evidence if the CPU column disagrees somewhere.
+  assert.equal(rows.allInside.cpuVisible, 3, "three instances inside the frustum are all visible");
+  assert.equal(
+    rows.allOutside.cpuVisible, 0,
+    "three instances ten thousand units outside it are not, by this package's own frustum",
+  );
+  assert.equal(rows.allOutside.gpuVisible, 3, "and the GPU culler keeps all three anyway");
+  assert.equal(rows.mixed.cpuVisible, 2, "two of four are visible");
+  assert.equal(rows.mixed.gpuVisible, 4, "and the GPU culler keeps all four");
+  assert.equal(
+    rows.none.gpuVisible, 0,
+    "the only row it answers zero for is the one with nothing to count",
+  );
+
+  // What it does refuse, which is what makes an accepted cull mean anything at all.
+  assert.notEqual(gpu.refusals.zeroIndexCount, "SUCCEEDED", "a draw of no indices is refused");
+  assert.notEqual(gpu.refusals.negativeFirstIndex, "SUCCEEDED", "and a negative offset");
+  assert.equal(gpu.refusals.fractionalCount, "TypeError:-", "and a fractional index count");
+  assert.equal(gpu.refusals.nullView, "TypeError:-", "and a missing camera");
+
+  console.log(
+    `CNA_TS_WINDOWED_GPU_CULL=FINDING_20 ROWS=` +
+    gpu.rows.map((row) => `${row.name}:${row.cpuVisible}/${row.gpuVisible}of${row.offered}`).join(" "),
   );
 });

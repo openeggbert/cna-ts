@@ -1148,6 +1148,46 @@ export interface CnaGraphicsExtensionBackend {
     pass: NativeHandle, shadowMap: NativeHandle, direction: Vector3Snapshot,
     color: Vector3Snapshot,
   ): void;
+
+  // --- frustum culling, GPU instance culling and the instanced renderer -------------------------
+  createFrustumCuller(): NativeHandle;
+  destroyFrustumCuller(culler: NativeHandle): void;
+  setFrustumCullerViewProjection(culler: NativeHandle, viewProjection: readonly number[]): void;
+  setFrustumCullerCamera(
+    culler: NativeHandle, view: readonly number[], projection: readonly number[],
+  ): void;
+  getFrustumCullerFrustum(culler: NativeHandle): readonly number[];
+  isFrustumCullerBoxVisible(culler: NativeHandle, box: ClusterBoundsSnapshot): boolean;
+  isFrustumCullerSphereVisible(culler: NativeHandle, sphere: BoundingSphereSnapshot): boolean;
+  frustumCullerCullBoxes(
+    culler: NativeHandle, bounds: readonly ClusterBoundsSnapshot[],
+  ): readonly number[];
+  frustumCullerCullSpheres(
+    culler: NativeHandle, bounds: readonly BoundingSphereSnapshot[],
+  ): readonly number[];
+  frustumCullerCullTransforms(
+    culler: NativeHandle, transforms: readonly (readonly number[])[],
+    bounds: readonly ClusterBoundsSnapshot[],
+  ): readonly (readonly number[])[];
+  createGpuInstanceCuller(graphicsDevice: NativeHandle): NativeHandle;
+  destroyGpuInstanceCuller(culler: NativeHandle): void;
+  isGpuInstanceCullerSupported(culler: NativeHandle): boolean;
+  getGpuInstanceCullerUnsupportedReason(culler: NativeHandle): string;
+  setGpuInstanceCullerInstances(
+    culler: NativeHandle, instances: readonly CullableInstanceSnapshot[],
+  ): void;
+  getGpuInstanceCullerInstanceCount(culler: NativeHandle): number;
+  gpuInstanceCullerCull(
+    culler: NativeHandle, view: readonly number[], projection: readonly number[],
+    indexCount: number, firstIndex: number, baseVertex: number,
+  ): void;
+  gpuInstanceCullerDraw(culler: NativeHandle, primitiveType: number): void;
+  getGpuInstanceCullerVisibleCount(culler: NativeHandle): number;
+  getGpuInstanceCullerInstanceLookupGlsl(): string;
+  getInstancedRendererInstanceElements(): readonly VertexElementSnapshot[];
+  getInstancedRendererInstanceStride(): number;
+  getInstancedRendererTintElements(): readonly VertexElementSnapshot[];
+  getInstancedRendererTintStride(): number;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
@@ -1706,6 +1746,12 @@ export interface GltfExtensionTexturesSnapshot {
   readonly Thickness: NativeHandle;
   readonly Iridescence: NativeHandle;
   readonly IridescenceThickness: NativeHandle;
+}
+
+/** One instance a GPU culler tests: where it is and how big it is. */
+export interface CullableInstanceSnapshot {
+  readonly World: readonly number[];
+  readonly Bounds: ClusterBoundsSnapshot;
 }
 
 export interface Vector4Snapshot {

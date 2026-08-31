@@ -50,6 +50,7 @@ import type {
   GltfExtensionTexturesSnapshot,
   GltfMaterialSourceSnapshot,
   GltfMaterialTexturesSnapshot,
+  CullableInstanceSnapshot,
   PassTimingSnapshot,
   PbrMaterialExtSnapshot,
   PostProcessFrameSnapshot,
@@ -1117,6 +1118,30 @@ interface NativeBridge {
   aerialPerspectiveTransmittance(turbidity: number, airMass: number): Vector3Snapshot;
   heightFogOpticalDepth(cameraHeight: number, rayHeightStep: number, distance: number, density: number, falloff: number, baseHeight: number, ): number;
   setVolumetricFogLight(pass: bigint, shadowMap: bigint, direction: Vector3Snapshot, color: Vector3Snapshot, ): void;
+  createFrustumCuller(): bigint;
+  destroyFrustumCuller(culler: bigint): void;
+  setFrustumCullerViewProjection(culler: bigint, viewProjection: readonly number[]): void;
+  setFrustumCullerCamera(culler: bigint, view: readonly number[], projection: readonly number[]): void;
+  getFrustumCullerFrustum(culler: bigint): number[];
+  isFrustumCullerBoxVisible(culler: bigint, box: ClusterBoundsSnapshot): boolean;
+  isFrustumCullerSphereVisible(culler: bigint, sphere: BoundingSphereSnapshot): boolean;
+  frustumCullerCullBoxes(culler: bigint, bounds: readonly ClusterBoundsSnapshot[]): number[];
+  frustumCullerCullSpheres(culler: bigint, bounds: readonly BoundingSphereSnapshot[]): number[];
+  frustumCullerCullTransforms(culler: bigint, transforms: readonly (readonly number[])[], bounds: readonly ClusterBoundsSnapshot[]): (number[])[];
+  createGpuInstanceCuller(graphicsDevice: bigint): bigint;
+  destroyGpuInstanceCuller(culler: bigint): void;
+  isGpuInstanceCullerSupported(culler: bigint): boolean;
+  getGpuInstanceCullerUnsupportedReason(culler: bigint): string;
+  setGpuInstanceCullerInstances(culler: bigint, instances: readonly CullableInstanceSnapshot[]): void;
+  getGpuInstanceCullerInstanceCount(culler: bigint): number;
+  gpuInstanceCullerCull(culler: bigint, view: readonly number[], projection: readonly number[], indexCount: number, firstIndex: number, baseVertex: number): void;
+  gpuInstanceCullerDraw(culler: bigint, primitiveType: number): void;
+  getGpuInstanceCullerVisibleCount(culler: bigint): number;
+  getGpuInstanceCullerInstanceLookupGlsl(): string;
+  getInstancedRendererInstanceElements(): VertexElementSnapshot[];
+  getInstancedRendererInstanceStride(): number;
+  getInstancedRendererTintElements(): VertexElementSnapshot[];
+  getInstancedRendererTintStride(): number;
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: bigint): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -3497,6 +3522,32 @@ export class NodeNativeBackend
   public aerialPerspectiveTransmittance(turbidity: number, airMass: number): Vector3Snapshot { return this.#bridge.aerialPerspectiveTransmittance(turbidity, airMass); }
   public heightFogOpticalDepth(cameraHeight: number, rayHeightStep: number, distance: number, density: number, falloff: number, baseHeight: number,): number { return this.#bridge.heightFogOpticalDepth(cameraHeight, rayHeightStep, distance, density, falloff, baseHeight, ); }
   public setVolumetricFogLight(pass: NativeHandle, shadowMap: NativeHandle, direction: Vector3Snapshot, color: Vector3Snapshot,): void { this.#bridge.setVolumetricFogLight(pass, shadowMap, direction, color, ); }
+
+  // Frustum culling, GPU instance culling and the instanced renderer.
+  public createFrustumCuller(): NativeHandle { return this.#bridge.createFrustumCuller(); }
+  public destroyFrustumCuller(culler: NativeHandle): void { this.#bridge.destroyFrustumCuller(culler); }
+  public setFrustumCullerViewProjection(culler: NativeHandle, viewProjection: readonly number[]): void { this.#bridge.setFrustumCullerViewProjection(culler, viewProjection); }
+  public setFrustumCullerCamera(culler: NativeHandle, view: readonly number[], projection: readonly number[]): void { this.#bridge.setFrustumCullerCamera(culler, view, projection); }
+  public getFrustumCullerFrustum(culler: NativeHandle): readonly number[] { return this.#bridge.getFrustumCullerFrustum(culler); }
+  public isFrustumCullerBoxVisible(culler: NativeHandle, box: ClusterBoundsSnapshot): boolean { return this.#bridge.isFrustumCullerBoxVisible(culler, box); }
+  public isFrustumCullerSphereVisible(culler: NativeHandle, sphere: BoundingSphereSnapshot): boolean { return this.#bridge.isFrustumCullerSphereVisible(culler, sphere); }
+  public frustumCullerCullBoxes(culler: NativeHandle, bounds: readonly ClusterBoundsSnapshot[]): readonly number[] { return this.#bridge.frustumCullerCullBoxes(culler, bounds); }
+  public frustumCullerCullSpheres(culler: NativeHandle, bounds: readonly BoundingSphereSnapshot[]): readonly number[] { return this.#bridge.frustumCullerCullSpheres(culler, bounds); }
+  public frustumCullerCullTransforms(culler: NativeHandle, transforms: readonly (readonly number[])[], bounds: readonly ClusterBoundsSnapshot[]): readonly (readonly number[])[] { return this.#bridge.frustumCullerCullTransforms(culler, transforms, bounds); }
+  public createGpuInstanceCuller(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createGpuInstanceCuller(graphicsDevice); }
+  public destroyGpuInstanceCuller(culler: NativeHandle): void { this.#bridge.destroyGpuInstanceCuller(culler); }
+  public isGpuInstanceCullerSupported(culler: NativeHandle): boolean { return this.#bridge.isGpuInstanceCullerSupported(culler); }
+  public getGpuInstanceCullerUnsupportedReason(culler: NativeHandle): string { return this.#bridge.getGpuInstanceCullerUnsupportedReason(culler); }
+  public setGpuInstanceCullerInstances(culler: NativeHandle, instances: readonly CullableInstanceSnapshot[]): void { this.#bridge.setGpuInstanceCullerInstances(culler, instances); }
+  public getGpuInstanceCullerInstanceCount(culler: NativeHandle): number { return this.#bridge.getGpuInstanceCullerInstanceCount(culler); }
+  public gpuInstanceCullerCull(culler: NativeHandle, view: readonly number[], projection: readonly number[], indexCount: number, firstIndex: number, baseVertex: number): void { this.#bridge.gpuInstanceCullerCull(culler, view, projection, indexCount, firstIndex, baseVertex); }
+  public gpuInstanceCullerDraw(culler: NativeHandle, primitiveType: number): void { this.#bridge.gpuInstanceCullerDraw(culler, primitiveType); }
+  public getGpuInstanceCullerVisibleCount(culler: NativeHandle): number { return this.#bridge.getGpuInstanceCullerVisibleCount(culler); }
+  public getGpuInstanceCullerInstanceLookupGlsl(): string { return this.#bridge.getGpuInstanceCullerInstanceLookupGlsl(); }
+  public getInstancedRendererInstanceElements(): readonly VertexElementSnapshot[] { return this.#bridge.getInstancedRendererInstanceElements(); }
+  public getInstancedRendererInstanceStride(): number { return this.#bridge.getInstancedRendererInstanceStride(); }
+  public getInstancedRendererTintElements(): readonly VertexElementSnapshot[] { return this.#bridge.getInstancedRendererTintElements(); }
+  public getInstancedRendererTintStride(): number { return this.#bridge.getInstancedRendererTintStride(); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }
   public extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot { return this.#bridge.extractPbrEffectMaterial(effect); }
   public applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applySkinnedPbrEffectMaterial(effect, material); }

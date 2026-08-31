@@ -9,6 +9,8 @@ import { pathToFileURL } from "node:url";
 import {
   Audio,
   BoundingBox,
+  BoundingFrustum,
+  BoundingSphere,
   Color,
   Content,
   Game,
@@ -8032,5 +8034,192 @@ test("the volumetric passes publish the arithmetic their shaders run, exactly", 
   console.log(
     `CNA_TS_NATIVE_VOLUMETRIC_MATHS=PASS AIR_MASS=KASTEN_YOUNG TRANSMITTANCE=RAYLEIGH_PLUS_MIE ` +
     `OPTICAL_DEPTH=THREE_BRANCHES`,
+  );
+});
+
+test("the frustum culler answers what this package's own BoundingFrustum answers", async () => {
+  const { FrustumCuller, InstanceStreams } = computeExtensions;
+  const { VertexElementFormat, VertexElementUsage } = Graphics;
+
+  const view = Matrix.CreateLookAt(new Vector3(0, 0, 10), Vector3.Zero, Vector3.Up);
+  const projection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 4, 1, 1, 100);
+  const viewProjection = Matrix.Multiply(view, projection);
+  // The reference is XNA's own frustum, built here from the same camera. Two implementations of
+  // the same predicate, neither derived from the other.
+  const reference = new BoundingFrustum(viewProjection);
+
+  // Boxes chosen so the answer is not all one value: a plane's sign error, a swapped near and far,
+  // or a missing side plane each changes at least one row.
+  const boxes = [
+    ["at the origin", new BoundingBox(new Vector3(-1, -1, -1), new Vector3(1, 1, 1))],
+    ["just past the near plane", new BoundingBox(new Vector3(-0.1, -0.1, 8.4), new Vector3(0.1, 0.1, 8.6))],
+    ["behind the camera", new BoundingBox(new Vector3(-1, -1, 60), new Vector3(1, 1, 62))],
+    ["past the far plane", new BoundingBox(new Vector3(-1, -1, -500), new Vector3(1, 1, -498))],
+    ["off to the right", new BoundingBox(new Vector3(200, -1, -1), new Vector3(202, 1, 1))],
+    ["off to the left", new BoundingBox(new Vector3(-202, -1, -1), new Vector3(-200, 1, 1))],
+    ["above", new BoundingBox(new Vector3(-1, 200, -1), new Vector3(1, 202, 1))],
+    ["below", new BoundingBox(new Vector3(-1, -202, -1), new Vector3(1, -200, 1))],
+    ["straddling the near plane", new BoundingBox(new Vector3(-1, -1, 8), new Vector3(1, 1, 11))],
+    ["large enough to contain the camera", new BoundingBox(new Vector3(-50, -50, -50), new Vector3(50, 50, 50))],
+    ["deep but on axis", new BoundingBox(new Vector3(-2, -2, -80), new Vector3(2, 2, -70))],
+  ];
+  const spheres = [
+    ["at the origin", new BoundingSphere(Vector3.Zero, 1)],
+    ["behind", new BoundingSphere(new Vector3(0, 0, 60), 1)],
+    ["far to the side", new BoundingSphere(new Vector3(300, 0, 0), 1)],
+    ["far to the side but huge", new BoundingSphere(new Vector3(300, 0, 0), 320)],
+    ["deep on axis", new BoundingSphere(new Vector3(0, 0, -70), 3)],
+  ];
+
+  const culler = new FrustumCuller();
+  try {
+    culler.SetCamera(view, projection);
+    // The frustum a culler holds is the view-projection a BoundingFrustum is built from.
+    const held = culler.Frustum;
+    for (const key of ["M11", "M22", "M33", "M34", "M41", "M43", "M44"]) {
+      assert.ok(
+        Math.abs(held[key] - viewProjection[key]) < 1e-4,
+        `the culler's frustum is not the view-projection at ${key}: ${held[key]} vs ${viewProjection[key]}`,
+      );
+    }
+
+    let visibleBoxes = 0;
+    for (const [name, box] of boxes) {
+      const mine = culler.IsVisible(box);
+      const theirs = reference.Intersects(box);
+      assert.equal(mine, theirs, `the culler and BoundingFrustum disagree about a box ${name}`);
+      if (mine) visibleBoxes += 1;
+    }
+    // The comparison must not be vacuous: some are in and some are out.
+    assert.ok(
+      visibleBoxes >= 3 && visibleBoxes <= boxes.length - 4,
+      `${visibleBoxes} of ${boxes.length} boxes visible, which is too one-sided to prove anything`,
+    );
+    let visibleSpheres = 0;
+    for (const [name, sphere] of spheres) {
+      const mine = culler.IsVisible(sphere);
+      assert.equal(
+        mine, reference.Intersects(sphere),
+        `the culler and BoundingFrustum disagree about a sphere ${name}`,
+      );
+      if (mine) visibleSpheres += 1;
+    }
+    assert.ok(visibleSpheres >= 2 && visibleSpheres < spheres.length, "spheres too one-sided");
+
+    // The bulk routes answer the indices of exactly the ones the single test keeps, in order.
+    assert.deepEqual(
+      culler.CullBoxes(boxes.map(([, box]) => box)),
+      boxes.map(([, box], index) => (culler.IsVisible(box) ? index : -1)).filter((i) => i >= 0),
+      "culling a batch of boxes must keep exactly what testing them one at a time keeps",
+    );
+    assert.deepEqual(
+      culler.CullSpheres(spheres.map(([, sphere]) => sphere)),
+      spheres.map(([, sphere], index) => (culler.IsVisible(sphere) ? index : -1)).filter((i) => i >= 0),
+      "and the same for spheres",
+    );
+    assert.deepEqual(culler.CullBoxes([]), [], "an empty batch keeps nothing");
+    assert.deepEqual(culler.CullSpheres([]), []);
+
+    // Setting the camera as one matrix and as two must be the same camera.
+    const combined = new FrustumCuller();
+    try {
+      combined.SetViewProjection(viewProjection);
+      for (const [name, box] of boxes) {
+        assert.equal(
+          combined.IsVisible(box), culler.IsVisible(box),
+          `a culler set from one matrix disagrees with one set from two about ${name}`,
+        );
+      }
+    } finally {
+      combined.Dispose();
+    }
+
+    // --- culling transforms, and the two traps in how it pairs them -----------------------------
+    const unit = new BoundingBox(new Vector3(-1, -1, -1), new Vector3(1, 1, 1));
+    const places = [
+      Vector3.Zero, new Vector3(0, 0, 60), new Vector3(300, 0, 0), new Vector3(0, 0, -20),
+    ];
+    const transforms = places.map((place) => Matrix.CreateTranslation(place));
+    const worldBoxes = places.map((place) => new BoundingBox(
+      Vector3.Add(place, unit.Min), Vector3.Add(place, unit.Max)));
+    const expected = worldBoxes
+      .map((box, index) => (reference.Intersects(box) ? index : -1))
+      .filter((index) => index >= 0);
+    assert.deepEqual(expected, [0, 3], "the fixture must keep two of the four, or it proves little");
+    // Paired one-to-one in world space, this answers exactly what CullBoxes does.
+    const paired = culler.CullTransforms(transforms, worldBoxes);
+    assert.deepEqual(
+      paired.map((matrix) => [matrix.M41, matrix.M42, matrix.M43]),
+      expected.map((index) => [places[index].X, places[index].Y, places[index].Z]),
+      "culling transforms with one world-space bound each must match culling those bounds",
+    );
+    assert.deepEqual(culler.CullBoxes(worldBoxes), expected);
+    // Trap one: a transform with no matching bound is KEPT. CNA's header says so, and a caller who
+    // passes one shared box gets everything back rather than everything tested against it.
+    assert.equal(
+      culler.CullTransforms(transforms, [unit]).length, transforms.length,
+      "a single shared bound keeps every transform, because only the first one has a bound at all",
+    );
+    assert.equal(
+      culler.CullTransforms(transforms, []).length, transforms.length,
+      "and no bounds at all keeps everything",
+    );
+    // Trap two: the bounds are world-space. The transform is the payload, not something applied to
+    // its bound -- so four copies of a local unit box keep all four transforms.
+    assert.equal(
+      culler.CullTransforms(transforms, places.map(() => unit)).length, transforms.length,
+      "the transform is not applied to its bound: local bounds at the origin keep everything",
+    );
+    assert.deepEqual(culler.CullTransforms([], []), [], "nothing in is nothing out");
+
+    assert.throws(() => culler.IsVisible(null), TypeError);
+    assert.throws(() => culler.CullBoxes(null), TypeError);
+    assert.throws(() => culler.SetCamera(null, projection), TypeError);
+  } finally {
+    culler.Dispose();
+  }
+  const disposed = new FrustumCuller();
+  disposed.Dispose();
+  assert.equal(disposed.IsDisposed, true);
+  assert.throws(() => disposed.IsVisible(boxes[0][1]), NativeUnavailableError);
+  assert.doesNotThrow(() => disposed.Dispose(), "disposing twice is harmless");
+
+  // --- the vertex declarations an instancing stream takes ----------------------------------------
+  // CNA describes them rather than this package writing them down, so a buffer built to these is
+  // built to what the layer's own shaders read.
+  const transformElements = InstanceStreams.TransformElements;
+  assert.equal(transformElements.length, 4, "a transform stream is four rows of a matrix");
+  for (const [index, element] of transformElements.entries()) {
+    assert.equal(element.Offset, index * 16, "each row follows the last with no padding");
+    assert.equal(
+      element.VertexElementFormat, VertexElementFormat.Vector4,
+      "and each is four floats",
+    );
+    assert.equal(
+      element.VertexElementUsage, VertexElementUsage.TextureCoordinate,
+      "carried on texture coordinate channels, which is how instancing has always smuggled a matrix in",
+    );
+    assert.equal(element.UsageIndex, index + 1, "on consecutive channels above the mesh's own");
+  }
+  assert.equal(
+    InstanceStreams.TransformStride, 64,
+    "and the stride is exactly four rows of four floats: sixteen bytes each",
+  );
+  assert.equal(
+    InstanceStreams.TransformStride, transformElements.length * 16,
+    "which is the elements' own total, not a number written down separately",
+  );
+  const tintElements = InstanceStreams.TintElements;
+  assert.equal(tintElements.length, 1, "a tint is one element");
+  assert.equal(tintElements[0].Offset, 0);
+  assert.equal(tintElements[0].VertexElementFormat, VertexElementFormat.Color);
+  assert.equal(tintElements[0].VertexElementUsage, VertexElementUsage.Color);
+  assert.equal(tintElements[0].UsageIndex, 1, "above the mesh's own colour channel");
+  assert.equal(InstanceStreams.TintStride, 4, "and a packed colour is four bytes");
+
+  console.log(
+    `CNA_TS_NATIVE_FRUSTUM_CULLER=PASS AGREES_WITH=BoundingFrustum BOXES=${boxes.length} ` +
+    `SPHERES=${spheres.length} TRANSFORM_TRAPS=2 STREAMS=${InstanceStreams.TransformStride}/` +
+    `${InstanceStreams.TintStride}`,
   );
 });
