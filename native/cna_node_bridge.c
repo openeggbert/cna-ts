@@ -187,6 +187,7 @@ typedef CNA_Result (*SoundEffectCreateEncodedFn)(CNA_Handle, const uint8_t*, uin
 typedef CNA_Result (*HandleInt64OutFn)(CNA_Handle, int64_t*);
 typedef CNA_Result (*HandleU64OutFn)(CNA_Handle, uint64_t*);
 typedef CNA_Result (*HandleCopyStringFn)(CNA_Handle, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*ShadowQualityToI32Fn)(CNA_ShadowQuality, int32_t*);
 typedef CNA_Result (*HandleStringViewFn)(CNA_Handle, CNA_StringView);
 typedef CNA_Result (*HandleHandleOutFn)(CNA_Handle, CNA_Handle*);
 typedef CNA_Result (*SoundEffectPlaySettingsFn)(CNA_Handle, float, float, float, CNA_Bool*);
@@ -571,7 +572,6 @@ typedef CNA_Result (*ShadowLightViewFn)(
   const CNA_DirectionalLightEXT*, const CNA_BoundingBox*, CNA_Matrix*);
 typedef CNA_Result (*ShadowLightProjectionFn)(
   const CNA_Matrix*, const CNA_BoundingBox*, CNA_Matrix*);
-typedef CNA_Result (*ShadowQualityToI32Fn)(CNA_ShadowQuality, int32_t*);
 typedef CNA_Result (*DirectionalLightInitFn)(CNA_DirectionalLightEXT*);
 
 /* --- the engine layer's particle systems -------------------------------------------------------- */
@@ -587,6 +587,14 @@ typedef CNA_Result (*ParticleStepFn)(
 typedef CNA_Result (*ParticleRandomFn)(uint32_t, float*);
 typedef CNA_Result (*ParticleSettingsInitFn)(CNA_ParticleEmitterSettings*);
 typedef CNA_Result (*ParticleInitFn)(CNA_Particle*);
+
+/* --- the rest of the shadow-map maths ----------------------------------------------------------- */
+typedef CNA_Result (*CascadeSplitsFn)(float, float, int32_t, float, float*, uint64_t, uint64_t*);
+typedef CNA_Result (*CascadeCornersFn)(const CNA_Matrix*, const CNA_Matrix*, CNA_Vector3*);
+typedef CNA_Result (*CascadeSphereFn)(const CNA_Vector3*, CNA_Vector3*, float*);
+typedef CNA_Result (*SpotShadowMatrixFn)(const CNA_SpotLightEXT*, CNA_Matrix*);
+typedef CNA_Result (*CubeFaceViewFn)(CNA_CubeMapFace, const CNA_Vector3*, CNA_Matrix*);
+typedef CNA_Result (*CubeFaceProjectionFn)(float, CNA_Matrix*);
 
 /* --- the engine layer's compute path ---------------------------------------------------------- */
 /*
@@ -1508,6 +1516,14 @@ typedef struct Api {
   ParticleRandomFn particle_system_random;
   ParticleSettingsInitFn particle_emitter_settings_init;
   ParticleInitFn particle_init;
+  CascadeSplitsFn cascaded_shadow_map_compute_split_distances;
+  CascadeCornersFn cascaded_shadow_map_compute_frustum_corners;
+  CascadeSphereFn cascaded_shadow_map_compute_bounding_sphere;
+  SpotShadowMatrixFn spot_shadow_map_compute_light_view;
+  SpotShadowMatrixFn spot_shadow_map_compute_light_projection;
+  CubeFaceViewFn cube_shadow_map_compute_face_view;
+  CubeFaceProjectionFn cube_shadow_map_compute_face_projection;
+  ShadowQualityToI32Fn cube_shadow_map_size_for_quality;
   GameHandleFn clustered_shadow_policy_destroy;
 
   /* the engine layer's compute path */
@@ -1749,6 +1765,8 @@ static napi_value storage_buffer_u64(
   napi_env env, napi_callback_info info, HandleU64OutFn route, const char* name);
 static napi_value copy_sized_text(
   napi_env env, napi_callback_info info, HandleCopyStringFn route, const char* name);
+static napi_value shadow_quality_to_i32(
+  napi_env env, napi_callback_info info, ShadowQualityToI32Fn route, const char* name);
 static int get_named_handle(napi_env env, napi_value object, const char* name, CNA_Handle* out);
 
 static napi_value throw_message(napi_env env, const char* message) {
@@ -2842,6 +2860,14 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(particle_system_random, ParticleRandomFn, "cna_particle_system_random");
   LOAD_REQUIRED(particle_emitter_settings_init, ParticleSettingsInitFn, "cna_particle_emitter_settings_init");
   LOAD_REQUIRED(particle_init, ParticleInitFn, "cna_particle_init");
+  LOAD_REQUIRED(cascaded_shadow_map_compute_split_distances, CascadeSplitsFn, "cna_cascaded_shadow_map_compute_split_distances");
+  LOAD_REQUIRED(cascaded_shadow_map_compute_frustum_corners, CascadeCornersFn, "cna_cascaded_shadow_map_compute_frustum_corners");
+  LOAD_REQUIRED(cascaded_shadow_map_compute_bounding_sphere, CascadeSphereFn, "cna_cascaded_shadow_map_compute_bounding_sphere");
+  LOAD_REQUIRED(spot_shadow_map_compute_light_view, SpotShadowMatrixFn, "cna_spot_shadow_map_compute_light_view");
+  LOAD_REQUIRED(spot_shadow_map_compute_light_projection, SpotShadowMatrixFn, "cna_spot_shadow_map_compute_light_projection");
+  LOAD_REQUIRED(cube_shadow_map_compute_face_view, CubeFaceViewFn, "cna_cube_shadow_map_compute_face_view");
+  LOAD_REQUIRED(cube_shadow_map_compute_face_projection, CubeFaceProjectionFn, "cna_cube_shadow_map_compute_face_projection");
+  LOAD_REQUIRED(cube_shadow_map_size_for_quality, ShadowQualityToI32Fn, "cna_cube_shadow_map_size_for_quality");
   LOAD_REQUIRED(clustered_shadow_policy_destroy, GameHandleFn, "cna_clustered_shadow_policy_destroy");
 
   LOAD_REQUIRED(presentation_parameters_init, PresentationParametersInitFn, "cna_presentation_parameters_init");
@@ -14622,6 +14648,223 @@ static napi_value clustered_shadow_policy_get_score(napi_env env, napi_callback_
   return output;
 }
 
+/* --- the rest of the shadow-map maths ----------------------------------------------------------- */
+/*
+ * A cascaded shadow map's split distances and the geometry that sizes each cascade, a spot light's
+ * view and projection, and a cube shadow map's six faces. All pure: no handle, no device, no GPU.
+ *
+ * The three families' *objects* are not projected. Like the directional shadow map they exist to
+ * run a depth pass, and the one renderer here that could run one cannot be read back
+ * (docs/upstream-cna-findings.md item 7), so there would be no evidence to accept them on. The
+ * maths is a different matter: it answers exactly, everywhere.
+ */
+
+static int set_vector3_fields(napi_env env, napi_value object, const CNA_Vector3* value) {
+  napi_value number;
+  static const char* const names[] = {"X", "Y", "Z"};
+  const float components[3] = {value->x, value->y, value->z};
+  for (size_t index = 0; index < 3; index += 1) {
+    if (napi_create_double(env, (double) components[index], &number) != napi_ok ||
+        napi_set_named_property(env, object, names[index], number) != napi_ok) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static napi_value cascade_split_distances(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  double nearPlane = 0, farPlane = 0, lambda = 0;
+  int32_t cascades = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      napi_get_value_double(env, args[0], &nearPlane) != napi_ok ||
+      napi_get_value_double(env, args[1], &farPlane) != napi_ok ||
+      napi_get_value_int32(env, args[2], &cascades) != napi_ok ||
+      napi_get_value_double(env, args[3], &lambda) != napi_ok) return NULL;
+  uint64_t required = 0;
+  CNA_Result result = g_api.cascaded_shadow_map_compute_split_distances(
+    (float) nearPlane, (float) farPlane, cascades, (float) lambda, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_cascaded_shadow_map_compute_split_distances", result);
+  }
+  if (required > SIZE_MAX / sizeof(float)) {
+    return throw_message(env, "the split list exceeds the host address space");
+  }
+  float* splits = required == 0 ? NULL : (float*) calloc((size_t) required, sizeof(float));
+  if (required != 0 && !splits) return throw_message(env, "split-list allocation failed");
+  uint64_t produced = 0;
+  result = g_api.cascaded_shadow_map_compute_split_distances(
+    (float) nearPlane, (float) farPlane, cascades, (float) lambda, splits, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(splits);
+    return throw_result(env, "cna_cascaded_shadow_map_compute_split_distances", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) required, &output) != napi_ok) {
+    free(splits);
+    return throw_napi(env, "cascade splits");
+  }
+  for (uint64_t index = 0; index < required; index += 1) {
+    napi_value number;
+    if (napi_create_double(env, (double) splits[index], &number) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, number) != napi_ok) {
+      free(splits);
+      return throw_napi(env, "cascade splits");
+    }
+  }
+  free(splits);
+  return output;
+}
+
+static napi_value cascade_frustum_corners(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Matrix view, projection;
+  CNA_Vector3 corners[8];
+  memset(corners, 0, sizeof(corners));
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_matrix16(env, args[0], &view, "a view must be a 16-number array") ||
+      !read_matrix16(env, args[1], &projection, "a projection must be a 16-number array")) {
+    return NULL;
+  }
+  const CNA_Result result =
+    g_api.cascaded_shadow_map_compute_frustum_corners(&view, &projection, corners);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cascaded_shadow_map_compute_frustum_corners", result);
+  }
+  if (napi_create_array_with_length(env, 8, &output) != napi_ok) {
+    return throw_napi(env, "frustum corners");
+  }
+  for (uint32_t index = 0; index < 8; index += 1) {
+    napi_value element;
+    if (napi_create_object(env, &element) != napi_ok ||
+        !set_vector3_fields(env, element, &corners[index]) ||
+        napi_set_element(env, output, index, element) != napi_ok) {
+      return throw_napi(env, "frustum corners");
+    }
+  }
+  return output;
+}
+
+static napi_value cascade_bounding_sphere(napi_env env, napi_callback_info info) {
+  napi_value args[1], element, output, radiusValue;
+  CNA_Vector3 corners[8], centre;
+  float radius = 0;
+  bool isArray = false;
+  uint32_t count = 0;
+  memset(corners, 0, sizeof(corners));
+  memset(&centre, 0, sizeof(centre));
+  if (!require_loaded(env) || !get_args(env, info, 1, args)) return NULL;
+  if (napi_is_array(env, args[0], &isArray) != napi_ok || !isArray ||
+      napi_get_array_length(env, args[0], &count) != napi_ok || count != 8) {
+    return throw_message(env, "a frustum has exactly eight corners");
+  }
+  for (uint32_t index = 0; index < 8; index += 1) {
+    if (napi_get_element(env, args[0], index, &element) != napi_ok ||
+        !read_vector3_fields(env, element, &corners[index])) {
+      return throw_message(env, "each corner needs X, Y and Z");
+    }
+  }
+  const CNA_Result result =
+    g_api.cascaded_shadow_map_compute_bounding_sphere(corners, &centre, &radius);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cascaded_shadow_map_compute_bounding_sphere", result);
+  }
+  if (napi_create_object(env, &output) != napi_ok ||
+      !set_vector3(env, output, "Center", &centre) ||
+      napi_create_double(env, (double) radius, &radiusValue) != napi_ok ||
+      napi_set_named_property(env, output, "Radius", radiusValue) != napi_ok) {
+    return throw_napi(env, "cascade bounding sphere");
+  }
+  return output;
+}
+
+static int read_spot_light(napi_env env, napi_value value, CNA_SpotLightEXT* light) {
+  const CNA_Result initialized = g_api.spot_light_ext_init(light);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_spot_light_ext_init", initialized);
+    return 0;
+  }
+  napi_value entry;
+  static const char* const scalars[] = {"Intensity", "Range", "InnerAngle", "OuterAngle"};
+  float* const targets[] = {
+    &light->intensity, &light->range, &light->inner_angle, &light->outer_angle};
+  if (!read_vector3(env, value, "Position", &light->position) ||
+      !read_vector3(env, value, "Direction", &light->direction) ||
+      !read_vector3(env, value, "Color", &light->color)) {
+    throw_message(env, "a spot light needs Position, Direction and Color");
+    return 0;
+  }
+  for (size_t index = 0; index < 4; index += 1) {
+    double number = 0;
+    if (napi_get_named_property(env, value, scalars[index], &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &number) != napi_ok) {
+      throw_message(env, "a spot light's scalars must be numbers");
+      return 0;
+    }
+    *targets[index] = (float) number;
+  }
+  return 1;
+}
+
+static napi_value spot_shadow_matrix(
+  napi_env env, napi_callback_info info, SpotShadowMatrixFn route, const char* name
+) {
+  napi_value args[1];
+  CNA_SpotLightEXT light;
+  CNA_Matrix matrix;
+  memset(&matrix, 0, sizeof(matrix));
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_spot_light(env, args[0], &light)) return NULL;
+  const CNA_Result result = route(&light, &matrix);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return make_matrix16(env, &matrix, name);
+}
+
+static napi_value spot_shadow_light_view(napi_env env, napi_callback_info info) {
+  return spot_shadow_matrix(env, info, g_api.spot_shadow_map_compute_light_view,
+    "cna_spot_shadow_map_compute_light_view");
+}
+static napi_value spot_shadow_light_projection(napi_env env, napi_callback_info info) {
+  return spot_shadow_matrix(env, info, g_api.spot_shadow_map_compute_light_projection,
+    "cna_spot_shadow_map_compute_light_projection");
+}
+
+static napi_value cube_shadow_face_view(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  uint32_t face = 0;
+  CNA_Vector3 position;
+  CNA_Matrix matrix;
+  memset(&position, 0, sizeof(position));
+  memset(&matrix, 0, sizeof(matrix));
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      napi_get_value_uint32(env, args[0], &face) != napi_ok ||
+      !read_vector3_fields(env, args[1], &position)) return NULL;
+  const CNA_Result result = g_api.cube_shadow_map_compute_face_view(face, &position, &matrix);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cube_shadow_map_compute_face_view", result);
+  }
+  return make_matrix16(env, &matrix, "cube face view");
+}
+
+static napi_value cube_shadow_face_projection(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  double range = 0;
+  CNA_Matrix matrix;
+  memset(&matrix, 0, sizeof(matrix));
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_double(env, args[0], &range) != napi_ok) return NULL;
+  const CNA_Result result =
+    g_api.cube_shadow_map_compute_face_projection((float) range, &matrix);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cube_shadow_map_compute_face_projection", result);
+  }
+  return make_matrix16(env, &matrix, "cube face projection");
+}
+
+static napi_value cube_shadow_size_for_quality(napi_env env, napi_callback_info info) {
+  return shadow_quality_to_i32(env, info, g_api.cube_shadow_map_size_for_quality,
+    "cna_cube_shadow_map_size_for_quality");
+}
+
 /* --- the engine layer's particle systems -------------------------------------------------------- */
 /*
  * A GPU particle system, and the pure functions behind it. `cna_particle_system_step` integrates
@@ -18249,6 +18492,14 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getShadowMapFilterRadius", NULL, shadow_map_get_filter_radius, NULL, NULL, NULL, napi_default, NULL },
     { "getShadowMapLightViewProjection", NULL, shadow_map_get_light_view_projection, NULL, NULL, NULL, napi_default, NULL },
     { "computeShadowLightView", NULL, shadow_map_compute_light_view, NULL, NULL, NULL, napi_default, NULL },
+    { "computeCascadeSplitDistances", NULL, cascade_split_distances, NULL, NULL, NULL, napi_default, NULL },
+    { "computeCascadeFrustumCorners", NULL, cascade_frustum_corners, NULL, NULL, NULL, napi_default, NULL },
+    { "computeCascadeBoundingSphere", NULL, cascade_bounding_sphere, NULL, NULL, NULL, napi_default, NULL },
+    { "computeSpotShadowLightView", NULL, spot_shadow_light_view, NULL, NULL, NULL, napi_default, NULL },
+    { "computeSpotShadowLightProjection", NULL, spot_shadow_light_projection, NULL, NULL, NULL, napi_default, NULL },
+    { "computeCubeShadowFaceView", NULL, cube_shadow_face_view, NULL, NULL, NULL, napi_default, NULL },
+    { "computeCubeShadowFaceProjection", NULL, cube_shadow_face_projection, NULL, NULL, NULL, napi_default, NULL },
+    { "cubeShadowMapSizeForQuality", NULL, cube_shadow_size_for_quality, NULL, NULL, NULL, napi_default, NULL },
     { "computeShadowLightProjection", NULL, shadow_map_compute_light_projection, NULL, NULL, NULL, napi_default, NULL },
     { "shadowMapSizeForQuality", NULL, shadow_map_size_for_quality, NULL, NULL, NULL, napi_default, NULL },
     { "shadowMapFilterRadiusForQuality", NULL, shadow_map_filter_radius_for_quality, NULL, NULL, NULL, napi_default, NULL },

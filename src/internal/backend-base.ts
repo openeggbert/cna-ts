@@ -1264,6 +1264,38 @@ export abstract class CnaShadowBackendBase implements CnaShadowBackend {
   public shadowMapFilterRadiusForQuality(
     _quality: number,
   ): number { return this.unsupported("shadowMapFilterRadiusForQuality"); }
+  public computeCascadeSplitDistances(
+    _nearPlane: number,
+    _farPlane: number,
+    _cascadeCount: number,
+    _lambda: number,
+  ): readonly number[] { return this.unsupported("computeCascadeSplitDistances"); }
+  public computeCascadeFrustumCorners(
+    _view: readonly number[],
+    _projection: readonly number[],
+  ): readonly Vector3Snapshot[] { return this.unsupported("computeCascadeFrustumCorners"); }
+  public computeCascadeBoundingSphere(
+    _corners: readonly Vector3Snapshot[],
+  ): {
+    readonly Center: Vector3Snapshot;
+    readonly Radius: number;
+} { return this.unsupported("computeCascadeBoundingSphere"); }
+  public computeSpotShadowLightView(
+    _light: SpotLightSnapshot,
+  ): readonly number[] { return this.unsupported("computeSpotShadowLightView"); }
+  public computeSpotShadowLightProjection(
+    _light: SpotLightSnapshot,
+  ): readonly number[] { return this.unsupported("computeSpotShadowLightProjection"); }
+  public computeCubeShadowFaceView(
+    _face: number,
+    _position: Vector3Snapshot,
+  ): readonly number[] { return this.unsupported("computeCubeShadowFaceView"); }
+  public computeCubeShadowFaceProjection(
+    _range: number,
+  ): readonly number[] { return this.unsupported("computeCubeShadowFaceProjection"); }
+  public cubeShadowMapSizeForQuality(
+    _quality: number,
+  ): number { return this.unsupported("cubeShadowMapSizeForQuality"); }
 }
 
 /** Refusing base for {@link CnaLodBackend}. */

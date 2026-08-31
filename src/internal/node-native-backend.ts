@@ -577,6 +577,14 @@ interface NativeBridge {
   computeShadowLightProjection(lightView: readonly number[], bounds: ClusterBoundsSnapshot): readonly number[];
   shadowMapSizeForQuality(quality: number): number;
   shadowMapFilterRadiusForQuality(quality: number): number;
+  computeCascadeSplitDistances(nearPlane: number, farPlane: number, cascadeCount: number, lambda: number): readonly number[];
+  computeCascadeFrustumCorners(view: readonly number[], projection: readonly number[]): readonly Vector3Snapshot[];
+  computeCascadeBoundingSphere(corners: readonly Vector3Snapshot[]): { readonly Center: Vector3Snapshot; readonly Radius: number };
+  computeSpotShadowLightView(light: SpotLightSnapshot): readonly number[];
+  computeSpotShadowLightProjection(light: SpotLightSnapshot): readonly number[];
+  computeCubeShadowFaceView(face: number, position: Vector3Snapshot): readonly number[];
+  computeCubeShadowFaceProjection(range: number): readonly number[];
+  cubeShadowMapSizeForQuality(quality: number): number;
   destroyLodGroup(group: bigint): void;
   addLodLevel(group: bigint, maxDistance: number): void;
   clearLodGroup(group: bigint): void;
@@ -2115,6 +2123,30 @@ export class NodeNativeBackend
   }
   public shadowMapFilterRadiusForQuality(quality: number): number {
     return this.#bridge.shadowMapFilterRadiusForQuality(quality);
+  }
+  public computeCascadeSplitDistances(nearPlane: number, farPlane: number, cascadeCount: number, lambda: number): readonly number[] {
+    return this.#bridge.computeCascadeSplitDistances(nearPlane, farPlane, cascadeCount, lambda);
+  }
+  public computeCascadeFrustumCorners(view: readonly number[], projection: readonly number[]): readonly Vector3Snapshot[] {
+    return this.#bridge.computeCascadeFrustumCorners(view, projection);
+  }
+  public computeCascadeBoundingSphere(corners: readonly Vector3Snapshot[]): { readonly Center: Vector3Snapshot; readonly Radius: number } {
+    return this.#bridge.computeCascadeBoundingSphere(corners);
+  }
+  public computeSpotShadowLightView(light: SpotLightSnapshot): readonly number[] {
+    return this.#bridge.computeSpotShadowLightView(light);
+  }
+  public computeSpotShadowLightProjection(light: SpotLightSnapshot): readonly number[] {
+    return this.#bridge.computeSpotShadowLightProjection(light);
+  }
+  public computeCubeShadowFaceView(face: number, position: Vector3Snapshot): readonly number[] {
+    return this.#bridge.computeCubeShadowFaceView(face, position);
+  }
+  public computeCubeShadowFaceProjection(range: number): readonly number[] {
+    return this.#bridge.computeCubeShadowFaceProjection(range);
+  }
+  public cubeShadowMapSizeForQuality(quality: number): number {
+    return this.#bridge.cubeShadowMapSizeForQuality(quality);
   }
   public createLodGroup(): NativeHandle {
     return this.#bridge.createLodGroup();

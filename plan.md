@@ -339,8 +339,12 @@ Electron, or mobile support.
   deliberately unprojected rather than merely unwritten: each needs a real render pass, and the one
   renderer here that could run one answers every render-target readback with zeros (upstream
   finding 7), so there is no evidence to accept them on.
-- [ ] The rest of the engine layer — cascaded, spot and cube shadow maps, decals, light probes and
-  atmospheric rendering — is measured and unprojected.
+- [x] And the rest of the shadow-map maths: a cascaded map's split distances checked against both
+  closed forms and their midpoint, the bounding sphere that sizes a cascade snugly, a spot light's
+  cone, and a cube map's six faces proved to be three opposite pairs.
+- [ ] Decals, light probes and atmospheric rendering are measured and unprojected. They are
+  state-and-render objects with no pure maths to project, so what a projection would buy is a state
+  round-trip and nothing more.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a

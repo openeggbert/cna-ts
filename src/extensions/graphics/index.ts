@@ -30,6 +30,7 @@ import { BoundingSphere } from "../../Microsoft/Xna/Framework/BoundingSphere.js"
 import { Matrix } from "../../Microsoft/Xna/Framework/Matrix.js";
 import { Vector3 } from "../../Microsoft/Xna/Framework/Vector3.js";
 import { Vector4 } from "../../Microsoft/Xna/Framework/Vector4.js";
+import type { CubeMapFace } from "../../Microsoft/Xna/Framework/Graphics/TextureEnums.js";
 import { NativeUnavailableError } from "../../internal/native-error.js";
 import { Color } from "../../Microsoft/Xna/Framework/Color.js";
 import type { GraphicsDevice } from "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
@@ -2044,6 +2045,85 @@ export const ShadowMapMath = {
     return toMatrix(shadows().computeShadowLightProjection(
       matrixValues(lightView, "lightView"), boundsSnapshot(sceneBounds),
     ));
+  },
+  /**
+   * Where a cascaded shadow map splits its view range.
+   *
+   * `lambda` blends two schemes: 0 is a uniform split, 1 is a logarithmic one, and the values
+   * between are the practical split scheme every cascaded implementation uses. The list runs from
+   * the near plane to the far plane, so it has one more entry than there are cascades.
+   */
+  ComputeCascadeSplitDistances(
+    nearPlane: number, farPlane: number, cascadeCount: number, lambda: number,
+  ): readonly number[] {
+    for (const [name, value] of [
+      ["nearPlane", nearPlane], ["farPlane", farPlane], ["lambda", lambda],
+    ] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    if (!Number.isInteger(cascadeCount) || cascadeCount < 1) {
+      throw new RangeError("cascadeCount must be a positive integer");
+    }
+    return Object.freeze([...shadows().computeCascadeSplitDistances(
+      nearPlane, farPlane, cascadeCount, lambda,
+    )]);
+  },
+
+  /** The eight world-space corners of a view frustum. */
+  ComputeFrustumCorners(view: Matrix, projection: Matrix): readonly Vector3[] {
+    return Object.freeze(shadows().computeCascadeFrustumCorners(
+      matrixValues(view, "view"), matrixValues(projection, "projection"),
+    ).map(toVector3));
+  },
+
+  /**
+   * The sphere that encloses those corners, which is what sizes a cascade: a sphere rather than a
+   * box, because a sphere does not change size as the camera turns, and a cascade that changed
+   * size every frame would shimmer.
+   */
+  ComputeCascadeBoundingSphere(corners: readonly Vector3[]): BoundingSphere {
+    if (!Array.isArray(corners) || corners.length !== 8) {
+      throw new RangeError("a frustum has exactly eight corners");
+    }
+    const sphere = shadows().computeCascadeBoundingSphere(
+      corners.map((corner, index) => vectorSnapshot(corner, `corners[${index}]`)),
+    );
+    return new BoundingSphere(toVector3(sphere.Center), sphere.Radius);
+  },
+
+  /** The view matrix that looks along a spot light. */
+  ComputeSpotLightView(light: ClusteredLight): Matrix {
+    return toMatrix(shadows().computeSpotShadowLightView(lightSnapshot(light)));
+  },
+
+  /** The perspective projection that matches a spot light's cone and range. */
+  ComputeSpotLightProjection(light: ClusteredLight): Matrix {
+    return toMatrix(shadows().computeSpotShadowLightProjection(lightSnapshot(light)));
+  },
+
+  /** The view matrix for one face of a cube shadow map, from a point light's position. */
+  ComputeCubeFaceView(face: CubeMapFace, position: Vector3): Matrix {
+    if (!Number.isInteger(face) || face < 0 || face > 5) {
+      throw new RangeError("face must be a CubeMapFace");
+    }
+    return toMatrix(shadows().computeCubeShadowFaceView(
+      face, vectorSnapshot(position, "position"),
+    ));
+  },
+
+  /** The projection every cube face shares: ninety degrees, square, out to a range. */
+  ComputeCubeFaceProjection(range: number): Matrix {
+    if (typeof range !== "number" || !Number.isFinite(range)) {
+      throw new TypeError("range must be a finite number");
+    }
+    return toMatrix(shadows().computeCubeShadowFaceProjection(range));
+  },
+
+  /** A cube shadow map's face size at a quality tier, which is not the flat map's. */
+  CubeSizeForQuality(quality: ShadowQuality): number {
+    return shadows().cubeShadowMapSizeForQuality(shadowQuality(quality));
   },
 } as const;
 

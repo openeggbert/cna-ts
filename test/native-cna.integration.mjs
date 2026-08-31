@@ -4428,3 +4428,180 @@ test("the particle simulation integrates exactly, and the system agrees with it"
     `SYSTEM=${system.refused ? `NOT_SUPPORTED(${system.cnaResult})` : `${system.capacity}/cpu`}`,
   );
 });
+
+test("cascade splits, spot cones and cube faces are exact geometry", async () => {
+  const { ClusteredLightType, ShadowMapMath, ShadowQuality } = computeExtensions;
+  const { CubeMapFace } = Graphics;
+
+  // --- cascaded splits -----------------------------------------------------------------------
+  // lambda blends a uniform split with a logarithmic one. Both ends are closed forms, so they are
+  // checked against the formula rather than against numbers recorded from a run.
+  const near = 1;
+  const far = 1000;
+  const count = 4;
+  const uniform = ShadowMapMath.ComputeCascadeSplitDistances(near, far, count, 0);
+  const logarithmic = ShadowMapMath.ComputeCascadeSplitDistances(near, far, count, 1);
+  const practical = ShadowMapMath.ComputeCascadeSplitDistances(near, far, count, 0.5);
+  // One distance per cascade -- each cascade's far edge -- so the last is the far plane itself.
+  assert.equal(uniform.length, count);
+  for (const list of [uniform, logarithmic, practical]) {
+    assert.ok(Math.abs(list[count - 1] - far) < 1e-2, `the last split is the far plane: ${list[count - 1]}`);
+    for (let index = 1; index < count; index += 1) {
+      assert.ok(list[index] > list[index - 1], "splits increase");
+      assert.ok(list[index] > near, "and stay past the near plane");
+    }
+  }
+  // Both ends of lambda are closed forms, so they are checked against the formula rather than
+  // against numbers recorded from a run -- and the midpoint is checked as the midpoint.
+  for (let index = 1; index <= count; index += 1) {
+    const fraction = index / count;
+    const expectedUniform = near + (far - near) * fraction;
+    const expectedLog = near * (far / near) ** fraction;
+    const at = index - 1;
+    assert.ok(
+      Math.abs(uniform[at] - expectedUniform) < expectedUniform * 1e-4,
+      `lambda 0 is not the uniform split at ${index}: ${uniform[at]} vs ${expectedUniform}`,
+    );
+    assert.ok(
+      Math.abs(logarithmic[at] - expectedLog) < expectedLog * 1e-4,
+      `lambda 1 is not the logarithmic split at ${index}: ${logarithmic[at]} vs ${expectedLog}`,
+    );
+    const blended = expectedLog * 0.5 + expectedUniform * 0.5;
+    assert.ok(
+      Math.abs(practical[at] - blended) < Math.max(blended * 1e-4, 1e-4),
+      `lambda 0.5 is not the midpoint at ${index}: ${practical[at]} vs ${blended}`,
+    );
+  }
+  // The two schemes genuinely differ, so the checks above are not all the same check: at the first
+  // cascade a uniform split is at 250 and a logarithmic one at 5.6.
+  assert.ok(
+    uniform[0] / logarithmic[0] > 10,
+    "a uniform split and a logarithmic one must not agree near the camera",
+  );
+  // CNA takes two to four cascades and refuses the rest itself, with its own result code.
+  for (const bad of [1, 5, 8]) {
+    assert.throws(
+      () => ShadowMapMath.ComputeCascadeSplitDistances(near, far, bad, 0.5),
+      (error) => error.cnaResult === 1,
+      `cascadeCount ${bad}`,
+    );
+  }
+  assert.equal(ShadowMapMath.ComputeCascadeSplitDistances(near, far, 2, 0.5).length, 2);
+  assert.throws(() => ShadowMapMath.ComputeCascadeSplitDistances(near, far, 0, 0.5), RangeError);
+
+  // --- the frustum, and the sphere that sizes a cascade ----------------------------------------
+  const view = Matrix.CreateLookAt(new Vector3(0, 0, 10), Vector3.Zero, Vector3.Up);
+  const projection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 3, 16 / 9, 1, 100);
+  const corners = ShadowMapMath.ComputeFrustumCorners(view, projection);
+  assert.equal(corners.length, 8, "a frustum has eight corners");
+  // Every corner is distinct, which a degenerate or duplicated computation would not manage.
+  const keys = new Set(corners.map((c) => `${c.X.toFixed(3)},${c.Y.toFixed(3)},${c.Z.toFixed(3)}`));
+  assert.equal(keys.size, 8, "the eight corners are eight different points");
+  const sphere = ShadowMapMath.ComputeCascadeBoundingSphere(corners);
+  // It really encloses them, and snugly: the farthest corner is on the surface.
+  let farthest = 0;
+  for (const corner of corners) {
+    farthest = Math.max(farthest, Vector3.Distance(corner, sphere.Center));
+  }
+  assert.ok(
+    farthest <= sphere.Radius + 1e-3,
+    `a corner lies outside the sphere: ${farthest} > ${sphere.Radius}`,
+  );
+  assert.ok(
+    farthest >= sphere.Radius - 1e-3,
+    "and the sphere is no larger than it needs to be",
+  );
+  assert.throws(() => ShadowMapMath.ComputeCascadeBoundingSphere(corners.slice(0, 7)), RangeError);
+
+  // --- a spot light's cone ---------------------------------------------------------------------
+  const spot = {
+    Type: ClusteredLightType.Spot,
+    Position: new Vector3(3, 8, -2),
+    Direction: new Vector3(0, -1, 0),
+    Color: new Vector3(1, 1, 1),
+    Intensity: 5,
+    Range: 40,
+    InnerAngle: 0.3,
+    OuterAngle: 0.7,
+    CastsShadows: true,
+  };
+  const spotView = ShadowMapMath.ComputeSpotLightView(spot);
+  const spotProjection = ShadowMapMath.ComputeSpotLightProjection(spot);
+  // The view puts the light at the origin: transforming its own position gives (0, 0, 0).
+  const atOrigin = Vector3.Transform(spot.Position, spotView);
+  assert.ok(
+    atOrigin.Length() < 1e-3,
+    `a spot's view does not put the light at the origin: ${atOrigin.X},${atOrigin.Y},${atOrigin.Z}`,
+  );
+  // The projection is perspective, not orthographic: its w row carries -1, which is what divides.
+  assert.ok(
+    Math.abs(spotProjection.M34 + 1) < 1e-5,
+    `a spot's projection is not perspective: M34 = ${spotProjection.M34}`,
+  );
+  // A point on the cone axis at the light's range lands on the far plane.
+  const alongAxis = Vector3.Add(spot.Position, new Vector3(0, -spot.Range, 0));
+  const clip = Vector4.Transform(
+    new Vector4(alongAxis.X, alongAxis.Y, alongAxis.Z, 1), Matrix.Multiply(spotView, spotProjection),
+  );
+  assert.ok(Math.abs(clip.Z / clip.W - 1) < 1e-3, `the range does not reach the far plane: ${clip.Z / clip.W}`);
+  assert.ok(Math.abs(clip.X / clip.W) < 1e-3 && Math.abs(clip.Y / clip.W) < 1e-3, "and the axis is the centre");
+  // A wider cone gives a different projection, so the outer angle reaches the maths.
+  const wider = ShadowMapMath.ComputeSpotLightProjection({ ...spot, OuterAngle: 1.2 });
+  assert.notEqual(wider.M11, spotProjection.M11, "the outer angle sets the field of view");
+
+  // --- a cube map's six faces --------------------------------------------------------------------
+  const position = new Vector3(1, 2, 3);
+  const faces = [
+    CubeMapFace.PositiveX, CubeMapFace.NegativeX, CubeMapFace.PositiveY,
+    CubeMapFace.NegativeY, CubeMapFace.PositiveZ, CubeMapFace.NegativeZ,
+  ].map((face) => ShadowMapMath.ComputeCubeFaceView(face, position));
+  assert.equal(faces.length, 6);
+  // Each face puts the light at the origin, and each looks in a different direction: the six
+  // forward axes are six distinct unit vectors, which is exactly what a cube map needs.
+  const forwards = [];
+  for (const face of faces) {
+    const origin = Vector3.Transform(position, face);
+    assert.ok(origin.Length() < 1e-3, "every cube face puts the light at the origin");
+    const forward = new Vector3(-face.M13, -face.M23, -face.M33);
+    assert.ok(Math.abs(forward.Length() - 1) < 1e-5, "and looks along a unit axis");
+    forwards.push(forward);
+  }
+  for (let a = 0; a < 6; a += 1) {
+    for (let b = a + 1; b < 6; b += 1) {
+      const dot = Vector3.Dot(forwards[a], forwards[b]);
+      assert.ok(
+        Math.abs(dot) < 1e-5 || Math.abs(dot + 1) < 1e-5,
+        `cube faces ${a} and ${b} are neither perpendicular nor opposite: ${dot}`,
+      );
+    }
+  }
+  // Three opposite pairs, which is what six axes of a cube means.
+  const opposites = [];
+  for (let a = 0; a < 6; a += 1) {
+    for (let b = a + 1; b < 6; b += 1) {
+      if (Math.abs(Vector3.Dot(forwards[a], forwards[b]) + 1) < 1e-5) opposites.push([a, b]);
+    }
+  }
+  assert.equal(opposites.length, 3, "six cube faces are three opposite pairs");
+
+  const cubeProjection = ShadowMapMath.ComputeCubeFaceProjection(50);
+  // Ninety degrees, square: a square perspective projection has M11 equal to M22, and for a
+  // ninety-degree field of view both are exactly one.
+  assert.ok(Math.abs(cubeProjection.M11 - 1) < 1e-4, `not ninety degrees: M11 = ${cubeProjection.M11}`);
+  assert.ok(Math.abs(cubeProjection.M22 - 1) < 1e-4, `not square: M22 = ${cubeProjection.M22}`);
+  assert.ok(Math.abs(cubeProjection.M34 + 1) < 1e-5, "and perspective");
+
+  const cubeSizes = [ShadowQuality.Low, ShadowQuality.Medium, ShadowQuality.High, ShadowQuality.Ultra]
+    .map((quality) => ShadowMapMath.CubeSizeForQuality(quality));
+  for (let index = 1; index < cubeSizes.length; index += 1) {
+    assert.ok(cubeSizes[index] >= cubeSizes[index - 1], "a cube map's tiers do not shrink");
+  }
+  assert.ok(cubeSizes[0] > 0);
+  assert.throws(() => ShadowMapMath.CubeSizeForQuality(9), RangeError);
+  assert.throws(() => ShadowMapMath.ComputeCubeFaceView(6, position), RangeError);
+
+  console.log(
+    `CNA_TS_NATIVE_SHADOW_GEOMETRY=PASS SPLITS=uniform/log/blend CASCADE_SPHERE=SNUG ` +
+    `SPOT_CONE=EXACT CUBE_FACES=3_OPPOSITE_PAIRS CUBE_SIZES=${cubeSizes.join("/")}`,
+  );
+});

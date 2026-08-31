@@ -1368,6 +1368,20 @@ export interface CnaShadowBackend {
   ): readonly number[];
   shadowMapSizeForQuality(quality: number): number;
   shadowMapFilterRadiusForQuality(quality: number): number;
+  computeCascadeSplitDistances(
+    nearPlane: number, farPlane: number, cascadeCount: number, lambda: number,
+  ): readonly number[];
+  computeCascadeFrustumCorners(
+    view: readonly number[], projection: readonly number[],
+  ): readonly Vector3Snapshot[];
+  computeCascadeBoundingSphere(
+    corners: readonly Vector3Snapshot[],
+  ): { readonly Center: Vector3Snapshot; readonly Radius: number };
+  computeSpotShadowLightView(light: SpotLightSnapshot): readonly number[];
+  computeSpotShadowLightProjection(light: SpotLightSnapshot): readonly number[];
+  computeCubeShadowFaceView(face: number, position: Vector3Snapshot): readonly number[];
+  computeCubeShadowFaceProjection(range: number): readonly number[];
+  cubeShadowMapSizeForQuality(quality: number): number;
 }
 
 export interface CnaLodBackend {

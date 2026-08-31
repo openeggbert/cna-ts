@@ -16,13 +16,13 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 992,
+    "NODE": 1000,
     "WASM": 276
   },
-  "reachableByAny": 992,
+  "reachableByAny": 1000,
   "reachableByAll": 276,
   "reachableExclusively": {
-    "NODE": 716,
+    "NODE": 724,
     "WASM": 0
   },
   "reachabilityByCategory": {
@@ -31,7 +31,7 @@
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 585,
+      "NODE": 593,
       "WASM": 189
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -119,7 +119,7 @@
     },
     "engine_layer.h": {
       "CNA_EXTENSION_BACKING": 857,
-      "REACHABLE_NODE": 212
+      "REACHABLE_NODE": 220
     },
     "gamer_services.h": {
       "XNA_BACKING": 250,
@@ -3390,21 +3390,27 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cascaded_shadow_map_compute_frustum_corners",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cascaded_shadow_map_compute_split_distances",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cascaded_shadow_map_create",
@@ -8169,14 +8175,18 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cube_shadow_map_compute_face_view",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cube_shadow_map_create",
@@ -8267,7 +8277,9 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cube_shadow_map_update",
@@ -26824,14 +26836,18 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_spot_shadow_map_compute_light_view",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_spot_shadow_map_create",
