@@ -4394,6 +4394,202 @@ test("a renderer that cannot cast shadows says so, and lends nothing it cannot m
   );
 });
 
+test("the prepass encoding is exact where no renderer is needed, and the pass says what it cannot do", async () => {
+  const {
+    DecalPass, DepthEncoding, DepthNormalPrepass, DepthNormalPrepassMath,
+  } = computeExtensions;
+
+  /*
+   * The other side of the decal projector.
+   *
+   * `test/windowed-renderer.integration.mjs` runs the whole pipeline on OPENGLES3 and checks every
+   * painted texel against CNA's own box test. HEADLESS compiles no custom effects, so it can make a
+   * prepass and a decal pass and run neither -- and that is the boundary worth asserting, because a
+   * binding at a capability edge is exactly where behaviour is easiest to invent.
+   *
+   * What does work here is everything that is arithmetic: the depth encoding, the shader source and
+   * the decal box's own membership test, none of which touches a renderer.
+   */
+  const game = new (class extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+    LoadContent() {
+      const device = this.GraphicsDevice;
+      const attempt = (body) => {
+        try {
+          const value = body();
+          return value === undefined ? "ACCEPTED" : value;
+        } catch (error) {
+          return `${error.constructor.name}(${error.cnaResult ?? "-"}): ${error.message}`;
+        }
+      };
+      const prepass = new DepthNormalPrepass(device, 32, 32, DepthEncoding.Automatic);
+      const pass = new DecalPass(device);
+      try {
+        const view = Matrix.CreateLookAt(new Vector3(0, 0, 4), Vector3.Zero, Vector3.Up);
+        const projection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 3, 1, 1, 50);
+        this.evidence.probe = {
+          supported: prepass.IsSupported,
+          devicePacked: DepthNormalPrepassMath.UsesPackedDepth(device),
+          depthPacked: prepass.IsDepthPacked,
+          passCount: prepass.PassCount,
+          begin: attempt(() => prepass.Begin(0, view, projection, 1, 50)),
+          end: attempt(() => prepass.End()),
+          endTwice: attempt(() => prepass.End()),
+          prepassEffect: attempt(() => prepass.PrepassEffect),
+          skinnedPrepassEffect: attempt(() => prepass.SkinnedPrepassEffect),
+          depthTexture: attempt(() => {
+            const texture = prepass.DepthTexture;
+            return { width: texture.Width, height: texture.Height };
+          }),
+          velocityTexture: attempt(() => prepass.VelocityTexture),
+          // The decal pass takes its state on any renderer; only drawing needs one.
+          opacity: attempt(() => {
+            pass.Opacity = 0.25;
+            return pass.Opacity;
+          }),
+          draw: attempt(() => {
+            const decal = new Graphics.Texture2D(device, 1, 1);
+            try {
+              pass.SetPrepassInputs(prepass.DepthTexture, null);
+              pass.SetCamera(view, projection, 50);
+              pass.Draw(decal, Matrix.Identity, 32, 32);
+            } finally {
+              decal.Dispose();
+            }
+          }),
+        };
+      } finally {
+        // Every borrow goes back before its lender does, on this renderer too.
+        this.evidence.dispose = attempt(() => {
+          pass.Dispose();
+          prepass.Dispose();
+        });
+      }
+      this.Exit();
+      super.LoadContent();
+    }
+    Draw(gameTime) {
+      this.GraphicsDevice.Clear(Color.CornflowerBlue);
+      this.Exit();
+      super.Draw(gameTime);
+    }
+  })();
+  await game.Run();
+  const probe = game.evidence.probe;
+  // A leaked borrow would surface here, as CNA refusing to destroy the game that owns the device.
+  game.Dispose();
+
+  assert.equal(typeof probe, "object", `prepass probe failed: ${JSON.stringify(probe)}`);
+  assert.equal(game.evidence.dispose, "ACCEPTED", "the prepass returns every borrow it took");
+
+  /*
+   * The arithmetic, which needs no renderer at all.
+   *
+   * Depth is linear view depth over the far plane, packed most significant channel first, and a
+   * half lands in the alpha channel alone -- which is what a shift of (1/2^24, 1/2^16, 1/256, 1)
+   * means. The encoder and its decoder are inverses to a part in 2^24 across the range.
+   */
+  const packedHalf = DepthNormalPrepassMath.PackDepth(0.5);
+  assert.deepEqual(
+    [packedHalf.R, packedHalf.G, packedHalf.B, packedHalf.A], [0, 0, 0, 0.5],
+    "a half packs into the alpha channel and nothing else",
+  );
+  let worst = 0;
+  for (let step = 0; step <= 512; step += 1) {
+    const depth = (step / 512) * 0.999;
+    const packed = DepthNormalPrepassMath.PackDepth(depth);
+    worst = Math.max(worst, Math.abs(
+      DepthNormalPrepassMath.UnpackDepth(packed.R, packed.G, packed.B, packed.A) - depth,
+    ));
+  }
+  assert.ok(worst <= Math.pow(2, -24), `pack and unpack are inverses to a part in 2^24 (${worst})`);
+  // 1.0 is clamped one step short before packing: fract(1.0) is zero, so an unclamped far plane
+  // would pack to nothing and read back as the nearest possible surface -- the exact inverse of
+  // what it means, applied to the commonest value in the buffer.
+  const packedFar = DepthNormalPrepassMath.PackDepth(1);
+  assert.equal(packedFar.R, 0);
+  assert.ok(packedFar.A > 0.99 && packedFar.A < 1, `and stops short of one (${packedFar.A})`);
+
+  // The decal box is the unit cube on its own origin, which is the whole of its membership test.
+  for (const [point, inside] of [
+    [new Vector3(0, 0, 0), true],
+    [new Vector3(0.5, -0.5, 0.5), true],
+    [new Vector3(0.51, 0, 0), false],
+    [new Vector3(0, 0, -0.51), false],
+  ]) {
+    assert.equal(
+      DecalPass.IsInsideDecalBox(point), inside,
+      `(${point.X}, ${point.Y}, ${point.Z}) is ${inside ? "inside" : "outside"} a decal box`,
+    );
+  }
+  // A velocity texel's flag is the alpha inverted, because one shared white clear serves the whole
+  // bound target set and has to read as "nothing here".
+  assert.equal(DepthNormalPrepassMath.HasVelocity(new Color(200, 100, 0, 0)), true);
+  assert.equal(DepthNormalPrepassMath.HasVelocity(new Color(200, 100, 0, 255)), false);
+  const velocity = DepthNormalPrepassMath.DecodeVelocity(new Color(255, 0, 0, 0));
+  assert.deepEqual([velocity.X, velocity.Y], [1, -1]);
+  // The shader source is CNA's, and the two dialects differ by the unpacker the packed one needs.
+  const packedGlsl = DepthNormalPrepassMath.DepthDecodeGlsl(true);
+  const plainGlsl = DepthNormalPrepassMath.DepthDecodeGlsl(false);
+  assert.ok(packedGlsl.includes("cnaUnpackDepth") && !plainGlsl.includes("cnaUnpackDepth"));
+  assert.ok(packedGlsl.length > plainGlsl.length, "the packed dialect is the longer one");
+  for (const source of [packedGlsl, plainGlsl]) {
+    assert.ok(source.includes("cnaDecodeLinearDepth") && source.includes("cnaViewPositionFromDepth"));
+  }
+
+  // The device query and the prepass agree about the encoding, which is one route checking another.
+  assert.equal(probe.devicePacked, probe.depthPacked);
+
+  if (probe.supported) {
+    // Not the renderer this test is about; the windowed file covers that one properly.
+    console.log("CNA_TS_NATIVE_PREPASS=RENDERER_DRAWS");
+    return;
+  }
+
+  /*
+   * And the boundary. CNA accepts the pass, binds and clears its targets, and simply writes nothing
+   * into them, exactly as the shadow pass does on this renderer. The binding passes that through
+   * rather than inventing a refusal -- and stops at the effects, where a getter answering success
+   * with an invalid handle is a capability to report, not a handle to wrap.
+   */
+  assert.deepEqual(
+    [probe.begin, probe.end, probe.draw], ["ACCEPTED", "ACCEPTED", "ACCEPTED"],
+    "an unsupported renderer still accepts the pass and the draw, and writes nothing",
+  );
+  // Its state checking is still real, though: this is CNA refusing, not the binding.
+  /*
+   * Closing a pass that is not open is refused -- and refused with the wrong code, which is
+   * `docs/upstream-cna-findings.md` item 14. The header documents `CNA_RESULT_INVALID_STATE`; what
+   * arrives is 12, `CNA_RESULT_INTERNAL`, carrying CNA's own `std::logic_error` text. So the
+   * message says exactly what a caller did wrong while the code says "a bug in CNA". Asserted as it
+   * behaves, so a repair fails here and says so.
+   */
+  assert.match(
+    probe.endTwice, /^Error\(12\): .*no pass is open$/,
+    "UPSTREAM FINDING 14 REPAIRED: an unopened close now answers a code of its own. " +
+    "Update docs/upstream-cna-findings.md and assert INVALID_STATE",
+  );
+  for (const answer of [probe.prepassEffect, probe.skinnedPrepassEffect]) {
+    assert.match(answer, /^NativeUnavailableError/, "an unlendable prepass program is refused");
+    assert.match(answer, /IsSupported/, "and the refusal names the question to ask instead");
+  }
+  // The targets are still real -- allocated storage, not compiled programs -- at the size asked
+  // for, and velocity is an absence rather than an empty buffer.
+  assert.deepEqual([probe.depthTexture.width, probe.depthTexture.height], [32, 32]);
+  assert.equal(probe.velocityTexture, null, "velocity is off, so there is no buffer to lend");
+  assert.equal(probe.opacity, 0.25, "and the decal pass still holds its state");
+
+  console.log(
+    `CNA_TS_NATIVE_PREPASS=UNSUPPORTED_RENDERER PACKED=${probe.depthPacked} ` +
+    `PASSES=${probe.passCount} DEPTH=${probe.depthTexture.width}px EFFECTS=REFUSED ` +
+    `ENCODER_ERROR=${worst.toExponential(2)}`,
+  );
+});
+
 test("the particle simulation integrates exactly, and the system agrees with it", async () => {
   const { ParticleMath, ParticleShaderSource, ParticleSystem } = computeExtensions;
 

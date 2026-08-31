@@ -360,9 +360,27 @@ Electron, or mobile support.
 - [x] And the rest of the shadow-map maths: a cascaded map's split distances checked against both
   closed forms and their midpoint, the bounding sphere that sizes a cascade snugly, a spot light's
   cone, and a cube map's six faces proved to be three opposite pairs.
-- [ ] Decals, light probes and atmospheric rendering are measured and unprojected. They are
-  state-and-render objects with no pure maths to project, so what a projection would buy is a state
-  round-trip and nothing more.
+- [x] **The depth/normal prepass and the decal projector**, which are one pipeline and are
+  projected as one. The prepass is accepted against CNA's own rasteriser: the same flat quad drawn
+  through a stock `BasicEffect` and through the prepass, into targets of the same size in the same
+  frame, agree to within 1.5 texels on every edge — so the renderer's screen and readback
+  conventions cancel between them — and the depth it recorded is the number CNA's own pack and
+  unpack routes give for that camera, to five decimals, in a buffer holding exactly two values.
+  Every covered texel's normal is exactly the encoded view normal. The decal projector is accepted
+  **texel for texel with no tolerance at all**: for every screen texel the test rebuilds the world
+  point the shader rebuilds, inverts the box's own world matrix and asks
+  `cna_decal_pass_is_inside_decal_box` whether it lands inside, intersected with the surface the
+  prepass actually drew. Five boxes over one surface each match that prediction exactly, including
+  a box rolled thirty degrees about the view axis that paints a diagonal band no axis-aligned box
+  could. Opacity is checked through the `NonPremultiplied` blend as an arithmetic identity rather
+  than through its getter, a green tint on a red decal leaves black, and the slope limit is
+  semantic: with the box left exactly where it is, a surface tilted 60 degrees shows, 80 does not,
+  and widening the limit to 85 brings the same picture back. Twenty planted binding defects fail
+  and none survives.
+- [ ] Light probes and atmospheric rendering are measured and unprojected. Light probes are the
+  probe value, the volume and the baker that captures six cube faces through a callback;
+  atmospheric rendering is the analytic sky, the skybox and the environment processor that feeds
+  it.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -544,9 +562,18 @@ Electron, or mobile support.
 
 ## Upstream CNA blockers
 
-One runtime defect and two build-system gaps remain, all in `cnanext`, all measured here and none
+Four runtime defects and two build-system gaps remain, all in `cnanext`, all measured here and none
 fixed from this session. `docs/upstream-cna-findings.md` records each with its reproduction and a
 proposed change, and each has a test in this package that fails when the behaviour changes.
+
+Three of the runtime four came out of the draw work. Soft particles never fade, although the depth
+image and the softness reach CNA and read back (item 12). The prepass's packed depth encoding is
+exact in arithmetic and loses all of it in the eight-bit target it is written into, delivering one
+part in 255 where its own source claims one part in 2^24 — measured with a sweep, and demonstrated
+rather than guessed by a 256-level control that restores the exact accuracy (item 13). And three
+depth/normal prepass routes answer `INTERNAL` where their header documents `INVALID_STATE`, because
+`std::logic_error` is not translated where CNA's own render pipeline translates it in the same
+source file (item 14).
 
 The runtime one: `cna_post_process_chain_add_owned_pass` consumes a pass handle without the
 `RemoveOwnedGraphicsResourceFor` its sibling `_destroy` performs, so the game's

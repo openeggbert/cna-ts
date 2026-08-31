@@ -605,6 +605,39 @@ typedef CNA_Result (*SpotShadowMatrixFn)(const CNA_SpotLightEXT*, CNA_Matrix*);
 typedef CNA_Result (*CubeFaceViewFn)(CNA_CubeMapFace, const CNA_Vector3*, CNA_Matrix*);
 typedef CNA_Result (*CubeFaceProjectionFn)(float, CNA_Matrix*);
 
+/* --- the engine layer's depth/normal prepass and its decal projector --------------------------- */
+/*
+ * The prepass writes linear depth and view-space normals; the decal pass reads them back and
+ * unprojects each screen texel into a decal's own box. They are one family in this bridge because
+ * they are one family in use: nothing else produces the two inputs `cna_decal_pass_set_prepass_
+ * inputs` wants.
+ */
+typedef CNA_Result (*PrepassCreateFn)(
+  CNA_Handle, int32_t, int32_t, CNA_DepthEncoding, CNA_DepthNormalPrepassHandle*);
+typedef CNA_Result (*PrepassResizeFn)(CNA_DepthNormalPrepassHandle, int32_t, int32_t);
+typedef CNA_Result (*PrepassBeginFn)(
+  CNA_DepthNormalPrepassHandle, int32_t, const CNA_Matrix*, const CNA_Matrix*, float, float);
+typedef CNA_Result (*PrepassEffectOutFn)(CNA_DepthNormalPrepassHandle, CNA_EffectHandle*);
+typedef CNA_Result (*PrepassSupportedFn)(CNA_DepthNormalPrepassHandle, CNA_Handle, CNA_Bool*);
+typedef CNA_Result (*PrepassPreviousWorldFn)(CNA_DepthNormalPrepassHandle, const CNA_Matrix*);
+typedef CNA_Result (*PrepassPreviousCameraFn)(
+  CNA_DepthNormalPrepassHandle, const CNA_Matrix*, const CNA_Matrix*);
+typedef CNA_Result (*PrepassDepthDecodeGlslFn)(CNA_Bool, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*PrepassPackDepthFn)(float, float*, float*, float*, float*);
+typedef CNA_Result (*PrepassUnpackDepthFn)(float, float, float, float, float*);
+typedef CNA_Result (*PrepassVelocityHasFn)(CNA_Color, CNA_Bool*);
+typedef CNA_Result (*PrepassVelocityDecodeFn)(CNA_Color, CNA_Vector2*);
+
+typedef CNA_Result (*DecalPassCreateFn)(CNA_Handle, CNA_DecalPassHandle*);
+typedef CNA_Result (*DecalTintOutFn)(CNA_DecalPassHandle, CNA_Vector3*);
+typedef CNA_Result (*DecalTintInFn)(CNA_DecalPassHandle, const CNA_Vector3*);
+typedef CNA_Result (*DecalPrepassInputsFn)(CNA_DecalPassHandle, CNA_Handle, CNA_Handle);
+typedef CNA_Result (*DecalCameraFn)(
+  CNA_DecalPassHandle, const CNA_Matrix*, const CNA_Matrix*, float);
+typedef CNA_Result (*DecalDrawFn)(
+  CNA_DecalPassHandle, CNA_Handle, const CNA_Matrix*, int32_t, int32_t);
+typedef CNA_Result (*DecalInsideBoxFn)(const CNA_Vector3*, CNA_Bool*);
+
 /* --- the engine layer's compute path ---------------------------------------------------------- */
 /*
  * Storage buffers, compute shaders and GPU timers. The handle typedefs in `engine_layer.h` are all
@@ -1548,6 +1581,47 @@ typedef struct Api {
   CubeFaceProjectionFn cube_shadow_map_compute_face_projection;
   ShadowQualityToI32Fn cube_shadow_map_size_for_quality;
   GameHandleFn clustered_shadow_policy_destroy;
+
+  /* the depth/normal prepass, and the decal projector that reads it */
+  PrepassCreateFn depth_normal_prepass_create;
+  GameHandleFn depth_normal_prepass_destroy;
+  PrepassResizeFn depth_normal_prepass_resize;
+  HandleI32OutFn depth_normal_prepass_get_pass_count;
+  PrepassBeginFn depth_normal_prepass_begin;
+  GameHandleFn depth_normal_prepass_end;
+  PrepassEffectOutFn depth_normal_prepass_get_prepass_effect;
+  PrepassEffectOutFn depth_normal_prepass_get_skinned_prepass_effect;
+  HandleHandleOutFn depth_normal_prepass_get_depth_texture;
+  HandleHandleOutFn depth_normal_prepass_get_normal_texture;
+  HandleHandleOutFn depth_normal_prepass_get_velocity_texture_ext;
+  PrepassSupportedFn depth_normal_prepass_is_supported;
+  BoolGetFn depth_normal_prepass_is_using_multiple_render_targets;
+  BoolGetFn depth_normal_prepass_is_depth_packed;
+  HandleBoolOutFn depth_normal_prepass_uses_packed_depth_ext;
+  HandleFloatOutFn depth_normal_prepass_get_roughness;
+  HandleFloatFn depth_normal_prepass_set_roughness;
+  BoolGetFn depth_normal_prepass_is_velocity_enabled_ext;
+  HandleBoolFn depth_normal_prepass_set_velocity_enabled_ext;
+  PrepassPreviousWorldFn depth_normal_prepass_set_previous_world_ext;
+  PrepassPreviousCameraFn depth_normal_prepass_set_previous_camera_ext;
+  PrepassDepthDecodeGlslFn depth_normal_prepass_copy_depth_decode_glsl;
+  CopyGlslFn depth_normal_prepass_copy_velocity_decode_glsl;
+  PrepassVelocityHasFn depth_normal_prepass_has_velocity_ext;
+  PrepassVelocityDecodeFn depth_normal_prepass_decode_velocity_ext;
+  PrepassPackDepthFn depth_normal_prepass_pack_depth;
+  PrepassUnpackDepthFn depth_normal_prepass_unpack_depth;
+  DecalPassCreateFn decal_pass_create;
+  GameHandleFn decal_pass_destroy;
+  HandleFloatOutFn decal_pass_get_opacity;
+  HandleFloatFn decal_pass_set_opacity;
+  DecalTintOutFn decal_pass_get_tint;
+  DecalTintInFn decal_pass_set_tint;
+  HandleFloatOutFn decal_pass_get_max_slope_angle;
+  HandleFloatFn decal_pass_set_max_slope_angle;
+  DecalPrepassInputsFn decal_pass_set_prepass_inputs;
+  DecalCameraFn decal_pass_set_camera;
+  DecalDrawFn decal_pass_draw;
+  DecalInsideBoxFn decal_pass_is_inside_decal_box;
 
   /* the engine layer's compute path */
   PresentationParametersInitFn presentation_parameters_init;
@@ -2906,6 +2980,46 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(cube_shadow_map_compute_face_projection, CubeFaceProjectionFn, "cna_cube_shadow_map_compute_face_projection");
   LOAD_REQUIRED(cube_shadow_map_size_for_quality, ShadowQualityToI32Fn, "cna_cube_shadow_map_size_for_quality");
   LOAD_REQUIRED(clustered_shadow_policy_destroy, GameHandleFn, "cna_clustered_shadow_policy_destroy");
+
+  LOAD_REQUIRED(depth_normal_prepass_create, PrepassCreateFn, "cna_depth_normal_prepass_create");
+  LOAD_REQUIRED(depth_normal_prepass_destroy, GameHandleFn, "cna_depth_normal_prepass_destroy");
+  LOAD_REQUIRED(depth_normal_prepass_resize, PrepassResizeFn, "cna_depth_normal_prepass_resize");
+  LOAD_REQUIRED(depth_normal_prepass_get_pass_count, HandleI32OutFn, "cna_depth_normal_prepass_get_pass_count");
+  LOAD_REQUIRED(depth_normal_prepass_begin, PrepassBeginFn, "cna_depth_normal_prepass_begin");
+  LOAD_REQUIRED(depth_normal_prepass_end, GameHandleFn, "cna_depth_normal_prepass_end");
+  LOAD_REQUIRED(depth_normal_prepass_get_prepass_effect, PrepassEffectOutFn, "cna_depth_normal_prepass_get_prepass_effect");
+  LOAD_REQUIRED(depth_normal_prepass_get_skinned_prepass_effect, PrepassEffectOutFn, "cna_depth_normal_prepass_get_skinned_prepass_effect");
+  LOAD_REQUIRED(depth_normal_prepass_get_depth_texture, HandleHandleOutFn, "cna_depth_normal_prepass_get_depth_texture");
+  LOAD_REQUIRED(depth_normal_prepass_get_normal_texture, HandleHandleOutFn, "cna_depth_normal_prepass_get_normal_texture");
+  LOAD_REQUIRED(depth_normal_prepass_get_velocity_texture_ext, HandleHandleOutFn, "cna_depth_normal_prepass_get_velocity_texture_ext");
+  LOAD_REQUIRED(depth_normal_prepass_is_supported, PrepassSupportedFn, "cna_depth_normal_prepass_is_supported");
+  LOAD_REQUIRED(depth_normal_prepass_is_using_multiple_render_targets, BoolGetFn, "cna_depth_normal_prepass_is_using_multiple_render_targets");
+  LOAD_REQUIRED(depth_normal_prepass_is_depth_packed, BoolGetFn, "cna_depth_normal_prepass_is_depth_packed");
+  LOAD_REQUIRED(depth_normal_prepass_uses_packed_depth_ext, HandleBoolOutFn, "cna_depth_normal_prepass_uses_packed_depth_ext");
+  LOAD_REQUIRED(depth_normal_prepass_get_roughness, HandleFloatOutFn, "cna_depth_normal_prepass_get_roughness");
+  LOAD_REQUIRED(depth_normal_prepass_set_roughness, HandleFloatFn, "cna_depth_normal_prepass_set_roughness");
+  LOAD_REQUIRED(depth_normal_prepass_is_velocity_enabled_ext, BoolGetFn, "cna_depth_normal_prepass_is_velocity_enabled_ext");
+  LOAD_REQUIRED(depth_normal_prepass_set_velocity_enabled_ext, HandleBoolFn, "cna_depth_normal_prepass_set_velocity_enabled_ext");
+  LOAD_REQUIRED(depth_normal_prepass_set_previous_world_ext, PrepassPreviousWorldFn, "cna_depth_normal_prepass_set_previous_world_ext");
+  LOAD_REQUIRED(depth_normal_prepass_set_previous_camera_ext, PrepassPreviousCameraFn, "cna_depth_normal_prepass_set_previous_camera_ext");
+  LOAD_REQUIRED(depth_normal_prepass_copy_depth_decode_glsl, PrepassDepthDecodeGlslFn, "cna_depth_normal_prepass_copy_depth_decode_glsl");
+  LOAD_REQUIRED(depth_normal_prepass_copy_velocity_decode_glsl, CopyGlslFn, "cna_depth_normal_prepass_copy_velocity_decode_glsl");
+  LOAD_REQUIRED(depth_normal_prepass_has_velocity_ext, PrepassVelocityHasFn, "cna_depth_normal_prepass_has_velocity_ext");
+  LOAD_REQUIRED(depth_normal_prepass_decode_velocity_ext, PrepassVelocityDecodeFn, "cna_depth_normal_prepass_decode_velocity_ext");
+  LOAD_REQUIRED(depth_normal_prepass_pack_depth, PrepassPackDepthFn, "cna_depth_normal_prepass_pack_depth");
+  LOAD_REQUIRED(depth_normal_prepass_unpack_depth, PrepassUnpackDepthFn, "cna_depth_normal_prepass_unpack_depth");
+  LOAD_REQUIRED(decal_pass_create, DecalPassCreateFn, "cna_decal_pass_create");
+  LOAD_REQUIRED(decal_pass_destroy, GameHandleFn, "cna_decal_pass_destroy");
+  LOAD_REQUIRED(decal_pass_get_opacity, HandleFloatOutFn, "cna_decal_pass_get_opacity");
+  LOAD_REQUIRED(decal_pass_set_opacity, HandleFloatFn, "cna_decal_pass_set_opacity");
+  LOAD_REQUIRED(decal_pass_get_tint, DecalTintOutFn, "cna_decal_pass_get_tint");
+  LOAD_REQUIRED(decal_pass_set_tint, DecalTintInFn, "cna_decal_pass_set_tint");
+  LOAD_REQUIRED(decal_pass_get_max_slope_angle, HandleFloatOutFn, "cna_decal_pass_get_max_slope_angle");
+  LOAD_REQUIRED(decal_pass_set_max_slope_angle, HandleFloatFn, "cna_decal_pass_set_max_slope_angle");
+  LOAD_REQUIRED(decal_pass_set_prepass_inputs, DecalPrepassInputsFn, "cna_decal_pass_set_prepass_inputs");
+  LOAD_REQUIRED(decal_pass_set_camera, DecalCameraFn, "cna_decal_pass_set_camera");
+  LOAD_REQUIRED(decal_pass_draw, DecalDrawFn, "cna_decal_pass_draw");
+  LOAD_REQUIRED(decal_pass_is_inside_decal_box, DecalInsideBoxFn, "cna_decal_pass_is_inside_decal_box");
 
   LOAD_REQUIRED(presentation_parameters_init, PresentationParametersInitFn, "cna_presentation_parameters_init");
   LOAD_REQUIRED(graphics_device_create, StandaloneDeviceCreateFn, "cna_graphics_device_create");
@@ -14709,6 +14823,484 @@ static int set_vector3_fields(napi_env env, napi_value object, const CNA_Vector3
   return 1;
 }
 
+/* --- the depth/normal prepass, and the decal projector ---------------------------------------- */
+
+static napi_value depth_normal_prepass_create(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle device = 0, prepass = 0;
+  int32_t width = 0, height = 0;
+  uint32_t encoding = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &width) != napi_ok ||
+      napi_get_value_int32(env, args[2], &height) != napi_ok ||
+      napi_get_value_uint32(env, args[3], &encoding) != napi_ok) {
+    return throw_message(env, "expected a device, a width, a height and a depth encoding");
+  }
+  const CNA_Result result =
+    g_api.depth_normal_prepass_create(device, width, height, encoding, &prepass);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_depth_normal_prepass_create", result);
+  }
+  return make_handle(env, prepass);
+}
+
+static napi_value depth_normal_prepass_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.depth_normal_prepass_destroy,
+    "cna_depth_normal_prepass_destroy");
+}
+
+static napi_value depth_normal_prepass_resize(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle prepass = 0;
+  int32_t width = 0, height = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &prepass) ||
+      napi_get_value_int32(env, args[1], &width) != napi_ok ||
+      napi_get_value_int32(env, args[2], &height) != napi_ok) {
+    return throw_message(env, "expected a prepass, a width and a height");
+  }
+  const CNA_Result result = g_api.depth_normal_prepass_resize(prepass, width, height);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_depth_normal_prepass_resize", result);
+  }
+  return undefined_result(env, "cna_depth_normal_prepass_resize");
+}
+
+static napi_value depth_normal_prepass_get_pass_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.depth_normal_prepass_get_pass_count,
+    "cna_depth_normal_prepass_get_pass_count");
+}
+
+static napi_value depth_normal_prepass_begin(napi_env env, napi_callback_info info) {
+  napi_value args[6];
+  CNA_Handle prepass = 0;
+  CNA_Matrix view, projection;
+  int32_t index = 0;
+  double near_plane = 0, far_plane = 0;
+  memset(&view, 0, sizeof(view));
+  memset(&projection, 0, sizeof(projection));
+  if (!require_loaded(env) || !get_args(env, info, 6, args) ||
+      !read_handle(env, args[0], &prepass) ||
+      napi_get_value_int32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a prepass and a pass index");
+  }
+  if (!read_matrix16(env, args[2], &view, "a prepass view needs sixteen numbers") ||
+      !read_matrix16(env, args[3], &projection,
+        "a prepass projection needs sixteen numbers")) {
+    return NULL;
+  }
+  if (napi_get_value_double(env, args[4], &near_plane) != napi_ok ||
+      napi_get_value_double(env, args[5], &far_plane) != napi_ok) {
+    return throw_message(env, "a prepass needs a near and a far plane");
+  }
+  const CNA_Result result = g_api.depth_normal_prepass_begin(
+    prepass, index, &view, &projection, (float) near_plane, (float) far_plane);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_depth_normal_prepass_begin", result);
+  }
+  return undefined_result(env, "cna_depth_normal_prepass_begin");
+}
+
+static napi_value depth_normal_prepass_end(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.depth_normal_prepass_end,
+    "cna_depth_normal_prepass_end");
+}
+
+/* The four borrows: an effect or a texture handle out of one prepass handle. */
+static napi_value prepass_borrow(
+  napi_env env, napi_callback_info info, HandleHandleOutFn route, const char* name
+) {
+  napi_value args[1];
+  CNA_Handle prepass = 0, borrowed = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &prepass)) return NULL;
+  const CNA_Result result = route(prepass, &borrowed);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return make_handle(env, borrowed);
+}
+
+static napi_value depth_normal_prepass_get_prepass_effect(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.depth_normal_prepass_get_prepass_effect,
+    "cna_depth_normal_prepass_get_prepass_effect");
+}
+
+static napi_value depth_normal_prepass_get_skinned_prepass_effect(
+  napi_env env, napi_callback_info info
+) {
+  return prepass_borrow(env, info, g_api.depth_normal_prepass_get_skinned_prepass_effect,
+    "cna_depth_normal_prepass_get_skinned_prepass_effect");
+}
+
+static napi_value depth_normal_prepass_get_depth_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.depth_normal_prepass_get_depth_texture,
+    "cna_depth_normal_prepass_get_depth_texture");
+}
+
+static napi_value depth_normal_prepass_get_normal_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.depth_normal_prepass_get_normal_texture,
+    "cna_depth_normal_prepass_get_normal_texture");
+}
+
+static napi_value depth_normal_prepass_get_velocity_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.depth_normal_prepass_get_velocity_texture_ext,
+    "cna_depth_normal_prepass_get_velocity_texture_ext");
+}
+
+static napi_value depth_normal_prepass_is_supported(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle prepass = 0, device = 0;
+  CNA_Bool supported = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &prepass) ||
+      !read_handle(env, args[1], &device)) return NULL;
+  const CNA_Result result = g_api.depth_normal_prepass_is_supported(prepass, device, &supported);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_depth_normal_prepass_is_supported", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, supported == CNA_TRUE, &output),
+    "cna_depth_normal_prepass_is_supported");
+  return output;
+}
+
+static napi_value depth_normal_prepass_is_using_mrt(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.depth_normal_prepass_is_using_multiple_render_targets,
+    "cna_depth_normal_prepass_is_using_multiple_render_targets");
+}
+
+static napi_value depth_normal_prepass_is_depth_packed(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.depth_normal_prepass_is_depth_packed,
+    "cna_depth_normal_prepass_is_depth_packed");
+}
+
+static napi_value depth_normal_prepass_uses_packed_depth(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.depth_normal_prepass_uses_packed_depth_ext,
+    "cna_depth_normal_prepass_uses_packed_depth_ext");
+}
+
+static napi_value depth_normal_prepass_get_roughness(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.depth_normal_prepass_get_roughness,
+    "cna_depth_normal_prepass_get_roughness");
+}
+
+static napi_value depth_normal_prepass_set_roughness(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.depth_normal_prepass_set_roughness,
+    "cna_depth_normal_prepass_set_roughness");
+}
+
+static napi_value depth_normal_prepass_is_velocity_enabled(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.depth_normal_prepass_is_velocity_enabled_ext,
+    "cna_depth_normal_prepass_is_velocity_enabled_ext");
+}
+
+static napi_value depth_normal_prepass_set_velocity_enabled(napi_env env, napi_callback_info info) {
+  return pp_set_bool(env, info, g_api.depth_normal_prepass_set_velocity_enabled_ext,
+    "cna_depth_normal_prepass_set_velocity_enabled_ext");
+}
+
+static napi_value depth_normal_prepass_set_previous_world(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle prepass = 0;
+  CNA_Matrix world;
+  memset(&world, 0, sizeof(world));
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &prepass) ||
+      !read_matrix16(env, args[1], &world, "a previous world needs sixteen numbers")) return NULL;
+  const CNA_Result result = g_api.depth_normal_prepass_set_previous_world_ext(prepass, &world);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_depth_normal_prepass_set_previous_world_ext", result);
+  }
+  return undefined_result(env, "cna_depth_normal_prepass_set_previous_world_ext");
+}
+
+static napi_value depth_normal_prepass_set_previous_camera(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle prepass = 0;
+  CNA_Matrix view, projection;
+  memset(&view, 0, sizeof(view));
+  memset(&projection, 0, sizeof(projection));
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &prepass) ||
+      !read_matrix16(env, args[1], &view, "a previous view needs sixteen numbers") ||
+      !read_matrix16(env, args[2], &projection,
+        "a previous projection needs sixteen numbers")) return NULL;
+  const CNA_Result result =
+    g_api.depth_normal_prepass_set_previous_camera_ext(prepass, &view, &projection);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_depth_normal_prepass_set_previous_camera_ext", result);
+  }
+  return undefined_result(env, "cna_depth_normal_prepass_set_previous_camera_ext");
+}
+
+static napi_value depth_normal_prepass_depth_decode_glsl(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  bool packed = false;
+  uint64_t required = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_bool(env, args[0], &packed) != napi_ok) {
+    return throw_message(env, "expected a packed flag");
+  }
+  const CNA_Bool flag = packed ? CNA_TRUE : CNA_FALSE;
+  CNA_Result result =
+    g_api.depth_normal_prepass_copy_depth_decode_glsl(flag, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_depth_normal_prepass_copy_depth_decode_glsl", result);
+  }
+  char* text = (char*) malloc((size_t) required + 1U);
+  if (!text) return throw_message(env, "depth decode GLSL allocation failed");
+  result = g_api.depth_normal_prepass_copy_depth_decode_glsl(flag, text, required + 1U, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(text);
+    return throw_result(env, "cna_depth_normal_prepass_copy_depth_decode_glsl", result);
+  }
+  napi_value output = NULL;
+  const napi_status status = napi_create_string_utf8(env, text, (size_t) required, &output);
+  free(text);
+  if (status != napi_ok) return throw_message(env, "the depth decode GLSL is not UTF-8");
+  return output;
+}
+
+static napi_value depth_normal_prepass_velocity_decode_glsl(napi_env env, napi_callback_info info) {
+  uint64_t required = 0;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  CNA_Result result = g_api.depth_normal_prepass_copy_velocity_decode_glsl(NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_depth_normal_prepass_copy_velocity_decode_glsl", result);
+  }
+  char* text = (char*) malloc((size_t) required + 1U);
+  if (!text) return throw_message(env, "velocity decode GLSL allocation failed");
+  result = g_api.depth_normal_prepass_copy_velocity_decode_glsl(text, required + 1U, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(text);
+    return throw_result(env, "cna_depth_normal_prepass_copy_velocity_decode_glsl", result);
+  }
+  napi_value output = NULL;
+  const napi_status status = napi_create_string_utf8(env, text, (size_t) required, &output);
+  free(text);
+  if (status != napi_ok) return throw_message(env, "the velocity decode GLSL is not UTF-8");
+  return output;
+}
+
+/* A velocity texel arrives as the four channel bytes, in the order CNA_Color declares them. */
+static int read_color_bytes(napi_env env, napi_value value, CNA_Color* out) {
+  napi_value component;
+  uint32_t channels[4] = {0, 0, 0, 0};
+  static const char* const names[] = {"R", "G", "B", "A"};
+  for (size_t index = 0; index < 4; index += 1) {
+    if (napi_get_named_property(env, value, names[index], &component) != napi_ok ||
+        napi_get_value_uint32(env, component, &channels[index]) != napi_ok) {
+      throw_message(env, "a texel needs R, G, B and A byte values");
+      return 0;
+    }
+  }
+  out->r = (uint8_t) channels[0];
+  out->g = (uint8_t) channels[1];
+  out->b = (uint8_t) channels[2];
+  out->a = (uint8_t) channels[3];
+  return 1;
+}
+
+static napi_value depth_normal_prepass_has_velocity(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Color texel = {0, 0, 0, 0};
+  CNA_Bool has = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_color_bytes(env, args[0], &texel)) return NULL;
+  const CNA_Result result = g_api.depth_normal_prepass_has_velocity_ext(texel, &has);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_depth_normal_prepass_has_velocity_ext", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, has == CNA_TRUE, &output),
+    "cna_depth_normal_prepass_has_velocity_ext");
+  return output;
+}
+
+static napi_value depth_normal_prepass_decode_velocity(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Color texel = {0, 0, 0, 0};
+  CNA_Vector2 velocity = {0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_color_bytes(env, args[0], &texel)) return NULL;
+  const CNA_Result result = g_api.depth_normal_prepass_decode_velocity_ext(texel, &velocity);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_depth_normal_prepass_decode_velocity_ext", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "velocity");
+  if (!set_number(env, output, "X", (double) velocity.x) ||
+      !set_number(env, output, "Y", (double) velocity.y)) {
+    return throw_napi(env, "velocity");
+  }
+  return output;
+}
+
+static napi_value depth_normal_prepass_pack_depth(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  double value = 0;
+  float r = 0, g = 0, b = 0, a = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_double(env, args[0], &value) != napi_ok) {
+    return throw_message(env, "expected a depth to pack");
+  }
+  const CNA_Result result =
+    g_api.depth_normal_prepass_pack_depth((float) value, &r, &g, &b, &a);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_depth_normal_prepass_pack_depth", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "packed depth");
+  if (!set_number(env, output, "R", (double) r) ||
+      !set_number(env, output, "G", (double) g) ||
+      !set_number(env, output, "B", (double) b) ||
+      !set_number(env, output, "A", (double) a)) {
+    return throw_napi(env, "packed depth");
+  }
+  return output;
+}
+
+static napi_value depth_normal_prepass_unpack_depth(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  double channels[4] = {0, 0, 0, 0};
+  float value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args)) return NULL;
+  for (size_t index = 0; index < 4; index += 1) {
+    if (napi_get_value_double(env, args[index], &channels[index]) != napi_ok) {
+      return throw_message(env, "expected four channel values");
+    }
+  }
+  const CNA_Result result = g_api.depth_normal_prepass_unpack_depth(
+    (float) channels[0], (float) channels[1], (float) channels[2], (float) channels[3], &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_depth_normal_prepass_unpack_depth", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) value, &output), "unpacked depth");
+  return output;
+}
+
+static napi_value decal_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.decal_pass_create, "cna_decal_pass_create");
+}
+
+static napi_value decal_pass_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.decal_pass_destroy, "cna_decal_pass_destroy");
+}
+
+static napi_value decal_pass_get_opacity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.decal_pass_get_opacity, "cna_decal_pass_get_opacity");
+}
+
+static napi_value decal_pass_set_opacity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.decal_pass_set_opacity, "cna_decal_pass_set_opacity");
+}
+
+static napi_value decal_pass_get_tint(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle pass = 0;
+  CNA_Vector3 tint = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pass)) return NULL;
+  const CNA_Result result = g_api.decal_pass_get_tint(pass, &tint);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_decal_pass_get_tint", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "decal tint");
+  if (!set_vector3_fields(env, output, &tint)) return throw_napi(env, "decal tint");
+  return output;
+}
+
+static napi_value decal_pass_set_tint(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle pass = 0;
+  CNA_Vector3 tint = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pass) ||
+      !read_vector3_fields(env, args[1], &tint)) {
+    return throw_message(env, "expected a decal pass and a tint with X, Y and Z");
+  }
+  const CNA_Result result = g_api.decal_pass_set_tint(pass, &tint);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_decal_pass_set_tint", result);
+  return undefined_result(env, "cna_decal_pass_set_tint");
+}
+
+static napi_value decal_pass_get_max_slope_angle(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.decal_pass_get_max_slope_angle,
+    "cna_decal_pass_get_max_slope_angle");
+}
+
+static napi_value decal_pass_set_max_slope_angle(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.decal_pass_set_max_slope_angle,
+    "cna_decal_pass_set_max_slope_angle");
+}
+
+static napi_value decal_pass_set_prepass_inputs(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle pass = 0, depth = 0, normals = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &pass) ||
+      !read_handle_allow_zero(env, args[1], &depth) ||
+      !read_handle_allow_zero(env, args[2], &normals)) return NULL;
+  const CNA_Result result = g_api.decal_pass_set_prepass_inputs(pass, depth, normals);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_decal_pass_set_prepass_inputs", result);
+  }
+  return undefined_result(env, "cna_decal_pass_set_prepass_inputs");
+}
+
+static napi_value decal_pass_set_camera(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle pass = 0;
+  CNA_Matrix view, projection;
+  double far_plane = 0;
+  memset(&view, 0, sizeof(view));
+  memset(&projection, 0, sizeof(projection));
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &pass) ||
+      !read_matrix16(env, args[1], &view, "a decal view needs sixteen numbers") ||
+      !read_matrix16(env, args[2], &projection, "a decal projection needs sixteen numbers")) {
+    return NULL;
+  }
+  if (napi_get_value_double(env, args[3], &far_plane) != napi_ok) {
+    return throw_message(env, "a decal camera needs a far plane");
+  }
+  const CNA_Result result =
+    g_api.decal_pass_set_camera(pass, &view, &projection, (float) far_plane);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_decal_pass_set_camera", result);
+  return undefined_result(env, "cna_decal_pass_set_camera");
+}
+
+static napi_value decal_pass_draw(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle pass = 0, decal = 0;
+  CNA_Matrix world;
+  int32_t width = 0, height = 0;
+  memset(&world, 0, sizeof(world));
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &pass) ||
+      !read_handle(env, args[1], &decal) ||
+      !read_matrix16(env, args[2], &world, "a decal world needs sixteen numbers")) return NULL;
+  if (napi_get_value_int32(env, args[3], &width) != napi_ok ||
+      napi_get_value_int32(env, args[4], &height) != napi_ok) {
+    return throw_message(env, "a decal draw needs a target width and height");
+  }
+  const CNA_Result result = g_api.decal_pass_draw(pass, decal, &world, width, height);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_decal_pass_draw", result);
+  return undefined_result(env, "cna_decal_pass_draw");
+}
+
+static napi_value decal_pass_is_inside_decal_box(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Vector3 point = {0, 0, 0};
+  CNA_Bool inside = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_vector3_fields(env, args[0], &point)) {
+    return throw_message(env, "expected a point with X, Y and Z");
+  }
+  const CNA_Result result = g_api.decal_pass_is_inside_decal_box(&point, &inside);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_decal_pass_is_inside_decal_box", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, inside == CNA_TRUE, &output),
+    "cna_decal_pass_is_inside_decal_box");
+  return output;
+}
+
 static napi_value cascade_split_distances(napi_env env, napi_callback_info info) {
   napi_value args[4], output;
   double nearPlane = 0, farPlane = 0, lambda = 0;
@@ -18757,6 +19349,45 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "setLodScreenSpaceParameters", NULL, lod_group_set_screen_space_parameters, NULL, NULL, NULL, napi_default, NULL },
     { "getLodProjectedRadiusPixels", NULL, lod_group_projected_radius_pixels, NULL, NULL, NULL, napi_default, NULL },
     { "destroyClusteredShadowPolicy", NULL, clustered_shadow_policy_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "createDepthNormalPrepass", NULL, depth_normal_prepass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyDepthNormalPrepass", NULL, depth_normal_prepass_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "resizeDepthNormalPrepass", NULL, depth_normal_prepass_resize, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthNormalPrepassPassCount", NULL, depth_normal_prepass_get_pass_count, NULL, NULL, NULL, napi_default, NULL },
+    { "beginDepthNormalPrepass", NULL, depth_normal_prepass_begin, NULL, NULL, NULL, napi_default, NULL },
+    { "endDepthNormalPrepass", NULL, depth_normal_prepass_end, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthNormalPrepassEffect", NULL, depth_normal_prepass_get_prepass_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getSkinnedDepthNormalPrepassEffect", NULL, depth_normal_prepass_get_skinned_prepass_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthNormalPrepassDepthTexture", NULL, depth_normal_prepass_get_depth_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthNormalPrepassNormalTexture", NULL, depth_normal_prepass_get_normal_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthNormalPrepassVelocityTexture", NULL, depth_normal_prepass_get_velocity_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "isDepthNormalPrepassSupported", NULL, depth_normal_prepass_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "isDepthNormalPrepassUsingMultipleRenderTargets", NULL, depth_normal_prepass_is_using_mrt, NULL, NULL, NULL, napi_default, NULL },
+    { "isDepthNormalPrepassDepthPacked", NULL, depth_normal_prepass_is_depth_packed, NULL, NULL, NULL, napi_default, NULL },
+    { "deviceUsesPackedDepth", NULL, depth_normal_prepass_uses_packed_depth, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthNormalPrepassRoughness", NULL, depth_normal_prepass_get_roughness, NULL, NULL, NULL, napi_default, NULL },
+    { "setDepthNormalPrepassRoughness", NULL, depth_normal_prepass_set_roughness, NULL, NULL, NULL, napi_default, NULL },
+    { "isDepthNormalPrepassVelocityEnabled", NULL, depth_normal_prepass_is_velocity_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "setDepthNormalPrepassVelocityEnabled", NULL, depth_normal_prepass_set_velocity_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "setDepthNormalPrepassPreviousWorld", NULL, depth_normal_prepass_set_previous_world, NULL, NULL, NULL, napi_default, NULL },
+    { "setDepthNormalPrepassPreviousCamera", NULL, depth_normal_prepass_set_previous_camera, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthDecodeGlsl", NULL, depth_normal_prepass_depth_decode_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "getVelocityDecodeGlsl", NULL, depth_normal_prepass_velocity_decode_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "velocityTexelHasVelocity", NULL, depth_normal_prepass_has_velocity, NULL, NULL, NULL, napi_default, NULL },
+    { "decodeVelocityTexel", NULL, depth_normal_prepass_decode_velocity, NULL, NULL, NULL, napi_default, NULL },
+    { "packLinearDepth", NULL, depth_normal_prepass_pack_depth, NULL, NULL, NULL, napi_default, NULL },
+    { "unpackLinearDepth", NULL, depth_normal_prepass_unpack_depth, NULL, NULL, NULL, napi_default, NULL },
+    { "createDecalPass", NULL, decal_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyDecalPass", NULL, decal_pass_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "getDecalOpacity", NULL, decal_pass_get_opacity, NULL, NULL, NULL, napi_default, NULL },
+    { "setDecalOpacity", NULL, decal_pass_set_opacity, NULL, NULL, NULL, napi_default, NULL },
+    { "getDecalTint", NULL, decal_pass_get_tint, NULL, NULL, NULL, napi_default, NULL },
+    { "setDecalTint", NULL, decal_pass_set_tint, NULL, NULL, NULL, napi_default, NULL },
+    { "getDecalMaxSlopeAngle", NULL, decal_pass_get_max_slope_angle, NULL, NULL, NULL, napi_default, NULL },
+    { "setDecalMaxSlopeAngle", NULL, decal_pass_set_max_slope_angle, NULL, NULL, NULL, napi_default, NULL },
+    { "setDecalPrepassInputs", NULL, decal_pass_set_prepass_inputs, NULL, NULL, NULL, napi_default, NULL },
+    { "setDecalCamera", NULL, decal_pass_set_camera, NULL, NULL, NULL, napi_default, NULL },
+    { "drawDecal", NULL, decal_pass_draw, NULL, NULL, NULL, napi_default, NULL },
+    { "isInsideDecalBox", NULL, decal_pass_is_inside_decal_box, NULL, NULL, NULL, napi_default, NULL },
     { "supportsGraphicsCapability", NULL, graphics_device_supports_capability, NULL, NULL, NULL, napi_default, NULL },
     { "createStandaloneGraphicsDevice", NULL, create_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },
     { "destroyStandaloneGraphicsDevice", NULL, destroy_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },

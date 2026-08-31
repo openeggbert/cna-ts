@@ -16,6 +16,8 @@
 import { getBackend } from "../../internal/backend.js";
 import type {
   BoundingSphereSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
+  CnaDecalBackend,
+  CnaDepthNormalPrepassBackend,
   ClusterBoundsSnapshot,
   CnaLodBackend,
   CnaParticleBackend,
@@ -30,6 +32,7 @@ import type {
 import { BoundingBox } from "../../Microsoft/Xna/Framework/BoundingBox.js";
 import { BoundingSphere } from "../../Microsoft/Xna/Framework/BoundingSphere.js";
 import { Matrix } from "../../Microsoft/Xna/Framework/Matrix.js";
+import { Vector2 } from "../../Microsoft/Xna/Framework/Vector2.js";
 import { Vector3 } from "../../Microsoft/Xna/Framework/Vector3.js";
 import { Vector4 } from "../../Microsoft/Xna/Framework/Vector4.js";
 import type { CubeMapFace } from "../../Microsoft/Xna/Framework/Graphics/TextureEnums.js";
@@ -2044,6 +2047,50 @@ function effectBackendFor(device: GraphicsDevice): CnaEffectBackend {
   return backend;
 }
 
+/**
+ * Wraps a render-target handle CNA lends as a readable `Texture2D`, without owning it.
+ *
+ * Several objects in this layer lend a target the same way -- a shadow map's depth, the prepass's
+ * depth, normals and velocity -- and every one of them gives the borrow back through the
+ * render-target release route rather than the texture one. The size and format are read from CNA
+ * rather than assumed, and a failure to read them returns the borrow before it propagates, because
+ * an unreturned borrow is what stops the lender being destroyed later.
+ */
+function borrowNativeTextureForInternalUse(
+  device: GraphicsDevice, handle: NativeHandle, label: string,
+): Texture2D {
+  const backend = graphicsBackendFor(device);
+  let info;
+  try {
+    info = graphicsDeviceBackendForInternalUse(device).getTexture2DInfo(handle);
+  } catch (error) {
+    backend.destroyRenderTarget(handle);
+    throw error;
+  }
+  return new (Texture2D as unknown as new (
+    graphicsDevice: GraphicsDevice,
+    width: number,
+    height: number,
+    mipMap: boolean,
+    format: SurfaceFormat,
+    adopted: {
+      readonly Handle: NativeHandle;
+      readonly LevelCount: number;
+      readonly Release: (value: NativeHandle) => void;
+      readonly Label: string;
+    },
+  ) => Texture2D)(
+    device, info.Width, info.Height, false, info.Format as SurfaceFormat,
+    {
+      Handle: handle,
+      LevelCount: info.LevelCount,
+      // A borrow, not a texture of our own: this is the route that gives it back.
+      Release: (value: NativeHandle) => backend.destroyRenderTarget(value),
+      Label: label,
+    },
+  );
+}
+
 function boundsSnapshot(bounds: BoundingBox): ClusterBoundsSnapshot {
   if (bounds == null) throw new TypeError("bounds is required");
   return {
@@ -2308,39 +2355,9 @@ export class ShadowMap implements IDisposable {
    * as the caster effects — CNA gives the borrow back through the render-target release route.
    */
   public get ShadowTexture(): Texture2D {
-    if (this.#shadowTexture == null) {
-      const handle = this.#backend.getShadowMapTexture(this.#active());
-      const backend = graphicsBackendFor(this.#device);
-      let info;
-      try {
-        info = graphicsDeviceBackendForInternalUse(this.#device).getTexture2DInfo(handle);
-      } catch (error) {
-        backend.destroyRenderTarget(handle);
-        throw error;
-      }
-      this.#shadowTexture = new (Texture2D as unknown as new (
-        graphicsDevice: GraphicsDevice,
-        width: number,
-        height: number,
-        mipMap: boolean,
-        format: SurfaceFormat,
-        adopted: {
-          readonly Handle: NativeHandle;
-          readonly LevelCount: number;
-          readonly Release: (value: NativeHandle) => void;
-          readonly Label: string;
-        },
-      ) => Texture2D)(
-        this.#device, info.Width, info.Height, false, info.Format as SurfaceFormat,
-        {
-          Handle: handle,
-          LevelCount: info.LevelCount,
-          // A borrow, not a texture of our own: this is the route that gives it back.
-          Release: (value: NativeHandle) => backend.destroyRenderTarget(value),
-          Label: "ShadowMap depth texture",
-        },
-      );
-    }
+    this.#shadowTexture ??= borrowNativeTextureForInternalUse(
+      this.#device, this.#backend.getShadowMapTexture(this.#active()), "ShadowMap depth texture",
+    );
     return this.#shadowTexture;
   }
 
@@ -2723,3 +2740,531 @@ export const ParticleShaderSource = {
   /** CNA's own GLSL for reading a particle by index. */
   get Glsl(): string { return particles().getParticleLookupGlsl(); },
 };
+
+
+/* --- the depth/normal prepass, and the decal projector that reads it -------------------------------
+ *
+ * These are one family because they are one dependency. {@link DepthNormalPrepass} renders the two
+ * screen-space buffers CNA's deferred effects need — linear depth normalised by the far plane, and
+ * view-space normals — and {@link DecalPass} is the consumer that unprojects each screen texel back
+ * into a decal's own box and paints it where it lands. Nothing else in the ABI produces the pair
+ * `SetPrepassInputs` wants.
+ *
+ * The depth encoding is a measurement rather than a preference. CNA measured that a half-float
+ * depth target makes screen-space effects driven from the prepass occlude nothing, so
+ * {@link DepthEncoding.Automatic} chooses the packed one; {@link DepthNormalPrepassMath.UsesPackedDepth}
+ * is the route that says which a given device gets, and {@link DepthNormalPrepassMath.PackDepth} and
+ * {@link DepthNormalPrepassMath.UnpackDepth} are CNA's own encoder and decoder, so a caller reading a
+ * depth texel back does not have to reimplement them.
+ */
+
+/** How a {@link DepthNormalPrepass} stores linear depth. */
+export enum DepthEncoding {
+  /** Let CNA choose; ask {@link DepthNormalPrepassMath.UsesPackedDepth} what it chose. */
+  Automatic = 0,
+  /** Eight bits per channel across a `Color` target: 1 part in 2^24. */
+  Packed = 1,
+  /** One half-float channel. */
+  HalfFloat = 2,
+}
+
+function prepasses(): CnaDepthNormalPrepassBackend {
+  const backend = getBackend();
+  if (!backend.IsAvailable || backend.DepthNormalPrepass == null) {
+    throw new NativeUnavailableError(
+      `CNA's depth/normal prepass requires a loaded backend that has it: ${backend.Detail}`,
+    );
+  }
+  return backend.DepthNormalPrepass;
+}
+
+function decals(): CnaDecalBackend {
+  const backend = getBackend();
+  if (!backend.IsAvailable || backend.Decals == null) {
+    throw new NativeUnavailableError(
+      `CNA's decal projector requires a loaded backend that has it: ${backend.Detail}`,
+    );
+  }
+  return backend.Decals;
+}
+
+/** Depth packed across four channels, each in the unit range a `Color` target stores. */
+export interface PackedDepth {
+  readonly R: number;
+  readonly G: number;
+  readonly B: number;
+  readonly A: number;
+}
+
+/**
+ * The prepass's pure routes: its encoding, its shader source, and what a device chose.
+ *
+ * None of these needs a prepass object, and the four that touch no device work in any build that
+ * has the engine layer at all.
+ */
+export const DepthNormalPrepassMath = {
+  /** Whether {@link DepthEncoding.Automatic} packs depth on this device. */
+  UsesPackedDepth(graphicsDevice: GraphicsDevice): boolean {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    return prepasses().deviceUsesPackedDepth(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+    );
+  },
+
+  /**
+   * CNA's own GLSL for decoding a depth texel and rebuilding a view-space position from it.
+   *
+   * A game writing a screen-space shader of its own includes this rather than reimplementing the
+   * encoding, which is exactly how the two halves drift apart. `packed` must match what the
+   * prepass actually stores — {@link DepthNormalPrepass.IsDepthPacked} answers that.
+   */
+  DepthDecodeGlsl(packed: boolean): string {
+    return prepasses().getDepthDecodeGlsl(packed === true);
+  },
+
+  /** The same, for the velocity buffer's encoding. */
+  VelocityDecodeGlsl(): string { return prepasses().getVelocityDecodeGlsl(); },
+
+  /**
+   * Packs a linear depth into four channel values, as the prepass's shader does.
+   *
+   * The channels come back in the unit range a `Color` target stores, most significant first. The
+   * value is clamped one texel short of 1.0 before packing, because `fract(1.0)` is zero and an
+   * unclamped far plane would read back as the nearest possible surface.
+   *
+   * **The arithmetic is good to a part in 2^24; the storage is not.** Packing is written in powers
+   * of 256 while an eight-bit target stores `n/255`, and the decoder weights the low channel by
+   * one, so that channel's own quantisation passes straight through: a depth read back out of a
+   * real prepass buffer is within about a five-hundredth of the far plane, which is what a single
+   * eight-bit channel would have given on its own. That is `docs/upstream-cna-findings.md` item 13,
+   * measured rather than assumed, and it is the resolution to budget for when comparing depths.
+   */
+  PackDepth(value: number): PackedDepth {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("value must be a finite number");
+    }
+    const packed = prepasses().packLinearDepth(value);
+    return Object.freeze({ R: packed.R, G: packed.G, B: packed.B, A: packed.A });
+  },
+
+  /** The inverse: four channel values back into a linear depth. */
+  UnpackDepth(r: number, g: number, b: number, a: number): number {
+    for (const [name, channel] of [["r", r], ["g", g], ["b", b], ["a", a]] as const) {
+      if (typeof channel !== "number" || !Number.isFinite(channel)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    return prepasses().unpackLinearDepth(r, g, b, a);
+  },
+
+  /**
+   * Whether a velocity texel carries a velocity at all.
+   *
+   * Alpha zero means it does, which is inverted on purpose: the multiple-render-target path issues
+   * one clear for the whole bound set and depth has to clear to white, so the shared clear already
+   * writes "nothing here".
+   */
+  HasVelocity(texel: Color): boolean {
+    if (texel == null) throw new TypeError("texel is required");
+    return prepasses().velocityTexelHasVelocity({
+      R: texel.R, G: texel.G, B: texel.B, A: texel.A,
+    });
+  },
+
+  /** The screen-space velocity a texel encodes, in UV units. */
+  DecodeVelocity(texel: Color): Vector2 {
+    if (texel == null) throw new TypeError("texel is required");
+    const velocity = prepasses().decodeVelocityTexel({
+      R: texel.R, G: texel.G, B: texel.B, A: texel.A,
+    });
+    return new Vector2(velocity.X, velocity.Y);
+  },
+} as const;
+
+/**
+ * CNA's depth/normal prepass: linear depth and view-space normals, for the effects that need them.
+ *
+ * How many passes it takes to fill depends on the renderer — one where multiple render targets
+ * work, two where they do not, three with velocity on — so {@link PassCount} is asked rather than
+ * assumed, and {@link Begin}/{@link End} run once per pass with the same camera.
+ *
+ * Its textures and effects are **borrows**. CNA counts them and refuses to destroy the prepass
+ * while one is outstanding, so each is taken once, cached, and given back by {@link Dispose}.
+ */
+export class DepthNormalPrepass implements IDisposable {
+  readonly #backend: CnaDepthNormalPrepassBackend;
+  readonly #device: GraphicsDevice;
+  #handle: NativeHandle | null;
+  #depthTexture: Texture2D | null = null;
+  #normalTexture: Texture2D | null = null;
+  #velocityTexture: Texture2D | null = null;
+  #prepassEffect: Effect | null = null;
+  #skinnedPrepassEffect: Effect | null = null;
+
+  public constructor(
+    graphicsDevice: GraphicsDevice,
+    width: number,
+    height: number,
+    encoding: DepthEncoding = DepthEncoding.Automatic,
+  ) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (!Number.isInteger(width) || width <= 0) {
+      throw new RangeError("width must be a positive integer");
+    }
+    if (!Number.isInteger(height) || height <= 0) {
+      throw new RangeError("height must be a positive integer");
+    }
+    if (!Number.isInteger(encoding) || encoding < DepthEncoding.Automatic ||
+        encoding > DepthEncoding.HalfFloat) {
+      throw new RangeError("encoding must be a DepthEncoding");
+    }
+    this.#backend = prepasses();
+    this.#device = graphicsDevice;
+    this.#handle = this.#backend.createDepthNormalPrepass(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), width, height, encoding,
+    );
+  }
+
+  /** Whether the prepass has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the depth/normal prepass is disposed");
+    }
+    return this.#handle;
+  }
+
+  /** Whether this renderer's shaders compiled and it can actually run the pass. */
+  public get IsSupported(): boolean {
+    return this.#backend.isDepthNormalPrepassSupported(
+      this.#active(), resolveGraphicsDeviceHandleForInternalUse(this.#device),
+    );
+  }
+
+  /** How many `Begin`/`End` cycles fill the buffers on this renderer. */
+  public get PassCount(): number {
+    return this.#backend.getDepthNormalPrepassPassCount(this.#active());
+  }
+
+  /** Whether it fills them in one pass, with multiple render targets. */
+  public get IsUsingMultipleRenderTargets(): boolean {
+    return this.#backend.isDepthNormalPrepassUsingMultipleRenderTargets(this.#active());
+  }
+
+  /** Whether depth is stored packed across an eight-bit target rather than as a half float. */
+  public get IsDepthPacked(): boolean {
+    return this.#backend.isDepthNormalPrepassDepthPacked(this.#active());
+  }
+
+  /** The roughness written alongside the normals; clamped to the unit range by CNA. */
+  public get Roughness(): number {
+    return this.#backend.getDepthNormalPrepassRoughness(this.#active());
+  }
+  public set Roughness(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("Roughness must be a finite number");
+    }
+    this.#backend.setDepthNormalPrepassRoughness(this.#active(), value);
+  }
+
+  /** Whether a velocity buffer is written too. Changing it is refused while a pass is open. */
+  public get IsVelocityEnabled(): boolean {
+    return this.#backend.isDepthNormalPrepassVelocityEnabled(this.#active());
+  }
+  public set IsVelocityEnabled(value: boolean) {
+    this.#backend.setDepthNormalPrepassVelocityEnabled(this.#active(), value === true);
+  }
+
+  /** Resizes the targets. Refused while a pass is open. */
+  public Resize(width: number, height: number): void {
+    if (!Number.isInteger(width) || width <= 0) {
+      throw new RangeError("width must be a positive integer");
+    }
+    if (!Number.isInteger(height) || height <= 0) {
+      throw new RangeError("height must be a positive integer");
+    }
+    this.#backend.resizeDepthNormalPrepass(this.#active(), width, height);
+  }
+
+  /**
+   * Opens one pass, binding its targets and clearing them.
+   *
+   * Depth is normalised by `farPlane`, so the pair of planes is what makes a stored value mean
+   * anything; CNA refuses a pair that cannot normalise rather than correcting it.
+   */
+  public Begin(
+    passIndex: number, view: Matrix, projection: Matrix, nearPlane: number, farPlane: number,
+  ): void {
+    if (!Number.isInteger(passIndex) || passIndex < 0) {
+      throw new RangeError("passIndex must be a non-negative integer");
+    }
+    if (typeof nearPlane !== "number" || !Number.isFinite(nearPlane)) {
+      throw new TypeError("nearPlane must be a finite number");
+    }
+    if (typeof farPlane !== "number" || !Number.isFinite(farPlane)) {
+      throw new TypeError("farPlane must be a finite number");
+    }
+    this.#backend.beginDepthNormalPrepass(
+      this.#active(), passIndex, matrixValues(view, "view"),
+      matrixValues(projection, "projection"), nearPlane, farPlane,
+    );
+  }
+
+  /** Closes the open pass and restores the frame's previous target. */
+  public End(): void { this.#backend.endDepthNormalPrepass(this.#active()); }
+
+  /** The previous frame's world transform, which the velocity buffer reprojects against. */
+  public SetPreviousWorld(previousWorld: Matrix): void {
+    this.#backend.setDepthNormalPrepassPreviousWorld(
+      this.#active(), matrixValues(previousWorld, "previousWorld"),
+    );
+  }
+
+  /** The previous frame's camera, for the same reason. */
+  public SetPreviousCamera(previousView: Matrix, previousProjection: Matrix): void {
+    this.#backend.setDepthNormalPrepassPreviousCamera(
+      this.#active(), matrixValues(previousView, "previousView"),
+      matrixValues(previousProjection, "previousProjection"),
+    );
+  }
+
+  /**
+   * The linear-depth texture, borrowed from the prepass.
+   *
+   * Depth is view depth divided by the far plane `Begin` was given, so 1.0 is the far plane and a
+   * texel is comparable across renderers, which a depth attachment's own contents are not.
+   * {@link DepthNormalPrepassMath.UnpackDepth} turns a read-back texel back into that number.
+   */
+  public get DepthTexture(): Texture2D {
+    this.#depthTexture ??= this.#borrowTexture(
+      this.#backend.getDepthNormalPrepassDepthTexture(this.#active()),
+      "DepthNormalPrepass depth texture",
+    );
+    return this.#depthTexture;
+  }
+
+  /** The view-space normal texture, borrowed on the same terms. */
+  public get NormalTexture(): Texture2D {
+    this.#normalTexture ??= this.#borrowTexture(
+      this.#backend.getDepthNormalPrepassNormalTexture(this.#active()),
+      "DepthNormalPrepass normal texture",
+    );
+    return this.#normalTexture;
+  }
+
+  /** The velocity texture, or `null` when velocity is off — which is an absence, not a failure. */
+  public get VelocityTexture(): Texture2D | null {
+    if (this.#velocityTexture == null) {
+      const handle = this.#backend.getDepthNormalPrepassVelocityTexture(this.#active());
+      if (handle === 0n) return null;
+      this.#velocityTexture = this.#borrowTexture(
+        handle, "DepthNormalPrepass velocity texture",
+      );
+    }
+    return this.#velocityTexture;
+  }
+
+  /** The program that writes depth and normals for rigid geometry, borrowed from the prepass. */
+  public get PrepassEffect(): Effect {
+    this.#prepassEffect ??= this.#borrowEffect(
+      this.#backend.getDepthNormalPrepassEffect(this.#active()), "depth/normal prepass effect",
+    );
+    return this.#prepassEffect;
+  }
+
+  /** The skinned one. The same borrow rules apply. */
+  public get SkinnedPrepassEffect(): Effect {
+    this.#skinnedPrepassEffect ??= this.#borrowEffect(
+      this.#backend.getSkinnedDepthNormalPrepassEffect(this.#active()),
+      "skinned depth/normal prepass effect",
+    );
+    return this.#skinnedPrepassEffect;
+  }
+
+  #borrowTexture(handle: NativeHandle, label: string): Texture2D {
+    return borrowNativeTextureForInternalUse(this.#device, handle, label);
+  }
+
+  #borrowEffect(handle: NativeHandle, what: string): Effect {
+    if (handle === 0n) {
+      throw new NativeUnavailableError(
+        `this renderer lends no ${what}: it cannot run the prepass, which ` +
+        "DepthNormalPrepass.IsSupported reports",
+      );
+    }
+    return adoptNativeEffectForInternalUse(this.#device, effectBackendFor(this.#device), handle);
+  }
+
+  /** Releases the prepass. Every borrow goes back first, and disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#prepassEffect?.Dispose();
+    this.#prepassEffect = null;
+    this.#skinnedPrepassEffect?.Dispose();
+    this.#skinnedPrepassEffect = null;
+    this.#depthTexture?.Dispose();
+    this.#depthTexture = null;
+    this.#normalTexture?.Dispose();
+    this.#normalTexture = null;
+    this.#velocityTexture?.Dispose();
+    this.#velocityTexture = null;
+    this.#backend.destroyDepthNormalPrepass(handle);
+  }
+}
+
+/**
+ * CNA's deferred decal projector: a texture glued onto whatever the prepass already drew.
+ *
+ * **Not a post-process pass**, despite the name CNA gives it. It has no `Apply` and takes no
+ * post-process context; it is driven one decal at a time by {@link Draw}, so it carries its own
+ * handle and the shared `PostProcessPass` routes do not accept it.
+ *
+ * The projection is a box. Each screen texel's depth is unprojected into view space, then into the
+ * decal's own space by the inverse of {@link Draw}'s world transform, and a texel whose surface
+ * falls outside the unit cube centred on the decal's origin is discarded — which is what keeps a
+ * decal off the wall behind the crate it was meant for. Inside it, the decal texture is sampled at
+ * the local X and Y, so the world transform's scale is the decal's size in world units.
+ *
+ * The blend is `NonPremultiplied` rather than the `Opaque` every other pass in this layer uses: a
+ * decal composites onto the frame, and its own alpha is the mask that decides where.
+ */
+export class DecalPass implements IDisposable {
+  readonly #backend: CnaDecalBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#backend = decals();
+    this.#handle = this.#backend.createDecalPass(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+    );
+  }
+
+  /** Whether the pass has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the decal pass is disposed");
+    return this.#handle;
+  }
+
+  /** How strongly the decal shows, multiplying its own alpha. Clamped to the unit range by CNA. */
+  public get Opacity(): number { return this.#backend.getDecalOpacity(this.#active()); }
+  public set Opacity(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("Opacity must be a finite number");
+    }
+    this.#backend.setDecalOpacity(this.#active(), value);
+  }
+
+  /** Linear RGB the decal's own colour is multiplied by. Assigned as given, with no clamp. */
+  public get Tint(): Vector3 {
+    const tint = this.#backend.getDecalTint(this.#active());
+    return new Vector3(tint.X, tint.Y, tint.Z);
+  }
+  public set Tint(value: Vector3) {
+    this.#backend.setDecalTint(this.#active(), vectorSnapshot(value, "Tint"));
+  }
+
+  /**
+   * How far a surface may face away from the decal's axis and still take it, in radians.
+   *
+   * Clamped to zero through a right angle by CNA: a surface facing further away than perpendicular
+   * cannot be projected onto at all. It only has an effect when {@link SetPrepassInputs} was given
+   * normals — with none there is nothing to measure the angle against, and every surface takes it.
+   */
+  public get MaxSlopeAngle(): number {
+    return this.#backend.getDecalMaxSlopeAngle(this.#active());
+  }
+  public set MaxSlopeAngle(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("MaxSlopeAngle must be a finite number");
+    }
+    this.#backend.setDecalMaxSlopeAngle(this.#active(), value);
+  }
+
+  /**
+   * The two buffers the pass projects against, both borrowed and neither owned.
+   *
+   * They must outlive the drawing that uses them. The depth buffer is required — with none,
+   * {@link Draw} has nothing to unproject and paints nothing. Normals are optional: pass `null`
+   * and the slope test is skipped, and every surface takes the decal whichever way it faces.
+   *
+   * **Give it {@link DepthNormalPrepass.DepthTexture} and {@link DepthNormalPrepass.NormalTexture},
+   * not an uploaded texture of your own.** The pass draws its depth buffer as a full-screen sprite
+   * and takes its screen mapping from that sprite, and a `Texture2D` filled with `SetData` does not
+   * agree with a render target about which row is the top. Measured, in
+   * `test/windowed-renderer.integration.mjs`: handed exactly the bytes the prepass wrote, uploaded
+   * into an ordinary texture, the pass finds no surface anywhere; handed them with their rows
+   * reversed it finds the whole surface, in rows that share none of the right ones.
+   */
+  public SetPrepassInputs(depth: Texture2D | null, normals: Texture2D | null): void {
+    this.#backend.setDecalPrepassInputs(
+      this.#active(),
+      depth == null ? 0n : resolveTexture2DHandleForInternalUse(depth),
+      normals == null ? 0n : resolveTexture2DHandleForInternalUse(normals),
+    );
+  }
+
+  /**
+   * The camera the pass unprojects with — the same one the prepass was filled through.
+   *
+   * `farPlane` is the number the stored depth was normalised by. CNA **ignores a far plane that is
+   * not positive** rather than refusing it, because the unprojection divides by it: a bad value
+   * leaves the previous camera in place instead of breaking the pass. That makes a successful call
+   * no proof that anything changed.
+   */
+  public SetCamera(view: Matrix, projection: Matrix, farPlane: number): void {
+    if (typeof farPlane !== "number" || !Number.isFinite(farPlane)) {
+      throw new TypeError("farPlane must be a finite number");
+    }
+    this.#backend.setDecalCamera(
+      this.#active(), matrixValues(view, "view"), matrixValues(projection, "projection"), farPlane,
+    );
+  }
+
+  /**
+   * Projects one decal into whatever target is bound.
+   *
+   * `decalWorld` places and sizes the unit box: its translation is the decal's centre, and its
+   * scale is the box's extent in world units. `width` and `height` are the bound target's size in
+   * pixels.
+   *
+   * With no prepass depth or no camera this paints nothing and succeeds — a frame that has not run
+   * its prepass yet is a frame with no decals, not a failure.
+   */
+  public Draw(decal: Texture2D, decalWorld: Matrix, width: number, height: number): void {
+    if (decal == null) throw new TypeError("decal is required");
+    if (!Number.isInteger(width) || width <= 0) {
+      throw new RangeError("width must be a positive integer");
+    }
+    if (!Number.isInteger(height) || height <= 0) {
+      throw new RangeError("height must be a positive integer");
+    }
+    this.#backend.drawDecal(
+      this.#active(), resolveTexture2DHandleForInternalUse(decal),
+      matrixValues(decalWorld, "decalWorld"), width, height,
+    );
+  }
+
+  /** Releases the pass. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyDecalPass(handle);
+  }
+
+  /**
+   * Whether a point in a decal's local space falls inside its box.
+   *
+   * A pure function of its argument, and the same test the shader makes: the box is the unit cube
+   * centred on the origin, so this is true exactly when every component is within a half.
+   */
+  public static IsInsideDecalBox(decalLocalPosition: Vector3): boolean {
+    return decals().isInsideDecalBox(vectorSnapshot(decalLocalPosition, "decalLocalPosition"));
+  }
+}

@@ -33,6 +33,8 @@ import type {
   CnaClusteredLightingBackend,
   CnaComputeBackend,
   CnaContentBackend,
+  CnaDecalBackend,
+  CnaDepthNormalPrepassBackend,
   CnaDeviceBackend,
   CnaEffectBackend,
   CnaExtendedInputBackend,
@@ -67,6 +69,7 @@ import type {
   CnbSpriteFontInfoSnapshot,
   CnbTextureInfoSnapshot,
   CnbVideoInfoSnapshot,
+  ColorSnapshot,
   CompassReadingSnapshot,
   ContentLostResourceKind,
   CueSnapshot,
@@ -90,6 +93,7 @@ import type {
   NativeEffectPassSnapshot,
   NativeEffectReflectionSnapshot,
   NativeEffectTechniqueSnapshot,
+  PackedDepthSnapshot,
   ParticleEmitterSettingsSnapshot,
   ParticleSnapshot,
   PassTimingSnapshot,
@@ -122,6 +126,7 @@ import type {
   Texture2DTransfer,
   Texture3DInfo,
   TextureCubeInfo,
+  Vector2Snapshot,
   Vector3Snapshot,
   Vector4Snapshot,
   VertexBufferBindingSnapshot,
@@ -1243,6 +1248,152 @@ export abstract class CnaParticleBackendBase implements CnaParticleBackend {
     _settings: ParticleEmitterSettingsSnapshot,
     _elapsedSeconds: number,
   ): ParticleSnapshot { return this.unsupported("stepParticle"); }
+}
+
+/** Refusing base for {@link CnaDepthNormalPrepassBackend}. */
+export abstract class CnaDepthNormalPrepassBackendBase implements CnaDepthNormalPrepassBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createDepthNormalPrepass(
+    _device: NativeHandle,
+    _width: number,
+    _height: number,
+    _encoding: number,
+  ): NativeHandle { return this.unsupported("createDepthNormalPrepass"); }
+  public destroyDepthNormalPrepass(
+    _prepass: NativeHandle,
+  ): void { return this.unsupported("destroyDepthNormalPrepass"); }
+  public resizeDepthNormalPrepass(
+    _prepass: NativeHandle,
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("resizeDepthNormalPrepass"); }
+  public getDepthNormalPrepassPassCount(
+    _prepass: NativeHandle,
+  ): number { return this.unsupported("getDepthNormalPrepassPassCount"); }
+  public beginDepthNormalPrepass(
+    _prepass: NativeHandle,
+    _passIndex: number,
+    _view: readonly number[],
+    _projection: readonly number[],
+    _nearPlane: number,
+    _farPlane: number,
+  ): void { return this.unsupported("beginDepthNormalPrepass"); }
+  public endDepthNormalPrepass(
+    _prepass: NativeHandle,
+  ): void { return this.unsupported("endDepthNormalPrepass"); }
+  public getDepthNormalPrepassEffect(
+    _prepass: NativeHandle,
+  ): NativeHandle { return this.unsupported("getDepthNormalPrepassEffect"); }
+  public getSkinnedDepthNormalPrepassEffect(
+    _prepass: NativeHandle,
+  ): NativeHandle { return this.unsupported("getSkinnedDepthNormalPrepassEffect"); }
+  public getDepthNormalPrepassDepthTexture(
+    _prepass: NativeHandle,
+  ): NativeHandle { return this.unsupported("getDepthNormalPrepassDepthTexture"); }
+  public getDepthNormalPrepassNormalTexture(
+    _prepass: NativeHandle,
+  ): NativeHandle { return this.unsupported("getDepthNormalPrepassNormalTexture"); }
+  public getDepthNormalPrepassVelocityTexture(
+    _prepass: NativeHandle,
+  ): NativeHandle { return this.unsupported("getDepthNormalPrepassVelocityTexture"); }
+  public isDepthNormalPrepassSupported(
+    _prepass: NativeHandle,
+    _device: NativeHandle,
+  ): boolean { return this.unsupported("isDepthNormalPrepassSupported"); }
+  public isDepthNormalPrepassUsingMultipleRenderTargets(
+    _prepass: NativeHandle,
+  ): boolean { return this.unsupported("isDepthNormalPrepassUsingMultipleRenderTargets"); }
+  public isDepthNormalPrepassDepthPacked(
+    _prepass: NativeHandle,
+  ): boolean { return this.unsupported("isDepthNormalPrepassDepthPacked"); }
+  public deviceUsesPackedDepth(
+    _device: NativeHandle,
+  ): boolean { return this.unsupported("deviceUsesPackedDepth"); }
+  public getDepthNormalPrepassRoughness(
+    _prepass: NativeHandle,
+  ): number { return this.unsupported("getDepthNormalPrepassRoughness"); }
+  public setDepthNormalPrepassRoughness(
+    _prepass: NativeHandle,
+    _roughness: number,
+  ): void { return this.unsupported("setDepthNormalPrepassRoughness"); }
+  public isDepthNormalPrepassVelocityEnabled(
+    _prepass: NativeHandle,
+  ): boolean { return this.unsupported("isDepthNormalPrepassVelocityEnabled"); }
+  public setDepthNormalPrepassVelocityEnabled(
+    _prepass: NativeHandle,
+    _enabled: boolean,
+  ): void { return this.unsupported("setDepthNormalPrepassVelocityEnabled"); }
+  public setDepthNormalPrepassPreviousWorld(
+    _prepass: NativeHandle,
+    _world: readonly number[],
+  ): void { return this.unsupported("setDepthNormalPrepassPreviousWorld"); }
+  public setDepthNormalPrepassPreviousCamera(
+    _prepass: NativeHandle,
+    _view: readonly number[],
+    _projection: readonly number[],
+  ): void { return this.unsupported("setDepthNormalPrepassPreviousCamera"); }
+  public getDepthDecodeGlsl(_packed: boolean): string { return this.unsupported("getDepthDecodeGlsl"); }
+  public getVelocityDecodeGlsl(): string { return this.unsupported("getVelocityDecodeGlsl"); }
+  public velocityTexelHasVelocity(
+    _texel: ColorSnapshot,
+  ): boolean { return this.unsupported("velocityTexelHasVelocity"); }
+  public decodeVelocityTexel(
+    _texel: ColorSnapshot,
+  ): Vector2Snapshot { return this.unsupported("decodeVelocityTexel"); }
+  public packLinearDepth(_value: number): PackedDepthSnapshot { return this.unsupported("packLinearDepth"); }
+  public unpackLinearDepth(
+    _r: number,
+    _g: number,
+    _b: number,
+    _a: number,
+  ): number { return this.unsupported("unpackLinearDepth"); }
+}
+
+/** Refusing base for {@link CnaDecalBackend}. */
+export abstract class CnaDecalBackendBase implements CnaDecalBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createDecalPass(_device: NativeHandle): NativeHandle { return this.unsupported("createDecalPass"); }
+  public destroyDecalPass(_pass: NativeHandle): void { return this.unsupported("destroyDecalPass"); }
+  public getDecalOpacity(_pass: NativeHandle): number { return this.unsupported("getDecalOpacity"); }
+  public setDecalOpacity(
+    _pass: NativeHandle,
+    _opacity: number,
+  ): void { return this.unsupported("setDecalOpacity"); }
+  public getDecalTint(_pass: NativeHandle): Vector3Snapshot { return this.unsupported("getDecalTint"); }
+  public setDecalTint(
+    _pass: NativeHandle,
+    _tint: Vector3Snapshot,
+  ): void { return this.unsupported("setDecalTint"); }
+  public getDecalMaxSlopeAngle(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getDecalMaxSlopeAngle"); }
+  public setDecalMaxSlopeAngle(
+    _pass: NativeHandle,
+    _radians: number,
+  ): void { return this.unsupported("setDecalMaxSlopeAngle"); }
+  public setDecalPrepassInputs(
+    _pass: NativeHandle,
+    _depth: NativeHandle,
+    _normals: NativeHandle,
+  ): void { return this.unsupported("setDecalPrepassInputs"); }
+  public setDecalCamera(
+    _pass: NativeHandle,
+    _view: readonly number[],
+    _projection: readonly number[],
+    _farPlane: number,
+  ): void { return this.unsupported("setDecalCamera"); }
+  public drawDecal(
+    _pass: NativeHandle,
+    _decal: NativeHandle,
+    _decalWorld: readonly number[],
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("drawDecal"); }
+  public isInsideDecalBox(
+    _decalLocalPosition: Vector3Snapshot,
+  ): boolean { return this.unsupported("isInsideDecalBox"); }
 }
 
 /** Refusing base for {@link CnaShadowBackend}. */

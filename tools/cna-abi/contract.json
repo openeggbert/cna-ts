@@ -901,6 +901,10 @@
     {
       "typeScriptEnum": "LodSelectionMode",
       "cnaPrefix": "CNA_LOD_SELECTION_MODE"
+    },
+    {
+      "typeScriptEnum": "DepthEncoding",
+      "cnaPrefix": "CNA_DEPTH_ENCODING"
     }
   ]
 }

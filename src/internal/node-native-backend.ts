@@ -19,12 +19,17 @@ import type {
   CnaLodBackend,
   CnaParticleBackend,
   CnaShadowBackend,
+  CnaDecalBackend,
+  CnaDepthNormalPrepassBackend,
   ParticleEmitterSettingsSnapshot,
   ParticleSnapshot,
   DirectionalLightSnapshot,
   StandaloneDeviceParameters,
   CnaGraphicsExtensionBackend,
+  Vector2Snapshot,
   Vector3Snapshot,
+  ColorSnapshot,
+  PackedDepthSnapshot,
   CnaContentBackend,
   CnaDeviceBackend,
   CnaGamerServicesBackend,
@@ -584,6 +589,56 @@ interface NativeBridge {
   particleRandom(seed: number): number;
   stepParticle(particle: ParticleSnapshot, index: number, settings: ParticleEmitterSettingsSnapshot, elapsedSeconds: number): ParticleSnapshot;
   destroyShadowMap(map: bigint): void;
+  createDepthNormalPrepass(
+    device: bigint, width: number, height: number, encoding: number,
+  ): bigint;
+  destroyDepthNormalPrepass(prepass: bigint): void;
+  resizeDepthNormalPrepass(prepass: bigint, width: number, height: number): void;
+  getDepthNormalPrepassPassCount(prepass: bigint): number;
+  beginDepthNormalPrepass(
+    prepass: bigint, passIndex: number, view: readonly number[], projection: readonly number[],
+    nearPlane: number, farPlane: number,
+  ): void;
+  endDepthNormalPrepass(prepass: bigint): void;
+  getDepthNormalPrepassEffect(prepass: bigint): bigint;
+  getSkinnedDepthNormalPrepassEffect(prepass: bigint): bigint;
+  getDepthNormalPrepassDepthTexture(prepass: bigint): bigint;
+  getDepthNormalPrepassNormalTexture(prepass: bigint): bigint;
+  getDepthNormalPrepassVelocityTexture(prepass: bigint): bigint;
+  isDepthNormalPrepassSupported(prepass: bigint, device: bigint): boolean;
+  isDepthNormalPrepassUsingMultipleRenderTargets(prepass: bigint): boolean;
+  isDepthNormalPrepassDepthPacked(prepass: bigint): boolean;
+  deviceUsesPackedDepth(device: bigint): boolean;
+  getDepthNormalPrepassRoughness(prepass: bigint): number;
+  setDepthNormalPrepassRoughness(prepass: bigint, roughness: number): void;
+  isDepthNormalPrepassVelocityEnabled(prepass: bigint): boolean;
+  setDepthNormalPrepassVelocityEnabled(prepass: bigint, enabled: boolean): void;
+  setDepthNormalPrepassPreviousWorld(prepass: bigint, world: readonly number[]): void;
+  setDepthNormalPrepassPreviousCamera(
+    prepass: bigint, view: readonly number[], projection: readonly number[],
+  ): void;
+  getDepthDecodeGlsl(packed: boolean): string;
+  getVelocityDecodeGlsl(): string;
+  velocityTexelHasVelocity(texel: ColorSnapshot): boolean;
+  decodeVelocityTexel(texel: ColorSnapshot): Vector2Snapshot;
+  packLinearDepth(value: number): PackedDepthSnapshot;
+  unpackLinearDepth(r: number, g: number, b: number, a: number): number;
+  createDecalPass(device: bigint): bigint;
+  destroyDecalPass(pass: bigint): void;
+  getDecalOpacity(pass: bigint): number;
+  setDecalOpacity(pass: bigint, opacity: number): void;
+  getDecalTint(pass: bigint): Vector3Snapshot;
+  setDecalTint(pass: bigint, tint: Vector3Snapshot): void;
+  getDecalMaxSlopeAngle(pass: bigint): number;
+  setDecalMaxSlopeAngle(pass: bigint, radians: number): void;
+  setDecalPrepassInputs(pass: bigint, depth: bigint, normals: bigint): void;
+  setDecalCamera(
+    pass: bigint, view: readonly number[], projection: readonly number[], farPlane: number,
+  ): void;
+  drawDecal(
+    pass: bigint, decal: bigint, decalWorld: readonly number[], width: number, height: number,
+  ): void;
+  isInsideDecalBox(decalLocalPosition: Vector3Snapshot): boolean;
   isShadowMapSupported(map: bigint): boolean;
   getShadowMapSize(map: bigint): number;
   getShadowMapQuality(map: bigint): number;
@@ -1094,7 +1149,8 @@ interface NativeBridge {
 export class NodeNativeBackend
   implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend,
     CnaRuntimeServicesBackend, CnaGraphicsExtensionBackend, CnaContentBackend,
-    CnaDeviceBackend, CnaGamerServicesBackend, CnaSensorBackend {
+    CnaDeviceBackend, CnaGamerServicesBackend, CnaSensorBackend,
+    CnaDepthNormalPrepassBackend, CnaDecalBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
   public readonly AbiVersion: string;
@@ -1115,6 +1171,8 @@ export class NodeNativeBackend
   public readonly ClusteredLighting: CnaClusteredLightingBackend = this;
   public readonly Lod: CnaLodBackend = this;
   public readonly Shadows: CnaShadowBackend = this;
+  public readonly DepthNormalPrepass: CnaDepthNormalPrepassBackend = this;
+  public readonly Decals: CnaDecalBackend = this;
   public readonly Particles: CnaParticleBackend = this;
   public readonly Content: CnaContentBackend = this;
   public readonly Devices: CnaDeviceBackend = this;
@@ -2119,6 +2177,127 @@ export class NodeNativeBackend
   }
   public stepParticle(particle: ParticleSnapshot, index: number, settings: ParticleEmitterSettingsSnapshot, elapsedSeconds: number): ParticleSnapshot {
     return this.#bridge.stepParticle(particle, index, settings, elapsedSeconds);
+  }
+  public createDepthNormalPrepass(
+    device: NativeHandle, width: number, height: number, encoding: number,
+  ): NativeHandle {
+    return this.#bridge.createDepthNormalPrepass(device, width, height, encoding);
+  }
+  public destroyDepthNormalPrepass(prepass: NativeHandle): void {
+    this.#bridge.destroyDepthNormalPrepass(prepass);
+  }
+  public resizeDepthNormalPrepass(prepass: NativeHandle, width: number, height: number): void {
+    this.#bridge.resizeDepthNormalPrepass(prepass, width, height);
+  }
+  public getDepthNormalPrepassPassCount(prepass: NativeHandle): number {
+    return this.#bridge.getDepthNormalPrepassPassCount(prepass);
+  }
+  public beginDepthNormalPrepass(
+    prepass: NativeHandle, passIndex: number, view: readonly number[],
+    projection: readonly number[], nearPlane: number, farPlane: number,
+  ): void {
+    this.#bridge.beginDepthNormalPrepass(
+      prepass, passIndex, view, projection, nearPlane, farPlane,
+    );
+  }
+  public endDepthNormalPrepass(prepass: NativeHandle): void {
+    this.#bridge.endDepthNormalPrepass(prepass);
+  }
+  public getDepthNormalPrepassEffect(prepass: NativeHandle): NativeHandle {
+    return this.#bridge.getDepthNormalPrepassEffect(prepass);
+  }
+  public getSkinnedDepthNormalPrepassEffect(prepass: NativeHandle): NativeHandle {
+    return this.#bridge.getSkinnedDepthNormalPrepassEffect(prepass);
+  }
+  public getDepthNormalPrepassDepthTexture(prepass: NativeHandle): NativeHandle {
+    return this.#bridge.getDepthNormalPrepassDepthTexture(prepass);
+  }
+  public getDepthNormalPrepassNormalTexture(prepass: NativeHandle): NativeHandle {
+    return this.#bridge.getDepthNormalPrepassNormalTexture(prepass);
+  }
+  public getDepthNormalPrepassVelocityTexture(prepass: NativeHandle): NativeHandle {
+    return this.#bridge.getDepthNormalPrepassVelocityTexture(prepass);
+  }
+  public isDepthNormalPrepassSupported(prepass: NativeHandle, device: NativeHandle): boolean {
+    return this.#bridge.isDepthNormalPrepassSupported(prepass, device);
+  }
+  public isDepthNormalPrepassUsingMultipleRenderTargets(prepass: NativeHandle): boolean {
+    return this.#bridge.isDepthNormalPrepassUsingMultipleRenderTargets(prepass);
+  }
+  public isDepthNormalPrepassDepthPacked(prepass: NativeHandle): boolean {
+    return this.#bridge.isDepthNormalPrepassDepthPacked(prepass);
+  }
+  public deviceUsesPackedDepth(device: NativeHandle): boolean {
+    return this.#bridge.deviceUsesPackedDepth(device);
+  }
+  public getDepthNormalPrepassRoughness(prepass: NativeHandle): number {
+    return this.#bridge.getDepthNormalPrepassRoughness(prepass);
+  }
+  public setDepthNormalPrepassRoughness(prepass: NativeHandle, roughness: number): void {
+    this.#bridge.setDepthNormalPrepassRoughness(prepass, roughness);
+  }
+  public isDepthNormalPrepassVelocityEnabled(prepass: NativeHandle): boolean {
+    return this.#bridge.isDepthNormalPrepassVelocityEnabled(prepass);
+  }
+  public setDepthNormalPrepassVelocityEnabled(prepass: NativeHandle, enabled: boolean): void {
+    this.#bridge.setDepthNormalPrepassVelocityEnabled(prepass, enabled);
+  }
+  public setDepthNormalPrepassPreviousWorld(
+    prepass: NativeHandle, world: readonly number[],
+  ): void { this.#bridge.setDepthNormalPrepassPreviousWorld(prepass, world); }
+  public setDepthNormalPrepassPreviousCamera(
+    prepass: NativeHandle, view: readonly number[], projection: readonly number[],
+  ): void { this.#bridge.setDepthNormalPrepassPreviousCamera(prepass, view, projection); }
+  public getDepthDecodeGlsl(packed: boolean): string {
+    return this.#bridge.getDepthDecodeGlsl(packed);
+  }
+  public getVelocityDecodeGlsl(): string { return this.#bridge.getVelocityDecodeGlsl(); }
+  public velocityTexelHasVelocity(texel: ColorSnapshot): boolean {
+    return this.#bridge.velocityTexelHasVelocity(texel);
+  }
+  public decodeVelocityTexel(texel: ColorSnapshot): Vector2Snapshot {
+    return this.#bridge.decodeVelocityTexel(texel);
+  }
+  public packLinearDepth(value: number): PackedDepthSnapshot {
+    return this.#bridge.packLinearDepth(value);
+  }
+  public unpackLinearDepth(r: number, g: number, b: number, a: number): number {
+    return this.#bridge.unpackLinearDepth(r, g, b, a);
+  }
+  public createDecalPass(device: NativeHandle): NativeHandle {
+    return this.#bridge.createDecalPass(device);
+  }
+  public destroyDecalPass(pass: NativeHandle): void { this.#bridge.destroyDecalPass(pass); }
+  public getDecalOpacity(pass: NativeHandle): number {
+    return this.#bridge.getDecalOpacity(pass);
+  }
+  public setDecalOpacity(pass: NativeHandle, opacity: number): void {
+    this.#bridge.setDecalOpacity(pass, opacity);
+  }
+  public getDecalTint(pass: NativeHandle): Vector3Snapshot {
+    return this.#bridge.getDecalTint(pass);
+  }
+  public setDecalTint(pass: NativeHandle, tint: Vector3Snapshot): void {
+    this.#bridge.setDecalTint(pass, tint);
+  }
+  public getDecalMaxSlopeAngle(pass: NativeHandle): number {
+    return this.#bridge.getDecalMaxSlopeAngle(pass);
+  }
+  public setDecalMaxSlopeAngle(pass: NativeHandle, radians: number): void {
+    this.#bridge.setDecalMaxSlopeAngle(pass, radians);
+  }
+  public setDecalPrepassInputs(
+    pass: NativeHandle, depth: NativeHandle, normals: NativeHandle,
+  ): void { this.#bridge.setDecalPrepassInputs(pass, depth, normals); }
+  public setDecalCamera(
+    pass: NativeHandle, view: readonly number[], projection: readonly number[], farPlane: number,
+  ): void { this.#bridge.setDecalCamera(pass, view, projection, farPlane); }
+  public drawDecal(
+    pass: NativeHandle, decal: NativeHandle, decalWorld: readonly number[],
+    width: number, height: number,
+  ): void { this.#bridge.drawDecal(pass, decal, decalWorld, width, height); }
+  public isInsideDecalBox(decalLocalPosition: Vector3Snapshot): boolean {
+    return this.#bridge.isInsideDecalBox(decalLocalPosition);
   }
   public createShadowMap(device: NativeHandle, quality: number): NativeHandle {
     return this.#bridge.createShadowMap(device, quality);

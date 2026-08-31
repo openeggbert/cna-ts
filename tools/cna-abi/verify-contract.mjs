@@ -60,7 +60,14 @@ export function readTypeScriptEnums(sourceDir) {
   const enums = new Map();
   const pattern = /export enum (\w+)\s*\{([^}]*)\}/gs;
   for (const file of walk(sourceDir).sort()) {
-    const text = fs.readFileSync(file, "utf8");
+    // Comments come out first. The body pattern stops at the first closing brace, and a member's
+    // own doc comment may carry one inside a `{@link ...}` -- which used to leave the enum in the
+    // map with no members at all, so every constant in its family reported as unclaimed while the
+    // family itself looked verified. Stripping comments makes the brace that ends the body the
+    // enum's own.
+    const text = fs.readFileSync(file, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
     let match;
     while ((match = pattern.exec(text))) {
       const members = new Map();

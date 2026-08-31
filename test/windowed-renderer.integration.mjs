@@ -49,6 +49,7 @@ function matrixRow(matrix) {
   ];
 }
 import * as extensionsModule from "../dist/extensions/index.js";
+import { CnaResult } from "../dist/internal/cna-results.js";
 import * as computeModule from "../dist/extensions/graphics/index.js";
 
 const library = process.env.CNA_WINDOWED_LIBRARY;
@@ -704,6 +705,464 @@ class WindowedProbeGame extends Game {
         return result;
       } finally {
         for (const resource of owned.reverse()) resource.Dispose();
+      }
+    });
+
+    // --- the depth/normal prepass, and the decal projector that reads it -----------------------
+    //
+    // These two are measured together because they are one pipeline: the prepass rasterises linear
+    // depth and view-space normals for a scene, and the decal projector reads those two buffers
+    // back and unprojects every screen texel into a decal's own box.
+    //
+    // The oracle is CNA's own rasteriser. The same world rectangle is drawn three ways in the same
+    // frame, into the same render target, read back by the same routine: by a stock `BasicEffect`,
+    // by the prepass, and -- as a decal box over that rectangle -- by the decal projector. Whatever
+    // this renderer's screen and readback conventions are, they cancel between the three, because
+    // all three measurements share them.
+    record("prepassAndDecals", () => {
+      const {
+        DecalPass, DepthEncoding, DepthNormalPrepass, DepthNormalPrepassMath,
+        IsGraphicsExtensionLayerAvailable,
+      } = computeModule;
+      // Deliberately not square, and not a power of two on either axis: the target's width and
+      // height are separate arguments to the decal draw, and a pass that swapped them would land
+      // on the same texels in a square picture.
+      const WIDTH = 80;
+      const HEIGHT = 48;
+      const NEAR = 1;
+      const FAR = 100;
+      // The camera sits ten units up the +Z axis looking at the origin, with a 90-degree vertical
+      // field of view and a square aspect, so a plane at view depth d spans d world units per unit
+      // of device coordinate -- which is what lets the test turn a texel into a world point.
+      const EYE = 10;
+      const CLEARED = new Color(12, 34, 56, 255);
+      // Asymmetric on both screen axes and off-centre on both: a mirrored or swapped axis moves it.
+      const RECT = { X0: -6, X1: 10, Y0: -6, Y1: -1, Z: 0 };
+      const owned = [];
+      try {
+        let prepass;
+        try {
+          prepass = new DepthNormalPrepass(device, WIDTH, HEIGHT, DepthEncoding.Automatic);
+        } catch (error) {
+          // No engine layer in this build; there is no prepass and no decal pass to make.
+          let decalResult = "NOT_ATTEMPTED";
+          try {
+            new DecalPass(device).Dispose();
+            decalResult = "ACCEPTED";
+          } catch (decalError) {
+            decalResult = decalError.cnaResult;
+          }
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            decalCnaResult: decalResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(prepass);
+
+        const result = {
+          // The pure routes first. None of these needs a device, and the encoding is what makes a
+          // read-back depth texel mean a number rather than four bytes.
+          maths: {
+            devicePacked: DepthNormalPrepassMath.UsesPackedDepth(device),
+            packHalf: DepthNormalPrepassMath.PackDepth(0.5),
+            // 1.0 is clamped one step short before packing, because fract(1.0) is zero and an
+            // unclamped far plane would read back as the nearest possible surface.
+            packOne: DepthNormalPrepassMath.PackDepth(1),
+            unpackHalf: DepthNormalPrepassMath.UnpackDepth(0, 0, 0, 0.5),
+            roundTrip: (() => {
+              const packed = DepthNormalPrepassMath.PackDepth(0.375);
+              return DepthNormalPrepassMath.UnpackDepth(packed.R, packed.G, packed.B, packed.A);
+            })(),
+            packedGlsl: DepthNormalPrepassMath.DepthDecodeGlsl(true),
+            plainGlsl: DepthNormalPrepassMath.DepthDecodeGlsl(false),
+            velocityGlsl: DepthNormalPrepassMath.VelocityDecodeGlsl(),
+            // Alpha zero means "this texel carries a velocity", inverted on purpose so a shared
+            // white clear already reads as "nothing here".
+            hasVelocity: DepthNormalPrepassMath.HasVelocity(new Color(200, 100, 0, 0)),
+            hasNoVelocity: DepthNormalPrepassMath.HasVelocity(new Color(200, 100, 0, 255)),
+            decodedVelocity: (() => {
+              const velocity = DepthNormalPrepassMath.DecodeVelocity(new Color(255, 0, 0, 0));
+              return [velocity.X, velocity.Y];
+            })(),
+            insideOrigin: DecalPass.IsInsideDecalBox(new Vector3(0, 0, 0)),
+            insideCorner: DecalPass.IsInsideDecalBox(new Vector3(0.5, -0.5, 0.5)),
+            outsideOnOneAxis: DecalPass.IsInsideDecalBox(new Vector3(0.51, 0, 0)),
+          },
+          prepass: {
+            supported: prepass.IsSupported,
+            passCount: prepass.PassCount,
+            multipleRenderTargets: prepass.IsUsingMultipleRenderTargets,
+            depthPacked: prepass.IsDepthPacked,
+            velocityEnabled: prepass.IsVelocityEnabled,
+            roughness: prepass.Roughness,
+          },
+          rect: RECT,
+          width: WIDTH,
+          height: HEIGHT,
+          near: NEAR,
+          far: FAR,
+          eye: EYE,
+          clearedColor: CLEARED.PackedValue,
+          decalColor: Color.Red.PackedValue,
+        };
+
+        // Roughness is clamped rather than refused, which is what the canonical setter does.
+        prepass.Roughness = 0.25;
+        result.prepass.roughnessSet = prepass.Roughness;
+        prepass.Roughness = 5;
+        result.prepass.roughnessClamped = prepass.Roughness;
+        prepass.Roughness = -1;
+        result.prepass.roughnessFloored = prepass.Roughness;
+        prepass.Roughness = 0;
+
+        const depthTexture = prepass.DepthTexture;
+        result.prepass.textures = {
+          depth: [depthTexture.Width, depthTexture.Height, depthTexture.Format],
+          depthCached: prepass.DepthTexture === depthTexture,
+          normal: [prepass.NormalTexture.Width, prepass.NormalTexture.Height],
+          // Velocity is off, and an absent buffer is an absence rather than an empty one.
+          velocity: prepass.VelocityTexture === null ? "null" : "present",
+        };
+        try {
+          result.prepass.effects = [
+            prepass.PrepassEffect.CurrentTechnique.Name,
+            prepass.SkinnedPrepassEffect.CurrentTechnique.Name,
+          ];
+        } catch (error) {
+          result.prepass.effects = `${error.constructor.name}: ${(error.message ?? "").slice(0, 80)}`;
+        }
+
+        const view = Matrix.CreateLookAt(new Vector3(0, 0, EYE), Vector3.Zero, Vector3.Up);
+        const projection =
+          Matrix.CreatePerspectiveFieldOfView(Math.PI / 2, WIDTH / HEIGHT, NEAR, FAR);
+        result.view = matrixRow(view);
+        result.projection = matrixRow(projection);
+
+        const quad = (make) => [
+          make(RECT.X0, RECT.Y0), make(RECT.X1, RECT.Y0), make(RECT.X1, RECT.Y1),
+          make(RECT.X0, RECT.Y0), make(RECT.X1, RECT.Y1), make(RECT.X0, RECT.Y1),
+        ];
+        const survey = (pixels, painted) => {
+          let count = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          const colours = new Set();
+          for (let index = 0; index < pixels.length; index += 1) {
+            if (!painted(pixels[index], index)) continue;
+            count += 1;
+            colours.add(pixels[index].PackedValue);
+            const x = index % WIDTH, y = Math.floor(index / WIDTH);
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+          return { count, minX, maxX, minY, maxY, colours: [...colours] };
+        };
+
+        // 1. The oracle: the same rectangle rasterised by a stock effect, which is neither the
+        //    prepass nor the decal pass and shares no code with either.
+        const target = new Graphics.RenderTarget2D(device, WIDTH, HEIGHT);
+        owned.push(target);
+        const basic = new Graphics.BasicEffect(device);
+        owned.push(basic);
+        basic.VertexColorEnabled = true;
+        basic.World = Matrix.Identity;
+        basic.View = view;
+        basic.Projection = projection;
+        // Both faces, so the answer does not depend on which way the quad happens to wind.
+        device.RasterizerState = Graphics.RasterizerState.CullNone;
+        const pixels = new Array(WIDTH * HEIGHT);
+        device.SetRenderTarget(target);
+        try {
+          device.Clear(CLEARED);
+          basic.CurrentTechnique.Passes.Get(0).Apply();
+          device.DrawUserPrimitives(
+            Graphics.PrimitiveType.TriangleList,
+            quad((x, y) => new Graphics.VertexPositionColor(
+              new Vector3(x, y, RECT.Z), new Color(0, 255, 0, 255))),
+            0, 2,
+          );
+        } finally {
+          // Unbound even when the draw refuses, so a failure surfaces here rather than later as a
+          // frame that cannot be presented.
+          device.SetRenderTarget(null);
+        }
+        target.GetData(pixels);
+        result.rasterised = survey(pixels, (texel) => texel.PackedValue !== CLEARED.PackedValue);
+
+        // 2. The prepass, filling its own two buffers with the same rectangle.
+        for (let index = 0; index < prepass.PassCount; index += 1) {
+          prepass.Begin(index, view, projection, NEAR, FAR);
+          try {
+            prepass.PrepassEffect.CurrentTechnique.Passes.Get(0).Apply();
+            device.DrawUserPrimitives(
+              Graphics.PrimitiveType.TriangleList,
+              quad((x, y) => new Graphics.VertexPositionNormalTexture(
+                new Vector3(x, y, RECT.Z), new Vector3(0, 0, 1), Vector2.Zero)),
+              0, 2,
+            );
+          } finally {
+            prepass.End();
+          }
+        }
+        const depthPixels = new Array(WIDTH * HEIGHT);
+        depthTexture.GetData(depthPixels);
+        const normalPixels = new Array(WIDTH * HEIGHT);
+        prepass.NormalTexture.GetData(normalPixels);
+        const linearDepth = (texel) => DepthNormalPrepassMath.UnpackDepth(
+          texel.R / 255, texel.G / 255, texel.B / 255, texel.A / 255,
+        );
+        // Every distinct depth in the buffer, with its texel count: a surface and a far plane, and
+        // nothing in between, is what one flat quad against an empty background has to produce.
+        const depths = new Map();
+        for (const texel of depthPixels) {
+          const key = linearDepth(texel).toFixed(5);
+          depths.set(key, (depths.get(key) ?? 0) + 1);
+        }
+        result.depthHistogram = [...depths.entries()].sort((left, right) => right[1] - left[1]);
+        // Which texels carry a surface at all -- the mask the decal projector's own discard uses,
+        // and the mask the test's prediction has to use with it.
+        result.surfaceMask = depthPixels.map((texel) => linearDepth(texel) < 0.99);
+        result.prepassOccupied = survey(depthPixels, (texel) => linearDepth(texel) < 0.99);
+        result.normalsInside = [...new Set(depthPixels.map((texel, index) => {
+          if (linearDepth(texel) >= 0.99) return null;
+          const normal = normalPixels[index];
+          return `${normal.R},${normal.G},${normal.B},${normal.A}`;
+        }).filter((entry) => entry !== null))];
+        // One clear serves the whole bound set, so an untouched normal texel carries the depth
+        // buffer's white rather than the facing-camera value a separate clear would have written.
+        result.clearedNormal = (() => {
+          const normal = normalPixels[0];
+          return [normal.R, normal.G, normal.B, normal.A];
+        })();
+
+        // 3. The decal projector, reading exactly the two buffers the prepass just wrote.
+        const pass = new DecalPass(device);
+        owned.push({ Dispose: () => pass.Dispose() });
+        result.decalDefaults = {
+          opacity: pass.Opacity,
+          maxSlopeAngle: pass.MaxSlopeAngle,
+          tint: (() => { const tint = pass.Tint; return [tint.X, tint.Y, tint.Z]; })(),
+        };
+        pass.Opacity = 0.5;
+        result.decalDefaults.opacitySet = pass.Opacity;
+        pass.Opacity = 2;
+        result.decalDefaults.opacityClamped = pass.Opacity;
+        pass.Opacity = -1;
+        result.decalDefaults.opacityFloored = pass.Opacity;
+        pass.Opacity = 1;
+        // The tint takes what it is given, with no clamp: above one brightens an HDR frame.
+        pass.Tint = new Vector3(0.25, 2, -1);
+        result.decalDefaults.tintSet = (() => {
+          const tint = pass.Tint;
+          return [tint.X, tint.Y, tint.Z];
+        })();
+        pass.Tint = new Vector3(1, 1, 1);
+        pass.MaxSlopeAngle = 10;
+        result.decalDefaults.slopeClamped = pass.MaxSlopeAngle;
+        pass.MaxSlopeAngle = -1;
+        result.decalDefaults.slopeFloored = pass.MaxSlopeAngle;
+        pass.MaxSlopeAngle = result.decalDefaults.maxSlopeAngle;
+
+        const decalTexture = new Graphics.Texture2D(device, 2, 2);
+        owned.push(decalTexture);
+        // One flat colour, so a painted texel is unmistakably the decal's.
+        decalTexture.SetData([Color.Red, Color.Red, Color.Red, Color.Red]);
+
+        pass.SetCamera(view, projection, FAR);
+        pass.SetPrepassInputs(depthTexture, null);
+        const project = (world) => {
+          device.SetRenderTarget(target);
+          try {
+            device.Clear(CLEARED);
+            pass.Draw(decalTexture, world, WIDTH, HEIGHT);
+          } finally {
+            device.SetRenderTarget(null);
+          }
+          target.GetData(pixels);
+          // The box's own transform travels with the picture, so the test can invert it and ask
+          // CNA which texels should have been painted rather than deriving the region by hand.
+          return {
+            ...survey(pixels, (texel) => texel.PackedValue !== CLEARED.PackedValue),
+            world: matrixRow(world),
+          };
+        };
+        // A decal box is the unit cube its world transform places and sizes, so a box over the
+        // rectangle is a scale by the rectangle's extents and a translation to its centre.
+        const box = (cx, cy, cz, sx, sy, sz, yaw = 0) => Matrix.Multiply(
+          Matrix.Multiply(Matrix.CreateScale(sx, sy, sz), Matrix.CreateRotationY(yaw)),
+          Matrix.CreateTranslation(cx, cy, cz),
+        );
+        const SPAN_X = RECT.X1 - RECT.X0;
+        const SPAN_Y = RECT.Y1 - RECT.Y0;
+        const MID_X = (RECT.X0 + RECT.X1) / 2;
+        const MID_Y = (RECT.Y0 + RECT.Y1) / 2;
+        const OVER_RECT = box(MID_X, MID_Y, RECT.Z, SPAN_X, SPAN_Y, 6);
+        result.overRect = project(OVER_RECT);
+        // Half as wide, same centre and same height: only one axis of the box changed.
+        result.halfWide = project(box(MID_X, MID_Y, RECT.Z, SPAN_X / 2, SPAN_Y, 6));
+        // Two quarter-sized boxes in opposite corners of the same surface. Each has to find its
+        // own corner: a projection that had lost the translation would put both in the middle.
+        result.upperRight = project(box(
+          MID_X + SPAN_X / 4, MID_Y + SPAN_Y / 4, RECT.Z, SPAN_X / 3, SPAN_Y / 3, 6,
+        ));
+        result.lowerLeft = project(box(
+          MID_X - SPAN_X / 4, MID_Y - SPAN_Y / 4, RECT.Z, SPAN_X / 3, SPAN_Y / 3, 6,
+        ));
+        // A long thin box rolled thirty degrees about the view axis, which paints a diagonal band
+        // across the surface. Nothing about a band is expressible as a rectangle, so this is the
+        // case that says the box's rotation reaches the projection at all -- and CNA's own box
+        // test predicts it while an extent written out here could not.
+        result.rotated = project(Matrix.Multiply(
+          Matrix.Multiply(
+            Matrix.CreateScale(SPAN_X * 1.5, SPAN_Y / 4, 6),
+            Matrix.CreateRotationZ(Math.PI / 6),
+          ),
+          Matrix.CreateTranslation(MID_X, MID_Y, RECT.Z),
+        ));
+        // Thin, and nowhere near the surface: the box test is what keeps a decal off geometry it
+        // was not meant for, so this must paint nothing.
+        result.awayFromSurface = project(box(MID_X, MID_Y, RECT.Z + 3, SPAN_X, SPAN_Y, 1));
+        // Half opacity, which composites rather than replaces.
+        result.halfOpacity = (() => {
+          pass.Opacity = 0.5;
+          const painted = project(OVER_RECT);
+          pass.Opacity = 1;
+          return painted;
+        })();
+        // A green tint on a red decal leaves nothing: the tint multiplies channel by channel.
+        result.greenTint = (() => {
+          pass.Tint = new Vector3(0, 1, 0);
+          const painted = project(OVER_RECT);
+          pass.Tint = new Vector3(1, 1, 1);
+          return painted;
+        })();
+        // No depth buffer at all: nothing to unproject, so nothing is painted and nothing fails.
+        result.noDepth = (() => {
+          pass.SetPrepassInputs(null, null);
+          const painted = project(OVER_RECT);
+          pass.SetPrepassInputs(depthTexture, null);
+          return painted;
+        })();
+
+        /*
+         * The same depths, handed over as an ordinary uploaded texture instead of the prepass's
+         * own target.
+         *
+         * The pass draws its depth input as a full-screen sprite and takes its screen mapping from
+         * that sprite's texture coordinates, so the input's orientation is the pass's orientation.
+         * An uploaded `Texture2D` and a render target do not agree about which row is the top on
+         * this renderer, and the picture comes out mirrored -- measured here rather than left for a
+         * caller to discover, and documented on `SetPrepassInputs`.
+         */
+        const uploadedDepth = (rows) => {
+          const uploaded = new Graphics.Texture2D(device, WIDTH, HEIGHT);
+          owned.push(uploaded);
+          uploaded.SetData(rows);
+          pass.SetPrepassInputs(uploaded, null);
+          const painted = project(OVER_RECT);
+          pass.SetPrepassInputs(depthTexture, null);
+          return painted;
+        };
+        result.uploadedInput = uploadedDepth(depthPixels);
+        // And the same bytes with their rows reversed, which is the positive half of the same
+        // measurement: turn the image over and the pass finds the surface exactly where the
+        // prepass's own buffer put it.
+        result.uploadedFlipped = uploadedDepth(Array.from(
+          { length: WIDTH * HEIGHT },
+          (_, index) => depthPixels[
+            (HEIGHT - 1 - Math.floor(index / WIDTH)) * WIDTH + (index % WIDTH)
+          ],
+        ));
+
+        // 4. The slope test, which exists only when normals are supplied.
+        //
+        // The decal projects along its own +Z, so a surface that takes it faces back along that
+        // axis. Unrotated, this box points +Z -- at the camera -- and the surface the prepass drew
+        // faces the camera too, so the two face the same way and every texel is rejected. Turned
+        // through half a turn the decal projects into the surface and every texel is taken.
+        pass.SetPrepassInputs(depthTexture, prepass.NormalTexture);
+        result.axisTowardCamera = project(OVER_RECT);
+        const INTO_SURFACE = box(3, -2, 0, 8, 4, 6, Math.PI);
+        result.axisIntoSurface = project(INTO_SURFACE);
+        // And a surface tilted past the limit is dropped, while widening the limit takes it back.
+        // Same buffers, same box, one number different between the last two.
+        const tilted = (degrees) => {
+          const texture = new Graphics.Texture2D(device, WIDTH, HEIGHT);
+          owned.push(texture);
+          const radians = (degrees * Math.PI) / 180;
+          const encode = (component) => Math.round((component * 0.5 + 0.5) * 255);
+          texture.SetData(new Array(WIDTH * HEIGHT).fill(new Color(
+            encode(Math.sin(radians)), encode(0), encode(Math.cos(radians)), 255,
+          )));
+          return texture;
+        };
+        pass.SetPrepassInputs(depthTexture, tilted(60));
+        result.tilted60 = project(INTO_SURFACE);
+        pass.SetPrepassInputs(depthTexture, tilted(80));
+        result.tilted80 = project(INTO_SURFACE);
+        result.tilted80Widened = (() => {
+          pass.MaxSlopeAngle = (85 * Math.PI) / 180;
+          const painted = project(INTO_SURFACE);
+          pass.MaxSlopeAngle = result.decalDefaults.maxSlopeAngle;
+          return painted;
+        })();
+        pass.SetPrepassInputs(depthTexture, null);
+
+        // 5. What the typed surface refuses before CNA ever sees it, and what CNA refuses itself.
+        // CNA's own refusals arrive as an error carrying the result code it answered with; the
+        // binding's own arrive as an ordinary TypeScript error class. Reporting whichever it is
+        // keeps the two apart, so a refusal invented here cannot pass for one of CNA's.
+        const refusal = (body) => {
+          try {
+            body();
+            return "ACCEPTED";
+          } catch (error) {
+            return error.cnaResult ?? error.constructor.name;
+          }
+        };
+        result.refusals = {
+          nullDecal: refusal(() => pass.Draw(null, OVER_RECT, WIDTH, HEIGHT)),
+          zeroWidth: refusal(() => pass.Draw(decalTexture, OVER_RECT, 0, HEIGHT)),
+          openTwice: refusal(() => {
+            prepass.Begin(0, view, projection, NEAR, FAR);
+            try {
+              prepass.Begin(0, view, projection, NEAR, FAR);
+            } finally {
+              prepass.End();
+            }
+          }),
+          endWithoutBegin: refusal(() => prepass.End()),
+          // Depth is normalised by the far plane, so a range that cannot normalise is refused
+          // rather than corrected into a buffer that looks plausible and is lit from the wrong
+          // depth.
+          invertedPlanes: refusal(() => {
+            prepass.Begin(0, view, projection, 50, 10);
+            prepass.End();
+          }),
+          resizeInsidePass: refusal(() => {
+            prepass.Begin(0, view, projection, NEAR, FAR);
+            try {
+              prepass.Resize(32, 32);
+            } finally {
+              prepass.End();
+            }
+          }),
+        };
+        const spare = new DecalPass(device);
+        spare.Dispose();
+        result.refusals.disposedPass =
+          refusal(() => spare.Draw(decalTexture, OVER_RECT, WIDTH, HEIGHT));
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch {
+            // A cleanup failure must not replace the failure that matters.
+          }
+        }
       }
     });
 
@@ -1437,6 +1896,511 @@ test("a windowed CNA renderer draws particles where the camera puts them", { ski
     `CNA_TS_WINDOWED_PARTICLES=OK NEAR=${nearBlob.count}px@${nearBlob.minX},${nearBlob.minY} ` +
     `FAR=${farBlob.count}px@${farBlob.minX},${farBlob.minY} CAMERA_SHIFT=${movedBy}px ` +
     `DEFAULT_CAPACITY=${particles.defaultCapacity} BINDING=${particles.bindingPoint}`,
+  );
+});
+
+test("a windowed CNA renderer projects a decal onto what its prepass drew", { skip }, async () => {
+  const game = new WindowedProbeGame(2);
+  try {
+    await game.Run();
+  } finally {
+    game.Dispose();
+  }
+  const evidence = game.evidence.prepassAndDecals;
+  assert.equal(typeof evidence, "object", `the prepass probe did not run: ${evidence}`);
+
+  // Two of the three windowed renderers here are built with the engine layer compiled out. There
+  // is then no prepass and no decal pass to make at all, which is a different boundary from a
+  // renderer that has them and cannot compile their shaders -- and it is checked against the
+  // separate route that reports whether the layer is present rather than taking a refusal's word.
+  if (evidence.layerAbsent) {
+    assert.equal(evidence.extensionLayer, false, "a refused create must mean the layer is absent");
+    assert.equal(evidence.cnaResult, CnaResult.NotSupported);
+    assert.equal(
+      evidence.decalCnaResult, CnaResult.NotSupported,
+      "and the decal pass is absent for the same reason, not for one of its own",
+    );
+    console.log("CNA_TS_WINDOWED_DECALS=LAYER_ABSENT");
+    return;
+  }
+
+  const { DecalPass, DepthNormalPrepassMath } = computeModule;
+
+  /*
+   * The encoding first, because every depth number below is read through it.
+   *
+   * Depth is linear view depth divided by the far plane, packed eight bits to a channel most
+   * significant first. Half packs into the alpha channel alone, which is what a shift of
+   * (1/2^24, 1/2^16, 1/256, 1) means, and 1.0 is deliberately clamped one step short: fract(1.0)
+   * is zero, so an unclamped far plane would pack to nothing and read back as the *nearest*
+   * possible surface -- the exact inverse of what it means, applied to the commonest value in the
+   * buffer.
+   */
+  const maths = evidence.maths;
+  assert.equal(maths.devicePacked, true, "the automatic encoding packs depth on this renderer");
+  assert.deepEqual(
+    [maths.packHalf.R, maths.packHalf.G, maths.packHalf.B, maths.packHalf.A], [0, 0, 0, 0.5],
+    "a half packs into the alpha channel and nothing else",
+  );
+  assert.equal(maths.packOne.R, 0, "1.0 is clamped short, so its top channel packs to zero");
+  assert.ok(
+    maths.packOne.A > 0.99 && maths.packOne.A < 1,
+    `and its low channel stops short of one, not at it (${maths.packOne.A})`,
+  );
+  assert.equal(maths.unpackHalf, 0.5, "and unpacking that alpha gives the half back");
+  assert.ok(
+    Math.abs(maths.roundTrip - 0.375) < 1e-6,
+    `pack and unpack are inverses to a part in 2^24 (${maths.roundTrip})`,
+  );
+  /*
+   * And how much of that survives the target the prepass actually writes into:
+   * `docs/upstream-cna-findings.md` item 13.
+   *
+   * The arithmetic is as good as advertised -- a sweep of the whole range never leaves the encoder
+   * and its decoder more than 2^-24 apart. Put the channels through eight bits, which is what a
+   * `Color` render target is, and the error is four hundred times larger, and the same as it would
+   * be if the depth had simply been written into one channel: the packing buys nothing. The cause
+   * is arithmetic and this demonstrates it rather than asserting it -- quantise to 256 levels
+   * instead of 255 and the exact accuracy comes straight back, because 256 is the base the shifts
+   * and masks are written in while an eight-bit UNORM target stores n/255.
+   */
+  const sweep = (quantise) => {
+    let worst = 0;
+    for (let step = 0; step <= 2000; step += 1) {
+      const depth = (step / 2000) * 0.999;
+      const packed = DepthNormalPrepassMath.PackDepth(depth);
+      const decoded = DepthNormalPrepassMath.UnpackDepth(
+        quantise(packed.R), quantise(packed.G), quantise(packed.B), quantise(packed.A),
+      );
+      worst = Math.max(worst, Math.abs(decoded - depth));
+    }
+    return worst;
+  };
+  const asWritten = sweep((value) => value);
+  const asStored = sweep((value) => Math.round(value * 255) / 255);
+  const atBase256 = sweep((value) => Math.min(255, Math.round(value * 256)) / 256);
+  assert.ok(
+    asWritten <= Math.pow(2, -24),
+    `the encoder's own arithmetic is good to a part in 2^24 (${asWritten})`,
+  );
+  assert.ok(
+    asStored > 100 * asWritten,
+    "UPSTREAM FINDING 13 REPAIRED: the packing now survives an eight-bit target. " +
+    "Update docs/upstream-cna-findings.md and tighten the depth assertions below",
+  );
+  assert.ok(
+    Math.abs(asStored - 0.5 / 255) < 1e-5,
+    `through eight bits the error is a half channel step, no better (${asStored})`,
+  );
+  assert.ok(
+    Math.abs(atBase256 - asWritten) < 1e-9,
+    `and 256 levels restores it exactly, which is where the loss comes from (${atBase256})`,
+  );
+  // The GLSL a game includes rather than reimplements. The packed form carries the unpacker; both
+  // carry the reconstruction, so the encoding and its inverse cannot drift apart.
+  assert.ok(maths.packedGlsl.includes("cnaUnpackDepth"), "the packed dialect carries its unpacker");
+  assert.ok(
+    !maths.plainGlsl.includes("cnaUnpackDepth"),
+    "and the half-float dialect, which reads the red channel, does not",
+  );
+  for (const source of [maths.packedGlsl, maths.plainGlsl]) {
+    assert.ok(
+      source.includes("cnaDecodeLinearDepth") && source.includes("cnaViewPositionFromDepth"),
+      "both dialects decode a texel and rebuild a view position from it",
+    );
+  }
+  assert.ok(
+    maths.velocityGlsl.includes("cnaEncodeVelocity") ||
+    maths.velocityGlsl.includes("cnaDecodeVelocity"),
+    "the velocity dialect names its codec",
+  );
+  // Alpha zero means "this texel carries a velocity" -- inverted, because one shared white clear
+  // serves the whole bound target set and has to read as "nothing here".
+  assert.equal(maths.hasVelocity, true, "a zero alpha marks a texel that carries a velocity");
+  assert.equal(maths.hasNoVelocity, false, "and an opaque one marks a texel that does not");
+  assert.deepEqual(
+    maths.decodedVelocity, [1, -1], "a full red, empty green texel decodes to (1,-1)",
+  );
+  // The box is the unit cube on the origin, so its own membership test is exactly a half.
+  assert.deepEqual(
+    [maths.insideOrigin, maths.insideCorner, maths.outsideOnOneAxis], [true, true, false],
+    "a decal box holds every point within a half of its origin, and no other",
+  );
+
+  const prepass = evidence.prepass;
+  assert.equal(prepass.supported, true, "this renderer compiles the prepass shaders");
+  assert.equal(prepass.depthPacked, true, "and stores depth packed, as the device query said");
+  assert.equal(
+    prepass.passCount, prepass.multipleRenderTargets ? 1 : 2,
+    "a renderer with multiple render targets fills both buffers in one pass, otherwise two",
+  );
+  assert.equal(prepass.velocityEnabled, false, "velocity is off unless it is asked for");
+  assert.deepEqual(
+    [prepass.roughnessSet, prepass.roughnessClamped, prepass.roughnessFloored], [0.25, 1, 0],
+    "roughness round-trips and is clamped into the unit range rather than refused",
+  );
+  assert.deepEqual(
+    prepass.textures.depth, [evidence.width, evidence.height, prepass.textures.depth[2]],
+    "the depth buffer is the size the prepass was made at, on both axes",
+  );
+  assert.equal(prepass.textures.depthCached, true, "the borrow is taken once, not once per read");
+  assert.equal(
+    prepass.textures.velocity, "null", "velocity is off, so there is no buffer -- not an empty one",
+  );
+  assert.deepEqual(
+    prepass.effects, ["Default", "Default"], "both prepass programs are lent and both are real",
+  );
+
+  /*
+   * The oracle, and what makes it one.
+   *
+   * `rasterised` is one flat quad drawn through a stock `BasicEffect`, which shares no code with
+   * either object under test. `prepassOccupied` is the same quad drawn by the prepass. Both were
+   * read out of a render target by the same routine in the same frame, so this renderer's screen
+   * and readback conventions cancel between them: what is left is whether the prepass puts the
+   * rectangle where the renderer puts it.
+   */
+  const WIDTH = evidence.width;
+  const HEIGHT = evidence.height;
+  const span = (region) => ({
+    x0: region.minX, x1: region.maxX + 1, y0: region.minY, y1: region.maxY + 1,
+  });
+  const agree = (left, right, what, tolerance = 1.5) => {
+    const a = span(left), b = span(right);
+    for (const edge of ["x0", "x1", "y0", "y1"]) {
+      assert.ok(
+        Math.abs(a[edge] - b[edge]) <= tolerance,
+        `${what}: ${edge} is ${a[edge]} against ${b[edge]}`,
+      );
+    }
+  };
+  assert.ok(evidence.rasterised.count > 200, "the stock effect drew the rectangle");
+  agree(
+    evidence.prepassOccupied, evidence.rasterised,
+    "the prepass must put the rectangle where the renderer's own rasteriser puts it",
+  );
+
+  /*
+   * And the depth it recorded is the one the camera implies, not merely a number below the far
+   * plane. The quad is at the origin and the eye is ten units up +Z, so its view depth is ten and
+   * the stored value is ten over the far plane -- to the precision the packing has, which comes
+   * from CNA's own encoder rather than from a tolerance chosen here.
+   */
+  assert.equal(
+    evidence.depthHistogram.length, 2,
+    "one quad on an empty background is two depths and no others: " +
+    JSON.stringify(evidence.depthHistogram),
+  );
+  const [[farKey, farCount], [surfaceKey, surfaceCount]] = evidence.depthHistogram;
+  assert.equal(farCount + surfaceCount, WIDTH * HEIGHT);
+  assert.equal(surfaceCount, evidence.prepassOccupied.count);
+  assert.ok(Number(farKey) >= 1, `an untouched texel is at or beyond the far plane (${farKey})`);
+  const storedDepth = Number(surfaceKey);
+  const exactDepth = (evidence.eye - evidence.rect.Z) / evidence.far;
+  const throughEightBits = (depth) => {
+    const packed = DepthNormalPrepassMath.PackDepth(depth);
+    const quantise = (value) => Math.round(value * 255) / 255;
+    return DepthNormalPrepassMath.UnpackDepth(
+      quantise(packed.R), quantise(packed.G), quantise(packed.B), quantise(packed.A),
+    );
+  };
+  // What the GPU stored is exactly what CNA's own encoder predicts it would store -- packed, put
+  // through an eight-bit target and read back. Not "close to a tenth": the number that round trip
+  // produces for a tenth, computed here rather than remembered. The GPU agreeing with the model to
+  // five decimals is what says the model is of CNA and not of this test.
+  assert.ok(
+    Math.abs(storedDepth - throughEightBits(exactDepth)) < 1e-5,
+    `the GPU stored ${storedDepth}; CNA's own encoder predicts ${throughEightBits(exactDepth)}`,
+  );
+  assert.ok(
+    Math.abs(storedDepth - exactDepth) < 0.5 / 255,
+    `and that is within one channel step of the true ${exactDepth}`,
+  );
+  // The normals are the second half of the prepass, and they are exact rather than approximate: a
+  // quad facing +Z in world space faces +Z in this camera's view space too, which encodes to
+  // (0.5, 0.5, 1). The alpha is the inverted velocity flag.
+  assert.deepEqual(
+    evidence.normalsInside, ["128,128,255,0"],
+    "every texel of a flat quad facing the camera carries the same encoded view normal",
+  );
+  // One clear serves a bound set, so an untouched normal texel carries the depth buffer's white.
+  assert.deepEqual(evidence.clearedNormal, [255, 255, 255, 255]);
+
+  /*
+   * The decal projector, against a prediction that is not this test's arithmetic.
+   *
+   * For every texel the test reconstructs the world point the decal shader reconstructs -- the
+   * camera is a 90-degree square frustum, so a plane at view depth d spans d world units per unit
+   * of device coordinate -- transforms it by the inverse of the box's own world matrix, and asks
+   * **CNA** whether that point is inside the box, through `IsInsideDecalBox`. So a rotated or
+   * rescaled box needs no separate derivation and no geometry written out by hand here, and the
+   * prediction is checked against the surface the prepass actually drew rather than against a
+   * plane assumed to fill the screen.
+   */
+  const viewDepth = storedDepth * evidence.far;
+  const surfaceZ = evidence.eye - viewDepth;
+  const transform = (m, x, y, z) => ({
+    X: m[0] * x + m[4] * y + m[8] * z + m[12],
+    Y: m[1] * x + m[5] * y + m[9] * z + m[13],
+    Z: m[2] * x + m[6] * y + m[10] * z + m[14],
+  });
+  const predict = (world) => {
+    const inverse = matrixRow(Matrix.Invert(new Matrix(...world)));
+    let count = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let y = 0; y < HEIGHT; y += 1) {
+      for (let x = 0; x < WIDTH; x += 1) {
+        // The rasteriser's convention, which `rasterised` above confirms: the first row is the top
+        // of the screen, which is +1 in device coordinates. The frustum is ninety degrees
+        // vertically and the target is wider than it is tall, so a unit of device coordinate is
+        // worth the aspect ratio more world units across than it is down.
+        if (!evidence.surfaceMask[y * WIDTH + x]) continue;
+        const ndcX = ((x + 0.5) / WIDTH) * 2 - 1;
+        const ndcY = 1 - ((y + 0.5) / HEIGHT) * 2;
+        const local = transform(
+          inverse, ndcX * viewDepth * (WIDTH / HEIGHT), ndcY * viewDepth, surfaceZ,
+        );
+        if (!DecalPass.IsInsideDecalBox(new Vector3(local.X, local.Y, local.Z))) continue;
+        count += 1;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+    return { count, minX, maxX, minY, maxY };
+  };
+
+  // Every case that must paint something paints it in the decal texture's colour and no other.
+  for (const name of [
+    "overRect", "halfWide", "upperRight", "lowerLeft", "rotated", "axisIntoSurface", "tilted60",
+  ]) {
+    const painted = evidence[name];
+    assert.ok(painted.count > 0, `${name} must paint something`);
+    assert.deepEqual(
+      painted.colours, [evidence.decalColor],
+      `${name} paints the decal texture's colour and nothing else`,
+    );
+  }
+
+  /*
+   * Where each one lands: exactly the texels CNA's own box test says, and no others.
+   *
+   * Five boxes, each a different shape or a different place, all against one surface. The counts
+   * are exact rather than approximate -- these are the same texels, not merely the same
+   * neighbourhood -- so a projection that lost the translation, the scale, the rotation, the
+   * camera or the depth cannot land on any of them.
+   */
+  for (const name of ["overRect", "halfWide", "upperRight", "lowerLeft", "rotated"]) {
+    const expected = predict(evidence[name].world);
+    assert.ok(expected.count > 0, `the prediction for ${name} must cover something`);
+    assert.equal(
+      evidence[name].count, expected.count,
+      `${name} must paint exactly the predicted texels: ` +
+      `${evidence[name].count} against ${expected.count}`,
+    );
+    agree(evidence[name], expected, `${name} must land where CNA's own box test puts it`, 0);
+  }
+  // The rectangle is off centre on both axes, so none of this could survive a mirrored or swapped
+  // axis: the prediction and the picture would be in different places.
+  const offCentre = (lo, hi, extent) => Math.abs((lo + hi) / 2 - extent / 2);
+  assert.ok(
+    offCentre(evidence.overRect.minX, evidence.overRect.maxX, WIDTH) > 3 &&
+    offCentre(evidence.overRect.minY, evidence.overRect.maxY, HEIGHT) > 3,
+    "the surface is off centre on both axes, so a flipped axis lands somewhere else",
+  );
+  // Two boxes in opposite corners of the same surface are two different pictures. A projection
+  // that had lost the box's translation would put them both in the same place.
+  assert.ok(
+    evidence.upperRight.minX > evidence.lowerLeft.maxX &&
+    evidence.upperRight.maxY < evidence.lowerLeft.minY,
+    "the two corner boxes must be in opposite corners, sharing no texel",
+  );
+  // And the rolled box paints a band rather than a rectangle. Every other case here fills its own
+  // bounding box, because an axis-aligned box over a flat surface is a rectangle on screen; this
+  // one covers well under three-quarters of its box, which is what a diagonal is. Its exact texels
+  // were checked against the prediction above -- this is the shape saying so in one number.
+  const filled = (region) =>
+    region.count / ((region.maxX - region.minX + 1) * (region.maxY - region.minY + 1));
+  assert.ok(
+    filled(evidence.overRect) > 0.99,
+    `an axis-aligned box fills its bounding box (${filled(evidence.overRect)})`,
+  );
+  assert.ok(
+    filled(evidence.rotated) < 0.75 && evidence.rotated.count < evidence.overRect.count * 0.6,
+    `a rolled box paints a diagonal band, not a rectangle (${evidence.rotated.count} texels ` +
+    `filling ${filled(evidence.rotated)} of ${evidence.rotated.minX}..${evidence.rotated.maxX})`,
+  );
+
+  // The box test, which is the whole point of a decal box: a box nowhere near the surface paints
+  // nothing, and neither does a pass with no depth buffer to unproject.
+  assert.equal(
+    evidence.awayFromSurface.count, 0, "a box the surface does not reach paints nothing",
+  );
+  assert.equal(predict(evidence.awayFromSurface.world).count, 0, "and CNA's own box test agrees");
+  assert.equal(evidence.noDepth.count, 0, "with no depth buffer there is nothing to project onto");
+
+  // Scale is the decal's size in world units, so halving one axis halves the picture on it.
+  assert.ok(
+    evidence.halfWide.count < evidence.overRect.count,
+    "a box half as wide paints less than the full one",
+  );
+  assert.equal(
+    evidence.halfWide.maxY - evidence.halfWide.minY,
+    evidence.overRect.maxY - evidence.overRect.minY,
+    "and exactly as tall, because only one axis changed",
+  );
+
+  /*
+   * The one thing about the input a caller has to know, measured rather than left to be
+   * discovered: **the prepass's own buffers are the depth input, and an upload of the same values
+   * does not stand in for one.**
+   *
+   * Handed exactly the bytes the prepass wrote, uploaded into an ordinary `Texture2D`, the pass
+   * finds no surface anywhere; handed them with their rows reversed it finds the whole surface
+   * again, in the right columns and in rows that share none of the right ones. So the two kinds of
+   * texture do not agree about the screen, and neither upload is the picture. No mechanism is
+   * claimed here -- these are the measurements, and the rule they imply is the one
+   * `SetPrepassInputs` documents.
+   */
+  assert.equal(
+    evidence.uploadedInput.count, 0,
+    "the same depths uploaded as an ordinary texture find no surface at all",
+  );
+  assert.equal(
+    evidence.uploadedFlipped.count, evidence.overRect.count,
+    "turning that upload over finds the surface again, and the same amount of it",
+  );
+  assert.deepEqual(
+    [evidence.uploadedFlipped.minX, evidence.uploadedFlipped.maxX],
+    [evidence.overRect.minX, evidence.overRect.maxX],
+    "in the same columns",
+  );
+  assert.ok(
+    evidence.uploadedFlipped.maxY < evidence.overRect.minY ||
+    evidence.uploadedFlipped.minY > evidence.overRect.maxY,
+    "and in rows that share none of the right ones: neither upload reproduces the picture, " +
+    `${evidence.uploadedFlipped.minY}..${evidence.uploadedFlipped.maxY} against ` +
+    `${evidence.overRect.minY}..${evidence.overRect.maxY}`,
+  );
+
+  /*
+   * Opacity and tint, checked through the blend rather than through a getter.
+   *
+   * The pass composites `NonPremultiplied`, which is the one place in this layer where blending is
+   * the point: a decal's own alpha is the mask that decides where it shows. So half opacity over a
+   * known clear colour is an arithmetic identity, and the test computes it rather than remembering
+   * a colour from a previous run.
+   */
+  const cleared = new Color(12, 34, 56, 255);
+  assert.equal(evidence.clearedColor, cleared.PackedValue);
+  assert.equal(evidence.halfOpacity.colours.length, 1);
+  const packedBlend = evidence.halfOpacity.colours[0];
+  const blended = new Color(
+    packedBlend & 0xff, (packedBlend >>> 8) & 0xff,
+    (packedBlend >>> 16) & 0xff, (packedBlend >>> 24) & 0xff,
+  );
+  for (const [channel, source] of [["R", 255], ["G", 0], ["B", 0]]) {
+    const expected = source * 0.5 + cleared[channel] * 0.5;
+    assert.ok(
+      Math.abs(blended[channel] - expected) <= 1,
+      `half opacity must composite ${channel}: ${blended[channel]} against ${expected}`,
+    );
+  }
+  assert.ok(
+    Math.abs(blended.A - (255 * 0.5 + 255 * 0.5 * 0.5)) <= 1,
+    `and NonPremultiplied's own alpha rule: ${blended.A}`,
+  );
+  agree(evidence.halfOpacity, evidence.overRect, "opacity changes the colour, not the region", 0);
+  // A green tint on a red decal is black, because the tint multiplies channel by channel.
+  assert.deepEqual(
+    evidence.greenTint.colours, [new Color(0, 0, 0, 255).PackedValue],
+    "a green tint on a red decal leaves nothing of it",
+  );
+  agree(evidence.greenTint, evidence.overRect, "and it does not move the decal either", 0);
+
+  /*
+   * The slope test, which exists only when normals are supplied.
+   *
+   * The decal projects along its own +Z, so a surface that takes it faces back along that axis.
+   * Unrotated the box points at the camera, the same way the surface does, and every texel is
+   * rejected; turned through half a turn it projects into the surface and every texel is taken.
+   * Then the surface is tilted, with the box left exactly where it was: 60 degrees is inside the
+   * default 70-degree limit and shows, 80 is outside it and does not, and widening the limit to 85
+   * brings the same picture back. One number changes between the last two.
+   */
+  assert.equal(
+    evidence.axisTowardCamera.count, 0,
+    "a decal projecting the same way the surface faces takes none of it",
+  );
+  assert.ok(evidence.axisIntoSurface.count > 0, "and one projecting into the surface takes it");
+  assert.equal(evidence.tilted80.count, 0, "a surface tilted past the limit is dropped");
+  agree(
+    evidence.tilted60, evidence.axisIntoSurface,
+    "a surface inside the limit takes the whole decal", 0,
+  );
+  agree(
+    evidence.tilted80Widened, evidence.axisIntoSurface,
+    "and widening the limit takes the same picture back, with nothing else changed", 0,
+  );
+  assert.ok(
+    Math.abs(evidence.decalDefaults.maxSlopeAngle - (70 * Math.PI) / 180) < 1e-6,
+    `the default limit is seventy degrees (${evidence.decalDefaults.maxSlopeAngle})`,
+  );
+
+  // The three setters, each guarded the way CNA guards it and not the way the others are.
+  const defaults = evidence.decalDefaults;
+  assert.deepEqual(
+    [defaults.opacity, defaults.opacitySet, defaults.opacityClamped, defaults.opacityFloored],
+    [1, 0.5, 1, 0],
+    "opacity round-trips and is clamped into the unit range at both ends",
+  );
+  assert.deepEqual(defaults.tint, [1, 1, 1], "an untinted decal is white");
+  assert.deepEqual(
+    defaults.tintSet, [0.25, 2, -1],
+    "and a tint is taken as given: above one brightens an HDR frame, so there is nothing to clamp",
+  );
+  assert.ok(
+    Math.abs(defaults.slopeClamped - Math.PI / 2) < 1e-6,
+    "a slope beyond a right angle is clamped to one: nothing faces further away than perpendicular",
+  );
+  assert.equal(defaults.slopeFloored, 0, "and a negative one is floored at zero");
+
+  // What is refused, and by whom.
+  assert.equal(evidence.refusals.nullDecal, "TypeError", "there is nothing to draw without a decal");
+  assert.equal(evidence.refusals.zeroWidth, "RangeError");
+  assert.equal(evidence.refusals.disposedPass, "NativeUnavailableError");
+  /*
+   * Four errors CNA raises itself, reported by the result code it answered with rather than
+   * pre-empted here. A pass cannot be opened twice or closed unopened, a depth range that cannot
+   * normalise is refused rather than quietly corrected into a buffer lit from the wrong depth, and
+   * the targets cannot be resized while a pass is holding them.
+   *
+   * Three of the four answer the wrong code, and that is
+   * `docs/upstream-cna-findings.md` item 14. The header documents `CNA_RESULT_INVALID_STATE` for
+   * each of them; what comes back is `CNA_RESULT_INTERNAL`, which says "a bug in CNA" to a caller
+   * whose only mistake was the order of two calls. The argument error is right, because a
+   * `std::invalid_argument` is translated and a `std::logic_error` is not -- and CNA's own render
+   * pipeline, in the same source file, catches exactly that and answers `INVALID_STATE`. Asserted
+   * as it behaves, so a repair fails here and says so.
+   */
+  assert.deepEqual(
+    [
+      evidence.refusals.openTwice, evidence.refusals.endWithoutBegin,
+      evidence.refusals.invertedPlanes, evidence.refusals.resizeInsidePass,
+    ],
+    [
+      CnaResult.Internal, CnaResult.Internal, CnaResult.InvalidArgument, CnaResult.Internal,
+    ],
+    "UPSTREAM FINDING 14 REPAIRED: the three ordering refusals now answer INVALID_STATE. " +
+    "Update docs/upstream-cna-findings.md and assert the documented codes",
+  );
+
+  console.log(
+    `CNA_TS_WINDOWED_DECALS=OK SURFACE=${surfaceCount}px@${evidence.prepassOccupied.minX},` +
+    `${evidence.prepassOccupied.minY} DEPTH=${storedDepth} ` +
+    `DECAL=${evidence.overRect.count}px UPPER=${evidence.upperRight.count}px ` +
+    `LOWER=${evidence.lowerLeft.count}px ROTATED=${evidence.rotated.count}px ` +
+    `PACKED_PRECISION=${asStored.toExponential(3)} (finding 13)`,
   );
 });
 

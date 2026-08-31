@@ -15,11 +15,12 @@ found while projecting the sensor families; item 7 is new, found while widening 
 qualification to three renderers; items 8 and 9 are new, found while projecting the engine
 layer's compute path, item 10 while projecting its clustered lighting, item 11 -- a
 segmentation fault -- while projecting camera frame capture, and item 12 while projecting the
-particle draw.
+particle draw. Items 13 and 14 are new, found while projecting the depth/normal prepass and the
+decal projector that reads it.
 
 **Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
 library. Both were found by this package, both were *asserted* rather than worked around, and both
-detectors fired the moment the repair landed. Four of the twelve findings are now closed.
+detectors fired the moment the repair landed. Four of the fourteen findings are now closed.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -540,3 +541,98 @@ than skipping the check. That is the same discipline that made findings 7 and 9 
 CNA repaired them: the assertion fails when the fade starts working, and says so. `ParticleSystem`
 documents on `SetDepthInput` itself that the fade is not observable on any renderer this package
 qualifies against.
+
+## 13. The packed depth encoding loses every bit the packing bought, in the target it is stored in
+
+`DepthNormalPrepass` packs linear depth across the four channels of a `Color` target rather than
+into one half-float channel, and its own source says why: "1 part in 2^24 against a half-float's
+11-bit mantissa, at the price of a little arithmetic on both ends". The arithmetic is exactly that
+good. The storage is not, and what a consumer reads back is no better than a single eight-bit
+channel would have given.
+
+**Measured** on `cmake-build-debug` (OPENGLES3, ABI 0.21.0) under `xvfb-run`, and on
+`cmake-build-tsnext` (HEADLESS) for the arithmetic half, through
+`cna_depth_normal_prepass_pack_depth` and `cna_depth_normal_prepass_unpack_depth` over 2001 depths
+spanning the range:
+
+```text
+                                                        worst error over the range
+encoder into decoder, channels left as floats                  2.978e-8   (2^-24 = 5.96e-8)
+the same channels quantised to 255 levels, as an 8-bit
+  UNORM target stores them                                     1.967e-3
+the depth alone in one 8-bit channel, no packing at all         1.960e-3
+the same channels quantised to 256 levels instead              2.978e-8
+```
+
+The last row is the whole finding. `cnaPackDepth` is written in powers of 256 —
+`shift = vec4(16777216, 65536, 256, 1)`, `mask = 1/256` — and `cnaUnpackDepth` weights the low
+channel by one. An eight-bit UNORM target stores `round(c * 255) / 255`, so the low channel's own
+quantisation error, up to `0.5/255`, passes straight through the reconstruction. The three high
+channels then contribute at most `1/256` of a step between them and cannot correct it.
+
+Confirmed against a real GPU buffer rather than only on the CPU: a quad at view depth 10 with a far
+plane of 100 is stored by the prepass and reads back as `0.10038`, which is exactly what packing
+`0.1`, quantising each channel to 255 levels and unpacking gives. The two agree to five decimals, so
+the model above is of CNA and not of the test.
+
+**Consequence.** Every screen-space effect driven by this buffer — the decal projector's box test,
+SSAO, screen-space reflections — is working with about 0.4% of the far plane, not the 6e-6% the
+encoding is documented to provide. With a far plane of 1000 that is a four-unit uncertainty on every
+depth comparison.
+
+**Proposed change.** Either quantise in the base the target actually uses — divide by 255 rather
+than 256 in `cnaPackDepth`'s `mask` and in `cnaUnpackDepth`'s `shift`, so the round trip is exact in
+the storage as well as in the arithmetic — or say in `DepthNormalPrepass`'s documentation that the
+delivered resolution is one part in 255 and that the packing buys robustness rather than precision.
+The comment that chose packing over half-float rests on the 2^24 figure, so the choice is worth
+re-measuring either way.
+
+**Detector in cna-ts:** `test/windowed-renderer.integration.mjs` runs the sweep above and asserts
+that the eight-bit error is more than a hundred times the arithmetic error, that it equals a half
+channel step, and that 256-level quantisation restores the exact accuracy. A repair fails the first
+of those and says so. `DepthNormalPrepassMath.PackDepth` documents the delivered resolution on
+itself, so a consumer budgets for the real number rather than the documented one.
+
+## 14. Three depth/normal prepass routes answer `INTERNAL` where their header documents `INVALID_STATE`
+
+`cna_depth_normal_prepass_begin`, `_end` and `_resize` each document a `CNA_RESULT_INVALID_STATE`
+for the ordering mistake a caller can actually make — a pass already open, no pass open, and a
+resize while a pass holds the targets. All three answer `CNA_RESULT_INTERNAL` instead, which tells a
+caller their own call sequence was a bug in CNA.
+
+**Measured** on `cmake-build-debug` (OPENGLES3) and `cmake-build-tsnext` (HEADLESS), ABI 0.21.0:
+
+```text
+call                                            documented        returned
+begin(0, ...) with a pass already open          INVALID_STATE (3) INTERNAL (12)
+end() with no pass open                         INVALID_STATE (3) INTERNAL (12)
+resize(32, 32) inside begin/end                 INVALID_STATE (3) INTERNAL (12)
+begin(0, view, projection, 50, 10)              INVALID_ARGUMENT  INVALID_ARGUMENT (1)
+```
+
+The error *message* is right in every case — `end()` answers "CNA::Graphics::DepthNormalPrepass::end:
+no pass is open" — so what is lost is only the code, which is the part a program branches on.
+
+**Cause, from the source rather than inferred.** The three ordering failures are
+`std::logic_error`; the plane failure is `std::invalid_argument`. `CNA_WITH_PREPASS` wraps each body
+in `CallWithExceptionBarrier`, which translates `std::invalid_argument` and lets everything else
+fall through to `CNA_RESULT_INTERNAL`. CNA's own render pipeline, in the same source file, does the
+translation the prepass is missing:
+
+```cpp
+} catch (const std::logic_error&) {
+    return Fail(CNA_RESULT_INVALID_STATE, CNA_ERROR_CATEGORY_STATE, "A frame is already open.");
+}
+```
+
+`cna_render_pipeline_begin_frame`, `_end_frame`, `_reset_targets` and `cna_decal_pass_draw` all have
+that clause. The three prepass routes do not.
+
+**Proposed change.** Add the same `catch (const std::logic_error&)` to
+`cna_depth_normal_prepass_begin`, `_end` and `_resize`, with `CNA_ERROR_CATEGORY_STATE` and the
+message each already produces. `begin`'s out-of-range pass index deserves the same treatment against
+`std::out_of_range`, which the header calls an argument error.
+
+**Detector in cna-ts:** `test/windowed-renderer.integration.mjs` asserts all four codes as returned,
+and `test/native-cna.integration.mjs` asserts the unopened close by its code and its message
+together. Both name the finding and fail when the codes become the documented ones.

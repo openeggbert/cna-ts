@@ -1218,6 +1218,28 @@ export interface Vector3Snapshot {
   readonly Z: number;
 }
 
+/** A two-component vector, as CNA answers one. */
+export interface Vector2Snapshot {
+  readonly X: number;
+  readonly Y: number;
+}
+
+/** One texel's four channel bytes, as a caller read them out of a render target. */
+export interface ColorSnapshot {
+  readonly R: number;
+  readonly G: number;
+  readonly B: number;
+  readonly A: number;
+}
+
+/** Depth packed across four channels, each in the unit range CNA writes into a Color target. */
+export interface PackedDepthSnapshot {
+  readonly R: number;
+  readonly G: number;
+  readonly B: number;
+  readonly A: number;
+}
+
 /**
  * A point light in its own shape. CNA converts it into the uniform clustered shape itself, so this
  * carries only the fields a point light has -- no direction, no cone angles.
@@ -1357,6 +1379,70 @@ export interface CnaParticleBackend {
     particle: ParticleSnapshot, index: number,
     settings: ParticleEmitterSettingsSnapshot, elapsedSeconds: number,
   ): ParticleSnapshot;
+}
+
+/**
+ * The depth/normal prepass, and the decal projector that consumes it.
+ *
+ * One interface because they are one dependency: `setDecalPrepassInputs` wants exactly the two
+ * textures this prepass writes, and nothing else in the ABI produces them.
+ */
+export interface CnaDepthNormalPrepassBackend {
+  createDepthNormalPrepass(
+    device: NativeHandle, width: number, height: number, encoding: number,
+  ): NativeHandle;
+  destroyDepthNormalPrepass(prepass: NativeHandle): void;
+  resizeDepthNormalPrepass(prepass: NativeHandle, width: number, height: number): void;
+  getDepthNormalPrepassPassCount(prepass: NativeHandle): number;
+  beginDepthNormalPrepass(
+    prepass: NativeHandle, passIndex: number, view: readonly number[],
+    projection: readonly number[], nearPlane: number, farPlane: number,
+  ): void;
+  endDepthNormalPrepass(prepass: NativeHandle): void;
+  getDepthNormalPrepassEffect(prepass: NativeHandle): NativeHandle;
+  getSkinnedDepthNormalPrepassEffect(prepass: NativeHandle): NativeHandle;
+  getDepthNormalPrepassDepthTexture(prepass: NativeHandle): NativeHandle;
+  getDepthNormalPrepassNormalTexture(prepass: NativeHandle): NativeHandle;
+  getDepthNormalPrepassVelocityTexture(prepass: NativeHandle): NativeHandle;
+  isDepthNormalPrepassSupported(prepass: NativeHandle, device: NativeHandle): boolean;
+  isDepthNormalPrepassUsingMultipleRenderTargets(prepass: NativeHandle): boolean;
+  isDepthNormalPrepassDepthPacked(prepass: NativeHandle): boolean;
+  deviceUsesPackedDepth(device: NativeHandle): boolean;
+  getDepthNormalPrepassRoughness(prepass: NativeHandle): number;
+  setDepthNormalPrepassRoughness(prepass: NativeHandle, roughness: number): void;
+  isDepthNormalPrepassVelocityEnabled(prepass: NativeHandle): boolean;
+  setDepthNormalPrepassVelocityEnabled(prepass: NativeHandle, enabled: boolean): void;
+  setDepthNormalPrepassPreviousWorld(prepass: NativeHandle, world: readonly number[]): void;
+  setDepthNormalPrepassPreviousCamera(
+    prepass: NativeHandle, view: readonly number[], projection: readonly number[],
+  ): void;
+  getDepthDecodeGlsl(packed: boolean): string;
+  getVelocityDecodeGlsl(): string;
+  velocityTexelHasVelocity(texel: ColorSnapshot): boolean;
+  decodeVelocityTexel(texel: ColorSnapshot): Vector2Snapshot;
+  packLinearDepth(value: number): PackedDepthSnapshot;
+  unpackLinearDepth(r: number, g: number, b: number, a: number): number;
+}
+
+/** One decal projector. */
+export interface CnaDecalBackend {
+  createDecalPass(device: NativeHandle): NativeHandle;
+  destroyDecalPass(pass: NativeHandle): void;
+  getDecalOpacity(pass: NativeHandle): number;
+  setDecalOpacity(pass: NativeHandle, opacity: number): void;
+  getDecalTint(pass: NativeHandle): Vector3Snapshot;
+  setDecalTint(pass: NativeHandle, tint: Vector3Snapshot): void;
+  getDecalMaxSlopeAngle(pass: NativeHandle): number;
+  setDecalMaxSlopeAngle(pass: NativeHandle, radians: number): void;
+  setDecalPrepassInputs(pass: NativeHandle, depth: NativeHandle, normals: NativeHandle): void;
+  setDecalCamera(
+    pass: NativeHandle, view: readonly number[], projection: readonly number[], farPlane: number,
+  ): void;
+  drawDecal(
+    pass: NativeHandle, decal: NativeHandle, decalWorld: readonly number[],
+    width: number, height: number,
+  ): void;
+  isInsideDecalBox(decalLocalPosition: Vector3Snapshot): boolean;
 }
 
 export interface CnaShadowBackend {
@@ -2019,6 +2105,8 @@ export interface CnaBackend {
   readonly ClusteredLighting?: CnaClusteredLightingBackend;
   readonly Lod?: CnaLodBackend;
   readonly Shadows?: CnaShadowBackend;
+  readonly DepthNormalPrepass?: CnaDepthNormalPrepassBackend;
+  readonly Decals?: CnaDecalBackend;
   readonly Particles?: CnaParticleBackend;
   readonly Content?: CnaContentBackend;
   readonly Devices?: CnaDeviceBackend;
