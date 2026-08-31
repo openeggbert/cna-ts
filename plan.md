@@ -308,6 +308,15 @@ Electron, or mobile support.
   screen-space reflections — with CNA's own quality tiers, its per-pass support answer, its GPU
   timings, and both of its ownership rules kept distinct. `AddOwned` is bound and documented as
   upstream-blocked: CNA consumes the handle without its owned-resource accounting.
+- [x] The same subpath projects the engine layer's compute path — storage buffers, compute shaders
+  and GPU timers — with the capability query that has to precede it. A dispatch computes
+  `values[i] * uScale + uOffset + i` over 64 elements on OPENGLES3, and HEADLESS, SDL_RENDERER and
+  SOFTWARE refuse every create with NOT_SUPPORTED, which is asserted rather than skipped.
+- [x] And CNA's clustered lighting: a light set, the cluster grid, the assignment a GPU would read
+  and the shadow-budget policy. None of it touches the GPU, so all sixty-four clusters of a 4x2x8
+  grid and the logarithmic depth axis are checked with exact numbers on the default backend.
+- [ ] The rest of the engine layer — cascaded, spot and cube shadow maps, particles, decals, LOD
+  groups, light probes and atmospheric rendering — is measured and unprojected.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -343,9 +352,19 @@ Electron, or mobile support.
 - [x] The three path-taking importers — image, DDS cube and WAV — are projected in
   **`cna-ts-content`**, the separate build-time package. Bytes cross that package boundary and
   handles do not: each operation imports, describes, encodes and releases inside one native call.
-- [ ] CNB's remaining build-time tooling — the primitive byte writer, the loader registry and the
-  `.cnj` compile front ends — plus the model's morph targets and per-slot texture arrays, are
-  measured and unprojected. The tooling belongs to `cna-ts-content` rather than to the runtime.
+- [x] CNB's writers are projected on both backends: the primitive byte writer lays out a chunk's
+  payload in CNB's own byte order and the container writer builds a `.cnb` for an asset type CNA
+  has no schema for, with every primitive decoded back at its exact offset. A browser builds the
+  same 52-byte payload and the same 326-byte container as a build script, byte for byte.
+- [x] The `.cnj` compile front end is projected in `cna-ts-content`, where a path-taking route
+  belongs, together with the two dependency lists a build system needs — what the compiler
+  absorbed, and what it recorded as an external reference.
+- [ ] CNB's loader registry, plus the model's morph targets and per-slot texture arrays, are
+  measured and unprojected. The registry needs a typed abstraction designed rather than
+  transcribed: this package will not publish `void*` or a table of function pointers.
+  `cna_cnb_writer_write_to_file` and `cna_cnb_build_model_from_cnj` are deliberately unprojected —
+  the first would put a filesystem API back into the runtime package, and the second duplicates
+  `cna_cnb_compile_cnj`.
 - [x] `cna-ts/extensions/devices` projects CNA's extended device layer: the host's cores and
   memory, its power state with absences reported as absences, the display's content scale and safe
   area, the user's preferred locales, the clipboard, and camera enumeration that keeps "no camera
@@ -375,7 +394,11 @@ Electron, or mobile support.
   proved through CNA's own synthetic-backend hooks — injection evidence, labelled as such, not a
   measurement of physical hardware. The gyroscope's reading path is not reachable here and
   `docs/upstream-cna-findings.md` records why.
-- [ ] Camera frame capture is measured and unprojected.
+- [x] Camera frame capture is projected: a frame published through CNA's own test backend arrives
+  in a caller-owned `Texture2D` with its four texels exact, a wrong-sized texture is refused rather
+  than resized, and the platform's real camera on this host reports `NotSupported` honestly.
+  Opening the platform camera after a test one is an upstream segmentation fault, asserted in a
+  child process — see `docs/upstream-cna-findings.md` item 11.
 
 ## Runtime capability inventory
 
@@ -402,7 +425,10 @@ Electron, or mobile support.
 - [x] Verify the template at 60 and 600 real SpriteBatch draw frames against the final package.
 - [x] Run the same template game in a browser on the WebAssembly backend at 60 and 600 frames, and
   keep an extensions smoke that reports what the modern CNA surface actually answers.
-- [ ] Implement native window/resize and a packaged windowed renderer before making windowed claims.
+- [ ] Implement native window/resize and a packaged windowed renderer before making windowed claims
+  *in the template*. The library is qualified on three windowed renderers now — OPENGLES3,
+  SDL_RENDERER and SOFTWARE, under Xvfb — but the template ships a HEADLESS canary and packages no
+  windowed renderer, so it still claims none.
 - [x] Keep the template as a 2D-only canary. The library now has native stock Effects, but no cube,
   Model, shader asset, or 3D/effect demo was added to the template.
 - [x] Generate TypeScript and ordinary JavaScript projects from one canonical source; both install
@@ -487,10 +513,12 @@ editing it, and both written up in `docs/wasm-backend.md`:
   arguments — under `WASM_BIGINT` an `i64` handle given `undefined` throws. Every route in this ABI
   takes a `CNA_Handle`, so no route survives an unwind.
 
-Separately, and not blockers for this binding: XNA's standalone `GraphicsDevice` constructor has no
-path this package can exercise, because every device here comes from a `GraphicsDeviceManager`; and
-compiled `Effect` execution returns not-supported on the HEADLESS renderer, which is a renderer
-property rather than a missing route. `GraphicsAdapter.DefaultAdapter` is no longer in that list —
-it is qualified on four renderers now.
+Separately, and not a blocker for this binding: compiled `Effect` execution returns not-supported
+on the HEADLESS renderer, which is a renderer property rather than a missing route. Two entries
+that used to sit here are gone. `GraphicsAdapter.DefaultAdapter` is qualified on four renderers
+now; and XNA's standalone `GraphicsDevice` constructor works — `cna_graphics_device_create` takes
+an adapter index and presentation parameters and no game at all, so the claim that no path could
+exercise it was wrong, and a caller-created device now round-trips a texture's exact texels and
+releases its own handle.
 
 These are narrower than “CNA has no ABI”: the native C ABI exists and is broad.
