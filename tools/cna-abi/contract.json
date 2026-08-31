@@ -120,6 +120,9 @@
       "CNA_GESTURE_TYPE_ALL",
       "CNA_GRAPHICS_RENDERER_FALLBACK_MAXIMUM",
       "CNA_GRAPHICS_RENDERER_MAXIMUM",
+      "CNA_HAPTIC_FEATURE_ALL",
+      "CNA_JOYSTICK_HAT_POSITION_MAXIMUM",
+      "CNA_JOYSTICK_TYPE_MAXIMUM",
       "CNA_KEY_MODIFIER_ALL",
       "CNA_KEY_MODIFIER_ALT",
       "CNA_KEY_MODIFIER_CAPS",
@@ -657,6 +660,21 @@
     {
       "typeScriptEnum": "SensorState",
       "cnaPrefix": "CNA_SENSOR_STATE"
+    },
+    {
+      "typeScriptEnum": "JoystickType",
+      "cnaPrefix": "CNA_JOYSTICK_TYPE",
+      "suffixOverrides": {
+        "GamePad": "GAMEPAD"
+      }
+    },
+    {
+      "typeScriptEnum": "JoystickHatPosition",
+      "cnaPrefix": "CNA_JOYSTICK_HAT_POSITION"
+    },
+    {
+      "typeScriptEnum": "HapticFeature",
+      "cnaPrefix": "CNA_HAPTIC_FEATURE"
     }
   ]
 }

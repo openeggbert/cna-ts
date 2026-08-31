@@ -653,6 +653,13 @@
       "evidence": "typed bound/user/instanced draw routes now reach CNA, but the qualified HEADLESS pipeline returns result 12 and cannot prove visible output"
     },
     {
+      "operation": "Physical joystick and force-feedback hardware",
+      "category": "HARDWARE_PENDING",
+      "owner": "cna-ts/extensions/input",
+      "evidence": "no joystick and no haptic device are attached to this host, so CNA reports zero of each. The absence contract is verified natively and the data path is verified through the boundary, but no reading has come off a real stick or a real motor here. That is stated rather than implied: a green suite on a device-less machine is evidence about absence, not about hardware",
+      "proof": []
+    },
+    {
       "operation": "ContentReader.ReadRawObject<T>() without an explicit reader token",
       "category": "LANGUAGE_MAPPING_LIMITATION",
       "owner": "TypeScript language projection",
@@ -896,14 +903,15 @@
       ]
     },
     {
-      "operation": "CNA compass, gyroscope and motion readings, haptics, joysticks, camera capture and the cursor/text input families",
+      "operation": "CNA compass, gyroscope and motion readings, camera capture, and the cursor/text input families",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the extended device layer and the accelerometer are projected and verified above; the compass, gyroscope and motion sensors report support but have no reading projection, and input_haptics.h, input_joystick.h, input_cursor.h, input_text.h and camera frame acquisition are measured and unprojected",
+      "evidence": "the extended device layer, the accelerometer, and now the joystick and haptics families are projected and verified above; the compass, gyroscope and motion sensors report support but have no reading projection, and input_cursor.h, input_text.h and camera frame acquisition are measured and unprojected",
       "proof": [
         "absentRoute:cna_compass_create",
-        "absentRoute:cna_joysticks_get_count",
-        "absentRoute:cna_camera_create"
+        "absentRoute:cna_camera_create",
+        "absentRoute:cna_mouse_cursor_get_stock_ext",
+        "absentRoute:cna_text_input_start_ext"
       ]
     },
     {
@@ -913,6 +921,15 @@
       "evidence": "the xna40-windows-live profile holds at zero differences over 74 types and 676 members, with thirteen behaviour assertions over the identities, the catchable exception hierarchy, the empty signed-in collection, Guide title state, the mutable AvatarExpression, the null-preserving session property bag and a full packet round trip",
       "proof": [
         "test:test/gamer-services-net.test.mjs"
+      ]
+    },
+    {
+      "operation": "Extended input's data path: joystick arrays and haptic answers, through the boundary",
+      "category": "VERIFIED_MANAGED",
+      "owner": "cna-ts/extensions/input",
+      "evidence": "test/extensions-input.test.mjs covers what a host with no joystick cannot. A deterministic backend supplies four state arrays of four different lengths with four different value sets, so substituting any one for any other is caught; a haptic device answers each of its four operations differently, so a projection returning one answer for all of them fails. This was written because a defect planted in the integration suite -- reading the hats out of the buttons -- stayed green there: with no device attached both arrays are empty. Three planted defects now fail it: hats from buttons, an exchanged trackball X and Y, and a Dispose that releases without closing. It is a projection test and claims nothing about physical hardware",
+      "proof": [
+        "test:test/extensions-input.test.mjs"
       ]
     },
     {
@@ -1109,6 +1126,20 @@
         "route:cna_cnb_import_wav_as_sound_effect",
         "route:cna_cnb_import_dds_as_texture_cube",
         "test:content/test/content-pipeline.test.mjs"
+      ]
+    },
+    {
+      "operation": "Extended input: raw joysticks and force feedback, on a host with neither attached",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/input",
+      "evidence": "cna-ts/extensions/input is a new public subpath, kept out of Microsoft.Xna.Framework.Input deliberately: a joystick's axes are raw, its identity is the platform's GUID, and it may carry hats and trackballs GamePadState has no member for, so folding one into the XNA type would drop data or invent a mapping. What this host proves is the absence contract, and CNA's is consistent and worth pinning -- measured rather than assumed. An identifier no device has is not refused; it is answered *absent*: a disconnected descriptor with zero counts and an empty name and GUID, which is the convention XNA's own GamePad.GetCapabilities follows. The haptic half is the stronger claim -- opening an absent device produces one that reports itself closed, offers no features, and declines InitializeRumble, PlayRumble, StopRumble and SetGain rather than silently accepting a request it cannot perform, which would be worse than an exception because a game would then offer the setting. Disposal closes and releases in that order, once",
+      "proof": [
+        "route:cna_joysticks_get_count",
+        "route:cna_joysticks_get_capabilities",
+        "route:cna_joysticks_capture_state",
+        "route:cna_haptics_get_count",
+        "route:cna_haptic_device_play_rumble",
+        "test:test/native-cna.integration.mjs"
       ]
     },
     {

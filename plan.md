@@ -14,9 +14,9 @@ phase is complete. API completeness can only be claimed from a reproducible stri
 - [x] `src/` contains canonical TypeScript implementation only.
 - [x] TypeScript 5.9.2 generates ESM JavaScript, declarations, declaration maps, and source maps in
   `dist/` under strict NodeNext settings.
-- [x] Root, `xna`, `extensions`, `extensions/runtime`, `extensions/graphics`, `extensions/content`
-  and `runtime` package exports resolve in compile probes; internal paths, including the
-  WebAssembly internals, do not.
+- [x] Root, `xna`, `extensions`, `extensions/runtime`, `extensions/graphics`, `extensions/content`,
+  `extensions/devices`, `extensions/sensors`, `extensions/input` and `runtime` package exports
+  resolve in compile probes; internal paths, including the WebAssembly internals, do not.
 - [x] Node baseline is 20+.
 - [x] Both strict profiles hold at zero differences: the Windows runtime (257 reference types,
   2,964 members) and the LIVE set (74 types, 676 members).
@@ -347,8 +347,15 @@ Electron, or mobile support.
   built around the rule the whole family exists for: a missing sensor is not a sensor reading zero.
   `NotSupported`, `NoPermissions`, `Disabled` and `NoData` stay distinct, and `CurrentValue`
   refuses rather than inventing a measurement.
-- [ ] `extensions/input` — haptics, joysticks, the cursor/text families — plus compass, gyroscope
-  and motion readings and camera frame capture are measured and unprojected.
+- [x] `cna-ts/extensions/input` projects CNA's **raw joysticks and force feedback** — the layer XNA
+  had no equivalent for. It stays outside `Microsoft.Xna.Framework.Input` deliberately: a
+  joystick's axes are raw, its identity is the platform's GUID, and it may carry hats and
+  trackballs `GamePadState` has no member for. A captured state is a snapshot the backend reads
+  whole and releases; an opened haptic device owns a real lifetime and is an explicit `Dispose`.
+  The absence contract is CNA's and is measured rather than assumed: an unknown identifier is
+  answered *absent* rather than refused, and an absent haptic device declines every operation.
+- [ ] The cursor and text/composition families, plus compass, gyroscope and motion readings and
+  camera frame capture, are measured and unprojected.
 
 ## Runtime capability inventory
 

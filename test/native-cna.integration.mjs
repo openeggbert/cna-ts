@@ -24,6 +24,7 @@ import {
   TimeSpan,
   TitleContainer,
   Matrix,
+  Point,
   Vector2,
   Vector3,
 } from "../dist/index.js";
@@ -31,6 +32,7 @@ import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../dist/internal/abi.js";
 import * as renderPipelineModule from "../dist/extensions/graphics/index.js";
 import * as extensionsModule from "../dist/extensions/index.js";
 import * as devicesModule from "../dist/extensions/devices/index.js";
+import * as inputModule from "../dist/extensions/input/index.js";
 import * as sensorsModule from "../dist/extensions/sensors/index.js";
 import { getBackend } from "../dist/internal/backend.js";
 import {
@@ -1544,4 +1546,233 @@ test("reports renderer identity from CNA rather than a binding label", () => {
   assert.ok(renderer.MaxTextureDimension > 0);
   assert.equal(renderer.CapabilityFlags & (1n << 7n), 1n << 7n, "HEADLESS custom effects");
   assert.equal(renderer.CapabilityFlags & (1n << 13n), 0n, "HEADLESS compiled effects");
+});
+
+class ExtendedInputProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const { Haptics, Joysticks } = inputModule;
+
+    // Enumeration first, because everything else takes an identifier it produces. A host with no
+    // joystick must report none rather than throwing: "there are none" is an answer a game acts on.
+    this.evidence.joystickCount = Joysticks.Count;
+    const devices = Joysticks.Enumerate();
+    this.evidence.enumerated = devices.length;
+    this.evidence.enumerationIsFrozen = Object.isFrozen(devices);
+    this.evidence.joysticks = devices.map((device) => ({
+      id: device.Id, name: device.Name, type: device.Type,
+    }));
+
+    // An identifier no device has. Measured rather than assumed: CNA does not refuse it, it
+    // answers *absent* -- a disconnected descriptor with zero counts and an empty name, which is
+    // exactly the convention XNA's own GamePad.GetCapabilities follows for a missing controller.
+    // That is the contract worth pinning, because a binding that invented a plausible descriptor
+    // for an absent device would be the defect this family exists to avoid.
+    const unknown = this.evidence.joystickCount + 1000;
+    this.evidence.unknownCapabilities = { ...Joysticks.GetCapabilities(unknown) };
+    const unknownState = Joysticks.CaptureState(unknown);
+    this.evidence.unknownState = {
+      axes: unknownState.Axes.length,
+      buttons: unknownState.Buttons.length,
+      hats: unknownState.Hats.length,
+      balls: unknownState.Balls.length,
+    };
+
+    // Where a joystick does exist, its capabilities and a captured state must agree with each other.
+    if (devices.length > 0) {
+      const id = devices[0].Id;
+      const capabilities = Joysticks.GetCapabilities(id);
+      const state = Joysticks.CaptureState(id);
+      this.evidence.first = {
+        capabilities: { ...capabilities },
+        axes: state.Axes.length,
+        buttons: state.Buttons.length,
+        hats: state.Hats.length,
+        balls: state.Balls.length,
+        axisRangeOk: state.Axes.every((value) => Number.isInteger(value) && value >= -32768 && value <= 32767),
+        buttonsAreBooleans: state.Buttons.every((value) => typeof value === "boolean"),
+        ballsArePoints: state.Balls.every((value) => value instanceof Point),
+      };
+    }
+
+    this.evidence.hapticCount = Haptics.Count;
+    const haptics = Haptics.Enumerate();
+    this.evidence.hapticsEnumerated = haptics.length;
+    // The same rule for haptics, and this is the stronger half of it: opening an identifier no
+    // device has produces an object that reports itself closed and **declines every operation**.
+    // A device that silently accepted PlayRumble while doing nothing would be worse than an
+    // exception, because a game would offer the setting.
+    const absent = Haptics.Open(this.evidence.hapticCount + 1000);
+    try {
+      this.evidence.absentHaptic = {
+        isOpen: absent.IsOpen,
+        name: absent.Name,
+        capabilities: { ...absent.Capabilities },
+        initRumble: absent.InitializeRumble(),
+        playRumble: absent.PlayRumble(0.5, 100),
+        stopRumble: absent.StopRumble(),
+        setGain: absent.SetGain(50),
+      };
+    } finally {
+      absent.Dispose();
+    }
+    this.evidence.absentHapticDisposed = absent.IsDisposed;
+    try {
+      absent.PlayRumble(0.5, 100);
+      this.evidence.afterDispose = "accepted";
+    } catch (error) {
+      this.evidence.afterDispose = error.constructor.name;
+    }
+    if (haptics.length > 0) {
+      const device = Haptics.Open(haptics[0].Id);
+      try {
+        this.evidence.haptic = {
+          name: device.Name,
+          isOpen: device.IsOpen,
+          capabilities: { ...device.Capabilities },
+          initRumble: device.InitializeRumble(),
+          playRumble: device.PlayRumble(0.5, 100),
+          stopRumble: device.StopRumble(),
+        };
+      } finally {
+        device.Dispose();
+      }
+      this.evidence.hapticDisposedTwice = (() => {
+        const second = Haptics.Open(haptics[0].Id);
+        second.Dispose();
+        second.Dispose();
+        return second.IsDisposed;
+      })();
+    }
+
+    // Argument validation happens in TypeScript, before anything reaches CNA, so it is the same
+    // refusal whether or not a device is attached.
+    const refusals = {};
+    const record = (name, body) => {
+      try {
+        body();
+        refusals[name] = "accepted";
+      } catch (error) {
+        refusals[name] = error.constructor.name;
+      }
+    };
+    record("negativeJoystickId", () => Joysticks.GetCapabilities(-1));
+    record("fractionalJoystickId", () => Joysticks.CaptureState(1.5));
+    record("negativeHapticId", () => Haptics.Open(-1));
+    this.evidence.refusals = refusals;
+    super.LoadContent();
+  }
+
+  Draw(gameTime) {
+    this.GraphicsDevice.Clear(Color.CornflowerBlue);
+    this.Exit();
+    super.Draw(gameTime);
+  }
+}
+
+test("CNA's raw joysticks and haptics answer, and report absence as absence", async () => {
+  const game = new ExtendedInputProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  // Whatever this host has, the two counts and the two enumerations must agree with each other.
+  assert.equal(typeof evidence.joystickCount, "number");
+  assert.equal(evidence.enumerated, evidence.joystickCount, "the enumeration is the count");
+  assert.equal(evidence.enumerationIsFrozen, true, "an enumeration is a snapshot, not a live list");
+  for (const joystick of evidence.joysticks) {
+    assert.equal(typeof joystick.id, "number");
+    assert.equal(typeof joystick.name, "string");
+    assert.ok(
+      Object.values(inputModule.JoystickType).includes(joystick.type),
+      `unexpected joystick type ${joystick.type}`,
+    );
+  }
+
+  // An identifier a thousand past the end. CNA answers absence rather than refusing, and the whole
+  // descriptor says so together: not connected, no axes, no buttons, no hats, no balls, no name and
+  // no GUID. A binding that filled in a plausible-looking device here would fail every line.
+  assert.equal(evidence.unknownCapabilities.IsConnected, false);
+  assert.deepEqual(
+    [
+      evidence.unknownCapabilities.AxisCount, evidence.unknownCapabilities.ButtonCount,
+      evidence.unknownCapabilities.HatCount, evidence.unknownCapabilities.BallCount,
+    ],
+    [0, 0, 0, 0],
+  );
+  assert.equal(evidence.unknownCapabilities.Name, "");
+  assert.equal(evidence.unknownCapabilities.Guid, "");
+  assert.equal(evidence.unknownCapabilities.Type, inputModule.JoystickType.Unknown);
+  assert.deepEqual(evidence.unknownState, { axes: 0, buttons: 0, hats: 0, balls: 0 });
+
+  // The haptic half, which is the stronger claim: an absent device reports itself closed, offers
+  // no features, and **declines every operation** rather than accepting one it cannot perform.
+  const absent = evidence.absentHaptic;
+  assert.equal(absent.isOpen, false);
+  assert.equal(absent.name, "");
+  assert.equal(absent.capabilities.Features, 0, "no effect is supported by a device that is not there");
+  assert.equal(absent.capabilities.RumbleSupported, false);
+  assert.equal(absent.capabilities.IsOpen, false);
+  for (const key of ["initRumble", "playRumble", "stopRumble", "setGain"]) {
+    assert.equal(absent[key], false, `${key} must be declined by an absent device`);
+  }
+  assert.equal(evidence.absentHapticDisposed, true);
+  assert.equal(evidence.afterDispose, "ObjectDisposedException", "a released device refuses by name");
+
+  // Where a device exists, the capability counts and the captured arrays must be the same numbers:
+  // a state whose arrays disagreed with the capabilities would mean one of them was invented.
+  if (evidence.first) {
+    const { capabilities, axes, buttons, hats, balls } = evidence.first;
+    assert.equal(axes, capabilities.AxisCount);
+    assert.equal(buttons, capabilities.ButtonCount);
+    assert.equal(hats, capabilities.HatCount);
+    assert.equal(balls, capabilities.BallCount);
+    assert.equal(evidence.first.axisRangeOk, true, "an axis is a raw int16");
+    assert.equal(evidence.first.buttonsAreBooleans, true);
+    assert.equal(evidence.first.ballsArePoints, true, "a trackball's motion is an XNA Point");
+    assert.equal(typeof capabilities.Guid, "string");
+  } else {
+    // No joystick is attached to this host, which is the ordinary case for a headless build
+    // machine. That is recorded rather than skipped: the family answered, and its answer was none.
+    assert.equal(evidence.joystickCount, 0);
+  }
+
+  assert.equal(typeof evidence.hapticCount, "number");
+  assert.equal(evidence.hapticsEnumerated, evidence.hapticCount);
+  if (evidence.haptic) {
+    assert.equal(evidence.haptic.isOpen, true);
+    assert.equal(typeof evidence.haptic.name, "string");
+    assert.equal(typeof evidence.haptic.capabilities.Features, "number");
+    // Every haptic operation reports whether the device accepted it, which is what a game branches
+    // on. None of them is assumed to have worked.
+    for (const key of ["initRumble", "playRumble", "stopRumble"]) {
+      assert.equal(typeof evidence.haptic[key], "boolean", `${key} must report acceptance`);
+    }
+    assert.equal(evidence.hapticDisposedTwice, true, "disposing twice is idempotent");
+  } else {
+    assert.equal(evidence.hapticCount, 0);
+  }
+
+  // Argument validation is this package's, not CNA's, so it is the same answer on any host.
+  assert.equal(evidence.refusals.negativeJoystickId, "ArgumentException");
+  assert.equal(evidence.refusals.fractionalJoystickId, "ArgumentException");
+  assert.equal(evidence.refusals.negativeHapticId, "ArgumentException");
+});
+
+test("the extended input families refuse outside a game rather than answering", () => {
+  // Every one of these is a property of a platform a game opened. Asking without one must name the
+  // problem rather than returning an empty list a caller would read as "no devices".
+  for (const [name, body] of Object.entries({
+    JoystickCount: () => inputModule.Joysticks.Count,
+    JoystickEnumerate: () => inputModule.Joysticks.Enumerate(),
+    HapticCount: () => inputModule.Haptics.Count,
+    HapticEnumerate: () => inputModule.Haptics.Enumerate(),
+  })) {
+    assert.throws(body, /requires an active native Game|active native Game/, `${name} answered outside a game`);
+  }
 });

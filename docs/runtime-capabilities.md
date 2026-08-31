@@ -19,13 +19,13 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Category | Operation families |
 | --- | ---: |
-| VERIFIED_MANAGED | 20 |
-| VERIFIED_NATIVE | 50 |
+| VERIFIED_MANAGED | 21 |
+| VERIFIED_NATIVE | 51 |
 | VERIFIED_WEBASSEMBLY | 12 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 5 |
 | UPSTREAM_CNA_BLOCKED | 1 |
 | FIXTURE_PENDING | 3 |
-| HARDWARE_PENDING | 4 |
+| HARDWARE_PENDING | 5 |
 | PLATFORM_PENDING | 3 |
 | UNIMPLEMENTED_CNA_TS | 5 |
 | LANGUAGE_MAPPING_LIMITATION | 3 |
@@ -43,6 +43,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | ContentReader.ReadExternalReference and nested ContentManager resolution | CNA-TS | relative/nested/repeated/circular/missing/malformed/compressed reference tests |
 | Design TypeConverter projections and GamerServicesComponent lifecycle | CNA-TS | design and framework unit suites |
 | Effect reflection, parameter values, techniques and managed stock-effect state | CNA-TS | graphics/content differential observations and graphics-foundation tests |
+| Extended input's data path: joystick arrays and haptic answers, through the boundary | cna-ts/extensions/input | test/extensions-input.test.mjs covers what a host with no joystick cannot. A deterministic backend supplies four state arrays of four different lengths with four different value sets, so substituting any one for any other is caught; a haptic device answers each of its four operations differently, so a projection returning one answer for all of them fails. This was written because a defect planted in the integration suite -- reading the hats out of the buttons -- stayed green there: with no device attached both arrays are empty. Three planted defects now fail it: hats from buttons, an exchanged trackball X and Y, and a Dispose that releases without closing. It is a projection test and claims nothing about physical hardware |
 | Framework math, geometry, curves, packed vectors, TimeSpan, Color and value contracts | CNA-TS | 83 deterministic XNA differential observations plus math/geometry/graphics-value unit suites |
 | GameComponent, DrawableGameComponent, collections, services and managed events | CNA-TS | framework-components unit suite covers ordering, mutation, filtering, services and disposal |
 | GamerServices and Net declarations, identities, value shapes and exception hierarchy | CNA-TS | the xna40-windows-live profile holds at zero differences over 74 types and 676 members, with thirteen behaviour assertions over the identities, the catchable exception hierarchy, the empty signed-in collection, Guide title state, the mutable AvatarExpression, the null-preserving session property bag and a full packet round trip |
@@ -77,6 +78,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | DynamicVertexBuffer and DynamicIndexBuffer creation, typed transfer, readback and IsContentLost query | CNA-TS + CNA | qualified integration covers Discard/NoOverwrite, built-in vertex and 16-bit index round trips, double disposal and parent shutdown |
 | Effect and EffectPass ABI-0.7 apply dispatch with native technique/pass reflection identity | CNA-TS + CNA | qualified integration executes cna_effect_apply and cna_effect_pass_apply on effect-owned stock passes; managed/native ownership tests retain the parent, destroy owned views, reject disposed parents and expose no raw handles |
 | Extended graphics layer availability probe | cna-ts/extensions/runtime | cna_graphics_ext_is_available answers true on a CNA_CNAEXT=ON build and false on the WEBGL2 artifact, so structural presence is never reported as availability |
+| Extended input: raw joysticks and force feedback, on a host with neither attached | cna-ts/extensions/input | cna-ts/extensions/input is a new public subpath, kept out of Microsoft.Xna.Framework.Input deliberately: a joystick's axes are raw, its identity is the platform's GUID, and it may carry hats and trackballs GamePadState has no member for, so folding one into the XNA type would drop data or invent a mapping. What this host proves is the absence contract, and CNA's is consistent and worth pinning -- measured rather than assumed. An identifier no device has is not refused; it is answered *absent*: a disconnected descriptor with zero counts and an empty name and GUID, which is the convention XNA's own GamePad.GetCapabilities follows. The haptic half is the stronger claim -- opening an absent device produces one that reports itself closed, offers no features, and declines InitializeRumble, PlayRumble, StopRumble and SetGain rather than silently accepting a request it cannot perform, which would be worse than an exception because a game would then offer the setting. Disposal closes and releases in that order, once |
 | FrameworkDispatcher.Update canonical native pump | CNA-TS + CNA | native lifecycle and dynamic/media pump integration |
 | Game create, callbacks, one-frame/run/exit/destroy lifecycle | CNA-TS + CNA | qualified ABI-0.7 integration covers seven real game lifetimes and 60/600 frames |
 | GamerServicesDispatcher lifetime and Guide state over real CNA gamer services | CNA-TS + CNA | the dispatcher initialises against the running game and reports CNA's own IsInitialized rather than a mirrored flag; a 64-bit platform window handle round-trips as a bigint; Guide's trial-mode simulation, notification position and visibility read and write through CNA. Two XNA rules CNA does not enforce are enforced here and asserted: an un-initialised Update raises InvalidOperationException, and IsTrialMode is the disjunction with SimulateTrialMode. IsScreenSaverEnabled is a platform display property, so with no displays the getter answers true and a write does not take -- reported rather than cached. Nothing fabricates a gamer: SignedInGamers is empty and every screen-showing operation still refuses with GamerServicesNotAvailableException |
@@ -158,6 +160,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | --- | --- | --- |
 | GPU custom-effect and rendering output qualification | qualification hardware | typed bound/user/instanced draw routes now reach CNA, but the qualified HEADLESS pipeline returns result 12 and cannot prove visible output |
 | Microphone enumeration/capture/buffer callbacks | qualification hardware | all routes imported; HEADLESS enumerates zero microphones |
+| Physical joystick and force-feedback hardware | cna-ts/extensions/input | no joystick and no haptic device are attached to this host, so CNA reports zero of each. The absence contract is verified natively and the data path is verified through the boundary, but no reading has come off a real stick or a real motor here. That is stated rather than implied: a green suite on a device-less machine is evidence about absence, not about hardware |
 | Physical keyboard/mouse/gamepad/touch behavior | qualification hardware | HEADLESS route execution is deterministic but not physical-device evidence |
 | SoundEffect/MediaPlayer audible output | qualification hardware | NULL audio verifies state/lifetime only |
 
@@ -173,7 +176,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Operation family | Owner/boundary | Evidence |
 | --- | --- | --- |
-| CNA compass, gyroscope and motion readings, haptics, joysticks, camera capture and the cursor/text input families | CNA-TS | the extended device layer and the accelerometer are projected and verified above; the compass, gyroscope and motion sensors report support but have no reading projection, and input_haptics.h, input_joystick.h, input_cursor.h, input_text.h and camera frame acquisition are measured and unprojected |
+| CNA compass, gyroscope and motion readings, camera capture, and the cursor/text input families | CNA-TS | the extended device layer, the accelerometer, and now the joystick and haptics families are projected and verified above; the compass, gyroscope and motion sensors report support but have no reading projection, and input_cursor.h, input_text.h and camera frame acquisition are measured and unprojected |
 | CNB's remaining build-time tooling: the byte writer, the loader registry and .cnj | CNA-TS | the container and every runtime asset schema are projected and verified above, and the three path-taking importers are projected in cna-ts-content. What remains of cnb.h is the primitive byte writer, the loader registry, the .cnj compile front ends, and the model's morph targets and per-slot texture arrays |
 | Direct standalone GraphicsDevice construction | CNA-TS | ABI 0.9 added cna_graphics_device_create/_destroy, so the owned-device lifetime exists upstream. The qualified HEADLESS artifact reports no graphics adapter, so GraphicsAdapter.DefaultAdapter has nothing to return and the XNA constructor has no argument to be given; implementing the route here would be unexercisable on any backend this session can build |
 | GamerServices sign-in, achievements, leaderboards, avatars and the whole .Net session surface | CNA-TS | the dispatcher's lifetime and the Guide's state are projected and verified above; everything that needs a signed-in user, a friends list, a platform overlay or a peer -- sign-in, achievements, leaderboards, presence, avatars and every NetworkSession operation -- still refuses with GamerServicesNotAvailableException, because a fabricated gamer or peer would be worse than the exception XNA itself raises where the platform is absent |

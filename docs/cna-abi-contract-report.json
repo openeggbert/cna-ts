@@ -1,10 +1,10 @@
 {
   "contract": "tools/cna-abi/contract.json",
-  "typeScriptEnums": 96,
-  "verifiedFamilies": 95,
+  "typeScriptEnums": 99,
+  "verifiedFamilies": 98,
   "managedEnums": 1,
-  "claims": 850,
-  "identicalClaims": 847,
+  "claims": 887,
+  "identicalClaims": 884,
   "translatedClaims": 3,
   "scalarAssertions": 6,
   "resultCodeAssertions": 15,
@@ -217,6 +217,18 @@
       "constant": "CNA_GRAPHICS_RENDERER_MAXIMUM"
     },
     {
+      "family": "HapticFeature",
+      "constant": "CNA_HAPTIC_FEATURE_ALL"
+    },
+    {
+      "family": "JoystickHatPosition",
+      "constant": "CNA_JOYSTICK_HAT_POSITION_MAXIMUM"
+    },
+    {
+      "family": "JoystickType",
+      "constant": "CNA_JOYSTICK_TYPE_MAXIMUM"
+    },
+    {
       "family": "Keys",
       "constant": "CNA_KEY_MODIFIER_ALL"
     },
@@ -329,7 +341,7 @@
       "constant": "CNA_VIDEO_SOUNDTRACK_TYPE_MAXIMUM"
     }
   ],
-  "declaredCnaOnlyConstants": 78,
+  "declaredCnaOnlyConstants": 81,
   "diagnostics": [],
   "translations": [
     {

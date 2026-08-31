@@ -315,6 +315,38 @@ typedef CNA_Result (*CnbSpriteFontAddGlyphFn)(CNA_CnbSpriteFontDataHandle, const
 typedef CNA_Result (*CnbSpriteFontSetAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle);
 typedef CNA_Result (*CnbSpriteFontCopyAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle*);
 typedef CNA_Result (*CnbEncodeSpriteFontFn)(CNA_CnbSpriteFontDataHandle, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+/*
+ * These families index by `uint32_t`, not by the `uint64_t` the older `GameIndex*` helpers use.
+ * Reusing those was a real mismatch and the compiled signature audit is what found it: an index
+ * widened by the caller and read narrow by the callee is exactly the silent ABI defect that check
+ * exists for.
+ */
+typedef CNA_Result (*GameU32IndexSizeFn)(CNA_Handle, uint32_t, uint64_t*);
+typedef CNA_Result (*GameU32IndexCopyTextFn)(CNA_Handle, uint32_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*GameU32IndexU32OutFn)(CNA_Handle, uint32_t, uint32_t*);
+typedef CNA_Result (*JoystickInfoInitFn)(CNA_JoystickInfo*);
+typedef CNA_Result (*JoystickCapabilitiesInitFn)(CNA_JoystickCapabilities*);
+typedef CNA_Result (*HapticCapabilitiesInitFn)(CNA_HapticCapabilities*);
+typedef CNA_Result (*JoystickCountFn)(CNA_Handle, uint32_t*);
+typedef CNA_Result (*JoystickInfoAtFn)(CNA_Handle, uint32_t, CNA_JoystickInfo*);
+typedef CNA_Result (*JoystickCapabilitiesFn)(CNA_Handle, uint32_t, CNA_JoystickCapabilities*);
+typedef CNA_Result (*JoystickCaptureStateFn)(CNA_Handle, uint32_t, CNA_JoystickStateHandle*);
+typedef CNA_Result (*JoystickStateCountFn)(CNA_JoystickStateHandle, uint32_t*);
+typedef CNA_Result (*JoystickStateCopyAxesFn)(
+  CNA_JoystickStateHandle, int16_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*JoystickStateCopyButtonsFn)(
+  CNA_JoystickStateHandle, CNA_Bool*, uint64_t, uint64_t*);
+typedef CNA_Result (*JoystickStateCopyHatsFn)(
+  CNA_JoystickStateHandle, CNA_JoystickHatPosition*, uint64_t, uint64_t*);
+typedef CNA_Result (*JoystickStateCopyBallsFn)(
+  CNA_JoystickStateHandle, CNA_Point*, uint64_t, uint64_t*);
+typedef CNA_Result (*JoystickStateDestroyFn)(CNA_JoystickStateHandle);
+typedef CNA_Result (*GameIndexHandleOutFn)(CNA_Handle, uint32_t, CNA_Handle*);
+typedef CNA_Result (*GameIdBoolOutFn)(CNA_Handle, uint32_t, CNA_Bool*);
+typedef CNA_Result (*HapticCapabilitiesFn)(CNA_HapticDeviceHandle, CNA_HapticCapabilities*);
+typedef CNA_Result (*HandleBoolOutFn)(CNA_Handle, CNA_Bool*);
+typedef CNA_Result (*HapticPlayRumbleFn)(CNA_HapticDeviceHandle, float, uint32_t, CNA_Bool*);
+typedef CNA_Result (*HapticSetGainFn)(CNA_HapticDeviceHandle, int32_t, CNA_Bool*);
 typedef CNA_Result (*CnbImportImageFn)(
   CNA_StringView, const CNA_CnbImageImportOptions*, CNA_CnbTextureDataHandle*);
 typedef CNA_Result (*CnbImportDdsFn)(CNA_StringView, CNA_CnbTextureDataHandle*);
@@ -929,6 +961,45 @@ typedef struct Api {
   CnbSpriteFontSetAtlasFn cnb_sprite_font_data_set_atlas;
   CnbSpriteFontCopyAtlasFn cnb_sprite_font_data_copy_atlas;
   CnbEncodeSpriteFontFn cnb_encode_sprite_font;
+  JoystickInfoInitFn joystick_info_init;
+  JoystickCapabilitiesInitFn joystick_capabilities_init;
+  HapticCapabilitiesInitFn haptic_capabilities_init;
+  JoystickCountFn joysticks_get_count;
+  JoystickInfoAtFn joysticks_get_info_at;
+  GameU32IndexSizeFn joysticks_get_name_size_at;
+  GameU32IndexCopyTextFn joysticks_copy_name_at;
+  JoystickCapabilitiesFn joysticks_get_capabilities;
+  GameU32IndexSizeFn joysticks_get_capabilities_name_size;
+  GameU32IndexCopyTextFn joysticks_copy_capabilities_name;
+  GameU32IndexSizeFn joysticks_get_capabilities_guid_size;
+  GameU32IndexCopyTextFn joysticks_copy_capabilities_guid;
+  JoystickCaptureStateFn joysticks_capture_state;
+  JoystickStateCountFn joystick_state_get_axis_count;
+  JoystickStateCopyAxesFn joystick_state_copy_axes;
+  JoystickStateCountFn joystick_state_get_button_count;
+  JoystickStateCopyButtonsFn joystick_state_copy_buttons;
+  JoystickStateCountFn joystick_state_get_hat_count;
+  JoystickStateCopyHatsFn joystick_state_copy_hats;
+  JoystickStateCountFn joystick_state_get_ball_count;
+  JoystickStateCopyBallsFn joystick_state_copy_balls;
+  JoystickStateDestroyFn joystick_state_destroy;
+  JoystickCountFn haptics_get_count;
+  GameU32IndexU32OutFn haptics_get_id_at;
+  GameU32IndexSizeFn haptics_get_name_size_at;
+  GameU32IndexCopyTextFn haptics_copy_name_at;
+  GameIndexHandleOutFn haptics_open;
+  GameIndexHandleOutFn haptics_open_from_joystick;
+  GameIdBoolOutFn haptics_get_is_joystick_haptic;
+  HandleBoolOutFn haptic_device_get_is_open;
+  HapticCapabilitiesFn haptic_device_get_capabilities;
+  HandleU64OutFn haptic_device_get_name_size;
+  HandleCopyStringFn haptic_device_copy_name;
+  HandleBoolOutFn haptic_device_init_rumble;
+  HapticPlayRumbleFn haptic_device_play_rumble;
+  HandleBoolOutFn haptic_device_stop_rumble;
+  HapticSetGainFn haptic_device_set_gain;
+  GameHandleFn haptic_device_dispose;
+  GameHandleFn haptic_device_destroy;
   CnbImportImageFn cnb_import_image_as_texture2d;
   CnbImportDdsFn cnb_import_dds_as_texture_cube;
   CnbImportWavFn cnb_import_wav_as_sound_effect;
@@ -1915,6 +1986,45 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(cnb_sprite_font_data_set_atlas, CnbSpriteFontSetAtlasFn, "cna_cnb_sprite_font_data_set_atlas");
   LOAD_REQUIRED(cnb_sprite_font_data_copy_atlas, CnbSpriteFontCopyAtlasFn, "cna_cnb_sprite_font_data_copy_atlas");
   LOAD_REQUIRED(cnb_encode_sprite_font, CnbEncodeSpriteFontFn, "cna_cnb_encode_sprite_font");
+  LOAD_REQUIRED(joystick_info_init, JoystickInfoInitFn, "cna_joystick_info_init");
+  LOAD_REQUIRED(joystick_capabilities_init, JoystickCapabilitiesInitFn, "cna_joystick_capabilities_init");
+  LOAD_REQUIRED(haptic_capabilities_init, HapticCapabilitiesInitFn, "cna_haptic_capabilities_init");
+  LOAD_REQUIRED(joysticks_get_count, JoystickCountFn, "cna_joysticks_get_count");
+  LOAD_REQUIRED(joysticks_get_info_at, JoystickInfoAtFn, "cna_joysticks_get_info_at");
+  LOAD_REQUIRED(joysticks_get_name_size_at, GameU32IndexSizeFn, "cna_joysticks_get_name_size_at");
+  LOAD_REQUIRED(joysticks_copy_name_at, GameU32IndexCopyTextFn, "cna_joysticks_copy_name_at");
+  LOAD_REQUIRED(joysticks_get_capabilities, JoystickCapabilitiesFn, "cna_joysticks_get_capabilities");
+  LOAD_REQUIRED(joysticks_get_capabilities_name_size, GameU32IndexSizeFn, "cna_joysticks_get_capabilities_name_size");
+  LOAD_REQUIRED(joysticks_copy_capabilities_name, GameU32IndexCopyTextFn, "cna_joysticks_copy_capabilities_name");
+  LOAD_REQUIRED(joysticks_get_capabilities_guid_size, GameU32IndexSizeFn, "cna_joysticks_get_capabilities_guid_size");
+  LOAD_REQUIRED(joysticks_copy_capabilities_guid, GameU32IndexCopyTextFn, "cna_joysticks_copy_capabilities_guid");
+  LOAD_REQUIRED(joysticks_capture_state, JoystickCaptureStateFn, "cna_joysticks_capture_state");
+  LOAD_REQUIRED(joystick_state_get_axis_count, JoystickStateCountFn, "cna_joystick_state_get_axis_count");
+  LOAD_REQUIRED(joystick_state_copy_axes, JoystickStateCopyAxesFn, "cna_joystick_state_copy_axes");
+  LOAD_REQUIRED(joystick_state_get_button_count, JoystickStateCountFn, "cna_joystick_state_get_button_count");
+  LOAD_REQUIRED(joystick_state_copy_buttons, JoystickStateCopyButtonsFn, "cna_joystick_state_copy_buttons");
+  LOAD_REQUIRED(joystick_state_get_hat_count, JoystickStateCountFn, "cna_joystick_state_get_hat_count");
+  LOAD_REQUIRED(joystick_state_copy_hats, JoystickStateCopyHatsFn, "cna_joystick_state_copy_hats");
+  LOAD_REQUIRED(joystick_state_get_ball_count, JoystickStateCountFn, "cna_joystick_state_get_ball_count");
+  LOAD_REQUIRED(joystick_state_copy_balls, JoystickStateCopyBallsFn, "cna_joystick_state_copy_balls");
+  LOAD_REQUIRED(joystick_state_destroy, JoystickStateDestroyFn, "cna_joystick_state_destroy");
+  LOAD_REQUIRED(haptics_get_count, JoystickCountFn, "cna_haptics_get_count");
+  LOAD_REQUIRED(haptics_get_id_at, GameU32IndexU32OutFn, "cna_haptics_get_id_at");
+  LOAD_REQUIRED(haptics_get_name_size_at, GameU32IndexSizeFn, "cna_haptics_get_name_size_at");
+  LOAD_REQUIRED(haptics_copy_name_at, GameU32IndexCopyTextFn, "cna_haptics_copy_name_at");
+  LOAD_REQUIRED(haptics_open, GameIndexHandleOutFn, "cna_haptics_open");
+  LOAD_REQUIRED(haptics_open_from_joystick, GameIndexHandleOutFn, "cna_haptics_open_from_joystick");
+  LOAD_REQUIRED(haptics_get_is_joystick_haptic, GameIdBoolOutFn, "cna_haptics_get_is_joystick_haptic");
+  LOAD_REQUIRED(haptic_device_get_is_open, HandleBoolOutFn, "cna_haptic_device_get_is_open");
+  LOAD_REQUIRED(haptic_device_get_capabilities, HapticCapabilitiesFn, "cna_haptic_device_get_capabilities");
+  LOAD_REQUIRED(haptic_device_get_name_size, HandleU64OutFn, "cna_haptic_device_get_name_size");
+  LOAD_REQUIRED(haptic_device_copy_name, HandleCopyStringFn, "cna_haptic_device_copy_name");
+  LOAD_REQUIRED(haptic_device_init_rumble, HandleBoolOutFn, "cna_haptic_device_init_rumble");
+  LOAD_REQUIRED(haptic_device_play_rumble, HapticPlayRumbleFn, "cna_haptic_device_play_rumble");
+  LOAD_REQUIRED(haptic_device_stop_rumble, HandleBoolOutFn, "cna_haptic_device_stop_rumble");
+  LOAD_REQUIRED(haptic_device_set_gain, HapticSetGainFn, "cna_haptic_device_set_gain");
+  LOAD_REQUIRED(haptic_device_dispose, GameHandleFn, "cna_haptic_device_dispose");
+  LOAD_REQUIRED(haptic_device_destroy, GameHandleFn, "cna_haptic_device_destroy");
   LOAD_REQUIRED(cnb_import_image_as_texture2d, CnbImportImageFn, "cna_cnb_import_image_as_texture2d");
   LOAD_REQUIRED(cnb_import_dds_as_texture_cube, CnbImportDdsFn, "cna_cnb_import_dds_as_texture_cube");
   LOAD_REQUIRED(cnb_import_wav_as_sound_effect, CnbImportWavFn, "cna_cnb_import_wav_as_sound_effect");
@@ -8599,6 +8709,483 @@ static napi_value cnb_encode_sprite_font(napi_env env, napi_callback_info info) 
   return output;
 }
 
+/* --- CNA's extended input families: joysticks and haptics ------------------------------------- */
+/*
+ * Two families XNA never had, and two different ownership answers.
+ *
+ * A **joystick state** is a snapshot, like a keyboard's: `cna_joysticks_capture_state` hands back a
+ * handle, but the only useful thing to do with it is read its four arrays, so this bridge reads
+ * them and releases the handle in the same call. Nothing escapes, and there is nothing for a caller
+ * to leak. A **haptic device** is the opposite: it is an open device with a lifetime, so its handle
+ * does escape and `Dispose` is real.
+ *
+ * These deliberately do not become XNA `GamePad`. A joystick's axes are raw and its identity is
+ * SDL's, so folding it into `GamePadState` would either lose the extra axes or invent a mapping.
+ */
+
+static napi_value joysticks_get_count(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.joysticks_get_count(game, &count);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_joysticks_get_count", result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, count, &output), "joystick count");
+  return output;
+}
+
+/* `(game, index) -> string`, sized then copied. Shared by three joystick and haptic routes. */
+static napi_value game_index_text(
+  napi_env env,
+  napi_callback_info info,
+  GameU32IndexSizeFn size_fn,
+  GameU32IndexCopyTextFn copy_fn,
+  const char* const operation
+) {
+  napi_value args[2], output;
+  CNA_Handle game = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a game and an index");
+  }
+  uint64_t required = 0;
+  CNA_Result result = size_fn(game, index, &required);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  if (required > SIZE_MAX - 1) return throw_message(env, "text exceeds the address space");
+  char* text = (char*) malloc((size_t) required + 1);
+  if (!text) return throw_message(env, "text allocation failed");
+  uint64_t produced = 0;
+  result = copy_fn(game, index, text, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(text);
+    return throw_result(env, operation, result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  if (napi_create_string_utf8(env, text, (size_t) produced, &output) != napi_ok) {
+    free(text);
+    return throw_napi(env, operation);
+  }
+  free(text);
+  return output;
+}
+
+static napi_value joysticks_get_name_at(napi_env env, napi_callback_info info) {
+  return game_index_text(
+    env, info, g_api.joysticks_get_name_size_at, g_api.joysticks_copy_name_at,
+    "cna_joysticks_copy_name_at");
+}
+
+static napi_value joysticks_get_capabilities_name(napi_env env, napi_callback_info info) {
+  return game_index_text(
+    env, info, g_api.joysticks_get_capabilities_name_size, g_api.joysticks_copy_capabilities_name,
+    "cna_joysticks_copy_capabilities_name");
+}
+
+static napi_value joysticks_get_capabilities_guid(napi_env env, napi_callback_info info) {
+  return game_index_text(
+    env, info, g_api.joysticks_get_capabilities_guid_size, g_api.joysticks_copy_capabilities_guid,
+    "cna_joysticks_copy_capabilities_guid");
+}
+
+static napi_value haptics_get_name_at(napi_env env, napi_callback_info info) {
+  return game_index_text(
+    env, info, g_api.haptics_get_name_size_at, g_api.haptics_copy_name_at,
+    "cna_haptics_copy_name_at");
+}
+
+static napi_value joysticks_get_info_at(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle game = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a game and a joystick index");
+  }
+  CNA_JoystickInfo value;
+  // This family publishes no version macro; `cna_joystick_info_init` is the canonical way to
+  // stamp struct_size and struct_version, so it is what gets called rather than a literal.
+  CNA_Result result = g_api.joystick_info_init(&value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_joystick_info_init", result);
+  result = g_api.joysticks_get_info_at(game, index, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_joysticks_get_info_at", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "joystick info");
+  if (!set_u32(env, output, "Id", value.id) || !set_u32(env, output, "Type", value.type)) {
+    return throw_napi(env, "joystick info");
+  }
+  return output;
+}
+
+static napi_value joysticks_get_capabilities(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle game = 0;
+  uint32_t id = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &id) != napi_ok) {
+    return throw_message(env, "expected a game and a joystick identifier");
+  }
+  CNA_JoystickCapabilities value;
+  CNA_Result result = g_api.joystick_capabilities_init(&value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_joystick_capabilities_init", result);
+  }
+  result = g_api.joysticks_get_capabilities(game, id, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_joysticks_get_capabilities", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "joystick capabilities");
+  if (!set_i32(env, output, "AxisCount", value.axis_count) ||
+      !set_i32(env, output, "ButtonCount", value.button_count) ||
+      !set_i32(env, output, "HatCount", value.hat_count) ||
+      !set_i32(env, output, "BallCount", value.ball_count) ||
+      !set_u32(env, output, "Type", value.type) ||
+      !set_u32(env, output, "PowerState", value.power_state) ||
+      !set_i32(env, output, "PowerPercent", value.power_percent) ||
+      !set_bool(env, output, "IsConnected", value.is_connected != CNA_FALSE)) {
+    return throw_napi(env, "joystick capabilities");
+  }
+  return output;
+}
+
+/*
+ * Captures a joystick's four arrays and releases the state handle in the same call.
+ *
+ * A captured state is a snapshot with no operations of its own beyond reading it, so keeping the
+ * handle alive would be a lifetime a caller has to manage for nothing. Every array is sized from
+ * its own count route rather than from the capabilities, because a device can change between the
+ * two calls and the state is what the arrays actually are.
+ */
+static napi_value joysticks_capture_state(napi_env env, napi_callback_info info) {
+  napi_value args[2], output = NULL, axes = NULL, buttons = NULL, hats = NULL, balls = NULL;
+  CNA_Handle game = 0;
+  uint32_t id = 0;
+  CNA_JoystickStateHandle state = 0;
+  int16_t* axis_values = NULL;
+  CNA_Bool* button_values = NULL;
+  CNA_JoystickHatPosition* hat_values = NULL;
+  CNA_Point* ball_values = NULL;
+  uint32_t axis_count = 0, button_count = 0, hat_count = 0, ball_count = 0;
+  uint64_t produced = 0;
+  CNA_Result result;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &id) != napi_ok) {
+    return throw_message(env, "expected a game and a joystick identifier");
+  }
+  result = g_api.joysticks_capture_state(game, id, &state);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_joysticks_capture_state", result);
+  }
+  result = g_api.joystick_state_get_axis_count(state, &axis_count);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.joystick_state_get_button_count(state, &button_count);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.joystick_state_get_hat_count(state, &hat_count);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.joystick_state_get_ball_count(state, &ball_count);
+  if (result != CNA_RESULT_SUCCESS) goto fail;
+  /* Any of the four may legitimately be zero; malloc(0) is avoided rather than special-cased. */
+  axis_values = (int16_t*) calloc(axis_count == 0 ? 1 : axis_count, sizeof(int16_t));
+  button_values = (CNA_Bool*) calloc(button_count == 0 ? 1 : button_count, sizeof(CNA_Bool));
+  hat_values = (CNA_JoystickHatPosition*) calloc(
+    hat_count == 0 ? 1 : hat_count, sizeof(CNA_JoystickHatPosition));
+  ball_values = (CNA_Point*) calloc(ball_count == 0 ? 1 : ball_count, sizeof(CNA_Point));
+  if (!axis_values || !button_values || !hat_values || !ball_values) {
+    output = throw_message(env, "joystick state allocation failed");
+    goto release;
+  }
+  if (axis_count != 0) {
+    result = g_api.joystick_state_copy_axes(state, axis_values, axis_count, &produced);
+    if (result != CNA_RESULT_SUCCESS) goto fail;
+  }
+  if (button_count != 0) {
+    result = g_api.joystick_state_copy_buttons(state, button_values, button_count, &produced);
+    if (result != CNA_RESULT_SUCCESS) goto fail;
+  }
+  if (hat_count != 0) {
+    result = g_api.joystick_state_copy_hats(state, hat_values, hat_count, &produced);
+    if (result != CNA_RESULT_SUCCESS) goto fail;
+  }
+  if (ball_count != 0) {
+    result = g_api.joystick_state_copy_balls(state, ball_values, ball_count, &produced);
+    if (result != CNA_RESULT_SUCCESS) goto fail;
+  }
+  if (napi_create_object(env, &output) != napi_ok ||
+      napi_create_array_with_length(env, axis_count, &axes) != napi_ok ||
+      napi_create_array_with_length(env, button_count, &buttons) != napi_ok ||
+      napi_create_array_with_length(env, hat_count, &hats) != napi_ok ||
+      napi_create_array_with_length(env, ball_count, &balls) != napi_ok) {
+    output = throw_napi(env, "joystick state");
+    goto release;
+  }
+  for (uint32_t index = 0; index < axis_count; index += 1) {
+    napi_value entry;
+    if (napi_create_int32(env, axis_values[index], &entry) != napi_ok ||
+        napi_set_element(env, axes, index, entry) != napi_ok) {
+      output = throw_napi(env, "joystick axes");
+      goto release;
+    }
+  }
+  for (uint32_t index = 0; index < button_count; index += 1) {
+    napi_value entry;
+    if (napi_get_boolean(env, button_values[index] != CNA_FALSE, &entry) != napi_ok ||
+        napi_set_element(env, buttons, index, entry) != napi_ok) {
+      output = throw_napi(env, "joystick buttons");
+      goto release;
+    }
+  }
+  for (uint32_t index = 0; index < hat_count; index += 1) {
+    napi_value entry;
+    if (napi_create_uint32(env, hat_values[index], &entry) != napi_ok ||
+        napi_set_element(env, hats, index, entry) != napi_ok) {
+      output = throw_napi(env, "joystick hats");
+      goto release;
+    }
+  }
+  for (uint32_t index = 0; index < ball_count; index += 1) {
+    napi_value entry;
+    if (napi_create_object(env, &entry) != napi_ok ||
+        !set_i32(env, entry, "X", ball_values[index].x) ||
+        !set_i32(env, entry, "Y", ball_values[index].y) ||
+        napi_set_element(env, balls, index, entry) != napi_ok) {
+      output = throw_napi(env, "joystick balls");
+      goto release;
+    }
+  }
+  if (napi_set_named_property(env, output, "Axes", axes) != napi_ok ||
+      napi_set_named_property(env, output, "Buttons", buttons) != napi_ok ||
+      napi_set_named_property(env, output, "Hats", hats) != napi_ok ||
+      napi_set_named_property(env, output, "Balls", balls) != napi_ok) {
+    output = throw_napi(env, "joystick state");
+  }
+release:
+  free(axis_values);
+  free(button_values);
+  free(hat_values);
+  free(ball_values);
+  g_api.joystick_state_destroy(state);
+  return output;
+fail:
+  free(axis_values);
+  free(button_values);
+  free(hat_values);
+  free(ball_values);
+  g_api.joystick_state_destroy(state);
+  return throw_result(env, "cna_joystick_state", result);
+}
+
+static napi_value haptics_get_count(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.haptics_get_count(game, &count);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_haptics_get_count", result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, count, &output), "haptic count");
+  return output;
+}
+
+static napi_value haptics_get_id_at(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle game = 0;
+  uint32_t index = 0, id = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a game and a haptic index");
+  }
+  const CNA_Result result = g_api.haptics_get_id_at(game, index, &id);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_haptics_get_id_at", result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, id, &output), "haptic identifier");
+  return output;
+}
+
+static napi_value haptics_is_joystick_haptic(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle game = 0;
+  uint32_t id = 0;
+  CNA_Bool haptic = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &id) != napi_ok) {
+    return throw_message(env, "expected a game and a joystick identifier");
+  }
+  const CNA_Result result = g_api.haptics_get_is_joystick_haptic(game, id, &haptic);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_haptics_get_is_joystick_haptic", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, haptic != CNA_FALSE, &output), "haptic answer");
+  return output;
+}
+
+static napi_value haptics_open_device(
+  napi_env env, napi_callback_info info, GameIndexHandleOutFn function, const char* operation
+) {
+  napi_value args[2];
+  CNA_Handle game = 0;
+  uint32_t id = 0;
+  CNA_HapticDeviceHandle device = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &id) != napi_ok) {
+    return throw_message(env, "expected a game and an identifier");
+  }
+  const CNA_Result result = function(game, id, &device);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return make_handle(env, device);
+}
+
+static napi_value haptics_open(napi_env env, napi_callback_info info) {
+  return haptics_open_device(env, info, g_api.haptics_open, "cna_haptics_open");
+}
+
+static napi_value haptics_open_from_joystick(napi_env env, napi_callback_info info) {
+  return haptics_open_device(
+    env, info, g_api.haptics_open_from_joystick, "cna_haptics_open_from_joystick");
+}
+
+static napi_value haptic_device_get_capabilities(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle device = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  CNA_HapticCapabilities value;
+  CNA_Result result = g_api.haptic_capabilities_init(&value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_haptic_capabilities_init", result);
+  }
+  result = g_api.haptic_device_get_capabilities(device, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_haptic_device_get_capabilities", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "haptic capabilities");
+  if (!set_u32(env, output, "Features", value.features) ||
+      !set_i32(env, output, "AxisCount", value.axis_count) ||
+      !set_i32(env, output, "MaxEffects", value.max_effects) ||
+      !set_i32(env, output, "MaxEffectsPlaying", value.max_effects_playing) ||
+      !set_bool(env, output, "IsOpen", value.is_open != CNA_FALSE) ||
+      !set_bool(env, output, "RumbleSupported", value.rumble_supported != CNA_FALSE)) {
+    return throw_napi(env, "haptic capabilities");
+  }
+  return output;
+}
+
+static napi_value haptic_device_get_name(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle device = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  uint64_t required = 0;
+  CNA_Result result = g_api.haptic_device_get_name_size(device, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_haptic_device_get_name_size", result);
+  }
+  if (required > SIZE_MAX - 1) return throw_message(env, "haptic name exceeds the address space");
+  char* text = (char*) malloc((size_t) required + 1);
+  if (!text) return throw_message(env, "haptic name allocation failed");
+  uint64_t produced = 0;
+  result = g_api.haptic_device_copy_name(device, text, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(text);
+    return throw_result(
+      env, "cna_haptic_device_copy_name",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  if (napi_create_string_utf8(env, text, (size_t) produced, &output) != napi_ok) {
+    free(text);
+    return throw_napi(env, "haptic name");
+  }
+  free(text);
+  return output;
+}
+
+static napi_value haptic_device_bool_out(
+  napi_env env, napi_callback_info info, HandleBoolOutFn function, const char* operation
+) {
+  napi_value args[1], output;
+  CNA_Handle device = 0;
+  CNA_Bool value = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  const CNA_Result result = function(device, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, value != CNA_FALSE, &output), operation);
+  return output;
+}
+
+static napi_value haptic_device_get_is_open(napi_env env, napi_callback_info info) {
+  return haptic_device_bool_out(
+    env, info, g_api.haptic_device_get_is_open, "cna_haptic_device_get_is_open");
+}
+
+static napi_value haptic_device_init_rumble(napi_env env, napi_callback_info info) {
+  return haptic_device_bool_out(
+    env, info, g_api.haptic_device_init_rumble, "cna_haptic_device_init_rumble");
+}
+
+static napi_value haptic_device_stop_rumble(napi_env env, napi_callback_info info) {
+  return haptic_device_bool_out(
+    env, info, g_api.haptic_device_stop_rumble, "cna_haptic_device_stop_rumble");
+}
+
+static napi_value haptic_device_play_rumble(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  CNA_Handle device = 0;
+  double strength = 0;
+  uint32_t length = 0;
+  CNA_Bool applied = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_double(env, args[1], &strength) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &length) != napi_ok) {
+    return throw_message(env, "expected a haptic device, a strength and a length");
+  }
+  const CNA_Result result =
+    g_api.haptic_device_play_rumble(device, (float) strength, length, &applied);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_haptic_device_play_rumble", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, applied != CNA_FALSE, &output), "rumble answer");
+  return output;
+}
+
+static napi_value haptic_device_set_gain(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle device = 0;
+  int32_t gain = 0;
+  CNA_Bool applied = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &gain) != napi_ok) {
+    return throw_message(env, "expected a haptic device and a gain");
+  }
+  const CNA_Result result = g_api.haptic_device_set_gain(device, gain, &applied);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_haptic_device_set_gain", result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, applied != CNA_FALSE, &output), "gain answer");
+  return output;
+}
+
+static napi_value haptic_device_dispose(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle device = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  const CNA_Result result = g_api.haptic_device_dispose(device);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_haptic_device_dispose", result);
+  return undefined_result(env, "haptic device close");
+}
+
+static napi_value haptic_device_destroy(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle device = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  const CNA_Result result = g_api.haptic_device_destroy(device);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_haptic_device_destroy", result);
+  return undefined_result(env, "haptic device release");
+}
+
 /* --- CNB build-time importers ------------------------------------------------------------------ */
 /*
  * The three routes `cnb.h` provides for turning an ordinary source file into a compiled asset, and
@@ -12026,6 +12613,28 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "cnbSpriteFontDataSetAtlas", NULL, cnb_sprite_font_data_set_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbSpriteFontDataCopyAtlas", NULL, cnb_sprite_font_data_copy_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbEncodeSpriteFont", NULL, cnb_encode_sprite_font, NULL, NULL, NULL, napi_default, NULL },
+    { "joysticksGetCount", NULL, joysticks_get_count, NULL, NULL, NULL, napi_default, NULL },
+    { "joysticksGetInfoAt", NULL, joysticks_get_info_at, NULL, NULL, NULL, napi_default, NULL },
+    { "joysticksGetNameAt", NULL, joysticks_get_name_at, NULL, NULL, NULL, napi_default, NULL },
+    { "joysticksGetCapabilities", NULL, joysticks_get_capabilities, NULL, NULL, NULL, napi_default, NULL },
+    { "joysticksGetCapabilitiesName", NULL, joysticks_get_capabilities_name, NULL, NULL, NULL, napi_default, NULL },
+    { "joysticksGetCapabilitiesGuid", NULL, joysticks_get_capabilities_guid, NULL, NULL, NULL, napi_default, NULL },
+    { "joysticksCaptureState", NULL, joysticks_capture_state, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticsGetCount", NULL, haptics_get_count, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticsGetIdAt", NULL, haptics_get_id_at, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticsGetNameAt", NULL, haptics_get_name_at, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticsIsJoystickHaptic", NULL, haptics_is_joystick_haptic, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticsOpen", NULL, haptics_open, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticsOpenFromJoystick", NULL, haptics_open_from_joystick, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticDeviceGetCapabilities", NULL, haptic_device_get_capabilities, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticDeviceGetName", NULL, haptic_device_get_name, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticDeviceGetIsOpen", NULL, haptic_device_get_is_open, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticDeviceInitRumble", NULL, haptic_device_init_rumble, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticDevicePlayRumble", NULL, haptic_device_play_rumble, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticDeviceStopRumble", NULL, haptic_device_stop_rumble, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticDeviceSetGain", NULL, haptic_device_set_gain, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticDeviceDispose", NULL, haptic_device_dispose, NULL, NULL, NULL, napi_default, NULL },
+    { "hapticDeviceDestroy", NULL, haptic_device_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "cnbImportImageAsTexture2D", NULL, cnb_import_image_as_texture2d, NULL, NULL, NULL, napi_default, NULL },
     { "cnbImportDdsAsTextureCube", NULL, cnb_import_dds_as_texture_cube, NULL, NULL, NULL, napi_default, NULL },
     { "cnbImportWavAsSoundEffect", NULL, cnb_import_wav_as_sound_effect, NULL, NULL, NULL, napi_default, NULL },

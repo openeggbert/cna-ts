@@ -34,6 +34,10 @@
       "types": "./dist/extensions/graphics/index.d.ts",
       "import": "./dist/extensions/graphics/index.js"
     },
+    "./extensions/input": {
+      "types": "./dist/extensions/input/index.d.ts",
+      "import": "./dist/extensions/input/index.js"
+    },
     "./extensions/sensors": {
       "types": "./dist/extensions/sensors/index.d.ts",
       "import": "./dist/extensions/sensors/index.js"

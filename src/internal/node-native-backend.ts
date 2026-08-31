@@ -32,6 +32,11 @@ import type {
   CnbKeyframeSnapshot,
   CnbSoundEffectInfoSnapshot,
   CnbVideoInfoSnapshot,
+  CnaExtendedInputBackend,
+  HapticCapabilitiesSnapshot,
+  JoystickCapabilitiesSnapshot,
+  JoystickInfoSnapshot,
+  JoystickStateSnapshot,
   CnbModelPartSnapshot,
   CnbSpriteFontInfoSnapshot,
   CnbTextureInfoSnapshot,
@@ -560,6 +565,28 @@ interface NativeBridge {
   setGuideIsScreenSaverEnabled(value: boolean): void;
   getGuideNotificationPosition(): number;
   setGuideNotificationPosition(position: number): void;
+  joysticksGetCount(game: bigint): number;
+  joysticksGetInfoAt(game: bigint, index: number): JoystickInfoSnapshot;
+  joysticksGetNameAt(game: bigint, index: number): string;
+  joysticksGetCapabilities(game: bigint, id: number): JoystickCapabilitiesSnapshot;
+  joysticksGetCapabilitiesName(game: bigint, id: number): string;
+  joysticksGetCapabilitiesGuid(game: bigint, id: number): string;
+  joysticksCaptureState(game: bigint, id: number): JoystickStateSnapshot;
+  hapticsGetCount(game: bigint): number;
+  hapticsGetIdAt(game: bigint, index: number): number;
+  hapticsGetNameAt(game: bigint, index: number): string;
+  hapticsIsJoystickHaptic(game: bigint, joystickId: number): boolean;
+  hapticsOpen(game: bigint, id: number): bigint;
+  hapticsOpenFromJoystick(game: bigint, joystickId: number): bigint;
+  hapticDeviceGetCapabilities(device: bigint): HapticCapabilitiesSnapshot;
+  hapticDeviceGetName(device: bigint): string;
+  hapticDeviceGetIsOpen(device: bigint): boolean;
+  hapticDeviceInitRumble(device: bigint): boolean;
+  hapticDevicePlayRumble(device: bigint, strength: number, lengthMilliseconds: number): boolean;
+  hapticDeviceStopRumble(device: bigint): boolean;
+  hapticDeviceSetGain(device: bigint, gain: number): boolean;
+  hapticDeviceDispose(device: bigint): void;
+  hapticDeviceDestroy(device: bigint): void;
   getSensorSupport(game: bigint): SensorSupportSnapshot;
   createAccelerometer(game: bigint): bigint;
   destroyAccelerometer(sensor: bigint): void;
@@ -1746,6 +1773,77 @@ export class NodeNativeBackend
 
   // Sensors. Support is a game-scoped question and the sensor itself is a game child, so both
   // reach CNA through the running game handle.
+
+  // ---- CNA's extended input layer: raw joysticks and force feedback ----------------------------
+  // Both need an active game, because both are properties of a platform a game opened. A captured
+  // joystick state is a snapshot the bridge reads whole and releases, so nothing here owns a
+  // lifetime except an opened haptic device, which does.
+  public readonly ExtendedInput: CnaExtendedInputBackend = this;
+
+  public getJoystickCount(): number { return this.#bridge.joysticksGetCount(this.#game()); }
+  public getJoystickInfoAt(index: number): JoystickInfoSnapshot {
+    return this.#bridge.joysticksGetInfoAt(this.#game(), index);
+  }
+  public getJoystickNameAt(index: number): string {
+    return this.#bridge.joysticksGetNameAt(this.#game(), index);
+  }
+  public getJoystickCapabilities(id: number): JoystickCapabilitiesSnapshot {
+    return this.#bridge.joysticksGetCapabilities(this.#game(), id);
+  }
+  public getJoystickCapabilitiesName(id: number): string {
+    return this.#bridge.joysticksGetCapabilitiesName(this.#game(), id);
+  }
+  public getJoystickCapabilitiesGuid(id: number): string {
+    return this.#bridge.joysticksGetCapabilitiesGuid(this.#game(), id);
+  }
+  public captureJoystickState(id: number): JoystickStateSnapshot {
+    return this.#bridge.joysticksCaptureState(this.#game(), id);
+  }
+  public getHapticCount(): number { return this.#bridge.hapticsGetCount(this.#game()); }
+  public getHapticIdAt(index: number): number {
+    return this.#bridge.hapticsGetIdAt(this.#game(), index);
+  }
+  public getHapticNameAt(index: number): string {
+    return this.#bridge.hapticsGetNameAt(this.#game(), index);
+  }
+  public isJoystickHaptic(joystickId: number): boolean {
+    return this.#bridge.hapticsIsJoystickHaptic(this.#game(), joystickId);
+  }
+  public openHaptic(id: number): NativeHandle {
+    return this.#bridge.hapticsOpen(this.#game(), id);
+  }
+  public openHapticFromJoystick(joystickId: number): NativeHandle {
+    return this.#bridge.hapticsOpenFromJoystick(this.#game(), joystickId);
+  }
+  public getHapticCapabilities(device: NativeHandle): HapticCapabilitiesSnapshot {
+    return this.#bridge.hapticDeviceGetCapabilities(device);
+  }
+  public getHapticName(device: NativeHandle): string {
+    return this.#bridge.hapticDeviceGetName(device);
+  }
+  public getHapticIsOpen(device: NativeHandle): boolean {
+    return this.#bridge.hapticDeviceGetIsOpen(device);
+  }
+  public initHapticRumble(device: NativeHandle): boolean {
+    return this.#bridge.hapticDeviceInitRumble(device);
+  }
+  public playHapticRumble(
+    device: NativeHandle, strength: number, lengthMilliseconds: number,
+  ): boolean {
+    return this.#bridge.hapticDevicePlayRumble(device, strength, lengthMilliseconds);
+  }
+  public stopHapticRumble(device: NativeHandle): boolean {
+    return this.#bridge.hapticDeviceStopRumble(device);
+  }
+  public setHapticGain(device: NativeHandle, gain: number): boolean {
+    return this.#bridge.hapticDeviceSetGain(device, gain);
+  }
+  public disposeHapticDevice(device: NativeHandle): void {
+    this.#bridge.hapticDeviceDispose(device);
+  }
+  public destroyHapticDevice(device: NativeHandle): void {
+    this.#bridge.hapticDeviceDestroy(device);
+  }
   public getSensorSupport(): SensorSupportSnapshot { return this.#bridge.getSensorSupport(this.#game()); }
   public createAccelerometer(): NativeHandle { return this.#bridge.createAccelerometer(this.#game()); }
   public destroyAccelerometer(sensor: NativeHandle): void { this.#bridge.destroyAccelerometer(sensor); }

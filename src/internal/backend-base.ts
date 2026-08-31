@@ -30,6 +30,7 @@ import type {
   CnaContentBackend,
   CnaDeviceBackend,
   CnaEffectBackend,
+  CnaExtendedInputBackend,
   CnaGameCallbacks,
   CnaGameConfiguration,
   CnaGameTimeSnapshot,
@@ -61,7 +62,11 @@ import type {
   DepthStencilStateSnapshot,
   GameWindowBoundsSnapshot,
   GraphicsManagerConfiguration,
+  HapticCapabilitiesSnapshot,
   HostDeviceSnapshot,
+  JoystickCapabilitiesSnapshot,
+  JoystickInfoSnapshot,
+  JoystickStateSnapshot,
   MediaSongPlaybackSnapshot,
   MediaSourceSnapshot,
   MicrophoneSnapshot,
@@ -1071,6 +1076,55 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public getPostProcessChainPassTimings(
     _chain: NativeHandle,
   ): readonly PassTimingSnapshot[] { return this.unsupported("getPostProcessChainPassTimings"); }
+}
+
+/** Refusing base for {@link CnaExtendedInputBackend}. */
+export abstract class CnaExtendedInputBackendBase implements CnaExtendedInputBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public getJoystickCount(): number { return this.unsupported("getJoystickCount"); }
+  public getJoystickInfoAt(
+    _index: number,
+  ): JoystickInfoSnapshot { return this.unsupported("getJoystickInfoAt"); }
+  public getJoystickNameAt(_index: number): string { return this.unsupported("getJoystickNameAt"); }
+  public getJoystickCapabilities(
+    _id: number,
+  ): JoystickCapabilitiesSnapshot { return this.unsupported("getJoystickCapabilities"); }
+  public getJoystickCapabilitiesName(
+    _id: number,
+  ): string { return this.unsupported("getJoystickCapabilitiesName"); }
+  public getJoystickCapabilitiesGuid(
+    _id: number,
+  ): string { return this.unsupported("getJoystickCapabilitiesGuid"); }
+  public captureJoystickState(
+    _id: number,
+  ): JoystickStateSnapshot { return this.unsupported("captureJoystickState"); }
+  public getHapticCount(): number { return this.unsupported("getHapticCount"); }
+  public getHapticIdAt(_index: number): number { return this.unsupported("getHapticIdAt"); }
+  public getHapticNameAt(_index: number): string { return this.unsupported("getHapticNameAt"); }
+  public isJoystickHaptic(_joystickId: number): boolean { return this.unsupported("isJoystickHaptic"); }
+  public openHaptic(_id: number): NativeHandle { return this.unsupported("openHaptic"); }
+  public openHapticFromJoystick(
+    _joystickId: number,
+  ): NativeHandle { return this.unsupported("openHapticFromJoystick"); }
+  public getHapticCapabilities(
+    _device: NativeHandle,
+  ): HapticCapabilitiesSnapshot { return this.unsupported("getHapticCapabilities"); }
+  public getHapticName(_device: NativeHandle): string { return this.unsupported("getHapticName"); }
+  public getHapticIsOpen(_device: NativeHandle): boolean { return this.unsupported("getHapticIsOpen"); }
+  public initHapticRumble(_device: NativeHandle): boolean { return this.unsupported("initHapticRumble"); }
+  public playHapticRumble(
+    _device: NativeHandle,
+    _strength: number,
+    _lengthMilliseconds: number,
+  ): boolean { return this.unsupported("playHapticRumble"); }
+  public stopHapticRumble(_device: NativeHandle): boolean { return this.unsupported("stopHapticRumble"); }
+  public setHapticGain(
+    _device: NativeHandle,
+    _gain: number,
+  ): boolean { return this.unsupported("setHapticGain"); }
+  public disposeHapticDevice(_device: NativeHandle): void { return this.unsupported("disposeHapticDevice"); }
+  public destroyHapticDevice(_device: NativeHandle): void { return this.unsupported("destroyHapticDevice"); }
 }
 
 /** Refusing base for {@link CnaContentBackend}. */

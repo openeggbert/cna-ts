@@ -1053,6 +1053,74 @@ export interface CnbKeyframeSnapshot {
   readonly Scale: readonly number[];
 }
 
+/** One raw joystick as CNA enumerates it, before any XNA mapping. */
+export interface JoystickInfoSnapshot {
+  readonly Id: number;
+  readonly Type: number;
+}
+
+/** What a raw joystick reports about itself. */
+export interface JoystickCapabilitiesSnapshot {
+  readonly AxisCount: number;
+  readonly ButtonCount: number;
+  readonly HatCount: number;
+  readonly BallCount: number;
+  readonly Type: number;
+  readonly PowerState: number;
+  readonly PowerPercent: number;
+  readonly IsConnected: boolean;
+}
+
+/** One captured joystick state, read whole and released natively before it is returned. */
+export interface JoystickStateSnapshot {
+  readonly Axes: readonly number[];
+  readonly Buttons: readonly boolean[];
+  readonly Hats: readonly number[];
+  readonly Balls: readonly { readonly X: number; readonly Y: number }[];
+}
+
+/** What an opened haptic device can do. */
+export interface HapticCapabilitiesSnapshot {
+  readonly Features: number;
+  readonly AxisCount: number;
+  readonly MaxEffects: number;
+  readonly MaxEffectsPlaying: number;
+  readonly IsOpen: boolean;
+  readonly RumbleSupported: boolean;
+}
+
+/**
+ * CNA's extended input layer: raw joysticks and force feedback, neither of which XNA modelled.
+ *
+ * A joystick is deliberately not a `GamePad`. Its axes are raw, its identity is the platform's, and
+ * it may have hats and balls a `GamePadState` has no room for -- so folding one into the XNA type
+ * would either lose data or invent a mapping. These stay outside `Microsoft.Xna.Framework.Input`.
+ */
+export interface CnaExtendedInputBackend {
+  getJoystickCount(): number;
+  getJoystickInfoAt(index: number): JoystickInfoSnapshot;
+  getJoystickNameAt(index: number): string;
+  getJoystickCapabilities(id: number): JoystickCapabilitiesSnapshot;
+  getJoystickCapabilitiesName(id: number): string;
+  getJoystickCapabilitiesGuid(id: number): string;
+  captureJoystickState(id: number): JoystickStateSnapshot;
+  getHapticCount(): number;
+  getHapticIdAt(index: number): number;
+  getHapticNameAt(index: number): string;
+  isJoystickHaptic(joystickId: number): boolean;
+  openHaptic(id: number): NativeHandle;
+  openHapticFromJoystick(joystickId: number): NativeHandle;
+  getHapticCapabilities(device: NativeHandle): HapticCapabilitiesSnapshot;
+  getHapticName(device: NativeHandle): string;
+  getHapticIsOpen(device: NativeHandle): boolean;
+  initHapticRumble(device: NativeHandle): boolean;
+  playHapticRumble(device: NativeHandle, strength: number, lengthMilliseconds: number): boolean;
+  stopHapticRumble(device: NativeHandle): boolean;
+  setHapticGain(device: NativeHandle, gain: number): boolean;
+  disposeHapticDevice(device: NativeHandle): void;
+  destroyHapticDevice(device: NativeHandle): void;
+}
+
 export interface CnaContentBackend {
   cnbHasMagic(bytes: Uint8Array): boolean;
   cnbFormatMagic(): Uint8Array;
@@ -1338,6 +1406,7 @@ export interface CnaBackend {
   readonly Devices?: CnaDeviceBackend;
   readonly GamerServices?: CnaGamerServicesBackend;
   readonly Sensors?: CnaSensorBackend;
+  readonly ExtendedInput?: CnaExtendedInputBackend;
   openTitleStream?(name: string): Uint8Array;
 
   initialize(): Promise<void>;
