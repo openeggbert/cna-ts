@@ -90,6 +90,9 @@
       "CNA_CNB_ASSET_TYPE_EFFECT",
       "CNA_CNB_ASSET_TYPE_RESERVED_RANGE_FIRST",
       "CNA_CNB_COMPRESSION_MAXIMUM",
+      "CNA_CNB_EFFECT_KIND_MAXIMUM",
+      "CNA_CNB_MATERIAL_TEXTURE_MAXIMUM",
+      "CNA_CNB_SKELETON_MATRIX_MAXIMUM",
       "CNA_CNB_TEXTURE_FORMAT_MAXIMUM",
       "CNA_CONTROLLER_SENSITIVITY_MAXIMUM",
       "CNA_GAMEPAD_BUTTON_ALL",
@@ -620,6 +623,18 @@
     {
       "typeScriptEnum": "CnbTextureFormat",
       "cnaPrefix": "CNA_CNB_TEXTURE_FORMAT"
+    },
+    {
+      "typeScriptEnum": "CnbEffectKind",
+      "cnaPrefix": "CNA_CNB_EFFECT_KIND"
+    },
+    {
+      "typeScriptEnum": "CnbMaterialTextureSlot",
+      "cnaPrefix": "CNA_CNB_MATERIAL_TEXTURE"
+    },
+    {
+      "typeScriptEnum": "CnbSkeletonMatrixSet",
+      "cnaPrefix": "CNA_CNB_SKELETON_MATRIX"
     },
     {
       "typeScriptEnum": "PowerState",

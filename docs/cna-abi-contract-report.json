@@ -1,10 +1,10 @@
 {
   "contract": "tools/cna-abi/contract.json",
-  "typeScriptEnums": 92,
-  "verifiedFamilies": 91,
+  "typeScriptEnums": 95,
+  "verifiedFamilies": 94,
   "managedEnums": 1,
-  "claims": 827,
-  "identicalClaims": 824,
+  "claims": 844,
+  "identicalClaims": 841,
   "translatedClaims": 3,
   "scalarAssertions": 6,
   "resultCodeAssertions": 15,
@@ -91,6 +91,18 @@
     {
       "family": "CnbCompression",
       "constant": "CNA_CNB_COMPRESSION_MAXIMUM"
+    },
+    {
+      "family": "CnbEffectKind",
+      "constant": "CNA_CNB_EFFECT_KIND_MAXIMUM"
+    },
+    {
+      "family": "CnbMaterialTextureSlot",
+      "constant": "CNA_CNB_MATERIAL_TEXTURE_MAXIMUM"
+    },
+    {
+      "family": "CnbSkeletonMatrixSet",
+      "constant": "CNA_CNB_SKELETON_MATRIX_MAXIMUM"
     },
     {
       "family": "CnbTextureFormat",
@@ -313,7 +325,7 @@
       "constant": "CNA_VIDEO_SOUNDTRACK_TYPE_MAXIMUM"
     }
   ],
-  "declaredCnaOnlyConstants": 74,
+  "declaredCnaOnlyConstants": 77,
   "diagnostics": [],
   "translations": [
     {

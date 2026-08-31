@@ -306,8 +306,18 @@ Electron, or mobile support.
   schema, ending in a real `Texture2D`; and the sprite-font schema with its embedded atlas, ending
   in a drawable `SpriteFont`. Fixtures are built with CNA's own encoder rather than hand-rolled, so
   the reader is proved against the writer instead of against itself.
-- [ ] CNB's model, sound-effect, song, video, curve and animation-clip schemas, its bounded byte
-  cursor, its loader registry and the `.cnj` compile path are measured and unprojected.
+- [x] The same subpath projects **CNB's model schema**, the largest one CNB carries: the bone
+  hierarchy with its exact transforms, parts with their vertex and index payloads, glTF-style
+  materials with all eight texture roles, meshes with their part membership, the skinning skeleton
+  with all three of its per-joint matrix sets, and baked lights. `CnbModelData` is both halves —
+  a consumer decodes CNA's containers with it and a build script authors them — so the reader is
+  proved against CNA's own writer rather than against itself. It deliberately stops short of
+  producing an XNA `Model`: CNB records a part's `VertexStride` and no vertex declaration, so a
+  `ModelMeshPart` would need an invented `VertexDeclaration`, which is the trade
+  `docs/content-pipeline-boundary.md` rejects.
+- [ ] CNB's sound-effect, song, video, curve and animation-clip schemas, the model's morph targets
+  and per-slot texture arrays, its bounded byte cursor, its loader registry and the `.cnj` compile
+  path are measured and unprojected.
 - [x] `cna-ts/extensions/devices` projects CNA's extended device layer: the host's cores and
   memory, its power state with absences reported as absences, the display's content scale and safe
   area, the user's preferred locales, the clipboard, and camera enumeration that keeps "no camera

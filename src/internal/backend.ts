@@ -971,6 +971,47 @@ export interface CnbSpriteFontInfoSnapshot {
  * texture description and a decoded font description. Nothing here touches a `GraphicsDevice` --
  * turning a description into a real resource is the extension layer's job, above this line.
  */
+/** What a `.cnb` model's top level declares, before any node is addressed. */
+export interface CnbModelInfoSnapshot {
+  readonly BoneCount: number;
+  readonly PartCount: number;
+  readonly MeshCount: number;
+  readonly AnimationCount: number;
+  readonly LightCount: number;
+  readonly HasSkeleton: boolean;
+  readonly AppliesGltfLightingPolicy: boolean;
+  readonly HasBoneHierarchy: boolean;
+}
+
+/** One drawable part's numeric description. Its payloads are fetched separately. */
+export interface CnbModelPartSnapshot {
+  readonly VertexStride: number;
+  readonly VertexCount: number;
+  readonly IndexCount: number;
+  readonly IndexElementSize: number;
+  readonly PrimitiveTopology: number;
+  readonly PrimitiveCount: number;
+  readonly EffectKind: number;
+  readonly VertexColorEnabled: boolean;
+  readonly Unlit: boolean;
+}
+
+/** A part's material state, without its eight texture names. */
+export interface CnbMaterialSnapshot {
+  readonly BaseColorFactor: readonly number[];
+  readonly EmissiveFactor: readonly number[];
+  readonly SpecularColorFactor: readonly number[];
+  readonly MetallicFactor: number;
+  readonly RoughnessFactor: number;
+  readonly Ior: number;
+  readonly SpecularFactor: number;
+  readonly NormalScale: number;
+  readonly OcclusionStrength: number;
+  readonly AlphaCutoff: number;
+  readonly AlphaMode: number;
+  readonly DoubleSided: boolean;
+}
+
 export interface CnaContentBackend {
   cnbHasMagic(bytes: Uint8Array): boolean;
   cnbFormatMagic(): Uint8Array;
@@ -1029,6 +1070,63 @@ export interface CnaContentBackend {
   cnbSpriteFontDataSetAtlas(font: NativeHandle, atlas: NativeHandle): void;
   cnbSpriteFontDataCopyAtlas(font: NativeHandle): NativeHandle;
   cnbEncodeSpriteFont(font: NativeHandle, contentName: string): Uint8Array;
+  cnbModelCreate(): NativeHandle;
+  cnbModelDestroy(model: NativeHandle): void;
+  cnbModelSetFlags(
+    model: NativeHandle, appliesGltfLightingPolicy: boolean, hasBoneHierarchy: boolean,
+  ): void;
+  cnbModelGetInfo(model: NativeHandle): CnbModelInfoSnapshot;
+  cnbModelAddBone(
+    model: NativeHandle, name: string, parent: number, transform: readonly number[],
+  ): number;
+  cnbModelGetBone(
+    model: NativeHandle, index: number,
+  ): { readonly Parent: number; readonly Transform: readonly number[] };
+  cnbModelGetBoneName(model: NativeHandle, index: number): string;
+  cnbModelAddPart(
+    model: NativeHandle, info: CnbModelPartSnapshot, name: string, externalEffect: string,
+  ): number;
+  cnbModelGetPart(model: NativeHandle, index: number): CnbModelPartSnapshot;
+  cnbModelGetPartName(model: NativeHandle, index: number): string;
+  cnbModelGetPartExternalEffect(model: NativeHandle, index: number): string;
+  cnbModelSetPartVertexBytes(model: NativeHandle, index: number, bytes: Uint8Array): void;
+  cnbModelCopyPartVertexBytes(model: NativeHandle, index: number): Uint8Array;
+  cnbModelSetPartIndexBytes(model: NativeHandle, index: number, bytes: Uint8Array): void;
+  cnbModelCopyPartIndexBytes(model: NativeHandle, index: number): Uint8Array;
+  cnbModelGetMaterial(model: NativeHandle, part: number): CnbMaterialSnapshot;
+  cnbModelSetMaterial(model: NativeHandle, part: number, material: CnbMaterialSnapshot): void;
+  cnbModelGetMaterialTexture(model: NativeHandle, part: number, slot: number): string;
+  cnbModelSetMaterialTexture(
+    model: NativeHandle, part: number, slot: number, assetName: string,
+  ): void;
+  cnbModelAddMesh(
+    model: NativeHandle, name: string, parentBone: number, partIndices: readonly number[],
+  ): number;
+  cnbModelGetMesh(
+    model: NativeHandle, index: number,
+  ): { readonly ParentBone: number; readonly PartIndexCount: number };
+  cnbModelGetMeshName(model: NativeHandle, index: number): string;
+  cnbModelCopyMeshPartIndices(model: NativeHandle, index: number): readonly number[];
+  cnbModelSetSkeleton(
+    model: NativeHandle,
+    hierarchy: readonly number[],
+    bindPose: readonly number[],
+    inverseBindPose: readonly number[],
+    rootPrefix: readonly number[],
+  ): void;
+  cnbModelGetSkeleton(
+    model: NativeHandle,
+  ): { readonly JointCount: number; readonly HasRootPrefix: boolean };
+  cnbModelCopySkeletonHierarchy(model: NativeHandle): readonly number[];
+  cnbModelCopySkeletonMatrices(model: NativeHandle, set: number): readonly number[];
+  cnbModelAddLight(
+    model: NativeHandle, direction: readonly number[], diffuseColor: readonly number[],
+  ): number;
+  cnbModelGetLight(
+    model: NativeHandle, index: number,
+  ): { readonly Direction: readonly number[]; readonly DiffuseColor: readonly number[] };
+  cnbEncodeModel(model: NativeHandle, contentName: string): Uint8Array;
+  cnbDecodeModel(document: NativeHandle): NativeHandle;
 }
 
 

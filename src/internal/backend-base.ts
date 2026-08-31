@@ -47,6 +47,9 @@ import type {
   CnbDocumentSnapshot,
   CnbExternalReferenceSnapshot,
   CnbGlyphSnapshot,
+  CnbMaterialSnapshot,
+  CnbModelInfoSnapshot,
+  CnbModelPartSnapshot,
   CnbSpriteFontInfoSnapshot,
   CnbTextureInfoSnapshot,
   ContentLostResourceKind,
@@ -1228,6 +1231,147 @@ export abstract class CnaContentBackendBase implements CnaContentBackend {
     _font: NativeHandle,
     _contentName: string,
   ): Uint8Array { return this.unsupported("cnbEncodeSpriteFont"); }
+  public cnbModelCreate(): NativeHandle { return this.unsupported("cnbModelCreate"); }
+  public cnbModelDestroy(_model: NativeHandle): void { return this.unsupported("cnbModelDestroy"); }
+  public cnbModelSetFlags(
+    _model: NativeHandle,
+    _appliesGltfLightingPolicy: boolean,
+    _hasBoneHierarchy: boolean,
+  ): void { return this.unsupported("cnbModelSetFlags"); }
+  public cnbModelGetInfo(
+    _model: NativeHandle,
+  ): CnbModelInfoSnapshot { return this.unsupported("cnbModelGetInfo"); }
+  public cnbModelAddBone(
+    _model: NativeHandle,
+    _name: string,
+    _parent: number,
+    _transform: readonly number[],
+  ): number { return this.unsupported("cnbModelAddBone"); }
+  public cnbModelGetBone(
+    _model: NativeHandle,
+    _index: number,
+  ): {
+    readonly Parent: number;
+    readonly Transform: readonly number[];
+} { return this.unsupported("cnbModelGetBone"); }
+  public cnbModelGetBoneName(
+    _model: NativeHandle,
+    _index: number,
+  ): string { return this.unsupported("cnbModelGetBoneName"); }
+  public cnbModelAddPart(
+    _model: NativeHandle,
+    _info: CnbModelPartSnapshot,
+    _name: string,
+    _externalEffect: string,
+  ): number { return this.unsupported("cnbModelAddPart"); }
+  public cnbModelGetPart(
+    _model: NativeHandle,
+    _index: number,
+  ): CnbModelPartSnapshot { return this.unsupported("cnbModelGetPart"); }
+  public cnbModelGetPartName(
+    _model: NativeHandle,
+    _index: number,
+  ): string { return this.unsupported("cnbModelGetPartName"); }
+  public cnbModelGetPartExternalEffect(
+    _model: NativeHandle,
+    _index: number,
+  ): string { return this.unsupported("cnbModelGetPartExternalEffect"); }
+  public cnbModelSetPartVertexBytes(
+    _model: NativeHandle,
+    _index: number,
+    _bytes: Uint8Array,
+  ): void { return this.unsupported("cnbModelSetPartVertexBytes"); }
+  public cnbModelCopyPartVertexBytes(
+    _model: NativeHandle,
+    _index: number,
+  ): Uint8Array { return this.unsupported("cnbModelCopyPartVertexBytes"); }
+  public cnbModelSetPartIndexBytes(
+    _model: NativeHandle,
+    _index: number,
+    _bytes: Uint8Array,
+  ): void { return this.unsupported("cnbModelSetPartIndexBytes"); }
+  public cnbModelCopyPartIndexBytes(
+    _model: NativeHandle,
+    _index: number,
+  ): Uint8Array { return this.unsupported("cnbModelCopyPartIndexBytes"); }
+  public cnbModelGetMaterial(
+    _model: NativeHandle,
+    _part: number,
+  ): CnbMaterialSnapshot { return this.unsupported("cnbModelGetMaterial"); }
+  public cnbModelSetMaterial(
+    _model: NativeHandle,
+    _part: number,
+    _material: CnbMaterialSnapshot,
+  ): void { return this.unsupported("cnbModelSetMaterial"); }
+  public cnbModelGetMaterialTexture(
+    _model: NativeHandle,
+    _part: number,
+    _slot: number,
+  ): string { return this.unsupported("cnbModelGetMaterialTexture"); }
+  public cnbModelSetMaterialTexture(
+    _model: NativeHandle,
+    _part: number,
+    _slot: number,
+    _assetName: string,
+  ): void { return this.unsupported("cnbModelSetMaterialTexture"); }
+  public cnbModelAddMesh(
+    _model: NativeHandle,
+    _name: string,
+    _parentBone: number,
+    _partIndices: readonly number[],
+  ): number { return this.unsupported("cnbModelAddMesh"); }
+  public cnbModelGetMesh(
+    _model: NativeHandle,
+    _index: number,
+  ): {
+    readonly ParentBone: number;
+    readonly PartIndexCount: number;
+} { return this.unsupported("cnbModelGetMesh"); }
+  public cnbModelGetMeshName(
+    _model: NativeHandle,
+    _index: number,
+  ): string { return this.unsupported("cnbModelGetMeshName"); }
+  public cnbModelCopyMeshPartIndices(
+    _model: NativeHandle,
+    _index: number,
+  ): readonly number[] { return this.unsupported("cnbModelCopyMeshPartIndices"); }
+  public cnbModelSetSkeleton(
+    _model: NativeHandle,
+    _hierarchy: readonly number[],
+    _bindPose: readonly number[],
+    _inverseBindPose: readonly number[],
+    _rootPrefix: readonly number[],
+  ): void { return this.unsupported("cnbModelSetSkeleton"); }
+  public cnbModelGetSkeleton(
+    _model: NativeHandle,
+  ): {
+    readonly JointCount: number;
+    readonly HasRootPrefix: boolean;
+} { return this.unsupported("cnbModelGetSkeleton"); }
+  public cnbModelCopySkeletonHierarchy(
+    _model: NativeHandle,
+  ): readonly number[] { return this.unsupported("cnbModelCopySkeletonHierarchy"); }
+  public cnbModelCopySkeletonMatrices(
+    _model: NativeHandle,
+    _set: number,
+  ): readonly number[] { return this.unsupported("cnbModelCopySkeletonMatrices"); }
+  public cnbModelAddLight(
+    _model: NativeHandle,
+    _direction: readonly number[],
+    _diffuseColor: readonly number[],
+  ): number { return this.unsupported("cnbModelAddLight"); }
+  public cnbModelGetLight(
+    _model: NativeHandle,
+    _index: number,
+  ): {
+    readonly Direction: readonly number[];
+    readonly DiffuseColor: readonly number[];
+} { return this.unsupported("cnbModelGetLight"); }
+  public cnbEncodeModel(
+    _model: NativeHandle,
+    _contentName: string,
+  ): Uint8Array { return this.unsupported("cnbEncodeModel"); }
+  public cnbDecodeModel(_document: NativeHandle): NativeHandle { return this.unsupported("cnbDecodeModel"); }
 }
 
 /** Refusing base for {@link CnaDeviceBackend}. */

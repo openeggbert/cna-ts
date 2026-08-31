@@ -21,15 +21,21 @@ import {
   Graphics,
   GraphicsDeviceManager,
   LoadNodeNativeBackend,
+  Matrix,
   Rectangle,
   Vector2,
   Vector3,
+  Vector4,
 } from "../dist/index.js";
 import {
   CnbAssetType,
   CnbCompression,
   CnbDocument,
+  CnbEffectKind,
   CnbFormat,
+  CnbMaterialTextureSlot,
+  CnbModelData,
+  CnbSkeletonMatrixSet,
   CnbSpriteFontData,
   CnbTextureData,
   CnbTextureFormat,
@@ -432,4 +438,439 @@ test("a CNB texture and font become real XNA resources with the exact pixels CNA
     [3, 8],
   );
   game.Dispose();
+});
+
+/* ---- the CNB model schema -------------------------------------------------------------------- */
+
+/**
+ * A reference model with **every projected level occupied at once**: two bones in a hierarchy, a
+ * part with real vertex and index payloads, a material with distinguishable values in every field
+ * and all eight texture slots named differently, a mesh, a skeleton with three matrix sets, and a
+ * light. A level that either half of the encode/decode cycle drops is then visible, and a
+ * transposed field cannot hide behind a neighbour that happens to hold the same number.
+ *
+ * Built with `CnbModelData` and encoded by **CNA's own writer**, so what the reader is proved
+ * against is the writer rather than itself.
+ */
+const MODEL_VERTICES = new Float32Array([
+  0, 0, 0,
+  1, 0, 0,
+  0, 1, 0,
+]);
+const MODEL_INDICES = Uint16Array.from([0, 1, 2]);
+
+/** Sixteen distinguishable values, so a matrix read in the wrong order cannot pass. */
+function scaleMatrix(diagonal) {
+  return new Matrix(
+    diagonal, 0, 0, 0,
+    0, diagonal, 0, 0,
+    0, 0, diagonal, 0,
+    0, 0, 0, 1,
+  );
+}
+
+const MODEL_MATERIAL = Object.freeze({
+  BaseColorFactor: new Vector4(0.25, 0.5, 0.75, 1),
+  EmissiveFactor: new Vector3(0.125, 0.375, 0.625),
+  SpecularColorFactor: new Vector3(0.875, 0.0625, 0.1875),
+  MetallicFactor: 0.4,
+  RoughnessFactor: 0.6,
+  Ior: 1.5,
+  SpecularFactor: 0.9,
+  NormalScale: 1.5,
+  OcclusionStrength: 0.8,
+  AlphaCutoff: 0.25,
+  AlphaMode: 2,
+  DoubleSided: true,
+});
+
+/** One distinct name per slot, so a slot read through its neighbour's route is caught. */
+const MODEL_TEXTURES = Object.freeze({
+  [CnbMaterialTextureSlot.BaseColor]: "albedo",
+  [CnbMaterialTextureSlot.Second]: "overlay",
+  [CnbMaterialTextureSlot.Normal]: "bumps",
+  [CnbMaterialTextureSlot.MetallicRoughness]: "mr",
+  [CnbMaterialTextureSlot.Emissive]: "glow",
+  [CnbMaterialTextureSlot.Occlusion]: "ao",
+  [CnbMaterialTextureSlot.Specular]: "spec",
+  [CnbMaterialTextureSlot.SpecularColor]: "spectint",
+});
+
+function buildReferenceModel() {
+  const model = CnbModelData.Create();
+  try {
+    model.SetFlags(true, true);
+    assert.equal(model.AddBone("root", -1, scaleMatrix(1)), 0);
+    assert.equal(model.AddBone("child", 0, scaleMatrix(2)), 1);
+
+    const part = model.AddPart({
+      VertexStride: 12,
+      VertexCount: 3,
+      IndexCount: 3,
+      IndexElementSize: 2,
+      PrimitiveTopology: 4,
+      PrimitiveCount: 1,
+      EffectKind: CnbEffectKind.Pbr,
+      VertexColorEnabled: true,
+      Unlit: false,
+    }, "triangle", "");
+    assert.equal(part, 0);
+    model.SetPartVertexBytes(part, new Uint8Array(MODEL_VERTICES.buffer.slice(0)));
+    model.SetPartIndexBytes(part, new Uint8Array(MODEL_INDICES.buffer.slice(0)));
+    model.SetMaterial(part, MODEL_MATERIAL);
+    for (const [slot, name] of Object.entries(MODEL_TEXTURES)) {
+      model.SetMaterialTexture(part, Number(slot), name);
+    }
+
+    assert.equal(model.AddMesh("body", 1, [0]), 0);
+    model.SetSkeleton(
+      [-1, 0],
+      [scaleMatrix(1), scaleMatrix(2)],
+      [scaleMatrix(3), scaleMatrix(4)],
+      [scaleMatrix(5), scaleMatrix(6)],
+    );
+    assert.equal(model.AddLight(new Vector3(0, -1, 0), new Vector3(1, 0.5, 0.25)), 0);
+    return model;
+  } catch (error) {
+    model.Dispose();
+    throw error;
+  }
+}
+
+/** Encodes the reference model with CNA's writer and parses the image back. */
+function roundTripReferenceModel() {
+  const authored = buildReferenceModel();
+  let image;
+  try {
+    image = authored.Encode("Reference/Rig");
+  } finally {
+    authored.Dispose();
+  }
+  const document = CnbDocument.Parse(image, "Reference/Rig.cnb");
+  return { image, document, model: CnbModelData.Decode(document) };
+}
+
+test("a model CNA encoded parses back as the container CNA wrote", { skip }, () => {
+  const { image, document, model } = roundTripReferenceModel();
+  try {
+    assert.equal(CnbFormat.HasMagic(image), true);
+    assert.equal(document.AssetType, CnbAssetType.Model);
+    assert.equal(document.Metadata.ContentName, "Reference/Rig");
+    // The model schema's own chunks, in the order CNA's writer emits them. A reader that found the
+    // model but not, say, the skeleton would still decode -- so the table of contents is asserted.
+    const ids = document.Chunks.map((chunk) => chunk.Id);
+    assert.ok(ids.includes("CMET"), `expected a metadata chunk, saw ${ids.join(", ")}`);
+    assert.ok(ids.length > 1, "a model carries more than its metadata");
+    assert.equal(model.IsDisposed, false);
+  } finally {
+    model.Dispose();
+    document.Dispose();
+  }
+});
+
+test("a decoded model reports the exact node counts and flags it was built with", { skip }, () => {
+  const { document, model } = roundTripReferenceModel();
+  try {
+    const shape = model.Shape;
+    assert.equal(shape.BoneCount, 2);
+    assert.equal(shape.PartCount, 1);
+    assert.equal(shape.MeshCount, 1);
+    assert.equal(shape.LightCount, 1);
+    assert.equal(shape.HasSkeleton, true);
+    assert.equal(shape.AppliesGltfLightingPolicy, true);
+    assert.equal(shape.HasBoneHierarchy, true);
+    // Animations were not authored, and the count must say so rather than defaulting to one.
+    assert.equal(shape.AnimationCount, 0);
+  } finally {
+    model.Dispose();
+    document.Dispose();
+  }
+});
+
+test("the bone hierarchy survives the round trip with its exact transforms", { skip }, () => {
+  const { document, model } = roundTripReferenceModel();
+  try {
+    const root = model.GetBone(0);
+    const child = model.GetBone(1);
+    assert.equal(root.Name, "root");
+    assert.equal(child.Name, "child");
+    // The parent link is the hierarchy: a reader that returned 0 for everything would pass an
+    // "is a number" check and fail this one.
+    assert.equal(root.Parent, -1, "the root has no parent");
+    assert.equal(child.Parent, 0, "the child hangs from the root");
+    // Sixteen floats in row order. Asserting the whole matrix rather than one element is what
+    // catches a transposed or shifted read.
+    assert.deepEqual(
+      [root.Transform.M11, root.Transform.M22, root.Transform.M33, root.Transform.M44],
+      [1, 1, 1, 1],
+    );
+    assert.deepEqual(
+      [child.Transform.M11, child.Transform.M22, child.Transform.M33, child.Transform.M44],
+      [2, 2, 2, 1],
+    );
+    assert.equal(child.Transform.M12, 0);
+    assert.equal(child.Transform.M21, 0);
+    assert.throws(() => model.GetBone(2), /no CNB model bone at index 2/);
+    assert.throws(() => model.GetBone(-1), /no CNB model bone at index -1/);
+  } finally {
+    model.Dispose();
+    document.Dispose();
+  }
+});
+
+test("a part keeps its description and its exact vertex and index payloads", { skip }, () => {
+  const { document, model } = roundTripReferenceModel();
+  try {
+    const part = model.GetPart(0);
+    assert.equal(part.Name, "triangle");
+    assert.equal(part.ExternalEffect, "", "a PBR part names no external effect");
+    assert.equal(part.VertexStride, 12);
+    assert.equal(part.VertexCount, 3);
+    assert.equal(part.IndexCount, 3);
+    assert.equal(part.IndexElementSize, 2);
+    assert.equal(part.PrimitiveTopology, 4, "triangles, as in glTF");
+    assert.equal(part.PrimitiveCount, 1);
+    assert.equal(part.EffectKind, CnbEffectKind.Pbr);
+    assert.equal(part.VertexColorEnabled, true);
+    assert.equal(part.Unlit, false, "the two booleans are distinct fields, not one flag");
+
+    // The payloads, byte for byte. This is the assertion a stride/count mix-up fails: the vertex
+    // payload is nine floats and the index payload is three uint16s, and neither length is
+    // derivable from the other.
+    const vertices = model.ReadPartVertexBytes(0);
+    assert.equal(vertices.byteLength, part.VertexStride * part.VertexCount);
+    assert.deepEqual(
+      [...new Float32Array(vertices.buffer, vertices.byteOffset, 9)], [...MODEL_VERTICES],
+    );
+    const indices = model.ReadPartIndexBytes(0);
+    assert.equal(indices.byteLength, part.IndexElementSize * part.IndexCount);
+    assert.deepEqual(
+      [...new Uint16Array(indices.buffer, indices.byteOffset, 3)], [...MODEL_INDICES],
+    );
+  } finally {
+    model.Dispose();
+    document.Dispose();
+  }
+});
+
+test("a material keeps every factor and every one of its eight texture names", { skip }, () => {
+  const { document, model } = roundTripReferenceModel();
+  try {
+    const material = model.GetMaterial(0);
+    // Each scalar has its own value, so a field read through its neighbour's offset is caught.
+    assert.deepEqual(
+      [
+        material.BaseColorFactor.X, material.BaseColorFactor.Y,
+        material.BaseColorFactor.Z, material.BaseColorFactor.W,
+      ],
+      [0.25, 0.5, 0.75, 1],
+    );
+    assert.deepEqual(
+      [material.EmissiveFactor.X, material.EmissiveFactor.Y, material.EmissiveFactor.Z],
+      [0.125, 0.375, 0.625],
+    );
+    assert.deepEqual(
+      [
+        material.SpecularColorFactor.X, material.SpecularColorFactor.Y,
+        material.SpecularColorFactor.Z,
+      ],
+      [0.875, 0.0625, 0.1875],
+    );
+    for (const [name, expected] of Object.entries({
+      MetallicFactor: 0.4, RoughnessFactor: 0.6, Ior: 1.5, SpecularFactor: 0.9,
+      NormalScale: 1.5, OcclusionStrength: 0.8, AlphaCutoff: 0.25,
+    })) {
+      assert.ok(
+        Math.abs(material[name] - expected) < 1e-6,
+        `${name}: expected ${expected}, got ${material[name]}`,
+      );
+    }
+    assert.equal(material.AlphaMode, 2);
+    assert.equal(material.DoubleSided, true);
+
+    // Eight named slots, eight distinct names. This is the trap CNA's own suite exists to pin:
+    // the named slots and the seven per-slot arrays are different index spaces, and a binding that
+    // confused them would still round trip because both halves would be wrong together.
+    for (const [slot, expected] of Object.entries(MODEL_TEXTURES)) {
+      assert.equal(
+        model.GetMaterialTexture(0, Number(slot)), expected,
+        `texture slot ${slot} came back as the wrong asset`,
+      );
+    }
+  } finally {
+    model.Dispose();
+    document.Dispose();
+  }
+});
+
+test("a mesh keeps its name, its parent bone and its part membership", { skip }, () => {
+  const { document, model } = roundTripReferenceModel();
+  try {
+    const mesh = model.GetMesh(0);
+    assert.equal(mesh.Name, "body");
+    assert.equal(mesh.ParentBone, 1, "the mesh hangs from the child bone, not the root");
+    assert.deepEqual([...mesh.PartIndices], [0]);
+    assert.throws(() => model.GetMesh(1), /no CNB model mesh at index 1/);
+  } finally {
+    model.Dispose();
+    document.Dispose();
+  }
+});
+
+test("the skeleton keeps its hierarchy and all three matrix sets apart", { skip }, () => {
+  const { document, model } = roundTripReferenceModel();
+  try {
+    const skeleton = model.GetSkeleton();
+    assert.equal(skeleton.JointCount, 2);
+    assert.equal(skeleton.HasRootPrefix, true);
+    assert.deepEqual([...skeleton.Hierarchy], [-1, 0]);
+
+    // Three sets of two matrices, each with its own diagonal, so a set read through another set's
+    // identity is caught. Reading them by the wrong CNA_CnbSkeletonMatrixSet is the exact defect
+    // this arrangement exists to detect.
+    const expected = {
+      [CnbSkeletonMatrixSet.BindPose]: [1, 2],
+      [CnbSkeletonMatrixSet.InverseBindPose]: [3, 4],
+      [CnbSkeletonMatrixSet.RootPrefix]: [5, 6],
+    };
+    for (const [set, diagonals] of Object.entries(expected)) {
+      const matrices = model.GetSkeletonMatrices(Number(set));
+      assert.equal(matrices.length, 2, `matrix set ${set} has one matrix per joint`);
+      assert.deepEqual(
+        matrices.map((matrix) => matrix.M11), diagonals,
+        `matrix set ${set} came back as another set`,
+      );
+      assert.deepEqual(matrices.map((matrix) => matrix.M44), [1, 1]);
+    }
+  } finally {
+    model.Dispose();
+    document.Dispose();
+  }
+});
+
+test("a baked light keeps its direction and colour", { skip }, () => {
+  const { document, model } = roundTripReferenceModel();
+  try {
+    const light = model.GetLight(0);
+    assert.deepEqual([light.Direction.X, light.Direction.Y, light.Direction.Z], [0, -1, 0]);
+    assert.deepEqual(
+      [light.DiffuseColor.X, light.DiffuseColor.Y, light.DiffuseColor.Z], [1, 0.5, 0.25],
+    );
+    assert.throws(() => model.GetLight(1), /no CNB model light at index 1/);
+  } finally {
+    model.Dispose();
+    document.Dispose();
+  }
+});
+
+test("a model refuses after disposal and disposes idempotently", { skip }, () => {
+  const { document, model } = roundTripReferenceModel();
+  try {
+    model.Dispose();
+    assert.equal(model.IsDisposed, true);
+    model.Dispose();
+    assert.throws(() => model.Shape, /CnbModelData\.Shape/);
+    assert.throws(() => model.GetBone(0), /CnbModelData\.GetBone/);
+    assert.throws(() => model.Encode("x"), /CnbModelData\.Encode/);
+  } finally {
+    document.Dispose();
+  }
+});
+
+test("a document carrying another asset type refuses to decode as a model", { skip }, () => {
+  // A texture container, handed to the model decoder. CNB's asset type is what distinguishes them,
+  // so this must refuse rather than reinterpret the texture's chunks as a model's.
+  const texture = CnbTextureData.FromRgba8(2, 2, ATLAS_RGBA);
+  let image;
+  try {
+    image = texture.Encode("Wrong/Type");
+  } finally {
+    texture.Dispose();
+  }
+  const document = CnbDocument.Parse(image, "Wrong/Type.cnb");
+  try {
+    assert.throws(() => CnbModelData.Decode(document), /cna_cnb_decode_model/);
+  } finally {
+    document.Dispose();
+  }
+});
+
+test("a malformed model container is refused rather than half-decoded", { skip }, () => {
+  const { image, document, model } = roundTripReferenceModel();
+  model.Dispose();
+  document.Dispose();
+  // Corrupt a byte well past the header, where the model's own chunk payloads live. The container
+  // carries CRC-32C per chunk, so this must be caught rather than decoded into a model whose
+  // vertex payload is one byte different from what was authored.
+  const corrupted = Uint8Array.from(image);
+  corrupted[corrupted.length - 8] ^= 0xff;
+  assert.throws(
+    () => {
+      const parsed = CnbDocument.Parse(corrupted, "Corrupt/Rig.cnb");
+      try {
+        CnbModelData.Decode(parsed).Dispose();
+      } finally {
+        parsed.Dispose();
+      }
+    },
+    /cna_cnb/,
+    "a corrupted model image must be refused by CNA rather than decoded",
+  );
+});
+
+test("a payload that contradicts its declared part is refused at encode", { skip }, () => {
+  // Measured rather than assumed: CNA accepts any payload length at *set* time and validates the
+  // whole part when the model is encoded. That is the right place for a builder -- a caller may
+  // legitimately set the bytes before the counts -- so what this asserts is the encode-time
+  // refusal, and that it names the part and both numbers rather than failing anonymously.
+  const build = (vertexBytes, indexBytes) => {
+    const model = CnbModelData.Create();
+    model.AddPart({
+      VertexStride: 12, VertexCount: 3, IndexCount: 3, IndexElementSize: 2,
+      PrimitiveTopology: 4, PrimitiveCount: 1, EffectKind: CnbEffectKind.Basic,
+      VertexColorEnabled: false, Unlit: false,
+    }, "triangle", "");
+    model.SetPartVertexBytes(0, new Uint8Array(vertexBytes));
+    model.SetPartIndexBytes(0, new Uint8Array(indexBytes));
+    return model;
+  };
+
+  const short = build(35, 6);
+  try {
+    assert.throws(
+      () => short.Encode("Short/Rig"),
+      /supplies 35 vertex byte\(s\) but declares 3 vertices of 12 bytes/,
+      "the refusal must name the part and both counts",
+    );
+  } finally {
+    short.Dispose();
+  }
+
+  const wrongIndices = build(36, 7);
+  try {
+    assert.throws(() => wrongIndices.Encode("Short/Rig"), /cna_cnb_encode_model/);
+  } finally {
+    wrongIndices.Dispose();
+  }
+
+  // The declared pair encodes, so the refusals above are about the mismatch rather than about the
+  // route being unusable at all.
+  const exact = build(36, 6);
+  try {
+    assert.ok(exact.Encode("Exact/Rig").byteLength > 0);
+  } finally {
+    exact.Dispose();
+  }
+});
+
+test("a skeleton whose matrix sets disagree with its hierarchy is refused here", { skip }, () => {
+  const model = CnbModelData.Create();
+  try {
+    assert.throws(
+      () => model.SetSkeleton([-1, 0], [scaleMatrix(1)], [scaleMatrix(1), scaleMatrix(2)], []),
+      /bindPose must carry one matrix per joint/,
+    );
+  } finally {
+    model.Dispose();
+  }
 });

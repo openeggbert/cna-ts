@@ -834,16 +834,16 @@
       ]
     },
     {
-      "operation": "CNB model, audio, media, curve and clip schemas, and the compilation front ends",
+      "operation": "CNB audio, media, curve and clip schemas, and the compilation front ends",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the container, the Texture2D schema and the SpriteFont schema are projected and verified above; the remaining cnb.h families -- the model graph, sound effects, songs, videos, curves, animation clips, the bounded byte cursor, the loader registry and the .cnj compile path -- are measured and unprojected",
+      "evidence": "the container, the Texture2D schema, the SpriteFont schema and the model graph are projected and verified above; the remaining cnb.h families -- sound effects, songs, videos, curves, animation clips, the model's morph targets and per-slot texture arrays, the bounded byte cursor, the loader registry and the .cnj compile path -- are measured and unprojected",
       "proof": [
-        "absentRoute:cna_cnb_decode_model",
         "absentRoute:cna_cnb_decode_sound_effect",
         "absentRoute:cna_cnb_compile_cnj",
         "absentRoute:cna_cnb_loader_registry_register",
-        "absentRoute:cna_cnb_document_open_chunk"
+        "absentRoute:cna_cnb_document_open_chunk",
+        "absentRoute:cna_cnb_model_get_morph"
       ]
     },
     {
@@ -1013,6 +1013,21 @@
         "route:cna_accelerometer_get_state",
         "route:cna_accelerometer_get_current_value",
         "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "CNB model: the bone hierarchy, parts and payloads, materials, meshes, skeleton and lights",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/content",
+      "evidence": "CNB's largest schema, read and written through CnbModelData. A reference model with every projected level occupied at once -- two bones in a hierarchy, a part with real vertex and index payloads, a material with distinguishable values in every field and all eight texture slots named differently, a mesh, a skeleton with three matrix sets, a light -- is built with the public API, encoded by CNA's own writer and decoded back. Every assertion is a value: the exact parent links and transforms, the exact payload bytes and lengths, each of the eight texture names through its own slot, the mesh's parent bone and part membership, and all three skeleton matrix sets kept apart by their own diagonals. Refusals are asserted too: another asset type, a corrupted image, a payload that contradicts its declared part (which CNA validates at encode rather than at set, measured rather than assumed), and use after disposal. Two planted bridge defects -- an ignored skeleton matrix-set identity and an ignored texture slot -- each fail exactly one test",
+      "proof": [
+        "route:cna_cnb_decode_model",
+        "route:cna_cnb_encode_model",
+        "route:cna_cnb_model_get_bone",
+        "route:cna_cnb_model_copy_part_vertex_bytes",
+        "route:cna_cnb_model_copy_material_texture",
+        "route:cna_cnb_model_copy_skeleton_matrices",
+        "test:test/cnb-content.integration.mjs"
       ]
     },
     {

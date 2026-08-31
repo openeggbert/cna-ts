@@ -37,8 +37,10 @@ import {
   ObjectDisposedException,
 } from "../../internal/exceptions.js";
 import type { IDisposable } from "../../Microsoft/Xna/Framework/Contracts.js";
+import { Matrix } from "../../Microsoft/Xna/Framework/Matrix.js";
 import { Rectangle } from "../../Microsoft/Xna/Framework/Rectangle.js";
 import { Vector3 } from "../../Microsoft/Xna/Framework/Vector3.js";
+import { Vector4 } from "../../Microsoft/Xna/Framework/Vector4.js";
 import type { GraphicsDevice } from "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
 import { SurfaceFormat } from "../../Microsoft/Xna/Framework/Graphics/DeviceEnums.js";
 import {
@@ -727,6 +729,559 @@ function adoptTextureData(handle: NativeHandle): CnbTextureData {
   const adopted = Object.create(CnbTextureData.prototype) as CnbTextureData;
   textureHandles.set(adopted, handle);
   return adopted;
+}
+
+
+/**
+ * Which stock effect a part is authored to draw with, or that it names one of its own.
+ *
+ * Wire values, proved against `cnb.h` by `npm run verify:cna-contract`. `External` is the one that
+ * changes how a consumer reads the part: the effect is named by
+ * {@link CnbModelPart.ExternalEffect} rather than chosen from this list.
+ */
+export enum CnbEffectKind {
+  Basic = 0,
+  Skinned = 1,
+  DualTexture = 2,
+  Pbr = 3,
+  SkinnedPbr = 4,
+  External = 5,
+}
+
+/**
+ * The eight texture roles a CNB material can name.
+ *
+ * There are **eight of these and seven per-slot array entries** in CNA's own layout, which is worth
+ * stating because the two are different index spaces and confusing them round-trips silently. This
+ * package projects only the named slots; the parallel per-slot arrays — coordinate sets, UV
+ * transforms and sampler states — are measured and unprojected.
+ */
+export enum CnbMaterialTextureSlot {
+  BaseColor = 0,
+  Second = 1,
+  Normal = 2,
+  MetallicRoughness = 3,
+  Emissive = 4,
+  Occlusion = 5,
+  Specular = 6,
+  SpecularColor = 7,
+}
+
+/** Which of a skeleton's three per-joint matrix sets to read. */
+export enum CnbSkeletonMatrixSet {
+  BindPose = 0,
+  InverseBindPose = 1,
+  RootPrefix = 2,
+}
+
+/** The sentinel CNB writes where a node has no parent or no index. */
+export const CnbNoIndex = 0xffffffff;
+
+/** One node of the model's transform hierarchy. */
+export interface CnbModelBone {
+  /** The bone's authored name. */
+  readonly Name: string;
+  /** The index of this bone's parent, or `-1` for a root. */
+  readonly Parent: number;
+  /** The bone's local transform. */
+  readonly Transform: Matrix;
+}
+
+/**
+ * One drawable part: a vertex payload, an index payload and the material state that draws them.
+ *
+ * `VertexStride` is the only thing CNB records about the vertex layout — there is **no vertex
+ * declaration in the format**. That is why this package does not manufacture an XNA
+ * `ModelMeshPart` from a CNB part: a `VertexBuffer` needs a `VertexDeclaration`, and inventing one
+ * from the stride and the effect kind would be a guess a consumer could not correct. What a
+ * consumer gets instead is the exact bytes and the exact stride, so a caller that knows its own
+ * authoring layout can build the buffers it wants.
+ */
+export interface CnbModelPart {
+  /** The part's authored name. */
+  readonly Name: string;
+  /** The effect asset this part names, for {@link CnbEffectKind.External}; otherwise empty. */
+  readonly ExternalEffect: string;
+  /** Bytes per vertex in {@link CnbModelData.ReadPartVertexBytes}. */
+  readonly VertexStride: number;
+  /** Number of vertices; `VertexStride * VertexCount` is the vertex payload's length. */
+  readonly VertexCount: number;
+  /** Number of indices. */
+  readonly IndexCount: number;
+  /** Bytes per index: two or four. Declared by the format rather than inferred from the count. */
+  readonly IndexElementSize: number;
+  /** Primitive topology as its numeric value; four is triangles, as in glTF. */
+  readonly PrimitiveTopology: number;
+  /** How many primitives the index payload describes, for that topology. */
+  readonly PrimitiveCount: number;
+  /** Which effect the part draws with. */
+  readonly EffectKind: CnbEffectKind;
+  /** Whether the effect samples the part's per-vertex colour. */
+  readonly VertexColorEnabled: boolean;
+  /** Whether the material is `KHR_materials_unlit`. */
+  readonly Unlit: boolean;
+}
+
+/**
+ * A part's material state.
+ *
+ * This is a glTF 2.0 metallic-roughness material with CNA's extensions, not an XNA
+ * `BasicEffect`'s. It stays out of `Microsoft.Xna.Framework` for that reason: XNA has no member
+ * for an index of refraction or an occlusion strength, and pretending otherwise would either lose
+ * the values or invent XNA API.
+ */
+export interface CnbMaterial {
+  readonly BaseColorFactor: Vector4;
+  readonly EmissiveFactor: Vector3;
+  readonly SpecularColorFactor: Vector3;
+  readonly MetallicFactor: number;
+  readonly RoughnessFactor: number;
+  /** Index of refraction, from `KHR_materials_ior`. */
+  readonly Ior: number;
+  readonly SpecularFactor: number;
+  readonly NormalScale: number;
+  readonly OcclusionStrength: number;
+  readonly AlphaCutoff: number;
+  /** glTF's alpha mode as its numeric value. */
+  readonly AlphaMode: number;
+  readonly DoubleSided: boolean;
+}
+
+/** One mesh: a name, the bone it hangs from, and which parts belong to it. */
+export interface CnbModelMesh {
+  readonly Name: string;
+  /** The bone this mesh is parented to, or `-1`. */
+  readonly ParentBone: number;
+  /** Indexes into the model's parts, in authored order. */
+  readonly PartIndices: readonly number[];
+}
+
+/** A skinning skeleton: a joint hierarchy and three matrices per joint. */
+export interface CnbSkeleton {
+  readonly JointCount: number;
+  /** Whether the root-prefix matrix set carries anything. */
+  readonly HasRootPrefix: boolean;
+  /** Each joint's parent, or `-1` for a root, in joint order. */
+  readonly Hierarchy: readonly number[];
+}
+
+/** One directional light the authoring tool baked into the model. */
+export interface CnbModelLight {
+  readonly Direction: Vector3;
+  readonly DiffuseColor: Vector3;
+}
+
+/** The model's top-level shape, read before any node is addressed. */
+export interface CnbModelShape {
+  readonly BoneCount: number;
+  readonly PartCount: number;
+  readonly MeshCount: number;
+  readonly AnimationCount: number;
+  readonly LightCount: number;
+  readonly HasSkeleton: boolean;
+  /** Whether the model's lighting follows glTF's policy rather than XNA's. */
+  readonly AppliesGltfLightingPolicy: boolean;
+  readonly HasBoneHierarchy: boolean;
+}
+
+const modelHandles = new WeakMap<CnbModelData, NativeHandle>();
+
+function modelHandle(model: CnbModelData, operation: string): NativeHandle {
+  const handle = modelHandles.get(model);
+  if (handle == null) throw new ObjectDisposedException(`CnbModelData.${operation}`);
+  return handle;
+}
+
+/** CNA writes a 4x4 transform as sixteen floats in row order; XNA's Matrix takes them the same way. */
+function matrixFrom(values: readonly number[], offset = 0): Matrix {
+  return new Matrix(
+    values[offset + 0], values[offset + 1], values[offset + 2], values[offset + 3],
+    values[offset + 4], values[offset + 5], values[offset + 6], values[offset + 7],
+    values[offset + 8], values[offset + 9], values[offset + 10], values[offset + 11],
+    values[offset + 12], values[offset + 13], values[offset + 14], values[offset + 15],
+  );
+}
+
+function matrixValues(matrix: Matrix): number[] {
+  return [
+    matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+    matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+    matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+    matrix.M41, matrix.M42, matrix.M43, matrix.M44,
+  ];
+}
+
+function requireIndex(index: number, count: number, what: string): number {
+  if (!Number.isInteger(index) || index < 0 || index >= count) {
+    throw new ArgumentException(`no CNB model ${what} at index ${index}`);
+  }
+  return index;
+}
+
+/**
+ * A `.cnb` model: the largest schema CNB carries, and the one whose shape is a decision.
+ *
+ * The canonical model is a graph of nested vectors. CNA's C ABI reaches it through one owned
+ * handle whose nodes are addressed by index, and this class keeps that shape rather than
+ * flattening it into a snapshot: a skinned character's vertex payloads are larger than the file
+ * they came from, and a consumer usually wants three bones and one part rather than all of it.
+ *
+ * So every accessor here is a **call**, not a property read off a cached graph, and everything it
+ * returns is an immutable copy that outlives the model. The model itself is an explicit
+ * `Dispose()`, like every other native owner in this package.
+ *
+ * ```ts
+ * using document = CnbDocument.Parse(bytes, "hero.cnb");
+ * using model = CnbModelData.Decode(document);
+ * for (let index = 0; index < model.Shape.BoneCount; index += 1) {
+ *   const bone = model.GetBone(index);
+ *   console.log(bone.Name, bone.Parent, bone.Transform.Translation);
+ * }
+ * ```
+ *
+ * ## What this deliberately does not do
+ *
+ * It does not produce an XNA {@link Model}. CNB records a part's `VertexStride` and nothing else
+ * about its vertex layout — there is no vertex declaration in the format — so a `ModelMeshPart`
+ * built from one would need an invented `VertexDeclaration`. `docs/content-pipeline-boundary.md`
+ * rejects exactly that trade: a shape without the behaviour behind it is worse than an honest
+ * absence. The bytes, the stride and the whole bone hierarchy are all here, so a consumer that
+ * knows its own authoring layout can build the buffers it wants.
+ */
+export class CnbModelData implements IDisposable {
+  private constructor(handle: NativeHandle) { modelHandles.set(this, handle); }
+
+  /** Decodes the model a document carries. */
+  public static Decode(document: CnbDocument): CnbModelData {
+    if (document == null) throw new ArgumentNullException("document");
+    return new CnbModelData(
+      content("CnbModelData.Decode").cnbDecodeModel(documentHandle(document, "Decode")),
+    );
+  }
+
+  /** An empty model, to be given bones, parts, meshes and the rest. */
+  public static Create(): CnbModelData {
+    return new CnbModelData(content("CnbModelData.Create").cnbModelCreate());
+  }
+
+  /**
+   * The model's top level: how many of each node it has, and the three whole-model flags.
+   *
+   * Read from CNA on every access rather than cached, because this class is the authoring shape as
+   * well as the reading one: adding a bone changes the answer, and a cached count would make a
+   * model under construction report the wrong size until it was released.
+   */
+  public get Shape(): CnbModelShape {
+    const info = content("CnbModelData.Shape").cnbModelGetInfo(modelHandle(this, "Shape"));
+    return Object.freeze({
+      BoneCount: info.BoneCount,
+      PartCount: info.PartCount,
+      MeshCount: info.MeshCount,
+      AnimationCount: info.AnimationCount,
+      LightCount: info.LightCount,
+      HasSkeleton: info.HasSkeleton,
+      AppliesGltfLightingPolicy: info.AppliesGltfLightingPolicy,
+      HasBoneHierarchy: info.HasBoneHierarchy,
+    });
+  }
+
+  /** Sets the two whole-model flags. Authoring only. */
+  public SetFlags(appliesGltfLightingPolicy: boolean, hasBoneHierarchy: boolean): void {
+    content("CnbModelData.SetFlags").cnbModelSetFlags(
+      modelHandle(this, "SetFlags"), Boolean(appliesGltfLightingPolicy), Boolean(hasBoneHierarchy),
+    );
+  }
+
+  /** Appends a bone and returns its index. `parent` is `-1` for a root. */
+  public AddBone(name: string, parent: number, transform: Matrix): number {
+    if (typeof name !== "string") throw new ArgumentException("name must be a string");
+    if (transform == null) throw new ArgumentNullException("transform");
+    return content("CnbModelData.AddBone").cnbModelAddBone(
+      modelHandle(this, "AddBone"), name, Math.trunc(parent) | 0, matrixValues(transform),
+    );
+  }
+
+  /** One bone, by index. */
+  public GetBone(index: number): CnbModelBone {
+    const handle = modelHandle(this, "GetBone");
+    requireIndex(index, this.Shape.BoneCount, "bone");
+    const backend = content("CnbModelData.GetBone");
+    const bone = backend.cnbModelGetBone(handle, index);
+    return Object.freeze({
+      Name: backend.cnbModelGetBoneName(handle, index),
+      Parent: bone.Parent,
+      Transform: matrixFrom(bone.Transform),
+    });
+  }
+
+  /** Appends a part and returns its index. */
+  public AddPart(
+    part: Omit<CnbModelPart, "Name" | "ExternalEffect">, name: string, externalEffect = "",
+  ): number {
+    if (part == null) throw new ArgumentNullException("part");
+    if (typeof name !== "string") throw new ArgumentException("name must be a string");
+    if (typeof externalEffect !== "string") {
+      throw new ArgumentException("externalEffect must be a string");
+    }
+    return content("CnbModelData.AddPart").cnbModelAddPart(
+      modelHandle(this, "AddPart"),
+      {
+        VertexStride: part.VertexStride,
+        VertexCount: part.VertexCount,
+        IndexCount: part.IndexCount,
+        IndexElementSize: part.IndexElementSize,
+        PrimitiveTopology: part.PrimitiveTopology,
+        PrimitiveCount: part.PrimitiveCount,
+        EffectKind: part.EffectKind,
+        VertexColorEnabled: Boolean(part.VertexColorEnabled),
+        Unlit: Boolean(part.Unlit),
+      },
+      name,
+      externalEffect,
+    );
+  }
+
+  /** One part's description, by index. */
+  public GetPart(index: number): CnbModelPart {
+    const handle = modelHandle(this, "GetPart");
+    requireIndex(index, this.Shape.PartCount, "part");
+    const backend = content("CnbModelData.GetPart");
+    const part = backend.cnbModelGetPart(handle, index);
+    return Object.freeze({
+      Name: backend.cnbModelGetPartName(handle, index),
+      ExternalEffect: backend.cnbModelGetPartExternalEffect(handle, index),
+      VertexStride: part.VertexStride,
+      VertexCount: part.VertexCount,
+      IndexCount: part.IndexCount,
+      IndexElementSize: part.IndexElementSize,
+      PrimitiveTopology: part.PrimitiveTopology,
+      PrimitiveCount: part.PrimitiveCount,
+      EffectKind: part.EffectKind as CnbEffectKind,
+      VertexColorEnabled: part.VertexColorEnabled,
+      Unlit: part.Unlit,
+    });
+  }
+
+  /** Sets a part's vertex payload. `VertexStride * VertexCount` bytes. */
+  public SetPartVertexBytes(index: number, bytes: Uint8Array): void {
+    if (bytes == null) throw new ArgumentNullException("bytes");
+    content("CnbModelData.SetPartVertexBytes")
+      .cnbModelSetPartVertexBytes(modelHandle(this, "SetPartVertexBytes"), index, bytes);
+  }
+
+  /** A copy of a part's vertex payload. A copy, so it outlives the model. */
+  public ReadPartVertexBytes(index: number): Uint8Array {
+    const handle = modelHandle(this, "ReadPartVertexBytes");
+    requireIndex(index, this.Shape.PartCount, "part");
+    return content("CnbModelData.ReadPartVertexBytes").cnbModelCopyPartVertexBytes(handle, index);
+  }
+
+  /** Sets a part's index payload. `IndexElementSize * IndexCount` bytes. */
+  public SetPartIndexBytes(index: number, bytes: Uint8Array): void {
+    if (bytes == null) throw new ArgumentNullException("bytes");
+    content("CnbModelData.SetPartIndexBytes")
+      .cnbModelSetPartIndexBytes(modelHandle(this, "SetPartIndexBytes"), index, bytes);
+  }
+
+  /** A copy of a part's index payload. */
+  public ReadPartIndexBytes(index: number): Uint8Array {
+    const handle = modelHandle(this, "ReadPartIndexBytes");
+    requireIndex(index, this.Shape.PartCount, "part");
+    return content("CnbModelData.ReadPartIndexBytes").cnbModelCopyPartIndexBytes(handle, index);
+  }
+
+  /** One part's material state. */
+  public GetMaterial(part: number): CnbMaterial {
+    const handle = modelHandle(this, "GetMaterial");
+    requireIndex(part, this.Shape.PartCount, "part");
+    const material = content("CnbModelData.GetMaterial").cnbModelGetMaterial(handle, part);
+    return Object.freeze({
+      BaseColorFactor: new Vector4(
+        material.BaseColorFactor[0], material.BaseColorFactor[1],
+        material.BaseColorFactor[2], material.BaseColorFactor[3],
+      ),
+      EmissiveFactor: new Vector3(
+        material.EmissiveFactor[0], material.EmissiveFactor[1], material.EmissiveFactor[2],
+      ),
+      SpecularColorFactor: new Vector3(
+        material.SpecularColorFactor[0], material.SpecularColorFactor[1],
+        material.SpecularColorFactor[2],
+      ),
+      MetallicFactor: material.MetallicFactor,
+      RoughnessFactor: material.RoughnessFactor,
+      Ior: material.Ior,
+      SpecularFactor: material.SpecularFactor,
+      NormalScale: material.NormalScale,
+      OcclusionStrength: material.OcclusionStrength,
+      AlphaCutoff: material.AlphaCutoff,
+      AlphaMode: material.AlphaMode,
+      DoubleSided: material.DoubleSided,
+    });
+  }
+
+  /** Replaces one part's material state. */
+  public SetMaterial(part: number, material: CnbMaterial): void {
+    if (material == null) throw new ArgumentNullException("material");
+    content("CnbModelData.SetMaterial").cnbModelSetMaterial(
+      modelHandle(this, "SetMaterial"), part, {
+        BaseColorFactor: [
+          material.BaseColorFactor.X, material.BaseColorFactor.Y,
+          material.BaseColorFactor.Z, material.BaseColorFactor.W,
+        ],
+        EmissiveFactor: [
+          material.EmissiveFactor.X, material.EmissiveFactor.Y, material.EmissiveFactor.Z,
+        ],
+        SpecularColorFactor: [
+          material.SpecularColorFactor.X, material.SpecularColorFactor.Y,
+          material.SpecularColorFactor.Z,
+        ],
+        MetallicFactor: material.MetallicFactor,
+        RoughnessFactor: material.RoughnessFactor,
+        Ior: material.Ior,
+        SpecularFactor: material.SpecularFactor,
+        NormalScale: material.NormalScale,
+        OcclusionStrength: material.OcclusionStrength,
+        AlphaCutoff: material.AlphaCutoff,
+        AlphaMode: material.AlphaMode,
+        DoubleSided: Boolean(material.DoubleSided),
+      },
+    );
+  }
+
+  /** The asset a material names for one texture role, or an empty string where it names none. */
+  public GetMaterialTexture(part: number, slot: CnbMaterialTextureSlot): string {
+    const handle = modelHandle(this, "GetMaterialTexture");
+    requireIndex(part, this.Shape.PartCount, "part");
+    return content("CnbModelData.GetMaterialTexture")
+      .cnbModelGetMaterialTexture(handle, part, slot);
+  }
+
+  /** Names the asset a material uses for one texture role. */
+  public SetMaterialTexture(
+    part: number, slot: CnbMaterialTextureSlot, assetName: string,
+  ): void {
+    if (typeof assetName !== "string") throw new ArgumentException("assetName must be a string");
+    content("CnbModelData.SetMaterialTexture")
+      .cnbModelSetMaterialTexture(modelHandle(this, "SetMaterialTexture"), part, slot, assetName);
+  }
+
+  /** Appends a mesh and returns its index. */
+  public AddMesh(name: string, parentBone: number, partIndices: readonly number[]): number {
+    if (typeof name !== "string") throw new ArgumentException("name must be a string");
+    if (partIndices == null) throw new ArgumentNullException("partIndices");
+    return content("CnbModelData.AddMesh").cnbModelAddMesh(
+      modelHandle(this, "AddMesh"), name, Math.trunc(parentBone) | 0,
+      partIndices.map((value) => Math.trunc(value) >>> 0),
+    );
+  }
+
+  /** One mesh, by index, with its part list. */
+  public GetMesh(index: number): CnbModelMesh {
+    const handle = modelHandle(this, "GetMesh");
+    requireIndex(index, this.Shape.MeshCount, "mesh");
+    const backend = content("CnbModelData.GetMesh");
+    const mesh = backend.cnbModelGetMesh(handle, index);
+    return Object.freeze({
+      Name: backend.cnbModelGetMeshName(handle, index),
+      ParentBone: mesh.ParentBone,
+      PartIndices: Object.freeze([...backend.cnbModelCopyMeshPartIndices(handle, index)]),
+    });
+  }
+
+  /**
+   * Installs the skinning skeleton: a parent per joint and three 4x4 matrices per joint, in the
+   * order CNA declares them.
+   */
+  public SetSkeleton(
+    hierarchy: readonly number[],
+    bindPose: readonly Matrix[],
+    inverseBindPose: readonly Matrix[],
+    rootPrefix: readonly Matrix[],
+  ): void {
+    for (const [name, value] of Object.entries({ hierarchy, bindPose, inverseBindPose, rootPrefix })) {
+      if (value == null) throw new ArgumentNullException(name);
+    }
+    const joints = hierarchy.length;
+    for (const [name, set] of Object.entries({ bindPose, inverseBindPose, rootPrefix })) {
+      if (set.length !== joints) {
+        throw new ArgumentException(`${name} must carry one matrix per joint`);
+      }
+    }
+    const flatten = (set: readonly Matrix[]): number[] => set.flatMap((value) => matrixValues(value));
+    content("CnbModelData.SetSkeleton").cnbModelSetSkeleton(
+      modelHandle(this, "SetSkeleton"),
+      hierarchy.map((value) => Math.trunc(value) | 0),
+      flatten(bindPose), flatten(inverseBindPose), flatten(rootPrefix),
+    );
+  }
+
+  /** The skeleton's joint count, root-prefix flag and parent hierarchy. */
+  public GetSkeleton(): CnbSkeleton {
+    const handle = modelHandle(this, "GetSkeleton");
+    const backend = content("CnbModelData.GetSkeleton");
+    const info = backend.cnbModelGetSkeleton(handle);
+    return Object.freeze({
+      JointCount: info.JointCount,
+      HasRootPrefix: info.HasRootPrefix,
+      Hierarchy: Object.freeze([...backend.cnbModelCopySkeletonHierarchy(handle)]),
+    });
+  }
+
+  /** One of the skeleton's three matrix sets, one {@link Matrix} per joint. */
+  public GetSkeletonMatrices(set: CnbSkeletonMatrixSet): readonly Matrix[] {
+    const values = content("CnbModelData.GetSkeletonMatrices")
+      .cnbModelCopySkeletonMatrices(modelHandle(this, "GetSkeletonMatrices"), set);
+    if (values.length % 16 !== 0) {
+      throw new ArgumentException("a CNB skeleton matrix set must be a whole number of matrices");
+    }
+    const matrices: Matrix[] = [];
+    for (let offset = 0; offset < values.length; offset += 16) matrices.push(matrixFrom(values, offset));
+    return Object.freeze(matrices);
+  }
+
+  /** Appends a baked directional light and returns its index. */
+  public AddLight(direction: Vector3, diffuseColor: Vector3): number {
+    if (direction == null) throw new ArgumentNullException("direction");
+    if (diffuseColor == null) throw new ArgumentNullException("diffuseColor");
+    return content("CnbModelData.AddLight").cnbModelAddLight(
+      modelHandle(this, "AddLight"),
+      [direction.X, direction.Y, direction.Z],
+      [diffuseColor.X, diffuseColor.Y, diffuseColor.Z],
+    );
+  }
+
+  /** One baked light, by index. */
+  public GetLight(index: number): CnbModelLight {
+    const handle = modelHandle(this, "GetLight");
+    requireIndex(index, this.Shape.LightCount, "light");
+    const light = content("CnbModelData.GetLight").cnbModelGetLight(handle, index);
+    return Object.freeze({
+      Direction: new Vector3(light.Direction[0], light.Direction[1], light.Direction[2]),
+      DiffuseColor: new Vector3(
+        light.DiffuseColor[0], light.DiffuseColor[1], light.DiffuseColor[2],
+      ),
+    });
+  }
+
+  /** Writes this model as a complete `.cnb` container image. */
+  public Encode(contentName: string): Uint8Array {
+    if (typeof contentName !== "string") {
+      throw new ArgumentException("contentName must be a string");
+    }
+    return content("CnbModelData.Encode")
+      .cnbEncodeModel(modelHandle(this, "Encode"), contentName);
+  }
+
+  /** Whether this model has been released. */
+  public get IsDisposed(): boolean { return !modelHandles.has(this); }
+
+  /** Releases the model. Idempotent, like every `Dispose` in this package. */
+  public Dispose(): void {
+    const handle = modelHandles.get(this);
+    if (handle == null) return;
+    modelHandles.delete(this);
+    content("CnbModelData.Dispose").cnbModelDestroy(handle);
+  }
 }
 
 /**

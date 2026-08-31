@@ -315,6 +315,50 @@ typedef CNA_Result (*CnbSpriteFontAddGlyphFn)(CNA_CnbSpriteFontDataHandle, const
 typedef CNA_Result (*CnbSpriteFontSetAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle);
 typedef CNA_Result (*CnbSpriteFontCopyAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle*);
 typedef CNA_Result (*CnbEncodeSpriteFontFn)(CNA_CnbSpriteFontDataHandle, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbModelCreateFn)(CNA_CnbModelDataHandle*);
+typedef CNA_Result (*CnbModelDestroyFn)(CNA_CnbModelDataHandle);
+typedef CNA_Result (*CnbModelSetFlagsFn)(CNA_CnbModelDataHandle, CNA_Bool, CNA_Bool);
+typedef CNA_Result (*CnbModelInfoFn)(CNA_CnbModelDataHandle, CNA_CnbModelInfo*);
+typedef CNA_Result (*CnbModelAddBoneFn)(
+  CNA_CnbModelDataHandle, CNA_StringView, int32_t, const float*, uint64_t*);
+typedef CNA_Result (*CnbModelGetBoneFn)(CNA_CnbModelDataHandle, uint64_t, CNA_CnbModelBone*);
+typedef CNA_Result (*CnbModelIndexSizeFn)(CNA_CnbModelDataHandle, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbModelIndexCopyTextFn)(
+  CNA_CnbModelDataHandle, uint64_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbModelIndexCopyBytesFn)(
+  CNA_CnbModelDataHandle, uint64_t, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbModelAddPartFn)(
+  CNA_CnbModelDataHandle, const CNA_CnbModelPartInfo*, CNA_StringView, CNA_StringView, uint64_t*);
+typedef CNA_Result (*CnbModelGetPartFn)(CNA_CnbModelDataHandle, uint64_t, CNA_CnbModelPartInfo*);
+typedef CNA_Result (*CnbModelSetPartBytesFn)(
+  CNA_CnbModelDataHandle, uint64_t, const uint8_t*, uint64_t);
+typedef CNA_Result (*CnbModelGetMaterialFn)(CNA_CnbModelDataHandle, uint64_t, CNA_CnbMaterialInfo*);
+typedef CNA_Result (*CnbModelSetMaterialFn)(
+  CNA_CnbModelDataHandle, uint64_t, const CNA_CnbMaterialInfo*);
+typedef CNA_Result (*CnbModelMaterialTextureSizeFn)(
+  CNA_CnbModelDataHandle, uint64_t, CNA_CnbMaterialTextureSlot, uint64_t*);
+typedef CNA_Result (*CnbModelMaterialTextureCopyFn)(
+  CNA_CnbModelDataHandle, uint64_t, CNA_CnbMaterialTextureSlot, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbModelSetMaterialTextureFn)(
+  CNA_CnbModelDataHandle, uint64_t, CNA_CnbMaterialTextureSlot, CNA_StringView);
+typedef CNA_Result (*CnbModelAddMeshFn)(
+  CNA_CnbModelDataHandle, CNA_StringView, int32_t, const uint32_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbModelGetMeshFn)(CNA_CnbModelDataHandle, uint64_t, CNA_CnbMeshInfo*);
+typedef CNA_Result (*CnbModelCopyMeshPartsFn)(
+  CNA_CnbModelDataHandle, uint64_t, uint32_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbModelSetSkeletonFn)(
+  CNA_CnbModelDataHandle, const int32_t*, uint64_t, const float*, const float*, const float*);
+typedef CNA_Result (*CnbModelGetSkeletonFn)(CNA_CnbModelDataHandle, CNA_CnbSkeletonInfo*);
+typedef CNA_Result (*CnbModelCopyHierarchyFn)(
+  CNA_CnbModelDataHandle, int32_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbModelCopySkeletonMatricesFn)(
+  CNA_CnbModelDataHandle, CNA_CnbSkeletonMatrixSet, float*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbModelAddLightFn)(
+  CNA_CnbModelDataHandle, const CNA_CnbModelLight*, uint64_t*);
+typedef CNA_Result (*CnbModelGetLightFn)(CNA_CnbModelDataHandle, uint64_t, CNA_CnbModelLight*);
+typedef CNA_Result (*CnbEncodeModelFn)(
+  CNA_CnbModelDataHandle, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbDecodeModelFn)(CNA_CnbDocumentHandle, CNA_CnbModelDataHandle*);
 typedef CNA_Result (*CnbTextureDataDestroyFn)(CNA_CnbTextureDataHandle);
 typedef CNA_Result (*CnbDocumentDestroyFn)(CNA_CnbDocumentHandle);
 
@@ -831,6 +875,42 @@ typedef struct Api {
   CnbSpriteFontSetAtlasFn cnb_sprite_font_data_set_atlas;
   CnbSpriteFontCopyAtlasFn cnb_sprite_font_data_copy_atlas;
   CnbEncodeSpriteFontFn cnb_encode_sprite_font;
+  CnbModelCreateFn cnb_model_create;
+  CnbModelDestroyFn cnb_model_destroy;
+  CnbModelSetFlagsFn cnb_model_set_flags;
+  CnbModelInfoFn cnb_model_get_info;
+  CnbModelAddBoneFn cnb_model_add_bone;
+  CnbModelGetBoneFn cnb_model_get_bone;
+  CnbModelIndexSizeFn cnb_model_get_bone_name_size;
+  CnbModelIndexCopyTextFn cnb_model_copy_bone_name;
+  CnbModelAddPartFn cnb_model_add_part;
+  CnbModelGetPartFn cnb_model_get_part;
+  CnbModelIndexSizeFn cnb_model_get_part_name_size;
+  CnbModelIndexCopyTextFn cnb_model_copy_part_name;
+  CnbModelIndexSizeFn cnb_model_get_part_external_effect_size;
+  CnbModelIndexCopyTextFn cnb_model_copy_part_external_effect;
+  CnbModelSetPartBytesFn cnb_model_set_part_vertex_bytes;
+  CnbModelIndexCopyBytesFn cnb_model_copy_part_vertex_bytes;
+  CnbModelSetPartBytesFn cnb_model_set_part_index_bytes;
+  CnbModelIndexCopyBytesFn cnb_model_copy_part_index_bytes;
+  CnbModelGetMaterialFn cnb_model_get_material;
+  CnbModelSetMaterialFn cnb_model_set_material;
+  CnbModelMaterialTextureSizeFn cnb_model_get_material_texture_size;
+  CnbModelMaterialTextureCopyFn cnb_model_copy_material_texture;
+  CnbModelSetMaterialTextureFn cnb_model_set_material_texture;
+  CnbModelAddMeshFn cnb_model_add_mesh;
+  CnbModelGetMeshFn cnb_model_get_mesh;
+  CnbModelIndexSizeFn cnb_model_get_mesh_name_size;
+  CnbModelIndexCopyTextFn cnb_model_copy_mesh_name;
+  CnbModelCopyMeshPartsFn cnb_model_copy_mesh_part_indices;
+  CnbModelSetSkeletonFn cnb_model_set_skeleton;
+  CnbModelGetSkeletonFn cnb_model_get_skeleton;
+  CnbModelCopyHierarchyFn cnb_model_copy_skeleton_hierarchy;
+  CnbModelCopySkeletonMatricesFn cnb_model_copy_skeleton_matrices;
+  CnbModelAddLightFn cnb_model_add_light;
+  CnbModelGetLightFn cnb_model_get_light;
+  CnbEncodeModelFn cnb_encode_model;
+  CnbDecodeModelFn cnb_decode_model;
 
   PostProcessContextInitFn post_process_context_init;
   PostProcessPassCreateFn blit_pass_create;
@@ -1740,6 +1820,42 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(cnb_sprite_font_data_set_atlas, CnbSpriteFontSetAtlasFn, "cna_cnb_sprite_font_data_set_atlas");
   LOAD_REQUIRED(cnb_sprite_font_data_copy_atlas, CnbSpriteFontCopyAtlasFn, "cna_cnb_sprite_font_data_copy_atlas");
   LOAD_REQUIRED(cnb_encode_sprite_font, CnbEncodeSpriteFontFn, "cna_cnb_encode_sprite_font");
+  LOAD_REQUIRED(cnb_model_create, CnbModelCreateFn, "cna_cnb_model_create");
+  LOAD_REQUIRED(cnb_model_destroy, CnbModelDestroyFn, "cna_cnb_model_destroy");
+  LOAD_REQUIRED(cnb_model_set_flags, CnbModelSetFlagsFn, "cna_cnb_model_set_flags");
+  LOAD_REQUIRED(cnb_model_get_info, CnbModelInfoFn, "cna_cnb_model_get_info");
+  LOAD_REQUIRED(cnb_model_add_bone, CnbModelAddBoneFn, "cna_cnb_model_add_bone");
+  LOAD_REQUIRED(cnb_model_get_bone, CnbModelGetBoneFn, "cna_cnb_model_get_bone");
+  LOAD_REQUIRED(cnb_model_get_bone_name_size, CnbModelIndexSizeFn, "cna_cnb_model_get_bone_name_size");
+  LOAD_REQUIRED(cnb_model_copy_bone_name, CnbModelIndexCopyTextFn, "cna_cnb_model_copy_bone_name");
+  LOAD_REQUIRED(cnb_model_add_part, CnbModelAddPartFn, "cna_cnb_model_add_part");
+  LOAD_REQUIRED(cnb_model_get_part, CnbModelGetPartFn, "cna_cnb_model_get_part");
+  LOAD_REQUIRED(cnb_model_get_part_name_size, CnbModelIndexSizeFn, "cna_cnb_model_get_part_name_size");
+  LOAD_REQUIRED(cnb_model_copy_part_name, CnbModelIndexCopyTextFn, "cna_cnb_model_copy_part_name");
+  LOAD_REQUIRED(cnb_model_get_part_external_effect_size, CnbModelIndexSizeFn, "cna_cnb_model_get_part_external_effect_size");
+  LOAD_REQUIRED(cnb_model_copy_part_external_effect, CnbModelIndexCopyTextFn, "cna_cnb_model_copy_part_external_effect");
+  LOAD_REQUIRED(cnb_model_set_part_vertex_bytes, CnbModelSetPartBytesFn, "cna_cnb_model_set_part_vertex_bytes");
+  LOAD_REQUIRED(cnb_model_copy_part_vertex_bytes, CnbModelIndexCopyBytesFn, "cna_cnb_model_copy_part_vertex_bytes");
+  LOAD_REQUIRED(cnb_model_set_part_index_bytes, CnbModelSetPartBytesFn, "cna_cnb_model_set_part_index_bytes");
+  LOAD_REQUIRED(cnb_model_copy_part_index_bytes, CnbModelIndexCopyBytesFn, "cna_cnb_model_copy_part_index_bytes");
+  LOAD_REQUIRED(cnb_model_get_material, CnbModelGetMaterialFn, "cna_cnb_model_get_material");
+  LOAD_REQUIRED(cnb_model_set_material, CnbModelSetMaterialFn, "cna_cnb_model_set_material");
+  LOAD_REQUIRED(cnb_model_get_material_texture_size, CnbModelMaterialTextureSizeFn, "cna_cnb_model_get_material_texture_size");
+  LOAD_REQUIRED(cnb_model_copy_material_texture, CnbModelMaterialTextureCopyFn, "cna_cnb_model_copy_material_texture");
+  LOAD_REQUIRED(cnb_model_set_material_texture, CnbModelSetMaterialTextureFn, "cna_cnb_model_set_material_texture");
+  LOAD_REQUIRED(cnb_model_add_mesh, CnbModelAddMeshFn, "cna_cnb_model_add_mesh");
+  LOAD_REQUIRED(cnb_model_get_mesh, CnbModelGetMeshFn, "cna_cnb_model_get_mesh");
+  LOAD_REQUIRED(cnb_model_get_mesh_name_size, CnbModelIndexSizeFn, "cna_cnb_model_get_mesh_name_size");
+  LOAD_REQUIRED(cnb_model_copy_mesh_name, CnbModelIndexCopyTextFn, "cna_cnb_model_copy_mesh_name");
+  LOAD_REQUIRED(cnb_model_copy_mesh_part_indices, CnbModelCopyMeshPartsFn, "cna_cnb_model_copy_mesh_part_indices");
+  LOAD_REQUIRED(cnb_model_set_skeleton, CnbModelSetSkeletonFn, "cna_cnb_model_set_skeleton");
+  LOAD_REQUIRED(cnb_model_get_skeleton, CnbModelGetSkeletonFn, "cna_cnb_model_get_skeleton");
+  LOAD_REQUIRED(cnb_model_copy_skeleton_hierarchy, CnbModelCopyHierarchyFn, "cna_cnb_model_copy_skeleton_hierarchy");
+  LOAD_REQUIRED(cnb_model_copy_skeleton_matrices, CnbModelCopySkeletonMatricesFn, "cna_cnb_model_copy_skeleton_matrices");
+  LOAD_REQUIRED(cnb_model_add_light, CnbModelAddLightFn, "cna_cnb_model_add_light");
+  LOAD_REQUIRED(cnb_model_get_light, CnbModelGetLightFn, "cna_cnb_model_get_light");
+  LOAD_REQUIRED(cnb_encode_model, CnbEncodeModelFn, "cna_cnb_encode_model");
+  LOAD_REQUIRED(cnb_decode_model, CnbDecodeModelFn, "cna_cnb_decode_model");
 
 
   LOAD_REQUIRED(post_process_context_init, PostProcessContextInitFn, "cna_post_process_context_init");
@@ -8309,6 +8425,919 @@ static napi_value cnb_encode_sprite_font(napi_env env, napi_callback_info info) 
   return output;
 }
 
+/* --- the CNB model schema --------------------------------------------------------------------- */
+/*
+ * `cnb.h`'s largest schema, and the only one whose C shape is a decision rather than a
+ * transcription: the canonical model is a graph of nested vectors, and this ABI reaches it through
+ * one owned handle whose nodes are addressed by index. The bridge keeps that shape rather than
+ * flattening it, because a flattened snapshot of a model with skinned meshes is larger than the
+ * file it came from.
+ *
+ * Two conventions run through everything below. Every string and every payload is fetched with the
+ * size/copy pair the ABI declares, sized from the first call rather than from a fixed buffer -- a
+ * bone name has no documented maximum. And every versioned structure is zeroed and stamped with
+ * `struct_size`/`struct_version` before the call, so a structure this bridge is too old to know
+ * about is refused by CNA rather than read past.
+ */
+
+/* One `(model, index) -> string` pair, sized then copied. Returns a JavaScript string. */
+static napi_value model_index_text(
+  napi_env env,
+  napi_callback_info info,
+  CnbModelIndexSizeFn size_fn,
+  CnbModelIndexCopyTextFn copy_fn,
+  const char* const operation
+) {
+  napi_value args[2], output;
+  CNA_Handle model = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB model and an index");
+  }
+  uint64_t required = 0;
+  CNA_Result result = size_fn(model, index, &required);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  if (required > SIZE_MAX - 1) return throw_message(env, "CNB model text exceeds the address space");
+  char* text = (char*) malloc((size_t) required + 1);
+  if (!text) return throw_message(env, "CNB model text allocation failed");
+  uint64_t produced = 0;
+  result = copy_fn(model, index, text, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(text);
+    return throw_result(env, operation, result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  if (napi_create_string_utf8(env, text, (size_t) produced, &output) != napi_ok) {
+    free(text);
+    return throw_napi(env, operation);
+  }
+  free(text);
+  return output;
+}
+
+/* One `(model, index) -> bytes` pair, sized then copied into a fresh Buffer. */
+static napi_value model_index_bytes(
+  napi_env env,
+  napi_callback_info info,
+  CnbModelIndexCopyBytesFn copy_fn,
+  const char* const operation
+) {
+  napi_value args[2];
+  CNA_Handle model = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB model and an index");
+  }
+  uint64_t required = 0;
+  CNA_Result result = copy_fn(model, index, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, operation, result);
+  }
+  if (required > SIZE_MAX) return throw_message(env, "CNB model payload exceeds the address space");
+  uint8_t* bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) return throw_message(env, "CNB model payload allocation failed");
+  uint64_t produced = 0;
+  result = copy_fn(model, index, bytes, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(bytes);
+    return throw_result(env, operation, result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) produced, operation);
+  free(bytes);
+  return output;
+}
+
+/* Reads a float array of an exact length out of a JavaScript array. */
+static int read_float_array(
+  napi_env env, napi_value value, float* out, uint32_t expected, const char* const what
+) {
+  bool is_array = false;
+  uint32_t length = 0;
+  if (napi_is_array(env, value, &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, value, &length) != napi_ok || length != expected) {
+    throw_message(env, what);
+    return 0;
+  }
+  for (uint32_t index = 0; index < expected; index += 1) {
+    napi_value element;
+    double number = 0;
+    if (napi_get_element(env, value, index, &element) != napi_ok ||
+        napi_get_value_double(env, element, &number) != napi_ok) {
+      throw_message(env, what);
+      return 0;
+    }
+    out[index] = (float) number;
+  }
+  return 1;
+}
+
+static napi_value cnb_model_create(napi_env env, napi_callback_info info) {
+  (void) info;
+  CNA_CnbModelDataHandle model = 0;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.cnb_model_create(&model);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_create", result);
+  return make_handle(env, model);
+}
+
+static napi_value cnb_model_destroy(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle model = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &model)) return NULL;
+  const CNA_Result result = g_api.cnb_model_destroy(model);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_destroy", result);
+  return undefined_result(env, "CNB model release");
+}
+
+static napi_value cnb_model_set_flags(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle model = 0;
+  bool lighting = false, hierarchy = false;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_bool(env, args[1], &lighting) != napi_ok ||
+      napi_get_value_bool(env, args[2], &hierarchy) != napi_ok) {
+    return throw_message(env, "expected a CNB model and two flags");
+  }
+  const CNA_Result result = g_api.cnb_model_set_flags(
+    model, lighting ? CNA_TRUE : CNA_FALSE, hierarchy ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_set_flags", result);
+  return undefined_result(env, "CNB model flags");
+}
+
+static napi_value cnb_model_get_info(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle model = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &model)) return NULL;
+  CNA_CnbModelInfo value;
+  memset(&value, 0, sizeof(value));
+  value.struct_size = (uint32_t) sizeof(value);
+  value.struct_version = CNA_CNB_MODEL_INFO_STRUCT_VERSION;
+  const CNA_Result result = g_api.cnb_model_get_info(model, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_get_info", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB model info");
+  if (!set_number(env, output, "BoneCount", (double) value.bone_count) ||
+      !set_number(env, output, "PartCount", (double) value.part_count) ||
+      !set_number(env, output, "MeshCount", (double) value.mesh_count) ||
+      !set_number(env, output, "AnimationCount", (double) value.animation_count) ||
+      !set_number(env, output, "LightCount", (double) value.light_count) ||
+      !set_bool(env, output, "HasSkeleton", value.has_skeleton != CNA_FALSE) ||
+      !set_bool(env, output, "AppliesGltfLightingPolicy",
+                value.applies_gltf_lighting_policy != CNA_FALSE) ||
+      !set_bool(env, output, "HasBoneHierarchy", value.has_bone_hierarchy != CNA_FALSE)) {
+    return throw_napi(env, "CNB model info");
+  }
+  return output;
+}
+
+static napi_value cnb_model_add_bone(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  CNA_Handle model = 0;
+  char* name = NULL;
+  size_t name_length = 0;
+  int32_t parent = 0;
+  float transform[16];
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &model) ||
+      !read_utf8(env, args[1], &name, &name_length)) return NULL;
+  if (napi_get_value_int32(env, args[2], &parent) != napi_ok ||
+      !read_float_array(env, args[3], transform, 16, "a CNB bone needs sixteen transform values")) {
+    free(name);
+    return NULL;
+  }
+  const CNA_StringView view = {name, name_length};
+  uint64_t index = 0;
+  const CNA_Result result = g_api.cnb_model_add_bone(model, view, parent, transform, &index);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_add_bone", result);
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) index, &output), "CNB bone index");
+  return output;
+}
+
+static napi_value cnb_model_get_bone(napi_env env, napi_callback_info info) {
+  napi_value args[2], output, matrix;
+  CNA_Handle model = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB model and a bone index");
+  }
+  CNA_CnbModelBone bone;
+  memset(&bone, 0, sizeof(bone));
+  bone.struct_size = (uint32_t) sizeof(bone);
+  bone.struct_version = CNA_CNB_MODEL_BONE_STRUCT_VERSION;
+  const CNA_Result result = g_api.cnb_model_get_bone(model, index, &bone);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_get_bone", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB bone");
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, 16, &matrix), "CNB bone transform");
+  for (uint32_t element = 0; element < 16; element += 1) {
+    napi_value number;
+    if (napi_create_double(env, (double) bone.transform[element], &number) != napi_ok ||
+        napi_set_element(env, matrix, element, number) != napi_ok) {
+      return throw_napi(env, "CNB bone transform");
+    }
+  }
+  if (!set_i32(env, output, "Parent", bone.parent) ||
+      napi_set_named_property(env, output, "Transform", matrix) != napi_ok) {
+    return throw_napi(env, "CNB bone");
+  }
+  return output;
+}
+
+static napi_value cnb_model_get_bone_name(napi_env env, napi_callback_info info) {
+  return model_index_text(
+    env, info, g_api.cnb_model_get_bone_name_size, g_api.cnb_model_copy_bone_name,
+    "cna_cnb_model_copy_bone_name");
+}
+
+static napi_value cnb_model_get_part_name(napi_env env, napi_callback_info info) {
+  return model_index_text(
+    env, info, g_api.cnb_model_get_part_name_size, g_api.cnb_model_copy_part_name,
+    "cna_cnb_model_copy_part_name");
+}
+
+static napi_value cnb_model_get_part_external_effect(napi_env env, napi_callback_info info) {
+  return model_index_text(
+    env, info, g_api.cnb_model_get_part_external_effect_size,
+    g_api.cnb_model_copy_part_external_effect, "cna_cnb_model_copy_part_external_effect");
+}
+
+static napi_value cnb_model_get_mesh_name(napi_env env, napi_callback_info info) {
+  return model_index_text(
+    env, info, g_api.cnb_model_get_mesh_name_size, g_api.cnb_model_copy_mesh_name,
+    "cna_cnb_model_copy_mesh_name");
+}
+
+static napi_value cnb_model_copy_part_vertex_bytes(napi_env env, napi_callback_info info) {
+  return model_index_bytes(
+    env, info, g_api.cnb_model_copy_part_vertex_bytes, "cna_cnb_model_copy_part_vertex_bytes");
+}
+
+static napi_value cnb_model_copy_part_index_bytes(napi_env env, napi_callback_info info) {
+  return model_index_bytes(
+    env, info, g_api.cnb_model_copy_part_index_bytes, "cna_cnb_model_copy_part_index_bytes");
+}
+
+static int read_part_info(napi_env env, napi_value value, CNA_CnbModelPartInfo* out) {
+  static const char* const names[] = {
+    "VertexStride", "VertexCount", "IndexCount", "IndexElementSize",
+    "PrimitiveTopology", "PrimitiveCount", "EffectKind",
+  };
+  uint32_t numbers[7] = {0, 0, 0, 0, 0, 0, 0};
+  memset(out, 0, sizeof(*out));
+  out->struct_size = (uint32_t) sizeof(*out);
+  out->struct_version = CNA_CNB_MODEL_PART_INFO_STRUCT_VERSION;
+  for (size_t index = 0; index < 7; index += 1) {
+    napi_value entry;
+    if (napi_get_named_property(env, value, names[index], &entry) != napi_ok ||
+        napi_get_value_uint32(env, entry, &numbers[index]) != napi_ok) {
+      throw_message(env, "a CNB model part needs its seven numeric fields");
+      return 0;
+    }
+  }
+  napi_value entry;
+  bool vertex_color = false, unlit = false;
+  if (napi_get_named_property(env, value, "VertexColorEnabled", &entry) != napi_ok ||
+      napi_get_value_bool(env, entry, &vertex_color) != napi_ok ||
+      napi_get_named_property(env, value, "Unlit", &entry) != napi_ok ||
+      napi_get_value_bool(env, entry, &unlit) != napi_ok) {
+    throw_message(env, "a CNB model part needs VertexColorEnabled and Unlit");
+    return 0;
+  }
+  out->vertex_stride = numbers[0];
+  out->vertex_count = numbers[1];
+  out->index_count = numbers[2];
+  out->index_element_size = numbers[3];
+  out->primitive_topology = numbers[4];
+  out->primitive_count = numbers[5];
+  out->effect_kind = numbers[6];
+  out->vertex_color_enabled = vertex_color ? CNA_TRUE : CNA_FALSE;
+  out->unlit = unlit ? CNA_TRUE : CNA_FALSE;
+  return 1;
+}
+
+static napi_value cnb_model_add_part(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  CNA_Handle model = 0;
+  CNA_CnbModelPartInfo part;
+  char* name = NULL;
+  char* effect = NULL;
+  size_t name_length = 0, effect_length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &model) || !read_part_info(env, args[1], &part) ||
+      !read_utf8(env, args[2], &name, &name_length)) return NULL;
+  if (!read_utf8(env, args[3], &effect, &effect_length)) {
+    free(name);
+    return NULL;
+  }
+  const CNA_StringView name_view = {name, name_length};
+  const CNA_StringView effect_view = {effect, effect_length};
+  uint64_t index = 0;
+  const CNA_Result result =
+    g_api.cnb_model_add_part(model, &part, name_view, effect_view, &index);
+  free(name);
+  free(effect);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_add_part", result);
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) index, &output), "CNB part index");
+  return output;
+}
+
+static napi_value cnb_model_get_part(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle model = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB model and a part index");
+  }
+  CNA_CnbModelPartInfo part;
+  memset(&part, 0, sizeof(part));
+  part.struct_size = (uint32_t) sizeof(part);
+  part.struct_version = CNA_CNB_MODEL_PART_INFO_STRUCT_VERSION;
+  const CNA_Result result = g_api.cnb_model_get_part(model, index, &part);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_get_part", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB model part");
+  if (!set_u32(env, output, "VertexStride", part.vertex_stride) ||
+      !set_u32(env, output, "VertexCount", part.vertex_count) ||
+      !set_u32(env, output, "IndexCount", part.index_count) ||
+      !set_u32(env, output, "IndexElementSize", part.index_element_size) ||
+      !set_u32(env, output, "PrimitiveTopology", part.primitive_topology) ||
+      !set_u32(env, output, "PrimitiveCount", part.primitive_count) ||
+      !set_u32(env, output, "EffectKind", part.effect_kind) ||
+      !set_bool(env, output, "VertexColorEnabled", part.vertex_color_enabled != CNA_FALSE) ||
+      !set_bool(env, output, "Unlit", part.unlit != CNA_FALSE)) {
+    return throw_napi(env, "CNB model part");
+  }
+  return output;
+}
+
+static napi_value model_set_part_bytes(
+  napi_env env, napi_callback_info info, CnbModelSetPartBytesFn function, const char* operation
+) {
+  napi_value args[3];
+  CNA_Handle model = 0;
+  uint32_t index = 0;
+  const uint8_t* bytes = NULL;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB model, an index and bytes");
+  }
+  if (!read_byte_view(env, args[2], &bytes, &length)) return NULL;
+  const CNA_Result result = function(model, index, bytes, (uint64_t) length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return undefined_result(env, operation);
+}
+
+static napi_value cnb_model_set_part_vertex_bytes(napi_env env, napi_callback_info info) {
+  return model_set_part_bytes(
+    env, info, g_api.cnb_model_set_part_vertex_bytes, "cna_cnb_model_set_part_vertex_bytes");
+}
+
+static napi_value cnb_model_set_part_index_bytes(napi_env env, napi_callback_info info) {
+  return model_set_part_bytes(
+    env, info, g_api.cnb_model_set_part_index_bytes, "cna_cnb_model_set_part_index_bytes");
+}
+
+/*
+ * The material's numeric state. Sixteen scalars and three small vectors: they are named
+ * individually rather than shipped as one array because a caller that transposes two of them would
+ * otherwise still round trip.
+ */
+static int read_material_info(napi_env env, napi_value value, CNA_CnbMaterialInfo* out) {
+  memset(out, 0, sizeof(*out));
+  out->struct_size = (uint32_t) sizeof(*out);
+  out->struct_version = CNA_CNB_MATERIAL_INFO_STRUCT_VERSION;
+  napi_value entry;
+  if (napi_get_named_property(env, value, "BaseColorFactor", &entry) != napi_ok ||
+      !read_float_array(env, entry, out->base_color_factor, 4, "BaseColorFactor needs four values") ||
+      napi_get_named_property(env, value, "EmissiveFactor", &entry) != napi_ok ||
+      !read_float_array(env, entry, out->emissive_factor, 3, "EmissiveFactor needs three values") ||
+      napi_get_named_property(env, value, "SpecularColorFactor", &entry) != napi_ok ||
+      !read_float_array(
+        env, entry, out->specular_color_factor, 3, "SpecularColorFactor needs three values")) {
+    return 0;
+  }
+  static const char* const names[] = {
+    "MetallicFactor", "RoughnessFactor", "Ior", "SpecularFactor",
+    "NormalScale", "OcclusionStrength", "AlphaCutoff",
+  };
+  float* const targets[] = {
+    &out->metallic_factor, &out->roughness_factor, &out->ior, &out->specular_factor,
+    &out->normal_scale, &out->occlusion_strength, &out->alpha_cutoff,
+  };
+  for (size_t index = 0; index < 7; index += 1) {
+    double number = 0;
+    if (napi_get_named_property(env, value, names[index], &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &number) != napi_ok) {
+      throw_message(env, "a CNB material needs its seven scalar factors");
+      return 0;
+    }
+    *targets[index] = (float) number;
+  }
+  uint32_t alpha_mode = 0;
+  bool double_sided = false;
+  if (napi_get_named_property(env, value, "AlphaMode", &entry) != napi_ok ||
+      napi_get_value_uint32(env, entry, &alpha_mode) != napi_ok ||
+      napi_get_named_property(env, value, "DoubleSided", &entry) != napi_ok ||
+      napi_get_value_bool(env, entry, &double_sided) != napi_ok) {
+    throw_message(env, "a CNB material needs AlphaMode and DoubleSided");
+    return 0;
+  }
+  out->alpha_mode = alpha_mode;
+  out->double_sided = double_sided ? CNA_TRUE : CNA_FALSE;
+  return 1;
+}
+
+static int set_float_array(
+  napi_env env, napi_value object, const char* name, const float* values, uint32_t count
+) {
+  napi_value array;
+  if (napi_create_array_with_length(env, count, &array) != napi_ok) return 0;
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value number;
+    if (napi_create_double(env, (double) values[index], &number) != napi_ok ||
+        napi_set_element(env, array, index, number) != napi_ok) {
+      return 0;
+    }
+  }
+  return napi_set_named_property(env, object, name, array) == napi_ok;
+}
+
+static napi_value cnb_model_get_material(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle model = 0;
+  uint32_t part = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &part) != napi_ok) {
+    return throw_message(env, "expected a CNB model and a part index");
+  }
+  CNA_CnbMaterialInfo material;
+  memset(&material, 0, sizeof(material));
+  material.struct_size = (uint32_t) sizeof(material);
+  material.struct_version = CNA_CNB_MATERIAL_INFO_STRUCT_VERSION;
+  const CNA_Result result = g_api.cnb_model_get_material(model, part, &material);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_get_material", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB material");
+  if (!set_float_array(env, output, "BaseColorFactor", material.base_color_factor, 4) ||
+      !set_float_array(env, output, "EmissiveFactor", material.emissive_factor, 3) ||
+      !set_float_array(env, output, "SpecularColorFactor", material.specular_color_factor, 3) ||
+      !set_number(env, output, "MetallicFactor", (double) material.metallic_factor) ||
+      !set_number(env, output, "RoughnessFactor", (double) material.roughness_factor) ||
+      !set_number(env, output, "Ior", (double) material.ior) ||
+      !set_number(env, output, "SpecularFactor", (double) material.specular_factor) ||
+      !set_number(env, output, "NormalScale", (double) material.normal_scale) ||
+      !set_number(env, output, "OcclusionStrength", (double) material.occlusion_strength) ||
+      !set_number(env, output, "AlphaCutoff", (double) material.alpha_cutoff) ||
+      !set_u32(env, output, "AlphaMode", material.alpha_mode) ||
+      !set_bool(env, output, "DoubleSided", material.double_sided != CNA_FALSE)) {
+    return throw_napi(env, "CNB material");
+  }
+  return output;
+}
+
+static napi_value cnb_model_set_material(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle model = 0;
+  uint32_t part = 0;
+  CNA_CnbMaterialInfo material;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &part) != napi_ok) {
+    return throw_message(env, "expected a CNB model, a part index and a material");
+  }
+  if (!read_material_info(env, args[2], &material)) return NULL;
+  const CNA_Result result = g_api.cnb_model_set_material(model, part, &material);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_set_material", result);
+  return undefined_result(env, "CNB material assignment");
+}
+
+static napi_value cnb_model_get_material_texture(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  CNA_Handle model = 0;
+  uint32_t part = 0, slot = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &part) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &slot) != napi_ok) {
+    return throw_message(env, "expected a CNB model, a part index and a texture slot");
+  }
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_model_get_material_texture_size(model, part, slot, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_model_get_material_texture_size", result);
+  }
+  if (required > SIZE_MAX - 1) return throw_message(env, "CNB texture name exceeds the address space");
+  char* text = (char*) malloc((size_t) required + 1);
+  if (!text) return throw_message(env, "CNB texture name allocation failed");
+  uint64_t produced = 0;
+  result = g_api.cnb_model_copy_material_texture(model, part, slot, text, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(text);
+    return throw_result(
+      env, "cna_cnb_model_copy_material_texture",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  if (napi_create_string_utf8(env, text, (size_t) produced, &output) != napi_ok) {
+    free(text);
+    return throw_napi(env, "CNB texture name");
+  }
+  free(text);
+  return output;
+}
+
+static napi_value cnb_model_set_material_texture(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle model = 0;
+  uint32_t part = 0, slot = 0;
+  char* name = NULL;
+  size_t name_length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &part) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &slot) != napi_ok) {
+    return throw_message(env, "expected a CNB model, a part index, a slot and a name");
+  }
+  if (!read_utf8(env, args[3], &name, &name_length)) return NULL;
+  const CNA_StringView view = {name, name_length};
+  const CNA_Result result = g_api.cnb_model_set_material_texture(model, part, slot, view);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_model_set_material_texture", result);
+  }
+  return undefined_result(env, "CNB material texture");
+}
+
+static napi_value cnb_model_add_mesh(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  CNA_Handle model = 0;
+  char* name = NULL;
+  size_t name_length = 0;
+  int32_t parent_bone = 0;
+  uint32_t part_count = 0;
+  bool is_array = false;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &model) ||
+      !read_utf8(env, args[1], &name, &name_length)) return NULL;
+  if (napi_get_value_int32(env, args[2], &parent_bone) != napi_ok ||
+      napi_is_array(env, args[3], &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, args[3], &part_count) != napi_ok) {
+    free(name);
+    return throw_message(env, "expected a parent bone and an array of part indexes");
+  }
+  uint32_t* parts = part_count == 0 ? NULL : (uint32_t*) malloc(part_count * sizeof(uint32_t));
+  if (part_count != 0 && !parts) {
+    free(name);
+    return throw_message(env, "CNB mesh part allocation failed");
+  }
+  for (uint32_t index = 0; index < part_count; index += 1) {
+    napi_value element;
+    if (napi_get_element(env, args[3], index, &element) != napi_ok ||
+        napi_get_value_uint32(env, element, &parts[index]) != napi_ok) {
+      free(parts);
+      free(name);
+      return throw_message(env, "a CNB mesh part index must be an unsigned integer");
+    }
+  }
+  const CNA_StringView view = {name, name_length};
+  uint64_t index = 0;
+  const CNA_Result result =
+    g_api.cnb_model_add_mesh(model, view, parent_bone, parts, part_count, &index);
+  free(parts);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_add_mesh", result);
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) index, &output), "CNB mesh index");
+  return output;
+}
+
+static napi_value cnb_model_get_mesh(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle model = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB model and a mesh index");
+  }
+  CNA_CnbMeshInfo mesh;
+  memset(&mesh, 0, sizeof(mesh));
+  mesh.struct_size = (uint32_t) sizeof(mesh);
+  mesh.struct_version = CNA_CNB_MESH_INFO_STRUCT_VERSION;
+  const CNA_Result result = g_api.cnb_model_get_mesh(model, index, &mesh);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_get_mesh", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB mesh");
+  if (!set_i32(env, output, "ParentBone", mesh.parent_bone) ||
+      !set_number(env, output, "PartIndexCount", (double) mesh.part_index_count)) {
+    return throw_napi(env, "CNB mesh");
+  }
+  return output;
+}
+
+static napi_value cnb_model_copy_mesh_part_indices(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle model = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB model and a mesh index");
+  }
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_model_copy_mesh_part_indices(model, index, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_cnb_model_copy_mesh_part_indices", result);
+  }
+  if (required > SIZE_MAX / sizeof(uint32_t)) {
+    return throw_message(env, "CNB mesh part list exceeds the address space");
+  }
+  uint32_t* parts = required == 0 ? NULL : (uint32_t*) malloc((size_t) required * sizeof(uint32_t));
+  if (required != 0 && !parts) return throw_message(env, "CNB mesh part allocation failed");
+  uint64_t produced = 0;
+  result = g_api.cnb_model_copy_mesh_part_indices(model, index, parts, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(parts);
+    return throw_result(
+      env, "cna_cnb_model_copy_mesh_part_indices",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  if (napi_create_array_with_length(env, (size_t) produced, &output) != napi_ok) {
+    free(parts);
+    return throw_napi(env, "CNB mesh part list");
+  }
+  for (uint64_t element = 0; element < produced; element += 1) {
+    napi_value number;
+    if (napi_create_uint32(env, parts[element], &number) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) element, number) != napi_ok) {
+      free(parts);
+      return throw_napi(env, "CNB mesh part list");
+    }
+  }
+  free(parts);
+  return output;
+}
+
+static napi_value cnb_model_set_skeleton(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle model = 0;
+  uint32_t joint_count = 0;
+  bool is_array = false;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_is_array(env, args[1], &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, args[1], &joint_count) != napi_ok) {
+    return throw_message(env, "expected a CNB model and a joint hierarchy");
+  }
+  /*
+   * One joint costs three 4x4 matrices. The cap is a bound on the arithmetic below rather than a
+   * CNA limit: without it a 32-bit host could wrap the allocation size, and a caller asking for
+   * more than a million joints has a defect rather than a model.
+   */
+  if (joint_count == 0 || joint_count > UINT32_C(1048576)) {
+    return throw_message(env, "a CNB skeleton needs between one and 1048576 joints");
+  }
+  int32_t* hierarchy = (int32_t*) malloc(joint_count * sizeof(int32_t));
+  float* matrices = (float*) malloc((size_t) joint_count * 3 * 16 * sizeof(float));
+  if (!hierarchy || !matrices) {
+    free(hierarchy);
+    free(matrices);
+    return throw_message(env, "CNB skeleton allocation failed");
+  }
+  int ok = 1;
+  for (uint32_t index = 0; index < joint_count && ok; index += 1) {
+    napi_value element;
+    if (napi_get_element(env, args[1], index, &element) != napi_ok ||
+        napi_get_value_int32(env, element, &hierarchy[index]) != napi_ok) {
+      throw_message(env, "a CNB skeleton parent index must be a signed integer");
+      ok = 0;
+    }
+  }
+  /* Three matrix sets of sixteen floats per joint, in the order set_skeleton declares them. */
+  for (uint32_t set = 0; set < 3 && ok; set += 1) {
+    uint32_t length = 0;
+    if (napi_is_array(env, args[2 + set], &is_array) != napi_ok || !is_array ||
+        napi_get_array_length(env, args[2 + set], &length) != napi_ok ||
+        length != joint_count * 16) {
+      throw_message(env, "each CNB skeleton matrix set needs sixteen floats per joint");
+      ok = 0;
+      break;
+    }
+    if (!read_float_array(
+          env, args[2 + set], matrices + ((size_t) set * joint_count * 16), length,
+          "each CNB skeleton matrix set needs sixteen floats per joint")) {
+      ok = 0;
+    }
+  }
+  if (!ok) {
+    free(hierarchy);
+    free(matrices);
+    return NULL;
+  }
+  const CNA_Result result = g_api.cnb_model_set_skeleton(
+    model, hierarchy, joint_count,
+    matrices, matrices + ((size_t) joint_count * 16), matrices + ((size_t) joint_count * 32));
+  free(hierarchy);
+  free(matrices);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_set_skeleton", result);
+  return undefined_result(env, "CNB skeleton assignment");
+}
+
+static napi_value cnb_model_get_skeleton(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle model = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &model)) return NULL;
+  CNA_CnbSkeletonInfo skeleton;
+  memset(&skeleton, 0, sizeof(skeleton));
+  skeleton.struct_size = (uint32_t) sizeof(skeleton);
+  skeleton.struct_version = CNA_CNB_SKELETON_INFO_STRUCT_VERSION;
+  const CNA_Result result = g_api.cnb_model_get_skeleton(model, &skeleton);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_get_skeleton", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB skeleton");
+  if (!set_number(env, output, "JointCount", (double) skeleton.joint_count) ||
+      !set_bool(env, output, "HasRootPrefix", skeleton.has_root_prefix != CNA_FALSE)) {
+    return throw_napi(env, "CNB skeleton");
+  }
+  return output;
+}
+
+static napi_value cnb_model_copy_skeleton_hierarchy(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle model = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &model)) return NULL;
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_model_copy_skeleton_hierarchy(model, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_cnb_model_copy_skeleton_hierarchy", result);
+  }
+  if (required > SIZE_MAX / sizeof(int32_t)) {
+    return throw_message(env, "CNB skeleton hierarchy exceeds the address space");
+  }
+  int32_t* parents = required == 0 ? NULL : (int32_t*) malloc((size_t) required * sizeof(int32_t));
+  if (required != 0 && !parents) return throw_message(env, "CNB skeleton allocation failed");
+  uint64_t produced = 0;
+  result = g_api.cnb_model_copy_skeleton_hierarchy(model, parents, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(parents);
+    return throw_result(
+      env, "cna_cnb_model_copy_skeleton_hierarchy",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  if (napi_create_array_with_length(env, (size_t) produced, &output) != napi_ok) {
+    free(parents);
+    return throw_napi(env, "CNB skeleton hierarchy");
+  }
+  for (uint64_t index = 0; index < produced; index += 1) {
+    napi_value number;
+    if (napi_create_int32(env, parents[index], &number) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, number) != napi_ok) {
+      free(parents);
+      return throw_napi(env, "CNB skeleton hierarchy");
+    }
+  }
+  free(parents);
+  return output;
+}
+
+static napi_value cnb_model_copy_skeleton_matrices(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle model = 0;
+  uint32_t set = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &set) != napi_ok) {
+    return throw_message(env, "expected a CNB model and a matrix-set identity");
+  }
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_model_copy_skeleton_matrices(model, set, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_cnb_model_copy_skeleton_matrices", result);
+  }
+  if (required > SIZE_MAX / sizeof(float)) {
+    return throw_message(env, "CNB skeleton matrices exceed the address space");
+  }
+  float* values = required == 0 ? NULL : (float*) malloc((size_t) required * sizeof(float));
+  if (required != 0 && !values) return throw_message(env, "CNB skeleton allocation failed");
+  uint64_t produced = 0;
+  result = g_api.cnb_model_copy_skeleton_matrices(model, set, values, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(values);
+    return throw_result(
+      env, "cna_cnb_model_copy_skeleton_matrices",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  if (napi_create_array_with_length(env, (size_t) produced, &output) != napi_ok) {
+    free(values);
+    return throw_napi(env, "CNB skeleton matrices");
+  }
+  for (uint64_t index = 0; index < produced; index += 1) {
+    napi_value number;
+    if (napi_create_double(env, (double) values[index], &number) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, number) != napi_ok) {
+      free(values);
+      return throw_napi(env, "CNB skeleton matrices");
+    }
+  }
+  free(values);
+  return output;
+}
+
+static napi_value cnb_model_add_light(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  CNA_Handle model = 0;
+  CNA_CnbModelLight light;
+  memset(&light, 0, sizeof(light));
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &model) ||
+      !read_float_array(env, args[1], light.direction, 3, "a CNB light needs a three-component direction") ||
+      !read_float_array(env, args[2], light.diffuse_color, 3, "a CNB light needs a three-component colour")) {
+    return NULL;
+  }
+  uint64_t index = 0;
+  const CNA_Result result = g_api.cnb_model_add_light(model, &light, &index);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_add_light", result);
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) index, &output), "CNB light index");
+  return output;
+}
+
+static napi_value cnb_model_get_light(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle model = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &model) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a CNB model and a light index");
+  }
+  CNA_CnbModelLight light;
+  memset(&light, 0, sizeof(light));
+  const CNA_Result result = g_api.cnb_model_get_light(model, index, &light);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_model_get_light", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB light");
+  if (!set_float_array(env, output, "Direction", light.direction, 3) ||
+      !set_float_array(env, output, "DiffuseColor", light.diffuse_color, 3)) {
+    return throw_napi(env, "CNB light");
+  }
+  return output;
+}
+
+static napi_value cnb_encode_model(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle model = 0;
+  char* name = NULL;
+  size_t name_length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &model) ||
+      !read_utf8(env, args[1], &name, &name_length)) return NULL;
+  const CNA_StringView view = {name, name_length};
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_encode_model(model, view, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    free(name);
+    return throw_result(env, "cna_cnb_encode_model", result);
+  }
+  if (required > SIZE_MAX) {
+    free(name);
+    return throw_message(env, "CNB image exceeds the Node address space");
+  }
+  uint8_t* bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+  if (required != 0 && !bytes) {
+    free(name);
+    return throw_message(env, "CNB image allocation failed");
+  }
+  uint64_t written = 0;
+  result = g_api.cnb_encode_model(model, view, bytes, required, &written);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS || written != required) {
+    free(bytes);
+    return throw_result(
+      env, "cna_cnb_encode_model", result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  napi_value output = copy_bytes(env, bytes, (size_t) written, "CNB image copy");
+  free(bytes);
+  return output;
+}
+
+static napi_value cnb_decode_model(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle document = 0;
+  CNA_CnbModelDataHandle model = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &document)) return NULL;
+  const CNA_Result result = g_api.cnb_decode_model(document, &model);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_decode_model", result);
+  return make_handle(env, model);
+}
+
 /* --- the engine layer's post-process chain --------------------------------------------------- */
 /*
  * A chain and its passes. Two ownership rules from `engine_layer.h` are what shape this: a pass
@@ -9746,6 +10775,37 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "cnbSpriteFontDataSetAtlas", NULL, cnb_sprite_font_data_set_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbSpriteFontDataCopyAtlas", NULL, cnb_sprite_font_data_copy_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbEncodeSpriteFont", NULL, cnb_encode_sprite_font, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelCreate", NULL, cnb_model_create, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelDestroy", NULL, cnb_model_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelSetFlags", NULL, cnb_model_set_flags, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetInfo", NULL, cnb_model_get_info, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelAddBone", NULL, cnb_model_add_bone, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetBone", NULL, cnb_model_get_bone, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetBoneName", NULL, cnb_model_get_bone_name, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelAddPart", NULL, cnb_model_add_part, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetPart", NULL, cnb_model_get_part, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetPartName", NULL, cnb_model_get_part_name, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetPartExternalEffect", NULL, cnb_model_get_part_external_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelSetPartVertexBytes", NULL, cnb_model_set_part_vertex_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelCopyPartVertexBytes", NULL, cnb_model_copy_part_vertex_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelSetPartIndexBytes", NULL, cnb_model_set_part_index_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelCopyPartIndexBytes", NULL, cnb_model_copy_part_index_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetMaterial", NULL, cnb_model_get_material, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelSetMaterial", NULL, cnb_model_set_material, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetMaterialTexture", NULL, cnb_model_get_material_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelSetMaterialTexture", NULL, cnb_model_set_material_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelAddMesh", NULL, cnb_model_add_mesh, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetMesh", NULL, cnb_model_get_mesh, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetMeshName", NULL, cnb_model_get_mesh_name, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelCopyMeshPartIndices", NULL, cnb_model_copy_mesh_part_indices, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelSetSkeleton", NULL, cnb_model_set_skeleton, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetSkeleton", NULL, cnb_model_get_skeleton, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelCopySkeletonHierarchy", NULL, cnb_model_copy_skeleton_hierarchy, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelCopySkeletonMatrices", NULL, cnb_model_copy_skeleton_matrices, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelAddLight", NULL, cnb_model_add_light, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbModelGetLight", NULL, cnb_model_get_light, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbEncodeModel", NULL, cnb_encode_model, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeModel", NULL, cnb_decode_model, NULL, NULL, NULL, napi_default, NULL },
     { "createBlitPass", NULL, create_blit_pass, NULL, NULL, NULL, napi_default, NULL },
     { "createBloomPass", NULL, create_bloom_pass, NULL, NULL, NULL, napi_default, NULL },
     { "createTonemapPass", NULL, create_tonemap_pass, NULL, NULL, NULL, napi_default, NULL },

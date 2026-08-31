@@ -26,6 +26,9 @@ import type {
   CnbDocumentSnapshot,
   CnbExternalReferenceSnapshot,
   CnbGlyphSnapshot,
+  CnbMaterialSnapshot,
+  CnbModelInfoSnapshot,
+  CnbModelPartSnapshot,
   CnbSpriteFontInfoSnapshot,
   CnbTextureInfoSnapshot,
   ContentLostResourceKind,
@@ -409,6 +412,40 @@ interface NativeBridge {
   cnbSpriteFontDataSetAtlas(font: bigint, atlas: bigint): void;
   cnbSpriteFontDataCopyAtlas(font: bigint): bigint;
   cnbEncodeSpriteFont(font: bigint, contentName: string): Uint8Array;
+  cnbModelCreate(): bigint;
+  cnbModelDestroy(model: bigint): void;
+  cnbModelSetFlags(model: bigint, lighting: boolean, hierarchy: boolean): void;
+  cnbModelGetInfo(model: bigint): CnbModelInfoSnapshot;
+  cnbModelAddBone(model: bigint, name: string, parent: number, transform: readonly number[]): number;
+  cnbModelGetBone(model: bigint, index: number): { readonly Parent: number; readonly Transform: readonly number[] };
+  cnbModelGetBoneName(model: bigint, index: number): string;
+  cnbModelAddPart(model: bigint, info: CnbModelPartSnapshot, name: string, externalEffect: string): number;
+  cnbModelGetPart(model: bigint, index: number): CnbModelPartSnapshot;
+  cnbModelGetPartName(model: bigint, index: number): string;
+  cnbModelGetPartExternalEffect(model: bigint, index: number): string;
+  cnbModelSetPartVertexBytes(model: bigint, index: number, bytes: Uint8Array): void;
+  cnbModelCopyPartVertexBytes(model: bigint, index: number): Uint8Array;
+  cnbModelSetPartIndexBytes(model: bigint, index: number, bytes: Uint8Array): void;
+  cnbModelCopyPartIndexBytes(model: bigint, index: number): Uint8Array;
+  cnbModelGetMaterial(model: bigint, part: number): CnbMaterialSnapshot;
+  cnbModelSetMaterial(model: bigint, part: number, material: CnbMaterialSnapshot): void;
+  cnbModelGetMaterialTexture(model: bigint, part: number, slot: number): string;
+  cnbModelSetMaterialTexture(model: bigint, part: number, slot: number, assetName: string): void;
+  cnbModelAddMesh(model: bigint, name: string, parentBone: number, partIndices: readonly number[]): number;
+  cnbModelGetMesh(model: bigint, index: number): { readonly ParentBone: number; readonly PartIndexCount: number };
+  cnbModelGetMeshName(model: bigint, index: number): string;
+  cnbModelCopyMeshPartIndices(model: bigint, index: number): readonly number[];
+  cnbModelSetSkeleton(
+    model: bigint, hierarchy: readonly number[], bindPose: readonly number[],
+    inverseBindPose: readonly number[], rootPrefix: readonly number[],
+  ): void;
+  cnbModelGetSkeleton(model: bigint): { readonly JointCount: number; readonly HasRootPrefix: boolean };
+  cnbModelCopySkeletonHierarchy(model: bigint): readonly number[];
+  cnbModelCopySkeletonMatrices(model: bigint, set: number): readonly number[];
+  cnbModelAddLight(model: bigint, direction: readonly number[], diffuseColor: readonly number[]): number;
+  cnbModelGetLight(model: bigint, index: number): { readonly Direction: readonly number[]; readonly DiffuseColor: readonly number[] };
+  cnbEncodeModel(model: bigint, contentName: string): Uint8Array;
+  cnbDecodeModel(document: bigint): bigint;
   createBlitPass(device: bigint): bigint;
   createBloomPass(device: bigint): bigint;
   createTonemapPass(device: bigint): bigint;
@@ -1317,6 +1354,123 @@ export class NodeNativeBackend
   }
   public cnbEncodeSpriteFont(font: NativeHandle, contentName: string): Uint8Array {
     return new Uint8Array(this.#bridge.cnbEncodeSpriteFont(font, contentName));
+  }
+
+  // ---- the CNB model schema --------------------------------------------------------------------
+  // Straight delegation, because the shaping is already done: the bridge returns plain objects and
+  // arrays, and the payload copies are Buffers this wraps as Uint8Array so nothing above holds a
+  // Node Buffer it did not ask for.
+  public cnbModelCreate(): NativeHandle { return this.#bridge.cnbModelCreate(); }
+  public cnbModelDestroy(model: NativeHandle): void { this.#bridge.cnbModelDestroy(model); }
+  public cnbModelSetFlags(model: NativeHandle, lighting: boolean, hierarchy: boolean): void {
+    this.#bridge.cnbModelSetFlags(model, lighting, hierarchy);
+  }
+  public cnbModelGetInfo(model: NativeHandle): CnbModelInfoSnapshot {
+    return this.#bridge.cnbModelGetInfo(model);
+  }
+  public cnbModelAddBone(
+    model: NativeHandle, name: string, parent: number, transform: readonly number[],
+  ): number {
+    return this.#bridge.cnbModelAddBone(model, name, parent, transform);
+  }
+  public cnbModelGetBone(
+    model: NativeHandle, index: number,
+  ): { readonly Parent: number; readonly Transform: readonly number[] } {
+    return this.#bridge.cnbModelGetBone(model, index);
+  }
+  public cnbModelGetBoneName(model: NativeHandle, index: number): string {
+    return this.#bridge.cnbModelGetBoneName(model, index);
+  }
+  public cnbModelAddPart(
+    model: NativeHandle, info: CnbModelPartSnapshot, name: string, externalEffect: string,
+  ): number {
+    return this.#bridge.cnbModelAddPart(model, info, name, externalEffect);
+  }
+  public cnbModelGetPart(model: NativeHandle, index: number): CnbModelPartSnapshot {
+    return this.#bridge.cnbModelGetPart(model, index);
+  }
+  public cnbModelGetPartName(model: NativeHandle, index: number): string {
+    return this.#bridge.cnbModelGetPartName(model, index);
+  }
+  public cnbModelGetPartExternalEffect(model: NativeHandle, index: number): string {
+    return this.#bridge.cnbModelGetPartExternalEffect(model, index);
+  }
+  public cnbModelSetPartVertexBytes(model: NativeHandle, index: number, bytes: Uint8Array): void {
+    this.#bridge.cnbModelSetPartVertexBytes(model, index, bytes);
+  }
+  public cnbModelCopyPartVertexBytes(model: NativeHandle, index: number): Uint8Array {
+    return new Uint8Array(this.#bridge.cnbModelCopyPartVertexBytes(model, index));
+  }
+  public cnbModelSetPartIndexBytes(model: NativeHandle, index: number, bytes: Uint8Array): void {
+    this.#bridge.cnbModelSetPartIndexBytes(model, index, bytes);
+  }
+  public cnbModelCopyPartIndexBytes(model: NativeHandle, index: number): Uint8Array {
+    return new Uint8Array(this.#bridge.cnbModelCopyPartIndexBytes(model, index));
+  }
+  public cnbModelGetMaterial(model: NativeHandle, part: number): CnbMaterialSnapshot {
+    return this.#bridge.cnbModelGetMaterial(model, part);
+  }
+  public cnbModelSetMaterial(
+    model: NativeHandle, part: number, material: CnbMaterialSnapshot,
+  ): void {
+    this.#bridge.cnbModelSetMaterial(model, part, material);
+  }
+  public cnbModelGetMaterialTexture(model: NativeHandle, part: number, slot: number): string {
+    return this.#bridge.cnbModelGetMaterialTexture(model, part, slot);
+  }
+  public cnbModelSetMaterialTexture(
+    model: NativeHandle, part: number, slot: number, assetName: string,
+  ): void {
+    this.#bridge.cnbModelSetMaterialTexture(model, part, slot, assetName);
+  }
+  public cnbModelAddMesh(
+    model: NativeHandle, name: string, parentBone: number, partIndices: readonly number[],
+  ): number {
+    return this.#bridge.cnbModelAddMesh(model, name, parentBone, partIndices);
+  }
+  public cnbModelGetMesh(
+    model: NativeHandle, index: number,
+  ): { readonly ParentBone: number; readonly PartIndexCount: number } {
+    return this.#bridge.cnbModelGetMesh(model, index);
+  }
+  public cnbModelGetMeshName(model: NativeHandle, index: number): string {
+    return this.#bridge.cnbModelGetMeshName(model, index);
+  }
+  public cnbModelCopyMeshPartIndices(model: NativeHandle, index: number): readonly number[] {
+    return this.#bridge.cnbModelCopyMeshPartIndices(model, index);
+  }
+  public cnbModelSetSkeleton(
+    model: NativeHandle, hierarchy: readonly number[], bindPose: readonly number[],
+    inverseBindPose: readonly number[], rootPrefix: readonly number[],
+  ): void {
+    this.#bridge.cnbModelSetSkeleton(model, hierarchy, bindPose, inverseBindPose, rootPrefix);
+  }
+  public cnbModelGetSkeleton(
+    model: NativeHandle,
+  ): { readonly JointCount: number; readonly HasRootPrefix: boolean } {
+    return this.#bridge.cnbModelGetSkeleton(model);
+  }
+  public cnbModelCopySkeletonHierarchy(model: NativeHandle): readonly number[] {
+    return this.#bridge.cnbModelCopySkeletonHierarchy(model);
+  }
+  public cnbModelCopySkeletonMatrices(model: NativeHandle, set: number): readonly number[] {
+    return this.#bridge.cnbModelCopySkeletonMatrices(model, set);
+  }
+  public cnbModelAddLight(
+    model: NativeHandle, direction: readonly number[], diffuseColor: readonly number[],
+  ): number {
+    return this.#bridge.cnbModelAddLight(model, direction, diffuseColor);
+  }
+  public cnbModelGetLight(
+    model: NativeHandle, index: number,
+  ): { readonly Direction: readonly number[]; readonly DiffuseColor: readonly number[] } {
+    return this.#bridge.cnbModelGetLight(model, index);
+  }
+  public cnbEncodeModel(model: NativeHandle, contentName: string): Uint8Array {
+    return new Uint8Array(this.#bridge.cnbEncodeModel(model, contentName));
+  }
+  public cnbDecodeModel(document: NativeHandle): NativeHandle {
+    return this.#bridge.cnbDecodeModel(document);
   }
 
   public createBlitPass(device: NativeHandle): NativeHandle {
