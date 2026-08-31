@@ -563,6 +563,17 @@ typedef CNA_Result (*LodModeInFn)(CNA_LodGroupEXTHandle, CNA_LodSelectionMode);
 typedef CNA_Result (*LodScreenSpaceFn)(CNA_LodGroupEXTHandle, float, float, float);
 typedef CNA_Result (*LodProjectedRadiusFn)(CNA_LodGroupEXTHandle, float, float*);
 
+/* --- the engine layer's shadow maps ------------------------------------------------------------ */
+typedef CNA_Result (*ShadowMapCreateFn)(CNA_Handle, CNA_ShadowQuality, CNA_ShadowMapHandle*);
+typedef CNA_Result (*ShadowMapQualityOutFn)(CNA_ShadowMapHandle, CNA_ShadowQuality*);
+typedef CNA_Result (*ShadowMapMatrixOutFn)(CNA_ShadowMapHandle, CNA_Matrix*);
+typedef CNA_Result (*ShadowLightViewFn)(
+  const CNA_DirectionalLightEXT*, const CNA_BoundingBox*, CNA_Matrix*);
+typedef CNA_Result (*ShadowLightProjectionFn)(
+  const CNA_Matrix*, const CNA_BoundingBox*, CNA_Matrix*);
+typedef CNA_Result (*ShadowQualityToI32Fn)(CNA_ShadowQuality, int32_t*);
+typedef CNA_Result (*DirectionalLightInitFn)(CNA_DirectionalLightEXT*);
+
 /* --- the engine layer's compute path ---------------------------------------------------------- */
 /*
  * Storage buffers, compute shaders and GPU timers. The handle typedefs in `engine_layer.h` are all
@@ -1451,6 +1462,20 @@ typedef struct Api {
   LodModeInFn lod_group_ext_set_selection_mode;
   LodScreenSpaceFn lod_group_ext_set_screen_space_parameters;
   LodProjectedRadiusFn lod_group_ext_projected_radius_pixels;
+  ShadowMapCreateFn shadow_map_create;
+  GameHandleFn shadow_map_destroy;
+  HandleBoolOutFn shadow_map_is_supported;
+  HandleI32OutFn shadow_map_get_size;
+  ShadowMapQualityOutFn shadow_map_get_quality;
+  HandleFloatOutFn shadow_map_get_depth_bias;
+  HandleFloatFn shadow_map_set_depth_bias;
+  HandleI32OutFn shadow_map_get_filter_radius;
+  ShadowMapMatrixOutFn shadow_map_get_light_view_projection;
+  ShadowLightViewFn shadow_map_compute_light_view;
+  ShadowLightProjectionFn shadow_map_compute_light_projection;
+  ShadowQualityToI32Fn shadow_map_size_for_quality;
+  ShadowQualityToI32Fn shadow_map_filter_radius_for_quality;
+  DirectionalLightInitFn directional_light_ext_init;
   GameHandleFn clustered_shadow_policy_destroy;
 
   /* the engine layer's compute path */
@@ -2751,6 +2776,20 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(lod_group_ext_set_selection_mode, LodModeInFn, "cna_lod_group_ext_set_selection_mode");
   LOAD_REQUIRED(lod_group_ext_set_screen_space_parameters, LodScreenSpaceFn, "cna_lod_group_ext_set_screen_space_parameters");
   LOAD_REQUIRED(lod_group_ext_projected_radius_pixels, LodProjectedRadiusFn, "cna_lod_group_ext_projected_radius_pixels");
+  LOAD_REQUIRED(shadow_map_create, ShadowMapCreateFn, "cna_shadow_map_create");
+  LOAD_REQUIRED(shadow_map_destroy, GameHandleFn, "cna_shadow_map_destroy");
+  LOAD_REQUIRED(shadow_map_is_supported, HandleBoolOutFn, "cna_shadow_map_is_supported");
+  LOAD_REQUIRED(shadow_map_get_size, HandleI32OutFn, "cna_shadow_map_get_size");
+  LOAD_REQUIRED(shadow_map_get_quality, ShadowMapQualityOutFn, "cna_shadow_map_get_quality");
+  LOAD_REQUIRED(shadow_map_get_depth_bias, HandleFloatOutFn, "cna_shadow_map_get_depth_bias");
+  LOAD_REQUIRED(shadow_map_set_depth_bias, HandleFloatFn, "cna_shadow_map_set_depth_bias");
+  LOAD_REQUIRED(shadow_map_get_filter_radius, HandleI32OutFn, "cna_shadow_map_get_filter_radius");
+  LOAD_REQUIRED(shadow_map_get_light_view_projection, ShadowMapMatrixOutFn, "cna_shadow_map_get_light_view_projection");
+  LOAD_REQUIRED(shadow_map_compute_light_view, ShadowLightViewFn, "cna_shadow_map_compute_light_view");
+  LOAD_REQUIRED(shadow_map_compute_light_projection, ShadowLightProjectionFn, "cna_shadow_map_compute_light_projection");
+  LOAD_REQUIRED(shadow_map_size_for_quality, ShadowQualityToI32Fn, "cna_shadow_map_size_for_quality");
+  LOAD_REQUIRED(shadow_map_filter_radius_for_quality, ShadowQualityToI32Fn, "cna_shadow_map_filter_radius_for_quality");
+  LOAD_REQUIRED(directional_light_ext_init, DirectionalLightInitFn, "cna_directional_light_ext_init");
   LOAD_REQUIRED(clustered_shadow_policy_destroy, GameHandleFn, "cna_clustered_shadow_policy_destroy");
 
   LOAD_REQUIRED(presentation_parameters_init, PresentationParametersInitFn, "cna_presentation_parameters_init");
@@ -14531,6 +14570,158 @@ static napi_value clustered_shadow_policy_get_score(napi_env env, napi_callback_
   return output;
 }
 
+/* --- the engine layer's shadow maps ------------------------------------------------------------ */
+/*
+ * The shadow map object's state, and the four pure functions that compute where a shadow map looks
+ * from. The four take no handle at all: a quality tier maps to a texture size and a filter radius,
+ * and a directional light plus a scene's bounds map to the view and projection that frame it.
+ *
+ * The rendering half -- begin/end, the caster effects, the shadow texture -- is not projected. It
+ * needs a real depth pass, and on the one renderer here that could run one, reading a render
+ * target back answers zeros (docs/upstream-cna-findings.md item 7), so there would be no evidence
+ * to accept it on. What is bound is what can be proved.
+ */
+
+static napi_value shadow_map_create(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0, map = 0;
+  uint32_t quality = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_uint32(env, args[1], &quality) != napi_ok) return NULL;
+  const CNA_Result result = g_api.shadow_map_create(device, quality, &map);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_shadow_map_create", result);
+  return make_handle(env, map);
+}
+
+static napi_value shadow_map_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.shadow_map_destroy, "cna_shadow_map_destroy");
+}
+static napi_value shadow_map_is_supported(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.shadow_map_is_supported, "cna_shadow_map_is_supported");
+}
+static napi_value shadow_map_get_size(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.shadow_map_get_size, "cna_shadow_map_get_size");
+}
+static napi_value shadow_map_get_filter_radius(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.shadow_map_get_filter_radius,
+    "cna_shadow_map_get_filter_radius");
+}
+static napi_value shadow_map_get_depth_bias(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.shadow_map_get_depth_bias,
+    "cna_shadow_map_get_depth_bias");
+}
+static napi_value shadow_map_set_depth_bias(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.shadow_map_set_depth_bias,
+    "cna_shadow_map_set_depth_bias");
+}
+
+static napi_value shadow_map_get_quality(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle map = 0;
+  CNA_ShadowQuality quality = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &map)) return NULL;
+  const CNA_Result result = g_api.shadow_map_get_quality(map, &quality);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_shadow_map_get_quality", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_uint32(env, quality, &output), "shadow quality");
+  return output;
+}
+
+static napi_value shadow_map_get_light_view_projection(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle map = 0;
+  CNA_Matrix matrix;
+  memset(&matrix, 0, sizeof(matrix));
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &map)) return NULL;
+  const CNA_Result result = g_api.shadow_map_get_light_view_projection(map, &matrix);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_shadow_map_get_light_view_projection", result);
+  }
+  return make_matrix16(env, &matrix, "light view-projection");
+}
+
+static napi_value shadow_quality_to_i32(
+  napi_env env, napi_callback_info info, ShadowQualityToI32Fn route, const char* name
+) {
+  napi_value args[1], output;
+  uint32_t quality = 0;
+  int32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &quality) != napi_ok) return NULL;
+  const CNA_Result result = route(quality, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_int32(env, value, &output), name);
+  return output;
+}
+
+static napi_value shadow_map_size_for_quality(napi_env env, napi_callback_info info) {
+  return shadow_quality_to_i32(env, info, g_api.shadow_map_size_for_quality,
+    "cna_shadow_map_size_for_quality");
+}
+static napi_value shadow_map_filter_radius_for_quality(napi_env env, napi_callback_info info) {
+  return shadow_quality_to_i32(env, info, g_api.shadow_map_filter_radius_for_quality,
+    "cna_shadow_map_filter_radius_for_quality");
+}
+
+/* A bounding box argument, as two Vector3 fields. */
+static int read_bounding_box(napi_env env, napi_value value, CNA_BoundingBox* box) {
+  if (!read_vector3(env, value, "Min", &box->min) ||
+      !read_vector3(env, value, "Max", &box->max)) {
+    throw_message(env, "scene bounds need a Min and a Max");
+    return 0;
+  }
+  return 1;
+}
+
+static napi_value shadow_map_compute_light_view(napi_env env, napi_callback_info info) {
+  napi_value args[2], entry;
+  CNA_DirectionalLightEXT light;
+  CNA_BoundingBox box;
+  CNA_Matrix matrix;
+  memset(&box, 0, sizeof(box));
+  memset(&matrix, 0, sizeof(matrix));
+  if (!require_loaded(env) || !get_args(env, info, 2, args)) return NULL;
+  /* Seeded from CNA's own initialiser, so the version header and anything it adds stay CNA's. */
+  const CNA_Result initialized = g_api.directional_light_ext_init(&light);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_directional_light_ext_init", initialized);
+  }
+  double intensity = 0;
+  if (!read_vector3(env, args[0], "Direction", &light.direction) ||
+      !read_vector3(env, args[0], "Color", &light.color) ||
+      napi_get_named_property(env, args[0], "Intensity", &entry) != napi_ok ||
+      napi_get_value_double(env, entry, &intensity) != napi_ok) {
+    return throw_message(env, "a directional light needs Direction, Color and Intensity");
+  }
+  light.intensity = (float) intensity;
+  if (!read_bounding_box(env, args[1], &box)) return NULL;
+  const CNA_Result result = g_api.shadow_map_compute_light_view(&light, &box, &matrix);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_shadow_map_compute_light_view", result);
+  }
+  return make_matrix16(env, &matrix, "light view");
+}
+
+static napi_value shadow_map_compute_light_projection(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Matrix view, matrix;
+  CNA_BoundingBox box;
+  memset(&box, 0, sizeof(box));
+  memset(&matrix, 0, sizeof(matrix));
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_matrix16(env, args[0], &view, "a light view must be a 16-number array") ||
+      !read_bounding_box(env, args[1], &box)) return NULL;
+  const CNA_Result result = g_api.shadow_map_compute_light_projection(&view, &box, &matrix);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_shadow_map_compute_light_projection", result);
+  }
+  return make_matrix16(env, &matrix, "light projection");
+}
+
 /* --- the engine layer's level-of-detail groups ------------------------------------------------ */
 /*
  * Which detail level to draw at a distance, with the hysteresis that stops a level flickering as a
@@ -17631,6 +17822,19 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "resetShadowPolicy", NULL, clustered_shadow_policy_reset, NULL, NULL, NULL, napi_default, NULL },
     { "selectShadowCasters", NULL, clustered_shadow_policy_select, NULL, NULL, NULL, napi_default, NULL },
     { "createLodGroup", NULL, lod_group_create, NULL, NULL, NULL, napi_default, NULL },
+    { "createShadowMap", NULL, shadow_map_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyShadowMap", NULL, shadow_map_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "isShadowMapSupported", NULL, shadow_map_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowMapSize", NULL, shadow_map_get_size, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowMapQuality", NULL, shadow_map_get_quality, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowMapDepthBias", NULL, shadow_map_get_depth_bias, NULL, NULL, NULL, napi_default, NULL },
+    { "setShadowMapDepthBias", NULL, shadow_map_set_depth_bias, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowMapFilterRadius", NULL, shadow_map_get_filter_radius, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowMapLightViewProjection", NULL, shadow_map_get_light_view_projection, NULL, NULL, NULL, napi_default, NULL },
+    { "computeShadowLightView", NULL, shadow_map_compute_light_view, NULL, NULL, NULL, napi_default, NULL },
+    { "computeShadowLightProjection", NULL, shadow_map_compute_light_projection, NULL, NULL, NULL, napi_default, NULL },
+    { "shadowMapSizeForQuality", NULL, shadow_map_size_for_quality, NULL, NULL, NULL, napi_default, NULL },
+    { "shadowMapFilterRadiusForQuality", NULL, shadow_map_filter_radius_for_quality, NULL, NULL, NULL, napi_default, NULL },
     { "destroyLodGroup", NULL, lod_group_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "addLodLevel", NULL, lod_group_add_level, NULL, NULL, NULL, napi_default, NULL },
     { "clearLodGroup", NULL, lod_group_clear, NULL, NULL, NULL, napi_default, NULL },

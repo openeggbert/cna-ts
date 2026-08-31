@@ -17,6 +17,8 @@ import type {
   CnaClusteredLightingBackend,
   CnaComputeBackend,
   CnaLodBackend,
+  CnaShadowBackend,
+  DirectionalLightSnapshot,
   StandaloneDeviceParameters,
   CnaGraphicsExtensionBackend,
   Vector3Snapshot,
@@ -541,6 +543,19 @@ interface NativeBridge {
   cnbDecodeModel(document: bigint): bigint;
   isClusteredLightUsable(light: ClusteredLightSnapshot): boolean;
   createLodGroup(): bigint;
+  createShadowMap(device: bigint, quality: number): bigint;
+  destroyShadowMap(map: bigint): void;
+  isShadowMapSupported(map: bigint): boolean;
+  getShadowMapSize(map: bigint): number;
+  getShadowMapQuality(map: bigint): number;
+  getShadowMapDepthBias(map: bigint): number;
+  setShadowMapDepthBias(map: bigint, bias: number): void;
+  getShadowMapFilterRadius(map: bigint): number;
+  getShadowMapLightViewProjection(map: bigint): readonly number[];
+  computeShadowLightView(light: DirectionalLightSnapshot, bounds: ClusterBoundsSnapshot): readonly number[];
+  computeShadowLightProjection(lightView: readonly number[], bounds: ClusterBoundsSnapshot): readonly number[];
+  shadowMapSizeForQuality(quality: number): number;
+  shadowMapFilterRadiusForQuality(quality: number): number;
   destroyLodGroup(group: bigint): void;
   addLodLevel(group: bigint, maxDistance: number): void;
   clearLodGroup(group: bigint): void;
@@ -1052,6 +1067,7 @@ export class NodeNativeBackend
   public readonly Compute: CnaComputeBackend = this;
   public readonly ClusteredLighting: CnaClusteredLightingBackend = this;
   public readonly Lod: CnaLodBackend = this;
+  public readonly Shadows: CnaShadowBackend = this;
   public readonly Content: CnaContentBackend = this;
   public readonly Devices: CnaDeviceBackend = this;
   public readonly GamerServices: CnaGamerServicesBackend = this;
@@ -1985,6 +2001,45 @@ export class NodeNativeBackend
     return this.#bridge.cnbDecodeModel(document);
   }
 
+  public createShadowMap(device: NativeHandle, quality: number): NativeHandle {
+    return this.#bridge.createShadowMap(device, quality);
+  }
+  public destroyShadowMap(map: NativeHandle): void {
+    this.#bridge.destroyShadowMap(map);
+  }
+  public isShadowMapSupported(map: NativeHandle): boolean {
+    return this.#bridge.isShadowMapSupported(map);
+  }
+  public getShadowMapSize(map: NativeHandle): number {
+    return this.#bridge.getShadowMapSize(map);
+  }
+  public getShadowMapQuality(map: NativeHandle): number {
+    return this.#bridge.getShadowMapQuality(map);
+  }
+  public getShadowMapDepthBias(map: NativeHandle): number {
+    return this.#bridge.getShadowMapDepthBias(map);
+  }
+  public setShadowMapDepthBias(map: NativeHandle, bias: number): void {
+    this.#bridge.setShadowMapDepthBias(map, bias);
+  }
+  public getShadowMapFilterRadius(map: NativeHandle): number {
+    return this.#bridge.getShadowMapFilterRadius(map);
+  }
+  public getShadowMapLightViewProjection(map: NativeHandle): readonly number[] {
+    return this.#bridge.getShadowMapLightViewProjection(map);
+  }
+  public computeShadowLightView(light: DirectionalLightSnapshot, bounds: ClusterBoundsSnapshot): readonly number[] {
+    return this.#bridge.computeShadowLightView(light, bounds);
+  }
+  public computeShadowLightProjection(lightView: readonly number[], bounds: ClusterBoundsSnapshot): readonly number[] {
+    return this.#bridge.computeShadowLightProjection(lightView, bounds);
+  }
+  public shadowMapSizeForQuality(quality: number): number {
+    return this.#bridge.shadowMapSizeForQuality(quality);
+  }
+  public shadowMapFilterRadiusForQuality(quality: number): number {
+    return this.#bridge.shadowMapFilterRadiusForQuality(quality);
+  }
   public createLodGroup(): NativeHandle {
     return this.#bridge.createLodGroup();
   }

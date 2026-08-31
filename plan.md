@@ -326,6 +326,15 @@ Electron, or mobile support.
   until 22, while a jump of more than one level is deliberately undamped. CNA's part-returning
   `select` is not projected — this package's `ModelMeshPart` is managed and has no native handle
   to give it.
+- [x] And the shadow-map maths: a quality tier's texture size and filter radius, and the view and
+  projection that frame a scene from a directional light. Checked as geometry rather than against
+  recorded numbers — the view's rotation is orthonormal, and all eight corners of the scene box
+  land inside the light's clip volume, fitted rather than merely contained, with the depth range
+  exactly zero to one.
+- [ ] The shadow depth pass itself — begin/end, the caster effects, the shadow texture — is
+  deliberately unprojected rather than merely unwritten: it needs a real render pass, and the one
+  renderer here that could run one answers every render-target readback with zeros (upstream
+  finding 7), so there is no evidence to accept it on.
 - [ ] The rest of the engine layer — cascaded, spot and cube shadow maps, particles, decals, light
   probes and atmospheric rendering — is measured and unprojected.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,

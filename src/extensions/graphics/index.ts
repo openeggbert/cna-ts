@@ -16,7 +16,9 @@
 import { getBackend } from "../../internal/backend.js";
 import type {
   BoundingSphereSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
+  ClusterBoundsSnapshot,
   CnaLodBackend,
+  CnaShadowBackend,
   CnaGraphicsExtensionBackend,
 } from "../../internal/backend.js";
 import { BoundingBox } from "../../Microsoft/Xna/Framework/BoundingBox.js";
@@ -1950,5 +1952,162 @@ export class LodGroup implements IDisposable {
     if (handle == null) return;
     this.#handle = null;
     this.#backend.destroyLodGroup(handle);
+  }
+}
+
+
+/* --- shadow maps ---------------------------------------------------------------------------------
+ *
+ * Where a shadow map looks from, and what it costs.
+ *
+ * {@link ShadowMapMath} is the part that needs nothing at all: a quality tier maps to a texture
+ * size and a filter radius, and a directional light plus the scene's bounds map to the view and
+ * projection that frame it. Those are pure functions, so they answer on any backend.
+ *
+ * The rendering half — the depth pass, the caster effects, the shadow texture — is deliberately
+ * not projected. It needs a real depth pass, and on the one renderer here that could run one,
+ * reading a render target back answers zeros (`docs/upstream-cna-findings.md` item 7), so there
+ * would be no evidence to accept it on. What is projected is what can be proved.
+ */
+
+/** A directional light: the only kind a {@link ShadowMap} casts from. */
+export interface DirectionalLight {
+  readonly Direction: Vector3;
+  /** Linear RGB, not an XNA `Color`. */
+  readonly Color: Vector3;
+  readonly Intensity: number;
+}
+
+function shadows(): CnaShadowBackend {
+  const backend = getBackend();
+  if (!backend.IsAvailable || backend.Shadows == null) {
+    throw new NativeUnavailableError(
+      `CNA's shadow maps require a loaded backend that has them: ${backend.Detail}`,
+    );
+  }
+  return backend.Shadows;
+}
+
+function shadowQuality(quality: ShadowQuality): ShadowQuality {
+  if (!Number.isInteger(quality) || quality < ShadowQuality.Disabled ||
+      quality > ShadowQuality.Ultra) {
+    throw new RangeError("quality must be a ShadowQuality");
+  }
+  return quality;
+}
+
+function boundsSnapshot(bounds: BoundingBox): ClusterBoundsSnapshot {
+  if (bounds == null) throw new TypeError("bounds is required");
+  return {
+    Min: vectorSnapshot(bounds.Min, "bounds.Min"),
+    Max: vectorSnapshot(bounds.Max, "bounds.Max"),
+  };
+}
+
+/**
+ * What a shadow map costs at each quality tier, and where it looks from.
+ *
+ * Pure functions: none of them takes a device, a shadow map or anything else, so a game can size
+ * its shadow budget before it has created a single resource.
+ */
+export const ShadowMapMath = {
+  /** The shadow texture's edge length at a quality tier. */
+  SizeForQuality(quality: ShadowQuality): number {
+    return shadows().shadowMapSizeForQuality(shadowQuality(quality));
+  },
+
+  /** How many texels wide the percentage-closer filter is at a quality tier. */
+  FilterRadiusForQuality(quality: ShadowQuality): number {
+    return shadows().shadowMapFilterRadiusForQuality(shadowQuality(quality));
+  },
+
+  /** The view matrix that looks along a directional light and frames a scene. */
+  ComputeLightView(light: DirectionalLight, sceneBounds: BoundingBox): Matrix {
+    if (light == null) throw new TypeError("light is required");
+    if (typeof light.Intensity !== "number" || !Number.isFinite(light.Intensity)) {
+      throw new TypeError("a light's Intensity must be a finite number");
+    }
+    return toMatrix(shadows().computeShadowLightView({
+      Direction: vectorSnapshot(light.Direction, "light.Direction"),
+      Color: vectorSnapshot(light.Color, "light.Color"),
+      Intensity: light.Intensity,
+    }, boundsSnapshot(sceneBounds)));
+  },
+
+  /** The orthographic projection that fits a scene into a light's view. */
+  ComputeLightProjection(lightView: Matrix, sceneBounds: BoundingBox): Matrix {
+    return toMatrix(shadows().computeShadowLightProjection(
+      matrixValues(lightView, "lightView"), boundsSnapshot(sceneBounds),
+    ));
+  },
+} as const;
+
+/**
+ * A shadow map's own state: the size and filter its quality tier bought, its depth bias, and the
+ * light view-projection it last rendered with.
+ *
+ * Whether it can render at all is a renderer question, and {@link ShadowMap.IsSupported} is how to
+ * ask; this package does not project the depth pass itself.
+ */
+export class ShadowMap implements IDisposable {
+  readonly #backend: CnaShadowBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice, quality: ShadowQuality) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#backend = shadows();
+    this.#handle = this.#backend.createShadowMap(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), shadowQuality(quality),
+    );
+  }
+
+  /** Whether the shadow map has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the shadow map is disposed");
+    return this.#handle;
+  }
+
+  /** Whether this renderer can actually render into it. */
+  public get IsSupported(): boolean {
+    return this.#backend.isShadowMapSupported(this.#active());
+  }
+
+  /** The shadow texture's edge length, which its quality tier chose. */
+  public get Size(): number { return this.#backend.getShadowMapSize(this.#active()); }
+
+  /** The tier it was created at. */
+  public get Quality(): ShadowQuality {
+    return this.#backend.getShadowMapQuality(this.#active()) as ShadowQuality;
+  }
+
+  /** How many texels wide its filter is, which its quality tier also chose. */
+  public get FilterRadius(): number {
+    return this.#backend.getShadowMapFilterRadius(this.#active());
+  }
+
+  /** The depth bias that keeps a surface from shadowing itself. */
+  public get DepthBias(): number {
+    return this.#backend.getShadowMapDepthBias(this.#active());
+  }
+  public set DepthBias(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("DepthBias must be a finite number");
+    }
+    this.#backend.setShadowMapDepthBias(this.#active(), value);
+  }
+
+  /** The combined light view-projection, which a shader needs to sample the map. */
+  public get LightViewProjection(): Matrix {
+    return toMatrix(this.#backend.getShadowMapLightViewProjection(this.#active()));
+  }
+
+  /** Releases the shadow map. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyShadowMap(handle);
   }
 }

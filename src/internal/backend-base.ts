@@ -48,6 +48,7 @@ import type {
   CnaMediaBackend,
   CnaRuntimeServicesBackend,
   CnaSensorBackend,
+  CnaShadowBackend,
   CnaStorageBackend,
   CnaVideoBackend,
   CnaXactBackend,
@@ -69,6 +70,7 @@ import type {
   ContentLostResourceKind,
   CueSnapshot,
   DepthStencilStateSnapshot,
+  DirectionalLightSnapshot,
   DisplayModeSnapshot,
   GameWindowBoundsSnapshot,
   GraphicsAdapterInfoSnapshot,
@@ -1155,6 +1157,49 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public getPostProcessChainPassTimings(
     _chain: NativeHandle,
   ): readonly PassTimingSnapshot[] { return this.unsupported("getPostProcessChainPassTimings"); }
+}
+
+/** Refusing base for {@link CnaShadowBackend}. */
+export abstract class CnaShadowBackendBase implements CnaShadowBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createShadowMap(
+    _device: NativeHandle,
+    _quality: number,
+  ): NativeHandle { return this.unsupported("createShadowMap"); }
+  public destroyShadowMap(_map: NativeHandle): void { return this.unsupported("destroyShadowMap"); }
+  public isShadowMapSupported(
+    _map: NativeHandle,
+  ): boolean { return this.unsupported("isShadowMapSupported"); }
+  public getShadowMapSize(_map: NativeHandle): number { return this.unsupported("getShadowMapSize"); }
+  public getShadowMapQuality(_map: NativeHandle): number { return this.unsupported("getShadowMapQuality"); }
+  public getShadowMapDepthBias(
+    _map: NativeHandle,
+  ): number { return this.unsupported("getShadowMapDepthBias"); }
+  public setShadowMapDepthBias(
+    _map: NativeHandle,
+    _bias: number,
+  ): void { return this.unsupported("setShadowMapDepthBias"); }
+  public getShadowMapFilterRadius(
+    _map: NativeHandle,
+  ): number { return this.unsupported("getShadowMapFilterRadius"); }
+  public getShadowMapLightViewProjection(
+    _map: NativeHandle,
+  ): readonly number[] { return this.unsupported("getShadowMapLightViewProjection"); }
+  public computeShadowLightView(
+    _light: DirectionalLightSnapshot,
+    _bounds: ClusterBoundsSnapshot,
+  ): readonly number[] { return this.unsupported("computeShadowLightView"); }
+  public computeShadowLightProjection(
+    _lightView: readonly number[],
+    _bounds: ClusterBoundsSnapshot,
+  ): readonly number[] { return this.unsupported("computeShadowLightProjection"); }
+  public shadowMapSizeForQuality(
+    _quality: number,
+  ): number { return this.unsupported("shadowMapSizeForQuality"); }
+  public shadowMapFilterRadiusForQuality(
+    _quality: number,
+  ): number { return this.unsupported("shadowMapFilterRadiusForQuality"); }
 }
 
 /** Refusing base for {@link CnaLodBackend}. */

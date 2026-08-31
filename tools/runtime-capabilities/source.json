@@ -980,12 +980,25 @@
       ]
     },
     {
-      "operation": "Modern CNA engine layer beyond the pipeline, the post-process chain, compute, clustered lighting and LOD: shadow maps, particles, decals and atmospheric rendering",
+      "operation": "Shadow-map maths: what a quality tier costs, and where a light looks from",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "the quality ladder is asserted both as its exact five values (512/512/1024/2048/4096 and filter radii 0/0/1/2/2) and as a property -- monotonic, and Ultra strictly larger than Disabled -- so a renumbering that kept the same values in a different order still fails. The geometry is checked as geometry rather than against numbers copied out of a run: the light view's rotation is orthonormal, three unit rows mutually perpendicular, and all eight corners of the scene box transformed through view times projection with XNA's own Matrix.Multiply and Vector3.Transform land inside the light's clip volume. Fitted rather than merely contained: the corners reach at least 0.95 of the frustum on both screen axes, measured at 0.998 for a large scene and 0.980 for a unit box, and the depth range is exactly zero to one. A different light direction produces a different view. Three planted defects fail: a quality that never reaches the size lookup, a projection computed from the identity, and a light that always points down. The shadow map object's own state -- size, filter radius and quality read back from its tier, and a depth bias that round-trips -- is verified on HEADLESS at 2048px",
+      "proof": [
+        "route:cna_shadow_map_compute_light_view",
+        "route:cna_shadow_map_compute_light_projection",
+        "route:cna_shadow_map_size_for_quality",
+        "route:cna_shadow_map_get_size",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Modern CNA engine layer beyond the pipeline, the post-process chain, compute, clustered lighting, LOD and shadow-map maths: the shadow depth pass, particles, decals and atmospheric rendering",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the render pipeline, the post-process chain, the compute path, the clustered lighting family and level-of-detail groups are projected and verified separately; the rest of engine_layer.h -- cascaded, spot and cube shadow maps, particles, decals, light probes, environment and atmospheric rendering -- is measured and unprojected",
+      "evidence": "the render pipeline, the post-process chain, the compute path, the clustered lighting family, level-of-detail groups and the shadow-map maths are projected and verified separately. What is left is the shadow depth pass itself -- begin/end, the caster effects and the shadow texture -- plus cascaded, spot and cube shadow maps, particles, decals, light probes and atmospheric rendering. The depth pass is deliberately unprojected rather than merely unwritten: it needs a real render pass, and on the one renderer here that could run one, reading a render target back answers zeros (upstream finding 7), so there would be no evidence to accept it on",
       "proof": [
-        "absentRoute:cna_cascaded_shadow_map_create",
+        "absentRoute:cna_shadow_map_begin",
         "absentRoute:cna_particle_system_create"
       ]
     },

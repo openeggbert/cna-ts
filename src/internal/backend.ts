@@ -1279,6 +1279,37 @@ export interface ClusterBoundsSnapshot {
  * CNA's level-of-detail groups: which detail level to draw at a distance, and the hysteresis that
  * stops one flickering as a camera hovers on a boundary. A pure value object -- no device, no game.
  */
+/** A directional light, in CNA's own shape. */
+export interface DirectionalLightSnapshot {
+  readonly Direction: Vector3Snapshot;
+  readonly Color: Vector3Snapshot;
+  readonly Intensity: number;
+}
+
+/**
+ * CNA's shadow maps: the object's state, and the pure functions that compute where one looks from.
+ * The rendering half is not here -- see the note in the Node adapter.
+ */
+export interface CnaShadowBackend {
+  createShadowMap(device: NativeHandle, quality: number): NativeHandle;
+  destroyShadowMap(map: NativeHandle): void;
+  isShadowMapSupported(map: NativeHandle): boolean;
+  getShadowMapSize(map: NativeHandle): number;
+  getShadowMapQuality(map: NativeHandle): number;
+  getShadowMapDepthBias(map: NativeHandle): number;
+  setShadowMapDepthBias(map: NativeHandle, bias: number): void;
+  getShadowMapFilterRadius(map: NativeHandle): number;
+  getShadowMapLightViewProjection(map: NativeHandle): readonly number[];
+  computeShadowLightView(
+    light: DirectionalLightSnapshot, bounds: ClusterBoundsSnapshot,
+  ): readonly number[];
+  computeShadowLightProjection(
+    lightView: readonly number[], bounds: ClusterBoundsSnapshot,
+  ): readonly number[];
+  shadowMapSizeForQuality(quality: number): number;
+  shadowMapFilterRadiusForQuality(quality: number): number;
+}
+
 export interface CnaLodBackend {
   createLodGroup(): NativeHandle;
   destroyLodGroup(group: NativeHandle): void;
@@ -1892,6 +1923,7 @@ export interface CnaBackend {
   readonly Compute?: CnaComputeBackend;
   readonly ClusteredLighting?: CnaClusteredLightingBackend;
   readonly Lod?: CnaLodBackend;
+  readonly Shadows?: CnaShadowBackend;
   readonly Content?: CnaContentBackend;
   readonly Devices?: CnaDeviceBackend;
   readonly GamerServices?: CnaGamerServicesBackend;

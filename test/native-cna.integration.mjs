@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 
 import {
   Audio,
+  BoundingBox,
   Color,
   Content,
   Game,
@@ -4097,5 +4098,185 @@ test("XNA's Guide really shows a message box and a keyboard, and CNA answers the
   console.log(
     `CNA_TS_NATIVE_GUIDE=PASS MESSAGE_BOX=${box.answer}/3 FOCUS=${box.focusButton} ` +
     `KEYBOARD=cancelled ASYNC_CONTRACT=PASS ONE_AT_A_TIME=PASS`,
+  );
+});
+
+test("shadow-map maths frames a scene from a light, exactly", async () => {
+  const { ShadowMap, ShadowMapMath, ShadowQuality } = computeExtensions;
+
+  // The quality ladder, which needs no device at all: a tier buys a texture size and a filter.
+  const sizes = [
+    ShadowQuality.Disabled, ShadowQuality.Low, ShadowQuality.Medium, ShadowQuality.High,
+    ShadowQuality.Ultra,
+  ].map((quality) => ShadowMapMath.SizeForQuality(quality));
+  const radii = [
+    ShadowQuality.Disabled, ShadowQuality.Low, ShadowQuality.Medium, ShadowQuality.High,
+    ShadowQuality.Ultra,
+  ].map((quality) => ShadowMapMath.FilterRadiusForQuality(quality));
+  assert.deepEqual(sizes, [512, 512, 1024, 2048, 4096]);
+  assert.deepEqual(radii, [0, 0, 1, 2, 2]);
+  // Stated as a property as well as a table, so a renumbering that kept the same five values in a
+  // different order would still fail.
+  for (let index = 1; index < sizes.length; index += 1) {
+    assert.ok(sizes[index] >= sizes[index - 1], "a higher tier is never a smaller map");
+    assert.ok(radii[index] >= radii[index - 1], "nor a narrower filter");
+  }
+  assert.ok(sizes[4] > sizes[0], "and Ultra really does cost more than Disabled");
+  assert.throws(() => ShadowMapMath.SizeForQuality(9), RangeError);
+  assert.throws(() => ShadowMapMath.SizeForQuality(-1), RangeError);
+
+  // The geometry. A scene box, a light pointing straight down, and the view/projection CNA
+  // computes to frame it.
+  const bounds = new BoundingBox(new Vector3(-10, -2, -10), new Vector3(10, 6, 10));
+  const light = {
+    Direction: new Vector3(0, -1, 0), Color: new Vector3(1, 1, 1), Intensity: 1,
+  };
+  const view = ShadowMapMath.ComputeLightView(light, bounds);
+  const projection = ShadowMapMath.ComputeLightProjection(view, bounds);
+
+  // The view's rotation is orthonormal: three unit rows, mutually perpendicular. No wrong matrix
+  // satisfies that by accident, and it is the property that makes it a view at all.
+  const rows = [
+    new Vector3(view.M11, view.M21, view.M31),
+    new Vector3(view.M12, view.M22, view.M32),
+    new Vector3(view.M13, view.M23, view.M33),
+  ];
+  for (const [index, row] of rows.entries()) {
+    assert.ok(Math.abs(row.Length() - 1) < 1e-5, `view row ${index} is not a unit vector`);
+  }
+  for (const [a, b] of [[0, 1], [0, 2], [1, 2]]) {
+    assert.ok(
+      Math.abs(Vector3.Dot(rows[a], rows[b])) < 1e-5,
+      `view rows ${a} and ${b} are not perpendicular`,
+    );
+  }
+
+  // And the point of the pair: every corner of the scene lands inside the light's clip volume.
+  // This is the actual purpose of the two matrices, checked through XNA's own transform rather
+  // than by comparing against numbers copied out of a run.
+  const viewProjection = Matrix.Multiply(view, projection);
+  const corners = [];
+  for (const x of [bounds.Min.X, bounds.Max.X]) {
+    for (const y of [bounds.Min.Y, bounds.Max.Y]) {
+      for (const z of [bounds.Min.Z, bounds.Max.Z]) corners.push(new Vector3(x, y, z));
+    }
+  }
+  assert.equal(corners.length, 8);
+  let extentX = 0;
+  let extentY = 0;
+  let nearest = Number.POSITIVE_INFINITY;
+  let farthest = Number.NEGATIVE_INFINITY;
+  for (const corner of corners) {
+    const clip = Vector3.Transform(corner, viewProjection);
+    assert.ok(
+      clip.X >= -1 - 1e-4 && clip.X <= 1 + 1e-4,
+      `corner ${corner.X},${corner.Y},${corner.Z} leaves the light's frustum in X: ${clip.X}`,
+    );
+    assert.ok(
+      clip.Y >= -1 - 1e-4 && clip.Y <= 1 + 1e-4,
+      `corner ${corner.X},${corner.Y},${corner.Z} leaves the light's frustum in Y: ${clip.Y}`,
+    );
+    assert.ok(
+      clip.Z >= -1e-4 && clip.Z <= 1 + 1e-4,
+      `corner ${corner.X},${corner.Y},${corner.Z} leaves the depth range: ${clip.Z}`,
+    );
+    extentX = Math.max(extentX, Math.abs(clip.X));
+    extentY = Math.max(extentY, Math.abs(clip.Y));
+    nearest = Math.min(nearest, clip.Z);
+    farthest = Math.max(farthest, clip.Z);
+  }
+  // Fitted, not merely contained. CNA pads the frustum a little -- measured at 0.998 for this
+  // scene and 0.980 for a unit box, which is a small absolute margin rather than a proportional
+  // one -- so the bound here is 0.95: snug enough that a projection even ten per cent too wide
+  // fails, while every corner would still be inside it.
+  assert.ok(
+    extentX >= 0.95 && extentX <= 1,
+    `the projection is not fitted to the scene in X: corners reach ${extentX}`,
+  );
+  assert.ok(
+    extentY >= 0.95 && extentY <= 1,
+    `the projection is not fitted to the scene in Y: corners reach ${extentY}`,
+  );
+  // Depth is exact rather than padded: the near face lands on 0 and the far face on 1, which is
+  // the whole depth buffer and the reason a shadow map has any precision at all.
+  assert.ok(Math.abs(nearest) < 1e-5, `the near face is not at zero depth: ${nearest}`);
+  assert.ok(Math.abs(farthest - 1) < 1e-5, `the far face is not at unit depth: ${farthest}`);
+
+  // A different light direction gives a different view, so the direction reaches the maths.
+  const diagonal = ShadowMapMath.ComputeLightView(
+    { Direction: new Vector3(1, -1, 0), Color: new Vector3(1, 1, 1), Intensity: 1 }, bounds,
+  );
+  assert.notDeepEqual(
+    [diagonal.M11, diagonal.M12, diagonal.M13],
+    [view.M11, view.M12, view.M13],
+    "a different light direction must produce a different view",
+  );
+
+  for (const call of [
+    () => ShadowMapMath.ComputeLightView(null, bounds),
+    () => ShadowMapMath.ComputeLightView(light, null),
+    () => ShadowMapMath.ComputeLightProjection(null, bounds),
+    () => ShadowMapMath.ComputeLightView(
+      { Direction: new Vector3(0, -1, 0), Color: new Vector3(1, 1, 1), Intensity: Number.NaN },
+      bounds,
+    ),
+  ]) {
+    assert.throws(call, TypeError, call.toString());
+  }
+
+  // The object's own state, which needs a device.
+  const game = new (class extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+    LoadContent() {
+      try {
+        const map = new ShadowMap(this.GraphicsDevice, ShadowQuality.High);
+        try {
+          this.evidence.state = {
+            size: map.Size,
+            quality: map.Quality,
+            filterRadius: map.FilterRadius,
+            supported: map.IsSupported,
+            biasBefore: map.DepthBias,
+          };
+          map.DepthBias = 0.0025;
+          this.evidence.state.biasAfter = map.DepthBias;
+        } finally {
+          map.Dispose();
+        }
+      } catch (error) {
+        this.evidence.state = { refused: error.constructor.name, cnaResult: error.cnaResult };
+      }
+      this.Exit();
+      super.LoadContent();
+    }
+    Draw(gameTime) { this.GraphicsDevice.Clear(Color.CornflowerBlue); this.Exit(); super.Draw(gameTime); }
+  })();
+  await game.Run();
+  const state = game.evidence.state;
+  game.Dispose();
+
+  assert.equal(typeof state, "object", `shadow map failed: ${JSON.stringify(state)}`);
+  if (state.refused) {
+    // A renderer without shadow maps refuses the create, and that is the honest answer.
+    assert.equal(state.cnaResult, 6, "a renderer without shadow maps refuses with NOT_SUPPORTED");
+  } else {
+    // The size and filter the object reports are the ones its tier buys, read from two different
+    // routes: the object's, and the pure function's.
+    assert.equal(state.quality, ShadowQuality.High);
+    assert.equal(state.size, ShadowMapMath.SizeForQuality(ShadowQuality.High));
+    assert.equal(state.filterRadius, ShadowMapMath.FilterRadiusForQuality(ShadowQuality.High));
+    assert.equal(typeof state.supported, "boolean");
+    assert.ok(Math.abs(state.biasAfter - 0.0025) < 1e-6, "the depth bias round-trips");
+    assert.notEqual(state.biasAfter, state.biasBefore, "and it was not already that");
+  }
+
+  console.log(
+    `CNA_TS_NATIVE_SHADOW_MATH=PASS SIZES=${sizes.join("/")} RADII=${radii.join("/")} ` +
+    `ORTHONORMAL=PASS SCENE_FITTED=PASS ` +
+    `OBJECT=${state.refused ? `NOT_SUPPORTED(${state.cnaResult})` : `${state.size}px/r${state.filterRadius}`}`,
   );
 });
