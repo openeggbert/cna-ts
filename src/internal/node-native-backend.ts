@@ -558,6 +558,14 @@ interface NativeBridge {
   getSkinnedShadowCasterEffect(map: bigint): bigint;
   getShadowMapTexture(map: bigint): bigint;
   createParticleSystem(device: bigint, capacity: number): bigint;
+  createParticleSystemAtDefaultCapacity(device: bigint): bigint;
+  drawParticleSystem(
+    system: bigint, view: readonly number[], projection: readonly number[], texture: bigint,
+  ): void;
+  setParticleDepthInput(system: bigint, depth: bigint, farPlane: number): void;
+  getParticleSoftness(system: bigint): number;
+  setParticleSoftness(system: bigint, softness: number): void;
+  getParticleLookupGlsl(): string;
   destroyParticleSystem(system: bigint): void;
   resetParticleSystem(system: bigint): void;
   updateParticleSystem(system: bigint, elapsedSeconds: number): void;
@@ -2044,6 +2052,23 @@ export class NodeNativeBackend
   public createParticleSystem(device: NativeHandle, capacity: number): NativeHandle {
     return this.#bridge.createParticleSystem(device, capacity);
   }
+  public createParticleSystemAtDefaultCapacity(device: NativeHandle): NativeHandle {
+    return this.#bridge.createParticleSystemAtDefaultCapacity(device);
+  }
+  public drawParticleSystem(
+    system: NativeHandle, view: readonly number[], projection: readonly number[],
+    texture: NativeHandle,
+  ): void { this.#bridge.drawParticleSystem(system, view, projection, texture); }
+  public setParticleDepthInput(
+    system: NativeHandle, depth: NativeHandle, farPlane: number,
+  ): void { this.#bridge.setParticleDepthInput(system, depth, farPlane); }
+  public getParticleSoftness(system: NativeHandle): number {
+    return this.#bridge.getParticleSoftness(system);
+  }
+  public setParticleSoftness(system: NativeHandle, softness: number): void {
+    this.#bridge.setParticleSoftness(system, softness);
+  }
+  public getParticleLookupGlsl(): string { return this.#bridge.getParticleLookupGlsl(); }
   public destroyParticleSystem(system: NativeHandle): void {
     this.#bridge.destroyParticleSystem(system);
   }

@@ -2547,19 +2547,24 @@ export const ParticleMath = {
  *
  * Drawing is not projected — see the note above this class.
  */
+/** The marker {@link ParticleSystem.AtDefaultCapacity} passes instead of a capacity. */
+const DEFAULT_CAPACITY = Symbol("CNA particle system default capacity");
+
 export class ParticleSystem implements IDisposable {
   readonly #backend: CnaParticleBackend;
   #handle: NativeHandle | null;
 
-  public constructor(graphicsDevice: GraphicsDevice, capacity: number) {
+  public constructor(graphicsDevice: GraphicsDevice, capacity: number);
+  public constructor(graphicsDevice: GraphicsDevice, capacity: number | typeof DEFAULT_CAPACITY) {
     if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
-    if (!Number.isInteger(capacity) || capacity <= 0) {
+    if (capacity !== DEFAULT_CAPACITY && (!Number.isInteger(capacity) || capacity <= 0)) {
       throw new RangeError("capacity must be a positive integer");
     }
     this.#backend = particles();
-    this.#handle = this.#backend.createParticleSystem(
-      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), capacity,
-    );
+    const device = resolveGraphicsDeviceHandleForInternalUse(graphicsDevice);
+    this.#handle = capacity === DEFAULT_CAPACITY
+      ? this.#backend.createParticleSystemAtDefaultCapacity(device)
+      : this.#backend.createParticleSystem(device, capacity);
   }
 
   /** Whether the system has been released. */
@@ -2629,6 +2634,60 @@ export class ParticleSystem implements IDisposable {
     return Object.freeze(this.#backend.copyParticles(this.#active()).map(toParticle));
   }
 
+  /**
+   * Draws every live particle, as one instanced draw, into whatever target is bound.
+   *
+   * A system with nothing alive draws nothing and succeeds -- an emission rate of zero is a
+   * setting, not a mistake -- but a texture is required, because there is nothing to draw with
+   * otherwise.
+   */
+  public Draw(view: Matrix, projection: Matrix, texture: Texture2D): void {
+    if (texture == null) throw new TypeError("texture is required");
+    this.#backend.drawParticleSystem(
+      this.#active(), matrixValues(view, "view"), matrixValues(projection, "projection"),
+      resolveTexture2DHandleForInternalUse(texture),
+    );
+  }
+
+  /**
+   * How far a particle fades as it approaches whatever is behind it, in world units.
+   *
+   * Floored at zero by CNA rather than refused, so a negative value reads back as zero. It has no
+   * visible effect here yet; see {@link SetDepthInput}.
+   */
+  public get Softness(): number {
+    return this.#backend.getParticleSoftness(this.#active());
+  }
+  public set Softness(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("Softness must be a finite number");
+    }
+    this.#backend.setParticleSoftness(this.#active(), value);
+  }
+
+  /**
+   * The depth image particles fade against, and the far plane it was normalised by.
+   *
+   * The image is borrowed, not owned: it must outlive the drawing that uses it. Pass `null` to
+   * stop fading. A far plane that is not positive leaves the fade off.
+   *
+   * **The fade itself does not happen on any renderer this package qualifies against.** The image
+   * and the {@link Softness} reach CNA, store, and read back, and the drawn particle is unchanged
+   * -- even given a depth image saying every pixel is at the camera, which should erase it. That is
+   * `docs/upstream-cna-findings.md` item 12, measured rather than assumed, and
+   * `test/windowed-renderer.integration.mjs` asserts it so a repair is noticed.
+   */
+  public SetDepthInput(depth: Texture2D | null, farPlane: number): void {
+    if (typeof farPlane !== "number" || !Number.isFinite(farPlane)) {
+      throw new TypeError("farPlane must be a finite number");
+    }
+    this.#backend.setParticleDepthInput(
+      this.#active(),
+      depth == null ? 0n : resolveTexture2DHandleForInternalUse(depth),
+      farPlane,
+    );
+  }
+
   /** Releases the system. Disposing twice is harmless. */
   public Dispose(): void {
     const handle = this.#handle;
@@ -2636,4 +2695,31 @@ export class ParticleSystem implements IDisposable {
     this.#handle = null;
     this.#backend.destroyParticleSystem(handle);
   }
+
+  /**
+   * A particle system at CNA's own default capacity, rather than a number chosen here.
+   *
+   * The public constructor takes a capacity because a game usually has one in mind; this is the
+   * other CNA route, for a game that does not.
+   */
+  public static AtDefaultCapacity(graphicsDevice: GraphicsDevice): ParticleSystem {
+    return new (ParticleSystem as unknown as new (
+      graphicsDevice: GraphicsDevice, capacity: typeof DEFAULT_CAPACITY,
+    ) => ParticleSystem)(graphicsDevice, DEFAULT_CAPACITY);
+  }
 }
+
+/**
+ * The GLSL a vertex shader includes to read a particle out of the storage buffer CNA simulates
+ * into, and the binding point that buffer is bound at.
+ *
+ * A game writing its own particle shader needs both, and CNA hands out its own source rather than
+ * leaving it to be reimplemented and drift.
+ */
+export const ParticleShaderSource = {
+  /** The `std430` binding point the particle buffer is bound at. */
+  get BindingPoint(): number { return 7; },
+
+  /** CNA's own GLSL for reading a particle by index. */
+  get Glsl(): string { return particles().getParticleLookupGlsl(); },
+};

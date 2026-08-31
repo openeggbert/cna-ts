@@ -192,6 +192,11 @@ typedef CNA_Result (*HandleStringViewFn)(CNA_Handle, CNA_StringView);
 typedef CNA_Result (*HandleHandleOutFn)(CNA_Handle, CNA_Handle*);
 typedef CNA_Result (*SoundEffectPlaySettingsFn)(CNA_Handle, float, float, float, CNA_Bool*);
 typedef CNA_Result (*HandleFloatOutFn)(CNA_Handle, float*);
+typedef CNA_Result (*ParticleSystemCreateDefaultFn)(CNA_Handle, CNA_Handle*);
+typedef CNA_Result (*ParticleSystemDrawFn)(
+  CNA_Handle, const CNA_Matrix*, const CNA_Matrix*, CNA_Handle);
+typedef CNA_Result (*ParticleDepthInputFn)(CNA_Handle, CNA_Handle, float);
+typedef CNA_Result (*CopyGlslFn)(char*, uint64_t, uint64_t*);
 typedef CNA_Result (*HandleFloatFn)(CNA_Handle, float);
 typedef CNA_Result (*HandleBoolFn)(CNA_Handle, CNA_Bool);
 typedef CNA_Result (*SoundEffectInstanceStopFn)(CNA_Handle, CNA_Bool);
@@ -1510,6 +1515,12 @@ typedef struct Api {
   ShadowQualityToI32Fn shadow_map_size_for_quality;
   ShadowQualityToI32Fn shadow_map_filter_radius_for_quality;
   DirectionalLightInitFn directional_light_ext_init;
+  ParticleSystemCreateDefaultFn particle_system_create;
+  ParticleSystemDrawFn particle_system_draw;
+  ParticleDepthInputFn particle_system_set_depth_input_ext;
+  HandleFloatOutFn particle_system_get_softness_ext;
+  HandleFloatFn particle_system_set_softness_ext;
+  CopyGlslFn particle_system_copy_particle_lookup_glsl;
   ParticleSystemCreateFn particle_system_create_with_capacity;
   GameHandleFn particle_system_destroy;
   HandleI32OutFn particle_system_get_capacity;
@@ -2863,6 +2874,12 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(shadow_map_filter_radius_for_quality, ShadowQualityToI32Fn, "cna_shadow_map_filter_radius_for_quality");
   LOAD_REQUIRED(directional_light_ext_init, DirectionalLightInitFn, "cna_directional_light_ext_init");
   LOAD_REQUIRED(particle_system_create_with_capacity, ParticleSystemCreateFn, "cna_particle_system_create_with_capacity");
+  LOAD_REQUIRED(particle_system_create, ParticleSystemCreateDefaultFn, "cna_particle_system_create");
+  LOAD_REQUIRED(particle_system_draw, ParticleSystemDrawFn, "cna_particle_system_draw");
+  LOAD_REQUIRED(particle_system_set_depth_input_ext, ParticleDepthInputFn, "cna_particle_system_set_depth_input_ext");
+  LOAD_REQUIRED(particle_system_get_softness_ext, HandleFloatOutFn, "cna_particle_system_get_softness_ext");
+  LOAD_REQUIRED(particle_system_set_softness_ext, HandleFloatFn, "cna_particle_system_set_softness_ext");
+  LOAD_REQUIRED(particle_system_copy_particle_lookup_glsl, CopyGlslFn, "cna_particle_system_copy_particle_lookup_glsl");
   LOAD_REQUIRED(particle_system_destroy, GameHandleFn, "cna_particle_system_destroy");
   LOAD_REQUIRED(particle_system_get_capacity, HandleI32OutFn, "cna_particle_system_get_capacity");
   LOAD_REQUIRED(particle_system_get_settings, ParticleSettingsOutFn, "cna_particle_system_get_settings");
@@ -15098,6 +15115,96 @@ static napi_value particle_step(napi_env env, napi_callback_info info) {
   return make_particle(env, &particle);
 }
 
+/*
+ * The particle draw, and the settings that belong to it.
+ *
+ * `draw` takes the camera as two matrices and the texture to paint each particle with. CNA
+ * documents drawing with nothing alive as success that draws nothing, and a null texture as a
+ * refusal, so neither is second-guessed here.
+ */
+
+static napi_value particle_system_create_default(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle device = 0, system = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  const CNA_Result result = g_api.particle_system_create(device, &system);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_particle_system_create", result);
+  }
+  return make_handle(env, system);
+}
+
+static napi_value particle_system_draw(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle system = 0, texture = 0;
+  CNA_Matrix view, projection;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &system) ||
+      !read_matrix16(env, args[1], &view, "the view must be a 16-number array") ||
+      !read_matrix16(env, args[2], &projection,
+        "the projection must be a 16-number array")) return NULL;
+  /* A zero handle is passed through: CNA refuses it, and its refusal is the documented one. */
+  if (napi_get_value_bigint_uint64(env, args[3], &texture, &(bool){ false }) != napi_ok) {
+    return throw_message(env, "the particle texture must be a CNA handle");
+  }
+  const CNA_Result result = g_api.particle_system_draw(system, &view, &projection, texture);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_particle_system_draw", result);
+  }
+  return undefined_result(env, "cna_particle_system_draw");
+}
+
+static napi_value particle_system_set_depth_input(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle system = 0, depth = 0;
+  double farPlane = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &system)) return NULL;
+  if (napi_get_value_bigint_uint64(env, args[1], &depth, &(bool){ false }) != napi_ok ||
+      napi_get_value_double(env, args[2], &farPlane) != napi_ok) {
+    return throw_message(env, "a depth input needs a handle and a far plane");
+  }
+  const CNA_Result result =
+    g_api.particle_system_set_depth_input_ext(system, depth, (float) farPlane);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_particle_system_set_depth_input_ext", result);
+  }
+  return undefined_result(env, "cna_particle_system_set_depth_input_ext");
+}
+
+static napi_value particle_system_get_softness(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.particle_system_get_softness_ext,
+    "cna_particle_system_get_softness_ext");
+}
+static napi_value particle_system_set_softness(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.particle_system_set_softness_ext,
+    "cna_particle_system_set_softness_ext");
+}
+
+static napi_value particle_lookup_glsl(napi_env env, napi_callback_info info) {
+  uint64_t required = 0;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  CNA_Result result = g_api.particle_system_copy_particle_lookup_glsl(NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_particle_system_copy_particle_lookup_glsl", result);
+  }
+  char* text = (char*) malloc((size_t) required + 1U);
+  if (!text) return throw_message(env, "particle lookup GLSL allocation failed");
+  result = g_api.particle_system_copy_particle_lookup_glsl(text, required + 1U, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(text);
+    return throw_result(env, "cna_particle_system_copy_particle_lookup_glsl", result);
+  }
+  napi_value output = NULL;
+  const napi_status status =
+    napi_create_string_utf8(env, text, (size_t) required, &output);
+  free(text);
+  if (status != napi_ok) return throw_message(env, "the particle lookup GLSL is not UTF-8");
+  return output;
+}
+
 static napi_value particle_system_create(napi_env env, napi_callback_info info) {
   napi_value args[2];
   CNA_Handle device = 0, system = 0;
@@ -18607,6 +18714,12 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getParticleEmitterSettings", NULL, particle_system_get_settings, NULL, NULL, NULL, napi_default, NULL },
     { "setParticleEmitterSettings", NULL, particle_system_set_settings, NULL, NULL, NULL, napi_default, NULL },
     { "copyParticles", NULL, particle_system_copy_particles, NULL, NULL, NULL, napi_default, NULL },
+    { "createParticleSystemAtDefaultCapacity", NULL, particle_system_create_default, NULL, NULL, NULL, napi_default, NULL },
+    { "drawParticleSystem", NULL, particle_system_draw, NULL, NULL, NULL, napi_default, NULL },
+    { "setParticleDepthInput", NULL, particle_system_set_depth_input, NULL, NULL, NULL, napi_default, NULL },
+    { "getParticleSoftness", NULL, particle_system_get_softness, NULL, NULL, NULL, napi_default, NULL },
+    { "setParticleSoftness", NULL, particle_system_set_softness, NULL, NULL, NULL, napi_default, NULL },
+    { "getParticleLookupGlsl", NULL, particle_lookup_glsl, NULL, NULL, NULL, napi_default, NULL },
     { "getDefaultParticleEmitterSettings", NULL, particle_default_settings, NULL, NULL, NULL, napi_default, NULL },
     { "getDefaultParticle", NULL, particle_default, NULL, NULL, NULL, napi_default, NULL },
     { "particleRandom", NULL, particle_random, NULL, NULL, NULL, napi_default, NULL },

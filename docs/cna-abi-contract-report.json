@@ -1,12 +1,12 @@
 {
   "contract": "tools/cna-abi/contract.json",
-  "typeScriptEnums": 101,
-  "verifiedFamilies": 100,
+  "typeScriptEnums": 107,
+  "verifiedFamilies": 106,
   "managedEnums": 1,
-  "claims": 908,
-  "identicalClaims": 905,
+  "claims": 951,
+  "identicalClaims": 948,
   "translatedClaims": 3,
-  "scalarAssertions": 6,
+  "scalarAssertions": 37,
   "resultCodeAssertions": 15,
   "typeScriptResultCodes": 15,
   "structVersionAssertions": 6,
@@ -75,6 +75,10 @@
     {
       "family": "CameraPosition",
       "constant": "CNA_CAMERA_POSITION_MAXIMUM"
+    },
+    {
+      "family": "CameraState",
+      "constant": "CNA_CAMERA_STATE_MAXIMUM"
     },
     {
       "family": "CnbAssetType",
@@ -203,6 +207,86 @@
     {
       "family": "GestureType",
       "constant": "CNA_GESTURE_TYPE_ALL"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_ADDITIVE_BLENDING"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_ANISOTROPIC_FILTERING"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_COMPILED_EFFECTS"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_COMPUTE_SHADERS"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_CUSTOM_EFFECTS"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_DEPTH_STENCIL_BUFFER"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_FLOAT_RENDER_TARGETS"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_HALF_FLOAT_RENDER_TARGETS"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_HALF_FLOAT_TEXTURE_LINEAR_FILTERING"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_INDIRECT_DRAW"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_INSTANCING"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_MULTI_SAMPLE_ANTI_ALIASING"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_MULTI_STREAM_VERTEX_INPUT"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_MULTIPLE_RENDER_TARGETS"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_OCCLUSION_QUERY"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_STENCIL_BUFFER"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_TEXTURE_3D"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_THREE_D"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_FLAG_WIRE_FRAME"
+    },
+    {
+      "family": "GraphicsCapability",
+      "constant": "CNA_GRAPHICS_CAPABILITY_MAXIMUM"
     },
     {
       "family": "GraphicsRendererFallbackReason",
@@ -345,7 +429,7 @@
       "constant": "CNA_VIDEO_SOUNDTRACK_TYPE_MAXIMUM"
     }
   ],
-  "declaredCnaOnlyConstants": 82,
+  "declaredCnaOnlyConstants": 103,
   "diagnostics": [],
   "translations": [
     {

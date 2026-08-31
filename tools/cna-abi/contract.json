@@ -175,6 +175,16 @@
       "expression": "sizeof(CNA_RenderTargetUsage)",
       "value": 4,
       "reason": "the Node adapter writes this field of CNA_PresentationParameters through a 32-bit word when it builds a caller-created GraphicsDevice, so its width is proved rather than assumed"
+    },
+    {
+      "expression": "(uint32_t) CNA_PARTICLE_SYSTEM_DEFAULT_CAPACITY",
+      "value": 1024,
+      "reason": "ParticleSystem.AtDefaultCapacity reports this, so the number is CNA's rather than one copied into a test"
+    },
+    {
+      "expression": "(uint32_t) CNA_PARTICLE_BINDING",
+      "value": 7,
+      "reason": "ParticleShaderSource.BindingPoint states this, and CNA's own particle GLSL declares the same binding"
     }
   ],
   "resultCodes": {

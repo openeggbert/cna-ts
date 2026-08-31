@@ -13,12 +13,13 @@ verified here** — see items 3 and 4 below.
 Re-checked against `cnanext` 599d14e5 (CNA C ABI 0.21.0) on 2026-08-31. Items 5 and 6 are new,
 found while projecting the sensor families; item 7 is new, found while widening the windowed
 qualification to three renderers; items 8 and 9 are new, found while projecting the engine
-layer's compute path, item 10 while projecting its clustered lighting, and item 11 -- a
-segmentation fault -- while projecting camera frame capture.
+layer's compute path, item 10 while projecting its clustered lighting, item 11 -- a
+segmentation fault -- while projecting camera frame capture, and item 12 while projecting the
+particle draw.
 
 **Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
 library. Both were found by this package, both were *asserted* rather than worked around, and both
-detectors fired the moment the repair landed. Four of the eleven findings are now closed.
+detectors fired the moment the repair landed. Four of the twelve findings are now closed.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -482,3 +483,60 @@ process through `test/fixtures/camera-test-backend-then-platform.mjs` and assert
 dies with `SIGSEGV`. The child prints `SURVIVED` if CNA is repaired, and the assertion then fails
 and says so. Every probe in this package that opens the platform camera runs before the first
 test-backend one, and `CnaCamera.OpenForTests` documents the hazard on itself.
+
+## 12. Soft particles never fade: the depth input reaches CNA and changes nothing it draws
+
+`cna_particle_system_set_depth_input_ext` supplies the prepass depth image particles fade against,
+and `cna_particle_system_set_softness_ext` says over what distance. Both are accepted, and the
+softness round-trips through its getter. The drawn picture is unaffected by either.
+
+Measured on `cmake-build-debug` (OPENGLES3, ABI 0.21.0) under `xvfb-run`, in one process, drawing
+eight particles of size 4 standing on the origin into a 64×64 `Color` render target cleared to
+(12, 34, 56):
+
+```text
+                                  painted texels   colour
+CPU draw path (ForceSimulationOnCpu)     169        0xff0000ff
+GPU draw path                            144        0xff0000ff
+GPU + softness 50, depth image all 0     144        0xff0000ff   <- expected: nothing painted
+GPU + softness 50, depth image all 255   144        0xff0000ff
+GPU + depth input cleared                144        0xff0000ff
+```
+
+The GPU draw path is genuinely the one running: it paints 144 texels where the CPU billboard path
+paints 169, so this is not a silent fallback to the path that has no fade. `getSoftnessEXT` reads
+back the 50 that was set, and the far plane is 100.
+
+What the shader says should happen, from `modules/graphics-ext/src/ParticleSystem.cpp`:
+
+```glsl
+    if (uHasDepth > 0.5 && uSoftness > 0.0) {
+        vec2 uv = gl_FragCoord.xy / max(uViewport, vec2(1.0));
+        float behind = cnaDecodeLinearDepth(texture(uSceneDepth, uv)) * uDepthFarPlane;
+        colour.a *= clamp((behind - vViewDepth) / uSoftness, 0.0, 1.0);
+    }
+```
+
+With a depth image of zeros, `behind` is 0 and the particle sits about 20 units in front of the
+camera, so the clamp is 0 and every particle fragment should end up fully transparent. Instead the
+image is byte-identical to the one drawn with no depth input at all — the same 144 texels at full
+alpha — which means the branch is not being taken. `fading` is computed as
+`sceneDepth_ != nullptr && depthFarPlane_ > 0.0f && softness_ > 0.0f`, and all three hold here.
+
+Both extremes of the depth image were tried, in `Color` and in `Single` render-target form, and a
+plain `Color` `Texture2D` filled with `SetData`. None of them changes a texel. A `Single`-format
+`Texture2D` cannot be created on this renderer at all (`CNA_RESULT_NOT_SUPPORTED`: "The Texture2D
+surface format is unavailable on the active graphics renderer"), so a float depth image has to be a
+render target, which is what the shader's own comment assumes.
+
+**Not reproduced further than this.** Whether the uniform, the sampler binding, the viewport
+division or the depth decode is at fault is not something this package can tell from outside, and
+guessing would not help. What is certain is the observable: the depth input and the softness reach
+CNA, are stored, are readable back, and make no difference to what is drawn.
+
+**Detector in cna-ts:** `test/windowed-renderer.integration.mjs` asserts the current behaviour --
+that a depth image of zeros with a softness of 50 leaves the drawn particle unchanged -- rather
+than skipping the check. That is the same discipline that made findings 7 and 9 visible the moment
+CNA repaired them: the assertion fails when the fade starts working, and says so. `ParticleSystem`
+documents on `SetDepthInput` itself that the fade is not observable on any renderer this package
+qualifies against.

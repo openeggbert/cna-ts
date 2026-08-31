@@ -13,7 +13,7 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 72,
+    "VERIFIED_NATIVE": 73,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 2,
@@ -177,7 +177,7 @@
       "operation": "Modern CNA engine layer beyond the pipeline, the post-process chain, compute, clustered lighting, LOD, the shadow maps and particles: decals, light probes and atmospheric rendering",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the render pipeline, the post-process chain, the compute path, the clustered lighting family, level-of-detail groups, the shadow-map maths for all four shadow kinds, the shadow depth pass and the particle simulation are projected and verified separately. What is left is a particle system's draw plus decals, light probes and atmospheric rendering. Until CNA fixed upstream findings 7 and 9 in 48ab0de7f there was no evidence to accept a draw pass on at all, because render-target readback answered zeros; that obstacle is gone, which is what let the shadow depth pass be written and accepted on its texels. The three remaining families are state-and-render objects with no pure maths to project, so what they would buy is a state round-trip and nothing more",
+      "evidence": "the render pipeline, the post-process chain, the compute path, the clustered lighting family, level-of-detail groups, the shadow-map maths for all four shadow kinds, the shadow depth pass, the particle simulation and the particle draw are projected and verified separately. What is left is decals, light probes and atmospheric rendering. Both draw passes were blocked until CNA fixed upstream findings 7 and 9 in 48ab0de7f -- render-target readback answered zeros, so there was no evidence to accept a rendered picture on at all -- and both were written and accepted on their texels once that landed. The three remaining families are state-and-render objects with no pure maths to project, so what they would buy is a state round-trip and nothing more",
       "proof": [
         "absentRoute:cna_decal_pass_create"
       ]
@@ -1139,6 +1139,21 @@
         "route:cna_guide_simulate_message_box_click_ext",
         "test:test/native-cna.integration.mjs",
         "test:test/gamer-services-guide.test.mjs"
+      ]
+    },
+    {
+      "operation": "The particle draw: live particles painted where the camera puts them",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "accepted on the texels the draw painted into a render target on a windowed OPENGLES3 renderer under Xvfb. The scene is made predictable rather than guessed at: the simulation is pinned to the CPU, every source of variance is zero and the emitter's speed is zero, so all 32 particles stand exactly on the emitter -- which the pool, read back, confirms is the one point and no other. Two systems at different world positions with different particle sizes are drawn through one camera the test built itself from CreateLookAt and CreateOrthographic, and each painted region is checked against where that camera puts that emitter and how wide that particle size is there: both squares land within 1.5 texels on every edge, cover their predicted area to within 20%, and are painted in the particle texture's colour and no other. Drawing either system alone puts its square in the same place, a system with an emission rate of zero paints nothing at all and does not fail, and moving the camera two world units slides both squares by exactly what the new view predicts. CNA's default capacity comes from the route that takes no capacity and is 1024, which tools/cna-abi/contract.json pins to CNA's own header with a _Static_assert, and the storage-buffer binding point the API states is the one CNA's own particle GLSL declares. Nine planted binding defects fail, including a draw that swaps the view and the projection, one that sends the view as both, one that drops the texture, a settings setter that loses the particle size, and a softness setter that never reaches CNA. One survives and is recorded as unkillable: creating at the default capacity by asking for 1024 explicitly is indistinguishable from asking CNA, because no route says which was used. The soft-particle fade is the one thing not accepted -- the depth image and the softness reach CNA and change nothing that is drawn, which is upstream finding 12, asserted as it currently behaves so a repair is noticed",
+      "proof": [
+        "route:cna_particle_system_draw",
+        "route:cna_particle_system_create",
+        "route:cna_particle_system_set_depth_input_ext",
+        "route:cna_particle_system_get_softness_ext",
+        "route:cna_particle_system_set_softness_ext",
+        "route:cna_particle_system_copy_particle_lookup_glsl",
+        "test:test/windowed-renderer.integration.mjs"
       ]
     },
     {

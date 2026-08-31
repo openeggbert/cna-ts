@@ -4395,7 +4395,7 @@ test("a renderer that cannot cast shadows says so, and lends nothing it cannot m
 });
 
 test("the particle simulation integrates exactly, and the system agrees with it", async () => {
-  const { ParticleMath, ParticleSystem } = computeExtensions;
+  const { ParticleMath, ParticleShaderSource, ParticleSystem } = computeExtensions;
 
   // The deterministic generator the emitter draws from: the same seed is always the same value,
   // and different seeds are different. A generator that ignored its seed passes neither.
@@ -4502,6 +4502,37 @@ test("the particle simulation integrates exactly, and the system agrees with it"
           this.evidence.system.activeAfter = system.ActiveCount;
           system.Reset();
           this.evidence.system.afterReset = system.ToArray().length;
+
+          // The draw's own settings and the shader contract that goes with it. HEADLESS paints
+          // nothing anyone can see, so what is checked here is what CNA reports about itself; the
+          // picture is qualified on a windowed renderer in test/windowed-renderer.integration.mjs.
+          system.Softness = 2.5;
+          const softnessSet = system.Softness;
+          system.Softness = -3;
+          this.evidence.system.softness = { set: softnessSet, floored: system.Softness };
+
+          const texture = new Graphics.Texture2D(this.GraphicsDevice, 1, 1);
+          try {
+            texture.SetData([Color.Red]);
+            const view = Matrix.CreateLookAt(new Vector3(0, 0, 10), Vector3.Zero, Vector3.Up);
+            const projection = Matrix.CreateOrthographic(20, 20, 0.1, 100);
+            system.Draw(view, projection, texture);
+            this.evidence.system.draw = "ACCEPTED";
+            system.SetDepthInput(texture, 100);
+            system.SetDepthInput(null, 100);
+            this.evidence.system.depthInput = "ACCEPTED";
+          } finally {
+            texture.Dispose();
+          }
+
+          const defaults = ParticleSystem.AtDefaultCapacity(this.GraphicsDevice);
+          try {
+            this.evidence.system.defaultCapacity = defaults.Capacity;
+          } finally {
+            defaults.Dispose();
+          }
+          this.evidence.system.bindingPoint = ParticleShaderSource.BindingPoint;
+          this.evidence.system.glsl = ParticleShaderSource.Glsl;
         } finally {
           system.Dispose();
         }
@@ -4533,6 +4564,26 @@ test("the particle simulation integrates exactly, and the system agrees with it"
     assert.ok(system.activeAfter >= 0 && system.activeAfter <= 64);
     assert.equal(system.afterReset, 64, "reset keeps the pool, it does not shrink it");
     assert.equal(typeof system.reason, "string");
+
+    // The draw is accepted even on a renderer that shows nothing -- there is nothing wrong with
+    // asking, and CNA does not refuse it.
+    assert.equal(system.draw, "ACCEPTED");
+    assert.equal(system.depthInput, "ACCEPTED");
+    // Softness is floored at zero rather than refused, which is CNA's documented choice.
+    assert.deepEqual([system.softness.set, system.softness.floored], [2.5, 0]);
+    // CNA's own default capacity, through the route that does not take one. The number is checked
+    // against CNA's headers by tools/cna-abi/contract.json, which compiles a _Static_assert that
+    // CNA_PARTICLE_SYSTEM_DEFAULT_CAPACITY is 1024 -- so this is not the same number written twice.
+    assert.equal(system.defaultCapacity, 1024);
+    assert.notEqual(system.defaultCapacity, system.capacity, "and it is not the asked-for one");
+    // The binding point a particle vertex shader reads the pool at, agreeing with the GLSL CNA
+    // hands out for that shader. A macro and a shader string, from two unrelated routes.
+    assert.equal(system.bindingPoint, 7);
+    assert.match(
+      system.glsl, new RegExp(`binding\\s*=\\s*${system.bindingPoint}\\b`),
+      "CNA's particle GLSL declares the binding point the API states",
+    );
+    assert.match(system.glsl, /std430/, "in the storage-buffer layout the simulation writes");
   }
 
   console.log(

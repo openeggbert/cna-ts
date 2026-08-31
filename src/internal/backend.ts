@@ -1325,6 +1325,15 @@ export interface ParticleEmitterSettingsSnapshot {
 
 /** CNA's particle systems, and the pure functions behind them. */
 export interface CnaParticleBackend {
+  createParticleSystemAtDefaultCapacity(device: NativeHandle): NativeHandle;
+  drawParticleSystem(
+    system: NativeHandle, view: readonly number[], projection: readonly number[],
+    texture: NativeHandle,
+  ): void;
+  setParticleDepthInput(system: NativeHandle, depth: NativeHandle, farPlane: number): void;
+  getParticleSoftness(system: NativeHandle): number;
+  setParticleSoftness(system: NativeHandle, softness: number): void;
+  getParticleLookupGlsl(): string;
   createParticleSystem(device: NativeHandle, capacity: number): NativeHandle;
   destroyParticleSystem(system: NativeHandle): void;
   resetParticleSystem(system: NativeHandle): void;

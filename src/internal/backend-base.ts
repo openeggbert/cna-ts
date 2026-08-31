@@ -1167,6 +1167,28 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
 export abstract class CnaParticleBackendBase implements CnaParticleBackend {
   /** Refuses one member of this boundary, naming it. */
   protected abstract unsupported(member: string): never;
+  public createParticleSystemAtDefaultCapacity(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createParticleSystemAtDefaultCapacity"); }
+  public drawParticleSystem(
+    _system: NativeHandle,
+    _view: readonly number[],
+    _projection: readonly number[],
+    _texture: NativeHandle,
+  ): void { return this.unsupported("drawParticleSystem"); }
+  public setParticleDepthInput(
+    _system: NativeHandle,
+    _depth: NativeHandle,
+    _farPlane: number,
+  ): void { return this.unsupported("setParticleDepthInput"); }
+  public getParticleSoftness(
+    _system: NativeHandle,
+  ): number { return this.unsupported("getParticleSoftness"); }
+  public setParticleSoftness(
+    _system: NativeHandle,
+    _softness: number,
+  ): void { return this.unsupported("setParticleSoftness"); }
+  public getParticleLookupGlsl(): string { return this.unsupported("getParticleLookupGlsl"); }
   public createParticleSystem(
     _device: NativeHandle,
     _capacity: number,

@@ -36,6 +36,7 @@ import {
   Matrix,
   Vector2,
   Vector3,
+  Vector4,
 } from "../dist/index.js";
 
 /** A Matrix as the sixteen numbers a projection needs, in the order XNA names them. */
@@ -476,6 +477,233 @@ class WindowedProbeGame extends Game {
         return result;
       } finally {
         map.Dispose();
+      }
+    });
+
+    // --- the engine layer's particle draw -----------------------------------------------------
+    //
+    // Particles are simulated on the CPU with every source of variance turned off and no speed at
+    // all, so every particle in a system sits exactly on its emitter. That makes the draw
+    // predictable to the texel: each system paints one square, at the point the camera puts its
+    // emitter, as wide as its particle size. Two systems at different places and different sizes,
+    // one camera move, and one system with nothing alive.
+    record("particles", () => {
+      const {
+        IsGraphicsExtensionLayerAvailable, ParticleShaderSource, ParticleSystem,
+      } = computeModule;
+      const SIZE = 128;
+      const CLEARED = new Color(12, 34, 56, 255);
+      const owned = [];
+      try {
+        try {
+          owned.push(new ParticleSystem(device, 1));
+        } catch (error) {
+          // No engine layer in this build; there is no particle system to make.
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        const emitter = (position, particleSize, emissionRate) => {
+          const system = new ParticleSystem(device, 32);
+          owned.push(system);
+          // The CPU path, so the same numbers come back on a renderer with compute and one without.
+          system.ForceSimulationOnCpu(true);
+          system.Settings = {
+            ...system.Settings,
+            Position: position,
+            Direction: new Vector3(0, 1, 0),
+            Gravity: Vector3.Zero,
+            StartColor: new Vector4(1, 1, 1, 1),
+            EndColor: new Vector4(1, 1, 1, 1),
+            ConeAngle: 0,
+            Speed: 0,
+            SpeedVariance: 0,
+            Lifetime: 100,
+            LifetimeVariance: 0,
+            Drag: 0,
+            EmissionRate: emissionRate,
+            StartSize: particleSize,
+            EndSize: particleSize,
+          };
+          system.Reset();
+          system.Update(0.5);
+          return system;
+        };
+        // Asymmetric on both screen axes, different sizes, and neither at the origin.
+        const NEAR = { Position: new Vector3(3, 2, -4), Size: 1 };
+        const FAR = { Position: new Vector3(-6, -3, 0), Size: 2 };
+        const near = emitter(NEAR.Position, NEAR.Size, 40);
+        const far = emitter(FAR.Position, FAR.Size, 40);
+        const idle = emitter(new Vector3(0, 0, 0), 1, 0);
+
+        const settings = near.Settings;
+        const result = {
+          size: SIZE,
+          near: { ...NEAR, position: [NEAR.Position.X, NEAR.Position.Y, NEAR.Position.Z] },
+          far: { ...FAR, position: [FAR.Position.X, FAR.Position.Y, FAR.Position.Z] },
+          // The settings CNA holds, read back rather than remembered.
+          settings: {
+            position: [settings.Position.X, settings.Position.Y, settings.Position.Z],
+            speed: settings.Speed, coneAngle: settings.ConeAngle, startSize: settings.StartSize,
+          },
+          counts: { near: near.ActiveCount, far: far.ActiveCount, idle: idle.ActiveCount },
+          // Every particle in a system, distinct positions only: they must all be on the emitter.
+          nearPositions: [...new Set(
+            near.ToArray().map((p) => `${p.Position.X},${p.Position.Y},${p.Position.Z}`),
+          )],
+          defaultCapacity: (() => {
+            const system = ParticleSystem.AtDefaultCapacity(device);
+            try {
+              return system.Capacity;
+            } finally {
+              system.Dispose();
+            }
+          })(),
+          bindingPoint: ParticleShaderSource.BindingPoint,
+          glsl: ParticleShaderSource.Glsl,
+          softness: (() => {
+            const before = near.Softness;
+            near.Softness = 2.5;
+            const set = near.Softness;
+            near.Softness = -3;
+            return { before, set, floored: near.Softness };
+          })(),
+        };
+
+        const target = new Graphics.RenderTarget2D(device, SIZE, SIZE);
+        owned.push(target);
+        const texture = new Graphics.Texture2D(device, 2, 2);
+        owned.push(texture);
+        // One flat colour, so a painted texel is unmistakably the particle texture's.
+        texture.SetData([Color.Red, Color.Red, Color.Red, Color.Red]);
+        result.particleColor = Color.Red.PackedValue;
+        result.clearedColor = CLEARED.PackedValue;
+
+        const projection = Matrix.CreateOrthographic(20, 20, 0.1, 100);
+        const pixels = new Array(SIZE * SIZE);
+        // Connected regions of non-cleared texels, so two emitters are two findings rather than
+        // one bounding box around both.
+        const blobs = (view, systems) => {
+          device.SetRenderTarget(target);
+          try {
+            device.Clear(CLEARED);
+            for (const system of systems) system.Draw(view, projection, texture);
+          } finally {
+            // Unbound even when a draw refuses, so the frame can still be presented and the
+            // failure that matters is the one that gets reported.
+            device.SetRenderTarget(null);
+          }
+          target.GetData(pixels);
+          const found = [];
+          const visited = new Uint8Array(SIZE * SIZE);
+          const painted = (index) => pixels[index].PackedValue !== CLEARED.PackedValue;
+          for (let index = 0; index < SIZE * SIZE; index += 1) {
+            if (visited[index] || !painted(index)) continue;
+            const stack = [index];
+            visited[index] = 1;
+            let count = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            const colours = new Set();
+            while (stack.length > 0) {
+              const at = stack.pop();
+              const x = at % SIZE, y = Math.floor(at / SIZE);
+              count += 1;
+              colours.add(pixels[at].PackedValue);
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+              for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE) continue;
+                const next = ny * SIZE + nx;
+                if (!visited[next] && painted(next)) {
+                  visited[next] = 1;
+                  stack.push(next);
+                }
+              }
+            }
+            found.push({ count, minX, maxX, minY, maxY, colours: [...colours] });
+          }
+          return found.sort((left, right) => left.minX - right.minX);
+        };
+
+        const matrixOf = (matrix) => matrixRow(matrix);
+        const straightOn = Matrix.CreateLookAt(new Vector3(0, 0, 20), Vector3.Zero, Vector3.Up);
+        // The same scene from two units to the right; everything must slide left by exactly that.
+        const CAMERA_SHIFT = 2;
+        const shifted = Matrix.CreateLookAt(
+          new Vector3(CAMERA_SHIFT, 0, 20), new Vector3(CAMERA_SHIFT, 0, 0), Vector3.Up,
+        );
+        result.projection = matrixOf(projection);
+        result.straightOn = { view: matrixOf(straightOn), blobs: blobs(straightOn, [near, far]) };
+        result.idleOnly = blobs(straightOn, [idle]);
+        result.shifted = {
+          view: matrixOf(shifted), shift: CAMERA_SHIFT, blobs: blobs(shifted, [near, far]),
+        };
+        // Each alone, so a blob belongs to the system that drew it rather than to the pair.
+        result.nearOnly = blobs(straightOn, [near]);
+        result.farOnly = blobs(straightOn, [far]);
+
+        /*
+         * The soft-particle fade, asserted as it currently behaves rather than skipped.
+         *
+         * `docs/upstream-cna-findings.md` item 12: the depth input and the softness reach CNA,
+         * store, and read back, and the drawn picture does not change -- not with a depth image of
+         * zeros, which should erase the particle entirely. The GPU draw path is the one running,
+         * which the texel counts below show, so this is not a fallback to the path that has no
+         * fade. Asserting it is what makes a repair visible the day it lands, the way items 7 and 9
+         * were noticed.
+         */
+        const gpu = new ParticleSystem(device, 8);
+        owned.push(gpu);
+        gpu.Settings = { ...near.Settings, StartSize: 4, EndSize: 4, Position: Vector3.Zero };
+        gpu.Reset();
+        gpu.Update(0.5);
+        const depth = new Graphics.RenderTarget2D(device, SIZE, SIZE);
+        owned.push(depth);
+        device.SetRenderTarget(depth);
+        try {
+          // Every pixel at the camera: nothing should survive a fade against this.
+          device.Clear(new Color(0, 0, 0, 255));
+        } finally {
+          device.SetRenderTarget(null);
+        }
+        const fade = { usesCompute: gpu.UsesCompute, cpu: blobs(straightOn, [near]) };
+        fade.withoutDepth = blobs(straightOn, [gpu]);
+        gpu.Softness = 50;
+        fade.softness = gpu.Softness;
+        gpu.SetDepthInput(depth, 100);
+        fade.withNearDepth = blobs(straightOn, [gpu]);
+        gpu.SetDepthInput(null, 100);
+        fade.afterClearing = blobs(straightOn, [gpu]);
+        result.fade = fade;
+
+        const refusal = (body) => {
+          try {
+            body();
+            return "ACCEPTED";
+          } catch (error) {
+            return `${error.constructor.name}`;
+          }
+        };
+        result.refusals = {
+          nullTexture: refusal(() => near.Draw(straightOn, projection, null)),
+          disposedTexture: refusal(() => {
+            const gone = new Graphics.Texture2D(device, 1, 1);
+            gone.Dispose();
+            near.Draw(straightOn, projection, gone);
+          }),
+          disposedSystem: refusal(() => {
+            const gone = new ParticleSystem(device, 1);
+            gone.Dispose();
+            gone.Draw(straightOn, projection, texture);
+          }),
+        };
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) resource.Dispose();
       }
     });
 
@@ -1041,6 +1269,174 @@ test("a windowed CNA renderer writes a shadow map the light transform predicts",
   console.log(
     `CNA_TS_WINDOWED_SHADOW=OK SIZE=${shadow.size} SAMPLING=${shadow.sampling} ` +
     `DEPTH_HIGH=${shadow.high.low} DEPTH_LOW=${shadow.low.low} TEXELS=${shadow.high.occluded}`,
+  );
+});
+
+test("a windowed CNA renderer draws particles where the camera puts them", { skip }, async () => {
+  const game = new WindowedProbeGame(2);
+  await game.Run();
+  const particles = game.evidence.particles;
+  game.Dispose();
+
+  assert.equal(typeof particles, "object", `particle probe failed: ${particles}`);
+  if (particles.layerAbsent) {
+    // The same honest boundary the shadow pass hits on these builds, checked the same way: CNA's
+    // own NOT_SUPPORTED, agreeing with the separate route that reports whether the layer is there.
+    assert.equal(particles.cnaResult, 6, "a build without the engine layer refuses with NOT_SUPPORTED");
+    assert.equal(particles.extensionLayer, false, "and the layer-availability route agrees");
+    console.log("CNA_TS_WINDOWED_PARTICLES=NO_ENGINE_LAYER");
+    return;
+  }
+
+  // CNA's own default capacity, through the route that does not take one. The number is not
+  // written here twice: tools/cna-abi/contract.json compiles a _Static_assert that
+  // CNA_PARTICLE_SYSTEM_DEFAULT_CAPACITY is 1024 against CNA's headers.
+  assert.equal(particles.defaultCapacity, 1024);
+  // The binding point a particle vertex shader reads the pool at, agreeing with the GLSL CNA hands
+  // out for exactly that purpose -- a macro and a shader string, from two different routes.
+  assert.equal(particles.bindingPoint, 7);
+  assert.match(
+    particles.glsl, new RegExp(`binding\\s*=\\s*${particles.bindingPoint}\\b`),
+    "CNA's particle GLSL declares the binding point the API states",
+  );
+  assert.match(particles.glsl, /std430/, "and it is the storage-buffer layout the simulation uses");
+
+  // Softness is floored rather than refused, which is CNA's documented choice.
+  assert.equal(particles.softness.before, 0);
+  assert.equal(particles.softness.set, 2.5, "a softness round-trips");
+  assert.equal(particles.softness.floored, 0, "and a negative one reads back as zero");
+
+  // The scene, before anything is drawn: the settings CNA holds are the ones that were set, and
+  // every particle is standing exactly on the emitter, which is what makes the draw predictable.
+  assert.deepEqual(particles.settings.position, particles.near.position);
+  assert.deepEqual(
+    [particles.settings.speed, particles.settings.coneAngle], [0, 0],
+    "no speed and no cone: every particle stays where it was born",
+  );
+  assert.deepEqual(
+    particles.nearPositions, [particles.near.position.join(",")],
+    "all 32 particles are on the emitter, and none anywhere else",
+  );
+  assert.equal(particles.counts.near, 32);
+  assert.equal(particles.counts.far, 32);
+  assert.equal(particles.counts.idle, 0, "an emission rate of zero brings nothing to life");
+
+  /*
+   * The oracle: where the camera puts a world point, and how big a world-space size is there.
+   *
+   * The view and the projection are the test's own -- built from XNA's CreateLookAt and
+   * CreateOrthographic -- and the emitter positions and particle sizes are the test's too. What
+   * CNA supplies is the picture. So a draw that ignored the view, ignored the projection, ignored
+   * the emitter position, or ignored the particle size lands somewhere this cannot follow it.
+   */
+  const project = (view, projection, point) => {
+    const through = (m, [x, y, z, w]) => [0, 1, 2, 3].map((column) =>
+      m[column] * x + m[4 + column] * y + m[8 + column] * z + m[12 + column] * w);
+    const clip = through(projection, through(view, [...point, 1]));
+    return { X: clip[0] / clip[3], Y: clip[1] / clip[3] };
+  };
+  const expectBlob = (label, blob, view, emitter) => {
+    const ndc = project(view, particles.projection, emitter.position);
+    const centreX = (ndc.X * 0.5 + 0.5) * particles.size;
+    const centreY = (0.5 - ndc.Y * 0.5) * particles.size;
+    // A particle is a square that many world units across, and the orthographic width says how
+    // many texels a world unit is worth.
+    const worldPerNdc = particles.projection[0];
+    const halfWidth = (emitter.Size * 0.5) * worldPerNdc * 0.5 * particles.size;
+    assert.ok(halfWidth > 2, "the particle must be big enough for its extent to mean something");
+    for (const [name, got, want] of [
+      ["minX", blob.minX, centreX - halfWidth], ["maxX", blob.maxX, centreX + halfWidth],
+      ["minY", blob.minY, centreY - halfWidth], ["maxY", blob.maxY, centreY + halfWidth],
+    ]) {
+      assert.ok(
+        Math.abs(got - want) <= 1.5,
+        `${label} ${name}: painted ${got}, the camera predicts ${want.toFixed(2)}`,
+      );
+    }
+    // Solid, not an outline, and painted in the particle texture's colour alone.
+    const area = 4 * halfWidth * halfWidth;
+    assert.ok(
+      Math.abs(blob.count - area) / area < 0.2,
+      `${label} covers ${blob.count} texels; the predicted square is ${area.toFixed(0)}`,
+    );
+    assert.deepEqual(
+      blob.colours, [particles.particleColor],
+      `${label} is painted in the particle texture's colour and nothing else`,
+    );
+  };
+
+  assert.equal(particles.straightOn.blobs.length, 2, "two emitters paint two separate regions");
+  const [farBlob, nearBlob] = particles.straightOn.blobs;
+  expectBlob("the far emitter", farBlob, particles.straightOn.view, particles.far);
+  expectBlob("the near emitter", nearBlob, particles.straightOn.view, particles.near);
+  // Different sizes, not one square drawn twice.
+  assert.ok(
+    farBlob.count > nearBlob.count * 2,
+    "a particle twice as wide covers about four times the area",
+  );
+
+  // Each system's blob is its own.
+  assert.equal(particles.nearOnly.length, 1);
+  assert.equal(particles.farOnly.length, 1);
+  assert.deepEqual(
+    [particles.nearOnly[0].minX, particles.nearOnly[0].minY], [nearBlob.minX, nearBlob.minY],
+    "drawing one system alone puts its square exactly where drawing both did",
+  );
+  assert.deepEqual(
+    [particles.farOnly[0].minX, particles.farOnly[0].minY], [farBlob.minX, farBlob.minY],
+  );
+
+  // A system with nothing alive draws nothing and does not fail -- CNA says so, and it does.
+  assert.deepEqual(particles.idleOnly, [], "an empty system paints no texel at all");
+
+  // Move the camera, and both squares move by what the new view predicts.
+  assert.equal(particles.shifted.blobs.length, 2);
+  expectBlob("the shifted far emitter", particles.shifted.blobs[0], particles.shifted.view, particles.far);
+  expectBlob("the shifted near emitter", particles.shifted.blobs[1], particles.shifted.view, particles.near);
+  // And it really moved: a view the draw ignored would leave them where they were.
+  const movedBy = particles.straightOn.blobs[0].minX - particles.shifted.blobs[0].minX;
+  assert.ok(
+    movedBy > 8,
+    `a ${particles.shifted.shift}-unit camera move must shift the picture, not leave it (moved ${movedBy})`,
+  );
+
+  /*
+   * Soft particles: `docs/upstream-cna-findings.md` item 12.
+   *
+   * The softness is set and reads back, the depth image says every pixel is at the camera, and the
+   * particle is drawn exactly as it was with no depth input at all. When CNA repairs the fade this
+   * fails, which is the point of asserting it.
+   */
+  const fade = particles.fade;
+  assert.equal(fade.softness, 50, "the softness CNA holds is the one that was set");
+  assert.equal(fade.withoutDepth.length, 1, "the system draws one square to begin with");
+  if (fade.usesCompute) {
+    // The GPU draw path really is the one running: it paints a different number of texels than the
+    // CPU billboard path does for the same particle. So a fade that does nothing is a fade that
+    // does nothing, not a quiet fallback to the path that never had one.
+    assert.notEqual(
+      fade.withoutDepth[0].count, fade.cpu[0].count,
+      "the GPU and CPU draw paths must be distinguishable for this measurement to mean anything",
+    );
+    assert.deepEqual(
+      fade.withNearDepth, fade.withoutDepth,
+      "UPSTREAM FINDING 12 REPAIRED: a depth image of zeros now changes the drawn particle. " +
+      "Update docs/upstream-cna-findings.md and assert the fade properly.",
+    );
+    assert.deepEqual(
+      fade.afterClearing, fade.withoutDepth, "and clearing the depth input changes nothing either",
+    );
+  }
+
+  // What the typed surface refuses before CNA ever sees it.
+  assert.equal(particles.refusals.nullTexture, "TypeError");
+  assert.equal(particles.refusals.disposedTexture, "ObjectDisposedException");
+  assert.equal(particles.refusals.disposedSystem, "NativeUnavailableError");
+
+  console.log(
+    `CNA_TS_WINDOWED_PARTICLES=OK NEAR=${nearBlob.count}px@${nearBlob.minX},${nearBlob.minY} ` +
+    `FAR=${farBlob.count}px@${farBlob.minX},${farBlob.minY} CAMERA_SHIFT=${movedBy}px ` +
+    `DEFAULT_CAPACITY=${particles.defaultCapacity} BINDING=${particles.bindingPoint}`,
   );
 });
 
