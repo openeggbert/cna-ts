@@ -426,9 +426,17 @@ export class Effect extends GraphicsResource {
     graphicsDeviceOrClone: GraphicsDevice | Effect,
     effectCode?: number[],
     adoptedDescription?: EffectDescription,
+    adoptedNative?: { readonly Backend: CnaEffectBackend; readonly Handle: NativeHandle },
   ) {
     super();
     if (graphicsDeviceOrClone == null) throw new ArgumentNullException("graphicsDevice");
+    if (adoptedNative !== undefined && !(graphicsDeviceOrClone instanceof Effect)) {
+      // Implementation-only adoption channel; the public overloads are unchanged.
+      initializeReflectedNativeEffect(
+        this, graphicsDeviceOrClone, adoptedNative.Backend, adoptedNative.Handle,
+      );
+      return;
+    }
     if (graphicsDeviceOrClone instanceof Effect) {
       const source = effectState(graphicsDeviceOrClone);
       if (source.Native != null) {
@@ -541,6 +549,25 @@ export function prepareEffectForInternalUse(effect: Effect): void {
   const state = effectState(effect);
   if (state.Native == null) return;
   state.Native.BeforeApply?.();
+}
+
+/**
+ * Wraps a native effect CNA handed out, in an `Effect` that releases it on `Dispose`.
+ *
+ * CNA's shadow map lends its caster effects: each `get` is a counted borrow that `cna_effect_destroy`
+ * gives back, and the map refuses to be destroyed while one is outstanding. That release route is
+ * exactly what an owned `Effect` lifetime already calls, so an adopted facade returns the borrow at
+ * the moment its owner disposes it.
+ */
+export function adoptNativeEffectForInternalUse(
+  device: GraphicsDevice, backend: CnaEffectBackend, handle: NativeHandle,
+): Effect {
+  return new (Effect as unknown as new (
+    device: GraphicsDevice,
+    effectCode: undefined,
+    adoptedDescription: undefined,
+    adoptedNative: { readonly Backend: CnaEffectBackend; readonly Handle: NativeHandle },
+  ) => Effect)(device, undefined, undefined, { Backend: backend, Handle: handle });
 }
 
 export function resolveEffectHandleForInternalUse(effect: Effect): NativeHandle {

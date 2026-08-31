@@ -568,6 +568,10 @@ typedef CNA_Result (*LodProjectedRadiusFn)(CNA_LodGroupEXTHandle, float, float*)
 typedef CNA_Result (*ShadowMapCreateFn)(CNA_Handle, CNA_ShadowQuality, CNA_ShadowMapHandle*);
 typedef CNA_Result (*ShadowMapQualityOutFn)(CNA_ShadowMapHandle, CNA_ShadowQuality*);
 typedef CNA_Result (*ShadowMapMatrixOutFn)(CNA_ShadowMapHandle, CNA_Matrix*);
+typedef CNA_Result (*ShadowMapBeginFn)(
+  CNA_ShadowMapHandle, const CNA_DirectionalLightEXT*, const CNA_BoundingBox*);
+typedef CNA_Result (*ShadowMapSkinnedCasterFn)(
+  CNA_ShadowMapHandle, const CNA_Matrix*, uint64_t, int32_t);
 typedef CNA_Result (*ShadowLightViewFn)(
   const CNA_DirectionalLightEXT*, const CNA_BoundingBox*, CNA_Matrix*);
 typedef CNA_Result (*ShadowLightProjectionFn)(
@@ -1493,6 +1497,14 @@ typedef struct Api {
   HandleFloatFn shadow_map_set_depth_bias;
   HandleI32OutFn shadow_map_get_filter_radius;
   ShadowMapMatrixOutFn shadow_map_get_light_view_projection;
+  ShadowMapBeginFn shadow_map_begin;
+  GameHandleFn shadow_map_end;
+  GameHandleFn shadow_map_apply_caster;
+  ShadowMapSkinnedCasterFn shadow_map_apply_skinned_caster;
+  HandleHandleOutFn shadow_map_get_caster_effect;
+  HandleHandleOutFn shadow_map_get_skinned_caster_effect;
+  HandleHandleOutFn shadow_map_get_shadow_texture;
+  HandleBoolOutFn graphics_device_supports_shadow_sampling_ext;
   ShadowLightViewFn shadow_map_compute_light_view;
   ShadowLightProjectionFn shadow_map_compute_light_projection;
   ShadowQualityToI32Fn shadow_map_size_for_quality;
@@ -2837,6 +2849,14 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(shadow_map_set_depth_bias, HandleFloatFn, "cna_shadow_map_set_depth_bias");
   LOAD_REQUIRED(shadow_map_get_filter_radius, HandleI32OutFn, "cna_shadow_map_get_filter_radius");
   LOAD_REQUIRED(shadow_map_get_light_view_projection, ShadowMapMatrixOutFn, "cna_shadow_map_get_light_view_projection");
+  LOAD_REQUIRED(shadow_map_begin, ShadowMapBeginFn, "cna_shadow_map_begin");
+  LOAD_REQUIRED(shadow_map_end, GameHandleFn, "cna_shadow_map_end");
+  LOAD_REQUIRED(shadow_map_apply_caster, GameHandleFn, "cna_shadow_map_apply_caster");
+  LOAD_REQUIRED(shadow_map_apply_skinned_caster, ShadowMapSkinnedCasterFn, "cna_shadow_map_apply_skinned_caster");
+  LOAD_REQUIRED(shadow_map_get_caster_effect, HandleHandleOutFn, "cna_shadow_map_get_caster_effect");
+  LOAD_REQUIRED(shadow_map_get_skinned_caster_effect, HandleHandleOutFn, "cna_shadow_map_get_skinned_caster_effect");
+  LOAD_REQUIRED(shadow_map_get_shadow_texture, HandleHandleOutFn, "cna_shadow_map_get_shadow_texture");
+  LOAD_REQUIRED(graphics_device_supports_shadow_sampling_ext, HandleBoolOutFn, "cna_graphics_device_supports_shadow_sampling_ext");
   LOAD_REQUIRED(shadow_map_compute_light_view, ShadowLightViewFn, "cna_shadow_map_compute_light_view");
   LOAD_REQUIRED(shadow_map_compute_light_projection, ShadowLightProjectionFn, "cna_shadow_map_compute_light_projection");
   LOAD_REQUIRED(shadow_map_size_for_quality, ShadowQualityToI32Fn, "cna_shadow_map_size_for_quality");
@@ -15224,6 +15244,106 @@ static napi_value particle_system_copy_particles(napi_env env, napi_callback_inf
  * to accept it on. What is bound is what can be proved.
  */
 
+/*
+ * The shadow depth pass. `begin` binds the map and computes the light's transform, `apply_caster`
+ * makes the caster effect current for a rigid draw, ordinary draw routes rasterise into it, and
+ * `end` closes it.
+ *
+ * The effects and the shadow texture are **counted borrows**: each `get_*` increments the map's
+ * borrow count, each must be released -- an effect with `cna_effect_destroy`, the texture with
+ * `cna_render_target_destroy` -- and the map refuses to be destroyed while any is outstanding.
+ * Taking the same borrow twice yields two handles and needs two releases. That counting is what
+ * the TypeScript side has to respect, so each borrow is taken at most once and cached there.
+ */
+
+static napi_value shadow_map_begin(napi_env env, napi_callback_info info) {
+  napi_value args[3], entry;
+  CNA_Handle map = 0;
+  CNA_DirectionalLightEXT light;
+  CNA_BoundingBox bounds;
+  double intensity = 0;
+  memset(&bounds, 0, sizeof(bounds));
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &map)) return NULL;
+  /* Seeded from CNA's own initialiser so the version header stays CNA's. */
+  const CNA_Result initialized = g_api.directional_light_ext_init(&light);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_directional_light_ext_init", initialized);
+  }
+  if (!read_vector3(env, args[1], "Direction", &light.direction) ||
+      !read_vector3(env, args[1], "Color", &light.color) ||
+      napi_get_named_property(env, args[1], "Intensity", &entry) != napi_ok ||
+      napi_get_value_double(env, entry, &intensity) != napi_ok) {
+    return throw_message(env, "a directional light needs Direction, Color and Intensity");
+  }
+  light.intensity = (float) intensity;
+  if (!read_vector3(env, args[2], "Min", &bounds.min) ||
+      !read_vector3(env, args[2], "Max", &bounds.max)) {
+    return throw_message(env, "scene bounds need a Min and a Max");
+  }
+  const CNA_Result result = g_api.shadow_map_begin(map, &light, &bounds);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_shadow_map_begin", result);
+  return undefined_result(env, "cna_shadow_map_begin");
+}
+
+static napi_value shadow_map_end(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.shadow_map_end, "cna_shadow_map_end");
+}
+static napi_value shadow_map_apply_caster(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.shadow_map_apply_caster,
+    "cna_shadow_map_apply_caster");
+}
+static napi_value shadow_map_get_caster_effect(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.shadow_map_get_caster_effect,
+    "cna_shadow_map_get_caster_effect");
+}
+static napi_value shadow_map_get_skinned_caster_effect(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.shadow_map_get_skinned_caster_effect,
+    "cna_shadow_map_get_skinned_caster_effect");
+}
+static napi_value shadow_map_get_shadow_texture(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.shadow_map_get_shadow_texture,
+    "cna_shadow_map_get_shadow_texture");
+}
+static napi_value graphics_device_supports_shadow_sampling(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.graphics_device_supports_shadow_sampling_ext,
+    "cna_graphics_device_supports_shadow_sampling_ext");
+}
+
+static napi_value shadow_map_apply_skinned_caster(napi_env env, napi_callback_info info) {
+  napi_value args[3], element;
+  CNA_Handle map = 0;
+  int32_t weights = 0;
+  uint32_t count = 0;
+  bool isArray = false;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &map)) return NULL;
+  if (napi_is_array(env, args[1], &isArray) != napi_ok || !isArray ||
+      napi_get_array_length(env, args[1], &count) != napi_ok) {
+    return throw_message(env, "the bone palette must be an array of matrices");
+  }
+  if (napi_get_value_int32(env, args[2], &weights) != napi_ok) {
+    return throw_message(env, "weightsPerVertex must be a number");
+  }
+  CNA_Matrix* palette = count == 0 ? NULL : (CNA_Matrix*) calloc(count, sizeof(CNA_Matrix));
+  if (count != 0 && !palette) return throw_message(env, "bone-palette allocation failed");
+  for (uint32_t index = 0; index < count; index += 1) {
+    if (napi_get_element(env, args[1], index, &element) != napi_ok ||
+        !read_matrix16(env, element, &palette[index],
+          "each bone transform must be a 16-number array")) {
+      free(palette);
+      return NULL;
+    }
+  }
+  const CNA_Result result =
+    g_api.shadow_map_apply_skinned_caster(map, palette, count, weights);
+  free(palette);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_shadow_map_apply_skinned_caster", result);
+  }
+  return undefined_result(env, "cna_shadow_map_apply_skinned_caster");
+}
+
 static napi_value shadow_map_create(napi_env env, napi_callback_info info) {
   napi_value args[2];
   CNA_Handle device = 0, map = 0;
@@ -18465,6 +18585,14 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "selectShadowCasters", NULL, clustered_shadow_policy_select, NULL, NULL, NULL, napi_default, NULL },
     { "createLodGroup", NULL, lod_group_create, NULL, NULL, NULL, napi_default, NULL },
     { "createShadowMap", NULL, shadow_map_create, NULL, NULL, NULL, napi_default, NULL },
+    { "beginShadowPass", NULL, shadow_map_begin, NULL, NULL, NULL, napi_default, NULL },
+    { "endShadowPass", NULL, shadow_map_end, NULL, NULL, NULL, napi_default, NULL },
+    { "applyShadowCaster", NULL, shadow_map_apply_caster, NULL, NULL, NULL, napi_default, NULL },
+    { "applySkinnedShadowCaster", NULL, shadow_map_apply_skinned_caster, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowCasterEffect", NULL, shadow_map_get_caster_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getSkinnedShadowCasterEffect", NULL, shadow_map_get_skinned_caster_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getShadowMapTexture", NULL, shadow_map_get_shadow_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "supportsShadowSampling", NULL, graphics_device_supports_shadow_sampling, NULL, NULL, NULL, napi_default, NULL },
     { "createParticleSystem", NULL, particle_system_create, NULL, NULL, NULL, napi_default, NULL },
     { "destroyParticleSystem", NULL, particle_system_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "resetParticleSystem", NULL, particle_system_reset, NULL, NULL, NULL, napi_default, NULL },

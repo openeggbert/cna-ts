@@ -27,13 +27,26 @@ import path from "node:path";
 import test, { after } from "node:test";
 
 import {
+  BoundingBox,
   Color,
   Game,
   Graphics,
   GraphicsDeviceManager,
   LoadNodeNativeBackend,
+  Matrix,
   Vector2,
+  Vector3,
 } from "../dist/index.js";
+
+/** A Matrix as the sixteen numbers a projection needs, in the order XNA names them. */
+function matrixRow(matrix) {
+  return [
+    matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+    matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+    matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+    matrix.M41, matrix.M42, matrix.M43, matrix.M44,
+  ];
+}
 import * as extensionsModule from "../dist/extensions/index.js";
 import * as computeModule from "../dist/extensions/graphics/index.js";
 
@@ -299,6 +312,171 @@ class WindowedProbeGame extends Game {
         hiDef: adapter.IsProfileSupported(Graphics.GraphicsProfile.HiDef),
         isDeviceAdapter: device.Adapter === adapter,
       };
+    });
+
+    // --- the engine layer's shadow depth pass -------------------------------------------------
+    //
+    // A real depth pass, read back texel by texel. The scene is one axis-aligned quad, placed
+    // asymmetrically in both x and z and at a known height, so where its shadow lands and how deep
+    // it is are both predictions the test can compute from CNA's own reported light transform --
+    // not numbers copied out of a previous run.
+    record("shadow", () => {
+      const {
+        IsGraphicsExtensionLayerAvailable, ShadowMap, ShadowMapMath, ShadowQuality,
+        GraphicsDeviceCapabilities,
+      } = computeModule;
+      // Two of the three windowed renderers here are built with the engine layer compiled out, and
+      // then there is no shadow map to create at all. That is a different boundary from a renderer
+      // that has one it cannot cast with, and the test checks it against a second route rather
+      // than taking the refusal's word for it.
+      let map;
+      try {
+        map = new ShadowMap(device, ShadowQuality.Low);
+      } catch (error) {
+        return {
+          layerAbsent: true,
+          cnaResult: error.cnaResult,
+          extensionLayer: IsGraphicsExtensionLayerAvailable(),
+        };
+      }
+      try {
+        const result = {
+          supported: map.IsSupported,
+          // Casting and sampling are separate CNA capabilities; a frame that draws shadows needs
+          // both, so both are recorded rather than one standing in for the other.
+          sampling: GraphicsDeviceCapabilities.SupportsShadowSampling(device),
+          size: map.Size,
+        };
+        if (!result.supported) return result;
+
+        const light = {
+          Direction: new Vector3(0, -1, 0), Color: new Vector3(1, 1, 1), Intensity: 1,
+        };
+        // Asymmetric on all three axes, so the light transform has real translation terms and a
+        // pass that quietly ignored the scene bounds cannot land on the same matrix anyway.
+        const bounds = new BoundingBox(new Vector3(-10, -4, -6), new Vector3(6, 12, 14));
+        // The same light and the same bounds through CNA's two *pure* shadow-maths routes, which
+        // take them as plain values and touch no shadow map at all. The test multiplies these
+        // itself and checks the pass agrees.
+        const view = ShadowMapMath.ComputeLightView(light, bounds);
+        result.math = {
+          view: matrixRow(view),
+          projection: matrixRow(ShadowMapMath.ComputeLightProjection(view, bounds)),
+        };
+        // The occluder: x in [-8,-2] and z in [-8,2]. Different extents on the two axes and
+        // off-centre on both, so a transform that swapped or mirrored an axis moves it.
+        // Well inside the scene box on every axis, at two heights that are also inside it.
+        const QUAD = { X0: -8, X1: -2, Z0: -4, Z1: 6, High: 8, Low: 0 };
+        const white = new Color(255, 255, 255, 255);
+        const quadAt = (y) => {
+          const at = (x, z) => new Graphics.VertexPositionColor(new Vector3(x, y, z), white);
+          return [
+            at(QUAD.X0, QUAD.Z0), at(QUAD.X1, QUAD.Z0), at(QUAD.X1, QUAD.Z1),
+            at(QUAD.X0, QUAD.Z0), at(QUAD.X1, QUAD.Z1), at(QUAD.X0, QUAD.Z1),
+          ];
+        };
+
+        const texture = map.ShadowTexture;
+        result.texture = {
+          width: texture.Width, height: texture.Height, format: texture.Format,
+          cached: map.ShadowTexture === texture,
+        };
+        const texels = new Float32Array(texture.Width * texture.Height);
+        const survey = () => {
+          texture.GetData(texels);
+          let low = Infinity, high = -Infinity, occluded = 0;
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          for (let index = 0; index < texels.length; index += 1) {
+            const depth = texels[index];
+            if (depth < low) low = depth;
+            if (depth > high) high = depth;
+            // 1.0 is the far plane the pass cleared to; anything nearer is a caster.
+            if (depth < 1) {
+              occluded += 1;
+              const x = index % texture.Width, y = Math.floor(index / texture.Width);
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+          return { low, high, occluded, minX, maxX, minY, maxY };
+        };
+
+        // 1. An empty pass clears the whole map to the far plane.
+        map.Begin(light, bounds);
+        result.lightViewProjection = matrixRow(map.LightViewProjection);
+        map.End();
+        result.cleared = survey();
+
+        // 2. The occluder at two heights. The light points straight down, so the higher quad must
+        //    record the smaller depth, and both must cover exactly the same texels.
+        const castAt = (y) => {
+          map.Begin(light, bounds);
+          map.ApplyCaster();
+          device.DrawUserPrimitives(
+            Graphics.PrimitiveType.TriangleList, quadAt(y), 0, 2,
+          );
+          map.End();
+          return survey();
+        };
+        result.quad = QUAD;
+        result.high = castAt(QUAD.High);
+        result.low = castAt(QUAD.Low);
+
+        // 3. The same draw outside the pass must not reach the map at all: End has to have
+        //    unbound it. Cleared first so a stale earlier result cannot pass for one.
+        map.Begin(light, bounds);
+        map.End();
+        device.DrawUserPrimitives(Graphics.PrimitiveType.TriangleList, quadAt(QUAD.High), 0, 2);
+        result.outsidePass = survey();
+
+        // 4. The caster effects, which CNA lends rather than gives.
+        //
+        // They are told apart by what they rasterise, not by their handles: the rigid program
+        // reads only a position, while the skinned one wants bone indices and weights that these
+        // vertices do not carry, so applying it to the same rigid geometry writes nothing at all.
+        const caster = map.CasterEffect;
+        const drawUnder = (effect) => {
+          map.Begin(light, bounds);
+          effect.CurrentTechnique.Passes.Get(0).Apply();
+          device.DrawUserPrimitives(
+            Graphics.PrimitiveType.TriangleList, quadAt(QUAD.High), 0, 2,
+          );
+          map.End();
+          return survey().occluded;
+        };
+        result.effects = {
+          casterCached: map.CasterEffect === caster,
+          techniques: [caster.CurrentTechnique.Name, map.SkinnedCasterEffect.CurrentTechnique.Name],
+          rigidDraws: drawUnder(caster),
+          skinnedDraws: drawUnder(map.SkinnedCasterEffect),
+        };
+
+        // 5. Pass ordering, refused by CNA rather than by this binding.
+        const refusal = (body) => {
+          try {
+            body();
+            return "ACCEPTED";
+          } catch (error) {
+            return `${error.cnaResult}: ${(error.message ?? "").split(": ").pop()}`;
+          }
+        };
+        result.ordering = {
+          endWithoutBegin: refusal(() => map.End()),
+          applyOutsidePass: refusal(() => map.ApplyCaster()),
+          skinnedOutsidePass: refusal(() => map.ApplySkinnedCaster([Matrix.Identity], 4)),
+        };
+        map.Begin(light, bounds);
+        result.ordering.beginTwice = refusal(() => map.Begin(light, bounds));
+        result.ordering.emptyPalette = refusal(() => map.ApplySkinnedCaster([], 4));
+        result.ordering.skinnedInsidePass =
+          refusal(() => map.ApplySkinnedCaster([Matrix.Identity], 4));
+        map.End();
+        return result;
+      } finally {
+        map.Dispose();
+      }
     });
 
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
@@ -638,6 +816,231 @@ test("a windowed CNA renderer computes exact results on the GPU", { skip }, asyn
     `DISPATCH_EXACT=PASS UNIFORMS_REACH_PROGRAM=PASS PARTIAL_DISPATCH=PASS ` +
     `IMAGE_BINDING=${compute.imageBinding} ` +
     `GPU_TIMER=${timer.supported ? `${timer.milliseconds.toFixed(4)}ms@frame${timer.collectedOnFrame}` : "unsupported"}`,
+  );
+});
+
+test("a windowed CNA renderer writes a shadow map the light transform predicts", { skip }, async () => {
+  const game = new WindowedProbeGame(2);
+  await game.Run();
+  const shadow = game.evidence.shadow;
+  game.Dispose();
+
+  assert.equal(typeof shadow, "object", `shadow probe failed: ${shadow}`);
+
+  if (shadow.layerAbsent) {
+    // The engine layer is compiled out of this build, so there is no shadow map to make. An honest
+    // boundary, and checked as one: CNA's own NOT_SUPPORTED, agreeing with the separate route that
+    // reports whether the layer is present at all.
+    assert.equal(shadow.cnaResult, 6, "a build without the engine layer refuses with NOT_SUPPORTED");
+    assert.equal(
+      shadow.extensionLayer, false,
+      "and the layer-availability route agrees the layer is absent",
+    );
+    console.log("CNA_TS_WINDOWED_SHADOW=NO_ENGINE_LAYER");
+    return;
+  }
+
+  assert.equal(typeof shadow.supported, "boolean");
+  assert.equal(typeof shadow.sampling, "boolean");
+  // Two separate CNA capabilities, asked separately. They are allowed to differ -- a renderer can
+  // rasterise a depth pass it cannot then sample -- so neither is asserted to equal the other.
+  assert.ok(shadow.size > 0, "a shadow map states its texture size");
+
+  if (!shadow.supported) {
+    // An honest boundary, not a skip: this renderer says it cannot run a depth pass.
+    console.log(`CNA_TS_WINDOWED_SHADOW=NOT_SUPPORTED_RENDERER SIZE=${shadow.size}`);
+    return;
+  }
+
+  // The texture CNA lends is the shadow map itself, at the size the quality tier chose, in a
+  // single-channel float format -- which is why the depths below can be read as floats at all.
+  assert.deepEqual(
+    [shadow.texture.width, shadow.texture.height], [shadow.size, shadow.size],
+    "the lent depth texture is the shadow map's own texture",
+  );
+  assert.equal(shadow.texture.format, Graphics.SurfaceFormat.Single);
+  assert.equal(shadow.texture.cached, true, "the borrow is taken once, not once per read");
+
+  // An empty pass clears the entire map to the far plane. Exactly -- not approximately, and not
+  // "mostly": every one of the map's texels.
+  assert.deepEqual(
+    [shadow.cleared.low, shadow.cleared.high, shadow.cleared.occluded], [1, 1, 0],
+    "Begin/End with nothing drawn leaves every texel at the far plane",
+  );
+
+  /*
+   * The oracle.
+   *
+   * The test knows two things CNA was never told together: where the occluder is in world space,
+   * and the light view-projection CNA reported for this pass. Multiplying one by the other gives
+   * clip space; the viewport mapping gives the texel the corner lands on and the depth it records.
+   * Nothing here is a remembered measurement, so a binding that transposed the matrix, dropped a
+   * row, mixed up the axes, ignored the light direction or ignored the scene bounds moves the
+   * predicted rectangle away from the rendered one instead of moving both together.
+   */
+  /*
+   * First, cross-route agreement on the transform itself.
+   *
+   * `Begin` computed its light view-projection inside CNA from the light and the scene bounds this
+   * test chose. `ComputeLightView` and `ComputeLightProjection` are pure routes that take the same
+   * two values and touch no shadow map, and their product must be that same matrix. The test does
+   * the multiply itself, so three CNA routes and one local arithmetic identity have to agree. A
+   * `Begin` that dropped the bounds, read a light field from the wrong place, or sent a stale or
+   * zeroed struct produces a different matrix here and cannot be rescued by the geometry checks
+   * below -- those use CNA's own reported matrix, and would move with it.
+   */
+  const multiply = (left, right) => {
+    const product = new Array(16).fill(0);
+    for (let row = 0; row < 4; row += 1) {
+      for (let column = 0; column < 4; column += 1) {
+        let sum = 0;
+        for (let k = 0; k < 4; k += 1) sum += left[row * 4 + k] * right[k * 4 + column];
+        product[row * 4 + column] = sum;
+      }
+    }
+    return product;
+  };
+  const expectedTransform = multiply(shadow.math.view, shadow.math.projection);
+  for (let index = 0; index < 16; index += 1) {
+    assert.ok(
+      Math.abs(shadow.lightViewProjection[index] - expectedTransform[index]) < 1e-5,
+      `the pass transform disagrees with view * projection at element ${index}: ` +
+      `${shadow.lightViewProjection[index]} vs ${expectedTransform[index]}`,
+    );
+  }
+  // And it is a real transform, not an identity or a zero matrix that would agree trivially.
+  assert.ok(
+    shadow.lightViewProjection.slice(12, 15).some((value) => Math.abs(value) > 1e-3),
+    "an asymmetric scene box gives the light transform real translation terms",
+  );
+
+  const m = shadow.lightViewProjection;
+  const project = (x, y, z) => {
+    const w = m[3] * x + m[7] * y + m[11] * z + m[15];
+    return {
+      X: (m[0] * x + m[4] * y + m[8] * z + m[12]) / w,
+      Y: (m[1] * x + m[5] * y + m[9] * z + m[13]) / w,
+      Z: (m[2] * x + m[6] * y + m[10] * z + m[14]) / w,
+    };
+  };
+  const toTexel = (ndc) => ({
+    // Clip space is [-1,1] on both axes; the texture's first row is the top, which is +1.
+    X: (ndc.X * 0.5 + 0.5) * shadow.size,
+    Y: (0.5 - ndc.Y * 0.5) * shadow.size,
+    // and depth is the same [-1,1] mapped onto the [0,1] a depth buffer stores.
+    Depth: (ndc.Z + 1) / 2,
+  });
+  const predict = (y) => {
+    const corners = [
+      toTexel(project(shadow.quad.X0, y, shadow.quad.Z0)),
+      toTexel(project(shadow.quad.X1, y, shadow.quad.Z0)),
+      toTexel(project(shadow.quad.X1, y, shadow.quad.Z1)),
+      toTexel(project(shadow.quad.X0, y, shadow.quad.Z1)),
+    ];
+    const xs = corners.map((corner) => corner.X);
+    const ys = corners.map((corner) => corner.Y);
+    return {
+      minX: Math.min(...xs), maxX: Math.max(...xs),
+      minY: Math.min(...ys), maxY: Math.max(...ys),
+      depth: corners[0].Depth,
+    };
+  };
+
+  for (const [label, height] of [["high", shadow.quad.High], ["low", shadow.quad.Low]]) {
+    const measured = shadow[label];
+    const expected = predict(height);
+    // The rectangle is not square: a swapped or mirrored axis lands somewhere else entirely.
+    assert.ok(
+      Math.abs((expected.maxX - expected.minX) - (expected.maxY - expected.minY)) > 32,
+      "the occluder must project to a rectangle that is clearly not square",
+    );
+    // Rendered texel centres fall inside the predicted rectangle, within the one texel that
+    // rasterisation of a partly covered edge texel can shift a boundary.
+    for (const [name, got, want] of [
+      ["minX", measured.minX, expected.minX], ["maxX", measured.maxX, expected.maxX],
+      ["minY", measured.minY, expected.minY], ["maxY", measured.maxY, expected.maxY],
+    ]) {
+      assert.ok(
+        Math.abs(got - want) <= 1.5,
+        `${label} shadow ${name}: rendered ${got}, light transform predicts ${want.toFixed(2)}`,
+      );
+    }
+    // And it is filled, not merely bounded: both triangles of the quad rasterised.
+    const area = (expected.maxX - expected.minX) * (expected.maxY - expected.minY);
+    assert.ok(
+      Math.abs(measured.occluded - area) / area < 0.02,
+      `${label} shadow covers ${measured.occluded} texels; the predicted rectangle is ${area.toFixed(0)}`,
+    );
+    // The recorded depth is the projected depth, to float precision -- the quad is flat and
+    // perpendicular to the light, so every occluded texel holds the same value.
+    assert.ok(
+      Math.abs(measured.low - expected.depth) < 1e-5,
+      `${label} shadow records depth ${measured.low}; the light transform predicts ${expected.depth}`,
+    );
+    assert.equal(measured.high, 1, "everything the occluder misses stays at the far plane");
+  }
+
+  // The light points straight down, so raising the occluder must bring it nearer the light.
+  assert.ok(
+    shadow.high.low < shadow.low.low,
+    `the higher quad must record the smaller depth: ${shadow.high.low} vs ${shadow.low.low}`,
+  );
+  // And by exactly as much as the projection's depth scale says those heights are worth.
+  const heightGap = shadow.quad.High - shadow.quad.Low;
+  const perUnit = predict(0).depth - predict(1).depth;
+  assert.ok(
+    Math.abs((shadow.low.low - shadow.high.low) - perUnit * heightGap) < 1e-5,
+    `${heightGap} world units apart must record ${(perUnit * heightGap).toFixed(6)} of depth, ` +
+    `not ${(shadow.low.low - shadow.high.low).toFixed(6)}`,
+  );
+  // Both heights cover the same texels: only the depth changed.
+  assert.deepEqual(
+    [shadow.high.minX, shadow.high.maxX, shadow.high.minY, shadow.high.maxY, shadow.high.occluded],
+    [shadow.low.minX, shadow.low.maxX, shadow.low.minY, shadow.low.maxY, shadow.low.occluded],
+    "moving the occluder along the light's axis must not move its shadow",
+  );
+
+  // End really unbinds the map: the same draw, outside the pass, reaches none of it.
+  assert.deepEqual(
+    [shadow.outsidePass.low, shadow.outsidePass.high, shadow.outsidePass.occluded], [1, 1, 0],
+    "a draw outside Begin/End must not write to the shadow map",
+  );
+
+  // The lent effects are two genuinely different programs, taken once each.
+  assert.equal(shadow.effects.casterCached, true, "the caster borrow is taken once");
+  assert.equal(shadow.effects.techniques.length, 2);
+  // The rigid caster shades the same rectangle the pass routes did.
+  assert.equal(
+    shadow.effects.rigidDraws, shadow.high.occluded,
+    "the lent rigid caster rasterises the same geometry the pass does",
+  );
+  // The skinned one cannot: it wants per-vertex bone indices and weights, and these vertices carry
+  // a position and a colour. Nothing reaches the map. That is what separates the two getters --
+  // their handles cannot, because CNA hands out a fresh handle for every borrow of either.
+  assert.equal(
+    shadow.effects.skinnedDraws, 0,
+    "the skinned caster must not rasterise geometry that carries no bone weights",
+  );
+
+  // CNA refuses out-of-order use itself, and the binding reports its refusal rather than
+  // pre-empting it with one of its own.
+  for (const key of ["endWithoutBegin", "applyOutsidePass", "skinnedOutsidePass"]) {
+    assert.match(
+      shadow.ordering[key], /no shadow pass is open$/,
+      `${key} must be refused by CNA, not accepted`,
+    );
+  }
+  assert.match(shadow.ordering.beginTwice, /a shadow pass is already open$/);
+  assert.match(shadow.ordering.emptyPalette, /^1: /, "an empty bone palette is an argument error");
+  assert.match(shadow.ordering.emptyPalette, /between 1 and 72 matrices$/);
+  assert.equal(
+    shadow.ordering.skinnedInsidePass, "ACCEPTED",
+    "a one-bone palette inside an open pass is accepted",
+  );
+
+  console.log(
+    `CNA_TS_WINDOWED_SHADOW=OK SIZE=${shadow.size} SAMPLING=${shadow.sampling} ` +
+    `DEPTH_HIGH=${shadow.high.low} DEPTH_LOW=${shadow.low.low} TEXELS=${shadow.high.occluded}`,
   );
 });
 

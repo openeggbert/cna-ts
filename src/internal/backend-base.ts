@@ -1231,6 +1231,30 @@ export abstract class CnaShadowBackendBase implements CnaShadowBackend {
     _device: NativeHandle,
     _quality: number,
   ): NativeHandle { return this.unsupported("createShadowMap"); }
+  public supportsShadowSampling(
+    _device: NativeHandle,
+  ): boolean { return this.unsupported("supportsShadowSampling"); }
+  public beginShadowPass(
+    _map: NativeHandle,
+    _light: DirectionalLightSnapshot,
+    _bounds: ClusterBoundsSnapshot,
+  ): void { return this.unsupported("beginShadowPass"); }
+  public endShadowPass(_map: NativeHandle): void { return this.unsupported("endShadowPass"); }
+  public applyShadowCaster(_map: NativeHandle): void { return this.unsupported("applyShadowCaster"); }
+  public applySkinnedShadowCaster(
+    _map: NativeHandle,
+    _bones: readonly (readonly number[])[],
+    _weightsPerVertex: number,
+  ): void { return this.unsupported("applySkinnedShadowCaster"); }
+  public getShadowCasterEffect(
+    _map: NativeHandle,
+  ): NativeHandle { return this.unsupported("getShadowCasterEffect"); }
+  public getSkinnedShadowCasterEffect(
+    _map: NativeHandle,
+  ): NativeHandle { return this.unsupported("getSkinnedShadowCasterEffect"); }
+  public getShadowMapTexture(
+    _map: NativeHandle,
+  ): NativeHandle { return this.unsupported("getShadowMapTexture"); }
   public destroyShadowMap(_map: NativeHandle): void { return this.unsupported("destroyShadowMap"); }
   public isShadowMapSupported(
     _map: NativeHandle,

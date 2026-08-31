@@ -547,6 +547,16 @@ interface NativeBridge {
   isClusteredLightUsable(light: ClusteredLightSnapshot): boolean;
   createLodGroup(): bigint;
   createShadowMap(device: bigint, quality: number): bigint;
+  supportsShadowSampling(device: bigint): boolean;
+  beginShadowPass(map: bigint, light: DirectionalLightSnapshot, bounds: ClusterBoundsSnapshot): void;
+  endShadowPass(map: bigint): void;
+  applyShadowCaster(map: bigint): void;
+  applySkinnedShadowCaster(
+    map: bigint, bones: readonly (readonly number[])[], weightsPerVertex: number,
+  ): void;
+  getShadowCasterEffect(map: bigint): bigint;
+  getSkinnedShadowCasterEffect(map: bigint): bigint;
+  getShadowMapTexture(map: bigint): bigint;
   createParticleSystem(device: bigint, capacity: number): bigint;
   destroyParticleSystem(system: bigint): void;
   resetParticleSystem(system: bigint): void;
@@ -2087,6 +2097,26 @@ export class NodeNativeBackend
   }
   public createShadowMap(device: NativeHandle, quality: number): NativeHandle {
     return this.#bridge.createShadowMap(device, quality);
+  }
+  public supportsShadowSampling(device: NativeHandle): boolean {
+    return this.#bridge.supportsShadowSampling(device);
+  }
+  public beginShadowPass(
+    map: NativeHandle, light: DirectionalLightSnapshot, bounds: ClusterBoundsSnapshot,
+  ): void { this.#bridge.beginShadowPass(map, light, bounds); }
+  public endShadowPass(map: NativeHandle): void { this.#bridge.endShadowPass(map); }
+  public applyShadowCaster(map: NativeHandle): void { this.#bridge.applyShadowCaster(map); }
+  public applySkinnedShadowCaster(
+    map: NativeHandle, bones: readonly (readonly number[])[], weightsPerVertex: number,
+  ): void { this.#bridge.applySkinnedShadowCaster(map, bones, weightsPerVertex); }
+  public getShadowCasterEffect(map: NativeHandle): NativeHandle {
+    return this.#bridge.getShadowCasterEffect(map);
+  }
+  public getSkinnedShadowCasterEffect(map: NativeHandle): NativeHandle {
+    return this.#bridge.getSkinnedShadowCasterEffect(map);
+  }
+  public getShadowMapTexture(map: NativeHandle): NativeHandle {
+    return this.#bridge.getShadowMapTexture(map);
   }
   public destroyShadowMap(map: NativeHandle): void {
     this.#bridge.destroyShadowMap(map);

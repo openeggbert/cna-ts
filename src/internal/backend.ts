@@ -1352,6 +1352,18 @@ export interface CnaParticleBackend {
 
 export interface CnaShadowBackend {
   createShadowMap(device: NativeHandle, quality: number): NativeHandle;
+  supportsShadowSampling(device: NativeHandle): boolean;
+  beginShadowPass(
+    map: NativeHandle, light: DirectionalLightSnapshot, bounds: ClusterBoundsSnapshot,
+  ): void;
+  endShadowPass(map: NativeHandle): void;
+  applyShadowCaster(map: NativeHandle): void;
+  applySkinnedShadowCaster(
+    map: NativeHandle, bones: readonly (readonly number[])[], weightsPerVertex: number,
+  ): void;
+  getShadowCasterEffect(map: NativeHandle): NativeHandle;
+  getSkinnedShadowCasterEffect(map: NativeHandle): NativeHandle;
+  getShadowMapTexture(map: NativeHandle): NativeHandle;
   destroyShadowMap(map: NativeHandle): void;
   isShadowMapSupported(map: NativeHandle): boolean;
   getShadowMapSize(map: NativeHandle): number;

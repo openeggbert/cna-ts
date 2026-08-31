@@ -993,6 +993,23 @@
       ]
     },
     {
+      "operation": "The shadow depth pass: casters rendered into a shadow map, and the depths read back",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "accepted on the depth texels a real pass produced on a windowed OPENGLES3 renderer under Xvfb, against a prediction the test computes rather than a measurement copied out of a run. The pass transform is cross-checked first: the light view-projection CNA reports for an open pass equals the product of ComputeLightView and ComputeLightProjection -- two pure routes that take the same light and scene box and touch no shadow map -- multiplied in the test itself, so three CNA routes and one local identity have to agree. Then the geometry: one asymmetric quad inside an asymmetric scene box, projected corner by corner through that matrix into texels and depth, and every prediction checked against the rendering. An empty pass leaves all 262144 texels at exactly 1.0; the occluder darkens exactly the predicted rectangle to within 1.5 texels on each edge and fills 98% of its area; the recorded depth is the projected depth to within 1e-5; two heights eight units apart differ by exactly the projection's depth scale times eight and cover identical texels; and the same draw outside Begin/End reaches none of the map, which is what shows End unbinding it. The two lent caster programs are told apart by what they rasterise -- the skinned one writes nothing from vertices carrying no bone weights -- because their handles cannot tell them apart: CNA hands out a fresh handle for every borrow. Borrows are counted: the map refuses destruction while one is outstanding, so each is taken once and returned before the map. Fifteen planted binding defects fail, including a dropped scene box, a negated light direction, an End that reports success without closing the pass, either caster getter wired to the other route, a depth texture re-borrowed on every read, and a Dispose that destroys the map before returning its borrows",
+      "proof": [
+        "route:cna_shadow_map_begin",
+        "route:cna_shadow_map_end",
+        "route:cna_shadow_map_apply_caster",
+        "route:cna_shadow_map_apply_skinned_caster",
+        "route:cna_shadow_map_get_caster_effect",
+        "route:cna_shadow_map_get_skinned_caster_effect",
+        "route:cna_shadow_map_get_shadow_texture",
+        "route:cna_graphics_device_supports_shadow_sampling_ext",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
       "operation": "The particle simulation, and the pure functions behind it",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS",
@@ -1019,12 +1036,11 @@
       ]
     },
     {
-      "operation": "Modern CNA engine layer beyond the pipeline, the post-process chain, compute, clustered lighting, LOD, the shadow-map maths and particles: the draw passes, decals, light probes and atmospheric rendering",
+      "operation": "Modern CNA engine layer beyond the pipeline, the post-process chain, compute, clustered lighting, LOD, the shadow maps and particles: decals, light probes and atmospheric rendering",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the render pipeline, the post-process chain, the compute path, the clustered lighting family, level-of-detail groups, the shadow-map maths for all four shadow kinds and the particle simulation are projected and verified separately. What is left is the draw passes -- a shadow map's depth pass and a particle system's draw -- plus decals, light probes and atmospheric rendering. The draw passes are unprojected: each needs a real depth or sprite pass with geometry, a camera and an effect. Until CNA fixed upstream findings 7 and 9 in 48ab0de7f there was also no evidence to accept them on, because render-target readback answered zeros; that obstacle is gone and they are ordinary unwritten work now. The three remaining families are state-and-render objects with no pure maths to project, so what they would buy is a state round-trip and nothing more",
+      "evidence": "the render pipeline, the post-process chain, the compute path, the clustered lighting family, level-of-detail groups, the shadow-map maths for all four shadow kinds, the shadow depth pass and the particle simulation are projected and verified separately. What is left is a particle system's draw plus decals, light probes and atmospheric rendering. Until CNA fixed upstream findings 7 and 9 in 48ab0de7f there was no evidence to accept a draw pass on at all, because render-target readback answered zeros; that obstacle is gone, which is what let the shadow depth pass be written and accepted on its texels. The three remaining families are state-and-render objects with no pure maths to project, so what they would buy is a state round-trip and nothing more",
       "proof": [
-        "absentRoute:cna_shadow_map_begin",
         "absentRoute:cna_decal_pass_create"
       ]
     },

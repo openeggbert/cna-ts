@@ -4282,6 +4282,118 @@ test("shadow-map maths frames a scene from a light, exactly", async () => {
   );
 });
 
+test("a renderer that cannot cast shadows says so, and lends nothing it cannot make", async () => {
+  const {
+    ShadowMap, ShadowMapMath, ShadowQuality, GraphicsDeviceCapabilities,
+  } = computeExtensions;
+
+  /*
+   * The other side of the depth pass.
+   *
+   * `test/windowed-renderer.integration.mjs` renders one on OPENGLES3 and reads the depths back.
+   * HEADLESS cannot: it compiles no custom effects, and says so in its own log line -- "A shadow
+   * pass will leave the map meaning nothing occludes, so the frame renders unshadowed rather than
+   * failing". This is that documented degradation, asserted rather than skipped, because what a
+   * binding does at a capability boundary is exactly where it is easiest to invent behaviour.
+   */
+  const game = new (class extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+    LoadContent() {
+      const device = this.GraphicsDevice;
+      const attempt = (body) => {
+        try {
+          const value = body();
+          return value === undefined ? "ACCEPTED" : value;
+        } catch (error) {
+          return `${error.constructor.name}(${error.cnaResult ?? "-"}): ${error.message}`;
+        }
+      };
+      const map = new ShadowMap(device, ShadowQuality.Medium);
+      try {
+        const light = {
+          Direction: new Vector3(0, -1, 0), Color: new Vector3(1, 1, 1), Intensity: 1,
+        };
+        const bounds = new BoundingBox(new Vector3(-8, -8, -8), new Vector3(8, 8, 8));
+        this.evidence.probe = {
+          supported: map.IsSupported,
+          sampling: GraphicsDeviceCapabilities.SupportsShadowSampling(device),
+          begin: attempt(() => map.Begin(light, bounds)),
+          applyCaster: attempt(() => map.ApplyCaster()),
+          applySkinned: attempt(() => map.ApplySkinnedCaster([Matrix.Identity], 4)),
+          emptyPalette: attempt(() => map.ApplySkinnedCaster([], 4)),
+          end: attempt(() => map.End()),
+          endTwice: attempt(() => map.End()),
+          casterEffect: attempt(() => map.CasterEffect),
+          skinnedCasterEffect: attempt(() => map.SkinnedCasterEffect),
+          texture: attempt(() => {
+            const texture = map.ShadowTexture;
+            return { width: texture.Width, height: texture.Height, format: texture.Format };
+          }),
+        };
+      } finally {
+        // Whatever it lent has to go back before it does, on this renderer too.
+        this.evidence.dispose = attempt(() => map.Dispose());
+      }
+      this.Exit();
+      super.LoadContent();
+    }
+    Draw(gameTime) { this.GraphicsDevice.Clear(Color.CornflowerBlue); this.Exit(); super.Draw(gameTime); }
+  })();
+  await game.Run();
+  const probe = game.evidence.probe;
+  // A leaked borrow would surface here, as CNA refusing to destroy the game that owns the device.
+  game.Dispose();
+
+  assert.equal(typeof probe, "object", `shadow probe failed: ${JSON.stringify(probe)}`);
+  assert.equal(game.evidence.dispose, "ACCEPTED", "the map returns every borrow it took");
+  assert.equal(typeof probe.supported, "boolean");
+  assert.equal(typeof probe.sampling, "boolean");
+  // Casting and sampling are separate CNA capabilities, but a renderer that cannot cast cannot
+  // sample what it never wrote, so this direction of the implication does hold.
+  if (!probe.supported) assert.equal(probe.sampling, false);
+
+  if (probe.supported) {
+    // Not the renderer this test is about; the windowed file covers that one properly.
+    console.log("CNA_TS_NATIVE_SHADOW_PASS=RENDERER_CASTS");
+    return;
+  }
+
+  // CNA accepts the pass and quietly renders nothing rather than failing the frame. That is its
+  // documented choice, and the binding must pass it through rather than inventing a refusal.
+  assert.deepEqual(
+    [probe.begin, probe.applyCaster, probe.applySkinned, probe.end],
+    ["ACCEPTED", "ACCEPTED", "ACCEPTED", "ACCEPTED"],
+    "an unsupported renderer still accepts the pass and renders unshadowed",
+  );
+  // Its argument checking is still real, though: this is CNA refusing, not the binding.
+  assert.match(probe.emptyPalette, /between 1 and 72 matrices$/);
+  assert.match(probe.endTwice, /no shadow pass is open$/);
+
+  // The effects are where it stops. CNA documents both getters as answering success with
+  // CNA_INVALID_HANDLE here, and a handle that cannot be used is not an Effect: the binding says
+  // which capability is missing instead of wrapping a zero.
+  for (const answer of [probe.casterEffect, probe.skinnedCasterEffect]) {
+    assert.match(answer, /^NativeUnavailableError/, "an unlendable caster effect is refused");
+    assert.match(answer, /IsSupported/, "and the refusal names the question to ask instead");
+  }
+  // The texture is still real -- it is allocated storage, not a compiled program -- at the size
+  // the tier bought.
+  assert.deepEqual(
+    [probe.texture.width, probe.texture.height],
+    [ShadowMapMath.SizeForQuality(ShadowQuality.Medium)].flatMap((size) => [size, size]),
+    "the depth texture is lent at the quality tier's size even where nothing can draw into it",
+  );
+
+  console.log(
+    `CNA_TS_NATIVE_SHADOW_PASS=UNSUPPORTED_RENDERER SAMPLING=${probe.sampling} ` +
+    `TEXTURE=${probe.texture.width}px/fmt${probe.texture.format} EFFECTS=REFUSED`,
+  );
+});
+
 test("the particle simulation integrates exactly, and the system agrees with it", async () => {
   const { ParticleMath, ParticleSystem } = computeExtensions;
 

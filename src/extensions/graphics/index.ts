@@ -23,6 +23,8 @@ import type {
   ParticleSnapshot,
   Vector4Snapshot,
   CnaShadowBackend,
+  CnaEffectBackend,
+  CnaGraphicsBackend,
   CnaGraphicsExtensionBackend,
 } from "../../internal/backend.js";
 import { BoundingBox } from "../../Microsoft/Xna/Framework/BoundingBox.js";
@@ -31,15 +33,20 @@ import { Matrix } from "../../Microsoft/Xna/Framework/Matrix.js";
 import { Vector3 } from "../../Microsoft/Xna/Framework/Vector3.js";
 import { Vector4 } from "../../Microsoft/Xna/Framework/Vector4.js";
 import type { CubeMapFace } from "../../Microsoft/Xna/Framework/Graphics/TextureEnums.js";
+import type { SurfaceFormat } from "../../Microsoft/Xna/Framework/Graphics/DeviceEnums.js";
 import { NativeUnavailableError } from "../../internal/native-error.js";
 import { Color } from "../../Microsoft/Xna/Framework/Color.js";
 import type { GraphicsDevice } from "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
 import { resolveGraphicsDeviceHandleForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
+import { graphicsDeviceBackendForInternalUse } from
+  "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
+import { adoptNativeEffectForInternalUse, type Effect } from
+  "../../Microsoft/Xna/Framework/Graphics/Effect.js";
 import type { IDisposable } from "../../Microsoft/Xna/Framework/Contracts.js";
 import type { PassTimingSnapshot, PostProcessFrameSnapshot } from "../../internal/backend.js";
 import type { RenderTarget2D } from "../../Microsoft/Xna/Framework/Graphics/RenderTargets.js";
-import type { Texture2D } from "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
+import { Texture2D } from "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
 import { resolveTexture2DHandleForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
 import type { NativeHandle } from "../../internal/ownership.js";
@@ -812,6 +819,20 @@ export const GraphicsDeviceCapabilities = {
     }
     return compute().supportsGraphicsCapability(
       resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), capability,
+    );
+  },
+
+  /**
+   * Whether a shader on this device can *sample* a shadow map.
+   *
+   * Separate from {@link ShadowMap.IsSupported}, which is whether a depth pass can be rasterised at
+   * all. Casting and sampling are two different capabilities and a renderer can have one without
+   * the other, so a frame that draws shadowed geometry has to ask both.
+   */
+  SupportsShadowSampling(graphicsDevice: GraphicsDevice): boolean {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    return shadows().supportsShadowSampling(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
     );
   },
 
@@ -1970,10 +1991,15 @@ export class LodGroup implements IDisposable {
  * size and a filter radius, and a directional light plus the scene's bounds map to the view and
  * projection that frame it. Those are pure functions, so they answer on any backend.
  *
- * The rendering half — the depth pass, the caster effects, the shadow texture — is deliberately
- * not projected. It needs a real depth pass, and on the one renderer here that could run one,
- * reading a render target back answers zeros (`docs/upstream-cna-findings.md` item 7), so there
- * would be no evidence to accept it on. What is projected is what can be proved.
+ * The rendering half — {@link ShadowMap.Begin}, the caster effects, {@link ShadowMap.ShadowTexture}
+ * — is projected too, now that render-target readback answers real texels
+ * (`docs/upstream-cna-findings.md` item 7, closed in CNA 48ab0de7f). It is accepted on what comes
+ * back out of the depth texture, not on the calls returning success.
+ *
+ * Casting and sampling are two different questions. {@link ShadowMap.IsSupported} answers whether
+ * this renderer can rasterise a depth pass; {@link GraphicsDeviceCapabilities.SupportsShadowSampling}
+ * answers whether a shader can then read the result. A frame that draws shadows needs both, and CNA
+ * currently answers `false` to the second on every renderer here.
  */
 
 /** A directional light: the only kind a {@link ShadowMap} casts from. */
@@ -2000,6 +2026,22 @@ function shadowQuality(quality: ShadowQuality): ShadowQuality {
     throw new RangeError("quality must be a ShadowQuality");
   }
   return quality;
+}
+
+function graphicsBackendFor(device: GraphicsDevice): CnaGraphicsBackend {
+  const backend = graphicsDeviceBackendForInternalUse(device).Graphics;
+  if (backend == null) {
+    throw new NativeUnavailableError("a shadow map's depth texture needs the CNA graphics backend");
+  }
+  return backend;
+}
+
+function effectBackendFor(device: GraphicsDevice): CnaEffectBackend {
+  const backend = graphicsDeviceBackendForInternalUse(device).Effects;
+  if (backend == null) {
+    throw new NativeUnavailableError("a shadow caster effect needs the CNA Effect backend");
+  }
+  return backend;
 }
 
 function boundsSnapshot(bounds: BoundingBox): ClusterBoundsSnapshot {
@@ -2136,11 +2178,16 @@ export const ShadowMapMath = {
  */
 export class ShadowMap implements IDisposable {
   readonly #backend: CnaShadowBackend;
+  readonly #device: GraphicsDevice;
   #handle: NativeHandle | null;
+  #casterEffect: Effect | null = null;
+  #skinnedCasterEffect: Effect | null = null;
+  #shadowTexture: Texture2D | null = null;
 
   public constructor(graphicsDevice: GraphicsDevice, quality: ShadowQuality) {
     if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
     this.#backend = shadows();
+    this.#device = graphicsDevice;
     this.#handle = this.#backend.createShadowMap(
       resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), shadowQuality(quality),
     );
@@ -2188,11 +2235,145 @@ export class ShadowMap implements IDisposable {
     return toMatrix(this.#backend.getShadowMapLightViewProjection(this.#active()));
   }
 
-  /** Releases the shadow map. Disposing twice is harmless. */
+  /**
+   * Opens the depth pass: binds the shadow texture, clears it to the far plane, and computes the
+   * light transform {@link LightViewProjection} then reports.
+   *
+   * Between this and {@link End}, ordinary draw calls rasterise depth into the map. Apply a caster
+   * effect first — {@link ApplyCaster} for rigid geometry, {@link ApplySkinnedCaster} for skinned —
+   * because the pass needs the caster program bound, not whatever the frame was drawing with.
+   */
+  public Begin(light: DirectionalLight, sceneBounds: BoundingBox): void {
+    if (light == null) throw new TypeError("light is required");
+    if (typeof light.Intensity !== "number" || !Number.isFinite(light.Intensity)) {
+      throw new TypeError("a light's Intensity must be a finite number");
+    }
+    this.#backend.beginShadowPass(this.#active(), {
+      Direction: vectorSnapshot(light.Direction, "light.Direction"),
+      Color: vectorSnapshot(light.Color, "light.Color"),
+      Intensity: light.Intensity,
+    }, boundsSnapshot(sceneBounds));
+  }
+
+  /** Closes the depth pass and restores the frame's previous target. */
+  public End(): void { this.#backend.endShadowPass(this.#active()); }
+
+  /** Makes the rigid caster program current, so the next draws record depth. */
+  public ApplyCaster(): void { this.#backend.applyShadowCaster(this.#active()); }
+
+  /** Makes the skinned caster program current with a bone palette. */
+  public ApplySkinnedCaster(bones: readonly Matrix[], weightsPerVertex: number): void {
+    if (!Array.isArray(bones)) throw new TypeError("bones must be an array of matrices");
+    if (!Number.isInteger(weightsPerVertex) || weightsPerVertex < 1 || weightsPerVertex > 4) {
+      throw new RangeError("weightsPerVertex must be 1, 2, 3 or 4");
+    }
+    this.#backend.applySkinnedShadowCaster(
+      this.#active(),
+      bones.map((bone, index) => matrixValues(bone, `bones[${index}]`)),
+      weightsPerVertex,
+    );
+  }
+
+  /**
+   * The shader that writes depth for rigid casters.
+   *
+   * CNA lends this: every read is a counted borrow, and the map refuses to be destroyed while one
+   * is outstanding. The borrow is taken once and handed back when this shadow map is disposed, so a
+   * caller never has to count. Do not dispose it directly.
+   *
+   * A renderer that cannot cast lends nothing -- CNA answers success with an invalid handle -- and
+   * this refuses rather than handing back an effect that cannot be used. {@link IsSupported} is the
+   * question to ask first.
+   */
+  public get CasterEffect(): Effect {
+    this.#casterEffect ??= this.#borrowEffect(
+      this.#backend.getShadowCasterEffect(this.#active()), "shadow caster effect",
+    );
+    return this.#casterEffect;
+  }
+
+  /** The shader that writes depth for skinned casters. The same borrow rules apply. */
+  public get SkinnedCasterEffect(): Effect {
+    this.#skinnedCasterEffect ??= this.#borrowEffect(
+      this.#backend.getSkinnedShadowCasterEffect(this.#active()), "skinned shadow caster effect",
+    );
+    return this.#skinnedCasterEffect;
+  }
+
+  /**
+   * The depth texture the pass wrote, as a readable texture.
+   *
+   * `GetData` into a `Float32Array` reads the depths back where the renderer supports it: 1.0 is
+   * the far plane a `Begin` cleared to, and anything less is a caster. Borrowed on the same terms
+   * as the caster effects — CNA gives the borrow back through the render-target release route.
+   */
+  public get ShadowTexture(): Texture2D {
+    if (this.#shadowTexture == null) {
+      const handle = this.#backend.getShadowMapTexture(this.#active());
+      const backend = graphicsBackendFor(this.#device);
+      let info;
+      try {
+        info = graphicsDeviceBackendForInternalUse(this.#device).getTexture2DInfo(handle);
+      } catch (error) {
+        backend.destroyRenderTarget(handle);
+        throw error;
+      }
+      this.#shadowTexture = new (Texture2D as unknown as new (
+        graphicsDevice: GraphicsDevice,
+        width: number,
+        height: number,
+        mipMap: boolean,
+        format: SurfaceFormat,
+        adopted: {
+          readonly Handle: NativeHandle;
+          readonly LevelCount: number;
+          readonly Release: (value: NativeHandle) => void;
+          readonly Label: string;
+        },
+      ) => Texture2D)(
+        this.#device, info.Width, info.Height, false, info.Format as SurfaceFormat,
+        {
+          Handle: handle,
+          LevelCount: info.LevelCount,
+          // A borrow, not a texture of our own: this is the route that gives it back.
+          Release: (value: NativeHandle) => backend.destroyRenderTarget(value),
+          Label: "ShadowMap depth texture",
+        },
+      );
+    }
+    return this.#shadowTexture;
+  }
+
+  #borrowEffect(handle: NativeHandle, what: string): Effect {
+    // CNA documents both getters as answering SUCCESS with CNA_INVALID_HANDLE on a renderer that
+    // cannot cast -- HEADLESS says so in its own log line, because it cannot compile the effect.
+    // That is a boundary to report, not a handle to wrap.
+    if (handle === 0n) {
+      throw new NativeUnavailableError(
+        `this renderer lends no ${what}: it cannot cast shadows, which ShadowMap.IsSupported reports`,
+      );
+    }
+    return adoptNativeEffectForInternalUse(
+      this.#device, effectBackendFor(this.#device), handle,
+    );
+  }
+
+  /**
+   * Releases the shadow map. Disposing twice is harmless.
+   *
+   * Every borrow goes back first. CNA counts them and refuses to destroy a map that still has one
+   * outstanding, so returning them in the other order would leak the map itself.
+   */
   public Dispose(): void {
     const handle = this.#handle;
     if (handle == null) return;
     this.#handle = null;
+    this.#casterEffect?.Dispose();
+    this.#casterEffect = null;
+    this.#skinnedCasterEffect?.Dispose();
+    this.#skinnedCasterEffect = null;
+    this.#shadowTexture?.Dispose();
+    this.#shadowTexture = null;
     this.#backend.destroyShadowMap(handle);
   }
 }
