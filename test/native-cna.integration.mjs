@@ -37,6 +37,7 @@ import * as extensionsModule from "../dist/extensions/index.js";
 import * as devicesModule from "../dist/extensions/devices/index.js";
 import * as inputModule from "../dist/extensions/input/index.js";
 import * as sensorsModule from "../dist/extensions/sensors/index.js";
+import * as guideExtensions from "../dist/extensions/gamer-services/index.js";
 import { getBackend } from "../dist/internal/backend.js";
 import {
   getVertexBufferRawForInternalUse,
@@ -1113,10 +1114,13 @@ class GamerServicesProbeGame extends Game {
     // Nobody is signed in, and nobody is invented: the collection is empty rather than holding a
     // placeholder gamer, which is what "do not fabricate a signed-in user" looks like in practice.
     this.evidence.signedInGamerCount = gs.Gamer.SignedInGamers.Count;
+    // What still needs a platform this host does not have. `BeginShowMessageBox` used to be in
+    // this list and is not any more: CNA draws that screen itself, so it works -- see the Guide
+    // test below. It is started and *answered* here rather than merely started, because a Guide
+    // screen left pending would refuse the next one.
     for (const [name, call] of [
       ["ShowSignIn", () => gs.Guide.ShowSignIn(1, false)],
       ["DelayNotifications", () => gs.Guide.DelayNotifications(TimeSpan.Zero)],
-      ["ShowMessageBox", () => gs.Guide.BeginShowMessageBox("t", "m", ["a"], 0, gs.MessageBoxIcon.None, null, null)],
     ]) {
       try {
         call();
@@ -1124,6 +1128,15 @@ class GamerServicesProbeGame extends Game {
       } catch (error) {
         this.evidence[`${name}Refusal`] = error.constructor.name;
       }
+    }
+    try {
+      const box = gs.Guide.BeginShowMessageBox(
+        "t", "m", ["a"], 0, gs.MessageBoxIcon.None, null, null,
+      );
+      guideExtensions.CnaGuide.ForTests.ClickMessageBoxButton(0);
+      this.evidence.MessageBoxAnswer = gs.Guide.EndShowMessageBox(box);
+    } catch (error) {
+      this.evidence.MessageBoxAnswer = error.constructor.name;
     }
     this.Exit();
     super.LoadContent();
@@ -1166,7 +1179,10 @@ test("gamer services has a real dispatcher and Guide state, and still refuses a 
   assert.equal(evidence.signedInGamerCount, 0, "no gamer is fabricated where none is signed in");
   assert.equal(evidence.ShowSignInRefusal, "GamerServicesNotAvailableException");
   assert.equal(evidence.DelayNotificationsRefusal, "GamerServicesNotAvailableException");
-  assert.equal(evidence.ShowMessageBoxRefusal, "GamerServicesNotAvailableException");
+  // BeginShowMessageBox is no longer a refusal: CNA draws that screen itself, so the XNA API
+  // works and answers with the button that was pressed. What still refuses is what needs a real
+  // platform -- a sign-in screen and a notification delay.
+  assert.equal(evidence.MessageBoxAnswer, 0, "the Guide's message box works and answers");
 });
 
 class SensorProbeGame extends Game {
@@ -3849,5 +3865,237 @@ test("a LOD group picks a level, and damps the boundary it last crossed", async 
   console.log(
     "CNA_TS_NATIVE_LOD=PASS LEVELS=SORTED BANDS=EXACT HYSTERESIS=DIRECTIONAL " +
     "MULTI_LEVEL_JUMP=UNDAMPED SCREEN_SPACE=EXACT",
+  );
+});
+
+
+class GuideProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const { Guide, MessageBoxIcon } = GamerServices;
+    const { CnaGuide } = guideExtensions;
+    const record = (name, body) => {
+      try {
+        this.evidence[name] = body();
+      } catch (error) {
+        this.evidence[name] = { refused: error.constructor.name, message: error.message };
+      }
+    };
+
+    record("messageBox", () => {
+      const seen = [];
+      const result = Guide.BeginShowMessageBox(
+        "Quit?", "Save first?", ["Save", "Discard", "Cancel"], 1, MessageBoxIcon.Warning,
+        (value) => seen.push(value), "my-state",
+      );
+      const opened = {
+        isCompletedBefore: result.IsCompleted,
+        completedSynchronously: result.CompletedSynchronously,
+        asyncState: result.AsyncState,
+        guideIsVisible: Guide.IsVisible,
+        hasPending: CnaGuide.HasPendingMessageBox,
+        // The focus button CNA holds is the one XNA was told, which is what shows the argument
+        // reaching the pending screen rather than being remembered here.
+        focusButton: CnaGuide.PendingMessageBox?.FocusButton,
+      };
+      // Answer it as the player would have. The continuation runs on this call.
+      CnaGuide.ForTests.ClickMessageBoxButton(2);
+      return {
+        ...opened,
+        callbackCount: seen.length,
+        callbackGotTheSameResult: seen[0] === result,
+        isCompletedAfter: result.IsCompleted,
+        answer: Guide.EndShowMessageBox(result),
+        hasPendingAfter: CnaGuide.HasPendingMessageBox,
+        pendingAfter: CnaGuide.PendingMessageBox,
+      };
+    });
+
+    // A different button, so the answer cannot be a constant.
+    record("messageBoxSecondAnswer", () => {
+      const result = Guide.BeginShowMessageBox(
+        "Again", "Pick", ["Zero", "One", "Two", "Three"], 0, MessageBoxIcon.None,
+        () => {}, null,
+      );
+      CnaGuide.ForTests.ClickMessageBoxButton(3);
+      return Guide.EndShowMessageBox(result);
+    });
+
+    record("keyboardInput", () => {
+      const seen = [];
+      const result = Guide.BeginShowKeyboardInput(
+        0, "Name", "Enter your name", "Player", (value) => seen.push(value), "kb-state",
+      );
+      const pending = CnaGuide.PendingKeyboardInput;
+      const opened = {
+        hasPending: CnaGuide.HasPendingKeyboardInput,
+        title: pending?.Title,
+        description: pending?.Description,
+        displayText: pending?.DisplayText,
+        asyncState: result.AsyncState,
+      };
+      CnaGuide.ForTests.CancelKeyboardInput();
+      return {
+        ...opened,
+        callbackCount: seen.length,
+        callbackGotTheSameResult: seen[0] === result,
+        isCompleted: result.IsCompleted,
+        wasCanceled: CnaGuide.WasKeyboardInputCanceled,
+        answer: Guide.EndShowKeyboardInput(result),
+        hasPendingAfter: CnaGuide.HasPendingKeyboardInput,
+      };
+    });
+
+    record("refusals", () => {
+      const attempts = {};
+      const attempt = (name, body) => {
+        try {
+          body();
+          attempts[name] = "ACCEPTED";
+        } catch (error) {
+          attempts[name] = error.constructor.name;
+        }
+      };
+      // Arguments this package refuses before CNA sees them.
+      attempt("noButtons", () => Guide.BeginShowMessageBox(
+        "t", "x", [], 0, MessageBoxIcon.None, () => {}, null,
+      ));
+      attempt("focusPastTheEnd", () => Guide.BeginShowMessageBox(
+        "t", "x", ["A"], 1, MessageBoxIcon.None, () => {}, null,
+      ));
+      attempt("nullTitle", () => Guide.BeginShowMessageBox(
+        null, "x", ["A"], 0, MessageBoxIcon.None, () => {}, null,
+      ));
+      // An End with a result the Guide never produced, and one for the wrong operation.
+      attempt("foreignResult", () => Guide.EndShowMessageBox({ IsCompleted: true }));
+      attempt("negativeClick", () => CnaGuide.ForTests.ClickMessageBoxButton(-1));
+      // Answering when nothing is pending: CNA's own refusal, not this package's.
+      attempt("clickWithNothingPending", () => CnaGuide.ForTests.ClickMessageBoxButton(0));
+      attempt("endWithNothingBegun", () => Guide.EndShowMessageBox({ IsCompleted: true }));
+      return attempts;
+    });
+
+    record("secondBoxWhileOnePending", () => {
+      const first = Guide.BeginShowMessageBox(
+        "First", "x", ["A"], 0, MessageBoxIcon.None, () => {}, null,
+      );
+      let second = "ACCEPTED";
+      try {
+        Guide.BeginShowMessageBox("Second", "y", ["B"], 0, MessageBoxIcon.None, () => {}, null);
+      } catch (error) {
+        second = `result ${error.cnaResult}`;
+      }
+      CnaGuide.ForTests.ClickMessageBoxButton(0);
+      Guide.EndShowMessageBox(first);
+      return second;
+    });
+
+    // An End before the operation completes is an error, not a wait.
+    record("endBeforeCompletion", () => {
+      const result = Guide.BeginShowMessageBox(
+        "Pending", "x", ["A"], 0, MessageBoxIcon.None, () => {}, null,
+      );
+      let refusal;
+      try {
+        Guide.EndShowMessageBox(result);
+        refusal = "ACCEPTED";
+      } catch (error) {
+        refusal = error.constructor.name;
+      }
+      CnaGuide.ForTests.ClickMessageBoxButton(0);
+      Guide.EndShowMessageBox(result);
+      return refusal;
+    });
+
+    this.Exit();
+    super.LoadContent();
+  }
+
+  Draw(gameTime) {
+    this.GraphicsDevice.Clear(Color.CornflowerBlue);
+    this.Exit();
+    super.Draw(gameTime);
+  }
+}
+
+test("XNA's Guide really shows a message box and a keyboard, and CNA answers them", async () => {
+  const game = new GuideProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  // --- the message box -----------------------------------------------------------------------
+  const box = evidence.messageBox;
+  assert.equal(typeof box, "object", `message box failed: ${JSON.stringify(box)}`);
+  assert.equal(box.isCompletedBefore, false, "it does not complete inside the Begin call");
+  assert.equal(box.completedSynchronously, false, "and says so");
+  assert.equal(box.asyncState, "my-state", "the caller's state is carried through untouched");
+  assert.equal(box.guideIsVisible, true, "Guide.IsVisible is true while a screen is up");
+  assert.equal(box.hasPending, true);
+  assert.equal(
+    box.focusButton, 1,
+    "the focus button CNA holds is the one XNA was given, not a default",
+  );
+
+  // The continuation runs exactly once, with the very result object Begin returned -- which is
+  // what XNA's IAsyncResult contract means and what a caller's `EndShow*` needs.
+  assert.equal(box.callbackCount, 1, "the continuation runs once");
+  assert.equal(box.callbackGotTheSameResult, true, "with the result Begin handed back");
+  assert.equal(box.isCompletedAfter, true);
+  assert.equal(box.answer, 2, "and the answer is the button that was pressed");
+  assert.equal(box.hasPendingAfter, false, "the screen is gone");
+  assert.equal(box.pendingAfter, null);
+
+  // A different button on a different box: the answer tracks the press rather than being fixed.
+  assert.equal(evidence.messageBoxSecondAnswer, 3);
+
+  // --- the keyboard --------------------------------------------------------------------------
+  const keyboard = evidence.keyboardInput;
+  assert.equal(typeof keyboard, "object", `keyboard failed: ${JSON.stringify(keyboard)}`);
+  assert.equal(keyboard.hasPending, true);
+  // Three different strings, read back from CNA rather than from this test's own variables.
+  assert.equal(keyboard.title, "Name");
+  assert.equal(keyboard.description, "Enter your name");
+  assert.equal(keyboard.displayText, "Player", "the input starts with the default text it was given");
+  assert.equal(keyboard.asyncState, "kb-state");
+  assert.equal(keyboard.callbackCount, 1);
+  assert.equal(keyboard.callbackGotTheSameResult, true);
+  assert.equal(keyboard.isCompleted, true);
+  assert.equal(keyboard.wasCanceled, true);
+  assert.equal(
+    keyboard.answer, null,
+    "XNA returns null for a cancelled input, which is not an empty string",
+  );
+  assert.equal(keyboard.hasPendingAfter, false);
+
+  // --- refusals -------------------------------------------------------------------------------
+  const refusals = evidence.refusals;
+  assert.equal(refusals.noButtons, "ArgumentException", "a message box needs a button");
+  assert.equal(refusals.focusPastTheEnd, "ArgumentOutOfRangeException");
+  assert.equal(refusals.nullTitle, "ArgumentNullException");
+  assert.equal(refusals.foreignResult, "ArgumentException", "an unrelated async result is refused");
+  assert.equal(refusals.negativeClick, "RangeError");
+  assert.notEqual(
+    refusals.clickWithNothingPending, "ACCEPTED",
+    "answering a screen that was never shown is refused",
+  );
+
+  // Only one Guide screen at a time, which is CNA's own rule.
+  assert.equal(
+    evidence.secondBoxWhileOnePending, "result 3",
+    "a second message box while one is pending is INVALID_STATE",
+  );
+
+  // And End before the answer is an error rather than a wait -- this is not a promise.
+  assert.equal(evidence.endBeforeCompletion, "InvalidOperationException");
+
+  console.log(
+    `CNA_TS_NATIVE_GUIDE=PASS MESSAGE_BOX=${box.answer}/3 FOCUS=${box.focusButton} ` +
+    `KEYBOARD=cancelled ASYNC_CONTRACT=PASS ONE_AT_A_TIME=PASS`,
   );
 });

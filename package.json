@@ -30,6 +30,10 @@
       "types": "./dist/extensions/devices/index.d.ts",
       "import": "./dist/extensions/devices/index.js"
     },
+    "./extensions/gamer-services": {
+      "types": "./dist/extensions/gamer-services/index.d.ts",
+      "import": "./dist/extensions/gamer-services/index.js"
+    },
     "./extensions/graphics": {
       "types": "./dist/extensions/graphics/index.d.ts",
       "import": "./dist/extensions/graphics/index.js"

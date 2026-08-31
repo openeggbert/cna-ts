@@ -16,18 +16,18 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 942,
+    "NODE": 960,
     "WASM": 276
   },
-  "reachableByAny": 942,
+  "reachableByAny": 960,
   "reachableByAll": 276,
   "reachableExclusively": {
-    "NODE": 666,
+    "NODE": 684,
     "WASM": 0
   },
   "reachabilityByCategory": {
     "XNA_BACKING": {
-      "NODE": 373,
+      "NODE": 391,
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
@@ -123,7 +123,7 @@
     },
     "gamer_services.h": {
       "XNA_BACKING": 250,
-      "REACHABLE_NODE": 13
+      "REACHABLE_NODE": 31
     },
     "geometry.h": {
       "MANAGED_BY_DESIGN": 94
@@ -14779,35 +14779,45 @@
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_begin_show_message_box",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_copy_pending_keyboard_input_description_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_copy_pending_keyboard_input_display_text_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_copy_pending_keyboard_input_title_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_delay_notifications",
@@ -14821,35 +14831,45 @@
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_end_show_keyboard_input_size",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_end_show_message_box",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_get_has_pending_keyboard_input_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_get_has_pending_message_box_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_get_is_screen_saver_enabled",
@@ -14892,28 +14912,36 @@
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_get_pending_keyboard_input_display_text_size_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_get_pending_keyboard_input_title_size_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_get_pending_message_box_focus_button_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_get_simulate_trial_mode",
@@ -14943,7 +14971,9 @@
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_reset_pending_message_box_ext",
@@ -15096,21 +15126,27 @@
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_simulate_message_box_click_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_guide_was_keyboard_input_canceled_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_gyroscope_copy_last_dispatch_exception_message_for_tests_ext",

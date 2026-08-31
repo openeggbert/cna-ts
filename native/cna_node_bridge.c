@@ -612,6 +612,19 @@ typedef CNA_Result (*CameraSetFrameFn)(
 /* --- gamer services: the dispatcher's lifetime and the Guide's state -------------------------- */
 typedef CNA_Result (*GamerServicesVoidFn)(void);
 typedef CNA_Result (*GamerServicesU64InFn)(uint64_t);
+typedef CNA_Result (*GuideBoolOutFn)(CNA_Bool*);
+typedef CNA_Result (*GuideVoidFn)(void);
+typedef CNA_Result (*GuideSizeFn)(uint64_t*);
+typedef CNA_Result (*GuideCopyFn)(char*, uint64_t, uint64_t*);
+typedef CNA_Result (*GuideI32OutFn)(int32_t*);
+typedef CNA_Result (*GuideI32InFn)(int32_t);
+typedef CNA_Result (*GuideBeginMessageBoxFn)(
+  CNA_PlayerIndex, CNA_StringView, CNA_StringView, const CNA_StringView*, uint64_t, int32_t,
+  CNA_MessageBoxIcon, CNA_GamerAsyncCallback, void*);
+typedef CNA_Result (*GuideEndMessageBoxFn)(CNA_Bool*, int32_t*);
+typedef CNA_Result (*GuideBeginKeyboardInputFn)(
+  CNA_PlayerIndex, CNA_StringView, CNA_StringView, CNA_StringView, CNA_Bool,
+  CNA_GamerAsyncCallback, void*);
 
 /* --- sensors ---------------------------------------------------------------------------------- */
 /*
@@ -1533,6 +1546,24 @@ typedef struct Api {
   BoolInFn guide_set_is_screen_saver_enabled;
   U32OutFn guide_get_notification_position;
   U32InFn guide_set_notification_position;
+  GuideBeginMessageBoxFn guide_begin_show_message_box;
+  GuideEndMessageBoxFn guide_end_show_message_box;
+  GuideBoolOutFn guide_get_has_pending_message_box_ext;
+  GuideI32OutFn guide_get_pending_message_box_focus_button_ext;
+  GuideI32InFn guide_simulate_message_box_click_ext;
+  GuideBeginKeyboardInputFn guide_begin_show_keyboard_input;
+  GuideSizeFn guide_end_show_keyboard_input_size;
+  GuideCopyFn guide_end_show_keyboard_input;
+  GuideBoolOutFn guide_get_has_pending_keyboard_input_ext;
+  GuideBoolOutFn guide_was_keyboard_input_canceled_ext;
+  GuideSizeFn guide_get_pending_keyboard_input_title_size_ext;
+  GuideCopyFn guide_copy_pending_keyboard_input_title_ext;
+  GuideSizeFn guide_get_pending_keyboard_input_description_size_ext;
+  GuideCopyFn guide_copy_pending_keyboard_input_description_ext;
+  GuideSizeFn guide_get_pending_keyboard_input_display_text_size_ext;
+  GuideCopyFn guide_copy_pending_keyboard_input_display_text_ext;
+  GuideVoidFn guide_simulate_keyboard_input_cancel_ext;
+  GuideVoidFn guide_reset_pending_keyboard_input_ext;
   AdapterCountFn graphics_adapter_get_count;
   AdapterInfoFn graphics_adapter_get_info;
   GameU32IndexCopyTextFn graphics_adapter_copy_description;
@@ -2815,6 +2846,24 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(guide_set_is_screen_saver_enabled, BoolInFn, "cna_guide_set_is_screen_saver_enabled");
   LOAD_REQUIRED(guide_get_notification_position, U32OutFn, "cna_guide_get_notification_position");
   LOAD_REQUIRED(guide_set_notification_position, U32InFn, "cna_guide_set_notification_position");
+  LOAD_REQUIRED(guide_begin_show_message_box, GuideBeginMessageBoxFn, "cna_guide_begin_show_message_box");
+  LOAD_REQUIRED(guide_end_show_message_box, GuideEndMessageBoxFn, "cna_guide_end_show_message_box");
+  LOAD_REQUIRED(guide_get_has_pending_message_box_ext, GuideBoolOutFn, "cna_guide_get_has_pending_message_box_ext");
+  LOAD_REQUIRED(guide_get_pending_message_box_focus_button_ext, GuideI32OutFn, "cna_guide_get_pending_message_box_focus_button_ext");
+  LOAD_REQUIRED(guide_simulate_message_box_click_ext, GuideI32InFn, "cna_guide_simulate_message_box_click_ext");
+  LOAD_REQUIRED(guide_begin_show_keyboard_input, GuideBeginKeyboardInputFn, "cna_guide_begin_show_keyboard_input");
+  LOAD_REQUIRED(guide_end_show_keyboard_input_size, GuideSizeFn, "cna_guide_end_show_keyboard_input_size");
+  LOAD_REQUIRED(guide_end_show_keyboard_input, GuideCopyFn, "cna_guide_end_show_keyboard_input");
+  LOAD_REQUIRED(guide_get_has_pending_keyboard_input_ext, GuideBoolOutFn, "cna_guide_get_has_pending_keyboard_input_ext");
+  LOAD_REQUIRED(guide_was_keyboard_input_canceled_ext, GuideBoolOutFn, "cna_guide_was_keyboard_input_canceled_ext");
+  LOAD_REQUIRED(guide_get_pending_keyboard_input_title_size_ext, GuideSizeFn, "cna_guide_get_pending_keyboard_input_title_size_ext");
+  LOAD_REQUIRED(guide_copy_pending_keyboard_input_title_ext, GuideCopyFn, "cna_guide_copy_pending_keyboard_input_title_ext");
+  LOAD_REQUIRED(guide_get_pending_keyboard_input_description_size_ext, GuideSizeFn, "cna_guide_get_pending_keyboard_input_description_size_ext");
+  LOAD_REQUIRED(guide_copy_pending_keyboard_input_description_ext, GuideCopyFn, "cna_guide_copy_pending_keyboard_input_description_ext");
+  LOAD_REQUIRED(guide_get_pending_keyboard_input_display_text_size_ext, GuideSizeFn, "cna_guide_get_pending_keyboard_input_display_text_size_ext");
+  LOAD_REQUIRED(guide_copy_pending_keyboard_input_display_text_ext, GuideCopyFn, "cna_guide_copy_pending_keyboard_input_display_text_ext");
+  LOAD_REQUIRED(guide_simulate_keyboard_input_cancel_ext, GuideVoidFn, "cna_guide_simulate_keyboard_input_cancel_ext");
+  LOAD_REQUIRED(guide_reset_pending_keyboard_input_ext, GuideVoidFn, "cna_guide_reset_pending_keyboard_input_ext");
 
   LOAD_REQUIRED(graphics_adapter_get_count, AdapterCountFn, "cna_graphics_adapter_get_count");
   LOAD_REQUIRED(graphics_adapter_get_info, AdapterInfoFn, "cna_graphics_adapter_get_info");
@@ -15667,6 +15716,424 @@ static napi_value guide_set_notification_position(napi_env env, napi_callback_in
   return undefined_result(env, "notification position");
 }
 
+/* --- the Guide's two asynchronous operations ---------------------------------------------------- */
+/*
+ * `Guide.BeginShowMessageBox` and `Guide.BeginShowKeyboardInput` are the only genuinely
+ * asynchronous begin/end pairs in this ABI: the operation stays pending until the user answers,
+ * and only then does the callback run. On a verification host there is no user, so CNA supplies
+ * the answer itself -- `simulate_message_box_click_ext` and `simulate_keyboard_input_cancel_ext`
+ * are the same deterministic injection the sensors and the camera use, and the completion still
+ * travels the real path.
+ *
+ * The callback carries only a context pointer, so the bridge owns one record per pending
+ * operation, holding a `napi_ref` to the JavaScript continuation. CNA completes synchronously on
+ * the thread that simulated the answer, which is why calling straight into JavaScript here is
+ * safe -- the same assumption the text-input subscriptions already make. Any exception the
+ * continuation raises is cleared at the boundary rather than unwinding through CNA.
+ */
+
+typedef struct GuideAsyncContext {
+  napi_env env;
+  napi_ref callback;
+  int completed;
+  struct GuideAsyncContext* next;
+} GuideAsyncContext;
+
+static GuideAsyncContext* g_guide_async;
+
+static GuideAsyncContext* guide_async_create(napi_env env, napi_value callback) {
+  GuideAsyncContext* context = (GuideAsyncContext*) calloc(1, sizeof(GuideAsyncContext));
+  if (!context) return NULL;
+  context->env = env;
+  if (napi_create_reference(env, callback, 1, &context->callback) != napi_ok) {
+    free(context);
+    return NULL;
+  }
+  context->next = g_guide_async;
+  g_guide_async = context;
+  return context;
+}
+
+static void guide_async_release(GuideAsyncContext* target) {
+  if (!target) return;
+  GuideAsyncContext** link = &g_guide_async;
+  while (*link) {
+    if (*link == target) {
+      *link = target->next;
+      break;
+    }
+    link = &(*link)->next;
+  }
+  if (target->callback) napi_delete_reference(target->env, target->callback);
+  free(target);
+}
+
+/* Only a context this bridge created is ever dereferenced. */
+static int guide_async_is_live(const GuideAsyncContext* candidate) {
+  for (const GuideAsyncContext* value = g_guide_async; value; value = value->next) {
+    if (value == candidate) return 1;
+  }
+  return 0;
+}
+
+static void on_guide_async(void* raw) {
+  GuideAsyncContext* context = (GuideAsyncContext*) raw;
+  if (!context || !guide_async_is_live(context)) return;
+  context->completed = 1;
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(context->env, &scope) != napi_ok) return;
+  napi_value callback, receiver, result;
+  napi_status status = napi_get_reference_value(context->env, context->callback, &callback);
+  if (status == napi_ok) status = napi_get_undefined(context->env, &receiver);
+  if (status == napi_ok) {
+    status = napi_call_function(context->env, receiver, callback, 0, NULL, &result);
+  }
+  if (status == napi_pending_exception) {
+    napi_value exception;
+    napi_get_and_clear_last_exception(context->env, &exception);
+  }
+  napi_close_handle_scope(context->env, scope);
+  /* The record is released by the JavaScript side's End call, not here: the continuation may run
+     before End does, and freeing it now would leave End with a dangling token. */
+}
+
+static napi_value guide_begin_show_message_box(napi_env env, napi_callback_info info) {
+  napi_value args[7], element;
+  int32_t player = 0, focusButton = 0;
+  uint32_t icon = 0, buttonCount = 0;
+  char* title = NULL;
+  char* text = NULL;
+  size_t titleLength = 0, textLength = 0;
+  char** captions = NULL;
+  CNA_StringView* views = NULL;
+  GuideAsyncContext* context = NULL;
+  bool isArray = false;
+  napi_value output;
+  if (!require_loaded(env) || !get_args(env, info, 7, args) ||
+      napi_get_value_int32(env, args[0], &player) != napi_ok ||
+      !read_utf8(env, args[1], &title, &titleLength)) return NULL;
+  if (!read_utf8(env, args[2], &text, &textLength)) {
+    free(title);
+    return NULL;
+  }
+  if (napi_is_array(env, args[3], &isArray) != napi_ok || !isArray ||
+      napi_get_array_length(env, args[3], &buttonCount) != napi_ok || buttonCount == 0) {
+    free(title);
+    free(text);
+    return throw_message(env, "a message box needs at least one button caption");
+  }
+  captions = (char**) calloc(buttonCount, sizeof(char*));
+  views = (CNA_StringView*) calloc(buttonCount, sizeof(CNA_StringView));
+  if (!captions || !views) {
+    free(captions);
+    free(views);
+    free(title);
+    free(text);
+    return throw_message(env, "message-box caption allocation failed");
+  }
+  for (uint32_t index = 0; index < buttonCount; index += 1) {
+    size_t length = 0;
+    if (napi_get_element(env, args[3], index, &element) != napi_ok ||
+        !read_utf8(env, element, &captions[index], &length)) {
+      for (uint32_t undo = 0; undo < index; undo += 1) free(captions[undo]);
+      free(captions);
+      free(views);
+      free(title);
+      free(text);
+      return NULL;
+    }
+    views[index].data = captions[index];
+    views[index].byte_length = length;
+  }
+  if (napi_get_value_int32(env, args[4], &focusButton) != napi_ok ||
+      napi_get_value_uint32(env, args[5], &icon) != napi_ok) {
+    goto cleanup_arguments;
+  }
+  context = guide_async_create(env, args[6]);
+  if (!context) {
+    throw_message(env, "the message-box continuation could not be retained");
+    goto cleanup_arguments;
+  }
+  {
+    const CNA_StringView titleView = {title, titleLength};
+    const CNA_StringView textView = {text, textLength};
+    const CNA_Result result = g_api.guide_begin_show_message_box(
+      player, titleView, textView, views, buttonCount, focusButton, icon,
+      on_guide_async, context);
+    if (result != CNA_RESULT_SUCCESS) {
+      guide_async_release(context);
+      context = NULL;
+      throw_result(env, "cna_guide_begin_show_message_box", result);
+      goto cleanup_arguments;
+    }
+  }
+  for (uint32_t index = 0; index < buttonCount; index += 1) free(captions[index]);
+  free(captions);
+  free(views);
+  free(title);
+  free(text);
+  /* The token the End call gives back, so this bridge never dereferences a pointer it did not
+     create: it is checked against the live list first. */
+  if (napi_create_external(env, context, NULL, NULL, &output) != napi_ok) {
+    return throw_napi(env, "message-box continuation token");
+  }
+  return output;
+
+cleanup_arguments:
+  for (uint32_t index = 0; index < buttonCount; index += 1) free(captions[index]);
+  free(captions);
+  free(views);
+  free(title);
+  free(text);
+  return NULL;
+}
+
+static int guide_read_token(napi_env env, napi_value value, GuideAsyncContext** out) {
+  void* raw = NULL;
+  if (napi_get_value_external(env, value, &raw) != napi_ok || raw == NULL) {
+    throw_message(env, "expected a Guide continuation token");
+    return 0;
+  }
+  GuideAsyncContext* context = (GuideAsyncContext*) raw;
+  if (!guide_async_is_live(context)) {
+    throw_message(env, "this Guide operation has already been completed");
+    return 0;
+  }
+  *out = context;
+  return 1;
+}
+
+static napi_value guide_end_show_message_box(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  GuideAsyncContext* context = NULL;
+  CNA_Bool hasChoice = CNA_FALSE;
+  int32_t button = -1;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !guide_read_token(env, args[0], &context)) return NULL;
+  const CNA_Result result = g_api.guide_end_show_message_box(&hasChoice, &button);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_guide_end_show_message_box", result);
+  }
+  guide_async_release(context);
+  if (hasChoice == CNA_FALSE) {
+    /* A box dismissed without a choice is an ordinary success with no answer, which is what
+       XNA's nullable return means. */
+    NAPI_OR_RETURN(env, napi_get_null(env, &output), "message box answer");
+    return output;
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, button, &output), "message box answer");
+  return output;
+}
+
+static napi_value guide_begin_show_keyboard_input(napi_env env, napi_callback_info info) {
+  napi_value args[6], output;
+  int32_t player = 0;
+  char* title = NULL;
+  char* description = NULL;
+  char* defaultText = NULL;
+  size_t titleLength = 0, descriptionLength = 0, defaultLength = 0;
+  bool password = false;
+  GuideAsyncContext* context = NULL;
+  if (!require_loaded(env) || !get_args(env, info, 6, args) ||
+      napi_get_value_int32(env, args[0], &player) != napi_ok ||
+      !read_utf8(env, args[1], &title, &titleLength)) return NULL;
+  if (!read_utf8(env, args[2], &description, &descriptionLength)) {
+    free(title);
+    return NULL;
+  }
+  if (!read_utf8(env, args[3], &defaultText, &defaultLength)) {
+    free(title);
+    free(description);
+    return NULL;
+  }
+  if (napi_get_value_bool(env, args[4], &password) != napi_ok) {
+    free(title);
+    free(description);
+    free(defaultText);
+    return throw_message(env, "usePasswordMode must be a boolean");
+  }
+  context = guide_async_create(env, args[5]);
+  if (!context) {
+    free(title);
+    free(description);
+    free(defaultText);
+    return throw_message(env, "the keyboard-input continuation could not be retained");
+  }
+  {
+    const CNA_StringView titleView = {title, titleLength};
+    const CNA_StringView descriptionView = {description, descriptionLength};
+    const CNA_StringView defaultView = {defaultText, defaultLength};
+    const CNA_Result result = g_api.guide_begin_show_keyboard_input(
+      player, titleView, descriptionView, defaultView, password ? CNA_TRUE : CNA_FALSE,
+      on_guide_async, context);
+    free(title);
+    free(description);
+    free(defaultText);
+    if (result != CNA_RESULT_SUCCESS) {
+      guide_async_release(context);
+      return throw_result(env, "cna_guide_begin_show_keyboard_input", result);
+    }
+  }
+  if (napi_create_external(env, context, NULL, NULL, &output) != napi_ok) {
+    return throw_napi(env, "keyboard-input continuation token");
+  }
+  return output;
+}
+
+static napi_value guide_end_show_keyboard_input(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  GuideAsyncContext* context = NULL;
+  CNA_Bool canceled = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !guide_read_token(env, args[0], &context)) return NULL;
+  CNA_Result result = g_api.guide_was_keyboard_input_canceled_ext(&canceled);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_guide_was_keyboard_input_canceled_ext", result);
+  }
+  if (canceled != CNA_FALSE) {
+    /* XNA returns null for a cancelled input, which is not the same as an empty string. */
+    guide_async_release(context);
+    NAPI_OR_RETURN(env, napi_get_null(env, &output), "keyboard input answer");
+    return output;
+  }
+  uint64_t required = 0;
+  result = g_api.guide_end_show_keyboard_input_size(&required);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_guide_end_show_keyboard_input_size", result);
+  }
+  if (required > SIZE_MAX) return throw_message(env, "the typed text exceeds the address space");
+  char* text = required == 0 ? NULL : (char*) malloc((size_t) required);
+  if (required != 0 && !text) return throw_message(env, "keyboard-input allocation failed");
+  uint64_t produced = 0;
+  result = g_api.guide_end_show_keyboard_input(text, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(text);
+    return throw_result(env, "cna_guide_end_show_keyboard_input", result);
+  }
+  const napi_status created =
+    napi_create_string_utf8(env, text ? text : "", (size_t) required, &output);
+  free(text);
+  if (created != napi_ok) return throw_napi(env, "keyboard input answer");
+  guide_async_release(context);
+  return output;
+}
+
+static napi_value guide_bool_out(
+  napi_env env, napi_callback_info info, GuideBoolOutFn route, const char* name
+) {
+  napi_value output;
+  CNA_Bool value = CNA_FALSE;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = route(&value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, value == CNA_TRUE, &output), name);
+  return output;
+}
+
+static napi_value guide_has_pending_message_box(napi_env env, napi_callback_info info) {
+  return guide_bool_out(env, info, g_api.guide_get_has_pending_message_box_ext,
+    "cna_guide_get_has_pending_message_box_ext");
+}
+static napi_value guide_has_pending_keyboard_input(napi_env env, napi_callback_info info) {
+  return guide_bool_out(env, info, g_api.guide_get_has_pending_keyboard_input_ext,
+    "cna_guide_get_has_pending_keyboard_input_ext");
+}
+static napi_value guide_was_keyboard_input_canceled(napi_env env, napi_callback_info info) {
+  return guide_bool_out(env, info, g_api.guide_was_keyboard_input_canceled_ext,
+    "cna_guide_was_keyboard_input_canceled_ext");
+}
+
+static napi_value guide_pending_message_box_focus_button(napi_env env, napi_callback_info info) {
+  napi_value output;
+  int32_t value = -1;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.guide_get_pending_message_box_focus_button_ext(&value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_guide_get_pending_message_box_focus_button_ext", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, value, &output), "pending focus button");
+  return output;
+}
+
+static napi_value guide_copy_pending_text(
+  napi_env env, GuideSizeFn sizeRoute, GuideCopyFn copyRoute, const char* name
+) {
+  napi_value output;
+  uint64_t required = 0;
+  CNA_Result result = sizeRoute(&required);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  if (required > SIZE_MAX) return throw_message(env, "pending text exceeds the address space");
+  char* text = required == 0 ? NULL : (char*) malloc((size_t) required);
+  if (required != 0 && !text) return throw_message(env, "pending-text allocation failed");
+  uint64_t produced = 0;
+  result = copyRoute(text, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(text);
+    return throw_result(env, name, result);
+  }
+  const napi_status created =
+    napi_create_string_utf8(env, text ? text : "", (size_t) required, &output);
+  free(text);
+  if (created != napi_ok) return throw_napi(env, name);
+  return output;
+}
+
+static napi_value guide_pending_keyboard_title(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  return guide_copy_pending_text(env, g_api.guide_get_pending_keyboard_input_title_size_ext,
+    g_api.guide_copy_pending_keyboard_input_title_ext,
+    "cna_guide_copy_pending_keyboard_input_title_ext");
+}
+static napi_value guide_pending_keyboard_description(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  return guide_copy_pending_text(env, g_api.guide_get_pending_keyboard_input_description_size_ext,
+    g_api.guide_copy_pending_keyboard_input_description_ext,
+    "cna_guide_copy_pending_keyboard_input_description_ext");
+}
+static napi_value guide_pending_keyboard_display_text(napi_env env, napi_callback_info info) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  return guide_copy_pending_text(
+    env, g_api.guide_get_pending_keyboard_input_display_text_size_ext,
+    g_api.guide_copy_pending_keyboard_input_display_text_ext,
+    "cna_guide_copy_pending_keyboard_input_display_text_ext");
+}
+
+static napi_value guide_simulate_message_box_click(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  int32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_int32(env, args[0], &index) != napi_ok) return NULL;
+  const CNA_Result result = g_api.guide_simulate_message_box_click_ext(index);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_guide_simulate_message_box_click_ext", result);
+  }
+  return undefined_result(env, "cna_guide_simulate_message_box_click_ext");
+}
+
+static napi_value guide_void_route(
+  napi_env env, napi_callback_info info, GuideVoidFn route, const char* name
+) {
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = route();
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value guide_simulate_keyboard_input_cancel(napi_env env, napi_callback_info info) {
+  return guide_void_route(env, info, g_api.guide_simulate_keyboard_input_cancel_ext,
+    "cna_guide_simulate_keyboard_input_cancel_ext");
+}
+static napi_value guide_reset_pending_keyboard_input(napi_env env, napi_callback_info info) {
+  return guide_void_route(env, info, g_api.guide_reset_pending_keyboard_input_ext,
+    "cna_guide_reset_pending_keyboard_input_ext");
+}
+
 /* --- sensors ---------------------------------------------------------------------------------- */
 /*
  * A sensor that is not there is not a sensor reading zero. Every route below reports the platform's
@@ -17237,6 +17704,20 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getGamerServicesWindowHandle", NULL, get_gamer_services_window_handle, NULL, NULL, NULL, napi_default, NULL },
     { "setGamerServicesWindowHandle", NULL, set_gamer_services_window_handle, NULL, NULL, NULL, napi_default, NULL },
     { "getGuideIsVisible", NULL, guide_is_visible, NULL, NULL, NULL, napi_default, NULL },
+    { "guideBeginShowMessageBox", NULL, guide_begin_show_message_box, NULL, NULL, NULL, napi_default, NULL },
+    { "guideEndShowMessageBox", NULL, guide_end_show_message_box, NULL, NULL, NULL, napi_default, NULL },
+    { "guideHasPendingMessageBox", NULL, guide_has_pending_message_box, NULL, NULL, NULL, napi_default, NULL },
+    { "guidePendingMessageBoxFocusButton", NULL, guide_pending_message_box_focus_button, NULL, NULL, NULL, napi_default, NULL },
+    { "guideSimulateMessageBoxClick", NULL, guide_simulate_message_box_click, NULL, NULL, NULL, napi_default, NULL },
+    { "guideBeginShowKeyboardInput", NULL, guide_begin_show_keyboard_input, NULL, NULL, NULL, napi_default, NULL },
+    { "guideEndShowKeyboardInput", NULL, guide_end_show_keyboard_input, NULL, NULL, NULL, napi_default, NULL },
+    { "guideHasPendingKeyboardInput", NULL, guide_has_pending_keyboard_input, NULL, NULL, NULL, napi_default, NULL },
+    { "guideWasKeyboardInputCanceled", NULL, guide_was_keyboard_input_canceled, NULL, NULL, NULL, napi_default, NULL },
+    { "guidePendingKeyboardInputTitle", NULL, guide_pending_keyboard_title, NULL, NULL, NULL, napi_default, NULL },
+    { "guidePendingKeyboardInputDescription", NULL, guide_pending_keyboard_description, NULL, NULL, NULL, napi_default, NULL },
+    { "guidePendingKeyboardInputDisplayText", NULL, guide_pending_keyboard_display_text, NULL, NULL, NULL, napi_default, NULL },
+    { "guideSimulateKeyboardInputCancel", NULL, guide_simulate_keyboard_input_cancel, NULL, NULL, NULL, napi_default, NULL },
+    { "guideResetPendingKeyboardInput", NULL, guide_reset_pending_keyboard_input, NULL, NULL, NULL, napi_default, NULL },
     { "getGuideIsTrialMode", NULL, guide_is_trial_mode, NULL, NULL, NULL, napi_default, NULL },
     { "getGuideSimulateTrialMode", NULL, guide_get_simulate_trial, NULL, NULL, NULL, napi_default, NULL },
     { "setGuideSimulateTrialMode", NULL, guide_set_simulate_trial, NULL, NULL, NULL, napi_default, NULL },

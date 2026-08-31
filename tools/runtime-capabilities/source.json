@@ -1036,10 +1036,24 @@
       ]
     },
     {
+      "operation": "The Guide's two asynchronous screens, and CNA's own answers to them",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "Guide.BeginShowMessageBox and Guide.BeginShowKeyboardInput are the only genuinely asynchronous begin/end pairs in XNA, and both now work. A message box does not complete inside the Begin call and says so, carries the caller's async state untouched, makes Guide.IsVisible true, and holds the focus button XNA was given rather than a default. Answering it runs the continuation exactly once with the very result object Begin returned -- the IAsyncResult contract -- and EndShowMessageBox returns the button that was pressed; a second box with a different press returns that one instead, so the answer is not a constant. The keyboard input reports its title, description and starting text back from CNA, and a cancel makes EndShowKeyboardInput return null rather than an empty string, which is XNA's distinction. A second screen while one is pending is INVALID_STATE, and End before the answer is an error rather than a wait. Three planted defects fail: a dropped focus button, an End that accepts a foreign or incomplete result, and a continuation that fires twice. Nothing here fabricates a gamer, a sign-in or a peer: CNA draws the screen and answers it, which is the same deterministic injection the sensors and the camera use",
+      "proof": [
+        "route:cna_guide_begin_show_message_box",
+        "route:cna_guide_end_show_message_box",
+        "route:cna_guide_begin_show_keyboard_input",
+        "route:cna_guide_simulate_message_box_click_ext",
+        "test:test/native-cna.integration.mjs",
+        "test:test/gamer-services-guide.test.mjs"
+      ]
+    },
+    {
       "operation": "GamerServices sign-in, achievements, leaderboards, avatars and the whole .Net session surface",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the dispatcher's lifetime and the Guide's state are projected and verified above; everything that needs a signed-in user, a friends list, a platform overlay or a peer -- sign-in, achievements, leaderboards, presence, avatars and every NetworkSession operation -- still refuses with GamerServicesNotAvailableException, because a fabricated gamer or peer would be worse than the exception XNA itself raises where the platform is absent",
+      "evidence": "the dispatcher's lifetime, the Guide's state and both of the Guide's asynchronous screens are projected and verified above; everything that needs a signed-in user, a friends list or a peer -- sign-in, achievements, leaderboards, presence, avatars and every NetworkSession operation -- still refuses with GamerServicesNotAvailableException, because a fabricated gamer or peer would be worse than the exception XNA itself raises where the platform is absent",
       "proof": [
         "absentRoute:cna_signed_in_gamer_get_achievements",
         "absentRoute:cna_network_session_create"

@@ -288,6 +288,12 @@ Electron, or mobile support.
   same object comes back while the generation is unchanged and the facade is retired the moment
   anything else touches the player. `cna-ts/extensions` exposes the generation, which XNA has no
   member for.
+- [x] The Guide's two asynchronous screens work. `BeginShowMessageBox` and
+  `BeginShowKeyboardInput` are the only genuinely asynchronous begin/end pairs in XNA, and both now
+  run for real: the continuation fires once with the result `Begin` returned, `EndShowMessageBox`
+  answers with the button that was pressed, and a cancelled keyboard input returns null rather than
+  an empty string. CNA draws those screens itself and answers them deterministically —
+  `cna-ts/extensions/gamer-services` exposes that, and nothing in it fabricates a gamer or a peer.
 - [ ] Authored XACT playback is asset-pending; microphone capture has no HEADLESS device; video
   *decode progression* remains fixture-blocked — no redistributable video is available on this
   host, so nothing beyond the no-frame control path is claimed.

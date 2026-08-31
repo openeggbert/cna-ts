@@ -725,6 +725,26 @@ interface NativeBridge {
   getGuideIsScreenSaverEnabled(): boolean;
   setGuideIsScreenSaverEnabled(value: boolean): void;
   getGuideNotificationPosition(): number;
+  guideBeginShowMessageBox(
+    player: number, title: string, text: string, buttons: readonly string[],
+    focusButton: number, icon: number, onCompleted: () => void,
+  ): unknown;
+  guideEndShowMessageBox(token: unknown): number | null;
+  guideHasPendingMessageBox(): boolean;
+  guidePendingMessageBoxFocusButton(): number;
+  guideSimulateMessageBoxClick(buttonIndex: number): void;
+  guideBeginShowKeyboardInput(
+    player: number, title: string, description: string, defaultText: string,
+    usePasswordMode: boolean, onCompleted: () => void,
+  ): unknown;
+  guideEndShowKeyboardInput(token: unknown): string | null;
+  guideHasPendingKeyboardInput(): boolean;
+  guideWasKeyboardInputCanceled(): boolean;
+  guidePendingKeyboardInputTitle(): string;
+  guidePendingKeyboardInputDescription(): string;
+  guidePendingKeyboardInputDisplayText(): string;
+  guideSimulateKeyboardInputCancel(): void;
+  guideResetPendingKeyboardInput(): void;
   setGuideNotificationPosition(position: number): void;
   textInputSubscribeInput(handler: (character: string) => void): bigint;
   textInputSubscribeEditing(handler: (editing: TextEditingSnapshot) => void): bigint;
@@ -2419,6 +2439,48 @@ export class NodeNativeBackend
   }
   public setGuideIsScreenSaverEnabled(value: boolean): void {
     this.#bridge.setGuideIsScreenSaverEnabled(value);
+  }
+  public guideBeginShowMessageBox(player: number, title: string, text: string, buttons: readonly string[], focusButton: number, icon: number, onCompleted: () => void): unknown {
+    return this.#bridge.guideBeginShowMessageBox(player, title, text, buttons, focusButton, icon, onCompleted);
+  }
+  public guideEndShowMessageBox(token: unknown): number | null {
+    return this.#bridge.guideEndShowMessageBox(token);
+  }
+  public guideHasPendingMessageBox(): boolean {
+    return this.#bridge.guideHasPendingMessageBox();
+  }
+  public guidePendingMessageBoxFocusButton(): number {
+    return this.#bridge.guidePendingMessageBoxFocusButton();
+  }
+  public guideSimulateMessageBoxClick(buttonIndex: number): void {
+    this.#bridge.guideSimulateMessageBoxClick(buttonIndex);
+  }
+  public guideBeginShowKeyboardInput(player: number, title: string, description: string, defaultText: string, usePasswordMode: boolean, onCompleted: () => void): unknown {
+    return this.#bridge.guideBeginShowKeyboardInput(player, title, description, defaultText, usePasswordMode, onCompleted);
+  }
+  public guideEndShowKeyboardInput(token: unknown): string | null {
+    return this.#bridge.guideEndShowKeyboardInput(token);
+  }
+  public guideHasPendingKeyboardInput(): boolean {
+    return this.#bridge.guideHasPendingKeyboardInput();
+  }
+  public guideWasKeyboardInputCanceled(): boolean {
+    return this.#bridge.guideWasKeyboardInputCanceled();
+  }
+  public guidePendingKeyboardInputTitle(): string {
+    return this.#bridge.guidePendingKeyboardInputTitle();
+  }
+  public guidePendingKeyboardInputDescription(): string {
+    return this.#bridge.guidePendingKeyboardInputDescription();
+  }
+  public guidePendingKeyboardInputDisplayText(): string {
+    return this.#bridge.guidePendingKeyboardInputDisplayText();
+  }
+  public guideSimulateKeyboardInputCancel(): void {
+    this.#bridge.guideSimulateKeyboardInputCancel();
+  }
+  public guideResetPendingKeyboardInput(): void {
+    this.#bridge.guideResetPendingKeyboardInput();
   }
   public getGuideNotificationPosition(): number { return this.#bridge.getGuideNotificationPosition(); }
   public setGuideNotificationPosition(position: number): void {

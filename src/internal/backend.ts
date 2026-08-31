@@ -1729,6 +1729,31 @@ export interface CnaGamerServicesBackend {
   getGuideIsScreenSaverEnabled(): boolean;
   setGuideIsScreenSaverEnabled(value: boolean): void;
   getGuideNotificationPosition(): number;
+  /**
+   * The Guide's two genuinely asynchronous operations. The token that comes back is opaque and is
+   * only ever handed straight back to the matching end route; the continuation is invoked when
+   * CNA completes the operation.
+   */
+  guideBeginShowMessageBox(
+    player: number, title: string, text: string, buttons: readonly string[],
+    focusButton: number, icon: number, onCompleted: () => void,
+  ): unknown;
+  guideEndShowMessageBox(token: unknown): number | null;
+  guideHasPendingMessageBox(): boolean;
+  guidePendingMessageBoxFocusButton(): number;
+  guideSimulateMessageBoxClick(buttonIndex: number): void;
+  guideBeginShowKeyboardInput(
+    player: number, title: string, description: string, defaultText: string,
+    usePasswordMode: boolean, onCompleted: () => void,
+  ): unknown;
+  guideEndShowKeyboardInput(token: unknown): string | null;
+  guideHasPendingKeyboardInput(): boolean;
+  guideWasKeyboardInputCanceled(): boolean;
+  guidePendingKeyboardInputTitle(): string;
+  guidePendingKeyboardInputDescription(): string;
+  guidePendingKeyboardInputDisplayText(): string;
+  guideSimulateKeyboardInputCancel(): void;
+  guideResetPendingKeyboardInput(): void;
   setGuideNotificationPosition(position: number): void;
 }
 

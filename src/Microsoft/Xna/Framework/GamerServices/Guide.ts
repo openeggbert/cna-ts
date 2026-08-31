@@ -8,6 +8,51 @@ import { MessageBoxIcon, NotificationPosition } from "./Enums.js";
 import { getBackend } from "../../../../internal/backend.js";
 import type { CnaGamerServicesBackend } from "../../../../internal/backend.js";
 import { GamerServicesNotAvailableException } from "./Exceptions.js";
+import {
+  ArgumentException, ArgumentNullException, ArgumentOutOfRangeException, InvalidOperationException,
+} from "../../../../internal/exceptions.js";
+
+/**
+ * A pending Guide operation.
+ *
+ * XNA's `IAsyncResult` shape over CNA's two genuinely asynchronous routes: the operation stays
+ * pending until it is answered, and only then does the continuation run. `CompletedSynchronously`
+ * is false because it never completes inside the `Begin` call that started it — on a host with no
+ * user, what answers it is CNA's own deterministic completion.
+ */
+class GuideAsyncResult implements IAsyncResult {
+  public readonly CompletedSynchronously = false;
+  public IsCompleted = false;
+  public constructor(
+    public readonly AsyncState: unknown,
+    public readonly Kind: "messageBox" | "keyboardInput",
+    public readonly Token: unknown,
+  ) {}
+}
+
+function guideServices(operation: string): CnaGamerServicesBackend {
+  const backend = getBackend().GamerServices;
+  if (!backend) throw new GamerServicesNotAvailableException();
+  void operation;
+  return backend;
+}
+
+function guideResult(
+  value: IAsyncResult, kind: "messageBox" | "keyboardInput", label: string,
+): GuideAsyncResult {
+  if (!(value instanceof GuideAsyncResult) || value.Kind !== kind) {
+    throw new ArgumentException(`${label} received an unrelated async result`);
+  }
+  if (!value.IsCompleted) {
+    throw new InvalidOperationException(`${label} must be called after the operation completes`);
+  }
+  return value;
+}
+
+function guideText(value: unknown, name: string): string {
+  if (typeof value !== "string") throw new ArgumentNullException(name);
+  return value;
+}
 
 function requirePlatform(): never {
   throw new GamerServicesNotAvailableException();
@@ -113,14 +158,41 @@ export abstract class Guide {
     callback: AsyncCallback, state: unknown, usePasswordMode: boolean,
   ): IAsyncResult;
   public static BeginShowKeyboardInput(..._values: readonly unknown[]): IAsyncResult {
-    return requirePlatform();
+    // Two overloads, and the second is the first with the password flag: XNA's own shape, so the
+    // arity is what tells them apart rather than a sniffed argument type.
+    const [player, title, description, defaultText, callback, state, usePasswordMode] = _values as [
+      PlayerIndex, string, string, string, AsyncCallback, unknown, boolean | undefined,
+    ];
+    const backend = guideServices("Guide.BeginShowKeyboardInput");
+    const result = { current: null as GuideAsyncResult | null };
+    const token = backend.guideBeginShowKeyboardInput(
+      player as unknown as number,
+      guideText(title, "title"),
+      guideText(description, "description"),
+      guideText(defaultText, "defaultText"),
+      usePasswordMode === true,
+      () => {
+        const pending = result.current;
+        if (!pending) return;
+        pending.IsCompleted = true;
+        callback?.(pending);
+      },
+    );
+    result.current = new GuideAsyncResult(state, "keyboardInput", token);
+    return result.current;
   }
 
   /**
    * Completes a `BeginShowKeyboardInput` operation. XNA declares this `string`; the CLR value is
    * null where the player cancelled, which the projection does not widen the signature to say.
    */
-  public static EndShowKeyboardInput(result: IAsyncResult): string { return requirePlatform(); }
+  public static EndShowKeyboardInput(result: IAsyncResult): string {
+    const pending = guideResult(result, "keyboardInput", "Guide.EndShowKeyboardInput");
+    // Null where the player cancelled. XNA declares `string` and returns the CLR null, which the
+    // note above says this projection does not widen the signature for.
+    return guideServices("Guide.EndShowKeyboardInput")
+      .guideEndShowKeyboardInput(pending.Token) as string;
+  }
 
   /** Begins showing a message box for whichever player the platform decides. */
   public static BeginShowMessageBox(
@@ -133,14 +205,52 @@ export abstract class Guide {
     focusButton: number, icon: MessageBoxIcon, callback: AsyncCallback, state: unknown,
   ): IAsyncResult;
   public static BeginShowMessageBox(..._values: readonly unknown[]): IAsyncResult {
-    return requirePlatform();
+    // The player-less overload has seven arguments and the other eight, which is how XNA itself
+    // distinguishes them. CNA takes a player either way and ignores it, exactly as the canonical
+    // implementation does.
+    const withPlayer = _values.length >= 8;
+    const [player, title, text, buttons, focusButton, icon, callback, state] = (
+      withPlayer ? _values : [0, ..._values]
+    ) as [PlayerIndex, string, string, Iterable<string>, number, MessageBoxIcon, AsyncCallback, unknown];
+    if (buttons == null) throw new ArgumentNullException("buttons");
+    const captions = [...buttons];
+    if (captions.length === 0) {
+      throw new ArgumentException("A message box needs at least one button caption");
+    }
+    for (const caption of captions) {
+      if (typeof caption !== "string") throw new ArgumentNullException("buttons");
+    }
+    if (!Number.isInteger(focusButton) || focusButton < 0 || focusButton >= captions.length) {
+      throw new ArgumentOutOfRangeException("focusButton");
+    }
+    const backend = guideServices("Guide.BeginShowMessageBox");
+    const result = { current: null as GuideAsyncResult | null };
+    const token = backend.guideBeginShowMessageBox(
+      player as unknown as number,
+      guideText(title, "title"),
+      guideText(text, "text"),
+      captions,
+      focusButton,
+      icon as unknown as number,
+      () => {
+        const pending = result.current;
+        if (!pending) return;
+        pending.IsCompleted = true;
+        callback?.(pending);
+      },
+    );
+    result.current = new GuideAsyncResult(state, "messageBox", token);
+    return result.current;
   }
 
   /**
    * Completes a `BeginShowMessageBox` operation. Null where the player dismissed the box without
    * choosing, which is `Nullable<int>`'s null in XNA rather than a sentinel index.
    */
-  public static EndShowMessageBox(result: IAsyncResult): number | null { return requirePlatform(); }
+  public static EndShowMessageBox(result: IAsyncResult): number | null {
+    const pending = guideResult(result, "messageBox", "Guide.EndShowMessageBox");
+    return guideServices("Guide.EndShowMessageBox").guideEndShowMessageBox(pending.Token);
+  }
 
   /** Shows the compose-message screen. */
   public static ShowComposeMessage(

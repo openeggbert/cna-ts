@@ -2177,6 +2177,47 @@ export abstract class CnaGamerServicesBackendBase implements CnaGamerServicesBac
     _value: boolean,
   ): void { return this.unsupported("setGuideIsScreenSaverEnabled"); }
   public getGuideNotificationPosition(): number { return this.unsupported("getGuideNotificationPosition"); }
+  public guideBeginShowMessageBox(
+    _player: number,
+    _title: string,
+    _text: string,
+    _buttons: readonly string[],
+    _focusButton: number,
+    _icon: number,
+    _onCompleted: () => void,
+  ): unknown { return this.unsupported("guideBeginShowMessageBox"); }
+  public guideEndShowMessageBox(
+    _token: unknown,
+  ): number | null { return this.unsupported("guideEndShowMessageBox"); }
+  public guideHasPendingMessageBox(): boolean { return this.unsupported("guideHasPendingMessageBox"); }
+  public guidePendingMessageBoxFocusButton(
+  ): number { return this.unsupported("guidePendingMessageBoxFocusButton"); }
+  public guideSimulateMessageBoxClick(
+    _buttonIndex: number,
+  ): void { return this.unsupported("guideSimulateMessageBoxClick"); }
+  public guideBeginShowKeyboardInput(
+    _player: number,
+    _title: string,
+    _description: string,
+    _defaultText: string,
+    _usePasswordMode: boolean,
+    _onCompleted: () => void,
+  ): unknown { return this.unsupported("guideBeginShowKeyboardInput"); }
+  public guideEndShowKeyboardInput(
+    _token: unknown,
+  ): string | null { return this.unsupported("guideEndShowKeyboardInput"); }
+  public guideHasPendingKeyboardInput(): boolean { return this.unsupported("guideHasPendingKeyboardInput"); }
+  public guideWasKeyboardInputCanceled(
+  ): boolean { return this.unsupported("guideWasKeyboardInputCanceled"); }
+  public guidePendingKeyboardInputTitle(
+  ): string { return this.unsupported("guidePendingKeyboardInputTitle"); }
+  public guidePendingKeyboardInputDescription(
+  ): string { return this.unsupported("guidePendingKeyboardInputDescription"); }
+  public guidePendingKeyboardInputDisplayText(
+  ): string { return this.unsupported("guidePendingKeyboardInputDisplayText"); }
+  public guideSimulateKeyboardInputCancel(
+  ): void { return this.unsupported("guideSimulateKeyboardInputCancel"); }
+  public guideResetPendingKeyboardInput(): void { return this.unsupported("guideResetPendingKeyboardInput"); }
   public setGuideNotificationPosition(
     _position: number,
   ): void { return this.unsupported("setGuideNotificationPosition"); }
