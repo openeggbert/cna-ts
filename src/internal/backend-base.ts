@@ -1510,6 +1510,143 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public getDeviceRasterizerState(
     _device: NativeHandle,
   ): RasterizerStateSnapshot { return this.unsupported("getDeviceRasterizerState"); }
+  public createAerialPerspectivePass(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createAerialPerspectivePass"); }
+  public getAerialPerspectiveSunDirection(
+    _pass: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getAerialPerspectiveSunDirection"); }
+  public setAerialPerspectiveSunDirection(
+    _pass: NativeHandle,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setAerialPerspectiveSunDirection"); }
+  public getAerialPerspectiveTurbidity(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getAerialPerspectiveTurbidity"); }
+  public setAerialPerspectiveTurbidity(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setAerialPerspectiveTurbidity"); }
+  public getAerialPerspectiveIntensity(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getAerialPerspectiveIntensity"); }
+  public setAerialPerspectiveIntensity(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setAerialPerspectiveIntensity"); }
+  public getAerialPerspectiveScaleHeight(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getAerialPerspectiveScaleHeight"); }
+  public setAerialPerspectiveScaleHeight(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setAerialPerspectiveScaleHeight"); }
+  public createVolumetricFogPass(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createVolumetricFogPass"); }
+  public getVolumetricFogDensity(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getVolumetricFogDensity"); }
+  public setVolumetricFogDensity(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setVolumetricFogDensity"); }
+  public getVolumetricFogAnisotropy(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getVolumetricFogAnisotropy"); }
+  public setVolumetricFogAnisotropy(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setVolumetricFogAnisotropy"); }
+  public getVolumetricFogRange(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getVolumetricFogRange"); }
+  public setVolumetricFogRange(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setVolumetricFogRange"); }
+  public createHeightFogPass(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createHeightFogPass"); }
+  public getHeightFogColor(
+    _pass: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getHeightFogColor"); }
+  public setHeightFogColor(
+    _pass: NativeHandle,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setHeightFogColor"); }
+  public getHeightFogDensity(_pass: NativeHandle): number { return this.unsupported("getHeightFogDensity"); }
+  public setHeightFogDensity(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setHeightFogDensity"); }
+  public getHeightFogFalloff(_pass: NativeHandle): number { return this.unsupported("getHeightFogFalloff"); }
+  public setHeightFogFalloff(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setHeightFogFalloff"); }
+  public getHeightFogBaseHeight(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getHeightFogBaseHeight"); }
+  public setHeightFogBaseHeight(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setHeightFogBaseHeight"); }
+  public createLightShaftPass(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createLightShaftPass"); }
+  public getLightShaftLightScreenPosition(
+    _pass: NativeHandle,
+  ): Vector2Snapshot { return this.unsupported("getLightShaftLightScreenPosition"); }
+  public setLightShaftLightScreenPosition(
+    _pass: NativeHandle,
+    _value: Vector2Snapshot,
+  ): void { return this.unsupported("setLightShaftLightScreenPosition"); }
+  public getLightShaftThreshold(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getLightShaftThreshold"); }
+  public setLightShaftThreshold(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setLightShaftThreshold"); }
+  public getLightShaftIntensity(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getLightShaftIntensity"); }
+  public setLightShaftIntensity(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setLightShaftIntensity"); }
+  public getLightShaftDecay(_pass: NativeHandle): number { return this.unsupported("getLightShaftDecay"); }
+  public setLightShaftDecay(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setLightShaftDecay"); }
+  public aerialPerspectiveCopyFallbackReason(
+    _pass: NativeHandle,
+  ): string { return this.unsupported("aerialPerspectiveCopyFallbackReason"); }
+  public aerialPerspectiveAirMassForDistance(
+    _viewDirection: Vector3Snapshot,
+    _distance: number,
+    _scaleHeight: number,
+  ): number { return this.unsupported("aerialPerspectiveAirMassForDistance"); }
+  public aerialPerspectiveTransmittance(
+    _turbidity: number,
+    _airMass: number,
+  ): Vector3Snapshot { return this.unsupported("aerialPerspectiveTransmittance"); }
+  public heightFogOpticalDepth(
+    _cameraHeight: number,
+    _rayHeightStep: number,
+    _distance: number,
+    _density: number,
+    _falloff: number,
+    _baseHeight: number,
+  ): number { return this.unsupported("heightFogOpticalDepth"); }
+  public setVolumetricFogLight(
+    _pass: NativeHandle,
+    _shadowMap: NativeHandle,
+    _direction: Vector3Snapshot,
+    _color: Vector3Snapshot,
+  ): void { return this.unsupported("setVolumetricFogLight"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,

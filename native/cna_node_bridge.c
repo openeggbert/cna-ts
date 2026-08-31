@@ -914,6 +914,13 @@ typedef CNA_Result (*SkinnedPbrCopyBonesFn)(CNA_Handle, uint64_t, CNA_Matrix*, u
 typedef CNA_Result (*DeviceBlendStateOutFn)(CNA_Handle, CNA_BlendState*);
 typedef CNA_Result (*DeviceRasterizerStateOutFn)(CNA_Handle, CNA_RasterizerState*);
 
+typedef CNA_Result (*PassVector2OutFn)(CNA_Handle, CNA_Vector2*);
+typedef CNA_Result (*PassVector2InFn)(CNA_Handle, const CNA_Vector2*);
+typedef CNA_Result (*AerialAirMassFn)(const CNA_Vector3*, float, float, float*);
+typedef CNA_Result (*AerialTransmittanceFn)(float, float, CNA_Vector3*);
+typedef CNA_Result (*HeightFogOpticalDepthFn)(float, float, float, float, float, float, float*);
+typedef CNA_Result (*VolumetricFogSetLightFn)(CNA_Handle, CNA_Handle, const CNA_Vector3*, const CNA_Vector3*);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2334,6 +2341,45 @@ typedef struct Api {
   SkinnedPbrCopyBonesFn skinned_pbr_effect_copy_bone_transforms;
   DeviceBlendStateOutFn graphics_device_get_blend_state;
   DeviceRasterizerStateOutFn graphics_device_get_rasterizer_state;
+  PostProcessPassCreateFn aerial_perspective_pass_create;
+  SkyVector3OutFn aerial_perspective_pass_get_sun_direction;
+  SkyVector3InFn aerial_perspective_pass_set_sun_direction;
+  HandleFloatOutFn aerial_perspective_pass_get_turbidity;
+  HandleFloatFn aerial_perspective_pass_set_turbidity;
+  HandleFloatOutFn aerial_perspective_pass_get_intensity;
+  HandleFloatFn aerial_perspective_pass_set_intensity;
+  HandleFloatOutFn aerial_perspective_pass_get_scale_height;
+  HandleFloatFn aerial_perspective_pass_set_scale_height;
+  PostProcessPassCreateFn volumetric_fog_pass_create;
+  HandleFloatOutFn volumetric_fog_pass_get_density;
+  HandleFloatFn volumetric_fog_pass_set_density;
+  HandleFloatOutFn volumetric_fog_pass_get_anisotropy;
+  HandleFloatFn volumetric_fog_pass_set_anisotropy;
+  HandleFloatOutFn volumetric_fog_pass_get_range;
+  HandleFloatFn volumetric_fog_pass_set_range;
+  PostProcessPassCreateFn height_fog_pass_create;
+  SkyVector3OutFn height_fog_pass_get_color;
+  SkyVector3InFn height_fog_pass_set_color;
+  HandleFloatOutFn height_fog_pass_get_density;
+  HandleFloatFn height_fog_pass_set_density;
+  HandleFloatOutFn height_fog_pass_get_falloff;
+  HandleFloatFn height_fog_pass_set_falloff;
+  HandleFloatOutFn height_fog_pass_get_base_height;
+  HandleFloatFn height_fog_pass_set_base_height;
+  PostProcessPassCreateFn light_shaft_pass_create;
+  PassVector2OutFn light_shaft_pass_get_light_screen_position;
+  PassVector2InFn light_shaft_pass_set_light_screen_position;
+  HandleFloatOutFn light_shaft_pass_get_threshold;
+  HandleFloatFn light_shaft_pass_set_threshold;
+  HandleFloatOutFn light_shaft_pass_get_intensity;
+  HandleFloatFn light_shaft_pass_set_intensity;
+  HandleFloatOutFn light_shaft_pass_get_decay;
+  HandleFloatFn light_shaft_pass_set_decay;
+  HandleCopyStringFn aerial_perspective_pass_copy_fallback_reason;
+  AerialAirMassFn aerial_perspective_pass_air_mass_for_distance;
+  AerialTransmittanceFn aerial_perspective_pass_transmittance;
+  HeightFogOpticalDepthFn height_fog_pass_optical_depth;
+  VolumetricFogSetLightFn volumetric_fog_pass_set_light;
 } Api;
 
 typedef struct GameContext {
@@ -2398,6 +2444,7 @@ static napi_value copy_sized_text(
   napi_env env, napi_callback_info info, HandleCopyStringFn route, const char* name);
 static napi_value shadow_quality_to_i32(
   napi_env env, napi_callback_info info, ShadowQualityToI32Fn route, const char* name);
+static int read_matrix16(napi_env env, napi_value value, CNA_Matrix* out, const char* what);
 static int get_named_handle(napi_env env, napi_value object, const char* name, CNA_Handle* out);
 
 static napi_value throw_message(napi_env env, const char* message) {
@@ -4063,6 +4110,45 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(skinned_pbr_effect_copy_bone_transforms, SkinnedPbrCopyBonesFn, "cna_skinned_pbr_effect_copy_bone_transforms");
   LOAD_REQUIRED(graphics_device_get_blend_state, DeviceBlendStateOutFn, "cna_graphics_device_get_blend_state");
   LOAD_REQUIRED(graphics_device_get_rasterizer_state, DeviceRasterizerStateOutFn, "cna_graphics_device_get_rasterizer_state");
+  LOAD_REQUIRED(aerial_perspective_pass_create, PostProcessPassCreateFn, "cna_aerial_perspective_pass_create");
+  LOAD_REQUIRED(aerial_perspective_pass_get_sun_direction, SkyVector3OutFn, "cna_aerial_perspective_pass_get_sun_direction");
+  LOAD_REQUIRED(aerial_perspective_pass_set_sun_direction, SkyVector3InFn, "cna_aerial_perspective_pass_set_sun_direction");
+  LOAD_REQUIRED(aerial_perspective_pass_get_turbidity, HandleFloatOutFn, "cna_aerial_perspective_pass_get_turbidity");
+  LOAD_REQUIRED(aerial_perspective_pass_set_turbidity, HandleFloatFn, "cna_aerial_perspective_pass_set_turbidity");
+  LOAD_REQUIRED(aerial_perspective_pass_get_intensity, HandleFloatOutFn, "cna_aerial_perspective_pass_get_intensity");
+  LOAD_REQUIRED(aerial_perspective_pass_set_intensity, HandleFloatFn, "cna_aerial_perspective_pass_set_intensity");
+  LOAD_REQUIRED(aerial_perspective_pass_get_scale_height, HandleFloatOutFn, "cna_aerial_perspective_pass_get_scale_height");
+  LOAD_REQUIRED(aerial_perspective_pass_set_scale_height, HandleFloatFn, "cna_aerial_perspective_pass_set_scale_height");
+  LOAD_REQUIRED(volumetric_fog_pass_create, PostProcessPassCreateFn, "cna_volumetric_fog_pass_create");
+  LOAD_REQUIRED(volumetric_fog_pass_get_density, HandleFloatOutFn, "cna_volumetric_fog_pass_get_density");
+  LOAD_REQUIRED(volumetric_fog_pass_set_density, HandleFloatFn, "cna_volumetric_fog_pass_set_density");
+  LOAD_REQUIRED(volumetric_fog_pass_get_anisotropy, HandleFloatOutFn, "cna_volumetric_fog_pass_get_anisotropy");
+  LOAD_REQUIRED(volumetric_fog_pass_set_anisotropy, HandleFloatFn, "cna_volumetric_fog_pass_set_anisotropy");
+  LOAD_REQUIRED(volumetric_fog_pass_get_range, HandleFloatOutFn, "cna_volumetric_fog_pass_get_range");
+  LOAD_REQUIRED(volumetric_fog_pass_set_range, HandleFloatFn, "cna_volumetric_fog_pass_set_range");
+  LOAD_REQUIRED(height_fog_pass_create, PostProcessPassCreateFn, "cna_height_fog_pass_create");
+  LOAD_REQUIRED(height_fog_pass_get_color, SkyVector3OutFn, "cna_height_fog_pass_get_color");
+  LOAD_REQUIRED(height_fog_pass_set_color, SkyVector3InFn, "cna_height_fog_pass_set_color");
+  LOAD_REQUIRED(height_fog_pass_get_density, HandleFloatOutFn, "cna_height_fog_pass_get_density");
+  LOAD_REQUIRED(height_fog_pass_set_density, HandleFloatFn, "cna_height_fog_pass_set_density");
+  LOAD_REQUIRED(height_fog_pass_get_falloff, HandleFloatOutFn, "cna_height_fog_pass_get_falloff");
+  LOAD_REQUIRED(height_fog_pass_set_falloff, HandleFloatFn, "cna_height_fog_pass_set_falloff");
+  LOAD_REQUIRED(height_fog_pass_get_base_height, HandleFloatOutFn, "cna_height_fog_pass_get_base_height");
+  LOAD_REQUIRED(height_fog_pass_set_base_height, HandleFloatFn, "cna_height_fog_pass_set_base_height");
+  LOAD_REQUIRED(light_shaft_pass_create, PostProcessPassCreateFn, "cna_light_shaft_pass_create");
+  LOAD_REQUIRED(light_shaft_pass_get_light_screen_position, PassVector2OutFn, "cna_light_shaft_pass_get_light_screen_position");
+  LOAD_REQUIRED(light_shaft_pass_set_light_screen_position, PassVector2InFn, "cna_light_shaft_pass_set_light_screen_position");
+  LOAD_REQUIRED(light_shaft_pass_get_threshold, HandleFloatOutFn, "cna_light_shaft_pass_get_threshold");
+  LOAD_REQUIRED(light_shaft_pass_set_threshold, HandleFloatFn, "cna_light_shaft_pass_set_threshold");
+  LOAD_REQUIRED(light_shaft_pass_get_intensity, HandleFloatOutFn, "cna_light_shaft_pass_get_intensity");
+  LOAD_REQUIRED(light_shaft_pass_set_intensity, HandleFloatFn, "cna_light_shaft_pass_set_intensity");
+  LOAD_REQUIRED(light_shaft_pass_get_decay, HandleFloatOutFn, "cna_light_shaft_pass_get_decay");
+  LOAD_REQUIRED(light_shaft_pass_set_decay, HandleFloatFn, "cna_light_shaft_pass_set_decay");
+  LOAD_REQUIRED(aerial_perspective_pass_copy_fallback_reason, HandleCopyStringFn, "cna_aerial_perspective_pass_copy_fallback_reason");
+  LOAD_REQUIRED(aerial_perspective_pass_air_mass_for_distance, AerialAirMassFn, "cna_aerial_perspective_pass_air_mass_for_distance");
+  LOAD_REQUIRED(aerial_perspective_pass_transmittance, AerialTransmittanceFn, "cna_aerial_perspective_pass_transmittance");
+  LOAD_REQUIRED(height_fog_pass_optical_depth, HeightFogOpticalDepthFn, "cna_height_fog_pass_optical_depth");
+  LOAD_REQUIRED(volumetric_fog_pass_set_light, VolumetricFogSetLightFn, "cna_volumetric_fog_pass_set_light");
   LOAD_REQUIRED(pbr_material_extensions_get_attenuation_color, SkyVector3OutFn, "cna_pbr_material_extensions_get_attenuation_color");
   LOAD_REQUIRED(pbr_material_extensions_get_attenuation_distance, HandleFloatOutFn, "cna_pbr_material_extensions_get_attenuation_distance");
   LOAD_REQUIRED(pbr_material_extensions_get_clearcoat_factor, HandleFloatOutFn, "cna_pbr_material_extensions_get_clearcoat_factor");
@@ -14307,6 +14393,32 @@ static int read_post_process_context(napi_env env, napi_value value, CNA_PostPro
     }
     *scalar_targets[index] = (float) scalar;
   }
+  /* The camera. A pass that reconstructs a world position from the depth image -- aerial
+     perspective and height fog -- falls back to a copy without these, and motion blur has no
+     previous frame to blur towards, so a frame that leaves them out gets a copy rather than a
+     wrong picture. Each is optional: absent means the identity the initializer already wrote. */
+  static const char* const matrices[] = {
+    "Projection", "InverseProjection", "InverseView", "PreviousViewProjection"};
+  CNA_Matrix* const matrix_targets[] = {
+    &context->projection, &context->inverse_projection,
+    &context->inverse_view, &context->previous_view_projection};
+  for (size_t index = 0; index < 4; index += 1) {
+    napi_valuetype type = napi_undefined;
+    if (napi_get_named_property(env, value, matrices[index], &entry) != napi_ok ||
+        napi_typeof(env, entry, &type) != napi_ok) {
+      throw_message(env, "a post-process frame's camera matrices must be arrays of sixteen numbers");
+      return 0;
+    }
+    if (type == napi_undefined || type == napi_null) continue;
+    if (!read_matrix16(env, entry, matrix_targets[index], "a post-process frame matrix")) return 0;
+  }
+  bool has_previous = false;
+  if (napi_get_named_property(env, value, "HasPreviousFrame", &entry) != napi_ok ||
+      napi_get_value_bool(env, entry, &has_previous) != napi_ok) {
+    throw_message(env, "a post-process frame's HasPreviousFrame must be a Boolean");
+    return 0;
+  }
+  context->has_previous_frame = has_previous ? CNA_TRUE : CNA_FALSE;
   return 1;
 }
 
@@ -23344,10 +23456,321 @@ static napi_value bridge_graphics_device_get_rasterizer_state(
   return output;
 }
 
+/* ---- the volumetric and atmospheric screen-space passes ---------------------------------------
+   Aerial perspective, height fog, light shafts and volumetric fog. Three of them publish the
+   arithmetic their shader runs as a pure C route, which is what lets a drawn frame be predicted
+   from something that never touches the GPU. */
+
+static napi_value pass_get_vector2(
+  napi_env env, napi_callback_info info, PassVector2OutFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle pass = 0;
+  CNA_Vector2 value = {0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pass)) return NULL;
+  const CNA_Result result = route(pass, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), name);
+  if (!set_f32_property(env, output, "X", value.x) ||
+      !set_f32_property(env, output, "Y", value.y)) {
+    return throw_napi(env, name);
+  }
+  return output;
+}
+
+static napi_value pass_set_vector2(
+  napi_env env, napi_callback_info info, PassVector2InFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle pass = 0;
+  CNA_Vector2 value = {0, 0};
+  double x = 0, y = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pass) ||
+      !get_named_double(env, args[1], "X", &x) ||
+      !get_named_double(env, args[1], "Y", &y)) {
+    return throw_message(env, "expected a pass and a point with X and Y");
+  }
+  value.x = (float) x;
+  value.y = (float) y;
+  const CNA_Result result = route(pass, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value bridge_aerial_perspective_pass_air_mass_for_distance(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3], output;
+  CNA_Vector3 direction = {0, 0, 0};
+  double distance = 0, scale_height = 0;
+  float value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_vector3_fields(env, args[0], &direction) ||
+      napi_get_value_double(env, args[1], &distance) != napi_ok ||
+      napi_get_value_double(env, args[2], &scale_height) != napi_ok) {
+    return throw_message(env, "expected a direction, a distance and a scale height");
+  }
+  const CNA_Result result = g_api.aerial_perspective_pass_air_mass_for_distance(
+    &direction, (float) distance, (float) scale_height, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_aerial_perspective_pass_air_mass_for_distance", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) value, &output),
+    "cna_aerial_perspective_pass_air_mass_for_distance");
+  return output;
+}
+
+static napi_value bridge_aerial_perspective_pass_transmittance(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  double turbidity = 0, air_mass = 0;
+  CNA_Vector3 value = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      napi_get_value_double(env, args[0], &turbidity) != napi_ok ||
+      napi_get_value_double(env, args[1], &air_mass) != napi_ok) {
+    return throw_message(env, "expected a turbidity and an air mass");
+  }
+  const CNA_Result result = g_api.aerial_perspective_pass_transmittance(
+    (float) turbidity, (float) air_mass, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_aerial_perspective_pass_transmittance", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_object(env, &output), "cna_aerial_perspective_pass_transmittance");
+  if (!set_vector3_fields(env, output, &value)) {
+    return throw_napi(env, "cna_aerial_perspective_pass_transmittance");
+  }
+  return output;
+}
+
+static napi_value bridge_height_fog_pass_optical_depth(napi_env env, napi_callback_info info) {
+  napi_value args[6], output;
+  double values[6] = {0, 0, 0, 0, 0, 0};
+  float depth = 0;
+  if (!require_loaded(env) || !get_args(env, info, 6, args)) return NULL;
+  for (int index = 0; index < 6; index += 1) {
+    if (napi_get_value_double(env, args[index], &values[index]) != napi_ok) {
+      return throw_message(env, "expected six numbers for the optical depth");
+    }
+  }
+  const CNA_Result result = g_api.height_fog_pass_optical_depth(
+    (float) values[0], (float) values[1], (float) values[2],
+    (float) values[3], (float) values[4], (float) values[5], &depth);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_height_fog_pass_optical_depth", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) depth, &output),
+    "cna_height_fog_pass_optical_depth");
+  return output;
+}
+
+static napi_value bridge_volumetric_fog_pass_set_light(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle pass = 0, shadow_map = 0;
+  CNA_Vector3 direction = {0, 0, 0}, colour = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &pass) ||
+      !read_handle_allow_zero(env, args[1], &shadow_map) ||
+      !read_vector3_fields(env, args[2], &direction) ||
+      !read_vector3_fields(env, args[3], &colour)) {
+    return throw_message(env, "expected a pass, a shadow map or zero, a direction and a colour");
+  }
+  const CNA_Result result = g_api.volumetric_fog_pass_set_light(
+    pass, shadow_map, &direction, &colour);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_volumetric_fog_pass_set_light", result);
+  }
+  return undefined_result(env, "cna_volumetric_fog_pass_set_light");
+}
+
+static napi_value bridge_aerial_perspective_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.aerial_perspective_pass_create, "cna_aerial_perspective_pass_create");
+}
+
+static napi_value bridge_aerial_perspective_pass_get_sun_direction(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.aerial_perspective_pass_get_sun_direction, "cna_aerial_perspective_pass_get_sun_direction");
+}
+
+static napi_value bridge_aerial_perspective_pass_set_sun_direction(napi_env env, napi_callback_info info) {
+  return sky_set_vector3(env, info, g_api.aerial_perspective_pass_set_sun_direction, "cna_aerial_perspective_pass_set_sun_direction");
+}
+
+static napi_value bridge_aerial_perspective_pass_get_turbidity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.aerial_perspective_pass_get_turbidity, "cna_aerial_perspective_pass_get_turbidity");
+}
+
+static napi_value bridge_aerial_perspective_pass_set_turbidity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.aerial_perspective_pass_set_turbidity, "cna_aerial_perspective_pass_set_turbidity");
+}
+
+static napi_value bridge_aerial_perspective_pass_get_intensity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.aerial_perspective_pass_get_intensity, "cna_aerial_perspective_pass_get_intensity");
+}
+
+static napi_value bridge_aerial_perspective_pass_set_intensity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.aerial_perspective_pass_set_intensity, "cna_aerial_perspective_pass_set_intensity");
+}
+
+static napi_value bridge_aerial_perspective_pass_get_scale_height(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.aerial_perspective_pass_get_scale_height, "cna_aerial_perspective_pass_get_scale_height");
+}
+
+static napi_value bridge_aerial_perspective_pass_set_scale_height(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.aerial_perspective_pass_set_scale_height, "cna_aerial_perspective_pass_set_scale_height");
+}
+
+static napi_value bridge_volumetric_fog_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.volumetric_fog_pass_create, "cna_volumetric_fog_pass_create");
+}
+
+static napi_value bridge_volumetric_fog_pass_get_density(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.volumetric_fog_pass_get_density, "cna_volumetric_fog_pass_get_density");
+}
+
+static napi_value bridge_volumetric_fog_pass_set_density(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.volumetric_fog_pass_set_density, "cna_volumetric_fog_pass_set_density");
+}
+
+static napi_value bridge_volumetric_fog_pass_get_anisotropy(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.volumetric_fog_pass_get_anisotropy, "cna_volumetric_fog_pass_get_anisotropy");
+}
+
+static napi_value bridge_volumetric_fog_pass_set_anisotropy(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.volumetric_fog_pass_set_anisotropy, "cna_volumetric_fog_pass_set_anisotropy");
+}
+
+static napi_value bridge_volumetric_fog_pass_get_range(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.volumetric_fog_pass_get_range, "cna_volumetric_fog_pass_get_range");
+}
+
+static napi_value bridge_volumetric_fog_pass_set_range(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.volumetric_fog_pass_set_range, "cna_volumetric_fog_pass_set_range");
+}
+
+static napi_value bridge_height_fog_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.height_fog_pass_create, "cna_height_fog_pass_create");
+}
+
+static napi_value bridge_height_fog_pass_get_color(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.height_fog_pass_get_color, "cna_height_fog_pass_get_color");
+}
+
+static napi_value bridge_height_fog_pass_set_color(napi_env env, napi_callback_info info) {
+  return sky_set_vector3(env, info, g_api.height_fog_pass_set_color, "cna_height_fog_pass_set_color");
+}
+
+static napi_value bridge_height_fog_pass_get_density(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.height_fog_pass_get_density, "cna_height_fog_pass_get_density");
+}
+
+static napi_value bridge_height_fog_pass_set_density(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.height_fog_pass_set_density, "cna_height_fog_pass_set_density");
+}
+
+static napi_value bridge_height_fog_pass_get_falloff(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.height_fog_pass_get_falloff, "cna_height_fog_pass_get_falloff");
+}
+
+static napi_value bridge_height_fog_pass_set_falloff(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.height_fog_pass_set_falloff, "cna_height_fog_pass_set_falloff");
+}
+
+static napi_value bridge_height_fog_pass_get_base_height(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.height_fog_pass_get_base_height, "cna_height_fog_pass_get_base_height");
+}
+
+static napi_value bridge_height_fog_pass_set_base_height(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.height_fog_pass_set_base_height, "cna_height_fog_pass_set_base_height");
+}
+
+static napi_value bridge_light_shaft_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.light_shaft_pass_create, "cna_light_shaft_pass_create");
+}
+
+static napi_value bridge_light_shaft_pass_get_light_screen_position(napi_env env, napi_callback_info info) {
+  return pass_get_vector2(env, info, g_api.light_shaft_pass_get_light_screen_position, "cna_light_shaft_pass_get_light_screen_position");
+}
+
+static napi_value bridge_light_shaft_pass_set_light_screen_position(napi_env env, napi_callback_info info) {
+  return pass_set_vector2(env, info, g_api.light_shaft_pass_set_light_screen_position, "cna_light_shaft_pass_set_light_screen_position");
+}
+
+static napi_value bridge_light_shaft_pass_get_threshold(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.light_shaft_pass_get_threshold, "cna_light_shaft_pass_get_threshold");
+}
+
+static napi_value bridge_light_shaft_pass_set_threshold(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.light_shaft_pass_set_threshold, "cna_light_shaft_pass_set_threshold");
+}
+
+static napi_value bridge_light_shaft_pass_get_intensity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.light_shaft_pass_get_intensity, "cna_light_shaft_pass_get_intensity");
+}
+
+static napi_value bridge_light_shaft_pass_set_intensity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.light_shaft_pass_set_intensity, "cna_light_shaft_pass_set_intensity");
+}
+
+static napi_value bridge_light_shaft_pass_get_decay(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.light_shaft_pass_get_decay, "cna_light_shaft_pass_get_decay");
+}
+
+static napi_value bridge_light_shaft_pass_set_decay(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.light_shaft_pass_set_decay, "cna_light_shaft_pass_set_decay");
+}
+
+static napi_value bridge_aerial_perspective_pass_copy_fallback_reason(napi_env env, napi_callback_info info) {
+  return copy_sized_text(env, info, g_api.aerial_perspective_pass_copy_fallback_reason, "cna_aerial_perspective_pass_copy_fallback_reason");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "createAerialPerspectivePass", NULL, bridge_aerial_perspective_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getAerialPerspectiveSunDirection", NULL, bridge_aerial_perspective_pass_get_sun_direction, NULL, NULL, NULL, napi_default, NULL },
+    { "setAerialPerspectiveSunDirection", NULL, bridge_aerial_perspective_pass_set_sun_direction, NULL, NULL, NULL, napi_default, NULL },
+    { "getAerialPerspectiveTurbidity", NULL, bridge_aerial_perspective_pass_get_turbidity, NULL, NULL, NULL, napi_default, NULL },
+    { "setAerialPerspectiveTurbidity", NULL, bridge_aerial_perspective_pass_set_turbidity, NULL, NULL, NULL, napi_default, NULL },
+    { "getAerialPerspectiveIntensity", NULL, bridge_aerial_perspective_pass_get_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "setAerialPerspectiveIntensity", NULL, bridge_aerial_perspective_pass_set_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "getAerialPerspectiveScaleHeight", NULL, bridge_aerial_perspective_pass_get_scale_height, NULL, NULL, NULL, napi_default, NULL },
+    { "setAerialPerspectiveScaleHeight", NULL, bridge_aerial_perspective_pass_set_scale_height, NULL, NULL, NULL, napi_default, NULL },
+    { "createVolumetricFogPass", NULL, bridge_volumetric_fog_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getVolumetricFogDensity", NULL, bridge_volumetric_fog_pass_get_density, NULL, NULL, NULL, napi_default, NULL },
+    { "setVolumetricFogDensity", NULL, bridge_volumetric_fog_pass_set_density, NULL, NULL, NULL, napi_default, NULL },
+    { "getVolumetricFogAnisotropy", NULL, bridge_volumetric_fog_pass_get_anisotropy, NULL, NULL, NULL, napi_default, NULL },
+    { "setVolumetricFogAnisotropy", NULL, bridge_volumetric_fog_pass_set_anisotropy, NULL, NULL, NULL, napi_default, NULL },
+    { "getVolumetricFogRange", NULL, bridge_volumetric_fog_pass_get_range, NULL, NULL, NULL, napi_default, NULL },
+    { "setVolumetricFogRange", NULL, bridge_volumetric_fog_pass_set_range, NULL, NULL, NULL, napi_default, NULL },
+    { "createHeightFogPass", NULL, bridge_height_fog_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getHeightFogColor", NULL, bridge_height_fog_pass_get_color, NULL, NULL, NULL, napi_default, NULL },
+    { "setHeightFogColor", NULL, bridge_height_fog_pass_set_color, NULL, NULL, NULL, napi_default, NULL },
+    { "getHeightFogDensity", NULL, bridge_height_fog_pass_get_density, NULL, NULL, NULL, napi_default, NULL },
+    { "setHeightFogDensity", NULL, bridge_height_fog_pass_set_density, NULL, NULL, NULL, napi_default, NULL },
+    { "getHeightFogFalloff", NULL, bridge_height_fog_pass_get_falloff, NULL, NULL, NULL, napi_default, NULL },
+    { "setHeightFogFalloff", NULL, bridge_height_fog_pass_set_falloff, NULL, NULL, NULL, napi_default, NULL },
+    { "getHeightFogBaseHeight", NULL, bridge_height_fog_pass_get_base_height, NULL, NULL, NULL, napi_default, NULL },
+    { "setHeightFogBaseHeight", NULL, bridge_height_fog_pass_set_base_height, NULL, NULL, NULL, napi_default, NULL },
+    { "createLightShaftPass", NULL, bridge_light_shaft_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightShaftLightScreenPosition", NULL, bridge_light_shaft_pass_get_light_screen_position, NULL, NULL, NULL, napi_default, NULL },
+    { "setLightShaftLightScreenPosition", NULL, bridge_light_shaft_pass_set_light_screen_position, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightShaftThreshold", NULL, bridge_light_shaft_pass_get_threshold, NULL, NULL, NULL, napi_default, NULL },
+    { "setLightShaftThreshold", NULL, bridge_light_shaft_pass_set_threshold, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightShaftIntensity", NULL, bridge_light_shaft_pass_get_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "setLightShaftIntensity", NULL, bridge_light_shaft_pass_set_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "getLightShaftDecay", NULL, bridge_light_shaft_pass_get_decay, NULL, NULL, NULL, napi_default, NULL },
+    { "setLightShaftDecay", NULL, bridge_light_shaft_pass_set_decay, NULL, NULL, NULL, napi_default, NULL },
+    { "aerialPerspectiveCopyFallbackReason", NULL, bridge_aerial_perspective_pass_copy_fallback_reason, NULL, NULL, NULL, napi_default, NULL },
+    { "aerialPerspectiveAirMassForDistance", NULL, bridge_aerial_perspective_pass_air_mass_for_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "aerialPerspectiveTransmittance", NULL, bridge_aerial_perspective_pass_transmittance, NULL, NULL, NULL, napi_default, NULL },
+    { "heightFogOpticalDepth", NULL, bridge_height_fog_pass_optical_depth, NULL, NULL, NULL, napi_default, NULL },
+    { "setVolumetricFogLight", NULL, bridge_volumetric_fog_pass_set_light, NULL, NULL, NULL, napi_default, NULL },
     { "getDeviceBlendState", NULL, bridge_graphics_device_get_blend_state, NULL, NULL, NULL, napi_default, NULL },
     { "getDeviceRasterizerState", NULL, bridge_graphics_device_get_rasterizer_state, NULL, NULL, NULL, napi_default, NULL },
     { "createPbrEffect", NULL, bridge_pbr_effect_create, NULL, NULL, NULL, napi_default, NULL },

@@ -358,6 +358,22 @@ export interface PostProcessFrame {
   readonly NearPlane?: number;
   /** The camera's far plane distance. */
   readonly FarPlane?: number;
+  /** The camera's projection, for a pass that needs it. */
+  readonly Projection?: Matrix | null;
+  /**
+   * Its inverse, and the inverse of the view.
+   *
+   * A pass that rebuilds a world position out of the depth image — aerial perspective and height
+   * fog — needs both, and **falls back to copying its input** without them rather than drawing a
+   * wrong picture. {@link AerialPerspectivePass.FallbackReason} says so in as many words.
+   */
+  readonly InverseProjection?: Matrix | null;
+  /** The inverse of the view, on the same terms. */
+  readonly InverseView?: Matrix | null;
+  /** The previous frame's view-projection, which is what a motion blur blurs towards. */
+  readonly PreviousViewProjection?: Matrix | null;
+  /** Whether there was a previous frame at all; the first frame of a scene has none. */
+  readonly HasPreviousFrame?: boolean;
 }
 
 /** How long one pass took on the GPU, averaged over the samples the chain recorded. */
@@ -399,7 +415,18 @@ function frameSnapshot(frame: PostProcessFrame): PostProcessFrameSnapshot {
     ElapsedSeconds: frame.ElapsedSeconds ?? 0,
     NearPlane: frame.NearPlane ?? 0,
     FarPlane: frame.FarPlane ?? 0,
+    Projection: optionalMatrix(frame.Projection, "Projection"),
+    InverseProjection: optionalMatrix(frame.InverseProjection, "InverseProjection"),
+    InverseView: optionalMatrix(frame.InverseView, "InverseView"),
+    PreviousViewProjection: optionalMatrix(
+      frame.PreviousViewProjection, "PreviousViewProjection"),
+    HasPreviousFrame: frame.HasPreviousFrame === true,
   };
+}
+
+/** A frame matrix a caller may leave out, in which case CNA's own initializer decides it. */
+function optionalMatrix(value: Matrix | null | undefined, what: string): number[] | null {
+  return value == null ? null : matrixValues(value, what);
 }
 
 /**
@@ -2453,6 +2480,8 @@ export const ShadowMapMath = {
  * other three shapes a game needs: {@link CascadedShadowMap}, {@link SpotShadowMap} and
  * {@link CubeShadowMap}.
  */
+let handleOfShadowMapForVolumetricFog!: (map: ShadowMap) => NativeHandle;
+
 export class ShadowMap implements IDisposable {
   readonly #backend: CnaShadowBackend;
   readonly #device: GraphicsDevice;
@@ -2476,6 +2505,10 @@ export class ShadowMap implements IDisposable {
   #active(): NativeHandle {
     if (this.#handle == null) throw new NativeUnavailableError("the shadow map is disposed");
     return this.#handle;
+  }
+
+  static {
+    handleOfShadowMapForVolumetricFog = (map: ShadowMap) => map.#active();
   }
 
   /** Whether this renderer can actually render into it. */
@@ -6981,5 +7014,246 @@ export class SkinnedPbrEffect {
     return extensions().getSkinnedPbrEffectBoneTransforms(
       resolveEffectHandleForInternalUse(effect), wholeNumber(count, "count"),
     ).map((values) => toMatrix(values));
+  }
+}
+
+/* ================================================================================================
+ * The volumetric and atmospheric screen-space passes
+ * ==============================================================================================*/
+
+/**
+ * Air between the camera and what it is looking at: the haze that makes distance visible.
+ *
+ * The pass needs a depth image, a far plane and the camera's matrices, and says which of those it
+ * was missing through {@link FallbackReason} rather than drawing something wrong. The arithmetic
+ * its shader runs is published as {@link AirMassForDistance} and {@link Transmittance}, so the
+ * drawn frame can be predicted without a GPU.
+ */
+export class AerialPerspectivePass extends PostProcessPass {
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createAerialPerspectivePass(postProcessDeviceHandle(graphicsDevice)));
+  }
+
+  /** Which way the sun is, which decides how the haze is coloured. */
+  public get SunDirection(): Vector3 {
+    return toVector3(extensions().getAerialPerspectiveSunDirection(this.HandleForInternalUse));
+  }
+  public set SunDirection(value: Vector3) {
+    extensions().setAerialPerspectiveSunDirection(
+      this.HandleForInternalUse, vectorSnapshot(value, "SunDirection"));
+  }
+
+  /** How much aerosol the air carries; one is a clean sky. */
+  public get Turbidity(): number {
+    return extensions().getAerialPerspectiveTurbidity(this.HandleForInternalUse);
+  }
+  public set Turbidity(value: number) {
+    extensions().setAerialPerspectiveTurbidity(this.HandleForInternalUse, finite(value, "Turbidity"));
+  }
+
+  /** How strongly the haze is mixed in. */
+  public get Intensity(): number {
+    return extensions().getAerialPerspectiveIntensity(this.HandleForInternalUse);
+  }
+  public set Intensity(value: number) {
+    extensions().setAerialPerspectiveIntensity(this.HandleForInternalUse, finite(value, "Intensity"));
+  }
+
+  /** The distance over which the atmosphere thins by a factor of e. */
+  public get ScaleHeight(): number {
+    return extensions().getAerialPerspectiveScaleHeight(this.HandleForInternalUse);
+  }
+  public set ScaleHeight(value: number) {
+    extensions().setAerialPerspectiveScaleHeight(
+      this.HandleForInternalUse, finite(value, "ScaleHeight"));
+  }
+
+  /**
+   * Why the last frame fell back to a copy, in CNA's own words, or `""` when it did not.
+   *
+   * The pass never refuses: a frame with no depth image, no far plane or no camera matrices is
+   * copied through unchanged and the reason recorded here. Asking is how a caller tells a haze it
+   * cannot see from a haze that is not there.
+   */
+  public get FallbackReason(): string {
+    return extensions().aerialPerspectiveCopyFallbackReason(this.HandleForInternalUse);
+  }
+
+  /**
+   * The air mass a ray crosses, as a pure function of where it points and how far it goes.
+   *
+   * Rises with distance until the whole atmosphere in that direction has been crossed, and that
+   * ceiling is the Kasten-Young air mass for the ray's angle above the horizon: one straight up,
+   * about 38 at the horizon. A ray needs no pass to answer this.
+   */
+  public static AirMassForDistance(
+    viewDirection: Vector3, distance: number, scaleHeight: number,
+  ): number {
+    return extensions().aerialPerspectiveAirMassForDistance(
+      vectorSnapshot(viewDirection, "viewDirection"),
+      finite(distance, "distance"), finite(scaleHeight, "scaleHeight"),
+    );
+  }
+
+  /**
+   * What fraction of each channel survives that air mass, at a turbidity.
+   *
+   * Rayleigh scattering takes blue first, so the three channels never come back equal: this is why
+   * distance goes blue and a sunset goes red.
+   */
+  public static Transmittance(turbidity: number, airMass: number): Vector3 {
+    return toVector3(extensions().aerialPerspectiveTransmittance(
+      finite(turbidity, "turbidity"), finite(airMass, "airMass")));
+  }
+}
+
+/** Fog that lies in a layer, thickest at a height and thinning exponentially away from it. */
+export class HeightFogPass extends PostProcessPass {
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createHeightFogPass(postProcessDeviceHandle(graphicsDevice)));
+  }
+
+  /** The fog's colour. */
+  public get Color(): Vector3 {
+    return toVector3(extensions().getHeightFogColor(this.HandleForInternalUse));
+  }
+  public set Color(value: Vector3) {
+    extensions().setHeightFogColor(this.HandleForInternalUse, vectorSnapshot(value, "Color"));
+  }
+
+  /** How dense it is at {@link BaseHeight}. Zero is no fog, and the pass copies its input. */
+  public get Density(): number {
+    return extensions().getHeightFogDensity(this.HandleForInternalUse);
+  }
+  public set Density(value: number) {
+    extensions().setHeightFogDensity(this.HandleForInternalUse, finite(value, "Density"));
+  }
+
+  /** How fast it thins with height; larger is a shallower layer. */
+  public get Falloff(): number {
+    return extensions().getHeightFogFalloff(this.HandleForInternalUse);
+  }
+  public set Falloff(value: number) {
+    extensions().setHeightFogFalloff(this.HandleForInternalUse, finite(value, "Falloff"));
+  }
+
+  /** The height it is densest at. */
+  public get BaseHeight(): number {
+    return extensions().getHeightFogBaseHeight(this.HandleForInternalUse);
+  }
+  public set BaseHeight(value: number) {
+    extensions().setHeightFogBaseHeight(this.HandleForInternalUse, finite(value, "BaseHeight"));
+  }
+
+  /**
+   * The optical depth a ray accumulates, as a pure function of the layer and the ray.
+   *
+   * The closed form of the integral the shader marches: density falls off exponentially with
+   * height, so a ray that climbs leaves the layer and its depth converges, while a level ray
+   * accumulates linearly. Zero density, zero distance or zero falloff is no fog at all and
+   * answers zero rather than a small number.
+   */
+  public static OpticalDepth(
+    cameraHeight: number, rayHeightStep: number, distance: number,
+    density: number, falloff: number, baseHeight: number,
+  ): number {
+    return extensions().heightFogOpticalDepth(
+      finite(cameraHeight, "cameraHeight"), finite(rayHeightStep, "rayHeightStep"),
+      finite(distance, "distance"), finite(density, "density"),
+      finite(falloff, "falloff"), finite(baseHeight, "baseHeight"),
+    );
+  }
+}
+
+/** God rays: a radial blur away from where a bright light sits on the screen. */
+export class LightShaftPass extends PostProcessPass {
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createLightShaftPass(postProcessDeviceHandle(graphicsDevice)));
+  }
+
+  /** Where the light is, in normalised screen coordinates. */
+  public get LightScreenPosition(): Vector2 {
+    const value = extensions().getLightShaftLightScreenPosition(this.HandleForInternalUse);
+    return new Vector2(value.X, value.Y);
+  }
+  public set LightScreenPosition(value: Vector2) {
+    if (value == null) throw new TypeError("LightScreenPosition is required");
+    extensions().setLightShaftLightScreenPosition(this.HandleForInternalUse, {
+      X: finite(value.X, "LightScreenPosition.X"), Y: finite(value.Y, "LightScreenPosition.Y"),
+    });
+  }
+
+  /** How bright a texel must be to shed a shaft. */
+  public get Threshold(): number {
+    return extensions().getLightShaftThreshold(this.HandleForInternalUse);
+  }
+  public set Threshold(value: number) {
+    extensions().setLightShaftThreshold(this.HandleForInternalUse, finite(value, "Threshold"));
+  }
+
+  /** How strongly the shafts are mixed in. Zero adds nothing. */
+  public get Intensity(): number {
+    return extensions().getLightShaftIntensity(this.HandleForInternalUse);
+  }
+  public set Intensity(value: number) {
+    extensions().setLightShaftIntensity(this.HandleForInternalUse, finite(value, "Intensity"));
+  }
+
+  /** How fast a shaft fades along its length. */
+  public get Decay(): number {
+    return extensions().getLightShaftDecay(this.HandleForInternalUse);
+  }
+  public set Decay(value: number) {
+    extensions().setLightShaftDecay(this.HandleForInternalUse, finite(value, "Decay"));
+  }
+}
+
+/** Fog that is marched through, so a light can cast visible beams in it. */
+export class VolumetricFogPass extends PostProcessPass {
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createVolumetricFogPass(postProcessDeviceHandle(graphicsDevice)));
+  }
+
+  /** How thick the medium is. */
+  public get Density(): number {
+    return extensions().getVolumetricFogDensity(this.HandleForInternalUse);
+  }
+  public set Density(value: number) {
+    extensions().setVolumetricFogDensity(this.HandleForInternalUse, finite(value, "Density"));
+  }
+
+  /**
+   * How much the medium scatters forward rather than evenly.
+   *
+   * The Henyey-Greenstein parameter: zero scatters in every direction alike, positive throws light
+   * onwards, negative back towards where it came from.
+   */
+  public get Anisotropy(): number {
+    return extensions().getVolumetricFogAnisotropy(this.HandleForInternalUse);
+  }
+  public set Anisotropy(value: number) {
+    extensions().setVolumetricFogAnisotropy(this.HandleForInternalUse, finite(value, "Anisotropy"));
+  }
+
+  /** How far the march goes before it gives up. */
+  public get Range(): number {
+    return extensions().getVolumetricFogRange(this.HandleForInternalUse);
+  }
+  public set Range(value: number) {
+    extensions().setVolumetricFogRange(this.HandleForInternalUse, finite(value, "Range"));
+  }
+
+  /**
+   * The light the fog is marched against, with the shadow map that decides what it reaches.
+   *
+   * The shadow map is **borrowed** and never owned: the caller keeps it and must outlive this
+   * pass. Pass `null` to march unshadowed, which lights the whole medium.
+   */
+  public SetLight(shadowMap: ShadowMap | null, direction: Vector3, color: Vector3): void {
+    extensions().setVolumetricFogLight(
+      this.HandleForInternalUse,
+      shadowMap == null ? 0n : handleOfShadowMapForVolumetricFog(shadowMap),
+      vectorSnapshot(direction, "direction"), vectorSnapshot(color, "color"),
+    );
   }
 }

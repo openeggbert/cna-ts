@@ -1078,6 +1078,45 @@ interface NativeBridge {
   applyPbrMaterialState(material: PbrMaterialExtSnapshot, device: bigint): void;
   getDeviceBlendState(device: bigint): BlendStateSnapshot;
   getDeviceRasterizerState(device: bigint): RasterizerStateSnapshot;
+  createAerialPerspectivePass(graphicsDevice: bigint): bigint;
+  getAerialPerspectiveSunDirection(pass: bigint): Vector3Snapshot;
+  setAerialPerspectiveSunDirection(pass: bigint, value: Vector3Snapshot): void;
+  getAerialPerspectiveTurbidity(pass: bigint): number;
+  setAerialPerspectiveTurbidity(pass: bigint, value: number): void;
+  getAerialPerspectiveIntensity(pass: bigint): number;
+  setAerialPerspectiveIntensity(pass: bigint, value: number): void;
+  getAerialPerspectiveScaleHeight(pass: bigint): number;
+  setAerialPerspectiveScaleHeight(pass: bigint, value: number): void;
+  createVolumetricFogPass(graphicsDevice: bigint): bigint;
+  getVolumetricFogDensity(pass: bigint): number;
+  setVolumetricFogDensity(pass: bigint, value: number): void;
+  getVolumetricFogAnisotropy(pass: bigint): number;
+  setVolumetricFogAnisotropy(pass: bigint, value: number): void;
+  getVolumetricFogRange(pass: bigint): number;
+  setVolumetricFogRange(pass: bigint, value: number): void;
+  createHeightFogPass(graphicsDevice: bigint): bigint;
+  getHeightFogColor(pass: bigint): Vector3Snapshot;
+  setHeightFogColor(pass: bigint, value: Vector3Snapshot): void;
+  getHeightFogDensity(pass: bigint): number;
+  setHeightFogDensity(pass: bigint, value: number): void;
+  getHeightFogFalloff(pass: bigint): number;
+  setHeightFogFalloff(pass: bigint, value: number): void;
+  getHeightFogBaseHeight(pass: bigint): number;
+  setHeightFogBaseHeight(pass: bigint, value: number): void;
+  createLightShaftPass(graphicsDevice: bigint): bigint;
+  getLightShaftLightScreenPosition(pass: bigint): Vector2Snapshot;
+  setLightShaftLightScreenPosition(pass: bigint, value: Vector2Snapshot): void;
+  getLightShaftThreshold(pass: bigint): number;
+  setLightShaftThreshold(pass: bigint, value: number): void;
+  getLightShaftIntensity(pass: bigint): number;
+  setLightShaftIntensity(pass: bigint, value: number): void;
+  getLightShaftDecay(pass: bigint): number;
+  setLightShaftDecay(pass: bigint, value: number): void;
+  aerialPerspectiveCopyFallbackReason(pass: bigint): string;
+  aerialPerspectiveAirMassForDistance(viewDirection: Vector3Snapshot, distance: number, scaleHeight: number): number;
+  aerialPerspectiveTransmittance(turbidity: number, airMass: number): Vector3Snapshot;
+  heightFogOpticalDepth(cameraHeight: number, rayHeightStep: number, distance: number, density: number, falloff: number, baseHeight: number, ): number;
+  setVolumetricFogLight(pass: bigint, shadowMap: bigint, direction: Vector3Snapshot, color: Vector3Snapshot, ): void;
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: bigint): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -3417,6 +3456,47 @@ export class NodeNativeBackend
   public applyPbrMaterialState(material: PbrMaterialExtSnapshot, device: NativeHandle): void { this.#bridge.applyPbrMaterialState(material, device); }
   public getDeviceBlendState(device: NativeHandle): BlendStateSnapshot { return this.#bridge.getDeviceBlendState(device); }
   public getDeviceRasterizerState(device: NativeHandle): RasterizerStateSnapshot { return this.#bridge.getDeviceRasterizerState(device); }
+
+  // The volumetric and atmospheric screen-space passes.
+  public createAerialPerspectivePass(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createAerialPerspectivePass(graphicsDevice); }
+  public getAerialPerspectiveSunDirection(pass: NativeHandle): Vector3Snapshot { return this.#bridge.getAerialPerspectiveSunDirection(pass); }
+  public setAerialPerspectiveSunDirection(pass: NativeHandle, value: Vector3Snapshot): void { this.#bridge.setAerialPerspectiveSunDirection(pass, value); }
+  public getAerialPerspectiveTurbidity(pass: NativeHandle): number { return this.#bridge.getAerialPerspectiveTurbidity(pass); }
+  public setAerialPerspectiveTurbidity(pass: NativeHandle, value: number): void { this.#bridge.setAerialPerspectiveTurbidity(pass, value); }
+  public getAerialPerspectiveIntensity(pass: NativeHandle): number { return this.#bridge.getAerialPerspectiveIntensity(pass); }
+  public setAerialPerspectiveIntensity(pass: NativeHandle, value: number): void { this.#bridge.setAerialPerspectiveIntensity(pass, value); }
+  public getAerialPerspectiveScaleHeight(pass: NativeHandle): number { return this.#bridge.getAerialPerspectiveScaleHeight(pass); }
+  public setAerialPerspectiveScaleHeight(pass: NativeHandle, value: number): void { this.#bridge.setAerialPerspectiveScaleHeight(pass, value); }
+  public createVolumetricFogPass(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createVolumetricFogPass(graphicsDevice); }
+  public getVolumetricFogDensity(pass: NativeHandle): number { return this.#bridge.getVolumetricFogDensity(pass); }
+  public setVolumetricFogDensity(pass: NativeHandle, value: number): void { this.#bridge.setVolumetricFogDensity(pass, value); }
+  public getVolumetricFogAnisotropy(pass: NativeHandle): number { return this.#bridge.getVolumetricFogAnisotropy(pass); }
+  public setVolumetricFogAnisotropy(pass: NativeHandle, value: number): void { this.#bridge.setVolumetricFogAnisotropy(pass, value); }
+  public getVolumetricFogRange(pass: NativeHandle): number { return this.#bridge.getVolumetricFogRange(pass); }
+  public setVolumetricFogRange(pass: NativeHandle, value: number): void { this.#bridge.setVolumetricFogRange(pass, value); }
+  public createHeightFogPass(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createHeightFogPass(graphicsDevice); }
+  public getHeightFogColor(pass: NativeHandle): Vector3Snapshot { return this.#bridge.getHeightFogColor(pass); }
+  public setHeightFogColor(pass: NativeHandle, value: Vector3Snapshot): void { this.#bridge.setHeightFogColor(pass, value); }
+  public getHeightFogDensity(pass: NativeHandle): number { return this.#bridge.getHeightFogDensity(pass); }
+  public setHeightFogDensity(pass: NativeHandle, value: number): void { this.#bridge.setHeightFogDensity(pass, value); }
+  public getHeightFogFalloff(pass: NativeHandle): number { return this.#bridge.getHeightFogFalloff(pass); }
+  public setHeightFogFalloff(pass: NativeHandle, value: number): void { this.#bridge.setHeightFogFalloff(pass, value); }
+  public getHeightFogBaseHeight(pass: NativeHandle): number { return this.#bridge.getHeightFogBaseHeight(pass); }
+  public setHeightFogBaseHeight(pass: NativeHandle, value: number): void { this.#bridge.setHeightFogBaseHeight(pass, value); }
+  public createLightShaftPass(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createLightShaftPass(graphicsDevice); }
+  public getLightShaftLightScreenPosition(pass: NativeHandle): Vector2Snapshot { return this.#bridge.getLightShaftLightScreenPosition(pass); }
+  public setLightShaftLightScreenPosition(pass: NativeHandle, value: Vector2Snapshot): void { this.#bridge.setLightShaftLightScreenPosition(pass, value); }
+  public getLightShaftThreshold(pass: NativeHandle): number { return this.#bridge.getLightShaftThreshold(pass); }
+  public setLightShaftThreshold(pass: NativeHandle, value: number): void { this.#bridge.setLightShaftThreshold(pass, value); }
+  public getLightShaftIntensity(pass: NativeHandle): number { return this.#bridge.getLightShaftIntensity(pass); }
+  public setLightShaftIntensity(pass: NativeHandle, value: number): void { this.#bridge.setLightShaftIntensity(pass, value); }
+  public getLightShaftDecay(pass: NativeHandle): number { return this.#bridge.getLightShaftDecay(pass); }
+  public setLightShaftDecay(pass: NativeHandle, value: number): void { this.#bridge.setLightShaftDecay(pass, value); }
+  public aerialPerspectiveCopyFallbackReason(pass: NativeHandle): string { return this.#bridge.aerialPerspectiveCopyFallbackReason(pass); }
+  public aerialPerspectiveAirMassForDistance(viewDirection: Vector3Snapshot, distance: number, scaleHeight: number): number { return this.#bridge.aerialPerspectiveAirMassForDistance(viewDirection, distance, scaleHeight); }
+  public aerialPerspectiveTransmittance(turbidity: number, airMass: number): Vector3Snapshot { return this.#bridge.aerialPerspectiveTransmittance(turbidity, airMass); }
+  public heightFogOpticalDepth(cameraHeight: number, rayHeightStep: number, distance: number, density: number, falloff: number, baseHeight: number,): number { return this.#bridge.heightFogOpticalDepth(cameraHeight, rayHeightStep, distance, density, falloff, baseHeight, ); }
+  public setVolumetricFogLight(pass: NativeHandle, shadowMap: NativeHandle, direction: Vector3Snapshot, color: Vector3Snapshot,): void { this.#bridge.setVolumetricFogLight(pass, shadowMap, direction, color, ); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }
   public extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot { return this.#bridge.extractPbrEffectMaterial(effect); }
   public applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applySkinnedPbrEffectMaterial(effect, material); }

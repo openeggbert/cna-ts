@@ -895,6 +895,11 @@ export interface PostProcessFrameSnapshot {
   readonly ElapsedSeconds: number;
   readonly NearPlane: number;
   readonly FarPlane: number;
+  readonly Projection: readonly number[] | null;
+  readonly InverseProjection: readonly number[] | null;
+  readonly InverseView: readonly number[] | null;
+  readonly PreviousViewProjection: readonly number[] | null;
+  readonly HasPreviousFrame: boolean;
 }
 
 /** How long one post-process pass took on the GPU, averaged over its samples. */
@@ -1096,6 +1101,53 @@ export interface CnaGraphicsExtensionBackend {
   /* What ApplyState wrote, read back below the wrapper's own state objects. */
   getDeviceBlendState(device: NativeHandle): BlendStateSnapshot;
   getDeviceRasterizerState(device: NativeHandle): RasterizerStateSnapshot;
+
+  // --- the volumetric and atmospheric screen-space passes ---------------------------------
+  createAerialPerspectivePass(graphicsDevice: NativeHandle): NativeHandle;
+  getAerialPerspectiveSunDirection(pass: NativeHandle): Vector3Snapshot;
+  setAerialPerspectiveSunDirection(pass: NativeHandle, value: Vector3Snapshot): void;
+  getAerialPerspectiveTurbidity(pass: NativeHandle): number;
+  setAerialPerspectiveTurbidity(pass: NativeHandle, value: number): void;
+  getAerialPerspectiveIntensity(pass: NativeHandle): number;
+  setAerialPerspectiveIntensity(pass: NativeHandle, value: number): void;
+  getAerialPerspectiveScaleHeight(pass: NativeHandle): number;
+  setAerialPerspectiveScaleHeight(pass: NativeHandle, value: number): void;
+  createVolumetricFogPass(graphicsDevice: NativeHandle): NativeHandle;
+  getVolumetricFogDensity(pass: NativeHandle): number;
+  setVolumetricFogDensity(pass: NativeHandle, value: number): void;
+  getVolumetricFogAnisotropy(pass: NativeHandle): number;
+  setVolumetricFogAnisotropy(pass: NativeHandle, value: number): void;
+  getVolumetricFogRange(pass: NativeHandle): number;
+  setVolumetricFogRange(pass: NativeHandle, value: number): void;
+  createHeightFogPass(graphicsDevice: NativeHandle): NativeHandle;
+  getHeightFogColor(pass: NativeHandle): Vector3Snapshot;
+  setHeightFogColor(pass: NativeHandle, value: Vector3Snapshot): void;
+  getHeightFogDensity(pass: NativeHandle): number;
+  setHeightFogDensity(pass: NativeHandle, value: number): void;
+  getHeightFogFalloff(pass: NativeHandle): number;
+  setHeightFogFalloff(pass: NativeHandle, value: number): void;
+  getHeightFogBaseHeight(pass: NativeHandle): number;
+  setHeightFogBaseHeight(pass: NativeHandle, value: number): void;
+  createLightShaftPass(graphicsDevice: NativeHandle): NativeHandle;
+  getLightShaftLightScreenPosition(pass: NativeHandle): Vector2Snapshot;
+  setLightShaftLightScreenPosition(pass: NativeHandle, value: Vector2Snapshot): void;
+  getLightShaftThreshold(pass: NativeHandle): number;
+  setLightShaftThreshold(pass: NativeHandle, value: number): void;
+  getLightShaftIntensity(pass: NativeHandle): number;
+  setLightShaftIntensity(pass: NativeHandle, value: number): void;
+  getLightShaftDecay(pass: NativeHandle): number;
+  setLightShaftDecay(pass: NativeHandle, value: number): void;
+  aerialPerspectiveCopyFallbackReason(pass: NativeHandle): string;
+  aerialPerspectiveAirMassForDistance(viewDirection: Vector3Snapshot, distance: number, scaleHeight: number): number;
+  aerialPerspectiveTransmittance(turbidity: number, airMass: number): Vector3Snapshot;
+  heightFogOpticalDepth(
+    cameraHeight: number, rayHeightStep: number, distance: number, density: number,
+    falloff: number, baseHeight: number,
+  ): number;
+  setVolumetricFogLight(
+    pass: NativeHandle, shadowMap: NativeHandle, direction: Vector3Snapshot,
+    color: Vector3Snapshot,
+  ): void;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;

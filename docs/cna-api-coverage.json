@@ -16,13 +16,13 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 1403,
+    "NODE": 1442,
     "WASM": 276
   },
-  "reachableByAny": 1403,
+  "reachableByAny": 1442,
   "reachableByAll": 276,
   "reachableExclusively": {
-    "NODE": 1127,
+    "NODE": 1166,
     "WASM": 0
   },
   "reachabilityByCategory": {
@@ -31,7 +31,7 @@
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 975,
+      "NODE": 1014,
       "WASM": 189
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -119,7 +119,7 @@
     },
     "engine_layer.h": {
       "CNA_EXTENSION_BACKING": 857,
-      "REACHABLE_NODE": 551
+      "REACHABLE_NODE": 590
     },
     "gamer_services.h": {
       "XNA_BACKING": 250,
@@ -847,84 +847,108 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_aerial_perspective_pass_copy_fallback_reason",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_aerial_perspective_pass_create",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_aerial_perspective_pass_get_intensity",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_aerial_perspective_pass_get_scale_height",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_aerial_perspective_pass_get_sun_direction",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_aerial_perspective_pass_get_turbidity",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_aerial_perspective_pass_set_intensity",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_aerial_perspective_pass_set_scale_height",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_aerial_perspective_pass_set_sun_direction",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_aerial_perspective_pass_set_turbidity",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_aerial_perspective_pass_transmittance",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_album_collection_copy_type_name",
@@ -16208,70 +16232,90 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_height_fog_pass_get_base_height",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_height_fog_pass_get_color",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_height_fog_pass_get_density",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_height_fog_pass_get_falloff",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_height_fog_pass_optical_depth",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_height_fog_pass_set_base_height",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_height_fog_pass_set_color",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_height_fog_pass_set_density",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_height_fog_pass_set_falloff",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_host_changed_event_info_init",
@@ -17754,63 +17798,81 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_shaft_pass_get_decay",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_shaft_pass_get_intensity",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_shaft_pass_get_light_screen_position",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_shaft_pass_get_threshold",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_shaft_pass_set_decay",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_shaft_pass_set_intensity",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_shaft_pass_set_light_screen_position",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_light_shaft_pass_set_threshold",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_local_network_gamer_clear_packet_queue_ext",
@@ -31554,56 +31616,72 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_volumetric_fog_pass_get_anisotropy",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_volumetric_fog_pass_get_density",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_volumetric_fog_pass_get_range",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_volumetric_fog_pass_set_anisotropy",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_volumetric_fog_pass_set_density",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_volumetric_fog_pass_set_light",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_volumetric_fog_pass_set_range",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_wave_bank_copy_type_name",

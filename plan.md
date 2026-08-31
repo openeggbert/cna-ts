@@ -471,6 +471,26 @@ Electron, or mobile support.
   term does not. Fifteen planted defects fail and none survives. One upstream finding came out of
   it: a PBR effect's texture slots have two sources of truth that never agree, so a material
   carrying a texture cannot be round-tripped through an effect (item 19).
+- [x] **The volumetric and atmospheric screen-space passes** — aerial perspective, height fog,
+  light shafts and volumetric fog. Three of the four publish the arithmetic their shader runs as a
+  pure C route, and that is where the acceptance lives: air mass against Kasten–Young written out
+  from the published formula (one atmosphere straight up, about thirty-eight along the horizon,
+  linear in distance until that ceiling, a zero-length direction treated as straight up rather than
+  divided by), transmittance against Rayleigh per channel plus a grey Mie term (blue scattered
+  hardest, and more aerosol narrowing the spread between channels rather than tinting them), and
+  height fog's optical depth against the closed form of the integral the shader marches, in all
+  three of its branches — no fog, a level ray that accumulates linearly, a climbing ray that
+  converges while a descending one runs away. Moving the layer up with the camera puts the answer
+  back exactly. On a real renderer each pass's own off switch is a byte-exact copy, and turned on
+  the fog moves every texel monotonically towards its own colour and never past it, a descending
+  camera gathers more than a level one, and enough density gives exactly the fog colour. The aerial
+  pass is the only thing in the layer that says *why* it could not work, and that is qualified as a
+  three-state ladder — no depth, then no camera, then nothing — so the reason is asserted to change
+  as inputs are supplied rather than to be one constant string. Writing it closed a real gap in this
+  binding: the post-process frame carried no camera at all, so every pass that rebuilds a world
+  position out of the depth image was falling back through it. It now carries the projection, both
+  inverses, the previous frame's view-projection and whether there was one. Eight planted defects
+  fail and none survives.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -565,7 +585,7 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 149 operation families: 21 verified managed, 88 verified native, 13
+- [x] Current baseline is 151 operation families: 21 verified managed, 90 verified native, 13
   verified WebAssembly, five explicitly unavailable on the qualified backend, four upstream-CNA
   blocked, three fixture pending, six hardware pending, three platform pending, two unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.

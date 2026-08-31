@@ -2562,6 +2562,187 @@ class WindowedProbeGame extends Game {
       }
     });
 
+    // --- the volumetric and atmospheric screen-space passes ----------------------------------------
+    //
+    // Their arithmetic is qualified headless against the closed forms. What a renderer adds is
+    // whether the shaders run at all, whether each pass's own "off" setting is an exact copy, and
+    // -- the aerial pass alone -- whether it says which input it was missing rather than drawing a
+    // wrong picture. That last one is a three-state ladder: no depth, then no camera, then nothing.
+    record("volumetric", () => {
+      const {
+        AerialPerspectivePass, DepthNormalPrepassMath, HeightFogPass, IsGraphicsExtensionLayerAvailable,
+        LightShaftPass, VolumetricFogPass,
+      } = computeModule;
+      const N = 4;
+      const FAR = 100;
+      const HEIGHT = 8;
+      const owned = [];
+      try {
+        let aerial;
+        try {
+          aerial = new AerialPerspectivePass(device);
+        } catch (error) {
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(aerial);
+        const fog = new HeightFogPass(device);
+        owned.push(fog);
+        const shafts = new LightShaftPass(device);
+        owned.push(shafts);
+        const volumetric = new VolumetricFogPass(device);
+        owned.push(volumetric);
+
+        const result = {
+          names: [aerial.Name, fog.Name, shafts.Name, volumetric.Name],
+          supported: [
+            aerial.IsSupportedOn(device), fog.IsSupportedOn(device),
+            shafts.IsSupportedOn(device), volumetric.IsSupportedOn(device),
+          ],
+          defaults: {
+            aerial: [aerial.Turbidity, aerial.Intensity, aerial.ScaleHeight],
+            aerialSun: [aerial.SunDirection.X, aerial.SunDirection.Y, aerial.SunDirection.Z],
+            aerialFallback: aerial.FallbackReason,
+            fog: [fog.Density, fog.Falloff, fog.BaseHeight],
+            fogColor: [fog.Color.X, fog.Color.Y, fog.Color.Z],
+            shafts: [shafts.Threshold, shafts.Intensity, shafts.Decay],
+            shaftPosition: [shafts.LightScreenPosition.X, shafts.LightScreenPosition.Y],
+            volumetric: [volumetric.Density, volumetric.Anisotropy, volumetric.Range],
+          },
+        };
+        // Every setting written with a value no default equals, so a setter that did nothing shows.
+        aerial.Turbidity = 3.5;
+        aerial.Intensity = 0.75;
+        aerial.ScaleHeight = 1200;
+        aerial.SunDirection = new Vector3(0.1, 0.9, 0.2);
+        fog.Density = 0.005;
+        fog.Falloff = 0.25;
+        fog.BaseHeight = 0;
+        fog.Color = new Vector3(0.6, 0.7, 0.8);
+        shafts.Threshold = 0.625;
+        shafts.Intensity = 0.875;
+        shafts.Decay = 0.9;
+        shafts.LightScreenPosition = new Vector2(0.25, 0.75);
+        volumetric.Density = 0.125;
+        volumetric.Anisotropy = -0.4;
+        volumetric.Range = 250;
+        volumetric.SetLight(null, new Vector3(0, -1, 0), new Vector3(1, 0.9, 0.8));
+        result.written = {
+          aerial: [aerial.Turbidity, aerial.Intensity, aerial.ScaleHeight,
+            aerial.SunDirection.X, aerial.SunDirection.Y, aerial.SunDirection.Z],
+          fog: [fog.Density, fog.Falloff, fog.BaseHeight, fog.Color.X, fog.Color.Y, fog.Color.Z],
+          shafts: [shafts.Threshold, shafts.Intensity, shafts.Decay,
+            shafts.LightScreenPosition.X, shafts.LightScreenPosition.Y],
+          volumetric: [volumetric.Density, volumetric.Anisotropy, volumetric.Range],
+        };
+
+        const source = new Graphics.Texture2D(device, N, N);
+        owned.push(source);
+        source.SetData(new Array(N * N).fill(0).map(() => new Color(200, 100, 40, 255)));
+        // A depth image built with CNA's own packer, so the distances the shaders read are the
+        // distances this test asked for rather than whatever raw bytes decode to.
+        const depth = new Graphics.Texture2D(device, N, N);
+        owned.push(depth);
+        depth.SetData(new Array(N * N).fill(0).map((_, index) => {
+          const packed = DepthNormalPrepassMath.PackDepth(0.2 + (index / (N * N)) * 0.5);
+          return new Color(packed.R, packed.G, packed.B, packed.A);
+        }));
+        result.usesPackedDepth = DepthNormalPrepassMath.UsesPackedDepth(device);
+        const read = (texture) => {
+          const pixels = new Array(N * N);
+          texture.GetData(pixels);
+          return pixels.map((color) => [color.R, color.G, color.B]);
+        };
+        const sourcePixels = read(source);
+        const run = (pass, extra) => {
+          const destination = new Graphics.RenderTarget2D(device, N, N);
+          try {
+            pass.Apply({
+              Source: source, Destination: destination, Width: N, Height: N, ...extra,
+            });
+            return read(destination);
+          } finally {
+            destination.Dispose();
+          }
+        };
+        const copied = (pixels) => pixels.every(
+          (texel, index) => texel.every((value, channel) => value === sourcePixels[index][channel]));
+
+        // A level camera down -Z from a height, which is the branch of the closed form where a
+        // ray neither climbs nor descends.
+        const view = Matrix.CreateLookAt(
+          new Vector3(0, HEIGHT, 0), new Vector3(0, HEIGHT, -10), Vector3.Up);
+        const down = Matrix.CreateLookAt(
+          new Vector3(0, HEIGHT, 0), new Vector3(0, 0, -10), Vector3.Up);
+        const projection = Matrix.CreatePerspectiveFieldOfView(0.15, 1, 1, FAR);
+        const camera = {
+          SourceDepth: depth, NearPlane: 1, FarPlane: FAR, Projection: projection,
+          InverseProjection: Matrix.Invert(projection), InverseView: Matrix.Invert(view),
+        };
+
+        // The aerial pass's three-state ladder.
+        result.ladder = [];
+        result.ladder.push({ drew: !copied(run(aerial, {})), reason: aerial.FallbackReason });
+        result.ladder.push({
+          drew: !copied(run(aerial, { SourceDepth: depth, NearPlane: 1, FarPlane: FAR })),
+          reason: aerial.FallbackReason,
+        });
+        run(aerial, camera);
+        result.ladder.push({ reason: aerial.FallbackReason });
+
+        // Each pass's own "off" setting, which must be an exact copy.
+        aerial.Intensity = 0;
+        result.identities = { aerialNoIntensity: copied(run(aerial, camera)) };
+        aerial.Intensity = 0.75;
+        fog.Density = 0;
+        result.identities.fogNoDensity = copied(run(fog, camera));
+        shafts.Intensity = 0;
+        result.identities.shaftsNoIntensity = copied(run(shafts, camera));
+        shafts.Intensity = 0.875;
+        volumetric.Density = 0;
+        result.identities.volumetricNoDensity = copied(run(volumetric, camera));
+        volumetric.Density = 0.125;
+        result.identities.fogNoDepth = (() => {
+          fog.Density = 0.005;
+          return copied(run(fog, {}));
+        })();
+
+        // Turned on, the fog must move every texel towards its own colour, further at every step,
+        // and a descending ray must gather more than a level one -- both signs the closed form
+        // gives, neither of them a number recorded here.
+        result.fogSweep = [0.001, 0.005, 0.02].map((density) => {
+          fog.Density = density;
+          return { density, pixels: run(fog, camera) };
+        });
+        fog.Density = 0.005;
+        result.fogDescending = run(fog, { ...camera, InverseView: Matrix.Invert(down) });
+        fog.Density = 5;
+        result.fogSaturated = run(fog, camera);
+        fog.Density = 0.005;
+        result.shaftsDrew = !copied(run(shafts, camera));
+        result.volumetricDrew = !copied(run(volumetric, camera));
+        result.sourcePixels = sourcePixels;
+        result.fogColorBytes = [
+          Math.round(fog.Color.X * 255), Math.round(fog.Color.Y * 255),
+          Math.round(fog.Color.Z * 255),
+        ];
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch (error) {
+            (this.evidence.volumetricCleanup ??= []).push(
+              `${error.constructor.name}: ${(error.message ?? "").slice(0, 90)}`,
+            );
+          }
+        }
+      }
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -5019,5 +5200,135 @@ test("a windowed CNA renderer compiles the physically-based effects and takes th
   console.log(
     `CNA_TS_WINDOWED_PBR=PASS TECHNIQUE=${pbr.technique}/${pbr.passCount} APPLY=${pbr.apply} ` +
     `ROUND_TRIP=EXACT STATE=BLEND_AND_CULL BRIDGE=${pbr.bridge.albedo.join("/")}`,
+  );
+});
+
+test("a windowed CNA renderer draws the volumetric passes, and says when it cannot", { skip }, async () => {
+  const game = new WindowedProbeGame(6);
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const volumetric = evidence.volumetric;
+  assert.equal(typeof volumetric, "object", `the volumetric block did not run: ${volumetric}`);
+  if (volumetric.layerAbsent) {
+    assert.equal(volumetric.extensionLayer, false);
+    console.log(`CNA_TS_WINDOWED_VOLUMETRIC=SKIPPED_NO_LAYER RESULT=${volumetric.cnaResult}`);
+    return;
+  }
+  assert.equal(evidence.volumetricCleanup, undefined, `cleanup failed: ${evidence.volumetricCleanup}`);
+
+  assert.deepEqual(
+    volumetric.names, ["AerialPerspective", "HeightFog", "LightShafts", "VolumetricFog"],
+    "each pass names itself, which is what its GPU timing is filed under",
+  );
+  assert.deepEqual(volumetric.supported, [true, true, true, true], "and all four run here");
+
+  // CNA's own defaults, which are physical numbers rather than round ones.
+  assert.equal(volumetric.defaults.aerial[2], 8400, "the atmosphere's scale height is Earth's");
+  assert.ok(volumetric.defaults.aerial[0] > 1, "and its turbidity is a real sky's, not one");
+  assert.equal(volumetric.defaults.fog[0], 0, "height fog starts off, so a pipeline pays nothing for it");
+  assert.ok(volumetric.defaults.fog[1] > 0, "but with a falloff already set, because zero is not a layer");
+  assert.equal(volumetric.defaults.shafts[1], 0, "light shafts start off too");
+  assert.deepEqual(volumetric.defaults.shaftPosition, [0.5, 0.5], "with the light in the middle");
+  assert.equal(volumetric.defaults.volumetric[0], 0, "and so does volumetric fog");
+  assert.equal(volumetric.defaults.aerialFallback, "", "nothing has fallen back before the first frame");
+
+  // Every setting round-trips at float precision, each written to a value no default equals.
+  const close = (actual, expected, what) => {
+    assert.equal(actual.length, expected.length, what);
+    for (const [index, value] of expected.entries()) {
+      assert.ok(
+        Math.abs(actual[index] - value) < 1e-5,
+        `${what}[${index}]: ${actual[index]} vs ${value}`,
+      );
+    }
+  };
+  close(volumetric.written.aerial, [3.5, 0.75, 1200, 0.1, 0.9, 0.2], "aerial");
+  close(volumetric.written.fog, [0.005, 0.25, 0, 0.6, 0.7, 0.8], "fog");
+  close(volumetric.written.shafts, [0.625, 0.875, 0.9, 0.25, 0.75], "shafts");
+  close(volumetric.written.volumetric, [0.125, -0.4, 250], "volumetric");
+
+  // --- the fallback ladder --------------------------------------------------------------------------
+  // Three states, each naming the input that was missing. This is what the pass does instead of
+  // drawing a wrong picture, and it is the only pass in the layer that says so in words.
+  assert.equal(volumetric.ladder.length, 3);
+  assert.equal(volumetric.ladder[0].drew, false, "with no depth image the pass copies its input");
+  assert.match(
+    volumetric.ladder[0].reason, /depth/i,
+    `and says the depth image was missing: ${volumetric.ladder[0].reason}`,
+  );
+  assert.equal(volumetric.ladder[1].drew, false, "with depth but no camera it still copies");
+  assert.match(
+    volumetric.ladder[1].reason, /camera|matri/i,
+    `and now says the camera was missing: ${volumetric.ladder[1].reason}`,
+  );
+  assert.notEqual(
+    volumetric.ladder[0].reason, volumetric.ladder[1].reason,
+    "the reason must change as inputs are supplied, or it names nothing in particular",
+  );
+  assert.equal(
+    volumetric.ladder[2].reason, "",
+    "and with depth, a far plane and the camera it falls back to nothing at all",
+  );
+
+  // --- what each pass's own "off" setting promises ----------------------------------------------------
+  for (const [name, copied] of Object.entries(volumetric.identities)) {
+    assert.equal(copied, true, `${name} must be an exact copy of the source`);
+  }
+  assert.ok(Object.keys(volumetric.identities).length >= 5);
+
+  // --- and what it does when turned on -----------------------------------------------------------------
+  // The fog blend is 1 - exp(-opticalDepth) towards the fog colour, so raising the density can only
+  // move every texel further towards that colour, never past it and never back. Both facts come
+  // from the closed form the headless suite pins, not from numbers recorded here.
+  const target = volumetric.fogColorBytes;
+  const source = volumetric.sourcePixels;
+  const towards = (pixels, index, channel) => {
+    const from = source[index][channel];
+    const to = target[channel];
+    return (pixels[index][channel] - from) / (to - from);
+  };
+  let previous = null;
+  for (const { density, pixels } of volumetric.fogSweep) {
+    for (let index = 0; index < source.length; index += 1) {
+      for (let channel = 0; channel < 3; channel += 1) {
+        const fraction = towards(pixels, index, channel);
+        assert.ok(
+          fraction >= -0.01 && fraction <= 1.01,
+          `fog at density ${density} moved texel ${index} channel ${channel} outside its own ` +
+          `colour: ${pixels[index][channel]} between ${source[index][channel]} and ${target[channel]}`,
+        );
+        if (previous) {
+          assert.ok(
+            fraction >= towards(previous.pixels, index, channel) - 0.01,
+            `raising the density from ${previous.density} to ${density} moved texel ${index} ` +
+            `channel ${channel} back towards the source`,
+          );
+        }
+      }
+    }
+    previous = { density, pixels };
+  }
+  assert.ok(
+    towards(volumetric.fogSweep[2].pixels, 0, 0) > towards(volumetric.fogSweep[0].pixels, 0, 0) + 0.05,
+    "and twenty times the density is visibly more fog, not the same picture",
+  );
+  // A descending ray runs into a denser layer, which the closed form says gathers far more.
+  assert.ok(
+    towards(volumetric.fogDescending, 0, 0) > towards(volumetric.fogSweep[1].pixels, 0, 0),
+    "a camera looking down must gather more fog than one looking level, at the same density",
+  );
+  // Enough density and every texel is exactly the fog colour, with nothing of the source left.
+  for (const texel of volumetric.fogSaturated) {
+    assert.deepEqual(texel, target, "a saturated fog is exactly the fog colour");
+  }
+  assert.equal(volumetric.shaftsDrew, true, "light shafts turned on must change the frame");
+  assert.equal(volumetric.volumetricDrew, true, "and so must volumetric fog");
+
+  console.log(
+    `CNA_TS_WINDOWED_VOLUMETRIC=PASS LADDER=3_STATES IDENTITIES=` +
+    `${Object.keys(volumetric.identities).length} FOG=MONOTONE_TO_${target.join("/")} ` +
+    `PACKED_DEPTH=${volumetric.usesPackedDepth}`,
   );
 });

@@ -7862,3 +7862,175 @@ test("the canonical PBR material is a value, and both PBR effects carry it whole
     `SKINNED=${skinned.count}_BONES STATE=READ_FROM_CNA`,
   );
 });
+
+test("the volumetric passes publish the arithmetic their shaders run, exactly", async () => {
+  const { AerialPerspectivePass, HeightFogPass } = computeExtensions;
+
+  // --- the air mass a ray crosses -----------------------------------------------------------------
+  // Kasten-Young, written out here from the published formula rather than taken from a run, and
+  // used only as the *ceiling*: the air mass rises linearly with distance until the whole
+  // atmosphere in that direction has been crossed.
+  const kastenYoung = (upwards) => {
+    const up = Math.min(Math.max(upwards, 0), 1);
+    const zenithDegrees = Math.acos(up) * (180 / Math.PI);
+    return 1 / Math.max(up + 0.50572 * Math.max(96.07995 - zenithDegrees, 1e-3) ** -1.6364, 1e-4);
+  };
+  const airMass = (direction, distance, scaleHeight) => {
+    const length = Math.hypot(direction.X, direction.Y, direction.Z);
+    const upwards = length > 1e-6 ? direction.Y / length : 1;
+    return Math.min(Math.max(distance, 0) / Math.max(scaleHeight, 1e-3), kastenYoung(upwards));
+  };
+  for (const [direction, distance, scaleHeight] of [
+    [new Vector3(0, 1, 0), 1e9, 1], [new Vector3(1, 0, 0), 1e9, 1],
+    [new Vector3(0, 1, 0), 0.5, 1], [new Vector3(0, 1, 0), 100, 400],
+    [new Vector3(0, 1, 0), 0, 1], [new Vector3(0, 1, 0), -5, 1],
+    [new Vector3(0, 0, 0), 1e9, 1], [new Vector3(1, 1, 0), 5000, 8400],
+    [new Vector3(0, 0.2, 1), 1e9, 8400], [new Vector3(0, -1, 0), 1e9, 8400],
+  ]) {
+    const measured = AerialPerspectivePass.AirMassForDistance(direction, distance, scaleHeight);
+    const predicted = airMass(direction, distance, scaleHeight);
+    assert.ok(
+      Math.abs(measured - predicted) < Math.max(predicted * 1e-4, 1e-6),
+      `air mass along ${direction.X},${direction.Y},${direction.Z} over ${distance} at ` +
+      `${scaleHeight}: ${measured} vs ${predicted}`,
+    );
+  }
+  // The two ends, named so a regression to a constant or to the wrong axis fails visibly.
+  assert.ok(
+    Math.abs(AerialPerspectivePass.AirMassForDistance(new Vector3(0, 1, 0), 1e9, 1) - 1) < 1e-3,
+    "straight up crosses one atmosphere",
+  );
+  assert.ok(
+    Math.abs(AerialPerspectivePass.AirMassForDistance(new Vector3(1, 0, 0), 1e9, 1) - 37.92) < 0.1,
+    "and along the horizon about thirty-eight of them",
+  );
+  assert.equal(
+    AerialPerspectivePass.AirMassForDistance(new Vector3(0, 1, 0), 0, 1), 0,
+    "no distance is no air",
+  );
+  assert.equal(
+    AerialPerspectivePass.AirMassForDistance(new Vector3(0, 1, 0), -5, 1), 0,
+    "and a negative distance is clamped rather than negated",
+  );
+  assert.equal(
+    AerialPerspectivePass.AirMassForDistance(new Vector3(0, 0, 0), 1e9, 1),
+    AerialPerspectivePass.AirMassForDistance(new Vector3(0, 1, 0), 1e9, 1),
+    "a direction with no length is treated as straight up rather than dividing by zero",
+  );
+  // Below the horizon the ray points into the ground; the formula clamps rather than diverging.
+  assert.ok(
+    AerialPerspectivePass.AirMassForDistance(new Vector3(0, -1, 0), 1e9, 8400) > 0,
+    "and a downward ray still answers a finite air mass",
+  );
+
+  // --- what survives that air mass ----------------------------------------------------------------
+  // Rayleigh scattering per channel plus a Mie term that grows with turbidity, both written out
+  // from the model rather than recorded.
+  const RAYLEIGH = [0.0464, 0.1085, 0.2650];
+  const transmittance = (turbidity, mass) => {
+    const mie = 0.021 * Math.max(turbidity - 1, 0);
+    return RAYLEIGH.map((beta) => Math.exp(-(beta + mie) * mass));
+  };
+  for (const [turbidity, mass] of [[1, 0], [1, 1], [4, 1], [2.5, 3], [1, 10], [8, 0.5], [0, 2]]) {
+    const measured = AerialPerspectivePass.Transmittance(turbidity, mass);
+    const predicted = transmittance(turbidity, mass);
+    for (const [index, channel] of [measured.X, measured.Y, measured.Z].entries()) {
+      assert.ok(
+        Math.abs(channel - predicted[index]) < 1e-5,
+        `transmittance channel ${index} at turbidity ${turbidity} mass ${mass}: ` +
+        `${channel} vs ${predicted[index]}`,
+      );
+    }
+  }
+  const clear = AerialPerspectivePass.Transmittance(1, 0);
+  assert.deepEqual([clear.X, clear.Y, clear.Z], [1, 1, 1], "no air takes nothing");
+  const unit = AerialPerspectivePass.Transmittance(1, 1);
+  assert.ok(
+    unit.X > unit.Y && unit.Y > unit.Z,
+    `blue must be scattered hardest, which is why distance goes blue: ${unit.X},${unit.Y},${unit.Z}`,
+  );
+  // Turbidity is grey: a Mie term that is the same in every channel narrows the spread between
+  // them, which is why haze washes colour out rather than tinting it.
+  const hazy = AerialPerspectivePass.Transmittance(8, 1);
+  assert.ok(hazy.X < unit.X && hazy.Y < unit.Y && hazy.Z < unit.Z, "more aerosol takes more light");
+  assert.ok(
+    (hazy.X - hazy.Z) < (unit.X - unit.Z),
+    "and takes it evenly, so the channels spread less than in clean air",
+  );
+  assert.deepEqual(
+    [AerialPerspectivePass.Transmittance(0, 2).X, AerialPerspectivePass.Transmittance(1, 2).X],
+    [AerialPerspectivePass.Transmittance(1, 2).X, AerialPerspectivePass.Transmittance(1, 2).X],
+    "turbidity below one adds no Mie term rather than a negative one",
+  );
+
+  // --- the optical depth through a fog layer -------------------------------------------------------
+  // The closed form of the integral the shader marches, written out here. Three branches: no fog at
+  // all, a level ray that accumulates linearly, and a climbing or descending one that does not.
+  const opticalDepth = (cameraHeight, rayHeightStep, distance, density, falloff, baseHeight) => {
+    if (density <= 0 || distance <= 0 || falloff <= 0) return 0;
+    const atCamera = density * Math.exp(-falloff * (cameraHeight - baseHeight));
+    const climb = falloff * rayHeightStep;
+    if (Math.abs(climb) < 1e-5) return Math.max(atCamera * distance, 0);
+    return Math.max(atCamera * (1 - Math.exp(-climb * distance)) / climb, 0);
+  };
+  for (const args of [
+    [0, 0, 100, 0.02, 0.1, 0], [0, 1, 100, 0.02, 0.1, 0], [20, 0, 100, 0.02, 0.1, 0],
+    [0, 0, 100, 0, 0.1, 0], [0, 0, 0, 0.02, 0.1, 0], [0, 0, 100, 0.02, 0, 0],
+    [0, -1, 100, 0.02, 0.1, 0], [8, 0, 50, 0.005, 0.25, 0], [5, 0.5, 30, 0.1, 0.5, 5],
+    [-10, 0, 100, 0.02, 0.1, 0],
+  ]) {
+    const measured = HeightFogPass.OpticalDepth(...args);
+    const predicted = opticalDepth(...args);
+    assert.ok(
+      Math.abs(measured - predicted) < Math.max(Math.abs(predicted) * 1e-4, 1e-6),
+      `optical depth for ${args.join(",")}: ${measured} vs ${predicted}`,
+    );
+  }
+  // Each branch, named.
+  assert.equal(
+    HeightFogPass.OpticalDepth(0, 0, 100, 0.02, 0.1, 0), 2,
+    "a level ray through a layer it sits in accumulates density times distance",
+  );
+  assert.equal(HeightFogPass.OpticalDepth(0, 0, 100, 0, 0.1, 0), 0, "no density is no fog");
+  assert.equal(HeightFogPass.OpticalDepth(0, 0, 0, 0.02, 0.1, 0), 0, "and no distance is no fog");
+  assert.equal(
+    HeightFogPass.OpticalDepth(0, 0, 100, 0.02, 0, 0), 0,
+    "a falloff of zero is refused rather than dividing, because a layer with no falloff is not a layer",
+  );
+  assert.ok(
+    HeightFogPass.OpticalDepth(0, 1, 100, 0.02, 0.1, 0) <
+    HeightFogPass.OpticalDepth(0, 0, 100, 0.02, 0.1, 0),
+    "a climbing ray leaves the layer, so it gathers less than a level one",
+  );
+  assert.ok(
+    HeightFogPass.OpticalDepth(0, -1, 100, 0.02, 0.1, 0) >
+    HeightFogPass.OpticalDepth(0, 0, 100, 0.02, 0.1, 0) * 100,
+    "and a descending one runs into a denser layer, so it gathers far more",
+  );
+  assert.ok(
+    HeightFogPass.OpticalDepth(20, 0, 100, 0.02, 0.1, 0) <
+    HeightFogPass.OpticalDepth(0, 0, 100, 0.02, 0.1, 0),
+    "a camera above the layer sees less of it",
+  );
+  assert.equal(
+    HeightFogPass.OpticalDepth(20, 0, 100, 0.02, 0.1, 20),
+    HeightFogPass.OpticalDepth(0, 0, 100, 0.02, 0.1, 0),
+    "and moving the layer up with the camera puts it back exactly",
+  );
+  // A climbing ray converges: past some distance it has left the layer and gathers no more.
+  const far = HeightFogPass.OpticalDepth(0, 1, 1e6, 0.02, 0.1, 0);
+  const nearer = HeightFogPass.OpticalDepth(0, 1, 1000, 0.02, 0.1, 0);
+  assert.ok(
+    Math.abs(far - nearer) < 1e-4 && far > 0,
+    `a climbing ray's optical depth converges: ${nearer} then ${far}`,
+  );
+
+  assert.throws(() => AerialPerspectivePass.AirMassForDistance(null, 1, 1), TypeError);
+  assert.throws(() => AerialPerspectivePass.Transmittance(Number.NaN, 1), TypeError);
+  assert.throws(() => HeightFogPass.OpticalDepth(0, 0, 100, 0.02, 0.1, Number.NaN), TypeError);
+
+  console.log(
+    `CNA_TS_NATIVE_VOLUMETRIC_MATHS=PASS AIR_MASS=KASTEN_YOUNG TRANSMITTANCE=RAYLEIGH_PLUS_MIE ` +
+    `OPTICAL_DEPTH=THREE_BRANCHES`,
+  );
+});

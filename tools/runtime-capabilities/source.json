@@ -1778,6 +1778,43 @@
         "test:test/native-cna.integration.mjs",
         "test:test/windowed-renderer.integration.mjs"
       ]
+    },
+    {
+      "operation": "The volumetric and atmospheric screen-space passes: aerial perspective, height fog, light shafts and volumetric fog",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "three of the four publish the arithmetic their shader runs as a pure C route, and that is where the acceptance is. Air mass is checked against Kasten-Young written out from the published formula at ten directions and distances -- one atmosphere straight up, about thirty-eight along the horizon, linear in distance until that ceiling, clamped at zero for a negative distance, and a zero-length direction treated as straight up rather than divided by. Transmittance is checked against Rayleigh per channel plus a grey Mie term at seven turbidities and air masses: no air takes nothing, blue is scattered hardest, and more aerosol takes more light while narrowing the spread between channels, which is why haze washes colour out rather than tinting it. Height fog's optical depth is the closed form of the integral the shader marches, checked at ten configurations and in all three of its branches: no fog at all, a level ray that accumulates linearly, and a climbing ray that converges while a descending one runs away. Moving the layer up with the camera puts the answer back exactly. On a windowed renderer each pass's own off setting is a byte-exact copy -- five of them -- and turned on, the fog moves every texel monotonically towards its own colour and never past it, a descending camera gathers more than a level one at the same density, and enough density gives exactly the fog colour. Eight planted binding defects fail and none survives",
+      "proof": [
+        "route:cna_aerial_perspective_pass_create",
+        "route:cna_aerial_perspective_pass_air_mass_for_distance",
+        "route:cna_aerial_perspective_pass_transmittance",
+        "route:cna_aerial_perspective_pass_set_turbidity",
+        "route:cna_aerial_perspective_pass_set_scale_height",
+        "route:cna_height_fog_pass_create",
+        "route:cna_height_fog_pass_optical_depth",
+        "route:cna_height_fog_pass_set_density",
+        "route:cna_height_fog_pass_set_color",
+        "route:cna_light_shaft_pass_create",
+        "route:cna_light_shaft_pass_set_light_screen_position",
+        "route:cna_light_shaft_pass_set_intensity",
+        "route:cna_volumetric_fog_pass_create",
+        "route:cna_volumetric_fog_pass_set_light",
+        "route:cna_volumetric_fog_pass_set_anisotropy",
+        "test:test/native-cna.integration.mjs",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "A post-process pass being told why it could not do its work",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the aerial-perspective pass never refuses: a frame missing a depth image, a far plane or the camera's matrices is copied through unchanged and the reason recorded in words. That ladder is qualified as a ladder rather than as one string -- with nothing supplied it says the depth image is missing, with depth and a far plane it says the camera matrices are, and with all three it says nothing at all -- so the reason is asserted to *change* as inputs are supplied, which a constant string could not do. Finding this also closed a real gap in this binding: the post-process frame carried no camera at all, so the passes that rebuild a world position out of the depth image could never do their work through it. It now carries the projection, both inverses, the previous frame's view-projection and whether there was one, each optional and each defaulting to what CNA's own initializer writes",
+      "proof": [
+        "route:cna_aerial_perspective_pass_copy_fallback_reason",
+        "route:cna_post_process_context_init",
+        "route:cna_post_process_pass_apply",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
     }
   ]
 }
