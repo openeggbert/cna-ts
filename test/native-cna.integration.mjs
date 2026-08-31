@@ -3436,3 +3436,313 @@ test("XNA's public GraphicsDevice constructor makes a real second device", async
     `TWO_AT_ONCE=${two.sizes.map((s) => s.join("x")).join("|")}`,
   );
 });
+
+
+class CameraProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const { CameraState, CnaCamera, CnaCameraTestHooks } = devicesModule;
+    const record = (name, body) => {
+      try {
+        this.evidence[name] = body();
+      } catch (error) {
+        this.evidence[name] = { refused: error.constructor.name, cnaResult: error.cnaResult };
+      }
+    };
+
+    // The platform's real camera, on a machine that has none. Opening still succeeds -- that is
+    // CNA's documented contract -- and the state is what says there is nothing there.
+    record("real", () => {
+      const camera = CnaCamera.Open();
+      try {
+        return {
+          state: camera.State,
+          width: camera.FrameWidth,
+          height: camera.FrameHeight,
+          isTestBackend: camera.IsTestBackend,
+        };
+      } finally {
+        camera.Dispose();
+      }
+    });
+
+    record("hooksRefuseRealCamera", () => {
+      const camera = CnaCamera.Open();
+      try {
+        const attempts = {};
+        for (const [name, body] of [
+          ["setState", () => CnaCameraTestHooks.SetState(camera, CameraState.Ready)],
+          ["setFrame", () => CnaCameraTestHooks.SetFrame(camera, 1, 1, new Uint8Array(4))],
+          ["clearFrame", () => CnaCameraTestHooks.ClearFrame(camera)],
+        ]) {
+          try {
+            body();
+            attempts[name] = "ACCEPTED";
+          } catch (error) {
+            attempts[name] = error.constructor.name;
+          }
+        }
+        return attempts;
+      } finally {
+        camera.Dispose();
+      }
+    });
+
+    record("test", () => {
+      const camera = CnaCamera.OpenForTests();
+      const texture = new Graphics.Texture2D(this.GraphicsDevice, 2, 2);
+      const wrongSize = new Graphics.Texture2D(this.GraphicsDevice, 4, 4);
+      try {
+        const result = {
+          isTestBackend: camera.IsTestBackend,
+          initialState: camera.State,
+          initialSize: [camera.FrameWidth, camera.FrameHeight],
+        };
+        // Every state CNA lets a caller inject, each read back. Closed and NotSupported are
+        // refused for a device that was opened, which is CNA's own rule and recorded as such.
+        result.states = [
+          CameraState.Opening, CameraState.Denied, CameraState.Ready, CameraState.Lost,
+        ].map((state) => {
+          CnaCameraTestHooks.SetState(camera, state);
+          return [state, camera.State];
+        });
+        result.refusedStates = [CameraState.Closed, CameraState.NotSupported].map((state) => {
+          try {
+            CnaCameraTestHooks.SetState(camera, state);
+            return "ACCEPTED";
+          } catch (error) {
+            return `result ${error.cnaResult}`;
+          }
+        });
+
+        // Four distinct pixels, so a frame copied from the wrong place, in the wrong order, or
+        // channel-swapped is a different number rather than a coincidence.
+        const rgba = Uint8Array.from([
+          255, 0, 0, 255,
+          0, 255, 0, 255,
+          0, 0, 255, 255,
+          8, 16, 32, 64,
+        ]);
+        CnaCameraTestHooks.SetFrame(camera, 2, 2, rgba);
+        result.afterPublish = {
+          state: camera.State,
+          size: [camera.FrameWidth, camera.FrameHeight],
+        };
+
+        result.acquired = camera.TryAcquireFrame(texture);
+        const readback = new Array(4);
+        texture.GetData(readback);
+        result.texels = readback.map((color) => color.PackedValue);
+
+        // A texture whose size does not match the frame is refused, the same way as no frame.
+        result.wrongSize = camera.TryAcquireFrame(wrongSize);
+        // The frame stays available until it is replaced.
+        result.acquiredAgain = camera.TryAcquireFrame(texture);
+
+        // A second, different frame replaces the first.
+        const second = Uint8Array.from([
+          1, 2, 3, 4,
+          5, 6, 7, 8,
+          9, 10, 11, 12,
+          13, 14, 15, 16,
+        ]);
+        CnaCameraTestHooks.SetFrame(camera, 2, 2, second);
+        camera.TryAcquireFrame(texture);
+        const replaced = new Array(4);
+        texture.GetData(replaced);
+        result.replacedTexels = replaced.map((color) => color.PackedValue);
+
+        CnaCameraTestHooks.ClearFrame(camera);
+        result.afterClear = { state: camera.State, acquired: camera.TryAcquireFrame(texture) };
+
+        camera.Dispose();
+        result.disposedTwice = (() => { camera.Dispose(); return camera.IsDisposed; })();
+        try {
+          camera.State;
+          result.readAfterDispose = "ACCEPTED";
+        } catch (error) {
+          result.readAfterDispose = error.constructor.name;
+        }
+        return result;
+      } finally {
+        texture.Dispose();
+        wrongSize.Dispose();
+      }
+    });
+
+    // The injection hooks must refuse a camera that is not CNA's test backend, or a test could
+    // fabricate a reading for a device the platform actually owns.
+    record("argumentRefusals", () => {
+      const camera = CnaCamera.OpenForTests();
+      try {
+        const attempts = {};
+        for (const [name, body] of [
+          ["shortFrame", () => CnaCameraTestHooks.SetFrame(camera, 2, 2, new Uint8Array(4))],
+          ["negativeWidth", () => CnaCameraTestHooks.SetFrame(camera, -1, 2, new Uint8Array(16))],
+          ["badState", () => CnaCameraTestHooks.SetState(camera, 99)],
+          ["notATexture", () => camera.TryAcquireFrame(null)],
+          ["notACamera", () => CnaCameraTestHooks.SetState({}, CameraState.Ready)],
+        ]) {
+          try {
+            body();
+            attempts[name] = "ACCEPTED";
+          } catch (error) {
+            attempts[name] = error.constructor.name;
+          }
+        }
+        return attempts;
+      } finally {
+        camera.Dispose();
+      }
+    });
+
+    this.Exit();
+    super.LoadContent();
+  }
+
+  Draw(gameTime) {
+    this.GraphicsDevice.Clear(Color.CornflowerBlue);
+    this.Exit();
+    super.Draw(gameTime);
+  }
+}
+
+test("a camera frame reaches a caller-owned texture, exactly", async () => {
+  const game = new CameraProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+  const { CameraState } = devicesModule;
+
+  // No verification machine has a camera, and that is the answer being asserted: opening the
+  // platform's own still succeeds, and the state is what reports the absence.
+  const real = evidence.real;
+  assert.equal(typeof real, "object", `real camera failed: ${JSON.stringify(real)}`);
+  assert.equal(real.isTestBackend, false);
+  assert.equal(
+    real.state, CameraState.NotSupported,
+    "this host has no camera, and CNA says so through the state rather than by refusing to open",
+  );
+  assert.deepEqual([real.width, real.height], [0, 0], "and reports no frame format");
+
+  const probe = evidence.test;
+  assert.equal(typeof probe, "object", `test camera failed: ${JSON.stringify(probe)}`);
+  assert.equal(probe.isTestBackend, true);
+  assert.equal(probe.initialState, CameraState.Opening, "a test camera starts opening");
+  assert.deepEqual(probe.initialSize, [0, 0], "with no frame format yet");
+
+  // Every injectable state round-trips as itself, so the hook writes through to CNA rather than
+  // being remembered here.
+  assert.deepEqual(probe.states, [
+    [CameraState.Opening, CameraState.Opening],
+    [CameraState.Denied, CameraState.Denied],
+    [CameraState.Ready, CameraState.Ready],
+    [CameraState.Lost, CameraState.Lost],
+  ]);
+  // And CNA refuses the two a device it opened can never be in.
+  assert.deepEqual(
+    probe.refusedStates, ["result 1", "result 1"],
+    "Closed and NotSupported are refused for an opened device, which is CNA's own rule",
+  );
+
+  // Publishing a frame reports the camera ready and fixes its format -- what a real camera does
+  // when it starts producing.
+  assert.equal(probe.afterPublish.state, CameraState.Ready);
+  assert.deepEqual(probe.afterPublish.size, [2, 2]);
+
+  // The four exact texels, through the real acquisition path into a texture this package owns.
+  assert.equal(probe.acquired, true);
+  assert.deepEqual(
+    probe.texels,
+    [
+      new Color(255, 0, 0, 255).PackedValue,
+      new Color(0, 255, 0, 255).PackedValue,
+      new Color(0, 0, 255, 255).PackedValue,
+      new Color(8, 16, 32, 64).PackedValue,
+    ],
+    "the frame's four pixels arrive in order, with their channels the right way round",
+  );
+
+  assert.equal(
+    probe.wrongSize, false,
+    "a texture whose size does not match the frame is refused, not resized",
+  );
+  assert.equal(probe.acquiredAgain, true, "the frame stays available until it is replaced");
+  // A second frame really replaces the first: sixteen different bytes, sixteen different results.
+  assert.deepEqual(
+    probe.replacedTexels,
+    [
+      new Color(1, 2, 3, 4).PackedValue,
+      new Color(5, 6, 7, 8).PackedValue,
+      new Color(9, 10, 11, 12).PackedValue,
+      new Color(13, 14, 15, 16).PackedValue,
+    ],
+    "publishing a second frame replaces the first rather than being ignored",
+  );
+  assert.notDeepEqual(probe.replacedTexels, probe.texels);
+
+  assert.equal(probe.afterClear.acquired, false, "a cleared camera has no frame to give");
+  assert.notEqual(
+    probe.afterClear.state, CameraState.Ready,
+    "and it is no longer ready",
+  );
+  assert.equal(probe.disposedTwice, true, "disposing twice is harmless");
+  assert.equal(probe.readAfterDispose, "NativeUnavailableError", "a disposed camera refuses");
+
+  // The injection hooks are for CNA's test backend only: a real device cannot be given a reading.
+  assert.deepEqual(evidence.hooksRefuseRealCamera, {
+    setState: "InvalidOperationException",
+    setFrame: "InvalidOperationException",
+    clearFrame: "InvalidOperationException",
+  });
+
+  assert.deepEqual(evidence.argumentRefusals, {
+    shortFrame: "RangeError",
+    negativeWidth: "RangeError",
+    badState: "RangeError",
+    notATexture: "TypeError",
+    notACamera: "TypeError",
+  });
+
+  console.log(
+    `CNA_TS_NATIVE_CAMERA=PASS REAL=${CameraState[real.state]} ` +
+    `TEST_FRAME=${probe.afterPublish.size.join("x")} TEXELS=EXACT REPLACED=EXACT ` +
+    `WRONG_SIZE_REFUSED=PASS HOOKS_REFUSE_REAL_DEVICE=PASS`,
+  );
+});
+
+test("opening the platform camera after a test camera is an upstream use-after-free", () => {
+  // Asserted, not avoided. CNA 0.21.0 installs the test camera provider as a process-wide platform
+  // override holding a raw pointer into the camera resource, and cna_camera_destroy frees that
+  // resource without clearing the override -- so the next cna_camera_create dereferences it and
+  // dies in CNA::Devices::Camera::Camera at Camera.cpp:68. Reproduced in plain C with no binding
+  // involved; docs/upstream-cna-findings.md carries the backtrace.
+  //
+  // Run in its own process, because the whole point is that it takes the process down. When CNA
+  // repairs it the child prints SURVIVED, this test fails, and the finding gets re-measured.
+  const script = new URL("fixtures/camera-test-backend-then-platform.mjs", import.meta.url);
+  const child = spawnSync(process.execPath, [script.pathname], {
+    env: { ...process.env, CNA_NATIVE_LIBRARY: library, CNA_NODE_BRIDGE: bridge },
+    encoding: "utf8",
+    timeout: 120_000,
+  });
+  const survived = (child.stdout ?? "").includes("SURVIVED");
+  assert.equal(
+    survived, false,
+    "CNA no longer crashes when the platform camera is opened after a test camera: the upstream " +
+    "use-after-free is fixed, and docs/upstream-cna-findings.md needs re-measuring",
+  );
+  assert.equal(
+    child.signal, "SIGSEGV",
+    `expected the recorded segmentation fault, got signal ${child.signal} status ${child.status}`,
+  );
+  console.log(
+    `CNA_TS_NATIVE_CAMERA_UPSTREAM_CRASH=REPRODUCED SIGNAL=${child.signal} ` +
+    "SEQUENCE=test-backend-create,destroy,platform-create",
+  );
+});

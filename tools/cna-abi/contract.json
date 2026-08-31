@@ -231,6 +231,7 @@
       "CNA_BLEND_STATE_PRESET_OPAQUE",
       "CNA_BLEND_STATE_TYPE_NAME",
       "CNA_CAMERA_POSITION_MAXIMUM",
+      "CNA_CAMERA_STATE_MAXIMUM",
       "CNA_CNB_ASSET_TYPE_CUSTOM_RANGE_FIRST",
       "CNA_CNB_ASSET_TYPE_EFFECT",
       "CNA_CNB_ASSET_TYPE_RESERVED_RANGE_FIRST",
@@ -882,6 +883,10 @@
     {
       "typeScriptEnum": "ClusteredLightType",
       "cnaPrefix": "CNA_CLUSTERED_LIGHT_TYPE"
+    },
+    {
+      "typeScriptEnum": "CameraState",
+      "cnaPrefix": "CNA_CAMERA_STATE"
     }
   ]
 }

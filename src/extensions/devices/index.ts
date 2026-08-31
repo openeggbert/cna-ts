@@ -44,7 +44,13 @@
 import { getBackend } from "../../internal/backend.js";
 import type { CnaDeviceBackend } from "../../internal/backend.js";
 import { NativeUnavailableError } from "../../internal/native-error.js";
+import { InvalidOperationException } from "../../internal/exceptions.js";
 import { Rectangle } from "../../Microsoft/Xna/Framework/Rectangle.js";
+import type { IDisposable } from "../../Microsoft/Xna/Framework/Contracts.js";
+import type { Texture2D } from "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
+import { resolveTexture2DHandleForInternalUse } from
+  "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
+import type { NativeHandle } from "../../internal/ownership.js";
 
 /**
  * The host's power state.
@@ -211,5 +217,191 @@ export const CnaDevices = {
         Position: camera.Position as CameraPosition,
       }))),
     });
+  },
+} as const;
+
+
+/* --- the camera ---------------------------------------------------------------------------------
+ *
+ * Enumeration says what cameras exist; this is opening one and reading a frame out of it. XNA 4.0
+ * had no camera at all -- Windows Phone's `PhotoCamera` was a separate Silverlight type -- so this
+ * is modern CNA surface, and it lives here rather than anywhere near
+ * `Microsoft.Xna.Framework`.
+ */
+
+/** What a camera is doing, or why it is not doing anything. */
+export enum CameraState {
+  /** The platform has no camera concept at all. */
+  NotSupported = 0,
+  /** Opened but not yet producing. */
+  Closed = 1,
+  /** Starting up. */
+  Opening = 2,
+  /** The user or the platform refused access. */
+  Denied = 3,
+  /** Producing frames. */
+  Ready = 4,
+  /** It was producing and stopped -- unplugged, or taken by something else. */
+  Lost = 5,
+}
+
+/**
+ * The platform's default camera.
+ *
+ * Opening one succeeds even where there is no camera: {@link State} is what says which case it is,
+ * and on a platform that asks permission, opening is what triggers the prompt. Frames are copied
+ * into a {@link Texture2D} **the caller owns and keeps** -- the opposite of a video player's
+ * borrowed per-frame texture -- so nothing here is invalidated by the next call.
+ *
+ * The texture's size must already equal the camera's frame size. CNA refuses a mismatch rather
+ * than resizing, and reports it the same way it reports having no frame ready, so read
+ * {@link FrameWidth} and {@link FrameHeight} first.
+ */
+export class CnaCamera implements IDisposable {
+  readonly #backend: CnaDeviceBackend;
+  #handle: NativeHandle | null;
+  readonly #isTestBackend: boolean;
+
+  private constructor(backend: CnaDeviceBackend, handle: NativeHandle, isTestBackend: boolean) {
+    this.#backend = backend;
+    this.#handle = handle;
+    this.#isTestBackend = isTestBackend;
+    cameraHandles.set(this, handle);
+  }
+
+  /** Opens the platform's default camera. */
+  public static Open(): CnaCamera {
+    const backend = devices("CnaCamera.Open");
+    return new CnaCamera(backend, backend.createCamera(), false);
+  }
+
+  /**
+   * Opens a camera backed by CNA's own deterministic test backend.
+   *
+   * CNA offers this as a second creation route rather than a switch, because the canonical class
+   * takes its backend as a constructor argument. It is what makes the refused, denied and lost
+   * states reachable at all: no verification machine has a camera. A frame published through
+   * {@link CnaCameraTestHooks} still travels the real acquisition path — this is injection
+   * evidence, not hardware evidence.
+   *
+   * **Do not open the platform camera afterwards.** Against CNA 0.21.0, disposing a test camera
+   * and then calling {@link CnaCamera.Open} crashes the process: the C ABI installs the test
+   * provider as a process-wide platform override holding a raw pointer into the camera resource,
+   * and destroying that resource frees the provider without clearing the override. Reproduced in
+   * plain C and recorded in `docs/upstream-cna-findings.md`; this package cannot work around a
+   * dangling pointer inside CNA, so it says so instead.
+   */
+  public static OpenForTests(): CnaCamera {
+    const backend = devices("CnaCamera.OpenForTests");
+    return new CnaCamera(backend, backend.createTestCamera(), true);
+  }
+
+  /** Whether the camera has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Whether this camera came from {@link OpenForTests}. */
+  public get IsTestBackend(): boolean { return this.#isTestBackend; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the camera is disposed");
+    return this.#handle;
+  }
+
+  /** What the camera is doing. */
+  public get State(): CameraState {
+    return this.#backend.getCameraState(this.#active()) as CameraState;
+  }
+
+  /** The width of the frames this camera produces; zero before a format is known. */
+  public get FrameWidth(): number {
+    return this.#backend.getCameraFrameWidth(this.#active());
+  }
+
+  /** The height of the frames this camera produces; zero before a format is known. */
+  public get FrameHeight(): number {
+    return this.#backend.getCameraFrameHeight(this.#active());
+  }
+
+  /**
+   * Copies the next available frame into a texture the caller owns.
+   *
+   * Answers `false` when no frame is ready, which is ordinary rather than a failure — and, because
+   * CNA does not distinguish them, also when the texture's size does not match the frame.
+   */
+  public TryAcquireFrame(texture: Texture2D): boolean {
+    if (texture == null) throw new TypeError("texture is required");
+    return this.#backend.tryAcquireCameraFrame(
+      this.#active(), resolveTexture2DHandleForInternalUse(texture),
+    );
+  }
+
+  /** Releases the camera and closes the device. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    cameraHandles.delete(this);
+    this.#backend.destroyCamera(handle);
+  }
+}
+
+const cameraHandles = new WeakMap<CnaCamera, NativeHandle>();
+
+function testCameraHandle(camera: CnaCamera, operation: string): NativeHandle {
+  if (!(camera instanceof CnaCamera)) throw new TypeError("camera must be a CnaCamera");
+  if (!camera.IsTestBackend) {
+    throw new InvalidOperationException(
+      `${operation} is only for a camera opened with CnaCamera.OpenForTests`,
+    );
+  }
+  const handle = cameraHandles.get(camera);
+  if (handle == null) throw new NativeUnavailableError("the camera is disposed");
+  return handle;
+}
+
+/**
+ * CNA's own deterministic camera injection.
+ *
+ * These publish into CNA's test backend, not into this package: a frame set here is read back
+ * through the same acquisition route a real camera's frame travels. They refuse a camera that
+ * was not opened with {@link CnaCamera.OpenForTests}, so a test cannot quietly fabricate a
+ * reading for a real device.
+ */
+export const CnaCameraTestHooks = {
+  /** Sets the state CNA's test backend reports. */
+  SetState(camera: CnaCamera, state: CameraState): void {
+    if (!Number.isInteger(state) || state < 0 || state > CameraState.Lost) {
+      throw new RangeError("state must be a CameraState");
+    }
+    devices("CnaCameraTestHooks.SetState").setTestCameraState(
+      testCameraHandle(camera, "CnaCameraTestHooks.SetState"), state,
+    );
+  },
+
+  /**
+   * Publishes a frame, which also reports the camera ready and fixes its frame size — what a real
+   * camera does when it starts producing. The frame stays available until it is replaced.
+   */
+  SetFrame(camera: CnaCamera, width: number, height: number, rgba: Uint8Array): void {
+    const handle = testCameraHandle(camera, "CnaCameraTestHooks.SetFrame");
+    for (const [name, value] of [["width", width], ["height", height]] as const) {
+      if (!Number.isInteger(value) || value < 0) {
+        throw new RangeError(`${name} must be a non-negative integer`);
+      }
+    }
+    if (!(rgba instanceof Uint8Array)) throw new TypeError("rgba must be a Uint8Array");
+    if (rgba.length !== width * height * 4) {
+      throw new RangeError(
+        `a ${width}x${height} frame needs ${width * height * 4} bytes, got ${rgba.length}`,
+      );
+    }
+    devices("CnaCameraTestHooks.SetFrame").setTestCameraFrame(handle, width, height, rgba);
+  },
+
+  /** Clears the frame and closes the camera. */
+  ClearFrame(camera: CnaCamera): void {
+    devices("CnaCameraTestHooks.ClearFrame").setTestCameraFrame(
+      testCameraHandle(camera, "CnaCameraTestHooks.ClearFrame"), 0, 0, null,
+    );
   },
 } as const;

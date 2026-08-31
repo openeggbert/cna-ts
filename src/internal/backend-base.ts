@@ -1985,6 +1985,30 @@ export abstract class CnaDeviceBackendBase implements CnaDeviceBackend {
   ): readonly PreferredLocaleSnapshot[] { return this.unsupported("getPreferredLocales"); }
   public setClipboardText(_text: string): boolean { return this.unsupported("setClipboardText"); }
   public getCameras(): CameraInventorySnapshot { return this.unsupported("getCameras"); }
+  public createCamera(): NativeHandle { return this.unsupported("createCamera"); }
+  public createTestCamera(): NativeHandle { return this.unsupported("createTestCamera"); }
+  public getCameraState(_camera: NativeHandle): number { return this.unsupported("getCameraState"); }
+  public getCameraFrameWidth(
+    _camera: NativeHandle,
+  ): number { return this.unsupported("getCameraFrameWidth"); }
+  public getCameraFrameHeight(
+    _camera: NativeHandle,
+  ): number { return this.unsupported("getCameraFrameHeight"); }
+  public tryAcquireCameraFrame(
+    _camera: NativeHandle,
+    _texture: NativeHandle,
+  ): boolean { return this.unsupported("tryAcquireCameraFrame"); }
+  public setTestCameraState(
+    _camera: NativeHandle,
+    _state: number,
+  ): void { return this.unsupported("setTestCameraState"); }
+  public setTestCameraFrame(
+    _camera: NativeHandle,
+    _width: number,
+    _height: number,
+    _pixels: Uint8Array | null,
+  ): void { return this.unsupported("setTestCameraFrame"); }
+  public destroyCamera(_camera: NativeHandle): void { return this.unsupported("destroyCamera"); }
 }
 
 /** Refusing base for {@link CnaGamerServicesBackend}. */

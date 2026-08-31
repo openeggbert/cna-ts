@@ -792,6 +792,15 @@ interface NativeBridge {
   getPreferredLocales(game: bigint): PreferredLocaleSnapshot[];
   setClipboardText(game: bigint, text: string): boolean;
   getCameras(game: bigint): CameraInventorySnapshot;
+  createCamera(game: bigint): bigint;
+  createTestCamera(game: bigint): bigint;
+  getCameraState(camera: bigint): number;
+  getCameraFrameWidth(camera: bigint): number;
+  getCameraFrameHeight(camera: bigint): number;
+  tryAcquireCameraFrame(camera: bigint, texture: bigint): boolean;
+  setTestCameraState(camera: bigint, state: number): void;
+  setTestCameraFrame(camera: bigint, width: number, height: number, pixels: Uint8Array | null): void;
+  destroyCamera(camera: bigint): void;
   openTitleStream(game: bigint, name: string): Uint8Array;
   getGameWindowAllowUserResizing(game: bigint): boolean;
   setGameWindowAllowUserResizing(game: bigint, value: boolean): void;
@@ -2556,6 +2565,29 @@ export class NodeNativeBackend
     return this.#bridge.setClipboardText(this.#game(), text);
   }
   public getCameras(): CameraInventorySnapshot { return this.#bridge.getCameras(this.#game()); }
+  public createCamera(): NativeHandle { return this.#bridge.createCamera(this.#game()); }
+  public createTestCamera(): NativeHandle { return this.#bridge.createTestCamera(this.#game()); }
+  public getCameraState(camera: NativeHandle): number {
+    return this.#bridge.getCameraState(camera);
+  }
+  public getCameraFrameWidth(camera: NativeHandle): number {
+    return this.#bridge.getCameraFrameWidth(camera);
+  }
+  public getCameraFrameHeight(camera: NativeHandle): number {
+    return this.#bridge.getCameraFrameHeight(camera);
+  }
+  public tryAcquireCameraFrame(camera: NativeHandle, texture: NativeHandle): boolean {
+    return this.#bridge.tryAcquireCameraFrame(camera, texture);
+  }
+  public setTestCameraState(camera: NativeHandle, state: number): void {
+    this.#bridge.setTestCameraState(camera, state);
+  }
+  public setTestCameraFrame(
+    camera: NativeHandle, width: number, height: number, pixels: Uint8Array | null,
+  ): void {
+    this.#bridge.setTestCameraFrame(camera, width, height, pixels);
+  }
+  public destroyCamera(camera: NativeHandle): void { this.#bridge.destroyCamera(camera); }
 
   public openTitleStream(name: string): Uint8Array {
     return new Uint8Array(this.#bridge.openTitleStream(this.#game(), name));

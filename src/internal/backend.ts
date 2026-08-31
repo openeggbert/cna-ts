@@ -1625,6 +1625,19 @@ export interface CnaDeviceBackend {
   getPreferredLocales(): readonly PreferredLocaleSnapshot[];
   setClipboardText(text: string): boolean;
   getCameras(): CameraInventorySnapshot;
+  /** Opens the platform's default camera. Creation succeeds even where there is none. */
+  createCamera(): NativeHandle;
+  /** Opens a camera backed by CNA's own test backend, which is the only one a build host has. */
+  createTestCamera(): NativeHandle;
+  getCameraState(camera: NativeHandle): number;
+  getCameraFrameWidth(camera: NativeHandle): number;
+  getCameraFrameHeight(camera: NativeHandle): number;
+  tryAcquireCameraFrame(camera: NativeHandle, texture: NativeHandle): boolean;
+  setTestCameraState(camera: NativeHandle, state: number): void;
+  setTestCameraFrame(
+    camera: NativeHandle, width: number, height: number, pixels: Uint8Array | null,
+  ): void;
+  destroyCamera(camera: NativeHandle): void;
 }
 
 

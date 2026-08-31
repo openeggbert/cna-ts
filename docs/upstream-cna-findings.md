@@ -13,7 +13,8 @@ verified here** — see items 3 and 4 below.
 Re-checked against `cnanext` 599d14e5 (CNA C ABI 0.21.0) on 2026-08-31. Items 5 and 6 are new,
 found while projecting the sensor families; item 7 is new, found while widening the windowed
 qualification to three renderers; items 8 and 9 are new, found while projecting the engine
-layer's compute path, and item 10 while projecting its clustered lighting.
+layer's compute path, item 10 while projecting its clustered lighting, and item 11 -- a
+segmentation fault -- while projecting camera frame capture.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -389,3 +390,72 @@ so the whole clustered-lighting API is unreachable until someone guesses. A one-
 its own documentation. `test/native-cna.integration.mjs` constructs all four from a live device, so
 if CNA ever switches to accepting a game handle *instead*, that test fails rather than the
 difference passing unnoticed.
+
+## 11. Destroying a test-backend camera leaves a dangling platform override, and the next real camera dereferences it
+
+**Measured:** CNA ABI 0.21.0, revision 599d14e5, HEADLESS. This one is a segmentation fault, and
+it reproduces in plain C with no binding involved:
+
+```text
+sequence   result
+r          SURVIVED     (create platform camera, destroy)
+t          SURVIVED     (create test-backend camera, destroy)
+rr         SURVIVED
+tt         SURVIVED
+rt         SURVIVED     (platform then test)
+tr         *** SIGSEGV ***  (test then platform)
+rrr        SURVIVED
+```
+
+Two calls are enough: `cna_camera_create_with_test_backend_ext`, `cna_camera_destroy`,
+`cna_camera_create`. Backtrace, resolved with `addr2line`:
+
+```text
+CNA::Devices::Camera::Camera()                  modules/devices-ext/src/Camera.cpp:68
+std::make_unique<CNA::Devices::Camera>()        unique_ptr.h:1077
+cna_camera_create::{lambda()#1}::operator()()   modules/c-api/src/CnaCApiDevices.cpp:2068
+CNA::C::Detail::CallWithExceptionBarrier<...>
+cna_camera_create
+```
+
+`Camera.cpp:68` is the first dereference of the provider:
+
+```cpp
+    Camera::Camera()
+    {
+        CNA::Platform::IPlatformCameraProvider* provider =
+            CNA::Platform::GetCurrentPlatform().GetCamera();
+        if (provider == nullptr) { return; }
+        const std::vector<CNA::Platform::PlatformCameraInfo> cameras = provider->GetCameras();
+```
+
+The null guard passes, because the pointer is not null — it is freed. `CnaCApiDevices.cpp` installs
+the test provider as a **process-wide** override holding a raw pointer into the camera resource:
+
+```cpp
+        resource->testService = std::make_unique<TestCameraProvider>(resource->testState);
+        CNA::C::Detail::GetPlatformOverride().SetCamera(resource->testService.get());
+        resource->value = std::make_unique<Camera>();
+```
+
+and `cna_camera_destroy` releases that resource — freeing `testService` — without ever clearing
+the override. The only `SetCamera(nullptr)` in the C ABI is in `CnaCApiPlatformOverride.cpp`, on a
+path a destroy does not reach. So the next `cna_camera_create` reads a dangling
+`IPlatformCameraProvider*` and calls a virtual function through it.
+
+**Why it matters more than the sequence suggests.** The test backend exists so that a host with no
+camera can exercise the acquisition path, which is exactly what this package uses it for — and the
+natural shape of such a test is "check the real device reports absence, then inject a frame and
+check it arrives". That order is the crashing one. A consumer writing the obvious test finds a
+segfault with no diagnostic.
+
+**A fix is small.** Clearing the override when the resource that owns the provider is released, or
+giving the override shared ownership of it, removes the dangling pointer. The scope is process-wide
+either way, so a second live test camera would still replace the first's provider — worth deciding
+deliberately rather than by lifetime accident.
+
+**Detector in cna-ts:** `test/native-cna.integration.mjs` runs the crashing sequence in a child
+process through `test/fixtures/camera-test-backend-then-platform.mjs` and asserts that the child
+dies with `SIGSEGV`. The child prints `SURVIVED` if CNA is repaired, and the assertion then fails
+and says so. Every probe in this package that opens the platform camera runs before the first
+test-backend one, and `CnaCamera.OpenForTests` documents the hazard on itself.

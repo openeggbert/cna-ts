@@ -16,13 +16,13 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 879,
+    "NODE": 888,
     "WASM": 247
   },
-  "reachableByAny": 879,
+  "reachableByAny": 888,
   "reachableByAll": 247,
   "reachableExclusively": {
-    "NODE": 632,
+    "NODE": 641,
     "WASM": 0
   },
   "reachabilityByCategory": {
@@ -31,7 +31,7 @@
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 490,
+      "NODE": 499,
       "WASM": 160
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -105,7 +105,7 @@
     },
     "devices.h": {
       "CNA_EXTENSION_BACKING": 61,
-      "REACHABLE_NODE": 20,
+      "REACHABLE_NODE": 29,
       "TOOLING_ONLY": 1
     },
     "display.h": {
@@ -3250,21 +3250,27 @@
       "header": "devices.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_camera_create_with_test_backend_ext",
       "header": "devices.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_camera_destroy",
       "header": "devices.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_camera_device_info_init",
@@ -3289,14 +3295,18 @@
       "header": "devices.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_camera_get_frame_width_ext",
       "header": "devices.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_camera_get_info_at_ext",
@@ -3330,28 +3340,36 @@
       "header": "devices.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_camera_set_test_frame_ext",
       "header": "devices.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_camera_set_test_state_ext",
       "header": "devices.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_camera_try_acquire_frame_ext",
       "header": "devices.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_cascaded_shadow_map_apply_to_receiver",

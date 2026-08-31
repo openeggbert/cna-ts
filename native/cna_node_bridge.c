@@ -562,6 +562,11 @@ typedef CNA_Result (*DevicesIndexSizeFn)(CNA_Handle, uint64_t, uint64_t*);
 typedef CNA_Result (*DevicesCameraInfoFn)(CNA_Handle, uint64_t, CNA_CameraDeviceInfo*);
 typedef CNA_Result (*DevicesCameraInfoInitFn)(CNA_CameraDeviceInfo*);
 typedef CNA_Result (*DevicesClipboardFn)(CNA_Handle, CNA_StringView, CNA_Bool*);
+typedef CNA_Result (*CameraStateOutFn)(CNA_CameraHandle, CNA_CameraState*);
+typedef CNA_Result (*CameraSetStateFn)(CNA_CameraHandle, CNA_CameraState);
+typedef CNA_Result (*CameraAcquireFn)(CNA_CameraHandle, CNA_Handle, CNA_Bool*);
+typedef CNA_Result (*CameraSetFrameFn)(
+  CNA_CameraHandle, int32_t, int32_t, const CNA_Color*, uint64_t);
 
 /* --- gamer services: the dispatcher's lifetime and the Guide's state -------------------------- */
 typedef CNA_Result (*GamerServicesVoidFn)(void);
@@ -1405,6 +1410,15 @@ typedef struct Api {
   DevicesIndexSizeFn locale_get_country_size;
   DevicesLocaleCopyFn locale_copy_country;
   DevicesClipboardFn devices_clipboard_set_text;
+  HandleHandleOutFn camera_create;
+  HandleHandleOutFn camera_create_with_test_backend_ext;
+  CameraStateOutFn camera_get_state_ext;
+  HandleI32OutFn camera_get_frame_width_ext;
+  HandleI32OutFn camera_get_frame_height_ext;
+  CameraAcquireFn camera_try_acquire_frame_ext;
+  CameraSetStateFn camera_set_test_state_ext;
+  CameraSetFrameFn camera_set_test_frame_ext;
+  GameHandleFn camera_destroy;
   BoolGetFn camera_get_is_supported;
   HandleU64OutFn camera_get_count;
   DevicesIndexSizeFn camera_get_name_size;
@@ -2612,6 +2626,15 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(locale_get_country_size, DevicesIndexSizeFn, "cna_locale_get_country_size_at_ext");
   LOAD_REQUIRED(locale_copy_country, DevicesLocaleCopyFn, "cna_locale_copy_country_at_ext");
   LOAD_REQUIRED(devices_clipboard_set_text, DevicesClipboardFn, "cna_devices_clipboard_set_text_ext");
+  LOAD_REQUIRED(camera_create, HandleHandleOutFn, "cna_camera_create");
+  LOAD_REQUIRED(camera_create_with_test_backend_ext, HandleHandleOutFn, "cna_camera_create_with_test_backend_ext");
+  LOAD_REQUIRED(camera_get_state_ext, CameraStateOutFn, "cna_camera_get_state_ext");
+  LOAD_REQUIRED(camera_get_frame_width_ext, HandleI32OutFn, "cna_camera_get_frame_width_ext");
+  LOAD_REQUIRED(camera_get_frame_height_ext, HandleI32OutFn, "cna_camera_get_frame_height_ext");
+  LOAD_REQUIRED(camera_try_acquire_frame_ext, CameraAcquireFn, "cna_camera_try_acquire_frame_ext");
+  LOAD_REQUIRED(camera_set_test_state_ext, CameraSetStateFn, "cna_camera_set_test_state_ext");
+  LOAD_REQUIRED(camera_set_test_frame_ext, CameraSetFrameFn, "cna_camera_set_test_frame_ext");
+  LOAD_REQUIRED(camera_destroy, GameHandleFn, "cna_camera_destroy");
   LOAD_REQUIRED(camera_get_is_supported, BoolGetFn, "cna_camera_get_is_supported_ext");
   LOAD_REQUIRED(camera_get_count, HandleU64OutFn, "cna_camera_get_count_ext");
   LOAD_REQUIRED(camera_get_name_size, DevicesIndexSizeFn, "cna_camera_get_name_size_at_ext");
@@ -14199,6 +14222,115 @@ static napi_value gpu_timer_destroy(napi_env env, napi_callback_info info) {
   return pp_handle_only(env, info, g_api.gpu_timer_destroy, "cna_gpu_timer_destroy");
 }
 
+/* --- the camera ---------------------------------------------------------------------------------- */
+/*
+ * Frame acquisition, which enumeration alone could not reach. No verification machine has a
+ * camera, so CNA supplies its own test backend as a second creation route -- the same shape the
+ * compass and the motion sensor use -- and a frame published through it travels the real
+ * acquisition path rather than being a value this bridge invented.
+ *
+ * The acquisition contract is the opposite of a video player's: the camera writes into a texture
+ * the *caller* owns and keeps, so nothing here is invalidated by the next call. A texture whose
+ * size does not match the frame is refused rather than resized, which is CNA preserving the
+ * canonical behaviour rather than improving on it.
+ */
+
+static napi_value camera_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.camera_create, "cna_camera_create");
+}
+static napi_value camera_create_with_test_backend(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.camera_create_with_test_backend_ext,
+    "cna_camera_create_with_test_backend_ext");
+}
+static napi_value camera_get_frame_width(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.camera_get_frame_width_ext,
+    "cna_camera_get_frame_width_ext");
+}
+static napi_value camera_get_frame_height(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.camera_get_frame_height_ext,
+    "cna_camera_get_frame_height_ext");
+}
+static napi_value camera_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.camera_destroy, "cna_camera_destroy");
+}
+
+static napi_value camera_get_state(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle camera = 0;
+  CNA_CameraState state = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &camera)) return NULL;
+  const CNA_Result result = g_api.camera_get_state_ext(camera, &state);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_camera_get_state_ext", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_uint32(env, state, &output), "camera state");
+  return output;
+}
+
+static napi_value camera_set_test_state(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle camera = 0;
+  uint32_t state = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &camera) ||
+      napi_get_value_uint32(env, args[1], &state) != napi_ok) return NULL;
+  const CNA_Result result = g_api.camera_set_test_state_ext(camera, state);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_camera_set_test_state_ext", result);
+  }
+  return undefined_result(env, "cna_camera_set_test_state_ext");
+}
+
+static napi_value camera_try_acquire_frame(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle camera = 0, texture = 0;
+  CNA_Bool acquired = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &camera) ||
+      !read_handle(env, args[1], &texture)) return NULL;
+  const CNA_Result result = g_api.camera_try_acquire_frame_ext(camera, texture, &acquired);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_camera_try_acquire_frame_ext", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, acquired == CNA_TRUE, &output), "camera frame");
+  return output;
+}
+
+static napi_value camera_set_test_frame(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle camera = 0;
+  int32_t width = 0, height = 0;
+  const uint8_t* bytes = NULL;
+  size_t byteLength = 0;
+  napi_valuetype type = napi_undefined;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &camera) ||
+      napi_get_value_int32(env, args[1], &width) != napi_ok ||
+      napi_get_value_int32(env, args[2], &height) != napi_ok ||
+      napi_typeof(env, args[3], &type) != napi_ok) return NULL;
+  if (type == napi_null || type == napi_undefined) {
+    /* Null clears the frame and closes the camera, which is its documented meaning. */
+    const CNA_Result cleared = g_api.camera_set_test_frame_ext(camera, width, height, NULL, 0);
+    if (cleared != CNA_RESULT_SUCCESS) {
+      return throw_result(env, "cna_camera_set_test_frame_ext", cleared);
+    }
+    return undefined_result(env, "cna_camera_set_test_frame_ext");
+  }
+  if (!read_byte_view(env, args[3], &bytes, &byteLength)) return NULL;
+  if (byteLength % sizeof(CNA_Color) != 0) {
+    return throw_message(env, "a camera frame is a whole number of RGBA8 pixels");
+  }
+  /* The pixel count is the view's own, so a short array cannot become a long read. CNA then
+   * cross-checks it against the width and height it was given. */
+  const CNA_Result result = g_api.camera_set_test_frame_ext(
+    camera, width, height, (const CNA_Color*) bytes, (uint64_t) (byteLength / sizeof(CNA_Color)));
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_camera_set_test_frame_ext", result);
+  }
+  return undefined_result(env, "cna_camera_set_test_frame_ext");
+}
+
 /* --- the extended device layer ---------------------------------------------------------------- */
 /*
  * Host facts a game reads once at startup: how many cores it has, how much memory, whether it is on
@@ -16048,6 +16180,15 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getPreferredLocales", NULL, get_preferred_locales, NULL, NULL, NULL, napi_default, NULL },
     { "setClipboardText", NULL, set_clipboard_text, NULL, NULL, NULL, napi_default, NULL },
     { "getCameras", NULL, get_cameras, NULL, NULL, NULL, napi_default, NULL },
+    { "createCamera", NULL, camera_create, NULL, NULL, NULL, napi_default, NULL },
+    { "createTestCamera", NULL, camera_create_with_test_backend, NULL, NULL, NULL, napi_default, NULL },
+    { "getCameraState", NULL, camera_get_state, NULL, NULL, NULL, napi_default, NULL },
+    { "getCameraFrameWidth", NULL, camera_get_frame_width, NULL, NULL, NULL, napi_default, NULL },
+    { "getCameraFrameHeight", NULL, camera_get_frame_height, NULL, NULL, NULL, napi_default, NULL },
+    { "tryAcquireCameraFrame", NULL, camera_try_acquire_frame, NULL, NULL, NULL, napi_default, NULL },
+    { "setTestCameraState", NULL, camera_set_test_state, NULL, NULL, NULL, napi_default, NULL },
+    { "setTestCameraFrame", NULL, camera_set_test_frame, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyCamera", NULL, camera_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "initializeGamerServices", NULL, initialize_gamer_services, NULL, NULL, NULL, napi_default, NULL },
     { "getGamerServicesIsInitialized", NULL, gamer_services_is_initialized, NULL, NULL, NULL, napi_default, NULL },
     { "updateGamerServices", NULL, update_gamer_services, NULL, NULL, NULL, napi_default, NULL },

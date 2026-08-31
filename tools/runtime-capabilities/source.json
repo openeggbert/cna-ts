@@ -1000,11 +1000,15 @@
     },
     {
       "operation": "Camera frame capture",
-      "category": "UNIMPLEMENTED_CNA_TS",
+      "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS",
-      "evidence": "the extended device layer, the accelerometer, the compass, the gyroscope, the motion sensor and the joystick, haptic, text-input and cursor families are projected and verified above. Camera enumeration is projected; frame acquisition is measured and unprojected",
+      "evidence": "opening the platform camera succeeds on a host that has none -- CNA documented contract -- and the state is what reports the absence: NotSupported with a 0x0 frame format. CNA own test backend then supplies what the hardware cannot: four distinct pixels published through it arrive in a caller-owned Texture2D with their channels the right way round, a second frame of sixteen different bytes replaces the first, a texture whose size does not match the frame is refused rather than resized, and the frame stays available until it is replaced. Every injectable state round-trips, and CNA refuses Closed and NotSupported for a device it opened. The injection hooks refuse a camera that is not the test backend, so a test cannot fabricate a reading for a real device. Three planted defects -- zeroed pixels, an acquisition that always claims success, and hooks that accept a real camera -- all fail. This is injection evidence, not hardware evidence: a physical camera stays hardware-pending",
       "proof": [
-        "absentRoute:cna_camera_create"
+        "route:cna_camera_create",
+        "route:cna_camera_create_with_test_backend_ext",
+        "route:cna_camera_try_acquire_frame_ext",
+        "route:cna_camera_set_test_frame_ext",
+        "test:test/native-cna.integration.mjs"
       ]
     },
     {
@@ -1303,6 +1307,16 @@
       "proof": [
         "route:cna_post_process_chain_add_owned_pass",
         "test:test/post-process-owned-pass.probe.mjs"
+      ]
+    },
+    {
+      "operation": "The camera use-after-free CNA has today",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA",
+      "evidence": "destroying a test-backend camera and then opening the platform one is a segmentation fault in CNA 0.21.0: the C ABI installs the test provider as a process-wide platform override holding a raw pointer into the camera resource, and cna_camera_destroy frees that resource without clearing the override. Reproduced in plain C with no binding involved, backtrace resolved to CNA::Devices::Camera::Camera at Camera.cpp:68. cna-ts runs the crashing sequence in a child process and asserts the child dies, so a repair fails the test rather than passing unnoticed; every probe here that opens the platform camera runs before the first test-backend one",
+      "proof": [
+        "route:cna_camera_destroy",
+        "test:test/native-cna.integration.mjs"
       ]
     }
   ]
