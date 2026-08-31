@@ -31,6 +31,7 @@ import type {
   CnaGraphicsExtensionBackend,
   RectangleSnapshot,
   SizeSnapshot,
+  TextureTransformSnapshot,
   Vector2Snapshot,
   Vector3Snapshot,
   ColorSnapshot,
@@ -45,7 +46,12 @@ import type {
   CameraInventorySnapshot,
   HostDeviceSnapshot,
   PreferredLocaleSnapshot,
+  GltfExtensionSourceSnapshot,
+  GltfExtensionTexturesSnapshot,
+  GltfMaterialSourceSnapshot,
+  GltfMaterialTexturesSnapshot,
   PassTimingSnapshot,
+  PbrMaterialExtSnapshot,
   PostProcessFrameSnapshot,
   CnbChunkEntrySnapshot,
   CnbLimitsSnapshot,
@@ -1064,6 +1070,127 @@ interface NativeBridge {
   setPostProcessChainGpuTimingEnabled(chain: bigint, value: boolean): void;
   applyPostProcessChain(chain: bigint, frame: PostProcessFrameSnapshot): void;
   getPostProcessChainPassTimings(chain: bigint): PassTimingSnapshot[];
+  getDefaultPbrMaterialExt(): PbrMaterialExtSnapshot;
+  getDefaultTextureTransform(): TextureTransformSnapshot;
+  pbrMaterialExtEquals(first: PbrMaterialExtSnapshot, second: PbrMaterialExtSnapshot): boolean;
+  getPbrMaterialExtHashCode(material: PbrMaterialExtSnapshot): bigint;
+  getPbrMaterialExtText(material: PbrMaterialExtSnapshot): string;
+  applyPbrMaterialState(material: PbrMaterialExtSnapshot, device: bigint): void;
+  getDeviceBlendState(device: bigint): BlendStateSnapshot;
+  getDeviceRasterizerState(device: bigint): RasterizerStateSnapshot;
+  applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
+  extractPbrEffectMaterial(effect: bigint): PbrMaterialExtSnapshot;
+  applySkinnedPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
+  extractSkinnedPbrEffectMaterial(effect: bigint): PbrMaterialExtSnapshot;
+  createPbrMaterialExtensions(): bigint;
+  destroyPbrMaterialExtensions(extensions: bigint): void;
+  copyPbrMaterialExtensionsFrom(destination: bigint, source: bigint): void;
+  pbrMaterialExtensionsEquals(first: bigint, second: bigint): boolean;
+  getPbrMaterialExtensionsHashCode(extensions: bigint): bigint;
+  getPbrMaterialExtensionsText(extensions: bigint): string;
+  getDefaultGltfMaterialSource(): GltfMaterialSourceSnapshot;
+  getDefaultGltfMaterialTextures(): GltfMaterialTexturesSnapshot;
+  getDefaultGltfExtensionSource(): GltfExtensionSourceSnapshot;
+  getDefaultGltfExtensionTextures(): GltfExtensionTexturesSnapshot;
+  buildGltfPbrMaterial(source: GltfMaterialSourceSnapshot, textures: GltfMaterialTexturesSnapshot): PbrMaterialExtSnapshot;
+  buildGltfPbrMaterialExtensions(source: GltfExtensionSourceSnapshot, textures: GltfExtensionTexturesSnapshot, extensions: bigint): void;
+  createPbrEffect(graphicsDevice: bigint): bigint;
+  createSkinnedPbrEffect(graphicsDevice: bigint): bigint;
+  getPbrEffectAlpha(effect: bigint): number;
+  getPbrEffectAlphaCutoff(effect: bigint): number;
+  getPbrEffectAlphaMode(effect: bigint): number;
+  getPbrEffectDiffuseColor(effect: bigint): Vector3Snapshot;
+  getPbrEffectDoubleSided(effect: bigint): boolean;
+  getPbrEffectEmissiveFactor(effect: bigint): Vector3Snapshot;
+  getPbrEffectEncodeOutputToSrgb(effect: bigint): boolean;
+  getPbrEffectIor(effect: bigint): number;
+  getPbrEffectMetallicFactor(effect: bigint): number;
+  getPbrEffectNormalScale(effect: bigint): number;
+  getPbrEffectOcclusionStrength(effect: bigint): number;
+  getPbrEffectRoughnessFactor(effect: bigint): number;
+  getPbrEffectSpecularColorFactor(effect: bigint): Vector3Snapshot;
+  getPbrEffectSpecularFactor(effect: bigint): number;
+  getPbrEffectTexture(effect: bigint, slot: number): bigint;
+  getPbrEffectTextureCoordinateSet(effect: bigint, slot: number): number;
+  getPbrEffectTextureIsSrgb(effect: bigint, slot: number): boolean;
+  getPbrEffectTextureTransform(effect: bigint, slot: number): TextureTransformSnapshot;
+  getPbrEffectVertexColorEnabled(effect: bigint): boolean;
+  getSkinnedPbrEffectBoneTransforms(effect: bigint, count: number): (number[])[];
+  getSkinnedPbrEffectWeightsPerVertex(effect: bigint): number;
+  setPbrEffectAlpha(effect: bigint, value: number): void;
+  setPbrEffectAlphaCutoff(effect: bigint, value: number): void;
+  setPbrEffectAlphaMode(effect: bigint, value: number): void;
+  setPbrEffectDiffuseColor(effect: bigint, value: Vector3Snapshot): void;
+  setPbrEffectDoubleSided(effect: bigint, value: boolean): void;
+  setPbrEffectEmissiveFactor(effect: bigint, value: Vector3Snapshot): void;
+  setPbrEffectEncodeOutputToSrgb(effect: bigint, value: boolean): void;
+  setPbrEffectIor(effect: bigint, value: number): void;
+  setPbrEffectMetallicFactor(effect: bigint, value: number): void;
+  setPbrEffectNormalScale(effect: bigint, value: number): void;
+  setPbrEffectOcclusionStrength(effect: bigint, value: number): void;
+  setPbrEffectRoughnessFactor(effect: bigint, value: number): void;
+  setPbrEffectSpecularColorFactor(effect: bigint, value: Vector3Snapshot): void;
+  setPbrEffectSpecularFactor(effect: bigint, value: number): void;
+  setPbrEffectTexture(effect: bigint, slot: number, texture: bigint): void;
+  setPbrEffectTextureCoordinateSet(effect: bigint, slot: number, value: number): void;
+  setPbrEffectTextureIsSrgb(effect: bigint, slot: number, value: boolean): void;
+  setPbrEffectTextureTransform(effect: bigint, slot: number, transform: TextureTransformSnapshot): void;
+  setPbrEffectVertexColorEnabled(effect: bigint, value: boolean): void;
+  setSkinnedPbrEffectBoneTransforms(effect: bigint, transforms: readonly (readonly number[])[]): void;
+  setSkinnedPbrEffectWeightsPerVertex(effect: bigint, value: number): void;
+  getPbrExtensionAttenuationColor(extensions: bigint): Vector3Snapshot;
+  getPbrExtensionAttenuationDistance(extensions: bigint): number;
+  getPbrExtensionClearcoatFactor(extensions: bigint): number;
+  getPbrExtensionClearcoatNormalScale(extensions: bigint): number;
+  getPbrExtensionClearcoatNormalTexture(extensions: bigint): bigint;
+  getPbrExtensionClearcoatRoughness(extensions: bigint): number;
+  getPbrExtensionClearcoatRoughnessTexture(extensions: bigint): bigint;
+  getPbrExtensionClearcoatTexture(extensions: bigint): bigint;
+  getPbrExtensionIridescenceFactor(extensions: bigint): number;
+  getPbrExtensionIridescenceIor(extensions: bigint): number;
+  getPbrExtensionIridescenceTexture(extensions: bigint): bigint;
+  getPbrExtensionIridescenceThicknessMaximum(extensions: bigint): number;
+  getPbrExtensionIridescenceThicknessMinimum(extensions: bigint): number;
+  getPbrExtensionIridescenceThicknessTexture(extensions: bigint): bigint;
+  getPbrExtensionSheenColorFactor(extensions: bigint): Vector3Snapshot;
+  getPbrExtensionSheenColorTexture(extensions: bigint): bigint;
+  getPbrExtensionSheenRoughness(extensions: bigint): number;
+  getPbrExtensionSheenRoughnessTexture(extensions: bigint): bigint;
+  getPbrExtensionSubsurfaceColor(extensions: bigint): Vector3Snapshot;
+  getPbrExtensionSubsurfaceWrap(extensions: bigint): number;
+  getPbrExtensionThicknessFactor(extensions: bigint): number;
+  getPbrExtensionThicknessTexture(extensions: bigint): bigint;
+  getPbrExtensionTransmissionFactor(extensions: bigint): number;
+  getPbrExtensionTransmissionTexture(extensions: bigint): bigint;
+  pbrExtensionIsIridescenceEnabled(extensions: bigint): boolean;
+  pbrExtensionIsNeutral(extensions: bigint): boolean;
+  pbrExtensionIsSheenEnabled(extensions: bigint): boolean;
+  pbrExtensionIsSubsurfaceEnabled(extensions: bigint): boolean;
+  pbrExtensionIsTransmissionEnabled(extensions: bigint): boolean;
+  setPbrExtensionAttenuationColor(extensions: bigint, value: Vector3Snapshot): void;
+  setPbrExtensionAttenuationDistance(extensions: bigint, value: number): void;
+  setPbrExtensionClearcoatFactor(extensions: bigint, value: number): void;
+  setPbrExtensionClearcoatNormalScale(extensions: bigint, value: number): void;
+  setPbrExtensionClearcoatNormalTexture(extensions: bigint, texture: bigint): void;
+  setPbrExtensionClearcoatRoughness(extensions: bigint, value: number): void;
+  setPbrExtensionClearcoatRoughnessTexture(extensions: bigint, texture: bigint): void;
+  setPbrExtensionClearcoatTexture(extensions: bigint, texture: bigint): void;
+  setPbrExtensionIridescenceFactor(extensions: bigint, value: number): void;
+  setPbrExtensionIridescenceIor(extensions: bigint, value: number): void;
+  setPbrExtensionIridescenceTexture(extensions: bigint, texture: bigint): void;
+  setPbrExtensionIridescenceThicknessMaximum(extensions: bigint, value: number): void;
+  setPbrExtensionIridescenceThicknessMinimum(extensions: bigint, value: number): void;
+  setPbrExtensionIridescenceThicknessTexture(extensions: bigint, texture: bigint): void;
+  setPbrExtensionSheenColorFactor(extensions: bigint, value: Vector3Snapshot): void;
+  setPbrExtensionSheenColorTexture(extensions: bigint, texture: bigint): void;
+  setPbrExtensionSheenRoughness(extensions: bigint, value: number): void;
+  setPbrExtensionSheenRoughnessTexture(extensions: bigint, texture: bigint): void;
+  setPbrExtensionSubsurfaceColor(extensions: bigint, value: Vector3Snapshot): void;
+  setPbrExtensionSubsurfaceWrap(extensions: bigint, value: number): void;
+  setPbrExtensionThicknessFactor(extensions: bigint, value: number): void;
+  setPbrExtensionThicknessTexture(extensions: bigint, texture: bigint): void;
+  setPbrExtensionTransmissionFactor(extensions: bigint, value: number): void;
+  setPbrExtensionTransmissionTexture(extensions: bigint, texture: bigint): void;
   initializeGamerServices(game: bigint): void;
   getGamerServicesIsInitialized(): boolean;
   updateGamerServices(): void;
@@ -3280,6 +3407,129 @@ export class NodeNativeBackend
   public getPostProcessChainPassTimings(chain: NativeHandle): readonly PassTimingSnapshot[] {
     return this.#bridge.getPostProcessChainPassTimings(chain);
   }
+
+  // The canonical PBR material, its glTF extensions, and the bridge between them.
+  public getDefaultPbrMaterialExt(): PbrMaterialExtSnapshot { return this.#bridge.getDefaultPbrMaterialExt(); }
+  public getDefaultTextureTransform(): TextureTransformSnapshot { return this.#bridge.getDefaultTextureTransform(); }
+  public pbrMaterialExtEquals(first: PbrMaterialExtSnapshot, second: PbrMaterialExtSnapshot): boolean { return this.#bridge.pbrMaterialExtEquals(first, second); }
+  public getPbrMaterialExtHashCode(material: PbrMaterialExtSnapshot): bigint { return this.#bridge.getPbrMaterialExtHashCode(material); }
+  public getPbrMaterialExtText(material: PbrMaterialExtSnapshot): string { return this.#bridge.getPbrMaterialExtText(material); }
+  public applyPbrMaterialState(material: PbrMaterialExtSnapshot, device: NativeHandle): void { this.#bridge.applyPbrMaterialState(material, device); }
+  public getDeviceBlendState(device: NativeHandle): BlendStateSnapshot { return this.#bridge.getDeviceBlendState(device); }
+  public getDeviceRasterizerState(device: NativeHandle): RasterizerStateSnapshot { return this.#bridge.getDeviceRasterizerState(device); }
+  public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }
+  public extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot { return this.#bridge.extractPbrEffectMaterial(effect); }
+  public applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applySkinnedPbrEffectMaterial(effect, material); }
+  public extractSkinnedPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot { return this.#bridge.extractSkinnedPbrEffectMaterial(effect); }
+  public createPbrMaterialExtensions(): NativeHandle { return this.#bridge.createPbrMaterialExtensions(); }
+  public destroyPbrMaterialExtensions(extensions: NativeHandle): void { this.#bridge.destroyPbrMaterialExtensions(extensions); }
+  public copyPbrMaterialExtensionsFrom(destination: NativeHandle, source: NativeHandle): void { this.#bridge.copyPbrMaterialExtensionsFrom(destination, source); }
+  public pbrMaterialExtensionsEquals(first: NativeHandle, second: NativeHandle): boolean { return this.#bridge.pbrMaterialExtensionsEquals(first, second); }
+  public getPbrMaterialExtensionsHashCode(extensions: NativeHandle): bigint { return this.#bridge.getPbrMaterialExtensionsHashCode(extensions); }
+  public getPbrMaterialExtensionsText(extensions: NativeHandle): string { return this.#bridge.getPbrMaterialExtensionsText(extensions); }
+  public getDefaultGltfMaterialSource(): GltfMaterialSourceSnapshot { return this.#bridge.getDefaultGltfMaterialSource(); }
+  public getDefaultGltfMaterialTextures(): GltfMaterialTexturesSnapshot { return this.#bridge.getDefaultGltfMaterialTextures(); }
+  public getDefaultGltfExtensionSource(): GltfExtensionSourceSnapshot { return this.#bridge.getDefaultGltfExtensionSource(); }
+  public getDefaultGltfExtensionTextures(): GltfExtensionTexturesSnapshot { return this.#bridge.getDefaultGltfExtensionTextures(); }
+  public buildGltfPbrMaterial(source: GltfMaterialSourceSnapshot, textures: GltfMaterialTexturesSnapshot,): PbrMaterialExtSnapshot { return this.#bridge.buildGltfPbrMaterial(source, textures); }
+  public buildGltfPbrMaterialExtensions(source: GltfExtensionSourceSnapshot, textures: GltfExtensionTexturesSnapshot, extensions: NativeHandle,): void { this.#bridge.buildGltfPbrMaterialExtensions(source, textures, extensions); }
+  public createPbrEffect(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createPbrEffect(graphicsDevice); }
+  public createSkinnedPbrEffect(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createSkinnedPbrEffect(graphicsDevice); }
+  public getPbrEffectAlpha(effect: NativeHandle): number { return this.#bridge.getPbrEffectAlpha(effect); }
+  public getPbrEffectAlphaCutoff(effect: NativeHandle): number { return this.#bridge.getPbrEffectAlphaCutoff(effect); }
+  public getPbrEffectAlphaMode(effect: NativeHandle): number { return this.#bridge.getPbrEffectAlphaMode(effect); }
+  public getPbrEffectDiffuseColor(effect: NativeHandle): Vector3Snapshot { return this.#bridge.getPbrEffectDiffuseColor(effect); }
+  public getPbrEffectDoubleSided(effect: NativeHandle): boolean { return this.#bridge.getPbrEffectDoubleSided(effect); }
+  public getPbrEffectEmissiveFactor(effect: NativeHandle): Vector3Snapshot { return this.#bridge.getPbrEffectEmissiveFactor(effect); }
+  public getPbrEffectEncodeOutputToSrgb(effect: NativeHandle): boolean { return this.#bridge.getPbrEffectEncodeOutputToSrgb(effect); }
+  public getPbrEffectIor(effect: NativeHandle): number { return this.#bridge.getPbrEffectIor(effect); }
+  public getPbrEffectMetallicFactor(effect: NativeHandle): number { return this.#bridge.getPbrEffectMetallicFactor(effect); }
+  public getPbrEffectNormalScale(effect: NativeHandle): number { return this.#bridge.getPbrEffectNormalScale(effect); }
+  public getPbrEffectOcclusionStrength(effect: NativeHandle): number { return this.#bridge.getPbrEffectOcclusionStrength(effect); }
+  public getPbrEffectRoughnessFactor(effect: NativeHandle): number { return this.#bridge.getPbrEffectRoughnessFactor(effect); }
+  public getPbrEffectSpecularColorFactor(effect: NativeHandle): Vector3Snapshot { return this.#bridge.getPbrEffectSpecularColorFactor(effect); }
+  public getPbrEffectSpecularFactor(effect: NativeHandle): number { return this.#bridge.getPbrEffectSpecularFactor(effect); }
+  public getPbrEffectTexture(effect: NativeHandle, slot: number): NativeHandle { return this.#bridge.getPbrEffectTexture(effect, slot); }
+  public getPbrEffectTextureCoordinateSet(effect: NativeHandle, slot: number): number { return this.#bridge.getPbrEffectTextureCoordinateSet(effect, slot); }
+  public getPbrEffectTextureIsSrgb(effect: NativeHandle, slot: number): boolean { return this.#bridge.getPbrEffectTextureIsSrgb(effect, slot); }
+  public getPbrEffectTextureTransform(effect: NativeHandle, slot: number): TextureTransformSnapshot { return this.#bridge.getPbrEffectTextureTransform(effect, slot); }
+  public getPbrEffectVertexColorEnabled(effect: NativeHandle): boolean { return this.#bridge.getPbrEffectVertexColorEnabled(effect); }
+  public getSkinnedPbrEffectBoneTransforms(effect: NativeHandle, count: number): readonly (readonly number[])[] { return this.#bridge.getSkinnedPbrEffectBoneTransforms(effect, count); }
+  public getSkinnedPbrEffectWeightsPerVertex(effect: NativeHandle): number { return this.#bridge.getSkinnedPbrEffectWeightsPerVertex(effect); }
+  public setPbrEffectAlpha(effect: NativeHandle, value: number): void { this.#bridge.setPbrEffectAlpha(effect, value); }
+  public setPbrEffectAlphaCutoff(effect: NativeHandle, value: number): void { this.#bridge.setPbrEffectAlphaCutoff(effect, value); }
+  public setPbrEffectAlphaMode(effect: NativeHandle, value: number): void { this.#bridge.setPbrEffectAlphaMode(effect, value); }
+  public setPbrEffectDiffuseColor(effect: NativeHandle, value: Vector3Snapshot): void { this.#bridge.setPbrEffectDiffuseColor(effect, value); }
+  public setPbrEffectDoubleSided(effect: NativeHandle, value: boolean): void { this.#bridge.setPbrEffectDoubleSided(effect, value); }
+  public setPbrEffectEmissiveFactor(effect: NativeHandle, value: Vector3Snapshot): void { this.#bridge.setPbrEffectEmissiveFactor(effect, value); }
+  public setPbrEffectEncodeOutputToSrgb(effect: NativeHandle, value: boolean): void { this.#bridge.setPbrEffectEncodeOutputToSrgb(effect, value); }
+  public setPbrEffectIor(effect: NativeHandle, value: number): void { this.#bridge.setPbrEffectIor(effect, value); }
+  public setPbrEffectMetallicFactor(effect: NativeHandle, value: number): void { this.#bridge.setPbrEffectMetallicFactor(effect, value); }
+  public setPbrEffectNormalScale(effect: NativeHandle, value: number): void { this.#bridge.setPbrEffectNormalScale(effect, value); }
+  public setPbrEffectOcclusionStrength(effect: NativeHandle, value: number): void { this.#bridge.setPbrEffectOcclusionStrength(effect, value); }
+  public setPbrEffectRoughnessFactor(effect: NativeHandle, value: number): void { this.#bridge.setPbrEffectRoughnessFactor(effect, value); }
+  public setPbrEffectSpecularColorFactor(effect: NativeHandle, value: Vector3Snapshot): void { this.#bridge.setPbrEffectSpecularColorFactor(effect, value); }
+  public setPbrEffectSpecularFactor(effect: NativeHandle, value: number): void { this.#bridge.setPbrEffectSpecularFactor(effect, value); }
+  public setPbrEffectTexture(effect: NativeHandle, slot: number, texture: NativeHandle): void { this.#bridge.setPbrEffectTexture(effect, slot, texture); }
+  public setPbrEffectTextureCoordinateSet(effect: NativeHandle, slot: number, value: number): void { this.#bridge.setPbrEffectTextureCoordinateSet(effect, slot, value); }
+  public setPbrEffectTextureIsSrgb(effect: NativeHandle, slot: number, value: boolean): void { this.#bridge.setPbrEffectTextureIsSrgb(effect, slot, value); }
+  public setPbrEffectTextureTransform(effect: NativeHandle, slot: number, transform: TextureTransformSnapshot): void { this.#bridge.setPbrEffectTextureTransform(effect, slot, transform); }
+  public setPbrEffectVertexColorEnabled(effect: NativeHandle, value: boolean): void { this.#bridge.setPbrEffectVertexColorEnabled(effect, value); }
+  public setSkinnedPbrEffectBoneTransforms(effect: NativeHandle, transforms: readonly (readonly number[])[]): void { this.#bridge.setSkinnedPbrEffectBoneTransforms(effect, transforms); }
+  public setSkinnedPbrEffectWeightsPerVertex(effect: NativeHandle, value: number): void { this.#bridge.setSkinnedPbrEffectWeightsPerVertex(effect, value); }
+  public getPbrExtensionAttenuationColor(extensions: NativeHandle): Vector3Snapshot { return this.#bridge.getPbrExtensionAttenuationColor(extensions); }
+  public getPbrExtensionAttenuationDistance(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionAttenuationDistance(extensions); }
+  public getPbrExtensionClearcoatFactor(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionClearcoatFactor(extensions); }
+  public getPbrExtensionClearcoatNormalScale(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionClearcoatNormalScale(extensions); }
+  public getPbrExtensionClearcoatNormalTexture(extensions: NativeHandle): NativeHandle { return this.#bridge.getPbrExtensionClearcoatNormalTexture(extensions); }
+  public getPbrExtensionClearcoatRoughness(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionClearcoatRoughness(extensions); }
+  public getPbrExtensionClearcoatRoughnessTexture(extensions: NativeHandle): NativeHandle { return this.#bridge.getPbrExtensionClearcoatRoughnessTexture(extensions); }
+  public getPbrExtensionClearcoatTexture(extensions: NativeHandle): NativeHandle { return this.#bridge.getPbrExtensionClearcoatTexture(extensions); }
+  public getPbrExtensionIridescenceFactor(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionIridescenceFactor(extensions); }
+  public getPbrExtensionIridescenceIor(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionIridescenceIor(extensions); }
+  public getPbrExtensionIridescenceTexture(extensions: NativeHandle): NativeHandle { return this.#bridge.getPbrExtensionIridescenceTexture(extensions); }
+  public getPbrExtensionIridescenceThicknessMaximum(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionIridescenceThicknessMaximum(extensions); }
+  public getPbrExtensionIridescenceThicknessMinimum(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionIridescenceThicknessMinimum(extensions); }
+  public getPbrExtensionIridescenceThicknessTexture(extensions: NativeHandle): NativeHandle { return this.#bridge.getPbrExtensionIridescenceThicknessTexture(extensions); }
+  public getPbrExtensionSheenColorFactor(extensions: NativeHandle): Vector3Snapshot { return this.#bridge.getPbrExtensionSheenColorFactor(extensions); }
+  public getPbrExtensionSheenColorTexture(extensions: NativeHandle): NativeHandle { return this.#bridge.getPbrExtensionSheenColorTexture(extensions); }
+  public getPbrExtensionSheenRoughness(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionSheenRoughness(extensions); }
+  public getPbrExtensionSheenRoughnessTexture(extensions: NativeHandle): NativeHandle { return this.#bridge.getPbrExtensionSheenRoughnessTexture(extensions); }
+  public getPbrExtensionSubsurfaceColor(extensions: NativeHandle): Vector3Snapshot { return this.#bridge.getPbrExtensionSubsurfaceColor(extensions); }
+  public getPbrExtensionSubsurfaceWrap(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionSubsurfaceWrap(extensions); }
+  public getPbrExtensionThicknessFactor(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionThicknessFactor(extensions); }
+  public getPbrExtensionThicknessTexture(extensions: NativeHandle): NativeHandle { return this.#bridge.getPbrExtensionThicknessTexture(extensions); }
+  public getPbrExtensionTransmissionFactor(extensions: NativeHandle): number { return this.#bridge.getPbrExtensionTransmissionFactor(extensions); }
+  public getPbrExtensionTransmissionTexture(extensions: NativeHandle): NativeHandle { return this.#bridge.getPbrExtensionTransmissionTexture(extensions); }
+  public pbrExtensionIsIridescenceEnabled(extensions: NativeHandle): boolean { return this.#bridge.pbrExtensionIsIridescenceEnabled(extensions); }
+  public pbrExtensionIsNeutral(extensions: NativeHandle): boolean { return this.#bridge.pbrExtensionIsNeutral(extensions); }
+  public pbrExtensionIsSheenEnabled(extensions: NativeHandle): boolean { return this.#bridge.pbrExtensionIsSheenEnabled(extensions); }
+  public pbrExtensionIsSubsurfaceEnabled(extensions: NativeHandle): boolean { return this.#bridge.pbrExtensionIsSubsurfaceEnabled(extensions); }
+  public pbrExtensionIsTransmissionEnabled(extensions: NativeHandle): boolean { return this.#bridge.pbrExtensionIsTransmissionEnabled(extensions); }
+  public setPbrExtensionAttenuationColor(extensions: NativeHandle, value: Vector3Snapshot): void { this.#bridge.setPbrExtensionAttenuationColor(extensions, value); }
+  public setPbrExtensionAttenuationDistance(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionAttenuationDistance(extensions, value); }
+  public setPbrExtensionClearcoatFactor(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionClearcoatFactor(extensions, value); }
+  public setPbrExtensionClearcoatNormalScale(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionClearcoatNormalScale(extensions, value); }
+  public setPbrExtensionClearcoatNormalTexture(extensions: NativeHandle, texture: NativeHandle): void { this.#bridge.setPbrExtensionClearcoatNormalTexture(extensions, texture); }
+  public setPbrExtensionClearcoatRoughness(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionClearcoatRoughness(extensions, value); }
+  public setPbrExtensionClearcoatRoughnessTexture(extensions: NativeHandle, texture: NativeHandle): void { this.#bridge.setPbrExtensionClearcoatRoughnessTexture(extensions, texture); }
+  public setPbrExtensionClearcoatTexture(extensions: NativeHandle, texture: NativeHandle): void { this.#bridge.setPbrExtensionClearcoatTexture(extensions, texture); }
+  public setPbrExtensionIridescenceFactor(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionIridescenceFactor(extensions, value); }
+  public setPbrExtensionIridescenceIor(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionIridescenceIor(extensions, value); }
+  public setPbrExtensionIridescenceTexture(extensions: NativeHandle, texture: NativeHandle): void { this.#bridge.setPbrExtensionIridescenceTexture(extensions, texture); }
+  public setPbrExtensionIridescenceThicknessMaximum(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionIridescenceThicknessMaximum(extensions, value); }
+  public setPbrExtensionIridescenceThicknessMinimum(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionIridescenceThicknessMinimum(extensions, value); }
+  public setPbrExtensionIridescenceThicknessTexture(extensions: NativeHandle, texture: NativeHandle): void { this.#bridge.setPbrExtensionIridescenceThicknessTexture(extensions, texture); }
+  public setPbrExtensionSheenColorFactor(extensions: NativeHandle, value: Vector3Snapshot): void { this.#bridge.setPbrExtensionSheenColorFactor(extensions, value); }
+  public setPbrExtensionSheenColorTexture(extensions: NativeHandle, texture: NativeHandle): void { this.#bridge.setPbrExtensionSheenColorTexture(extensions, texture); }
+  public setPbrExtensionSheenRoughness(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionSheenRoughness(extensions, value); }
+  public setPbrExtensionSheenRoughnessTexture(extensions: NativeHandle, texture: NativeHandle): void { this.#bridge.setPbrExtensionSheenRoughnessTexture(extensions, texture); }
+  public setPbrExtensionSubsurfaceColor(extensions: NativeHandle, value: Vector3Snapshot): void { this.#bridge.setPbrExtensionSubsurfaceColor(extensions, value); }
+  public setPbrExtensionSubsurfaceWrap(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionSubsurfaceWrap(extensions, value); }
+  public setPbrExtensionThicknessFactor(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionThicknessFactor(extensions, value); }
+  public setPbrExtensionThicknessTexture(extensions: NativeHandle, texture: NativeHandle): void { this.#bridge.setPbrExtensionThicknessTexture(extensions, texture); }
+  public setPbrExtensionTransmissionFactor(extensions: NativeHandle, value: number): void { this.#bridge.setPbrExtensionTransmissionFactor(extensions, value); }
+  public setPbrExtensionTransmissionTexture(extensions: NativeHandle, texture: NativeHandle): void { this.#bridge.setPbrExtensionTransmissionTexture(extensions, texture); }
 
   // Gamer services, in the two shapes a host with no platform services can answer.
   public initializeGamerServices(): void { this.#bridge.initializeGamerServices(this.#game()); }

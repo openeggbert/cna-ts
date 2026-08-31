@@ -15,7 +15,11 @@
 
 import { getBackend } from "../../internal/backend.js";
 import type {
-  BoundingSphereSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
+  BlendStateSnapshot,
+  BoundingSphereSnapshot,
+  RasterizerStateSnapshot,
+  PbrMaterialExtSnapshot,
+  TextureTransformSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
   CnaDecalBackend,
   CnaDepthNormalPrepassBackend,
   CnaAtmosphereBackend,
@@ -5916,4 +5920,1066 @@ function finite(value: number, what: string): number {
     throw new TypeError(`${what} must be a finite number`);
   }
   return value;
+}
+
+function wholeNumber(value: number, what: string): number {
+  if (!Number.isInteger(value)) throw new TypeError(`${what} must be an integer`);
+  return value;
+}
+
+/* ================================================================================================
+ * Physically-based materials, their glTF extensions, and the effects that carry them
+ * ==============================================================================================*/
+
+/**
+ * One texture slot on a PBR material, in the order CNA numbers them.
+ *
+ * The last two are `KHR_materials_specular`, which is why they are the two the frozen
+ * {@link PbrMaterial} has no room for.
+ */
+export enum PbrTextureSlot {
+  BaseColor = 0,
+  Normal = 1,
+  MetallicRoughness = 2,
+  Emissive = 3,
+  Occlusion = 4,
+  Specular = 5,
+  SpecularColor = 6,
+}
+
+/** How many texture slots a PBR material has; every per-slot array here is this long. */
+export const PbrTextureSlotCount = 7;
+
+/**
+ * A `KHR_texture_transform`: the selected UV is scaled, then rotated, then translated.
+ *
+ * Independent of which packed UV channel the slot samples — that is the coordinate set.
+ */
+export interface TextureTransform {
+  /** Translation applied last. */
+  Offset: Vector2;
+  /** Per-axis scale applied first. */
+  Scale: Vector2;
+  /** Counter-clockwise rotation in radians, applied between the two. */
+  Rotation: number;
+}
+
+/**
+ * The canonical CNA physically-based material, in full.
+ *
+ * {@link PbrMaterial} is the layout CNA froze before the `KHR_materials_*` factors existed and
+ * cannot change within an ABI major; this is the shape every accessor on the canonical type
+ * corresponds to, and the one the effects and the glTF bridge speak. A material is a **value**: it
+ * compares and hashes by content, and passing one to an effect copies it rather than attaching it.
+ */
+export interface PbrMaterialExt {
+  /** Base colour, or `null` for none. Not owned: the caller keeps every texture's lifetime. */
+  AlbedoTexture: Texture2D | null;
+  /** Tangent-space normal map. */
+  NormalTexture: Texture2D | null;
+  /** Metallic in blue, roughness in green, as glTF packs them. */
+  MetallicRoughnessTexture: Texture2D | null;
+  /** Ambient occlusion, in red. */
+  AmbientOcclusionTexture: Texture2D | null;
+  /** Emissive colour. */
+  EmissiveTexture: Texture2D | null;
+  /** `KHR_materials_specular` strength, in alpha. */
+  SpecularTexture: Texture2D | null;
+  /** `KHR_materials_specular` colour, in RGB. */
+  SpecularColorTexture: Texture2D | null;
+  /** The base colour factor the albedo texture is multiplied by. */
+  AlbedoColor: Color;
+  /**
+   * Linear emissive factor.
+   *
+   * A vector rather than a colour because `KHR_materials_emissive_strength` scales it without an
+   * upper bound, and eight bits per channel cannot hold what an HDR pipeline expects.
+   */
+  EmissiveFactor: Vector3;
+  /** Linear `KHR_materials_specular` colour factor; white by default. */
+  SpecularColorFactor: Vector3;
+  /** How metallic the surface is, from zero to one. */
+  MetallicFactor: number;
+  /** How rough it is, from zero to one. */
+  RoughnessFactor: number;
+  /** How strongly the normal map is applied, where one is full strength. */
+  NormalScale: number;
+  /** How strongly ambient occlusion is applied. */
+  OcclusionStrength: number;
+  /** `KHR_materials_ior` index of refraction; 1.5 by default. */
+  Ior: number;
+  /** `KHR_materials_specular` strength factor; one by default. */
+  SpecularFactor: number;
+  /** The alpha below which a masked material is discarded; meaningful only in `Mask`. */
+  AlphaCutoff: number;
+  /** How the material's alpha is read. */
+  AlphaMode: AlphaMode;
+  /** Whether both faces of the surface are drawn, as glTF's `doubleSided`. */
+  DoubleSided: boolean;
+  /** Whether the albedo texture's samples are sRGB-encoded. */
+  BaseColorTextureSrgb: boolean;
+  /** Whether the emissive texture's samples are sRGB-encoded. */
+  EmissiveTextureSrgb: boolean;
+  /** Whether the specular-colour texture's samples are sRGB-encoded. */
+  SpecularColorTextureSrgb: boolean;
+  /** Whether the lit result is encoded back to sRGB before the framebuffer. */
+  OutputEncodedToSrgb: boolean;
+  /** Which packed vertex UV channel each slot samples, in {@link PbrTextureSlot} order. */
+  TextureCoordinateSets: number[];
+  /** Each slot's `KHR_texture_transform`, in {@link PbrTextureSlot} order. */
+  TextureTransforms: TextureTransform[];
+}
+
+/** One glTF material's own factors, before the bridge turns them into a CNA material. */
+export interface GltfMaterialSource {
+  /** glTF's `baseColorFactor`, linear, with alpha. */
+  BaseColorFactor: Vector4;
+  MetallicFactor: number;
+  RoughnessFactor: number;
+  EmissiveFactor: Vector3;
+  NormalScale: number;
+  OcclusionStrength: number;
+  /** `KHR_materials_ior`. */
+  Ior: number;
+  /** `KHR_materials_specular` strength. */
+  SpecularFactor: number;
+  /** `KHR_materials_specular` colour. */
+  SpecularColorFactor: Vector3;
+  AlphaMode: AlphaMode;
+  AlphaCutoff: number;
+  DoubleSided: boolean;
+  /** Which packed UV channel each slot samples, in {@link PbrTextureSlot} order. */
+  TextureCoordinateSets: number[];
+  /** Each slot's transform, in {@link PbrTextureSlot} order. */
+  TextureTransforms: TextureTransform[];
+}
+
+/** The seven textures a glTF material names, in {@link PbrTextureSlot} order. */
+export interface GltfMaterialTextures {
+  Slots: (Texture2D | null)[];
+}
+
+/** The `KHR_materials_*` factors a glTF material can carry beyond the core ones. */
+export interface GltfExtensionSource {
+  ClearcoatFactor: number;
+  ClearcoatRoughnessFactor: number;
+  SheenColorFactor: Vector3;
+  SheenRoughnessFactor: number;
+  TransmissionFactor: number;
+  ThicknessFactor: number;
+  AttenuationDistance: number;
+  AttenuationColor: Vector3;
+  IridescenceFactor: number;
+  IridescenceIor: number;
+  IridescenceThicknessMinimum: number;
+  IridescenceThicknessMaximum: number;
+}
+
+/** The nine textures those extensions can name. */
+export interface GltfExtensionTextures {
+  Clearcoat: Texture2D | null;
+  ClearcoatRoughness: Texture2D | null;
+  ClearcoatNormal: Texture2D | null;
+  SheenColor: Texture2D | null;
+  SheenRoughness: Texture2D | null;
+  Transmission: Texture2D | null;
+  Thickness: Texture2D | null;
+  Iridescence: Texture2D | null;
+  IridescenceThickness: Texture2D | null;
+}
+
+function textureHandle(texture: Texture2D | null | undefined): NativeHandle {
+  return texture == null ? 0n : resolveTexture2DHandleForInternalUse(texture);
+}
+
+function transformSnapshot(value: TextureTransform, what: string): TextureTransformSnapshot {
+  if (value == null) throw new TypeError(`${what} is required`);
+  return {
+    Offset: { X: finite(value.Offset?.X, `${what}.Offset.X`), Y: finite(value.Offset?.Y, `${what}.Offset.Y`) },
+    Scale: { X: finite(value.Scale?.X, `${what}.Scale.X`), Y: finite(value.Scale?.Y, `${what}.Scale.Y`) },
+    Rotation: finite(value.Rotation, `${what}.Rotation`),
+  };
+}
+
+function toTransform(value: TextureTransformSnapshot): TextureTransform {
+  return {
+    Offset: new Vector2(value.Offset.X, value.Offset.Y),
+    Scale: new Vector2(value.Scale.X, value.Scale.Y),
+    Rotation: value.Rotation,
+  };
+}
+
+function slotArray<T>(values: readonly T[] | undefined, what: string): readonly T[] {
+  if (!Array.isArray(values) || values.length !== PbrTextureSlotCount) {
+    throw new TypeError(`${what} must have exactly ${PbrTextureSlotCount} entries`);
+  }
+  return values;
+}
+
+function materialSnapshot(material: PbrMaterialExt): PbrMaterialExtSnapshot {
+  if (material == null) throw new TypeError("a material is required");
+  const sets = slotArray(material.TextureCoordinateSets, "TextureCoordinateSets");
+  const transforms = slotArray(material.TextureTransforms, "TextureTransforms");
+  return {
+    AlbedoTexture: textureHandle(material.AlbedoTexture),
+    NormalTexture: textureHandle(material.NormalTexture),
+    MetallicRoughnessTexture: textureHandle(material.MetallicRoughnessTexture),
+    AmbientOcclusionTexture: textureHandle(material.AmbientOcclusionTexture),
+    EmissiveTexture: textureHandle(material.EmissiveTexture),
+    SpecularTexture: textureHandle(material.SpecularTexture),
+    SpecularColorTexture: textureHandle(material.SpecularColorTexture),
+    AlbedoColor: material.AlbedoColor.PackedValue,
+    EmissiveFactor: vectorSnapshot(material.EmissiveFactor, "EmissiveFactor"),
+    SpecularColorFactor: vectorSnapshot(material.SpecularColorFactor, "SpecularColorFactor"),
+    MetallicFactor: finite(material.MetallicFactor, "MetallicFactor"),
+    RoughnessFactor: finite(material.RoughnessFactor, "RoughnessFactor"),
+    NormalScale: finite(material.NormalScale, "NormalScale"),
+    OcclusionStrength: finite(material.OcclusionStrength, "OcclusionStrength"),
+    Ior: finite(material.Ior, "Ior"),
+    SpecularFactor: finite(material.SpecularFactor, "SpecularFactor"),
+    AlphaCutoff: finite(material.AlphaCutoff, "AlphaCutoff"),
+    AlphaMode: wholeNumber(material.AlphaMode, "AlphaMode"),
+    DoubleSided: Boolean(material.DoubleSided),
+    BaseColorTextureSrgb: Boolean(material.BaseColorTextureSrgb),
+    EmissiveTextureSrgb: Boolean(material.EmissiveTextureSrgb),
+    SpecularColorTextureSrgb: Boolean(material.SpecularColorTextureSrgb),
+    OutputEncodedToSrgb: Boolean(material.OutputEncodedToSrgb),
+    TextureCoordinateSets: sets.map((value, index) =>
+      wholeNumber(value, `TextureCoordinateSets[${index}]`)),
+    TextureTransforms: transforms.map((value, index) =>
+      transformSnapshot(value, `TextureTransforms[${index}]`)),
+  };
+}
+
+/**
+ * Rebuilds a material from CNA's answer.
+ *
+ * The texture slots come back as `null` rather than as wrappers: CNA reports a raw handle, and a
+ * material never owns its textures, so inventing a `Texture2D` here would invent an owner. A caller
+ * who put a texture in a slot still holds it; see {@link PbrEffect.GetTexture} for the one place
+ * this layer does hand a texture back.
+ */
+function toMaterial(snapshot: PbrMaterialExtSnapshot): PbrMaterialExt {
+  const albedo = new Color(0, 0, 0, 0);
+  albedo.PackedValue = snapshot.AlbedoColor;
+  return {
+    AlbedoTexture: null,
+    NormalTexture: null,
+    MetallicRoughnessTexture: null,
+    AmbientOcclusionTexture: null,
+    EmissiveTexture: null,
+    SpecularTexture: null,
+    SpecularColorTexture: null,
+    AlbedoColor: albedo,
+    EmissiveFactor: toVector3(snapshot.EmissiveFactor),
+    SpecularColorFactor: toVector3(snapshot.SpecularColorFactor),
+    MetallicFactor: snapshot.MetallicFactor,
+    RoughnessFactor: snapshot.RoughnessFactor,
+    NormalScale: snapshot.NormalScale,
+    OcclusionStrength: snapshot.OcclusionStrength,
+    Ior: snapshot.Ior,
+    SpecularFactor: snapshot.SpecularFactor,
+    AlphaCutoff: snapshot.AlphaCutoff,
+    AlphaMode: snapshot.AlphaMode as AlphaMode,
+    DoubleSided: snapshot.DoubleSided,
+    BaseColorTextureSrgb: snapshot.BaseColorTextureSrgb,
+    EmissiveTextureSrgb: snapshot.EmissiveTextureSrgb,
+    SpecularColorTextureSrgb: snapshot.SpecularColorTextureSrgb,
+    OutputEncodedToSrgb: snapshot.OutputEncodedToSrgb,
+    TextureCoordinateSets: [...snapshot.TextureCoordinateSets],
+    TextureTransforms: snapshot.TextureTransforms.map(toTransform),
+  };
+}
+
+/** A material seeded with CNA's own defaults, which a caller then edits. */
+export function CreatePbrMaterialExt(): PbrMaterialExt {
+  return toMaterial(extensions().getDefaultPbrMaterialExt());
+}
+
+/** A neutral texture transform: no offset, unit scale, no rotation — whatever CNA calls neutral. */
+export function CreateTextureTransform(): TextureTransform {
+  return toTransform(extensions().getDefaultTextureTransform());
+}
+
+/**
+ * The value operations on a material, which CNA owns rather than this binding.
+ *
+ * A material compares and hashes by content, so two independently built materials with the same
+ * fields are equal and hash alike — asked of CNA rather than reimplemented here, because the
+ * canonical type decides what "the same material" means.
+ */
+export const PbrMaterialExtOperations = {
+  /** Whether two materials are the same material. */
+  Equals(first: PbrMaterialExt, second: PbrMaterialExt): boolean {
+    return extensions().pbrMaterialExtEquals(
+      materialSnapshot(first), materialSnapshot(second));
+  },
+  /** The content hash CNA gives a material; equal materials hash alike. */
+  GetHashCode(material: PbrMaterialExt): bigint {
+    return extensions().getPbrMaterialExtHashCode(materialSnapshot(material));
+  },
+  /** CNA's own printed form, which names the features a material actually uses. */
+  ToText(material: PbrMaterialExt): string {
+    return extensions().getPbrMaterialExtText(materialSnapshot(material));
+  },
+  /**
+   * Sets the device's blend, depth and cull state to what the material implies.
+   *
+   * The material decides: an alpha mode of `Blend` needs blending on, `DoubleSided` decides the
+   * cull mode. Nothing is drawn — this is the state a draw would need.
+   */
+  ApplyState(material: PbrMaterialExt, graphicsDevice: GraphicsDevice): void {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    extensions().applyPbrMaterialState(
+      materialSnapshot(material), resolveGraphicsDeviceHandleForInternalUse(graphicsDevice));
+  },
+
+  /**
+   * The blend state CNA is holding right now, which is not what `GraphicsDevice.BlendState` says.
+   *
+   * {@link ApplyState} writes CNA's device state directly, underneath the wrapper's own state
+   * objects, so the wrapper keeps reporting whatever it was last given. This reads what is really
+   * there — the only way to see what `ApplyState` did.
+   */
+  ReadDeviceBlendState(graphicsDevice: GraphicsDevice): DeviceBlendState {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    return extensions().getDeviceBlendState(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice));
+  },
+
+  /** The same for the rasterizer state, which is where `DoubleSided` lands. */
+  ReadDeviceRasterizerState(graphicsDevice: GraphicsDevice): DeviceRasterizerState {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    return extensions().getDeviceRasterizerState(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice));
+  },
+} as const;
+
+/** The blend state CNA holds, as CNA reports it rather than as the wrapper remembers it. */
+export type DeviceBlendState = BlendStateSnapshot;
+
+/** The rasterizer state CNA holds, on the same terms. */
+export type DeviceRasterizerState = RasterizerStateSnapshot;
+
+let handleOfPbrExtensions!: (value: PbrMaterialExtensions) => NativeHandle;
+
+/**
+ * One material's `KHR_materials_*` extensions: clearcoat, sheen, transmission and iridescence.
+ *
+ * A handle rather than a value struct, because the canonical type holds nine borrowed `Texture2D`
+ * pointers and raw texture pointers do not belong in caller-writable memory. It still *behaves*
+ * like a value — {@link Equals}, {@link GetHashCode} and {@link ToText} compare, hash and print by
+ * content — and it never owns a texture it is given.
+ */
+export class PbrMaterialExtensions implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor() {
+    this.#handle = extensions().createPbrMaterialExtensions();
+  }
+
+  static {
+    handleOfPbrExtensions = (value: PbrMaterialExtensions) => value.#active();
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("these PBR material extensions are disposed");
+    }
+    return this.#handle;
+  }
+
+  /** Whether this object has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Disposing twice is harmless; the textures it named are not touched. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroyPbrMaterialExtensions(handle);
+  }
+
+  /**
+   * Whether every field is still at its canonical default.
+   *
+   * Not the same as "no feature is enabled": a field can move without switching a feature on, which
+   * is what makes this a separate question from {@link IsSheenEnabled} and its three siblings.
+   */
+  public get IsNeutral(): boolean {
+    return extensions().pbrExtensionIsNeutral(this.#active());
+  }
+
+  /** Whether the sheen lobe contributes anything. */
+  public get IsSheenEnabled(): boolean {
+    return extensions().pbrExtensionIsSheenEnabled(this.#active());
+  }
+
+  /** Whether light is transmitted through the surface. */
+  public get IsTransmissionEnabled(): boolean {
+    return extensions().pbrExtensionIsTransmissionEnabled(this.#active());
+  }
+
+  /** Whether the thin-film iridescence term contributes anything. */
+  public get IsIridescenceEnabled(): boolean {
+    return extensions().pbrExtensionIsIridescenceEnabled(this.#active());
+  }
+
+  /** Whether subsurface scattering contributes anything. */
+  public get IsSubsurfaceEnabled(): boolean {
+    return extensions().pbrExtensionIsSubsurfaceEnabled(this.#active());
+  }
+
+  /** Whether two extension sets carry the same values. */
+  public Equals(other: PbrMaterialExtensions): boolean {
+    if (other == null) throw new TypeError("other is required");
+    return extensions().pbrMaterialExtensionsEquals(this.#active(), other.#active());
+  }
+
+  /** The content hash CNA gives them; equal sets hash alike. */
+  public GetHashCode(): bigint {
+    return extensions().getPbrMaterialExtensionsHashCode(this.#active());
+  }
+
+  /** CNA's own printed form: `{}` when neutral, and otherwise the features that are on. */
+  public ToText(): string {
+    return extensions().getPbrMaterialExtensionsText(this.#active());
+  }
+
+  /** Takes every value from another set, leaving that one unchanged. */
+  public CopyFrom(source: PbrMaterialExtensions): void {
+    if (source == null) throw new TypeError("source is required");
+    extensions().copyPbrMaterialExtensionsFrom(this.#active(), source.#active());
+  }
+
+  /** How strong the clearcoat layer is. */
+  public get ClearcoatFactor(): number {
+    return extensions().getPbrExtensionClearcoatFactor(this.#active());
+  }
+  public set ClearcoatFactor(value: number) {
+    extensions().setPbrExtensionClearcoatFactor(this.#active(), finite(value, "ClearcoatFactor"));
+  }
+
+  /** How rough that layer is. */
+  public get ClearcoatRoughness(): number {
+    return extensions().getPbrExtensionClearcoatRoughness(this.#active());
+  }
+  public set ClearcoatRoughness(value: number) {
+    extensions().setPbrExtensionClearcoatRoughness(
+      this.#active(), finite(value, "ClearcoatRoughness"));
+  }
+
+  /** How strongly the clearcoat's own normal map is applied. */
+  public get ClearcoatNormalScale(): number {
+    return extensions().getPbrExtensionClearcoatNormalScale(this.#active());
+  }
+  public set ClearcoatNormalScale(value: number) {
+    extensions().setPbrExtensionClearcoatNormalScale(
+      this.#active(), finite(value, "ClearcoatNormalScale"));
+  }
+
+  /** The sheen lobe's colour. */
+  public get SheenColorFactor(): Vector3 {
+    return toVector3(extensions().getPbrExtensionSheenColorFactor(this.#active()));
+  }
+  public set SheenColorFactor(value: Vector3) {
+    extensions().setPbrExtensionSheenColorFactor(
+      this.#active(), vectorSnapshot(value, "SheenColorFactor"));
+  }
+
+  /** How rough the sheen lobe is. */
+  public get SheenRoughness(): number {
+    return extensions().getPbrExtensionSheenRoughness(this.#active());
+  }
+  public set SheenRoughness(value: number) {
+    extensions().setPbrExtensionSheenRoughness(this.#active(), finite(value, "SheenRoughness"));
+  }
+
+  /** How much light passes through the surface. */
+  public get TransmissionFactor(): number {
+    return extensions().getPbrExtensionTransmissionFactor(this.#active());
+  }
+  public set TransmissionFactor(value: number) {
+    extensions().setPbrExtensionTransmissionFactor(
+      this.#active(), finite(value, "TransmissionFactor"));
+  }
+
+  /** How thick the volume behind the surface is. */
+  public get ThicknessFactor(): number {
+    return extensions().getPbrExtensionThicknessFactor(this.#active());
+  }
+  public set ThicknessFactor(value: number) {
+    extensions().setPbrExtensionThicknessFactor(this.#active(), finite(value, "ThicknessFactor"));
+  }
+
+  /** The distance over which that volume absorbs light. */
+  public get AttenuationDistance(): number {
+    return extensions().getPbrExtensionAttenuationDistance(this.#active());
+  }
+  public set AttenuationDistance(value: number) {
+    extensions().setPbrExtensionAttenuationDistance(
+      this.#active(), finite(value, "AttenuationDistance"));
+  }
+
+  /** The colour light becomes as it is absorbed. */
+  public get AttenuationColor(): Vector3 {
+    return toVector3(extensions().getPbrExtensionAttenuationColor(this.#active()));
+  }
+  public set AttenuationColor(value: Vector3) {
+    extensions().setPbrExtensionAttenuationColor(
+      this.#active(), vectorSnapshot(value, "AttenuationColor"));
+  }
+
+  /** How strong the thin-film iridescence is. */
+  public get IridescenceFactor(): number {
+    return extensions().getPbrExtensionIridescenceFactor(this.#active());
+  }
+  public set IridescenceFactor(value: number) {
+    extensions().setPbrExtensionIridescenceFactor(
+      this.#active(), finite(value, "IridescenceFactor"));
+  }
+
+  /** The film's index of refraction. */
+  public get IridescenceIor(): number {
+    return extensions().getPbrExtensionIridescenceIor(this.#active());
+  }
+  public set IridescenceIor(value: number) {
+    extensions().setPbrExtensionIridescenceIor(this.#active(), finite(value, "IridescenceIor"));
+  }
+
+  /** The thinnest the film gets, in nanometres. */
+  public get IridescenceThicknessMinimum(): number {
+    return extensions().getPbrExtensionIridescenceThicknessMinimum(this.#active());
+  }
+  public set IridescenceThicknessMinimum(value: number) {
+    extensions().setPbrExtensionIridescenceThicknessMinimum(
+      this.#active(), finite(value, "IridescenceThicknessMinimum"));
+  }
+
+  /** The thickest, in nanometres. */
+  public get IridescenceThicknessMaximum(): number {
+    return extensions().getPbrExtensionIridescenceThicknessMaximum(this.#active());
+  }
+  public set IridescenceThicknessMaximum(value: number) {
+    extensions().setPbrExtensionIridescenceThicknessMaximum(
+      this.#active(), finite(value, "IridescenceThicknessMaximum"));
+  }
+
+  /** How far light wraps around the terminator, for the subsurface term. */
+  public get SubsurfaceWrap(): number {
+    return extensions().getPbrExtensionSubsurfaceWrap(this.#active());
+  }
+  public set SubsurfaceWrap(value: number) {
+    extensions().setPbrExtensionSubsurfaceWrap(this.#active(), finite(value, "SubsurfaceWrap"));
+  }
+
+  /** The colour light becomes under the surface. */
+  public get SubsurfaceColor(): Vector3 {
+    return toVector3(extensions().getPbrExtensionSubsurfaceColor(this.#active()));
+  }
+  public set SubsurfaceColor(value: Vector3) {
+    extensions().setPbrExtensionSubsurfaceColor(
+      this.#active(), vectorSnapshot(value, "SubsurfaceColor"));
+  }
+
+  /*
+   * The nine textures. Each is borrowed: the set records the handle and never owns it, so a caller
+   * who puts a texture here keeps its lifetime and must outlive this object. `null` clears a slot.
+   */
+
+  /** The clearcoat strength map. */
+  public GetClearcoatTexture(): NativeHandle {
+    return extensions().getPbrExtensionClearcoatTexture(this.#active());
+  }
+  public SetClearcoatTexture(texture: Texture2D | null): void {
+    extensions().setPbrExtensionClearcoatTexture(this.#active(), textureHandle(texture));
+  }
+
+  /** The clearcoat roughness map. */
+  public GetClearcoatRoughnessTexture(): NativeHandle {
+    return extensions().getPbrExtensionClearcoatRoughnessTexture(this.#active());
+  }
+  public SetClearcoatRoughnessTexture(texture: Texture2D | null): void {
+    extensions().setPbrExtensionClearcoatRoughnessTexture(this.#active(), textureHandle(texture));
+  }
+
+  /** The clearcoat's own normal map. */
+  public GetClearcoatNormalTexture(): NativeHandle {
+    return extensions().getPbrExtensionClearcoatNormalTexture(this.#active());
+  }
+  public SetClearcoatNormalTexture(texture: Texture2D | null): void {
+    extensions().setPbrExtensionClearcoatNormalTexture(this.#active(), textureHandle(texture));
+  }
+
+  /** The sheen colour map. */
+  public GetSheenColorTexture(): NativeHandle {
+    return extensions().getPbrExtensionSheenColorTexture(this.#active());
+  }
+  public SetSheenColorTexture(texture: Texture2D | null): void {
+    extensions().setPbrExtensionSheenColorTexture(this.#active(), textureHandle(texture));
+  }
+
+  /** The sheen roughness map. */
+  public GetSheenRoughnessTexture(): NativeHandle {
+    return extensions().getPbrExtensionSheenRoughnessTexture(this.#active());
+  }
+  public SetSheenRoughnessTexture(texture: Texture2D | null): void {
+    extensions().setPbrExtensionSheenRoughnessTexture(this.#active(), textureHandle(texture));
+  }
+
+  /** The transmission map. */
+  public GetTransmissionTexture(): NativeHandle {
+    return extensions().getPbrExtensionTransmissionTexture(this.#active());
+  }
+  public SetTransmissionTexture(texture: Texture2D | null): void {
+    extensions().setPbrExtensionTransmissionTexture(this.#active(), textureHandle(texture));
+  }
+
+  /** The thickness map. */
+  public GetThicknessTexture(): NativeHandle {
+    return extensions().getPbrExtensionThicknessTexture(this.#active());
+  }
+  public SetThicknessTexture(texture: Texture2D | null): void {
+    extensions().setPbrExtensionThicknessTexture(this.#active(), textureHandle(texture));
+  }
+
+  /** The iridescence strength map. */
+  public GetIridescenceTexture(): NativeHandle {
+    return extensions().getPbrExtensionIridescenceTexture(this.#active());
+  }
+  public SetIridescenceTexture(texture: Texture2D | null): void {
+    extensions().setPbrExtensionIridescenceTexture(this.#active(), textureHandle(texture));
+  }
+
+  /** The iridescence thickness map. */
+  public GetIridescenceThicknessTexture(): NativeHandle {
+    return extensions().getPbrExtensionIridescenceThicknessTexture(this.#active());
+  }
+  public SetIridescenceThicknessTexture(texture: Texture2D | null): void {
+    extensions().setPbrExtensionIridescenceThicknessTexture(
+      this.#active(), textureHandle(texture));
+  }
+}
+
+/**
+ * Turns a glTF material's own numbers into CNA's.
+ *
+ * The bridge is the only thing here that converts: a glTF base-colour factor is a linear float
+ * vector and a CNA albedo is an eight-bit colour, so it quantises, and everything else it carries
+ * across unchanged. Keeping it a separate step is what lets a loader be checked against the
+ * conversion rather than against a material it also built.
+ */
+export const GltfMaterialBridge = {
+  /** A glTF source seeded with the defaults glTF itself specifies. */
+  CreateSource(): GltfMaterialSource {
+    const snapshot = extensions().getDefaultGltfMaterialSource();
+    return {
+      BaseColorFactor: new Vector4(
+        snapshot.BaseColorFactor.X, snapshot.BaseColorFactor.Y,
+        snapshot.BaseColorFactor.Z, snapshot.BaseColorFactor.W,
+      ),
+      MetallicFactor: snapshot.MetallicFactor,
+      RoughnessFactor: snapshot.RoughnessFactor,
+      EmissiveFactor: toVector3(snapshot.EmissiveFactor),
+      NormalScale: snapshot.NormalScale,
+      OcclusionStrength: snapshot.OcclusionStrength,
+      Ior: snapshot.Ior,
+      SpecularFactor: snapshot.SpecularFactor,
+      SpecularColorFactor: toVector3(snapshot.SpecularColorFactor),
+      AlphaMode: snapshot.AlphaMode as AlphaMode,
+      AlphaCutoff: snapshot.AlphaCutoff,
+      DoubleSided: snapshot.DoubleSided,
+      TextureCoordinateSets: [...snapshot.TextureCoordinateSets],
+      TextureTransforms: snapshot.TextureTransforms.map(toTransform),
+    };
+  },
+
+  /** An empty texture set: seven slots, none of them filled. */
+  CreateTextures(): GltfMaterialTextures {
+    return { Slots: extensions().getDefaultGltfMaterialTextures().Slots.map(() => null) };
+  },
+
+  /** A glTF extension source seeded with glTF's own defaults for each `KHR_materials_*`. */
+  CreateExtensionSource(): GltfExtensionSource {
+    const snapshot = extensions().getDefaultGltfExtensionSource();
+    return {
+      ClearcoatFactor: snapshot.ClearcoatFactor,
+      ClearcoatRoughnessFactor: snapshot.ClearcoatRoughnessFactor,
+      SheenColorFactor: toVector3(snapshot.SheenColorFactor),
+      SheenRoughnessFactor: snapshot.SheenRoughnessFactor,
+      TransmissionFactor: snapshot.TransmissionFactor,
+      ThicknessFactor: snapshot.ThicknessFactor,
+      AttenuationDistance: snapshot.AttenuationDistance,
+      AttenuationColor: toVector3(snapshot.AttenuationColor),
+      IridescenceFactor: snapshot.IridescenceFactor,
+      IridescenceIor: snapshot.IridescenceIor,
+      IridescenceThicknessMinimum: snapshot.IridescenceThicknessMinimum,
+      IridescenceThicknessMaximum: snapshot.IridescenceThicknessMaximum,
+    };
+  },
+
+  /** An empty extension texture set. */
+  CreateExtensionTextures(): GltfExtensionTextures {
+    return {
+      Clearcoat: null, ClearcoatRoughness: null, ClearcoatNormal: null,
+      SheenColor: null, SheenRoughness: null, Transmission: null, Thickness: null,
+      Iridescence: null, IridescenceThickness: null,
+    };
+  },
+
+  /** Builds the CNA material a glTF material describes. */
+  BuildMaterial(source: GltfMaterialSource, textures: GltfMaterialTextures): PbrMaterialExt {
+    if (source == null) throw new TypeError("source is required");
+    if (textures == null) throw new TypeError("textures is required");
+    const sets = slotArray(source.TextureCoordinateSets, "TextureCoordinateSets");
+    const transforms = slotArray(source.TextureTransforms, "TextureTransforms");
+    const slots = slotArray(textures.Slots, "Slots");
+    const built = extensions().buildGltfPbrMaterial({
+      BaseColorFactor: {
+        X: finite(source.BaseColorFactor?.X, "BaseColorFactor.X"),
+        Y: finite(source.BaseColorFactor?.Y, "BaseColorFactor.Y"),
+        Z: finite(source.BaseColorFactor?.Z, "BaseColorFactor.Z"),
+        W: finite(source.BaseColorFactor?.W, "BaseColorFactor.W"),
+      },
+      MetallicFactor: finite(source.MetallicFactor, "MetallicFactor"),
+      RoughnessFactor: finite(source.RoughnessFactor, "RoughnessFactor"),
+      EmissiveFactor: vectorSnapshot(source.EmissiveFactor, "EmissiveFactor"),
+      NormalScale: finite(source.NormalScale, "NormalScale"),
+      OcclusionStrength: finite(source.OcclusionStrength, "OcclusionStrength"),
+      Ior: finite(source.Ior, "Ior"),
+      SpecularFactor: finite(source.SpecularFactor, "SpecularFactor"),
+      SpecularColorFactor: vectorSnapshot(source.SpecularColorFactor, "SpecularColorFactor"),
+      AlphaMode: wholeNumber(source.AlphaMode, "AlphaMode"),
+      AlphaCutoff: finite(source.AlphaCutoff, "AlphaCutoff"),
+      DoubleSided: Boolean(source.DoubleSided),
+      TextureCoordinateSets: sets.map((value, index) =>
+        wholeNumber(value, `TextureCoordinateSets[${index}]`)),
+      TextureTransforms: transforms.map((value, index) =>
+        transformSnapshot(value, `TextureTransforms[${index}]`)),
+    }, { Slots: slots.map((texture) => textureHandle(texture)) });
+    const material = toMaterial(built);
+    // The bridge answers with handles; the caller's own texture objects go back into the slots so
+    // the material it gets is the material it described, wrappers and all.
+    material.AlbedoTexture = slots[PbrTextureSlot.BaseColor] ?? null;
+    material.NormalTexture = slots[PbrTextureSlot.Normal] ?? null;
+    material.MetallicRoughnessTexture = slots[PbrTextureSlot.MetallicRoughness] ?? null;
+    material.EmissiveTexture = slots[PbrTextureSlot.Emissive] ?? null;
+    material.AmbientOcclusionTexture = slots[PbrTextureSlot.Occlusion] ?? null;
+    material.SpecularTexture = slots[PbrTextureSlot.Specular] ?? null;
+    material.SpecularColorTexture = slots[PbrTextureSlot.SpecularColor] ?? null;
+    return material;
+  },
+
+  /** Fills an extension set from a glTF material's `KHR_materials_*` factors and textures. */
+  BuildExtensions(
+    source: GltfExtensionSource, textures: GltfExtensionTextures,
+    destination: PbrMaterialExtensions,
+  ): void {
+    if (source == null) throw new TypeError("source is required");
+    if (textures == null) throw new TypeError("textures is required");
+    if (destination == null) throw new TypeError("destination is required");
+    extensions().buildGltfPbrMaterialExtensions({
+      ClearcoatFactor: finite(source.ClearcoatFactor, "ClearcoatFactor"),
+      ClearcoatRoughnessFactor: finite(
+        source.ClearcoatRoughnessFactor, "ClearcoatRoughnessFactor"),
+      SheenColorFactor: vectorSnapshot(source.SheenColorFactor, "SheenColorFactor"),
+      SheenRoughnessFactor: finite(source.SheenRoughnessFactor, "SheenRoughnessFactor"),
+      TransmissionFactor: finite(source.TransmissionFactor, "TransmissionFactor"),
+      ThicknessFactor: finite(source.ThicknessFactor, "ThicknessFactor"),
+      AttenuationDistance: finite(source.AttenuationDistance, "AttenuationDistance"),
+      AttenuationColor: vectorSnapshot(source.AttenuationColor, "AttenuationColor"),
+      IridescenceFactor: finite(source.IridescenceFactor, "IridescenceFactor"),
+      IridescenceIor: finite(source.IridescenceIor, "IridescenceIor"),
+      IridescenceThicknessMinimum: finite(
+        source.IridescenceThicknessMinimum, "IridescenceThicknessMinimum"),
+      IridescenceThicknessMaximum: finite(
+        source.IridescenceThicknessMaximum, "IridescenceThicknessMaximum"),
+    }, {
+      Clearcoat: textureHandle(textures.Clearcoat),
+      ClearcoatRoughness: textureHandle(textures.ClearcoatRoughness),
+      ClearcoatNormal: textureHandle(textures.ClearcoatNormal),
+      SheenColor: textureHandle(textures.SheenColor),
+      SheenRoughness: textureHandle(textures.SheenRoughness),
+      Transmission: textureHandle(textures.Transmission),
+      Thickness: textureHandle(textures.Thickness),
+      Iridescence: textureHandle(textures.Iridescence),
+      IridescenceThickness: textureHandle(textures.IridescenceThickness),
+    }, handleOfPbrExtensions(destination));
+  },
+} as const;
+
+/**
+ * The physically-based effect, as a real `Effect` the caller owns.
+ *
+ * Statics rather than a wrapper class, the way {@link CrtEffect} is: what CNA hands back is an
+ * ordinary effect handle that every effect route already accepts, so wrapping it would take that
+ * away. A whole material goes on with {@link ApplyMaterial} and comes back with
+ * {@link ExtractMaterial}; the individual accessors reach the same state one field at a time.
+ */
+export class PbrEffect {
+  private constructor() { /* created through Create */ }
+
+  /** Makes one, as a real `Effect` the caller owns and disposes. */
+  public static Create(graphicsDevice: GraphicsDevice): Effect {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    return adoptNativeEffectForInternalUse(
+      graphicsDevice, effectBackendFor(graphicsDevice),
+      extensions().createPbrEffect(resolveGraphicsDeviceHandleForInternalUse(graphicsDevice)),
+    );
+  }
+
+  /** Puts a whole material on the effect, copying it. */
+  public static ApplyMaterial(effect: Effect, material: PbrMaterialExt): void {
+    extensions().applyPbrEffectMaterial(
+      resolveEffectHandleForInternalUse(effect), materialSnapshot(material));
+  }
+
+  /**
+   * Reads the effect's state back as a material.
+   *
+   * The texture slots come back **empty even when the effect holds textures**: CNA answers with a
+   * raw handle, a material does not own its textures, and inventing a `Texture2D` wrapper here
+   * would invent an owner for one. Ask {@link GetTexture} for a slot's handle instead.
+   *
+   * So a material carrying a texture does not compare equal to itself across an apply and an
+   * extract. Everything else does — clear the slots on the original and the two are the same
+   * material, which is what the tests assert.
+   */
+  public static ExtractMaterial(effect: Effect): PbrMaterialExt {
+    return toMaterial(
+      extensions().extractPbrEffectMaterial(resolveEffectHandleForInternalUse(effect)));
+  }
+
+  /** The base colour, as a linear vector rather than the material's eight-bit colour. */
+  public static GetDiffuseColor(effect: Effect): Vector3 {
+    return toVector3(extensions().getPbrEffectDiffuseColor(resolveEffectHandleForInternalUse(effect)));
+  }
+  public static SetDiffuseColor(effect: Effect, value: Vector3): void {
+    extensions().setPbrEffectDiffuseColor(
+      resolveEffectHandleForInternalUse(effect), vectorSnapshot(value, "value"));
+  }
+
+  /** The material's opacity. */
+  public static GetAlpha(effect: Effect): number {
+    return extensions().getPbrEffectAlpha(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetAlpha(effect: Effect, value: number): void {
+    extensions().setPbrEffectAlpha(resolveEffectHandleForInternalUse(effect), finite(value, "value"));
+  }
+
+  /** How metallic the surface is. */
+  public static GetMetallicFactor(effect: Effect): number {
+    return extensions().getPbrEffectMetallicFactor(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetMetallicFactor(effect: Effect, value: number): void {
+    extensions().setPbrEffectMetallicFactor(
+      resolveEffectHandleForInternalUse(effect), finite(value, "value"));
+  }
+
+  /** How rough it is. */
+  public static GetRoughnessFactor(effect: Effect): number {
+    return extensions().getPbrEffectRoughnessFactor(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetRoughnessFactor(effect: Effect, value: number): void {
+    extensions().setPbrEffectRoughnessFactor(
+      resolveEffectHandleForInternalUse(effect), finite(value, "value"));
+  }
+
+  /** What the surface emits. */
+  public static GetEmissiveFactor(effect: Effect): Vector3 {
+    return toVector3(
+      extensions().getPbrEffectEmissiveFactor(resolveEffectHandleForInternalUse(effect)));
+  }
+  public static SetEmissiveFactor(effect: Effect, value: Vector3): void {
+    extensions().setPbrEffectEmissiveFactor(
+      resolveEffectHandleForInternalUse(effect), vectorSnapshot(value, "value"));
+  }
+
+  /** `KHR_materials_ior`. */
+  public static GetIor(effect: Effect): number {
+    return extensions().getPbrEffectIor(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetIor(effect: Effect, value: number): void {
+    extensions().setPbrEffectIor(resolveEffectHandleForInternalUse(effect), finite(value, "value"));
+  }
+
+  /** `KHR_materials_specular` strength. */
+  public static GetSpecularFactor(effect: Effect): number {
+    return extensions().getPbrEffectSpecularFactor(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetSpecularFactor(effect: Effect, value: number): void {
+    extensions().setPbrEffectSpecularFactor(
+      resolveEffectHandleForInternalUse(effect), finite(value, "value"));
+  }
+
+  /** `KHR_materials_specular` colour. */
+  public static GetSpecularColorFactor(effect: Effect): Vector3 {
+    return toVector3(
+      extensions().getPbrEffectSpecularColorFactor(resolveEffectHandleForInternalUse(effect)));
+  }
+  public static SetSpecularColorFactor(effect: Effect, value: Vector3): void {
+    extensions().setPbrEffectSpecularColorFactor(
+      resolveEffectHandleForInternalUse(effect), vectorSnapshot(value, "value"));
+  }
+
+  /** How strongly the normal map is applied. */
+  public static GetNormalScale(effect: Effect): number {
+    return extensions().getPbrEffectNormalScale(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetNormalScale(effect: Effect, value: number): void {
+    extensions().setPbrEffectNormalScale(
+      resolveEffectHandleForInternalUse(effect), finite(value, "value"));
+  }
+
+  /** How strongly ambient occlusion is applied. */
+  public static GetOcclusionStrength(effect: Effect): number {
+    return extensions().getPbrEffectOcclusionStrength(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetOcclusionStrength(effect: Effect, value: number): void {
+    extensions().setPbrEffectOcclusionStrength(
+      resolveEffectHandleForInternalUse(effect), finite(value, "value"));
+  }
+
+  /** How the material's alpha is read. */
+  public static GetAlphaMode(effect: Effect): AlphaMode {
+    return extensions().getPbrEffectAlphaMode(
+      resolveEffectHandleForInternalUse(effect)) as AlphaMode;
+  }
+  public static SetAlphaMode(effect: Effect, value: AlphaMode): void {
+    extensions().setPbrEffectAlphaMode(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(value, "value"));
+  }
+
+  /** The alpha below which a masked material is discarded. */
+  public static GetAlphaCutoff(effect: Effect): number {
+    return extensions().getPbrEffectAlphaCutoff(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetAlphaCutoff(effect: Effect, value: number): void {
+    extensions().setPbrEffectAlphaCutoff(
+      resolveEffectHandleForInternalUse(effect), finite(value, "value"));
+  }
+
+  /** Whether both faces are drawn. */
+  public static GetDoubleSided(effect: Effect): boolean {
+    return extensions().getPbrEffectDoubleSided(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetDoubleSided(effect: Effect, value: boolean): void {
+    extensions().setPbrEffectDoubleSided(resolveEffectHandleForInternalUse(effect), Boolean(value));
+  }
+
+  /** Whether the lit result is encoded back to sRGB. */
+  public static GetEncodeOutputToSrgb(effect: Effect): boolean {
+    return extensions().getPbrEffectEncodeOutputToSrgb(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetEncodeOutputToSrgb(effect: Effect, value: boolean): void {
+    extensions().setPbrEffectEncodeOutputToSrgb(
+      resolveEffectHandleForInternalUse(effect), Boolean(value));
+  }
+
+  /** Whether a vertex colour attribute multiplies the base colour. */
+  public static GetVertexColorEnabled(effect: Effect): boolean {
+    return extensions().getPbrEffectVertexColorEnabled(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetVertexColorEnabled(effect: Effect, value: boolean): void {
+    extensions().setPbrEffectVertexColorEnabled(
+      resolveEffectHandleForInternalUse(effect), Boolean(value));
+  }
+
+  /** The handle in one slot, or `0n` when the slot is empty. The effect does not own it. */
+  public static GetTexture(effect: Effect, slot: PbrTextureSlot): NativeHandle {
+    return extensions().getPbrEffectTexture(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(slot, "slot"));
+  }
+  public static SetTexture(effect: Effect, slot: PbrTextureSlot, texture: Texture2D | null): void {
+    extensions().setPbrEffectTexture(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(slot, "slot"), textureHandle(texture));
+  }
+
+  /** Which packed vertex UV channel a slot samples. */
+  public static GetTextureCoordinateSet(effect: Effect, slot: PbrTextureSlot): number {
+    return extensions().getPbrEffectTextureCoordinateSet(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(slot, "slot"));
+  }
+  public static SetTextureCoordinateSet(
+    effect: Effect, slot: PbrTextureSlot, value: number,
+  ): void {
+    extensions().setPbrEffectTextureCoordinateSet(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(slot, "slot"),
+      wholeNumber(value, "value"));
+  }
+
+  /** A slot's `KHR_texture_transform`. */
+  public static GetTextureTransform(effect: Effect, slot: PbrTextureSlot): TextureTransform {
+    return toTransform(extensions().getPbrEffectTextureTransform(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(slot, "slot")));
+  }
+  public static SetTextureTransform(
+    effect: Effect, slot: PbrTextureSlot, transform: TextureTransform,
+  ): void {
+    extensions().setPbrEffectTextureTransform(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(slot, "slot"),
+      transformSnapshot(transform, "transform"));
+  }
+
+  /** Whether a slot's samples are sRGB-encoded. */
+  public static GetTextureIsSrgb(effect: Effect, slot: PbrTextureSlot): boolean {
+    return extensions().getPbrEffectTextureIsSrgb(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(slot, "slot"));
+  }
+  public static SetTextureIsSrgb(effect: Effect, slot: PbrTextureSlot, value: boolean): void {
+    extensions().setPbrEffectTextureIsSrgb(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(slot, "slot"), Boolean(value));
+  }
+}
+
+/** The same effect with a skinning skeleton behind it. Every {@link PbrEffect} static applies. */
+export class SkinnedPbrEffect {
+  private constructor() { /* created through Create */ }
+
+  /** Makes one, as a real `Effect` the caller owns and disposes. */
+  public static Create(graphicsDevice: GraphicsDevice): Effect {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    return adoptNativeEffectForInternalUse(
+      graphicsDevice, effectBackendFor(graphicsDevice),
+      extensions().createSkinnedPbrEffect(
+        resolveGraphicsDeviceHandleForInternalUse(graphicsDevice)),
+    );
+  }
+
+  /** The whole material, as on an unskinned effect. */
+  public static ApplyMaterial(effect: Effect, material: PbrMaterialExt): void {
+    extensions().applySkinnedPbrEffectMaterial(
+      resolveEffectHandleForInternalUse(effect), materialSnapshot(material));
+  }
+
+  /** And back again. */
+  public static ExtractMaterial(effect: Effect): PbrMaterialExt {
+    return toMaterial(
+      extensions().extractSkinnedPbrEffectMaterial(resolveEffectHandleForInternalUse(effect)));
+  }
+
+  /** How many bones influence each vertex. */
+  public static GetWeightsPerVertex(effect: Effect): number {
+    return extensions().getSkinnedPbrEffectWeightsPerVertex(
+      resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetWeightsPerVertex(effect: Effect, value: number): void {
+    extensions().setSkinnedPbrEffectWeightsPerVertex(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(value, "value"));
+  }
+
+  /** Puts the skeleton's bone transforms on the effect. */
+  public static SetBoneTransforms(effect: Effect, transforms: readonly Matrix[]): void {
+    if (!Array.isArray(transforms)) throw new TypeError("transforms must be an array of matrices");
+    extensions().setSkinnedPbrEffectBoneTransforms(
+      resolveEffectHandleForInternalUse(effect),
+      transforms.map((matrix, index) => matrixValues(matrix, `transforms[${index}]`)));
+  }
+
+  /** Reads back the first `count` of them. */
+  public static GetBoneTransforms(effect: Effect, count: number): Matrix[] {
+    return extensions().getSkinnedPbrEffectBoneTransforms(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(count, "count"),
+    ).map((values) => toMatrix(values));
+  }
 }

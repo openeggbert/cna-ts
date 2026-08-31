@@ -315,6 +315,8 @@
       "CNA_MESSAGE_BOX_ICON_MAXIMUM",
       "CNA_MICROPHONE_STATE_MAXIMUM",
       "CNA_NOTIFICATION_POSITION_MAXIMUM",
+      "CNA_PBR_TEXTURE_MAXIMUM",
+      "CNA_PBR_TEXTURE_SLOT_COUNT",
       "CNA_POWER_STATE_MAXIMUM",
       "CNA_PRIMITIVE_POINT_LIST_EXT",
       "CNA_RACING_CAMERA_ANGLE_MAXIMUM",
@@ -940,6 +942,16 @@
       "suffixOverrides": {
         "Bayer4X4": "BAYER_4X4",
         "Bayer8X8": "BAYER_8X8"
+      }
+    },
+    {
+      "typeScriptEnum": "PbrTextureSlot",
+      "cnaPrefix": "CNA_PBR_TEXTURE",
+      "suffixOverrides": {
+        "BaseColor": "BASE_COLOR",
+        "MetallicRoughness": "METALLIC_ROUGHNESS",
+        "Specular": "SPECULAR_EXT",
+        "SpecularColor": "SPECULAR_COLOR_EXT"
       }
     }
   ]

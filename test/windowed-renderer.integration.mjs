@@ -2406,6 +2406,162 @@ class WindowedProbeGame extends Game {
       }
     });
 
+    // --- the physically-based effects on a real renderer -------------------------------------------
+    //
+    // The value semantics are qualified headless, where they belong. What only a GPU-backed
+    // renderer can answer is whether a PBR effect is a real compiled effect there -- HEADLESS
+    // constructs one and refuses to execute it -- and whether a material's state reaches CNA's
+    // device rather than the wrapper's cached copy.
+    record("pbrMaterial", () => {
+      const {
+        AlphaMode, CreatePbrMaterialExt, GltfMaterialBridge, IsGraphicsExtensionLayerAvailable,
+        PbrEffect, PbrMaterialExtOperations, PbrMaterialExtensions, PbrTextureSlot,
+        SkinnedPbrEffect,
+      } = computeModule;
+      const owned = [];
+      try {
+        let effect;
+        try {
+          effect = PbrEffect.Create(device);
+        } catch (error) {
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(effect);
+        const skinned = SkinnedPbrEffect.Create(device);
+        owned.push(skinned);
+        const result = {
+          technique: effect.CurrentTechnique.Name,
+          passCount: effect.CurrentTechnique.Passes.Count,
+          skinnedTechnique: skinned.CurrentTechnique.Name,
+        };
+        // A stock effect's pass applies for real here; HEADLESS answers not-supported.
+        result.apply = (() => {
+          try {
+            effect.CurrentTechnique.Passes.Get(0).Apply();
+            return "SUCCESS";
+          } catch (error) {
+            return `result ${error.cnaResult}`;
+          }
+        })();
+
+        const texture = new Graphics.Texture2D(device, 2, 2);
+        owned.push(texture);
+        texture.SetData([
+          new Color(200, 100, 40, 255), new Color(40, 200, 100, 255),
+          new Color(100, 40, 200, 255), new Color(255, 255, 255, 255),
+        ]);
+        const material = CreatePbrMaterialExt();
+        material.AlbedoColor = new Color(200, 100, 40, 128);
+        material.MetallicFactor = 0.25;
+        material.RoughnessFactor = 0.75;
+        material.Ior = 1.75;
+        material.AlphaMode = AlphaMode.Blend;
+        material.DoubleSided = true;
+        material.AlbedoTexture = texture;
+        material.TextureCoordinateSets[PbrTextureSlot.Normal] = 1;
+        PbrEffect.ApplyMaterial(effect, material);
+        const extracted = PbrEffect.ExtractMaterial(effect);
+        // A material carrying a texture cannot come back whole: CNA answers with a raw handle and
+        // this layer will not invent an owner for it, so the extracted material's slots are empty.
+        // What must be true is that *only* the slots differ, which is what the second comparison
+        // says -- the same material with its slot cleared is the extracted one exactly.
+        const withoutTexture = { ...material, AlbedoTexture: null };
+        result.roundTrip = PbrMaterialExtOperations.Equals(withoutTexture, extracted);
+        result.roundTripWithTexture = PbrMaterialExtOperations.Equals(material, extracted);
+        result.throughAccessors = {
+          metallic: PbrEffect.GetMetallicFactor(effect),
+          ior: PbrEffect.GetIor(effect),
+          alphaMode: PbrEffect.GetAlphaMode(effect),
+          doubleSided: PbrEffect.GetDoubleSided(effect),
+          normalSet: PbrEffect.GetTextureCoordinateSet(effect, PbrTextureSlot.Normal),
+        };
+        // Finding 19: the slots have two sources of truth. A texture applied with a material is
+        // invisible to the slot getter, the setter's texture is invisible to the extractor, and a
+        // material with an empty slot does not clear one the setter filled. All three rows are
+        // asserted so a repair fails here rather than passing unnoticed.
+        result.slots = {
+          afterApplyWithTexture: PbrEffect.GetTexture(effect, PbrTextureSlot.BaseColor) !== 0n,
+        };
+        PbrEffect.SetTexture(effect, PbrTextureSlot.BaseColor, texture);
+        result.slots.afterSetTexture =
+          PbrEffect.GetTexture(effect, PbrTextureSlot.BaseColor) !== 0n;
+        result.slots.extractedAfterSetTexture =
+          PbrEffect.ExtractMaterial(effect).AlbedoTexture;
+        PbrEffect.ApplyMaterial(effect, { ...material, AlbedoTexture: null });
+        result.slots.afterEmptyApply =
+          PbrEffect.GetTexture(effect, PbrTextureSlot.BaseColor) !== 0n;
+        PbrEffect.SetTexture(effect, PbrTextureSlot.BaseColor, null);
+        // A material's own state reaches CNA's device. Read back from CNA, and predicted from the
+        // XNA states its implementation names rather than from numbers recorded here.
+        PbrMaterialExtOperations.ApplyState(material, device);
+        const blended = PbrMaterialExtOperations.ReadDeviceBlendState(device);
+        const blendedCull = PbrMaterialExtOperations.ReadDeviceRasterizerState(device).CullMode;
+        material.AlphaMode = AlphaMode.Opaque;
+        material.DoubleSided = false;
+        PbrMaterialExtOperations.ApplyState(material, device);
+        const opaque = PbrMaterialExtOperations.ReadDeviceBlendState(device);
+        const opaqueCull = PbrMaterialExtOperations.ReadDeviceRasterizerState(device).CullMode;
+        result.state = {
+          blendedSource: blended.ColorSourceBlend,
+          blendedDestination: blended.ColorDestinationBlend,
+          blendedCull,
+          opaqueSource: opaque.ColorSourceBlend,
+          opaqueDestination: opaque.ColorDestinationBlend,
+          opaqueCull,
+        };
+        // The glTF bridge and the extension set both work here as they do headless.
+        const source = GltfMaterialBridge.CreateSource();
+        source.BaseColorFactor = new Vector4(1, 0.5, 0.25, 0.5);
+        source.Ior = 1.75;
+        const built = GltfMaterialBridge.BuildMaterial(
+          source, GltfMaterialBridge.CreateTextures());
+        result.bridge = {
+          albedo: [built.AlbedoColor.R, built.AlbedoColor.G, built.AlbedoColor.B, built.AlbedoColor.A],
+          ior: built.Ior,
+        };
+        const set = new PbrMaterialExtensions();
+        try {
+          const neutral = set.IsNeutral;
+          set.ClearcoatFactor = 0.5;
+          set.SetClearcoatTexture(texture);
+          result.extensions = {
+            neutral,
+            afterEdit: set.IsNeutral,
+            clearcoat: set.ClearcoatFactor,
+            textureFilled: set.GetClearcoatTexture() !== 0n,
+          };
+          set.SetClearcoatTexture(null);
+        } finally {
+          set.Dispose();
+        }
+        // The skinned effect's own state, on a renderer that has real shaders.
+        SkinnedPbrEffect.SetWeightsPerVertex(skinned, 2);
+        SkinnedPbrEffect.SetBoneTransforms(
+          skinned, [Matrix.Identity, Matrix.CreateTranslation(new Vector3(3, 4, 5))]);
+        const bones = SkinnedPbrEffect.GetBoneTransforms(skinned, 2);
+        result.skinned = {
+          weights: SkinnedPbrEffect.GetWeightsPerVertex(skinned),
+          count: bones.length,
+          translation: [bones[1].M41, bones[1].M42, bones[1].M43],
+        };
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch (error) {
+            (this.evidence.pbrCleanup ??= []).push(
+              `${error.constructor.name}: ${(error.message ?? "").slice(0, 90)}`,
+            );
+          }
+        }
+      }
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -4778,5 +4934,90 @@ test("a windowed CNA renderer runs every post-process pass to the exact pixels i
     `IDENTITIES=${Object.keys(pp.identities).length} CRT_SCANLINES=EXACT CRT_VIGNETTE=RADIAL ` +
     `ASCII_GRID=${pp.ascii.cell8x12.join("x")}/${pp.ascii.cell4x4.join("x")}/${pp.ascii.cell16x8.join("x")} ` +
     `BORROWS=RETURNED`,
+  );
+});
+
+test("a windowed CNA renderer compiles the physically-based effects and takes their material", { skip }, async () => {
+  const game = new WindowedProbeGame(6);
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const pbr = evidence.pbrMaterial;
+  assert.equal(typeof pbr, "object", `the PBR block did not run: ${pbr}`);
+  if (pbr.layerAbsent) {
+    assert.equal(pbr.extensionLayer, false);
+    console.log(`CNA_TS_WINDOWED_PBR=SKIPPED_NO_LAYER RESULT=${pbr.cnaResult}`);
+    return;
+  }
+  assert.equal(evidence.pbrCleanup, undefined, `cleanup failed: ${evidence.pbrCleanup}`);
+
+  const { AlphaMode, PbrTextureSlot } = computeModule;
+  const { Blend, CullMode } = Graphics;
+
+  // What only a real renderer answers: these are compiled effects with named techniques and
+  // passes that execute, where HEADLESS constructs them and refuses.
+  assert.equal(typeof pbr.technique, "string");
+  assert.ok(pbr.technique.length > 0, "a PBR effect has a named technique");
+  assert.ok(pbr.passCount >= 1, `and at least one pass, not ${pbr.passCount}`);
+  assert.ok(pbr.skinnedTechnique.length > 0, "and so does the skinned one");
+  assert.equal(pbr.apply, "SUCCESS", "its pass applies on a renderer with real shaders");
+
+  // The material round trip, on the GPU-backed device rather than headless.
+  assert.equal(
+    pbr.roundTrip, true,
+    "an applied material extracts back equal to itself in every field but its texture slots",
+  );
+  assert.equal(
+    pbr.roundTripWithTexture, false,
+    "and the slots really are the difference, rather than the comparison being vacuous",
+  );
+  assert.equal(pbr.throughAccessors.metallic, 0.25);
+  assert.equal(pbr.throughAccessors.ior, 1.75);
+  assert.equal(pbr.throughAccessors.alphaMode, AlphaMode.Blend);
+  assert.equal(pbr.throughAccessors.doubleSided, true);
+  assert.equal(pbr.throughAccessors.normalSet, 1);
+  // Upstream finding 19, all three measured rows.
+  assert.equal(
+    pbr.slots.afterApplyWithTexture, false,
+    "a texture applied with a material is not visible through the slot getter",
+  );
+  assert.equal(
+    pbr.slots.afterSetTexture, true,
+    "but one placed through the slot setter is",
+  );
+  assert.equal(
+    pbr.slots.extractedAfterSetTexture, null,
+    "and the extractor reports no texture even then",
+  );
+  assert.equal(
+    pbr.slots.afterEmptyApply, true,
+    "applying a material with an empty slot does not clear what the setter put there",
+  );
+
+  // What ApplyState wrote, read back from CNA and predicted from the XNA states it names.
+  assert.equal(pbr.state.blendedSource, Blend.SourceAlpha);
+  assert.equal(pbr.state.blendedDestination, Blend.InverseSourceAlpha);
+  assert.equal(pbr.state.blendedCull, CullMode.None);
+  assert.equal(pbr.state.opaqueSource, Blend.One);
+  assert.equal(pbr.state.opaqueDestination, Blend.Zero);
+  assert.equal(pbr.state.opaqueCull, CullMode.CullCounterClockwiseFace);
+
+  // The bridge quantises the same way here as it does headless.
+  assert.deepEqual(pbr.bridge.albedo, [255, 128, 64, 128]);
+  assert.equal(pbr.bridge.ior, 1.75);
+
+  assert.equal(pbr.extensions.neutral, true);
+  assert.equal(pbr.extensions.afterEdit, false);
+  assert.equal(pbr.extensions.clearcoat, 0.5);
+  assert.equal(pbr.extensions.textureFilled, true);
+
+  assert.equal(pbr.skinned.weights, 2);
+  assert.equal(pbr.skinned.count, 2);
+  assert.deepEqual(pbr.skinned.translation, [3, 4, 5]);
+
+  console.log(
+    `CNA_TS_WINDOWED_PBR=PASS TECHNIQUE=${pbr.technique}/${pbr.passCount} APPLY=${pbr.apply} ` +
+    `ROUND_TRIP=EXACT STATE=BLEND_AND_CULL BRIDGE=${pbr.bridge.albedo.join("/")}`,
   );
 });

@@ -1684,6 +1684,100 @@
         "test:test/windowed-renderer.integration.mjs",
         "test:test/native-cna.integration.mjs"
       ]
+    },
+    {
+      "operation": "The canonical PBR material as a value: equality, hashing, printing and device state",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "CNA carries the physically-based material in two C shapes -- the layout frozen before the KHR_materials_* factors existed, and the canonical one every accessor on the C++ type corresponds to -- and this projects the canonical one. It is a value and is checked as one: two materials built the same way compare equal and hash alike, one edited field makes them differ and changes the hash, the same edit twice gives the same material again, and two materials never share their per-slot arrays. CNA's own defaults are glTF's -- fully metallic and fully rough, an IOR of 1.5, an opaque white base colour, every slot on UV channel zero with a neutral transform -- and each is asserted against what glTF specifies rather than against a number recorded from a run. The printed form names the fields it carries, including all four channels of a base colour no default equals. What ApplyState does is qualified by reading CNA's device state back rather than by trusting the wrapper's, which cannot see it: a blended material leaves SourceAlpha/InverseSourceAlpha, an opaque or masked one leaves One/Zero, and a double-sided one leaves CullNone -- each predicted from the XNA state the C++ names, not from a measurement. Fifteen planted binding defects fail and none survives",
+      "proof": [
+        "route:cna_pbr_material_ext_init",
+        "route:cna_pbr_material_ext_equals",
+        "route:cna_pbr_material_ext_get_hash_code",
+        "route:cna_pbr_material_ext_copy_to_string",
+        "route:cna_pbr_material_apply_state",
+        "route:cna_texture_transform_ext_init",
+        "route:cna_graphics_device_get_blend_state",
+        "route:cna_graphics_device_get_rasterizer_state",
+        "test:test/native-cna.integration.mjs",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "glTF material extensions: clearcoat, sheen, transmission, iridescence and subsurface",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "bound as a handle rather than a value struct because the canonical type holds nine borrowed Texture2D pointers, which do not belong in caller-writable memory -- and it still behaves as a value, which is what is checked: two fresh sets compare equal and hash alike, copying makes an edited set equal to its source and leaves the source alone, and the printed form is {} when neutral and names each feature that is on. The subtle part is what IsNeutral means, and it is measured one field at a time from a fresh set each time: it reports whether a feature *contributes*, not whether a field was written. A sheen colour, a transmission factor, an iridescence factor, a subsurface colour or a clearcoat factor makes the set non-neutral; a sheen roughness, a thickness, a subsurface wrap, a clearcoat roughness or an attenuation distance does not, even though each stores its value and reads back. Every scalar and vector round-trips at float precision with a value no default equals, and the nine texture slots are empty, then filled in three of them and not the other six, then cleared with null. glTF's own non-zero defaults are asserted as such: an iridescence IOR of 1.3, a thickness range of 100..400nm, and a white attenuation colour",
+      "proof": [
+        "route:cna_pbr_material_extensions_create",
+        "route:cna_pbr_material_extensions_destroy",
+        "route:cna_pbr_material_extensions_copy_from",
+        "route:cna_pbr_material_extensions_equals",
+        "route:cna_pbr_material_extensions_get_hash_code",
+        "route:cna_pbr_material_extensions_copy_to_string",
+        "route:cna_pbr_material_extensions_is_neutral",
+        "route:cna_pbr_material_extensions_is_sheen_enabled",
+        "route:cna_pbr_material_extensions_is_transmission_enabled",
+        "route:cna_pbr_material_extensions_is_iridescence_enabled",
+        "route:cna_pbr_material_extensions_is_subsurface_enabled",
+        "route:cna_pbr_material_extensions_set_clearcoat_factor",
+        "route:cna_pbr_material_extensions_set_sheen_color_factor",
+        "route:cna_pbr_material_extensions_set_clearcoat_texture",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "The glTF material bridge, and the one conversion it performs",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the bridge is the only thing in this family that converts rather than carries: a glTF base-colour factor is a linear float vector and a CNA albedo is an eight-bit colour. That conversion is measured over a table of seven inputs rather than from one point, and every one matches round(x * 255) -- (1, 0.5, 0.25, 0.5) becomes (255, 128, 64, 128). Everything else is asserted to arrive unchanged, each factor set to a value no default equals, and the per-slot values are asserted to arrive in their own slot and nowhere else: one coordinate set written to the emissive slot leaves the other six at zero, and one transform written to the metallic-roughness slot leaves the other six neutral. The extension bridge is checked the same way against a fresh extension set. glTF's own defaults come from CNA rather than from numbers written here, so a change upstream is a diagnostic rather than a silent difference",
+      "proof": [
+        "route:cna_gltf_material_source_ext_init",
+        "route:cna_gltf_material_textures_ext_init",
+        "route:cna_gltf_material_extension_source_ext_init",
+        "route:cna_gltf_material_extension_textures_ext_init",
+        "route:cna_gltf_material_bridge_build_material",
+        "route:cna_gltf_material_bridge_build_extensions",
+        "test:test/native-cna.integration.mjs",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "The physically-based effects, skinned and not, and the material they carry",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the acceptance is two independent paths into one state. A whole material goes on with one route, and every field is then read back through the per-field accessors -- routes the apply never touched -- before the extractor is asked for the material again and CNA's own equality compares it with what went on. The per-field setters then move the same state, which is what makes those two paths two rather than one. A fresh effect starts at exactly the material's own defaults, which is what makes them one type. Per-slot state is asserted to land in its own slot: a coordinate set and a transform written to the normal slot arrive there and the base-colour slot keeps its own, and an sRGB flag cleared on one slot leaves the others set. The skinned effect carries the same material and its own skeleton: four bone weights per vertex by default, a translation and a scale that survive the round trip, identity that stays identity, and a request for fewer bones than were set answering with that many. On a windowed renderer both are real compiled effects with named techniques whose passes execute, which HEADLESS constructs and refuses. The texture slots are upstream finding 19 and are asserted as measured rather than as documented",
+      "proof": [
+        "route:cna_pbr_effect_create",
+        "route:cna_skinned_pbr_effect_create",
+        "route:cna_pbr_effect_apply_material",
+        "route:cna_pbr_effect_extract_material",
+        "route:cna_skinned_pbr_effect_apply_material",
+        "route:cna_skinned_pbr_effect_extract_material",
+        "route:cna_pbr_effect_set_metallic_factor",
+        "route:cna_pbr_effect_get_texture_transform_ext",
+        "route:cna_pbr_effect_set_texture_coordinate_set_ext",
+        "route:cna_pbr_effect_set_texture_is_srgb_ext",
+        "route:cna_pbr_effect_get_texture",
+        "route:cna_pbr_effect_set_texture",
+        "route:cna_skinned_pbr_effect_set_bone_transforms",
+        "route:cna_skinned_pbr_effect_copy_bone_transforms",
+        "test:test/native-cna.integration.mjs",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Reading a PBR effect's texture slots back",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA",
+      "evidence": "the slots have two sources of truth and they never agree. cna_pbr_effect_apply_material writes the C++ effect's texture pointers; cna_pbr_effect_set_texture writes the C API's own retained-handle table, which is the only thing cna_pbr_effect_get_texture reads. Measured identically on HEADLESS and OPENGLES3: a texture applied with a material is invisible to the slot getter, a texture placed through the setter is invisible to the extractor, and applying a material with an empty slot does not clear one the setter filled. So a material carrying a texture cannot be round-tripped through an effect. Written up as upstream finding 19; all three rows are asserted in both suites, and the binding documents on ExtractMaterial that the slots come back empty rather than inventing a Texture2D wrapper for a handle it does not own",
+      "proof": [
+        "route:cna_pbr_effect_get_texture",
+        "route:cna_pbr_effect_apply_material",
+        "route:cna_pbr_effect_extract_material",
+        "test:test/native-cna.integration.mjs",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
     }
   ]
 }

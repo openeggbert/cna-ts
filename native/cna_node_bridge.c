@@ -881,6 +881,39 @@ typedef CNA_Result (*AccelerometerCreateFn)(CNA_Handle, CNA_AccelerometerHandle*
 typedef CNA_Result (*AccelerometerReadingFn)(CNA_AccelerometerHandle, CNA_AccelerometerReading*);
 typedef CNA_Result (*AccelerometerTicksInFn)(CNA_AccelerometerHandle, int64_t);
 
+/* ---- the canonical PBR material, its glTF extensions, and the bridge ---- */
+typedef CNA_Result (*PbrMaterialExtInitFn)(CNA_PbrMaterialEXT*);
+typedef CNA_Result (*TextureTransformInitFn)(CNA_TextureTransformEXT*);
+typedef CNA_Result (*PbrMaterialExtEqualsFn)(const CNA_PbrMaterialEXT*, const CNA_PbrMaterialEXT*, CNA_Bool*);
+typedef CNA_Result (*PbrMaterialExtHashFn)(const CNA_PbrMaterialEXT*, uint64_t*);
+typedef CNA_Result (*PbrMaterialExtCopyStringFn)(const CNA_PbrMaterialEXT*, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*PbrMaterialApplyStateFn)(const CNA_PbrMaterialEXT*, CNA_Handle);
+typedef CNA_Result (*PbrEffectApplyFn)(CNA_Handle, const CNA_PbrMaterialEXT*);
+typedef CNA_Result (*PbrEffectExtractFn)(CNA_Handle, CNA_PbrMaterialEXT*);
+typedef CNA_Result (*PbrExtensionsCreateFn)(CNA_Handle*);
+typedef CNA_Result (*PbrExtensionsEqualsFn)(CNA_Handle, CNA_Handle, CNA_Bool*);
+typedef CNA_Result (*GltfSourceInitFn)(CNA_GltfMaterialSourceEXT*);
+typedef CNA_Result (*GltfTexturesInitFn)(CNA_GltfMaterialTexturesEXT*);
+typedef CNA_Result (*GltfExtensionSourceInitFn)(CNA_GltfMaterialExtensionSourceEXT*);
+typedef CNA_Result (*GltfExtensionTexturesInitFn)(CNA_GltfMaterialExtensionTexturesEXT*);
+typedef CNA_Result (*GltfBuildMaterialFn)(const CNA_GltfMaterialSourceEXT*, const CNA_GltfMaterialTexturesEXT*, CNA_PbrMaterialEXT*);
+typedef CNA_Result (*GltfBuildExtensionsFn)(const CNA_GltfMaterialExtensionSourceEXT*, const CNA_GltfMaterialExtensionTexturesEXT*, CNA_PbrMaterialExtensionsHandle);
+
+typedef CNA_Result (*PbrVector3InFn)(CNA_Handle, CNA_Vector3);
+typedef CNA_Result (*PbrSlotTextureGetFn)(CNA_Handle, CNA_PbrTextureSlot, CNA_Bool*, CNA_Handle*);
+typedef CNA_Result (*PbrSlotHandleFn)(CNA_Handle, CNA_PbrTextureSlot, CNA_Handle);
+typedef CNA_Result (*PbrSlotI32OutFn)(CNA_Handle, CNA_PbrTextureSlot, int32_t*);
+typedef CNA_Result (*PbrSlotI32Fn)(CNA_Handle, CNA_PbrTextureSlot, int32_t);
+typedef CNA_Result (*PbrSlotTransformOutFn)(CNA_Handle, CNA_PbrTextureSlot, CNA_TextureTransformEXT*);
+typedef CNA_Result (*PbrSlotTransformInFn)(CNA_Handle, CNA_PbrTextureSlot, const CNA_TextureTransformEXT*);
+typedef CNA_Result (*PbrSlotBoolOutFn)(CNA_Handle, CNA_PbrTextureSlot, CNA_Bool*);
+typedef CNA_Result (*PbrSlotBoolFn)(CNA_Handle, CNA_PbrTextureSlot, CNA_Bool);
+typedef CNA_Result (*AlphaModeSetFn)(CNA_Handle, CNA_AlphaModeEXT);
+typedef CNA_Result (*SkinnedPbrCopyBonesFn)(CNA_Handle, uint64_t, CNA_Matrix*, uint64_t, uint64_t*);
+
+typedef CNA_Result (*DeviceBlendStateOutFn)(CNA_Handle, CNA_BlendState*);
+typedef CNA_Result (*DeviceRasterizerStateOutFn)(CNA_Handle, CNA_RasterizerState*);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2180,6 +2213,127 @@ typedef struct Api {
   AccelerometerReadingFn accelerometer_get_current_value;
   HandleInt64OutFn accelerometer_get_interval;
   AccelerometerTicksInFn accelerometer_set_interval;
+  PbrMaterialExtInitFn pbr_material_ext_init;
+  TextureTransformInitFn texture_transform_ext_init;
+  PbrMaterialExtEqualsFn pbr_material_ext_equals;
+  PbrMaterialExtHashFn pbr_material_ext_get_hash_code;
+  PbrMaterialExtCopyStringFn pbr_material_ext_copy_to_string;
+  PbrMaterialApplyStateFn pbr_material_apply_state;
+  PbrEffectApplyFn pbr_effect_apply_material;
+  PbrEffectExtractFn pbr_effect_extract_material;
+  PbrEffectApplyFn skinned_pbr_effect_apply_material;
+  PbrEffectExtractFn skinned_pbr_effect_extract_material;
+  PbrExtensionsCreateFn pbr_material_extensions_create;
+  GameHandleFn pbr_material_extensions_destroy;
+  TwoHandleFn pbr_material_extensions_copy_from;
+  PbrExtensionsEqualsFn pbr_material_extensions_equals;
+  HandleU64OutFn pbr_material_extensions_get_hash_code;
+  HandleCopyStringFn pbr_material_extensions_copy_to_string;
+  GltfSourceInitFn gltf_material_source_ext_init;
+  GltfTexturesInitFn gltf_material_textures_ext_init;
+  GltfExtensionSourceInitFn gltf_material_extension_source_ext_init;
+  GltfExtensionTexturesInitFn gltf_material_extension_textures_ext_init;
+  GltfBuildMaterialFn gltf_material_bridge_build_material;
+  GltfBuildExtensionsFn gltf_material_bridge_build_extensions;
+  SkyVector3OutFn pbr_material_extensions_get_attenuation_color;
+  HandleFloatOutFn pbr_material_extensions_get_attenuation_distance;
+  HandleFloatOutFn pbr_material_extensions_get_clearcoat_factor;
+  HandleFloatOutFn pbr_material_extensions_get_clearcoat_normal_scale;
+  HandleHandleOutFn pbr_material_extensions_get_clearcoat_normal_texture;
+  HandleFloatOutFn pbr_material_extensions_get_clearcoat_roughness;
+  HandleHandleOutFn pbr_material_extensions_get_clearcoat_roughness_texture;
+  HandleHandleOutFn pbr_material_extensions_get_clearcoat_texture;
+  HandleFloatOutFn pbr_material_extensions_get_iridescence_factor;
+  HandleFloatOutFn pbr_material_extensions_get_iridescence_ior;
+  HandleHandleOutFn pbr_material_extensions_get_iridescence_texture;
+  HandleFloatOutFn pbr_material_extensions_get_iridescence_thickness_maximum;
+  HandleFloatOutFn pbr_material_extensions_get_iridescence_thickness_minimum;
+  HandleHandleOutFn pbr_material_extensions_get_iridescence_thickness_texture;
+  SkyVector3OutFn pbr_material_extensions_get_sheen_color_factor;
+  HandleHandleOutFn pbr_material_extensions_get_sheen_color_texture;
+  HandleFloatOutFn pbr_material_extensions_get_sheen_roughness;
+  HandleHandleOutFn pbr_material_extensions_get_sheen_roughness_texture;
+  SkyVector3OutFn pbr_material_extensions_get_subsurface_color;
+  HandleFloatOutFn pbr_material_extensions_get_subsurface_wrap;
+  HandleFloatOutFn pbr_material_extensions_get_thickness_factor;
+  HandleHandleOutFn pbr_material_extensions_get_thickness_texture;
+  HandleFloatOutFn pbr_material_extensions_get_transmission_factor;
+  HandleHandleOutFn pbr_material_extensions_get_transmission_texture;
+  BoolGetFn pbr_material_extensions_is_iridescence_enabled;
+  BoolGetFn pbr_material_extensions_is_neutral;
+  BoolGetFn pbr_material_extensions_is_sheen_enabled;
+  BoolGetFn pbr_material_extensions_is_subsurface_enabled;
+  BoolGetFn pbr_material_extensions_is_transmission_enabled;
+  SkyVector3InFn pbr_material_extensions_set_attenuation_color;
+  HandleFloatFn pbr_material_extensions_set_attenuation_distance;
+  HandleFloatFn pbr_material_extensions_set_clearcoat_factor;
+  HandleFloatFn pbr_material_extensions_set_clearcoat_normal_scale;
+  TwoHandleFn pbr_material_extensions_set_clearcoat_normal_texture;
+  HandleFloatFn pbr_material_extensions_set_clearcoat_roughness;
+  TwoHandleFn pbr_material_extensions_set_clearcoat_roughness_texture;
+  TwoHandleFn pbr_material_extensions_set_clearcoat_texture;
+  HandleFloatFn pbr_material_extensions_set_iridescence_factor;
+  HandleFloatFn pbr_material_extensions_set_iridescence_ior;
+  TwoHandleFn pbr_material_extensions_set_iridescence_texture;
+  HandleFloatFn pbr_material_extensions_set_iridescence_thickness_maximum;
+  HandleFloatFn pbr_material_extensions_set_iridescence_thickness_minimum;
+  TwoHandleFn pbr_material_extensions_set_iridescence_thickness_texture;
+  SkyVector3InFn pbr_material_extensions_set_sheen_color_factor;
+  TwoHandleFn pbr_material_extensions_set_sheen_color_texture;
+  HandleFloatFn pbr_material_extensions_set_sheen_roughness;
+  TwoHandleFn pbr_material_extensions_set_sheen_roughness_texture;
+  SkyVector3InFn pbr_material_extensions_set_subsurface_color;
+  HandleFloatFn pbr_material_extensions_set_subsurface_wrap;
+  HandleFloatFn pbr_material_extensions_set_thickness_factor;
+  TwoHandleFn pbr_material_extensions_set_thickness_texture;
+  HandleFloatFn pbr_material_extensions_set_transmission_factor;
+  TwoHandleFn pbr_material_extensions_set_transmission_texture;
+  PostProcessPassCreateFn pbr_effect_create;
+  PostProcessPassCreateFn skinned_pbr_effect_create;
+  SkyVector3OutFn pbr_effect_get_diffuse_color;
+  PbrVector3InFn pbr_effect_set_diffuse_color;
+  HandleFloatOutFn pbr_effect_get_alpha;
+  HandleFloatFn pbr_effect_set_alpha;
+  PbrSlotTextureGetFn pbr_effect_get_texture;
+  PbrSlotHandleFn pbr_effect_set_texture;
+  HandleFloatOutFn pbr_effect_get_metallic_factor;
+  HandleFloatFn pbr_effect_set_metallic_factor;
+  HandleFloatOutFn pbr_effect_get_roughness_factor;
+  HandleFloatFn pbr_effect_set_roughness_factor;
+  SkyVector3OutFn pbr_effect_get_emissive_factor;
+  PbrVector3InFn pbr_effect_set_emissive_factor;
+  BoolGetFn pbr_effect_get_vertex_color_enabled_ext;
+  HandleBoolFn pbr_effect_set_vertex_color_enabled_ext;
+  HandleFloatOutFn pbr_effect_get_ior_ext;
+  HandleFloatFn pbr_effect_set_ior_ext;
+  HandleFloatOutFn pbr_effect_get_specular_factor_ext;
+  HandleFloatFn pbr_effect_set_specular_factor_ext;
+  SkyVector3OutFn pbr_effect_get_specular_color_factor_ext;
+  PbrVector3InFn pbr_effect_set_specular_color_factor_ext;
+  HandleFloatOutFn pbr_effect_get_normal_scale_ext;
+  HandleFloatFn pbr_effect_set_normal_scale_ext;
+  HandleFloatOutFn pbr_effect_get_occlusion_strength_ext;
+  HandleFloatFn pbr_effect_set_occlusion_strength_ext;
+  PbrSlotI32OutFn pbr_effect_get_texture_coordinate_set_ext;
+  PbrSlotI32Fn pbr_effect_set_texture_coordinate_set_ext;
+  PbrSlotTransformOutFn pbr_effect_get_texture_transform_ext;
+  PbrSlotTransformInFn pbr_effect_set_texture_transform_ext;
+  PbrSlotBoolOutFn pbr_effect_get_texture_is_srgb_ext;
+  PbrSlotBoolFn pbr_effect_set_texture_is_srgb_ext;
+  BoolGetFn pbr_effect_get_encode_output_to_srgb_ext;
+  HandleBoolFn pbr_effect_set_encode_output_to_srgb_ext;
+  GameU32OutFn pbr_effect_get_alpha_mode_ext;
+  AlphaModeSetFn pbr_effect_set_alpha_mode_ext;
+  HandleFloatOutFn pbr_effect_get_alpha_cutoff_ext;
+  HandleFloatFn pbr_effect_set_alpha_cutoff_ext;
+  BoolGetFn pbr_effect_get_double_sided_ext;
+  HandleBoolFn pbr_effect_set_double_sided_ext;
+  HandleI32OutFn skinned_pbr_effect_get_weights_per_vertex;
+  HandleI32Fn skinned_pbr_effect_set_weights_per_vertex;
+  EffectMatricesFn skinned_pbr_effect_set_bone_transforms;
+  SkinnedPbrCopyBonesFn skinned_pbr_effect_copy_bone_transforms;
+  DeviceBlendStateOutFn graphics_device_get_blend_state;
+  DeviceRasterizerStateOutFn graphics_device_get_rasterizer_state;
 } Api;
 
 typedef struct GameContext {
@@ -3841,6 +3995,127 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(accelerometer_get_current_value, AccelerometerReadingFn, "cna_accelerometer_get_current_value");
   LOAD_REQUIRED(accelerometer_get_interval, HandleInt64OutFn, "cna_accelerometer_get_time_between_updates_ticks");
   LOAD_REQUIRED(accelerometer_set_interval, AccelerometerTicksInFn, "cna_accelerometer_set_time_between_updates_ticks");
+  LOAD_REQUIRED(pbr_material_ext_init, PbrMaterialExtInitFn, "cna_pbr_material_ext_init");
+  LOAD_REQUIRED(texture_transform_ext_init, TextureTransformInitFn, "cna_texture_transform_ext_init");
+  LOAD_REQUIRED(pbr_material_ext_equals, PbrMaterialExtEqualsFn, "cna_pbr_material_ext_equals");
+  LOAD_REQUIRED(pbr_material_ext_get_hash_code, PbrMaterialExtHashFn, "cna_pbr_material_ext_get_hash_code");
+  LOAD_REQUIRED(pbr_material_ext_copy_to_string, PbrMaterialExtCopyStringFn, "cna_pbr_material_ext_copy_to_string");
+  LOAD_REQUIRED(pbr_material_apply_state, PbrMaterialApplyStateFn, "cna_pbr_material_apply_state");
+  LOAD_REQUIRED(pbr_effect_apply_material, PbrEffectApplyFn, "cna_pbr_effect_apply_material");
+  LOAD_REQUIRED(pbr_effect_extract_material, PbrEffectExtractFn, "cna_pbr_effect_extract_material");
+  LOAD_REQUIRED(skinned_pbr_effect_apply_material, PbrEffectApplyFn, "cna_skinned_pbr_effect_apply_material");
+  LOAD_REQUIRED(skinned_pbr_effect_extract_material, PbrEffectExtractFn, "cna_skinned_pbr_effect_extract_material");
+  LOAD_REQUIRED(pbr_material_extensions_create, PbrExtensionsCreateFn, "cna_pbr_material_extensions_create");
+  LOAD_REQUIRED(pbr_material_extensions_destroy, GameHandleFn, "cna_pbr_material_extensions_destroy");
+  LOAD_REQUIRED(pbr_material_extensions_copy_from, TwoHandleFn, "cna_pbr_material_extensions_copy_from");
+  LOAD_REQUIRED(pbr_material_extensions_equals, PbrExtensionsEqualsFn, "cna_pbr_material_extensions_equals");
+  LOAD_REQUIRED(pbr_material_extensions_get_hash_code, HandleU64OutFn, "cna_pbr_material_extensions_get_hash_code");
+  LOAD_REQUIRED(pbr_material_extensions_copy_to_string, HandleCopyStringFn, "cna_pbr_material_extensions_copy_to_string");
+  LOAD_REQUIRED(gltf_material_source_ext_init, GltfSourceInitFn, "cna_gltf_material_source_ext_init");
+  LOAD_REQUIRED(gltf_material_textures_ext_init, GltfTexturesInitFn, "cna_gltf_material_textures_ext_init");
+  LOAD_REQUIRED(gltf_material_extension_source_ext_init, GltfExtensionSourceInitFn, "cna_gltf_material_extension_source_ext_init");
+  LOAD_REQUIRED(gltf_material_extension_textures_ext_init, GltfExtensionTexturesInitFn, "cna_gltf_material_extension_textures_ext_init");
+  LOAD_REQUIRED(gltf_material_bridge_build_material, GltfBuildMaterialFn, "cna_gltf_material_bridge_build_material");
+  LOAD_REQUIRED(gltf_material_bridge_build_extensions, GltfBuildExtensionsFn, "cna_gltf_material_bridge_build_extensions");
+  LOAD_REQUIRED(pbr_effect_create, PostProcessPassCreateFn, "cna_pbr_effect_create");
+  LOAD_REQUIRED(skinned_pbr_effect_create, PostProcessPassCreateFn, "cna_skinned_pbr_effect_create");
+  LOAD_REQUIRED(pbr_effect_get_diffuse_color, SkyVector3OutFn, "cna_pbr_effect_get_diffuse_color");
+  LOAD_REQUIRED(pbr_effect_set_diffuse_color, PbrVector3InFn, "cna_pbr_effect_set_diffuse_color");
+  LOAD_REQUIRED(pbr_effect_get_alpha, HandleFloatOutFn, "cna_pbr_effect_get_alpha");
+  LOAD_REQUIRED(pbr_effect_set_alpha, HandleFloatFn, "cna_pbr_effect_set_alpha");
+  LOAD_REQUIRED(pbr_effect_get_texture, PbrSlotTextureGetFn, "cna_pbr_effect_get_texture");
+  LOAD_REQUIRED(pbr_effect_set_texture, PbrSlotHandleFn, "cna_pbr_effect_set_texture");
+  LOAD_REQUIRED(pbr_effect_get_metallic_factor, HandleFloatOutFn, "cna_pbr_effect_get_metallic_factor");
+  LOAD_REQUIRED(pbr_effect_set_metallic_factor, HandleFloatFn, "cna_pbr_effect_set_metallic_factor");
+  LOAD_REQUIRED(pbr_effect_get_roughness_factor, HandleFloatOutFn, "cna_pbr_effect_get_roughness_factor");
+  LOAD_REQUIRED(pbr_effect_set_roughness_factor, HandleFloatFn, "cna_pbr_effect_set_roughness_factor");
+  LOAD_REQUIRED(pbr_effect_get_emissive_factor, SkyVector3OutFn, "cna_pbr_effect_get_emissive_factor");
+  LOAD_REQUIRED(pbr_effect_set_emissive_factor, PbrVector3InFn, "cna_pbr_effect_set_emissive_factor");
+  LOAD_REQUIRED(pbr_effect_get_vertex_color_enabled_ext, BoolGetFn, "cna_pbr_effect_get_vertex_color_enabled_ext");
+  LOAD_REQUIRED(pbr_effect_set_vertex_color_enabled_ext, HandleBoolFn, "cna_pbr_effect_set_vertex_color_enabled_ext");
+  LOAD_REQUIRED(pbr_effect_get_ior_ext, HandleFloatOutFn, "cna_pbr_effect_get_ior_ext");
+  LOAD_REQUIRED(pbr_effect_set_ior_ext, HandleFloatFn, "cna_pbr_effect_set_ior_ext");
+  LOAD_REQUIRED(pbr_effect_get_specular_factor_ext, HandleFloatOutFn, "cna_pbr_effect_get_specular_factor_ext");
+  LOAD_REQUIRED(pbr_effect_set_specular_factor_ext, HandleFloatFn, "cna_pbr_effect_set_specular_factor_ext");
+  LOAD_REQUIRED(pbr_effect_get_specular_color_factor_ext, SkyVector3OutFn, "cna_pbr_effect_get_specular_color_factor_ext");
+  LOAD_REQUIRED(pbr_effect_set_specular_color_factor_ext, PbrVector3InFn, "cna_pbr_effect_set_specular_color_factor_ext");
+  LOAD_REQUIRED(pbr_effect_get_normal_scale_ext, HandleFloatOutFn, "cna_pbr_effect_get_normal_scale_ext");
+  LOAD_REQUIRED(pbr_effect_set_normal_scale_ext, HandleFloatFn, "cna_pbr_effect_set_normal_scale_ext");
+  LOAD_REQUIRED(pbr_effect_get_occlusion_strength_ext, HandleFloatOutFn, "cna_pbr_effect_get_occlusion_strength_ext");
+  LOAD_REQUIRED(pbr_effect_set_occlusion_strength_ext, HandleFloatFn, "cna_pbr_effect_set_occlusion_strength_ext");
+  LOAD_REQUIRED(pbr_effect_get_texture_coordinate_set_ext, PbrSlotI32OutFn, "cna_pbr_effect_get_texture_coordinate_set_ext");
+  LOAD_REQUIRED(pbr_effect_set_texture_coordinate_set_ext, PbrSlotI32Fn, "cna_pbr_effect_set_texture_coordinate_set_ext");
+  LOAD_REQUIRED(pbr_effect_get_texture_transform_ext, PbrSlotTransformOutFn, "cna_pbr_effect_get_texture_transform_ext");
+  LOAD_REQUIRED(pbr_effect_set_texture_transform_ext, PbrSlotTransformInFn, "cna_pbr_effect_set_texture_transform_ext");
+  LOAD_REQUIRED(pbr_effect_get_texture_is_srgb_ext, PbrSlotBoolOutFn, "cna_pbr_effect_get_texture_is_srgb_ext");
+  LOAD_REQUIRED(pbr_effect_set_texture_is_srgb_ext, PbrSlotBoolFn, "cna_pbr_effect_set_texture_is_srgb_ext");
+  LOAD_REQUIRED(pbr_effect_get_encode_output_to_srgb_ext, BoolGetFn, "cna_pbr_effect_get_encode_output_to_srgb_ext");
+  LOAD_REQUIRED(pbr_effect_set_encode_output_to_srgb_ext, HandleBoolFn, "cna_pbr_effect_set_encode_output_to_srgb_ext");
+  LOAD_REQUIRED(pbr_effect_get_alpha_mode_ext, GameU32OutFn, "cna_pbr_effect_get_alpha_mode_ext");
+  LOAD_REQUIRED(pbr_effect_set_alpha_mode_ext, AlphaModeSetFn, "cna_pbr_effect_set_alpha_mode_ext");
+  LOAD_REQUIRED(pbr_effect_get_alpha_cutoff_ext, HandleFloatOutFn, "cna_pbr_effect_get_alpha_cutoff_ext");
+  LOAD_REQUIRED(pbr_effect_set_alpha_cutoff_ext, HandleFloatFn, "cna_pbr_effect_set_alpha_cutoff_ext");
+  LOAD_REQUIRED(pbr_effect_get_double_sided_ext, BoolGetFn, "cna_pbr_effect_get_double_sided_ext");
+  LOAD_REQUIRED(pbr_effect_set_double_sided_ext, HandleBoolFn, "cna_pbr_effect_set_double_sided_ext");
+  LOAD_REQUIRED(skinned_pbr_effect_get_weights_per_vertex, HandleI32OutFn, "cna_skinned_pbr_effect_get_weights_per_vertex");
+  LOAD_REQUIRED(skinned_pbr_effect_set_weights_per_vertex, HandleI32Fn, "cna_skinned_pbr_effect_set_weights_per_vertex");
+  LOAD_REQUIRED(skinned_pbr_effect_set_bone_transforms, EffectMatricesFn, "cna_skinned_pbr_effect_set_bone_transforms");
+  LOAD_REQUIRED(skinned_pbr_effect_copy_bone_transforms, SkinnedPbrCopyBonesFn, "cna_skinned_pbr_effect_copy_bone_transforms");
+  LOAD_REQUIRED(graphics_device_get_blend_state, DeviceBlendStateOutFn, "cna_graphics_device_get_blend_state");
+  LOAD_REQUIRED(graphics_device_get_rasterizer_state, DeviceRasterizerStateOutFn, "cna_graphics_device_get_rasterizer_state");
+  LOAD_REQUIRED(pbr_material_extensions_get_attenuation_color, SkyVector3OutFn, "cna_pbr_material_extensions_get_attenuation_color");
+  LOAD_REQUIRED(pbr_material_extensions_get_attenuation_distance, HandleFloatOutFn, "cna_pbr_material_extensions_get_attenuation_distance");
+  LOAD_REQUIRED(pbr_material_extensions_get_clearcoat_factor, HandleFloatOutFn, "cna_pbr_material_extensions_get_clearcoat_factor");
+  LOAD_REQUIRED(pbr_material_extensions_get_clearcoat_normal_scale, HandleFloatOutFn, "cna_pbr_material_extensions_get_clearcoat_normal_scale");
+  LOAD_REQUIRED(pbr_material_extensions_get_clearcoat_normal_texture, HandleHandleOutFn, "cna_pbr_material_extensions_get_clearcoat_normal_texture");
+  LOAD_REQUIRED(pbr_material_extensions_get_clearcoat_roughness, HandleFloatOutFn, "cna_pbr_material_extensions_get_clearcoat_roughness");
+  LOAD_REQUIRED(pbr_material_extensions_get_clearcoat_roughness_texture, HandleHandleOutFn, "cna_pbr_material_extensions_get_clearcoat_roughness_texture");
+  LOAD_REQUIRED(pbr_material_extensions_get_clearcoat_texture, HandleHandleOutFn, "cna_pbr_material_extensions_get_clearcoat_texture");
+  LOAD_REQUIRED(pbr_material_extensions_get_iridescence_factor, HandleFloatOutFn, "cna_pbr_material_extensions_get_iridescence_factor");
+  LOAD_REQUIRED(pbr_material_extensions_get_iridescence_ior, HandleFloatOutFn, "cna_pbr_material_extensions_get_iridescence_ior");
+  LOAD_REQUIRED(pbr_material_extensions_get_iridescence_texture, HandleHandleOutFn, "cna_pbr_material_extensions_get_iridescence_texture");
+  LOAD_REQUIRED(pbr_material_extensions_get_iridescence_thickness_maximum, HandleFloatOutFn, "cna_pbr_material_extensions_get_iridescence_thickness_maximum");
+  LOAD_REQUIRED(pbr_material_extensions_get_iridescence_thickness_minimum, HandleFloatOutFn, "cna_pbr_material_extensions_get_iridescence_thickness_minimum");
+  LOAD_REQUIRED(pbr_material_extensions_get_iridescence_thickness_texture, HandleHandleOutFn, "cna_pbr_material_extensions_get_iridescence_thickness_texture");
+  LOAD_REQUIRED(pbr_material_extensions_get_sheen_color_factor, SkyVector3OutFn, "cna_pbr_material_extensions_get_sheen_color_factor");
+  LOAD_REQUIRED(pbr_material_extensions_get_sheen_color_texture, HandleHandleOutFn, "cna_pbr_material_extensions_get_sheen_color_texture");
+  LOAD_REQUIRED(pbr_material_extensions_get_sheen_roughness, HandleFloatOutFn, "cna_pbr_material_extensions_get_sheen_roughness");
+  LOAD_REQUIRED(pbr_material_extensions_get_sheen_roughness_texture, HandleHandleOutFn, "cna_pbr_material_extensions_get_sheen_roughness_texture");
+  LOAD_REQUIRED(pbr_material_extensions_get_subsurface_color, SkyVector3OutFn, "cna_pbr_material_extensions_get_subsurface_color");
+  LOAD_REQUIRED(pbr_material_extensions_get_subsurface_wrap, HandleFloatOutFn, "cna_pbr_material_extensions_get_subsurface_wrap");
+  LOAD_REQUIRED(pbr_material_extensions_get_thickness_factor, HandleFloatOutFn, "cna_pbr_material_extensions_get_thickness_factor");
+  LOAD_REQUIRED(pbr_material_extensions_get_thickness_texture, HandleHandleOutFn, "cna_pbr_material_extensions_get_thickness_texture");
+  LOAD_REQUIRED(pbr_material_extensions_get_transmission_factor, HandleFloatOutFn, "cna_pbr_material_extensions_get_transmission_factor");
+  LOAD_REQUIRED(pbr_material_extensions_get_transmission_texture, HandleHandleOutFn, "cna_pbr_material_extensions_get_transmission_texture");
+  LOAD_REQUIRED(pbr_material_extensions_is_iridescence_enabled, BoolGetFn, "cna_pbr_material_extensions_is_iridescence_enabled");
+  LOAD_REQUIRED(pbr_material_extensions_is_neutral, BoolGetFn, "cna_pbr_material_extensions_is_neutral");
+  LOAD_REQUIRED(pbr_material_extensions_is_sheen_enabled, BoolGetFn, "cna_pbr_material_extensions_is_sheen_enabled");
+  LOAD_REQUIRED(pbr_material_extensions_is_subsurface_enabled, BoolGetFn, "cna_pbr_material_extensions_is_subsurface_enabled");
+  LOAD_REQUIRED(pbr_material_extensions_is_transmission_enabled, BoolGetFn, "cna_pbr_material_extensions_is_transmission_enabled");
+  LOAD_REQUIRED(pbr_material_extensions_set_attenuation_color, SkyVector3InFn, "cna_pbr_material_extensions_set_attenuation_color");
+  LOAD_REQUIRED(pbr_material_extensions_set_attenuation_distance, HandleFloatFn, "cna_pbr_material_extensions_set_attenuation_distance");
+  LOAD_REQUIRED(pbr_material_extensions_set_clearcoat_factor, HandleFloatFn, "cna_pbr_material_extensions_set_clearcoat_factor");
+  LOAD_REQUIRED(pbr_material_extensions_set_clearcoat_normal_scale, HandleFloatFn, "cna_pbr_material_extensions_set_clearcoat_normal_scale");
+  LOAD_REQUIRED(pbr_material_extensions_set_clearcoat_normal_texture, TwoHandleFn, "cna_pbr_material_extensions_set_clearcoat_normal_texture");
+  LOAD_REQUIRED(pbr_material_extensions_set_clearcoat_roughness, HandleFloatFn, "cna_pbr_material_extensions_set_clearcoat_roughness");
+  LOAD_REQUIRED(pbr_material_extensions_set_clearcoat_roughness_texture, TwoHandleFn, "cna_pbr_material_extensions_set_clearcoat_roughness_texture");
+  LOAD_REQUIRED(pbr_material_extensions_set_clearcoat_texture, TwoHandleFn, "cna_pbr_material_extensions_set_clearcoat_texture");
+  LOAD_REQUIRED(pbr_material_extensions_set_iridescence_factor, HandleFloatFn, "cna_pbr_material_extensions_set_iridescence_factor");
+  LOAD_REQUIRED(pbr_material_extensions_set_iridescence_ior, HandleFloatFn, "cna_pbr_material_extensions_set_iridescence_ior");
+  LOAD_REQUIRED(pbr_material_extensions_set_iridescence_texture, TwoHandleFn, "cna_pbr_material_extensions_set_iridescence_texture");
+  LOAD_REQUIRED(pbr_material_extensions_set_iridescence_thickness_maximum, HandleFloatFn, "cna_pbr_material_extensions_set_iridescence_thickness_maximum");
+  LOAD_REQUIRED(pbr_material_extensions_set_iridescence_thickness_minimum, HandleFloatFn, "cna_pbr_material_extensions_set_iridescence_thickness_minimum");
+  LOAD_REQUIRED(pbr_material_extensions_set_iridescence_thickness_texture, TwoHandleFn, "cna_pbr_material_extensions_set_iridescence_thickness_texture");
+  LOAD_REQUIRED(pbr_material_extensions_set_sheen_color_factor, SkyVector3InFn, "cna_pbr_material_extensions_set_sheen_color_factor");
+  LOAD_REQUIRED(pbr_material_extensions_set_sheen_color_texture, TwoHandleFn, "cna_pbr_material_extensions_set_sheen_color_texture");
+  LOAD_REQUIRED(pbr_material_extensions_set_sheen_roughness, HandleFloatFn, "cna_pbr_material_extensions_set_sheen_roughness");
+  LOAD_REQUIRED(pbr_material_extensions_set_sheen_roughness_texture, TwoHandleFn, "cna_pbr_material_extensions_set_sheen_roughness_texture");
+  LOAD_REQUIRED(pbr_material_extensions_set_subsurface_color, SkyVector3InFn, "cna_pbr_material_extensions_set_subsurface_color");
+  LOAD_REQUIRED(pbr_material_extensions_set_subsurface_wrap, HandleFloatFn, "cna_pbr_material_extensions_set_subsurface_wrap");
+  LOAD_REQUIRED(pbr_material_extensions_set_thickness_factor, HandleFloatFn, "cna_pbr_material_extensions_set_thickness_factor");
+  LOAD_REQUIRED(pbr_material_extensions_set_thickness_texture, TwoHandleFn, "cna_pbr_material_extensions_set_thickness_texture");
+  LOAD_REQUIRED(pbr_material_extensions_set_transmission_factor, HandleFloatFn, "cna_pbr_material_extensions_set_transmission_factor");
+  LOAD_REQUIRED(pbr_material_extensions_set_transmission_texture, TwoHandleFn, "cna_pbr_material_extensions_set_transmission_texture");
 
   napi_value undefined;
   NAPI_OR_RETURN(env, napi_get_undefined(env, &undefined), "load result");
@@ -21661,10 +21936,1539 @@ static napi_value get_accelerometer_reading(napi_env env, napi_callback_info inf
   return output;
 }
 
+/* ---- Modern CNA graphics: the canonical PBR material, its glTF extensions, and the bridge -----
+   CNA_PbrMaterialEXT is the canonical CNA::Graphics::PbrMaterial in full; CNA_PbrMaterial above is
+   the layout frozen before the KHR_materials_* factors were added, kept because a C struct cannot
+   change shape within an ABI major. The extensions are a handle rather than a struct because the
+   canonical type holds nine borrowed Texture2D pointers, which do not belong in caller memory. */
+
+/** The inverse of pack_color: the RGBA a Color.PackedValue carries, in CNA's field order. */
+static CNA_Color unpack_color(uint32_t packed) {
+  CNA_Color value;
+  value.r = (uint8_t) (packed & 0xffu);
+  value.g = (uint8_t) ((packed >> 8) & 0xffu);
+  value.b = (uint8_t) ((packed >> 16) & 0xffu);
+  value.a = (uint8_t) ((packed >> 24) & 0xffu);
+  return value;
+}
+
+/** A CNA handle as the uint64 bigint the backend uses everywhere; zero means "no object". */
+static int set_handle_property(
+  napi_env env, napi_value object, const char* name, CNA_Handle value
+) {
+  napi_value entry;
+  return napi_create_bigint_uint64(env, value, &entry) == napi_ok &&
+    napi_set_named_property(env, object, name, entry) == napi_ok;
+}
+
+/** One texture slot: a handle, or zero for "no texture in this slot". */
+static napi_value pbr_set_texture(
+  napi_env env, napi_callback_info info, TwoHandleFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle extensions = 0, texture = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &extensions) ||
+      !read_handle_allow_zero(env, args[1], &texture)) return NULL;
+  const CNA_Result result = route(extensions, texture);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static int set_vector2_property(
+  napi_env env, napi_value object, const char* name, CNA_Vector2 value
+) {
+  napi_value entry;
+  if (napi_create_object(env, &entry) != napi_ok) return 0;
+  return set_f32_property(env, entry, "X", value.x) &&
+    set_f32_property(env, entry, "Y", value.y) &&
+    napi_set_named_property(env, object, name, entry) == napi_ok;
+}
+
+static int get_named_vector2(napi_env env, napi_value object, const char* name, CNA_Vector2* out) {
+  napi_value value;
+  double x = 0, y = 0;
+  if (!get_named_value(env, object, name, &value)) return 0;
+  if (!get_named_double(env, value, "X", &x) || !get_named_double(env, value, "Y", &y)) return 0;
+  out->x = (float) x;
+  out->y = (float) y;
+  return 1;
+}
+
+static int set_vector3_property(
+  napi_env env, napi_value object, const char* name, CNA_Vector3 value
+) {
+  napi_value entry;
+  if (napi_create_object(env, &entry) != napi_ok) return 0;
+  return set_vector3_fields(env, entry, &value) &&
+    napi_set_named_property(env, object, name, entry) == napi_ok;
+}
+
+static int get_named_vector3(napi_env env, napi_value object, const char* name, CNA_Vector3* out) {
+  napi_value value;
+  return get_named_value(env, object, name, &value) && read_vector3_fields(env, value, out);
+}
+
+/** A texture transform, as KHR_texture_transform records one: scale, then rotate, then translate. */
+static int read_texture_transform(napi_env env, napi_value object, CNA_TextureTransformEXT* out) {
+  double rotation = 0;
+  memset(out, 0, sizeof(*out));
+  out->struct_size = sizeof(*out);
+  out->struct_version = 1;
+  if (!get_named_vector2(env, object, "Offset", &out->offset) ||
+      !get_named_vector2(env, object, "Scale", &out->scale) ||
+      !get_named_double(env, object, "Rotation", &rotation)) return 0;
+  out->rotation = (float) rotation;
+  return 1;
+}
+
+static napi_value make_texture_transform(napi_env env, const CNA_TextureTransformEXT* value) {
+  napi_value output;
+  if (napi_create_object(env, &output) != napi_ok) return NULL;
+  if (!set_vector2_property(env, output, "Offset", value->offset) ||
+      !set_vector2_property(env, output, "Scale", value->scale) ||
+      !set_f32_property(env, output, "Rotation", value->rotation)) return NULL;
+  return output;
+}
+
+/**
+ * The canonical material, read from the object the backend hands over.
+ *
+ * Every field is required: this is a value struct with a documented initializer, and a snapshot
+ * missing a field would silently take the zero this memset leaves rather than CNA's own default.
+ */
+static int read_pbr_material_ext(napi_env env, napi_value object, CNA_PbrMaterialEXT* out) {
+  uint32_t albedo = 0, alpha_mode = 0;
+  double metallic = 0, roughness = 0, normal_scale = 0, occlusion = 0;
+  double ior = 0, specular = 0, cutoff = 0;
+  napi_value sets, transforms, entry;
+  memset(out, 0, sizeof(*out));
+  out->struct_size = sizeof(*out);
+  out->struct_version = 1;
+  if (!get_named_handle_allow_zero(env, object, "AlbedoTexture", &out->albedo_texture) ||
+      !get_named_handle_allow_zero(env, object, "NormalTexture", &out->normal_texture) ||
+      !get_named_handle_allow_zero(
+        env, object, "MetallicRoughnessTexture", &out->metallic_roughness_texture) ||
+      !get_named_handle_allow_zero(
+        env, object, "AmbientOcclusionTexture", &out->ambient_occlusion_texture) ||
+      !get_named_handle_allow_zero(env, object, "EmissiveTexture", &out->emissive_texture) ||
+      !get_named_handle_allow_zero(env, object, "SpecularTexture", &out->specular_texture) ||
+      !get_named_handle_allow_zero(
+        env, object, "SpecularColorTexture", &out->specular_color_texture) ||
+      !get_named_u32(env, object, "AlbedoColor", &albedo) ||
+      !get_named_vector3(env, object, "EmissiveFactor", &out->emissive_factor) ||
+      !get_named_vector3(env, object, "SpecularColorFactor", &out->specular_color_factor) ||
+      !get_named_double(env, object, "MetallicFactor", &metallic) ||
+      !get_named_double(env, object, "RoughnessFactor", &roughness) ||
+      !get_named_double(env, object, "NormalScale", &normal_scale) ||
+      !get_named_double(env, object, "OcclusionStrength", &occlusion) ||
+      !get_named_double(env, object, "Ior", &ior) ||
+      !get_named_double(env, object, "SpecularFactor", &specular) ||
+      !get_named_double(env, object, "AlphaCutoff", &cutoff) ||
+      !get_named_u32(env, object, "AlphaMode", &alpha_mode) ||
+      !get_named_bool(env, object, "DoubleSided", &out->double_sided) ||
+      !get_named_bool(env, object, "BaseColorTextureSrgb", &out->base_color_texture_srgb) ||
+      !get_named_bool(env, object, "EmissiveTextureSrgb", &out->emissive_texture_srgb) ||
+      !get_named_bool(
+        env, object, "SpecularColorTextureSrgb", &out->specular_color_texture_srgb) ||
+      !get_named_bool(env, object, "OutputEncodedToSrgb", &out->output_encoded_to_srgb) ||
+      !get_named_value(env, object, "TextureCoordinateSets", &sets) ||
+      !get_named_value(env, object, "TextureTransforms", &transforms)) return 0;
+  out->albedo_color = unpack_color(albedo);
+  out->metallic_factor = (float) metallic;
+  out->roughness_factor = (float) roughness;
+  out->normal_scale = (float) normal_scale;
+  out->occlusion_strength = (float) occlusion;
+  out->ior = (float) ior;
+  out->specular_factor = (float) specular;
+  out->alpha_cutoff = (float) cutoff;
+  out->alpha_mode = (CNA_AlphaModeEXT) alpha_mode;
+  for (int32_t index = 0; index < CNA_PBR_TEXTURE_SLOT_COUNT; index += 1) {
+    int32_t set = 0;
+    if (napi_get_element(env, sets, (uint32_t) index, &entry) != napi_ok ||
+        napi_get_value_int32(env, entry, &set) != napi_ok) {
+      throw_message(env, "a PBR material needs seven texture coordinate sets");
+      return 0;
+    }
+    out->texture_coordinate_sets[index] = set;
+    if (napi_get_element(env, transforms, (uint32_t) index, &entry) != napi_ok ||
+        !read_texture_transform(env, entry, &out->texture_transforms[index])) {
+      throw_message(env, "a PBR material needs seven texture transforms");
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static napi_value make_pbr_material_ext(napi_env env, const CNA_PbrMaterialEXT* value) {
+  napi_value output, sets, transforms, entry;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "PBR material");
+  NAPI_OR_RETURN(
+    env, napi_create_array_with_length(env, CNA_PBR_TEXTURE_SLOT_COUNT, &sets), "PBR material");
+  NAPI_OR_RETURN(
+    env, napi_create_array_with_length(env, CNA_PBR_TEXTURE_SLOT_COUNT, &transforms),
+    "PBR material");
+  for (int32_t index = 0; index < CNA_PBR_TEXTURE_SLOT_COUNT; index += 1) {
+    NAPI_OR_RETURN(
+      env, napi_create_int32(env, value->texture_coordinate_sets[index], &entry), "PBR material");
+    NAPI_OR_RETURN(env, napi_set_element(env, sets, (uint32_t) index, entry), "PBR material");
+    entry = make_texture_transform(env, &value->texture_transforms[index]);
+    if (!entry) return throw_napi(env, "PBR material");
+    NAPI_OR_RETURN(env, napi_set_element(env, transforms, (uint32_t) index, entry), "PBR material");
+  }
+  if (!set_handle_property(env, output, "AlbedoTexture", value->albedo_texture) ||
+      !set_handle_property(env, output, "NormalTexture", value->normal_texture) ||
+      !set_handle_property(
+        env, output, "MetallicRoughnessTexture", value->metallic_roughness_texture) ||
+      !set_handle_property(
+        env, output, "AmbientOcclusionTexture", value->ambient_occlusion_texture) ||
+      !set_handle_property(env, output, "EmissiveTexture", value->emissive_texture) ||
+      !set_handle_property(env, output, "SpecularTexture", value->specular_texture) ||
+      !set_handle_property(env, output, "SpecularColorTexture", value->specular_color_texture) ||
+      !set_u32_property(env, output, "AlbedoColor", pack_color(value->albedo_color)) ||
+      !set_vector3_property(env, output, "EmissiveFactor", value->emissive_factor) ||
+      !set_vector3_property(env, output, "SpecularColorFactor", value->specular_color_factor) ||
+      !set_f32_property(env, output, "MetallicFactor", value->metallic_factor) ||
+      !set_f32_property(env, output, "RoughnessFactor", value->roughness_factor) ||
+      !set_f32_property(env, output, "NormalScale", value->normal_scale) ||
+      !set_f32_property(env, output, "OcclusionStrength", value->occlusion_strength) ||
+      !set_f32_property(env, output, "Ior", value->ior) ||
+      !set_f32_property(env, output, "SpecularFactor", value->specular_factor) ||
+      !set_f32_property(env, output, "AlphaCutoff", value->alpha_cutoff) ||
+      !set_u32_property(env, output, "AlphaMode", (uint32_t) value->alpha_mode) ||
+      !set_bool_property(env, output, "DoubleSided", value->double_sided) ||
+      !set_bool_property(env, output, "BaseColorTextureSrgb", value->base_color_texture_srgb) ||
+      !set_bool_property(env, output, "EmissiveTextureSrgb", value->emissive_texture_srgb) ||
+      !set_bool_property(
+        env, output, "SpecularColorTextureSrgb", value->specular_color_texture_srgb) ||
+      !set_bool_property(env, output, "OutputEncodedToSrgb", value->output_encoded_to_srgb) ||
+      napi_set_named_property(env, output, "TextureCoordinateSets", sets) != napi_ok ||
+      napi_set_named_property(env, output, "TextureTransforms", transforms) != napi_ok) {
+    return throw_napi(env, "PBR material");
+  }
+  return output;
+}
+
+static napi_value bridge_pbr_material_ext_init(napi_env env, napi_callback_info info) {
+  (void) info;
+  CNA_PbrMaterialEXT material;
+  if (!require_loaded(env)) return NULL;
+  memset(&material, 0, sizeof(material));
+  material.struct_size = sizeof(material);
+  material.struct_version = 1;
+  const CNA_Result result = g_api.pbr_material_ext_init(&material);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_material_ext_init", result);
+  }
+  return make_pbr_material_ext(env, &material);
+}
+
+static napi_value bridge_texture_transform_ext_init(napi_env env, napi_callback_info info) {
+  (void) info;
+  CNA_TextureTransformEXT transform;
+  if (!require_loaded(env)) return NULL;
+  memset(&transform, 0, sizeof(transform));
+  transform.struct_size = sizeof(transform);
+  transform.struct_version = 1;
+  const CNA_Result result = g_api.texture_transform_ext_init(&transform);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_texture_transform_ext_init", result);
+  }
+  napi_value output = make_texture_transform(env, &transform);
+  return output ? output : throw_napi(env, "texture transform defaults");
+}
+
+static napi_value bridge_pbr_material_ext_equals(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_PbrMaterialEXT first, second;
+  CNA_Bool equal = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_pbr_material_ext(env, args[0], &first) ||
+      !read_pbr_material_ext(env, args[1], &second)) return NULL;
+  const CNA_Result result = g_api.pbr_material_ext_equals(&first, &second, &equal);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_material_ext_equals", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_get_boolean(env, equal != CNA_FALSE, &output), "cna_pbr_material_ext_equals");
+  return output;
+}
+
+static napi_value bridge_pbr_material_ext_get_hash_code(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_PbrMaterialEXT material;
+  uint64_t hash = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_pbr_material_ext(env, args[0], &material)) return NULL;
+  const CNA_Result result = g_api.pbr_material_ext_get_hash_code(&material, &hash);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_material_ext_get_hash_code", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_bigint_uint64(env, hash, &output), "cna_pbr_material_ext_get_hash_code");
+  return output;
+}
+
+static napi_value bridge_pbr_material_ext_copy_to_string(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_PbrMaterialEXT material;
+  uint64_t length = 0, copied = 0;
+  char* text = NULL;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_pbr_material_ext(env, args[0], &material)) return NULL;
+  CNA_Result result = g_api.pbr_material_ext_copy_to_string(&material, NULL, 0, &length);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_pbr_material_ext_copy_to_string", result);
+  }
+  if (length > SIZE_MAX) return throw_message(env, "native string exceeds host address space");
+  text = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !text) return throw_message(env, "native string allocation failed");
+  result = g_api.pbr_material_ext_copy_to_string(&material, text, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(text);
+    return throw_result(env, "cna_pbr_material_ext_copy_to_string", result);
+  }
+  const napi_status status =
+    napi_create_string_utf8(env, text ? text : "", (size_t) length, &output);
+  free(text);
+  if (status != napi_ok) return throw_napi(env, "cna_pbr_material_ext_copy_to_string");
+  return output;
+}
+
+static napi_value bridge_pbr_material_apply_state(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_PbrMaterialEXT material;
+  CNA_Handle device = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_pbr_material_ext(env, args[0], &material) ||
+      !read_handle(env, args[1], &device)) return NULL;
+  const CNA_Result result = g_api.pbr_material_apply_state(&material, device);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_material_apply_state", result);
+  }
+  return undefined_result(env, "cna_pbr_material_apply_state");
+}
+
+static napi_value pbr_effect_apply(
+  napi_env env, napi_callback_info info, PbrEffectApplyFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_PbrMaterialEXT material;
+  CNA_Handle effect = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_pbr_material_ext(env, args[1], &material)) return NULL;
+  const CNA_Result result = route(effect, &material);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value pbr_effect_extract(
+  napi_env env, napi_callback_info info, PbrEffectExtractFn route, const char* name
+) {
+  napi_value args[1];
+  CNA_PbrMaterialEXT material;
+  CNA_Handle effect = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &effect)) return NULL;
+  memset(&material, 0, sizeof(material));
+  material.struct_size = sizeof(material);
+  material.struct_version = 1;
+  const CNA_Result result = route(effect, &material);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return make_pbr_material_ext(env, &material);
+}
+
+static napi_value bridge_pbr_effect_apply_material(napi_env env, napi_callback_info info) {
+  return pbr_effect_apply(
+    env, info, g_api.pbr_effect_apply_material, "cna_pbr_effect_apply_material");
+}
+
+static napi_value bridge_pbr_effect_extract_material(napi_env env, napi_callback_info info) {
+  return pbr_effect_extract(
+    env, info, g_api.pbr_effect_extract_material, "cna_pbr_effect_extract_material");
+}
+
+static napi_value bridge_skinned_pbr_effect_apply_material(napi_env env, napi_callback_info info) {
+  return pbr_effect_apply(
+    env, info, g_api.skinned_pbr_effect_apply_material, "cna_skinned_pbr_effect_apply_material");
+}
+
+static napi_value bridge_skinned_pbr_effect_extract_material(
+  napi_env env, napi_callback_info info
+) {
+  return pbr_effect_extract(
+    env, info, g_api.skinned_pbr_effect_extract_material,
+    "cna_skinned_pbr_effect_extract_material");
+}
+
+static napi_value bridge_pbr_material_extensions_create(napi_env env, napi_callback_info info) {
+  (void) info;
+  CNA_Handle extensions = 0;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.pbr_material_extensions_create(&extensions);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_material_extensions_create", result);
+  }
+  return make_handle(env, extensions);
+}
+
+static napi_value bridge_pbr_material_extensions_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(
+    env, info, g_api.pbr_material_extensions_destroy, "cna_pbr_material_extensions_destroy");
+}
+
+static napi_value bridge_pbr_material_extensions_copy_from(napi_env env, napi_callback_info info) {
+  return post_process_chain_two_handles(
+    env, info, g_api.pbr_material_extensions_copy_from, "cna_pbr_material_extensions_copy_from");
+}
+
+static napi_value bridge_pbr_material_extensions_equals(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle first = 0, second = 0;
+  CNA_Bool equal = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &first) || !read_handle(env, args[1], &second)) return NULL;
+  const CNA_Result result = g_api.pbr_material_extensions_equals(first, second, &equal);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_material_extensions_equals", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_get_boolean(env, equal != CNA_FALSE, &output),
+    "cna_pbr_material_extensions_equals");
+  return output;
+}
+
+static napi_value bridge_pbr_material_extensions_get_hash_code(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1], output;
+  CNA_Handle extensions = 0;
+  uint64_t hash = 0;
+  /* A hash uses the whole 64 bits, so it comes back as a bigint rather than through the
+     exact-integer path every size in this bridge takes. */
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &extensions)) return NULL;
+  const CNA_Result result = g_api.pbr_material_extensions_get_hash_code(extensions, &hash);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_material_extensions_get_hash_code", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_bigint_uint64(env, hash, &output),
+    "cna_pbr_material_extensions_get_hash_code");
+  return output;
+}
+
+static napi_value bridge_pbr_material_extensions_copy_to_string(
+  napi_env env, napi_callback_info info
+) {
+  return copy_sized_text(
+    env, info, g_api.pbr_material_extensions_copy_to_string,
+    "cna_pbr_material_extensions_copy_to_string");
+}
+
+/* ---- the glTF bridge --------------------------------------------------------------------------
+   Two source structures and two texture-slot structures, each with its own initializer, which the
+   bridge turns into a canonical material and a canonical extension set. */
+
+static int read_gltf_material_source(
+  napi_env env, napi_value object, CNA_GltfMaterialSourceEXT* out
+) {
+  uint32_t alpha_mode = 0;
+  double metallic = 0, roughness = 0, normal_scale = 0, occlusion = 0;
+  double ior = 0, specular = 0, cutoff = 0;
+  napi_value base, sets, transforms, entry;
+  double base_x = 0, base_y = 0, base_z = 0, base_w = 0;
+  memset(out, 0, sizeof(*out));
+  out->struct_size = sizeof(*out);
+  out->struct_version = 1;
+  if (!get_named_value(env, object, "BaseColorFactor", &base) ||
+      !get_named_double(env, base, "X", &base_x) ||
+      !get_named_double(env, base, "Y", &base_y) ||
+      !get_named_double(env, base, "Z", &base_z) ||
+      !get_named_double(env, base, "W", &base_w) ||
+      !get_named_double(env, object, "MetallicFactor", &metallic) ||
+      !get_named_double(env, object, "RoughnessFactor", &roughness) ||
+      !get_named_vector3(env, object, "EmissiveFactor", &out->emissive_factor) ||
+      !get_named_double(env, object, "NormalScale", &normal_scale) ||
+      !get_named_double(env, object, "OcclusionStrength", &occlusion) ||
+      !get_named_double(env, object, "Ior", &ior) ||
+      !get_named_double(env, object, "SpecularFactor", &specular) ||
+      !get_named_vector3(
+        env, object, "SpecularColorFactor", &out->specular_color_factor_ext) ||
+      !get_named_u32(env, object, "AlphaMode", &alpha_mode) ||
+      !get_named_double(env, object, "AlphaCutoff", &cutoff) ||
+      !get_named_bool(env, object, "DoubleSided", &out->double_sided) ||
+      !get_named_value(env, object, "TextureCoordinateSets", &sets) ||
+      !get_named_value(env, object, "TextureTransforms", &transforms)) return 0;
+  out->base_color_factor.x = (float) base_x;
+  out->base_color_factor.y = (float) base_y;
+  out->base_color_factor.z = (float) base_z;
+  out->base_color_factor.w = (float) base_w;
+  out->metallic_factor = (float) metallic;
+  out->roughness_factor = (float) roughness;
+  out->normal_scale = (float) normal_scale;
+  out->occlusion_strength = (float) occlusion;
+  out->ior_ext = (float) ior;
+  out->specular_factor_ext = (float) specular;
+  out->alpha_mode = (CNA_AlphaModeEXT) alpha_mode;
+  out->alpha_cutoff = (float) cutoff;
+  for (int32_t index = 0; index < CNA_PBR_TEXTURE_SLOT_COUNT; index += 1) {
+    int32_t set = 0;
+    if (napi_get_element(env, sets, (uint32_t) index, &entry) != napi_ok ||
+        napi_get_value_int32(env, entry, &set) != napi_ok) {
+      throw_message(env, "a glTF material source needs seven texture coordinate sets");
+      return 0;
+    }
+    out->texture_coordinate_sets_ext[index] = set;
+    if (napi_get_element(env, transforms, (uint32_t) index, &entry) != napi_ok ||
+        !read_texture_transform(env, entry, &out->texture_transforms_ext[index])) {
+      throw_message(env, "a glTF material source needs seven texture transforms");
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static int read_gltf_material_textures(
+  napi_env env, napi_value object, CNA_GltfMaterialTexturesEXT* out
+) {
+  napi_value slots, entry;
+  memset(out, 0, sizeof(*out));
+  out->struct_size = sizeof(*out);
+  out->struct_version = 1;
+  if (!get_named_value(env, object, "Slots", &slots)) return 0;
+  for (int32_t index = 0; index < CNA_PBR_TEXTURE_SLOT_COUNT; index += 1) {
+    if (napi_get_element(env, slots, (uint32_t) index, &entry) != napi_ok ||
+        !read_handle_allow_zero(env, entry, &out->slots[index])) {
+      throw_message(env, "a glTF texture set needs seven slots");
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static int read_gltf_extension_source(
+  napi_env env, napi_value object, CNA_GltfMaterialExtensionSourceEXT* out
+) {
+  double clearcoat = 0, clearcoat_roughness = 0, sheen_roughness = 0, transmission = 0;
+  double thickness = 0, attenuation = 0, iridescence = 0, iridescence_ior = 0;
+  double thickness_minimum = 0, thickness_maximum = 0;
+  memset(out, 0, sizeof(*out));
+  out->struct_size = sizeof(*out);
+  out->struct_version = 1;
+  if (!get_named_double(env, object, "ClearcoatFactor", &clearcoat) ||
+      !get_named_double(env, object, "ClearcoatRoughnessFactor", &clearcoat_roughness) ||
+      !get_named_vector3(env, object, "SheenColorFactor", &out->sheen_color_factor_ext) ||
+      !get_named_double(env, object, "SheenRoughnessFactor", &sheen_roughness) ||
+      !get_named_double(env, object, "TransmissionFactor", &transmission) ||
+      !get_named_double(env, object, "ThicknessFactor", &thickness) ||
+      !get_named_double(env, object, "AttenuationDistance", &attenuation) ||
+      !get_named_vector3(env, object, "AttenuationColor", &out->attenuation_color_ext) ||
+      !get_named_double(env, object, "IridescenceFactor", &iridescence) ||
+      !get_named_double(env, object, "IridescenceIor", &iridescence_ior) ||
+      !get_named_double(
+        env, object, "IridescenceThicknessMinimum", &thickness_minimum) ||
+      !get_named_double(
+        env, object, "IridescenceThicknessMaximum", &thickness_maximum)) return 0;
+  out->clearcoat_factor_ext = (float) clearcoat;
+  out->clearcoat_roughness_factor_ext = (float) clearcoat_roughness;
+  out->sheen_roughness_factor_ext = (float) sheen_roughness;
+  out->transmission_factor_ext = (float) transmission;
+  out->thickness_factor_ext = (float) thickness;
+  out->attenuation_distance_ext = (float) attenuation;
+  out->iridescence_factor_ext = (float) iridescence;
+  out->iridescence_ior_ext = (float) iridescence_ior;
+  out->iridescence_thickness_minimum_ext = (float) thickness_minimum;
+  out->iridescence_thickness_maximum_ext = (float) thickness_maximum;
+  return 1;
+}
+
+static int read_gltf_extension_textures(
+  napi_env env, napi_value object, CNA_GltfMaterialExtensionTexturesEXT* out
+) {
+  memset(out, 0, sizeof(*out));
+  out->struct_size = sizeof(*out);
+  out->struct_version = 1;
+  return get_named_handle_allow_zero(env, object, "Clearcoat", &out->clearcoat) &&
+    get_named_handle_allow_zero(env, object, "ClearcoatRoughness", &out->clearcoat_roughness) &&
+    get_named_handle_allow_zero(env, object, "ClearcoatNormal", &out->clearcoat_normal) &&
+    get_named_handle_allow_zero(env, object, "SheenColor", &out->sheen_color) &&
+    get_named_handle_allow_zero(env, object, "SheenRoughness", &out->sheen_roughness) &&
+    get_named_handle_allow_zero(env, object, "Transmission", &out->transmission) &&
+    get_named_handle_allow_zero(env, object, "Thickness", &out->thickness) &&
+    get_named_handle_allow_zero(env, object, "Iridescence", &out->iridescence) &&
+    get_named_handle_allow_zero(
+      env, object, "IridescenceThickness", &out->iridescence_thickness);
+}
+
+static napi_value bridge_gltf_material_source_ext_init(napi_env env, napi_callback_info info) {
+  (void) info;
+  CNA_GltfMaterialSourceEXT source;
+  napi_value output, sets, transforms, entry, base;
+  if (!require_loaded(env)) return NULL;
+  memset(&source, 0, sizeof(source));
+  source.struct_size = sizeof(source);
+  source.struct_version = 1;
+  const CNA_Result result = g_api.gltf_material_source_ext_init(&source);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gltf_material_source_ext_init", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "glTF material source");
+  NAPI_OR_RETURN(env, napi_create_object(env, &base), "glTF material source");
+  NAPI_OR_RETURN(
+    env, napi_create_array_with_length(env, CNA_PBR_TEXTURE_SLOT_COUNT, &sets),
+    "glTF material source");
+  NAPI_OR_RETURN(
+    env, napi_create_array_with_length(env, CNA_PBR_TEXTURE_SLOT_COUNT, &transforms),
+    "glTF material source");
+  for (int32_t index = 0; index < CNA_PBR_TEXTURE_SLOT_COUNT; index += 1) {
+    NAPI_OR_RETURN(
+      env, napi_create_int32(env, source.texture_coordinate_sets_ext[index], &entry),
+      "glTF material source");
+    NAPI_OR_RETURN(
+      env, napi_set_element(env, sets, (uint32_t) index, entry), "glTF material source");
+    entry = make_texture_transform(env, &source.texture_transforms_ext[index]);
+    if (!entry) return throw_napi(env, "glTF material source");
+    NAPI_OR_RETURN(
+      env, napi_set_element(env, transforms, (uint32_t) index, entry), "glTF material source");
+  }
+  if (!set_f32_property(env, base, "X", source.base_color_factor.x) ||
+      !set_f32_property(env, base, "Y", source.base_color_factor.y) ||
+      !set_f32_property(env, base, "Z", source.base_color_factor.z) ||
+      !set_f32_property(env, base, "W", source.base_color_factor.w) ||
+      napi_set_named_property(env, output, "BaseColorFactor", base) != napi_ok ||
+      !set_f32_property(env, output, "MetallicFactor", source.metallic_factor) ||
+      !set_f32_property(env, output, "RoughnessFactor", source.roughness_factor) ||
+      !set_vector3_property(env, output, "EmissiveFactor", source.emissive_factor) ||
+      !set_f32_property(env, output, "NormalScale", source.normal_scale) ||
+      !set_f32_property(env, output, "OcclusionStrength", source.occlusion_strength) ||
+      !set_f32_property(env, output, "Ior", source.ior_ext) ||
+      !set_f32_property(env, output, "SpecularFactor", source.specular_factor_ext) ||
+      !set_vector3_property(
+        env, output, "SpecularColorFactor", source.specular_color_factor_ext) ||
+      !set_u32_property(env, output, "AlphaMode", (uint32_t) source.alpha_mode) ||
+      !set_f32_property(env, output, "AlphaCutoff", source.alpha_cutoff) ||
+      !set_bool_property(env, output, "DoubleSided", source.double_sided) ||
+      napi_set_named_property(env, output, "TextureCoordinateSets", sets) != napi_ok ||
+      napi_set_named_property(env, output, "TextureTransforms", transforms) != napi_ok) {
+    return throw_napi(env, "glTF material source");
+  }
+  return output;
+}
+
+static napi_value bridge_gltf_material_textures_ext_init(napi_env env, napi_callback_info info) {
+  (void) info;
+  CNA_GltfMaterialTexturesEXT textures;
+  napi_value output, slots, entry;
+  if (!require_loaded(env)) return NULL;
+  memset(&textures, 0, sizeof(textures));
+  textures.struct_size = sizeof(textures);
+  textures.struct_version = 1;
+  const CNA_Result result = g_api.gltf_material_textures_ext_init(&textures);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gltf_material_textures_ext_init", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "glTF texture set");
+  NAPI_OR_RETURN(
+    env, napi_create_array_with_length(env, CNA_PBR_TEXTURE_SLOT_COUNT, &slots),
+    "glTF texture set");
+  for (int32_t index = 0; index < CNA_PBR_TEXTURE_SLOT_COUNT; index += 1) {
+    NAPI_OR_RETURN(
+      env, napi_create_bigint_uint64(env, textures.slots[index], &entry), "glTF texture set");
+    NAPI_OR_RETURN(env, napi_set_element(env, slots, (uint32_t) index, entry), "glTF texture set");
+  }
+  NAPI_OR_RETURN(
+    env, napi_set_named_property(env, output, "Slots", slots), "glTF texture set");
+  return output;
+}
+
+static napi_value bridge_gltf_material_extension_source_ext_init(
+  napi_env env, napi_callback_info info
+) {
+  (void) info;
+  CNA_GltfMaterialExtensionSourceEXT source;
+  napi_value output;
+  if (!require_loaded(env)) return NULL;
+  memset(&source, 0, sizeof(source));
+  source.struct_size = sizeof(source);
+  source.struct_version = 1;
+  const CNA_Result result = g_api.gltf_material_extension_source_ext_init(&source);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gltf_material_extension_source_ext_init", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "glTF extension source");
+  if (!set_f32_property(env, output, "ClearcoatFactor", source.clearcoat_factor_ext) ||
+      !set_f32_property(
+        env, output, "ClearcoatRoughnessFactor", source.clearcoat_roughness_factor_ext) ||
+      !set_vector3_property(env, output, "SheenColorFactor", source.sheen_color_factor_ext) ||
+      !set_f32_property(env, output, "SheenRoughnessFactor", source.sheen_roughness_factor_ext) ||
+      !set_f32_property(env, output, "TransmissionFactor", source.transmission_factor_ext) ||
+      !set_f32_property(env, output, "ThicknessFactor", source.thickness_factor_ext) ||
+      !set_f32_property(env, output, "AttenuationDistance", source.attenuation_distance_ext) ||
+      !set_vector3_property(env, output, "AttenuationColor", source.attenuation_color_ext) ||
+      !set_f32_property(env, output, "IridescenceFactor", source.iridescence_factor_ext) ||
+      !set_f32_property(env, output, "IridescenceIor", source.iridescence_ior_ext) ||
+      !set_f32_property(
+        env, output, "IridescenceThicknessMinimum", source.iridescence_thickness_minimum_ext) ||
+      !set_f32_property(
+        env, output, "IridescenceThicknessMaximum", source.iridescence_thickness_maximum_ext)) {
+    return throw_napi(env, "glTF extension source");
+  }
+  return output;
+}
+
+static napi_value bridge_gltf_material_extension_textures_ext_init(
+  napi_env env, napi_callback_info info
+) {
+  (void) info;
+  CNA_GltfMaterialExtensionTexturesEXT textures;
+  napi_value output;
+  if (!require_loaded(env)) return NULL;
+  memset(&textures, 0, sizeof(textures));
+  textures.struct_size = sizeof(textures);
+  textures.struct_version = 1;
+  const CNA_Result result = g_api.gltf_material_extension_textures_ext_init(&textures);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gltf_material_extension_textures_ext_init", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "glTF extension textures");
+  if (!set_handle_property(env, output, "Clearcoat", textures.clearcoat) ||
+      !set_handle_property(env, output, "ClearcoatRoughness", textures.clearcoat_roughness) ||
+      !set_handle_property(env, output, "ClearcoatNormal", textures.clearcoat_normal) ||
+      !set_handle_property(env, output, "SheenColor", textures.sheen_color) ||
+      !set_handle_property(env, output, "SheenRoughness", textures.sheen_roughness) ||
+      !set_handle_property(env, output, "Transmission", textures.transmission) ||
+      !set_handle_property(env, output, "Thickness", textures.thickness) ||
+      !set_handle_property(env, output, "Iridescence", textures.iridescence) ||
+      !set_handle_property(
+        env, output, "IridescenceThickness", textures.iridescence_thickness)) {
+    return throw_napi(env, "glTF extension textures");
+  }
+  return output;
+}
+
+static napi_value bridge_gltf_material_bridge_build_material(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2];
+  CNA_GltfMaterialSourceEXT source;
+  CNA_GltfMaterialTexturesEXT textures;
+  CNA_PbrMaterialEXT material;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_gltf_material_source(env, args[0], &source) ||
+      !read_gltf_material_textures(env, args[1], &textures)) return NULL;
+  memset(&material, 0, sizeof(material));
+  material.struct_size = sizeof(material);
+  material.struct_version = 1;
+  const CNA_Result result = g_api.gltf_material_bridge_build_material(
+    &source, &textures, &material);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gltf_material_bridge_build_material", result);
+  }
+  return make_pbr_material_ext(env, &material);
+}
+
+static napi_value bridge_gltf_material_bridge_build_extensions(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_GltfMaterialExtensionSourceEXT source;
+  CNA_GltfMaterialExtensionTexturesEXT textures;
+  CNA_Handle extensions = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_gltf_extension_source(env, args[0], &source) ||
+      !read_gltf_extension_textures(env, args[1], &textures) ||
+      !read_handle(env, args[2], &extensions)) return NULL;
+  const CNA_Result result = g_api.gltf_material_bridge_build_extensions(
+    &source, &textures, extensions);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gltf_material_bridge_build_extensions", result);
+  }
+  return undefined_result(env, "cna_gltf_material_bridge_build_extensions");
+}
+
+static napi_value bridge_pbr_material_extensions_get_attenuation_color(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.pbr_material_extensions_get_attenuation_color, "cna_pbr_material_extensions_get_attenuation_color");
+}
+
+static napi_value bridge_pbr_material_extensions_get_attenuation_distance(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_attenuation_distance, "cna_pbr_material_extensions_get_attenuation_distance");
+}
+
+static napi_value bridge_pbr_material_extensions_get_clearcoat_factor(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_clearcoat_factor, "cna_pbr_material_extensions_get_clearcoat_factor");
+}
+
+static napi_value bridge_pbr_material_extensions_get_clearcoat_normal_scale(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_clearcoat_normal_scale, "cna_pbr_material_extensions_get_clearcoat_normal_scale");
+}
+
+static napi_value bridge_pbr_material_extensions_get_clearcoat_normal_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.pbr_material_extensions_get_clearcoat_normal_texture, "cna_pbr_material_extensions_get_clearcoat_normal_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_get_clearcoat_roughness(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_clearcoat_roughness, "cna_pbr_material_extensions_get_clearcoat_roughness");
+}
+
+static napi_value bridge_pbr_material_extensions_get_clearcoat_roughness_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.pbr_material_extensions_get_clearcoat_roughness_texture, "cna_pbr_material_extensions_get_clearcoat_roughness_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_get_clearcoat_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.pbr_material_extensions_get_clearcoat_texture, "cna_pbr_material_extensions_get_clearcoat_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_get_iridescence_factor(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_iridescence_factor, "cna_pbr_material_extensions_get_iridescence_factor");
+}
+
+static napi_value bridge_pbr_material_extensions_get_iridescence_ior(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_iridescence_ior, "cna_pbr_material_extensions_get_iridescence_ior");
+}
+
+static napi_value bridge_pbr_material_extensions_get_iridescence_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.pbr_material_extensions_get_iridescence_texture, "cna_pbr_material_extensions_get_iridescence_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_get_iridescence_thickness_maximum(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_iridescence_thickness_maximum, "cna_pbr_material_extensions_get_iridescence_thickness_maximum");
+}
+
+static napi_value bridge_pbr_material_extensions_get_iridescence_thickness_minimum(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_iridescence_thickness_minimum, "cna_pbr_material_extensions_get_iridescence_thickness_minimum");
+}
+
+static napi_value bridge_pbr_material_extensions_get_iridescence_thickness_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.pbr_material_extensions_get_iridescence_thickness_texture, "cna_pbr_material_extensions_get_iridescence_thickness_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_get_sheen_color_factor(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.pbr_material_extensions_get_sheen_color_factor, "cna_pbr_material_extensions_get_sheen_color_factor");
+}
+
+static napi_value bridge_pbr_material_extensions_get_sheen_color_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.pbr_material_extensions_get_sheen_color_texture, "cna_pbr_material_extensions_get_sheen_color_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_get_sheen_roughness(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_sheen_roughness, "cna_pbr_material_extensions_get_sheen_roughness");
+}
+
+static napi_value bridge_pbr_material_extensions_get_sheen_roughness_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.pbr_material_extensions_get_sheen_roughness_texture, "cna_pbr_material_extensions_get_sheen_roughness_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_get_subsurface_color(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.pbr_material_extensions_get_subsurface_color, "cna_pbr_material_extensions_get_subsurface_color");
+}
+
+static napi_value bridge_pbr_material_extensions_get_subsurface_wrap(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_subsurface_wrap, "cna_pbr_material_extensions_get_subsurface_wrap");
+}
+
+static napi_value bridge_pbr_material_extensions_get_thickness_factor(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_thickness_factor, "cna_pbr_material_extensions_get_thickness_factor");
+}
+
+static napi_value bridge_pbr_material_extensions_get_thickness_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.pbr_material_extensions_get_thickness_texture, "cna_pbr_material_extensions_get_thickness_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_get_transmission_factor(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_material_extensions_get_transmission_factor, "cna_pbr_material_extensions_get_transmission_factor");
+}
+
+static napi_value bridge_pbr_material_extensions_get_transmission_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.pbr_material_extensions_get_transmission_texture, "cna_pbr_material_extensions_get_transmission_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_is_iridescence_enabled(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.pbr_material_extensions_is_iridescence_enabled, "cna_pbr_material_extensions_is_iridescence_enabled");
+}
+
+static napi_value bridge_pbr_material_extensions_is_neutral(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.pbr_material_extensions_is_neutral, "cna_pbr_material_extensions_is_neutral");
+}
+
+static napi_value bridge_pbr_material_extensions_is_sheen_enabled(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.pbr_material_extensions_is_sheen_enabled, "cna_pbr_material_extensions_is_sheen_enabled");
+}
+
+static napi_value bridge_pbr_material_extensions_is_subsurface_enabled(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.pbr_material_extensions_is_subsurface_enabled, "cna_pbr_material_extensions_is_subsurface_enabled");
+}
+
+static napi_value bridge_pbr_material_extensions_is_transmission_enabled(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.pbr_material_extensions_is_transmission_enabled, "cna_pbr_material_extensions_is_transmission_enabled");
+}
+
+static napi_value bridge_pbr_material_extensions_set_attenuation_color(napi_env env, napi_callback_info info) {
+  return sky_set_vector3(env, info, g_api.pbr_material_extensions_set_attenuation_color, "cna_pbr_material_extensions_set_attenuation_color");
+}
+
+static napi_value bridge_pbr_material_extensions_set_attenuation_distance(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_attenuation_distance, "cna_pbr_material_extensions_set_attenuation_distance");
+}
+
+static napi_value bridge_pbr_material_extensions_set_clearcoat_factor(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_clearcoat_factor, "cna_pbr_material_extensions_set_clearcoat_factor");
+}
+
+static napi_value bridge_pbr_material_extensions_set_clearcoat_normal_scale(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_clearcoat_normal_scale, "cna_pbr_material_extensions_set_clearcoat_normal_scale");
+}
+
+static napi_value bridge_pbr_material_extensions_set_clearcoat_normal_texture(napi_env env, napi_callback_info info) {
+  return pbr_set_texture(env, info, g_api.pbr_material_extensions_set_clearcoat_normal_texture, "cna_pbr_material_extensions_set_clearcoat_normal_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_set_clearcoat_roughness(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_clearcoat_roughness, "cna_pbr_material_extensions_set_clearcoat_roughness");
+}
+
+static napi_value bridge_pbr_material_extensions_set_clearcoat_roughness_texture(napi_env env, napi_callback_info info) {
+  return pbr_set_texture(env, info, g_api.pbr_material_extensions_set_clearcoat_roughness_texture, "cna_pbr_material_extensions_set_clearcoat_roughness_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_set_clearcoat_texture(napi_env env, napi_callback_info info) {
+  return pbr_set_texture(env, info, g_api.pbr_material_extensions_set_clearcoat_texture, "cna_pbr_material_extensions_set_clearcoat_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_set_iridescence_factor(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_iridescence_factor, "cna_pbr_material_extensions_set_iridescence_factor");
+}
+
+static napi_value bridge_pbr_material_extensions_set_iridescence_ior(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_iridescence_ior, "cna_pbr_material_extensions_set_iridescence_ior");
+}
+
+static napi_value bridge_pbr_material_extensions_set_iridescence_texture(napi_env env, napi_callback_info info) {
+  return pbr_set_texture(env, info, g_api.pbr_material_extensions_set_iridescence_texture, "cna_pbr_material_extensions_set_iridescence_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_set_iridescence_thickness_maximum(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_iridescence_thickness_maximum, "cna_pbr_material_extensions_set_iridescence_thickness_maximum");
+}
+
+static napi_value bridge_pbr_material_extensions_set_iridescence_thickness_minimum(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_iridescence_thickness_minimum, "cna_pbr_material_extensions_set_iridescence_thickness_minimum");
+}
+
+static napi_value bridge_pbr_material_extensions_set_iridescence_thickness_texture(napi_env env, napi_callback_info info) {
+  return pbr_set_texture(env, info, g_api.pbr_material_extensions_set_iridescence_thickness_texture, "cna_pbr_material_extensions_set_iridescence_thickness_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_set_sheen_color_factor(napi_env env, napi_callback_info info) {
+  return sky_set_vector3(env, info, g_api.pbr_material_extensions_set_sheen_color_factor, "cna_pbr_material_extensions_set_sheen_color_factor");
+}
+
+static napi_value bridge_pbr_material_extensions_set_sheen_color_texture(napi_env env, napi_callback_info info) {
+  return pbr_set_texture(env, info, g_api.pbr_material_extensions_set_sheen_color_texture, "cna_pbr_material_extensions_set_sheen_color_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_set_sheen_roughness(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_sheen_roughness, "cna_pbr_material_extensions_set_sheen_roughness");
+}
+
+static napi_value bridge_pbr_material_extensions_set_sheen_roughness_texture(napi_env env, napi_callback_info info) {
+  return pbr_set_texture(env, info, g_api.pbr_material_extensions_set_sheen_roughness_texture, "cna_pbr_material_extensions_set_sheen_roughness_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_set_subsurface_color(napi_env env, napi_callback_info info) {
+  return sky_set_vector3(env, info, g_api.pbr_material_extensions_set_subsurface_color, "cna_pbr_material_extensions_set_subsurface_color");
+}
+
+static napi_value bridge_pbr_material_extensions_set_subsurface_wrap(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_subsurface_wrap, "cna_pbr_material_extensions_set_subsurface_wrap");
+}
+
+static napi_value bridge_pbr_material_extensions_set_thickness_factor(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_thickness_factor, "cna_pbr_material_extensions_set_thickness_factor");
+}
+
+static napi_value bridge_pbr_material_extensions_set_thickness_texture(napi_env env, napi_callback_info info) {
+  return pbr_set_texture(env, info, g_api.pbr_material_extensions_set_thickness_texture, "cna_pbr_material_extensions_set_thickness_texture");
+}
+
+static napi_value bridge_pbr_material_extensions_set_transmission_factor(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_material_extensions_set_transmission_factor, "cna_pbr_material_extensions_set_transmission_factor");
+}
+
+static napi_value bridge_pbr_material_extensions_set_transmission_texture(napi_env env, napi_callback_info info) {
+  return pbr_set_texture(env, info, g_api.pbr_material_extensions_set_transmission_texture, "cna_pbr_material_extensions_set_transmission_texture");
+}
+
+
+/* ---- the PBR effects that carry a canonical material ------------------------------------------
+   Every accessor here reads or writes exactly one field of the same state the material routes move
+   in one piece, which is what lets an applied material be checked through a route other than the
+   one that extracts it. */
+
+static napi_value bridge_pbr_effect_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.pbr_effect_create, "cna_pbr_effect_create");
+}
+
+static napi_value bridge_skinned_pbr_effect_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.skinned_pbr_effect_create, "cna_skinned_pbr_effect_create");
+}
+
+/** A CNA_Vector3 taken by value rather than by pointer, which these setters alone do. */
+static napi_value pbr_set_vector3(
+  napi_env env, napi_callback_info info, PbrVector3InFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle effect = 0;
+  CNA_Vector3 value = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_vector3_fields(env, args[1], &value)) {
+    return throw_message(env, "expected an effect and a vector with X, Y and Z");
+  }
+  const CNA_Result result = route(effect, value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static int read_pbr_slot(napi_env env, napi_value value, CNA_PbrTextureSlot* out) {
+  uint32_t slot = 0;
+  if (napi_get_value_uint32(env, value, &slot) != napi_ok) {
+    throw_message(env, "expected a PBR texture slot");
+    return 0;
+  }
+  *out = (CNA_PbrTextureSlot) slot;
+  return 1;
+}
+
+static napi_value bridge_pbr_effect_get_texture(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle effect = 0, texture = 0;
+  CNA_PbrTextureSlot slot = 0;
+  CNA_Bool present = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) || !read_pbr_slot(env, args[1], &slot)) return NULL;
+  const CNA_Result result = g_api.pbr_effect_get_texture(effect, slot, &present, &texture);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_effect_get_texture", result);
+  }
+  /* An empty slot answers "no texture" rather than a handle that happens to be zero, so the two
+     are not conflated here either: an absent slot is 0n and a present one is its handle. */
+  return make_handle(env, present != CNA_FALSE ? texture : 0);
+}
+
+static napi_value bridge_pbr_effect_set_texture(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle effect = 0, texture = 0;
+  CNA_PbrTextureSlot slot = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &effect) || !read_pbr_slot(env, args[1], &slot) ||
+      !read_handle_allow_zero(env, args[2], &texture)) return NULL;
+  const CNA_Result result = g_api.pbr_effect_set_texture(effect, slot, texture);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_effect_set_texture", result);
+  }
+  return undefined_result(env, "cna_pbr_effect_set_texture");
+}
+
+static napi_value bridge_pbr_effect_get_texture_coordinate_set_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  CNA_Handle effect = 0;
+  CNA_PbrTextureSlot slot = 0;
+  int32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) || !read_pbr_slot(env, args[1], &slot)) return NULL;
+  const CNA_Result result =
+    g_api.pbr_effect_get_texture_coordinate_set_ext(effect, slot, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_effect_get_texture_coordinate_set_ext", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_int32(env, value, &output),
+    "cna_pbr_effect_get_texture_coordinate_set_ext");
+  return output;
+}
+
+static napi_value bridge_pbr_effect_set_texture_coordinate_set_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  CNA_PbrTextureSlot slot = 0;
+  int32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &effect) || !read_pbr_slot(env, args[1], &slot) ||
+      napi_get_value_int32(env, args[2], &value) != napi_ok) {
+    return throw_message(env, "expected an effect, a slot and a coordinate set");
+  }
+  const CNA_Result result =
+    g_api.pbr_effect_set_texture_coordinate_set_ext(effect, slot, value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_effect_set_texture_coordinate_set_ext", result);
+  }
+  return undefined_result(env, "cna_pbr_effect_set_texture_coordinate_set_ext");
+}
+
+static napi_value bridge_pbr_effect_get_texture_transform_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2];
+  CNA_Handle effect = 0;
+  CNA_PbrTextureSlot slot = 0;
+  CNA_TextureTransformEXT transform;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) || !read_pbr_slot(env, args[1], &slot)) return NULL;
+  memset(&transform, 0, sizeof(transform));
+  transform.struct_size = sizeof(transform);
+  transform.struct_version = 1;
+  const CNA_Result result =
+    g_api.pbr_effect_get_texture_transform_ext(effect, slot, &transform);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_effect_get_texture_transform_ext", result);
+  }
+  napi_value output = make_texture_transform(env, &transform);
+  return output ? output : throw_napi(env, "cna_pbr_effect_get_texture_transform_ext");
+}
+
+static napi_value bridge_pbr_effect_set_texture_transform_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  CNA_PbrTextureSlot slot = 0;
+  CNA_TextureTransformEXT transform;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &effect) || !read_pbr_slot(env, args[1], &slot) ||
+      !read_texture_transform(env, args[2], &transform)) return NULL;
+  const CNA_Result result =
+    g_api.pbr_effect_set_texture_transform_ext(effect, slot, &transform);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_effect_set_texture_transform_ext", result);
+  }
+  return undefined_result(env, "cna_pbr_effect_set_texture_transform_ext");
+}
+
+static napi_value bridge_pbr_effect_get_texture_is_srgb_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  CNA_Handle effect = 0;
+  CNA_PbrTextureSlot slot = 0;
+  CNA_Bool value = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) || !read_pbr_slot(env, args[1], &slot)) return NULL;
+  const CNA_Result result = g_api.pbr_effect_get_texture_is_srgb_ext(effect, slot, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_effect_get_texture_is_srgb_ext", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_get_boolean(env, value != CNA_FALSE, &output),
+    "cna_pbr_effect_get_texture_is_srgb_ext");
+  return output;
+}
+
+static napi_value bridge_pbr_effect_set_texture_is_srgb_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  CNA_PbrTextureSlot slot = 0;
+  bool value = false;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &effect) || !read_pbr_slot(env, args[1], &slot) ||
+      napi_get_value_bool(env, args[2], &value) != napi_ok) {
+    return throw_message(env, "expected an effect, a slot and a Boolean");
+  }
+  const CNA_Result result = g_api.pbr_effect_set_texture_is_srgb_ext(
+    effect, slot, value ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_pbr_effect_set_texture_is_srgb_ext", result);
+  }
+  return undefined_result(env, "cna_pbr_effect_set_texture_is_srgb_ext");
+}
+
+static napi_value bridge_skinned_pbr_effect_set_bone_transforms(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], entry;
+  CNA_Handle effect = 0;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) ||
+      napi_get_array_length(env, args[1], &count) != napi_ok) {
+    return throw_message(env, "expected a skinned effect and an array of matrices");
+  }
+  CNA_Matrix* transforms = count == 0 ? NULL : (CNA_Matrix*) calloc(count, sizeof(CNA_Matrix));
+  if (count != 0 && !transforms) return throw_message(env, "bone transform allocation failed");
+  for (uint32_t index = 0; index < count; index += 1) {
+    if (napi_get_element(env, args[1], index, &entry) != napi_ok ||
+        !read_matrix16(env, entry, &transforms[index], "bone transform")) {
+      free(transforms);
+      return NULL;
+    }
+  }
+  const CNA_Result result =
+    g_api.skinned_pbr_effect_set_bone_transforms(effect, transforms, count);
+  free(transforms);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_skinned_pbr_effect_set_bone_transforms", result);
+  }
+  return undefined_result(env, "cna_skinned_pbr_effect_set_bone_transforms");
+}
+
+static napi_value bridge_skinned_pbr_effect_copy_bone_transforms(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output, entry;
+  CNA_Handle effect = 0;
+  uint32_t requested = 0;
+  uint64_t copied = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) ||
+      napi_get_value_uint32(env, args[1], &requested) != napi_ok) {
+    return throw_message(env, "expected a skinned effect and a bone count");
+  }
+  CNA_Matrix* transforms =
+    requested == 0 ? NULL : (CNA_Matrix*) calloc(requested, sizeof(CNA_Matrix));
+  if (requested != 0 && !transforms) return throw_message(env, "bone transform allocation failed");
+  const CNA_Result result = g_api.skinned_pbr_effect_copy_bone_transforms(
+    effect, requested, transforms, requested, &copied);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(transforms);
+    return throw_result(env, "cna_skinned_pbr_effect_copy_bone_transforms", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) copied, &output) != napi_ok) {
+    free(transforms);
+    return throw_napi(env, "cna_skinned_pbr_effect_copy_bone_transforms");
+  }
+  for (uint64_t index = 0; index < copied; index += 1) {
+    entry = make_matrix16(env, &transforms[index], "bone transform");
+    if (!entry ||
+        napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      free(transforms);
+      return throw_napi(env, "cna_skinned_pbr_effect_copy_bone_transforms");
+    }
+  }
+  free(transforms);
+  return output;
+}
+
+static napi_value bridge_pbr_effect_get_diffuse_color(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.pbr_effect_get_diffuse_color, "cna_pbr_effect_get_diffuse_color");
+}
+
+static napi_value bridge_pbr_effect_set_diffuse_color(napi_env env, napi_callback_info info) {
+  return pbr_set_vector3(env, info, g_api.pbr_effect_set_diffuse_color, "cna_pbr_effect_set_diffuse_color");
+}
+
+static napi_value bridge_pbr_effect_get_alpha(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_effect_get_alpha, "cna_pbr_effect_get_alpha");
+}
+
+static napi_value bridge_pbr_effect_set_alpha(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_effect_set_alpha, "cna_pbr_effect_set_alpha");
+}
+
+static napi_value bridge_pbr_effect_get_metallic_factor(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_effect_get_metallic_factor, "cna_pbr_effect_get_metallic_factor");
+}
+
+static napi_value bridge_pbr_effect_set_metallic_factor(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_effect_set_metallic_factor, "cna_pbr_effect_set_metallic_factor");
+}
+
+static napi_value bridge_pbr_effect_get_roughness_factor(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_effect_get_roughness_factor, "cna_pbr_effect_get_roughness_factor");
+}
+
+static napi_value bridge_pbr_effect_set_roughness_factor(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_effect_set_roughness_factor, "cna_pbr_effect_set_roughness_factor");
+}
+
+static napi_value bridge_pbr_effect_get_emissive_factor(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.pbr_effect_get_emissive_factor, "cna_pbr_effect_get_emissive_factor");
+}
+
+static napi_value bridge_pbr_effect_set_emissive_factor(napi_env env, napi_callback_info info) {
+  return pbr_set_vector3(env, info, g_api.pbr_effect_set_emissive_factor, "cna_pbr_effect_set_emissive_factor");
+}
+
+static napi_value bridge_pbr_effect_get_vertex_color_enabled_ext(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.pbr_effect_get_vertex_color_enabled_ext, "cna_pbr_effect_get_vertex_color_enabled_ext");
+}
+
+static napi_value bridge_pbr_effect_set_vertex_color_enabled_ext(napi_env env, napi_callback_info info) {
+  return pp_set_bool(env, info, g_api.pbr_effect_set_vertex_color_enabled_ext, "cna_pbr_effect_set_vertex_color_enabled_ext");
+}
+
+static napi_value bridge_pbr_effect_get_ior_ext(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_effect_get_ior_ext, "cna_pbr_effect_get_ior_ext");
+}
+
+static napi_value bridge_pbr_effect_set_ior_ext(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_effect_set_ior_ext, "cna_pbr_effect_set_ior_ext");
+}
+
+static napi_value bridge_pbr_effect_get_specular_factor_ext(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_effect_get_specular_factor_ext, "cna_pbr_effect_get_specular_factor_ext");
+}
+
+static napi_value bridge_pbr_effect_set_specular_factor_ext(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_effect_set_specular_factor_ext, "cna_pbr_effect_set_specular_factor_ext");
+}
+
+static napi_value bridge_pbr_effect_get_specular_color_factor_ext(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.pbr_effect_get_specular_color_factor_ext, "cna_pbr_effect_get_specular_color_factor_ext");
+}
+
+static napi_value bridge_pbr_effect_set_specular_color_factor_ext(napi_env env, napi_callback_info info) {
+  return pbr_set_vector3(env, info, g_api.pbr_effect_set_specular_color_factor_ext, "cna_pbr_effect_set_specular_color_factor_ext");
+}
+
+static napi_value bridge_pbr_effect_get_normal_scale_ext(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_effect_get_normal_scale_ext, "cna_pbr_effect_get_normal_scale_ext");
+}
+
+static napi_value bridge_pbr_effect_set_normal_scale_ext(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_effect_set_normal_scale_ext, "cna_pbr_effect_set_normal_scale_ext");
+}
+
+static napi_value bridge_pbr_effect_get_occlusion_strength_ext(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_effect_get_occlusion_strength_ext, "cna_pbr_effect_get_occlusion_strength_ext");
+}
+
+static napi_value bridge_pbr_effect_set_occlusion_strength_ext(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_effect_set_occlusion_strength_ext, "cna_pbr_effect_set_occlusion_strength_ext");
+}
+
+static napi_value bridge_pbr_effect_get_encode_output_to_srgb_ext(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.pbr_effect_get_encode_output_to_srgb_ext, "cna_pbr_effect_get_encode_output_to_srgb_ext");
+}
+
+static napi_value bridge_pbr_effect_set_encode_output_to_srgb_ext(napi_env env, napi_callback_info info) {
+  return pp_set_bool(env, info, g_api.pbr_effect_set_encode_output_to_srgb_ext, "cna_pbr_effect_set_encode_output_to_srgb_ext");
+}
+
+static napi_value bridge_pbr_effect_get_alpha_mode_ext(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, (HandleI32OutFn) (void*) g_api.pbr_effect_get_alpha_mode_ext, "cna_pbr_effect_get_alpha_mode_ext");
+}
+
+static napi_value bridge_pbr_effect_set_alpha_mode_ext(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, (HandleI32Fn) (void*) g_api.pbr_effect_set_alpha_mode_ext, "cna_pbr_effect_set_alpha_mode_ext");
+}
+
+static napi_value bridge_pbr_effect_get_alpha_cutoff_ext(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.pbr_effect_get_alpha_cutoff_ext, "cna_pbr_effect_get_alpha_cutoff_ext");
+}
+
+static napi_value bridge_pbr_effect_set_alpha_cutoff_ext(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.pbr_effect_set_alpha_cutoff_ext, "cna_pbr_effect_set_alpha_cutoff_ext");
+}
+
+static napi_value bridge_pbr_effect_get_double_sided_ext(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.pbr_effect_get_double_sided_ext, "cna_pbr_effect_get_double_sided_ext");
+}
+
+static napi_value bridge_pbr_effect_set_double_sided_ext(napi_env env, napi_callback_info info) {
+  return pp_set_bool(env, info, g_api.pbr_effect_set_double_sided_ext, "cna_pbr_effect_set_double_sided_ext");
+}
+
+static napi_value bridge_skinned_pbr_effect_get_weights_per_vertex(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.skinned_pbr_effect_get_weights_per_vertex, "cna_skinned_pbr_effect_get_weights_per_vertex");
+}
+
+static napi_value bridge_skinned_pbr_effect_set_weights_per_vertex(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, g_api.skinned_pbr_effect_set_weights_per_vertex, "cna_skinned_pbr_effect_set_weights_per_vertex");
+}
+
+/* The device state CNA actually holds, which a caller's own BlendState object does not see: a
+   material's ApplyState writes it below the wrapper, so reading it back is the only way to observe
+   what that call did. */
+static napi_value bridge_graphics_device_get_blend_state(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle device = 0;
+  CNA_BlendState state;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  memset(&state, 0, sizeof(state));
+  state.struct_size = sizeof(state);
+  state.struct_version = 1;
+  const CNA_Result result = g_api.graphics_device_get_blend_state(device, &state);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_device_get_blend_state", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "device blend state");
+  if (!set_u32_property(env, output, "AlphaBlendFunction", state.alpha_blend_function) ||
+      !set_u32_property(env, output, "AlphaDestinationBlend", state.alpha_destination_blend) ||
+      !set_u32_property(env, output, "AlphaSourceBlend", state.alpha_source_blend) ||
+      !set_u32_property(env, output, "ColorBlendFunction", state.color_blend_function) ||
+      !set_u32_property(env, output, "ColorDestinationBlend", state.color_destination_blend) ||
+      !set_u32_property(env, output, "ColorSourceBlend", state.color_source_blend) ||
+      !set_u32_property(env, output, "ColorWriteChannels", state.color_write_channels) ||
+      !set_u32_property(env, output, "ColorWriteChannels1", state.color_write_channels1) ||
+      !set_u32_property(env, output, "ColorWriteChannels2", state.color_write_channels2) ||
+      !set_u32_property(env, output, "ColorWriteChannels3", state.color_write_channels3) ||
+      !set_u32_property(env, output, "BlendFactor", pack_color(state.blend_factor)) ||
+      !set_i32_property(env, output, "MultiSampleMask", state.multi_sample_mask)) {
+    return throw_napi(env, "device blend state");
+  }
+  return output;
+}
+
+static napi_value bridge_graphics_device_get_rasterizer_state(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1], output;
+  CNA_Handle device = 0;
+  CNA_RasterizerState state;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &device)) return NULL;
+  memset(&state, 0, sizeof(state));
+  state.struct_size = sizeof(state);
+  state.struct_version = 1;
+  const CNA_Result result = g_api.graphics_device_get_rasterizer_state(device, &state);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_device_get_rasterizer_state", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "device rasterizer state");
+  if (!set_u32_property(env, output, "CullMode", state.cull_mode) ||
+      !set_u32_property(env, output, "FillMode", state.fill_mode) ||
+      !set_f32_property(env, output, "DepthBias", state.depth_bias) ||
+      !set_f32_property(env, output, "SlopeScaleDepthBias", state.slope_scale_depth_bias) ||
+      !set_bool_property(env, output, "MultiSampleAntiAlias", state.multi_sample_anti_alias) ||
+      !set_bool_property(env, output, "ScissorTestEnable", state.scissor_test_enable)) {
+    return throw_napi(env, "device rasterizer state");
+  }
+  return output;
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "getDeviceBlendState", NULL, bridge_graphics_device_get_blend_state, NULL, NULL, NULL, napi_default, NULL },
+    { "getDeviceRasterizerState", NULL, bridge_graphics_device_get_rasterizer_state, NULL, NULL, NULL, napi_default, NULL },
+    { "createPbrEffect", NULL, bridge_pbr_effect_create, NULL, NULL, NULL, napi_default, NULL },
+    { "createSkinnedPbrEffect", NULL, bridge_skinned_pbr_effect_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectDiffuseColor", NULL, bridge_pbr_effect_get_diffuse_color, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectDiffuseColor", NULL, bridge_pbr_effect_set_diffuse_color, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectAlpha", NULL, bridge_pbr_effect_get_alpha, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectAlpha", NULL, bridge_pbr_effect_set_alpha, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectTexture", NULL, bridge_pbr_effect_get_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectTexture", NULL, bridge_pbr_effect_set_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectMetallicFactor", NULL, bridge_pbr_effect_get_metallic_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectMetallicFactor", NULL, bridge_pbr_effect_set_metallic_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectRoughnessFactor", NULL, bridge_pbr_effect_get_roughness_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectRoughnessFactor", NULL, bridge_pbr_effect_set_roughness_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectEmissiveFactor", NULL, bridge_pbr_effect_get_emissive_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectEmissiveFactor", NULL, bridge_pbr_effect_set_emissive_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectVertexColorEnabled", NULL, bridge_pbr_effect_get_vertex_color_enabled_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectVertexColorEnabled", NULL, bridge_pbr_effect_set_vertex_color_enabled_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectIor", NULL, bridge_pbr_effect_get_ior_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectIor", NULL, bridge_pbr_effect_set_ior_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectSpecularFactor", NULL, bridge_pbr_effect_get_specular_factor_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectSpecularFactor", NULL, bridge_pbr_effect_set_specular_factor_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectSpecularColorFactor", NULL, bridge_pbr_effect_get_specular_color_factor_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectSpecularColorFactor", NULL, bridge_pbr_effect_set_specular_color_factor_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectNormalScale", NULL, bridge_pbr_effect_get_normal_scale_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectNormalScale", NULL, bridge_pbr_effect_set_normal_scale_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectOcclusionStrength", NULL, bridge_pbr_effect_get_occlusion_strength_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectOcclusionStrength", NULL, bridge_pbr_effect_set_occlusion_strength_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectTextureCoordinateSet", NULL, bridge_pbr_effect_get_texture_coordinate_set_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectTextureCoordinateSet", NULL, bridge_pbr_effect_set_texture_coordinate_set_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectTextureTransform", NULL, bridge_pbr_effect_get_texture_transform_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectTextureTransform", NULL, bridge_pbr_effect_set_texture_transform_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectTextureIsSrgb", NULL, bridge_pbr_effect_get_texture_is_srgb_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectTextureIsSrgb", NULL, bridge_pbr_effect_set_texture_is_srgb_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectEncodeOutputToSrgb", NULL, bridge_pbr_effect_get_encode_output_to_srgb_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectEncodeOutputToSrgb", NULL, bridge_pbr_effect_set_encode_output_to_srgb_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectAlphaMode", NULL, bridge_pbr_effect_get_alpha_mode_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectAlphaMode", NULL, bridge_pbr_effect_set_alpha_mode_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectAlphaCutoff", NULL, bridge_pbr_effect_get_alpha_cutoff_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectAlphaCutoff", NULL, bridge_pbr_effect_set_alpha_cutoff_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrEffectDoubleSided", NULL, bridge_pbr_effect_get_double_sided_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrEffectDoubleSided", NULL, bridge_pbr_effect_set_double_sided_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getSkinnedPbrEffectWeightsPerVertex", NULL, bridge_skinned_pbr_effect_get_weights_per_vertex, NULL, NULL, NULL, napi_default, NULL },
+    { "setSkinnedPbrEffectWeightsPerVertex", NULL, bridge_skinned_pbr_effect_set_weights_per_vertex, NULL, NULL, NULL, napi_default, NULL },
+    { "setSkinnedPbrEffectBoneTransforms", NULL, bridge_skinned_pbr_effect_set_bone_transforms, NULL, NULL, NULL, napi_default, NULL },
+    { "getSkinnedPbrEffectBoneTransforms", NULL, bridge_skinned_pbr_effect_copy_bone_transforms, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultPbrMaterialExt", NULL, bridge_pbr_material_ext_init, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultTextureTransform", NULL, bridge_texture_transform_ext_init, NULL, NULL, NULL, napi_default, NULL },
+    { "pbrMaterialExtEquals", NULL, bridge_pbr_material_ext_equals, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrMaterialExtHashCode", NULL, bridge_pbr_material_ext_get_hash_code, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrMaterialExtText", NULL, bridge_pbr_material_ext_copy_to_string, NULL, NULL, NULL, napi_default, NULL },
+    { "applyPbrMaterialState", NULL, bridge_pbr_material_apply_state, NULL, NULL, NULL, napi_default, NULL },
+    { "applyPbrEffectMaterial", NULL, bridge_pbr_effect_apply_material, NULL, NULL, NULL, napi_default, NULL },
+    { "extractPbrEffectMaterial", NULL, bridge_pbr_effect_extract_material, NULL, NULL, NULL, napi_default, NULL },
+    { "applySkinnedPbrEffectMaterial", NULL, bridge_skinned_pbr_effect_apply_material, NULL, NULL, NULL, napi_default, NULL },
+    { "extractSkinnedPbrEffectMaterial", NULL, bridge_skinned_pbr_effect_extract_material, NULL, NULL, NULL, napi_default, NULL },
+    { "createPbrMaterialExtensions", NULL, bridge_pbr_material_extensions_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyPbrMaterialExtensions", NULL, bridge_pbr_material_extensions_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "copyPbrMaterialExtensionsFrom", NULL, bridge_pbr_material_extensions_copy_from, NULL, NULL, NULL, napi_default, NULL },
+    { "pbrMaterialExtensionsEquals", NULL, bridge_pbr_material_extensions_equals, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrMaterialExtensionsHashCode", NULL, bridge_pbr_material_extensions_get_hash_code, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrMaterialExtensionsText", NULL, bridge_pbr_material_extensions_copy_to_string, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultGltfMaterialSource", NULL, bridge_gltf_material_source_ext_init, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultGltfMaterialTextures", NULL, bridge_gltf_material_textures_ext_init, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultGltfExtensionSource", NULL, bridge_gltf_material_extension_source_ext_init, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultGltfExtensionTextures", NULL, bridge_gltf_material_extension_textures_ext_init, NULL, NULL, NULL, napi_default, NULL },
+    { "buildGltfPbrMaterial", NULL, bridge_gltf_material_bridge_build_material, NULL, NULL, NULL, napi_default, NULL },
+    { "buildGltfPbrMaterialExtensions", NULL, bridge_gltf_material_bridge_build_extensions, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionAttenuationColor", NULL, bridge_pbr_material_extensions_get_attenuation_color, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionAttenuationDistance", NULL, bridge_pbr_material_extensions_get_attenuation_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionClearcoatFactor", NULL, bridge_pbr_material_extensions_get_clearcoat_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionClearcoatNormalScale", NULL, bridge_pbr_material_extensions_get_clearcoat_normal_scale, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionClearcoatNormalTexture", NULL, bridge_pbr_material_extensions_get_clearcoat_normal_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionClearcoatRoughness", NULL, bridge_pbr_material_extensions_get_clearcoat_roughness, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionClearcoatRoughnessTexture", NULL, bridge_pbr_material_extensions_get_clearcoat_roughness_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionClearcoatTexture", NULL, bridge_pbr_material_extensions_get_clearcoat_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionIridescenceFactor", NULL, bridge_pbr_material_extensions_get_iridescence_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionIridescenceIor", NULL, bridge_pbr_material_extensions_get_iridescence_ior, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionIridescenceTexture", NULL, bridge_pbr_material_extensions_get_iridescence_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionIridescenceThicknessMaximum", NULL, bridge_pbr_material_extensions_get_iridescence_thickness_maximum, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionIridescenceThicknessMinimum", NULL, bridge_pbr_material_extensions_get_iridescence_thickness_minimum, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionIridescenceThicknessTexture", NULL, bridge_pbr_material_extensions_get_iridescence_thickness_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionSheenColorFactor", NULL, bridge_pbr_material_extensions_get_sheen_color_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionSheenColorTexture", NULL, bridge_pbr_material_extensions_get_sheen_color_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionSheenRoughness", NULL, bridge_pbr_material_extensions_get_sheen_roughness, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionSheenRoughnessTexture", NULL, bridge_pbr_material_extensions_get_sheen_roughness_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionSubsurfaceColor", NULL, bridge_pbr_material_extensions_get_subsurface_color, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionSubsurfaceWrap", NULL, bridge_pbr_material_extensions_get_subsurface_wrap, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionThicknessFactor", NULL, bridge_pbr_material_extensions_get_thickness_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionThicknessTexture", NULL, bridge_pbr_material_extensions_get_thickness_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionTransmissionFactor", NULL, bridge_pbr_material_extensions_get_transmission_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "getPbrExtensionTransmissionTexture", NULL, bridge_pbr_material_extensions_get_transmission_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "pbrExtensionIsIridescenceEnabled", NULL, bridge_pbr_material_extensions_is_iridescence_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "pbrExtensionIsNeutral", NULL, bridge_pbr_material_extensions_is_neutral, NULL, NULL, NULL, napi_default, NULL },
+    { "pbrExtensionIsSheenEnabled", NULL, bridge_pbr_material_extensions_is_sheen_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "pbrExtensionIsSubsurfaceEnabled", NULL, bridge_pbr_material_extensions_is_subsurface_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "pbrExtensionIsTransmissionEnabled", NULL, bridge_pbr_material_extensions_is_transmission_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionAttenuationColor", NULL, bridge_pbr_material_extensions_set_attenuation_color, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionAttenuationDistance", NULL, bridge_pbr_material_extensions_set_attenuation_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionClearcoatFactor", NULL, bridge_pbr_material_extensions_set_clearcoat_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionClearcoatNormalScale", NULL, bridge_pbr_material_extensions_set_clearcoat_normal_scale, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionClearcoatNormalTexture", NULL, bridge_pbr_material_extensions_set_clearcoat_normal_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionClearcoatRoughness", NULL, bridge_pbr_material_extensions_set_clearcoat_roughness, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionClearcoatRoughnessTexture", NULL, bridge_pbr_material_extensions_set_clearcoat_roughness_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionClearcoatTexture", NULL, bridge_pbr_material_extensions_set_clearcoat_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionIridescenceFactor", NULL, bridge_pbr_material_extensions_set_iridescence_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionIridescenceIor", NULL, bridge_pbr_material_extensions_set_iridescence_ior, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionIridescenceTexture", NULL, bridge_pbr_material_extensions_set_iridescence_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionIridescenceThicknessMaximum", NULL, bridge_pbr_material_extensions_set_iridescence_thickness_maximum, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionIridescenceThicknessMinimum", NULL, bridge_pbr_material_extensions_set_iridescence_thickness_minimum, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionIridescenceThicknessTexture", NULL, bridge_pbr_material_extensions_set_iridescence_thickness_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionSheenColorFactor", NULL, bridge_pbr_material_extensions_set_sheen_color_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionSheenColorTexture", NULL, bridge_pbr_material_extensions_set_sheen_color_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionSheenRoughness", NULL, bridge_pbr_material_extensions_set_sheen_roughness, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionSheenRoughnessTexture", NULL, bridge_pbr_material_extensions_set_sheen_roughness_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionSubsurfaceColor", NULL, bridge_pbr_material_extensions_set_subsurface_color, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionSubsurfaceWrap", NULL, bridge_pbr_material_extensions_set_subsurface_wrap, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionThicknessFactor", NULL, bridge_pbr_material_extensions_set_thickness_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionThicknessTexture", NULL, bridge_pbr_material_extensions_set_thickness_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionTransmissionFactor", NULL, bridge_pbr_material_extensions_set_transmission_factor, NULL, NULL, NULL, napi_default, NULL },
+    { "setPbrExtensionTransmissionTexture", NULL, bridge_pbr_material_extensions_set_transmission_texture, NULL, NULL, NULL, napi_default, NULL },
     { "getDefaultPbrMaterial", NULL, default_pbr_material, NULL, NULL, NULL, napi_default, NULL },
     { "getDefaultRenderPipelineSettings", NULL, default_render_pipeline_settings, NULL, NULL, NULL, napi_default, NULL },
     { "createRenderPipeline", NULL, create_render_pipeline, NULL, NULL, NULL, napi_default, NULL },

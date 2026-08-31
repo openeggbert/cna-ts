@@ -79,6 +79,10 @@ import type {
   DirectionalLightSnapshot,
   DisplayModeSnapshot,
   GameWindowBoundsSnapshot,
+  GltfExtensionSourceSnapshot,
+  GltfExtensionTexturesSnapshot,
+  GltfMaterialSourceSnapshot,
+  GltfMaterialTexturesSnapshot,
   GraphicsAdapterInfoSnapshot,
   GraphicsFormatSelectionSnapshot,
   GraphicsManagerConfiguration,
@@ -100,6 +104,7 @@ import type {
   ParticleSnapshot,
   PassTimingSnapshot,
   PbrMaterialDefaults,
+  PbrMaterialExtSnapshot,
   PlatformSnapshot,
   PointLightSnapshot,
   PostProcessFrameSnapshot,
@@ -131,6 +136,7 @@ import type {
   Texture2DTransfer,
   Texture3DInfo,
   TextureCubeInfo,
+  TextureTransformSnapshot,
   Vector2Snapshot,
   Vector3Snapshot,
   Vector4Snapshot,
@@ -1480,6 +1486,421 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public getPostProcessChainPassTimings(
     _chain: NativeHandle,
   ): readonly PassTimingSnapshot[] { return this.unsupported("getPostProcessChainPassTimings"); }
+  public getDefaultPbrMaterialExt(
+  ): PbrMaterialExtSnapshot { return this.unsupported("getDefaultPbrMaterialExt"); }
+  public getDefaultTextureTransform(
+  ): TextureTransformSnapshot { return this.unsupported("getDefaultTextureTransform"); }
+  public pbrMaterialExtEquals(
+    _first: PbrMaterialExtSnapshot,
+    _second: PbrMaterialExtSnapshot,
+  ): boolean { return this.unsupported("pbrMaterialExtEquals"); }
+  public getPbrMaterialExtHashCode(
+    _material: PbrMaterialExtSnapshot,
+  ): bigint { return this.unsupported("getPbrMaterialExtHashCode"); }
+  public getPbrMaterialExtText(
+    _material: PbrMaterialExtSnapshot,
+  ): string { return this.unsupported("getPbrMaterialExtText"); }
+  public applyPbrMaterialState(
+    _material: PbrMaterialExtSnapshot,
+    _device: NativeHandle,
+  ): void { return this.unsupported("applyPbrMaterialState"); }
+  public getDeviceBlendState(
+    _device: NativeHandle,
+  ): BlendStateSnapshot { return this.unsupported("getDeviceBlendState"); }
+  public getDeviceRasterizerState(
+    _device: NativeHandle,
+  ): RasterizerStateSnapshot { return this.unsupported("getDeviceRasterizerState"); }
+  public applyPbrEffectMaterial(
+    _effect: NativeHandle,
+    _material: PbrMaterialExtSnapshot,
+  ): void { return this.unsupported("applyPbrEffectMaterial"); }
+  public extractPbrEffectMaterial(
+    _effect: NativeHandle,
+  ): PbrMaterialExtSnapshot { return this.unsupported("extractPbrEffectMaterial"); }
+  public applySkinnedPbrEffectMaterial(
+    _effect: NativeHandle,
+    _material: PbrMaterialExtSnapshot,
+  ): void { return this.unsupported("applySkinnedPbrEffectMaterial"); }
+  public extractSkinnedPbrEffectMaterial(
+    _effect: NativeHandle,
+  ): PbrMaterialExtSnapshot { return this.unsupported("extractSkinnedPbrEffectMaterial"); }
+  public createPbrMaterialExtensions(
+  ): NativeHandle { return this.unsupported("createPbrMaterialExtensions"); }
+  public destroyPbrMaterialExtensions(
+    _extensions: NativeHandle,
+  ): void { return this.unsupported("destroyPbrMaterialExtensions"); }
+  public copyPbrMaterialExtensionsFrom(
+    _destination: NativeHandle,
+    _source: NativeHandle,
+  ): void { return this.unsupported("copyPbrMaterialExtensionsFrom"); }
+  public pbrMaterialExtensionsEquals(
+    _first: NativeHandle,
+    _second: NativeHandle,
+  ): boolean { return this.unsupported("pbrMaterialExtensionsEquals"); }
+  public getPbrMaterialExtensionsHashCode(
+    _extensions: NativeHandle,
+  ): bigint { return this.unsupported("getPbrMaterialExtensionsHashCode"); }
+  public getPbrMaterialExtensionsText(
+    _extensions: NativeHandle,
+  ): string { return this.unsupported("getPbrMaterialExtensionsText"); }
+  public getDefaultGltfMaterialSource(
+  ): GltfMaterialSourceSnapshot { return this.unsupported("getDefaultGltfMaterialSource"); }
+  public getDefaultGltfMaterialTextures(
+  ): GltfMaterialTexturesSnapshot { return this.unsupported("getDefaultGltfMaterialTextures"); }
+  public getDefaultGltfExtensionSource(
+  ): GltfExtensionSourceSnapshot { return this.unsupported("getDefaultGltfExtensionSource"); }
+  public getDefaultGltfExtensionTextures(
+  ): GltfExtensionTexturesSnapshot { return this.unsupported("getDefaultGltfExtensionTextures"); }
+  public buildGltfPbrMaterial(
+    _source: GltfMaterialSourceSnapshot,
+    _textures: GltfMaterialTexturesSnapshot,
+  ): PbrMaterialExtSnapshot { return this.unsupported("buildGltfPbrMaterial"); }
+  public buildGltfPbrMaterialExtensions(
+    _source: GltfExtensionSourceSnapshot,
+    _textures: GltfExtensionTexturesSnapshot,
+    _extensions: NativeHandle,
+  ): void { return this.unsupported("buildGltfPbrMaterialExtensions"); }
+  public createPbrEffect(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createPbrEffect"); }
+  public createSkinnedPbrEffect(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createSkinnedPbrEffect"); }
+  public getPbrEffectAlpha(_effect: NativeHandle): number { return this.unsupported("getPbrEffectAlpha"); }
+  public getPbrEffectAlphaCutoff(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getPbrEffectAlphaCutoff"); }
+  public getPbrEffectAlphaMode(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getPbrEffectAlphaMode"); }
+  public getPbrEffectDiffuseColor(
+    _effect: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getPbrEffectDiffuseColor"); }
+  public getPbrEffectDoubleSided(
+    _effect: NativeHandle,
+  ): boolean { return this.unsupported("getPbrEffectDoubleSided"); }
+  public getPbrEffectEmissiveFactor(
+    _effect: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getPbrEffectEmissiveFactor"); }
+  public getPbrEffectEncodeOutputToSrgb(
+    _effect: NativeHandle,
+  ): boolean { return this.unsupported("getPbrEffectEncodeOutputToSrgb"); }
+  public getPbrEffectIor(_effect: NativeHandle): number { return this.unsupported("getPbrEffectIor"); }
+  public getPbrEffectMetallicFactor(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getPbrEffectMetallicFactor"); }
+  public getPbrEffectNormalScale(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getPbrEffectNormalScale"); }
+  public getPbrEffectOcclusionStrength(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getPbrEffectOcclusionStrength"); }
+  public getPbrEffectRoughnessFactor(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getPbrEffectRoughnessFactor"); }
+  public getPbrEffectSpecularColorFactor(
+    _effect: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getPbrEffectSpecularColorFactor"); }
+  public getPbrEffectSpecularFactor(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getPbrEffectSpecularFactor"); }
+  public getPbrEffectTexture(
+    _effect: NativeHandle,
+    _slot: number,
+  ): NativeHandle { return this.unsupported("getPbrEffectTexture"); }
+  public getPbrEffectTextureCoordinateSet(
+    _effect: NativeHandle,
+    _slot: number,
+  ): number { return this.unsupported("getPbrEffectTextureCoordinateSet"); }
+  public getPbrEffectTextureIsSrgb(
+    _effect: NativeHandle,
+    _slot: number,
+  ): boolean { return this.unsupported("getPbrEffectTextureIsSrgb"); }
+  public getPbrEffectTextureTransform(
+    _effect: NativeHandle,
+    _slot: number,
+  ): TextureTransformSnapshot { return this.unsupported("getPbrEffectTextureTransform"); }
+  public getPbrEffectVertexColorEnabled(
+    _effect: NativeHandle,
+  ): boolean { return this.unsupported("getPbrEffectVertexColorEnabled"); }
+  public getSkinnedPbrEffectBoneTransforms(
+    _effect: NativeHandle,
+    _count: number,
+  ): readonly (readonly number[])[] { return this.unsupported("getSkinnedPbrEffectBoneTransforms"); }
+  public getSkinnedPbrEffectWeightsPerVertex(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getSkinnedPbrEffectWeightsPerVertex"); }
+  public setPbrEffectAlpha(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrEffectAlpha"); }
+  public setPbrEffectAlphaCutoff(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrEffectAlphaCutoff"); }
+  public setPbrEffectAlphaMode(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrEffectAlphaMode"); }
+  public setPbrEffectDiffuseColor(
+    _effect: NativeHandle,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setPbrEffectDiffuseColor"); }
+  public setPbrEffectDoubleSided(
+    _effect: NativeHandle,
+    _value: boolean,
+  ): void { return this.unsupported("setPbrEffectDoubleSided"); }
+  public setPbrEffectEmissiveFactor(
+    _effect: NativeHandle,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setPbrEffectEmissiveFactor"); }
+  public setPbrEffectEncodeOutputToSrgb(
+    _effect: NativeHandle,
+    _value: boolean,
+  ): void { return this.unsupported("setPbrEffectEncodeOutputToSrgb"); }
+  public setPbrEffectIor(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrEffectIor"); }
+  public setPbrEffectMetallicFactor(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrEffectMetallicFactor"); }
+  public setPbrEffectNormalScale(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrEffectNormalScale"); }
+  public setPbrEffectOcclusionStrength(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrEffectOcclusionStrength"); }
+  public setPbrEffectRoughnessFactor(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrEffectRoughnessFactor"); }
+  public setPbrEffectSpecularColorFactor(
+    _effect: NativeHandle,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setPbrEffectSpecularColorFactor"); }
+  public setPbrEffectSpecularFactor(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrEffectSpecularFactor"); }
+  public setPbrEffectTexture(
+    _effect: NativeHandle,
+    _slot: number,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setPbrEffectTexture"); }
+  public setPbrEffectTextureCoordinateSet(
+    _effect: NativeHandle,
+    _slot: number,
+    _value: number,
+  ): void { return this.unsupported("setPbrEffectTextureCoordinateSet"); }
+  public setPbrEffectTextureIsSrgb(
+    _effect: NativeHandle,
+    _slot: number,
+    _value: boolean,
+  ): void { return this.unsupported("setPbrEffectTextureIsSrgb"); }
+  public setPbrEffectTextureTransform(
+    _effect: NativeHandle,
+    _slot: number,
+    _transform: TextureTransformSnapshot,
+  ): void { return this.unsupported("setPbrEffectTextureTransform"); }
+  public setPbrEffectVertexColorEnabled(
+    _effect: NativeHandle,
+    _value: boolean,
+  ): void { return this.unsupported("setPbrEffectVertexColorEnabled"); }
+  public setSkinnedPbrEffectBoneTransforms(
+    _effect: NativeHandle,
+    _transforms: readonly (readonly number[])[],
+  ): void { return this.unsupported("setSkinnedPbrEffectBoneTransforms"); }
+  public setSkinnedPbrEffectWeightsPerVertex(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSkinnedPbrEffectWeightsPerVertex"); }
+  public getPbrExtensionAttenuationColor(
+    _extensions: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getPbrExtensionAttenuationColor"); }
+  public getPbrExtensionAttenuationDistance(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionAttenuationDistance"); }
+  public getPbrExtensionClearcoatFactor(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionClearcoatFactor"); }
+  public getPbrExtensionClearcoatNormalScale(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionClearcoatNormalScale"); }
+  public getPbrExtensionClearcoatNormalTexture(
+    _extensions: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPbrExtensionClearcoatNormalTexture"); }
+  public getPbrExtensionClearcoatRoughness(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionClearcoatRoughness"); }
+  public getPbrExtensionClearcoatRoughnessTexture(
+    _extensions: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPbrExtensionClearcoatRoughnessTexture"); }
+  public getPbrExtensionClearcoatTexture(
+    _extensions: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPbrExtensionClearcoatTexture"); }
+  public getPbrExtensionIridescenceFactor(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionIridescenceFactor"); }
+  public getPbrExtensionIridescenceIor(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionIridescenceIor"); }
+  public getPbrExtensionIridescenceTexture(
+    _extensions: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPbrExtensionIridescenceTexture"); }
+  public getPbrExtensionIridescenceThicknessMaximum(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionIridescenceThicknessMaximum"); }
+  public getPbrExtensionIridescenceThicknessMinimum(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionIridescenceThicknessMinimum"); }
+  public getPbrExtensionIridescenceThicknessTexture(
+    _extensions: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPbrExtensionIridescenceThicknessTexture"); }
+  public getPbrExtensionSheenColorFactor(
+    _extensions: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getPbrExtensionSheenColorFactor"); }
+  public getPbrExtensionSheenColorTexture(
+    _extensions: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPbrExtensionSheenColorTexture"); }
+  public getPbrExtensionSheenRoughness(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionSheenRoughness"); }
+  public getPbrExtensionSheenRoughnessTexture(
+    _extensions: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPbrExtensionSheenRoughnessTexture"); }
+  public getPbrExtensionSubsurfaceColor(
+    _extensions: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getPbrExtensionSubsurfaceColor"); }
+  public getPbrExtensionSubsurfaceWrap(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionSubsurfaceWrap"); }
+  public getPbrExtensionThicknessFactor(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionThicknessFactor"); }
+  public getPbrExtensionThicknessTexture(
+    _extensions: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPbrExtensionThicknessTexture"); }
+  public getPbrExtensionTransmissionFactor(
+    _extensions: NativeHandle,
+  ): number { return this.unsupported("getPbrExtensionTransmissionFactor"); }
+  public getPbrExtensionTransmissionTexture(
+    _extensions: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPbrExtensionTransmissionTexture"); }
+  public pbrExtensionIsIridescenceEnabled(
+    _extensions: NativeHandle,
+  ): boolean { return this.unsupported("pbrExtensionIsIridescenceEnabled"); }
+  public pbrExtensionIsNeutral(
+    _extensions: NativeHandle,
+  ): boolean { return this.unsupported("pbrExtensionIsNeutral"); }
+  public pbrExtensionIsSheenEnabled(
+    _extensions: NativeHandle,
+  ): boolean { return this.unsupported("pbrExtensionIsSheenEnabled"); }
+  public pbrExtensionIsSubsurfaceEnabled(
+    _extensions: NativeHandle,
+  ): boolean { return this.unsupported("pbrExtensionIsSubsurfaceEnabled"); }
+  public pbrExtensionIsTransmissionEnabled(
+    _extensions: NativeHandle,
+  ): boolean { return this.unsupported("pbrExtensionIsTransmissionEnabled"); }
+  public setPbrExtensionAttenuationColor(
+    _extensions: NativeHandle,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setPbrExtensionAttenuationColor"); }
+  public setPbrExtensionAttenuationDistance(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionAttenuationDistance"); }
+  public setPbrExtensionClearcoatFactor(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionClearcoatFactor"); }
+  public setPbrExtensionClearcoatNormalScale(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionClearcoatNormalScale"); }
+  public setPbrExtensionClearcoatNormalTexture(
+    _extensions: NativeHandle,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setPbrExtensionClearcoatNormalTexture"); }
+  public setPbrExtensionClearcoatRoughness(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionClearcoatRoughness"); }
+  public setPbrExtensionClearcoatRoughnessTexture(
+    _extensions: NativeHandle,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setPbrExtensionClearcoatRoughnessTexture"); }
+  public setPbrExtensionClearcoatTexture(
+    _extensions: NativeHandle,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setPbrExtensionClearcoatTexture"); }
+  public setPbrExtensionIridescenceFactor(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionIridescenceFactor"); }
+  public setPbrExtensionIridescenceIor(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionIridescenceIor"); }
+  public setPbrExtensionIridescenceTexture(
+    _extensions: NativeHandle,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setPbrExtensionIridescenceTexture"); }
+  public setPbrExtensionIridescenceThicknessMaximum(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionIridescenceThicknessMaximum"); }
+  public setPbrExtensionIridescenceThicknessMinimum(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionIridescenceThicknessMinimum"); }
+  public setPbrExtensionIridescenceThicknessTexture(
+    _extensions: NativeHandle,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setPbrExtensionIridescenceThicknessTexture"); }
+  public setPbrExtensionSheenColorFactor(
+    _extensions: NativeHandle,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setPbrExtensionSheenColorFactor"); }
+  public setPbrExtensionSheenColorTexture(
+    _extensions: NativeHandle,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setPbrExtensionSheenColorTexture"); }
+  public setPbrExtensionSheenRoughness(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionSheenRoughness"); }
+  public setPbrExtensionSheenRoughnessTexture(
+    _extensions: NativeHandle,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setPbrExtensionSheenRoughnessTexture"); }
+  public setPbrExtensionSubsurfaceColor(
+    _extensions: NativeHandle,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setPbrExtensionSubsurfaceColor"); }
+  public setPbrExtensionSubsurfaceWrap(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionSubsurfaceWrap"); }
+  public setPbrExtensionThicknessFactor(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionThicknessFactor"); }
+  public setPbrExtensionThicknessTexture(
+    _extensions: NativeHandle,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setPbrExtensionThicknessTexture"); }
+  public setPbrExtensionTransmissionFactor(
+    _extensions: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setPbrExtensionTransmissionFactor"); }
+  public setPbrExtensionTransmissionTexture(
+    _extensions: NativeHandle,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setPbrExtensionTransmissionTexture"); }
 }
 
 /** Refusing base for {@link CnaParticleBackend}. */

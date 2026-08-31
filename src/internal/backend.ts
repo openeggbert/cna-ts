@@ -1085,6 +1085,136 @@ export interface CnaGraphicsExtensionBackend {
   setPostProcessChainGpuTimingEnabled(chain: NativeHandle, value: boolean): void;
   applyPostProcessChain(chain: NativeHandle, frame: PostProcessFrameSnapshot): void;
   getPostProcessChainPassTimings(chain: NativeHandle): readonly PassTimingSnapshot[];
+
+  // --- the canonical PBR material, its glTF extensions, and the bridge between them -------------
+  getDefaultPbrMaterialExt(): PbrMaterialExtSnapshot;
+  getDefaultTextureTransform(): TextureTransformSnapshot;
+  pbrMaterialExtEquals(first: PbrMaterialExtSnapshot, second: PbrMaterialExtSnapshot): boolean;
+  getPbrMaterialExtHashCode(material: PbrMaterialExtSnapshot): bigint;
+  getPbrMaterialExtText(material: PbrMaterialExtSnapshot): string;
+  applyPbrMaterialState(material: PbrMaterialExtSnapshot, device: NativeHandle): void;
+  /* What ApplyState wrote, read back below the wrapper's own state objects. */
+  getDeviceBlendState(device: NativeHandle): BlendStateSnapshot;
+  getDeviceRasterizerState(device: NativeHandle): RasterizerStateSnapshot;
+  applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
+  extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
+  applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
+  extractSkinnedPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
+  createPbrMaterialExtensions(): NativeHandle;
+  destroyPbrMaterialExtensions(extensions: NativeHandle): void;
+  copyPbrMaterialExtensionsFrom(destination: NativeHandle, source: NativeHandle): void;
+  pbrMaterialExtensionsEquals(first: NativeHandle, second: NativeHandle): boolean;
+  getPbrMaterialExtensionsHashCode(extensions: NativeHandle): bigint;
+  getPbrMaterialExtensionsText(extensions: NativeHandle): string;
+  getDefaultGltfMaterialSource(): GltfMaterialSourceSnapshot;
+  getDefaultGltfMaterialTextures(): GltfMaterialTexturesSnapshot;
+  getDefaultGltfExtensionSource(): GltfExtensionSourceSnapshot;
+  getDefaultGltfExtensionTextures(): GltfExtensionTexturesSnapshot;
+  buildGltfPbrMaterial(
+    source: GltfMaterialSourceSnapshot, textures: GltfMaterialTexturesSnapshot,
+  ): PbrMaterialExtSnapshot;
+  buildGltfPbrMaterialExtensions(
+    source: GltfExtensionSourceSnapshot, textures: GltfExtensionTexturesSnapshot,
+    extensions: NativeHandle,
+  ): void;
+  // --- the PBR effects that carry one ------------------------------------------------------
+  createPbrEffect(graphicsDevice: NativeHandle): NativeHandle;
+  createSkinnedPbrEffect(graphicsDevice: NativeHandle): NativeHandle;
+  getPbrEffectAlpha(effect: NativeHandle): number;
+  getPbrEffectAlphaCutoff(effect: NativeHandle): number;
+  getPbrEffectAlphaMode(effect: NativeHandle): number;
+  getPbrEffectDiffuseColor(effect: NativeHandle): Vector3Snapshot;
+  getPbrEffectDoubleSided(effect: NativeHandle): boolean;
+  getPbrEffectEmissiveFactor(effect: NativeHandle): Vector3Snapshot;
+  getPbrEffectEncodeOutputToSrgb(effect: NativeHandle): boolean;
+  getPbrEffectIor(effect: NativeHandle): number;
+  getPbrEffectMetallicFactor(effect: NativeHandle): number;
+  getPbrEffectNormalScale(effect: NativeHandle): number;
+  getPbrEffectOcclusionStrength(effect: NativeHandle): number;
+  getPbrEffectRoughnessFactor(effect: NativeHandle): number;
+  getPbrEffectSpecularColorFactor(effect: NativeHandle): Vector3Snapshot;
+  getPbrEffectSpecularFactor(effect: NativeHandle): number;
+  getPbrEffectTexture(effect: NativeHandle, slot: number): NativeHandle;
+  getPbrEffectTextureCoordinateSet(effect: NativeHandle, slot: number): number;
+  getPbrEffectTextureIsSrgb(effect: NativeHandle, slot: number): boolean;
+  getPbrEffectTextureTransform(effect: NativeHandle, slot: number): TextureTransformSnapshot;
+  getPbrEffectVertexColorEnabled(effect: NativeHandle): boolean;
+  getSkinnedPbrEffectBoneTransforms(effect: NativeHandle, count: number): readonly (readonly number[])[];
+  getSkinnedPbrEffectWeightsPerVertex(effect: NativeHandle): number;
+  setPbrEffectAlpha(effect: NativeHandle, value: number): void;
+  setPbrEffectAlphaCutoff(effect: NativeHandle, value: number): void;
+  setPbrEffectAlphaMode(effect: NativeHandle, value: number): void;
+  setPbrEffectDiffuseColor(effect: NativeHandle, value: Vector3Snapshot): void;
+  setPbrEffectDoubleSided(effect: NativeHandle, value: boolean): void;
+  setPbrEffectEmissiveFactor(effect: NativeHandle, value: Vector3Snapshot): void;
+  setPbrEffectEncodeOutputToSrgb(effect: NativeHandle, value: boolean): void;
+  setPbrEffectIor(effect: NativeHandle, value: number): void;
+  setPbrEffectMetallicFactor(effect: NativeHandle, value: number): void;
+  setPbrEffectNormalScale(effect: NativeHandle, value: number): void;
+  setPbrEffectOcclusionStrength(effect: NativeHandle, value: number): void;
+  setPbrEffectRoughnessFactor(effect: NativeHandle, value: number): void;
+  setPbrEffectSpecularColorFactor(effect: NativeHandle, value: Vector3Snapshot): void;
+  setPbrEffectSpecularFactor(effect: NativeHandle, value: number): void;
+  setPbrEffectTexture(effect: NativeHandle, slot: number, texture: NativeHandle): void;
+  setPbrEffectTextureCoordinateSet(effect: NativeHandle, slot: number, value: number): void;
+  setPbrEffectTextureIsSrgb(effect: NativeHandle, slot: number, value: boolean): void;
+  setPbrEffectTextureTransform(effect: NativeHandle, slot: number, transform: TextureTransformSnapshot): void;
+  setPbrEffectVertexColorEnabled(effect: NativeHandle, value: boolean): void;
+  setSkinnedPbrEffectBoneTransforms(effect: NativeHandle, transforms: readonly (readonly number[])[]): void;
+  setSkinnedPbrEffectWeightsPerVertex(effect: NativeHandle, value: number): void;
+  getPbrExtensionAttenuationColor(extensions: NativeHandle): Vector3Snapshot;
+  getPbrExtensionAttenuationDistance(extensions: NativeHandle): number;
+  getPbrExtensionClearcoatFactor(extensions: NativeHandle): number;
+  getPbrExtensionClearcoatNormalScale(extensions: NativeHandle): number;
+  getPbrExtensionClearcoatNormalTexture(extensions: NativeHandle): NativeHandle;
+  getPbrExtensionClearcoatRoughness(extensions: NativeHandle): number;
+  getPbrExtensionClearcoatRoughnessTexture(extensions: NativeHandle): NativeHandle;
+  getPbrExtensionClearcoatTexture(extensions: NativeHandle): NativeHandle;
+  getPbrExtensionIridescenceFactor(extensions: NativeHandle): number;
+  getPbrExtensionIridescenceIor(extensions: NativeHandle): number;
+  getPbrExtensionIridescenceTexture(extensions: NativeHandle): NativeHandle;
+  getPbrExtensionIridescenceThicknessMaximum(extensions: NativeHandle): number;
+  getPbrExtensionIridescenceThicknessMinimum(extensions: NativeHandle): number;
+  getPbrExtensionIridescenceThicknessTexture(extensions: NativeHandle): NativeHandle;
+  getPbrExtensionSheenColorFactor(extensions: NativeHandle): Vector3Snapshot;
+  getPbrExtensionSheenColorTexture(extensions: NativeHandle): NativeHandle;
+  getPbrExtensionSheenRoughness(extensions: NativeHandle): number;
+  getPbrExtensionSheenRoughnessTexture(extensions: NativeHandle): NativeHandle;
+  getPbrExtensionSubsurfaceColor(extensions: NativeHandle): Vector3Snapshot;
+  getPbrExtensionSubsurfaceWrap(extensions: NativeHandle): number;
+  getPbrExtensionThicknessFactor(extensions: NativeHandle): number;
+  getPbrExtensionThicknessTexture(extensions: NativeHandle): NativeHandle;
+  getPbrExtensionTransmissionFactor(extensions: NativeHandle): number;
+  getPbrExtensionTransmissionTexture(extensions: NativeHandle): NativeHandle;
+  pbrExtensionIsIridescenceEnabled(extensions: NativeHandle): boolean;
+  pbrExtensionIsNeutral(extensions: NativeHandle): boolean;
+  pbrExtensionIsSheenEnabled(extensions: NativeHandle): boolean;
+  pbrExtensionIsSubsurfaceEnabled(extensions: NativeHandle): boolean;
+  pbrExtensionIsTransmissionEnabled(extensions: NativeHandle): boolean;
+  setPbrExtensionAttenuationColor(extensions: NativeHandle, value: Vector3Snapshot): void;
+  setPbrExtensionAttenuationDistance(extensions: NativeHandle, value: number): void;
+  setPbrExtensionClearcoatFactor(extensions: NativeHandle, value: number): void;
+  setPbrExtensionClearcoatNormalScale(extensions: NativeHandle, value: number): void;
+  setPbrExtensionClearcoatNormalTexture(extensions: NativeHandle, texture: NativeHandle): void;
+  setPbrExtensionClearcoatRoughness(extensions: NativeHandle, value: number): void;
+  setPbrExtensionClearcoatRoughnessTexture(extensions: NativeHandle, texture: NativeHandle): void;
+  setPbrExtensionClearcoatTexture(extensions: NativeHandle, texture: NativeHandle): void;
+  setPbrExtensionIridescenceFactor(extensions: NativeHandle, value: number): void;
+  setPbrExtensionIridescenceIor(extensions: NativeHandle, value: number): void;
+  setPbrExtensionIridescenceTexture(extensions: NativeHandle, texture: NativeHandle): void;
+  setPbrExtensionIridescenceThicknessMaximum(extensions: NativeHandle, value: number): void;
+  setPbrExtensionIridescenceThicknessMinimum(extensions: NativeHandle, value: number): void;
+  setPbrExtensionIridescenceThicknessTexture(extensions: NativeHandle, texture: NativeHandle): void;
+  setPbrExtensionSheenColorFactor(extensions: NativeHandle, value: Vector3Snapshot): void;
+  setPbrExtensionSheenColorTexture(extensions: NativeHandle, texture: NativeHandle): void;
+  setPbrExtensionSheenRoughness(extensions: NativeHandle, value: number): void;
+  setPbrExtensionSheenRoughnessTexture(extensions: NativeHandle, texture: NativeHandle): void;
+  setPbrExtensionSubsurfaceColor(extensions: NativeHandle, value: Vector3Snapshot): void;
+  setPbrExtensionSubsurfaceWrap(extensions: NativeHandle, value: number): void;
+  setPbrExtensionThicknessFactor(extensions: NativeHandle, value: number): void;
+  setPbrExtensionThicknessTexture(extensions: NativeHandle, texture: NativeHandle): void;
+  setPbrExtensionTransmissionFactor(extensions: NativeHandle, value: number): void;
+  setPbrExtensionTransmissionTexture(extensions: NativeHandle, texture: NativeHandle): void;
 }
 
 
@@ -1433,6 +1563,99 @@ export interface DirectionalLightSnapshot {
  * The rendering half is not here -- see the note in the Node adapter.
  */
 /** Four components, as CNA lays out `CNA_Vector4`. */
+/** A `KHR_texture_transform`: the selected UV is scaled, then rotated, then translated. */
+export interface TextureTransformSnapshot {
+  readonly Offset: Vector2Snapshot;
+  readonly Scale: Vector2Snapshot;
+  readonly Rotation: number;
+}
+
+/**
+ * The canonical `CNA::Graphics::PbrMaterial`, as `CNA_PbrMaterialEXT` carries it.
+ *
+ * Distinct from {@link PbrMaterialDefaults}, which is the layout CNA froze before the
+ * `KHR_materials_*` factors arrived and cannot change within an ABI major.
+ */
+export interface PbrMaterialExtSnapshot {
+  readonly AlbedoTexture: NativeHandle;
+  readonly NormalTexture: NativeHandle;
+  readonly MetallicRoughnessTexture: NativeHandle;
+  readonly AmbientOcclusionTexture: NativeHandle;
+  readonly EmissiveTexture: NativeHandle;
+  readonly SpecularTexture: NativeHandle;
+  readonly SpecularColorTexture: NativeHandle;
+  readonly AlbedoColor: number;
+  readonly EmissiveFactor: Vector3Snapshot;
+  readonly SpecularColorFactor: Vector3Snapshot;
+  readonly MetallicFactor: number;
+  readonly RoughnessFactor: number;
+  readonly NormalScale: number;
+  readonly OcclusionStrength: number;
+  readonly Ior: number;
+  readonly SpecularFactor: number;
+  readonly AlphaCutoff: number;
+  readonly AlphaMode: number;
+  readonly DoubleSided: boolean;
+  readonly BaseColorTextureSrgb: boolean;
+  readonly EmissiveTextureSrgb: boolean;
+  readonly SpecularColorTextureSrgb: boolean;
+  readonly OutputEncodedToSrgb: boolean;
+  readonly TextureCoordinateSets: readonly number[];
+  readonly TextureTransforms: readonly TextureTransformSnapshot[];
+}
+
+/** One glTF material's own factors, before the bridge turns them into a CNA material. */
+export interface GltfMaterialSourceSnapshot {
+  readonly BaseColorFactor: Vector4Snapshot;
+  readonly MetallicFactor: number;
+  readonly RoughnessFactor: number;
+  readonly EmissiveFactor: Vector3Snapshot;
+  readonly NormalScale: number;
+  readonly OcclusionStrength: number;
+  readonly Ior: number;
+  readonly SpecularFactor: number;
+  readonly SpecularColorFactor: Vector3Snapshot;
+  readonly AlphaMode: number;
+  readonly AlphaCutoff: number;
+  readonly DoubleSided: boolean;
+  readonly TextureCoordinateSets: readonly number[];
+  readonly TextureTransforms: readonly TextureTransformSnapshot[];
+}
+
+/** The seven texture slots that glTF material names, in CNA's own slot order. */
+export interface GltfMaterialTexturesSnapshot {
+  readonly Slots: readonly NativeHandle[];
+}
+
+/** The `KHR_materials_*` factors a glTF material can carry beyond the core ones. */
+export interface GltfExtensionSourceSnapshot {
+  readonly ClearcoatFactor: number;
+  readonly ClearcoatRoughnessFactor: number;
+  readonly SheenColorFactor: Vector3Snapshot;
+  readonly SheenRoughnessFactor: number;
+  readonly TransmissionFactor: number;
+  readonly ThicknessFactor: number;
+  readonly AttenuationDistance: number;
+  readonly AttenuationColor: Vector3Snapshot;
+  readonly IridescenceFactor: number;
+  readonly IridescenceIor: number;
+  readonly IridescenceThicknessMinimum: number;
+  readonly IridescenceThicknessMaximum: number;
+}
+
+/** The nine textures those extensions can name. */
+export interface GltfExtensionTexturesSnapshot {
+  readonly Clearcoat: NativeHandle;
+  readonly ClearcoatRoughness: NativeHandle;
+  readonly ClearcoatNormal: NativeHandle;
+  readonly SheenColor: NativeHandle;
+  readonly SheenRoughness: NativeHandle;
+  readonly Transmission: NativeHandle;
+  readonly Thickness: NativeHandle;
+  readonly Iridescence: NativeHandle;
+  readonly IridescenceThickness: NativeHandle;
+}
+
 export interface Vector4Snapshot {
   readonly X: number;
   readonly Y: number;

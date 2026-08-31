@@ -448,6 +448,29 @@ Electron, or mobile support.
   two more real ones were found by running it: the two colour-grade getters mint different kinds of
   handle, and an `Effect` always has child views, so the route that *consumes* an effect has to be
   given them back first.
+- [x] **Physically-based materials**, the largest family in the engine layer and the one that is
+  most nearly pure value semantics. CNA carries the material in two C shapes — the layout frozen
+  before the `KHR_materials_*` factors existed, and the canonical one every accessor on the C++ type
+  corresponds to — and this projects the canonical one, with the glTF extension set beside it and
+  the two effects that carry both. A material is a value and is checked as one: two built the same
+  way compare equal and hash alike, one edited field makes them differ, the same edit twice gives
+  the same material again, and two never share their per-slot arrays. Its defaults are glTF's, each
+  asserted against what glTF specifies rather than against a run: fully metallic, fully rough, an IOR
+  of 1.5, an opaque white base colour, every slot on UV channel zero with a neutral transform. The
+  effect acceptance is **two independent paths into one state**: a whole material goes on, every
+  field is read back through the per-field accessors the apply never touched, and only then is the
+  extractor asked and CNA's own equality used to compare. The per-field setters then move the same
+  state, which is what makes those two paths two. `ApplyState` is qualified by reading CNA's device
+  state back — the wrapper cannot see it — and predicted from the XNA states the C++ names:
+  `SourceAlpha`/`InverseSourceAlpha` for a blended material, `One`/`Zero` otherwise, `CullNone` when
+  double-sided. The glTF bridge is the one thing here that converts rather than carries, and its
+  conversion is measured over a table of seven inputs and matches `round(x * 255)` at every one. The
+  extension set's `IsNeutral` turned out to mean "no feature contributes" rather than "no field was
+  written", which is measured one field at a time from a fresh set each time — a sheen roughness or
+  a subsurface wrap stores its value and leaves the set neutral, while the factor that enables the
+  term does not. Fifteen planted defects fail and none survives. One upstream finding came out of
+  it: a PBR effect's texture slots have two sources of truth that never agree, so a material
+  carrying a texture cannot be round-tripped through an effect (item 19).
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -542,8 +565,8 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 144 operation families: 21 verified managed, 84 verified native, 13
-  verified WebAssembly, five explicitly unavailable on the qualified backend, three upstream-CNA
+- [x] Current baseline is 149 operation families: 21 verified managed, 88 verified native, 13
+  verified WebAssembly, five explicitly unavailable on the qualified backend, four upstream-CNA
   blocked, three fixture pending, six hardware pending, three platform pending, two unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.
 - [x] Audit every `NativeUnavailableError` and `NotSupportedException` construction site in the
@@ -629,7 +652,7 @@ Electron, or mobile support.
 
 ## Upstream CNA blockers
 
-Eight runtime defects and two build-system gaps remain, all in `cnanext`, all measured here and none
+Nine runtime defects and two build-system gaps remain, all in `cnanext`, all measured here and none
 fixed from this session. `docs/upstream-cna-findings.md` records each with its reproduction and a
 proposed change, and each has a test in this package that fails when the behaviour changes.
 
@@ -657,6 +680,13 @@ whose destroy was refused takes SIGSEGV after its last statement has run, and an
 `process.exit(0)` does not avoid it. A game simply left alive exits cleanly and a refusal that is
 cleaned up and retried exits cleanly, so the crash belongs to the refusal rather than to a live
 game at exit (item 18).
+
+The ninth came out of the physically-based materials, and it is the borrow rule's opposite number: a
+PBR effect's seven texture slots have **two** sources of truth. Applying a material writes the C++
+effect's pointers; the slot setter writes the C API's own retained-handle table, which is the only
+thing the slot getter reads. Measured identically on HEADLESS and OPENGLES3, a texture applied with
+a material is invisible to the getter, a texture placed through the setter is invisible to the
+extractor, and applying a material with an empty slot does not clear one the setter filled (item 19).
 
 The runtime one: `cna_post_process_chain_add_owned_pass` consumes a pass handle without the
 `RemoveOwnedGraphicsResourceFor` its sibling `_destroy` performs, so the game's

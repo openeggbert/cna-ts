@@ -6910,3 +6910,955 @@ test("every post-process pass's own maths is exact where no renderer is needed",
     `COC=THIN_LENS LUT=ROTATION_EXACT THIN_FILM=SPLITS GLSL=${sources.fxaa.length}/${sources.ssaoPacked.length}`,
   );
 });
+
+/**
+ * The canonical PBR material, its glTF extensions, and the two effects that carry it.
+ *
+ * Everything here is CNA's own value semantics rather than this binding's: equality, hashing and
+ * the printed form come from the canonical type, and the test's job is to check that they behave
+ * like a value and that nothing is lost on the way through. The one place a claim is made about a
+ * *result* rather than a round trip is the glTF bridge, which quantises a linear float factor into
+ * an eight-bit colour, and the material-state call, which is checked by reading CNA's device state
+ * back rather than by trusting the wrapper's own.
+ */
+class PbrMaterialProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const graphics = computeExtensions;
+    const device = this.GraphicsDevice;
+    const record = (name, body) => {
+      try {
+        this.evidence[name] = body();
+      } catch (error) {
+        this.evidence[name] = `${error.constructor.name}(${error.cnaResult ?? "-"}): ` +
+          `${(error.message ?? "").slice(0, 140)}`;
+      }
+    };
+
+    record("defaults", () => {
+      const material = graphics.CreatePbrMaterialExt();
+      return {
+        metallic: material.MetallicFactor,
+        roughness: material.RoughnessFactor,
+        normalScale: material.NormalScale,
+        occlusion: material.OcclusionStrength,
+        ior: material.Ior,
+        specular: material.SpecularFactor,
+        alphaCutoff: material.AlphaCutoff,
+        alphaMode: material.AlphaMode,
+        doubleSided: material.DoubleSided,
+        albedo: [
+          material.AlbedoColor.R, material.AlbedoColor.G,
+          material.AlbedoColor.B, material.AlbedoColor.A,
+        ],
+        emissive: [material.EmissiveFactor.X, material.EmissiveFactor.Y, material.EmissiveFactor.Z],
+        specularColor: [
+          material.SpecularColorFactor.X, material.SpecularColorFactor.Y,
+          material.SpecularColorFactor.Z,
+        ],
+        srgb: [
+          material.BaseColorTextureSrgb, material.EmissiveTextureSrgb,
+          material.SpecularColorTextureSrgb, material.OutputEncodedToSrgb,
+        ],
+        textures: [
+          material.AlbedoTexture, material.NormalTexture, material.MetallicRoughnessTexture,
+          material.AmbientOcclusionTexture, material.EmissiveTexture, material.SpecularTexture,
+          material.SpecularColorTexture,
+        ],
+        sets: [...material.TextureCoordinateSets],
+        transforms: material.TextureTransforms.map((value) => [
+          value.Offset.X, value.Offset.Y, value.Scale.X, value.Scale.Y, value.Rotation,
+        ]),
+        transform: (() => {
+          const neutral = graphics.CreateTextureTransform();
+          return [neutral.Offset.X, neutral.Offset.Y, neutral.Scale.X, neutral.Scale.Y, neutral.Rotation];
+        })(),
+      };
+    });
+
+    record("valueSemantics", () => {
+      const first = graphics.CreatePbrMaterialExt();
+      const second = graphics.CreatePbrMaterialExt();
+      const changed = graphics.CreatePbrMaterialExt();
+      changed.RoughnessFactor = 0.125;
+      const recoloured = graphics.CreatePbrMaterialExt();
+      recoloured.AlbedoColor = new Color(200, 100, 40, 128);
+      const restored = graphics.CreatePbrMaterialExt();
+      restored.RoughnessFactor = 0.125;
+      return {
+        equalIndependently: graphics.PbrMaterialExtOperations.Equals(first, second),
+        hashesAgree: graphics.PbrMaterialExtOperations.GetHashCode(first) ===
+          graphics.PbrMaterialExtOperations.GetHashCode(second),
+        differsAfterEdit: graphics.PbrMaterialExtOperations.Equals(first, changed),
+        hashDiffers: graphics.PbrMaterialExtOperations.GetHashCode(first) !==
+          graphics.PbrMaterialExtOperations.GetHashCode(changed),
+        sameEditsAgree: graphics.PbrMaterialExtOperations.Equals(changed, restored),
+        sameEditsHashAlike: graphics.PbrMaterialExtOperations.GetHashCode(changed) ===
+          graphics.PbrMaterialExtOperations.GetHashCode(restored),
+        text: graphics.PbrMaterialExtOperations.ToText(first),
+        editedText: graphics.PbrMaterialExtOperations.ToText(changed),
+        recolouredText: graphics.PbrMaterialExtOperations.ToText(recoloured),
+        colourAlone: graphics.PbrMaterialExtOperations.Equals(first, recoloured),
+        colourHashDiffers: graphics.PbrMaterialExtOperations.GetHashCode(first) !==
+          graphics.PbrMaterialExtOperations.GetHashCode(recoloured),
+        independent: (() => {
+          // Two calls must not share state: these are values, not views onto one object.
+          const a = graphics.CreatePbrMaterialExt();
+          const b = graphics.CreatePbrMaterialExt();
+          a.MetallicFactor = 0.5;
+          a.TextureCoordinateSets[0] = 3;
+          a.TextureTransforms[0].Rotation = 2;
+          return [b.MetallicFactor, b.TextureCoordinateSets[0], b.TextureTransforms[0].Rotation];
+        })(),
+      };
+    });
+
+    record("bridge", () => {
+      const source = graphics.GltfMaterialBridge.CreateSource();
+      const defaults = {
+        baseColor: [
+          source.BaseColorFactor.X, source.BaseColorFactor.Y,
+          source.BaseColorFactor.Z, source.BaseColorFactor.W,
+        ],
+        metallic: source.MetallicFactor,
+        roughness: source.RoughnessFactor,
+        ior: source.Ior,
+        alphaCutoff: source.AlphaCutoff,
+        alphaMode: source.AlphaMode,
+        doubleSided: source.DoubleSided,
+        slots: graphics.GltfMaterialBridge.CreateTextures().Slots,
+      };
+      // Every factor set to something no default equals, so no assertion below can pass by
+      // accident, and one per-slot value in a slot the others do not use.
+      source.BaseColorFactor = new Vector4(1, 0.5, 0.25, 0.5);
+      source.MetallicFactor = 0.25;
+      source.RoughnessFactor = 0.75;
+      source.EmissiveFactor = new Vector3(0.125, 0.25, 0.375);
+      source.NormalScale = 2;
+      source.OcclusionStrength = 0.5;
+      source.Ior = 1.75;
+      source.SpecularFactor = 0.5;
+      source.SpecularColorFactor = new Vector3(0.9, 0.8, 0.7);
+      source.AlphaMode = graphics.AlphaMode.Mask;
+      source.AlphaCutoff = 0.375;
+      source.DoubleSided = true;
+      source.TextureCoordinateSets[graphics.PbrTextureSlot.Emissive] = 1;
+      source.TextureTransforms[graphics.PbrTextureSlot.MetallicRoughness] = {
+        Offset: new Vector2(0.25, 0.5), Scale: new Vector2(2, 3), Rotation: 0.75,
+      };
+      const built = graphics.GltfMaterialBridge.BuildMaterial(
+        source, graphics.GltfMaterialBridge.CreateTextures(),
+      );
+      // A quantisation table, so the rounding rule is measured rather than assumed from one point.
+      const quantised = [0, 0.25, 0.5, 0.75, 1, 1 / 3, 2 / 3].map((value) => {
+        const one = graphics.GltfMaterialBridge.CreateSource();
+        one.BaseColorFactor = new Vector4(value, value, value, value);
+        const material = graphics.GltfMaterialBridge.BuildMaterial(
+          one, graphics.GltfMaterialBridge.CreateTextures(),
+        );
+        return [value, material.AlbedoColor.R];
+      });
+      return {
+        defaults,
+        albedo: [
+          built.AlbedoColor.R, built.AlbedoColor.G, built.AlbedoColor.B, built.AlbedoColor.A,
+        ],
+        metallic: built.MetallicFactor,
+        roughness: built.RoughnessFactor,
+        emissive: [built.EmissiveFactor.X, built.EmissiveFactor.Y, built.EmissiveFactor.Z],
+        normalScale: built.NormalScale,
+        occlusion: built.OcclusionStrength,
+        ior: built.Ior,
+        specular: built.SpecularFactor,
+        specularColor: [
+          built.SpecularColorFactor.X, built.SpecularColorFactor.Y, built.SpecularColorFactor.Z,
+        ],
+        alphaMode: built.AlphaMode,
+        alphaCutoff: built.AlphaCutoff,
+        doubleSided: built.DoubleSided,
+        sets: [...built.TextureCoordinateSets],
+        transforms: built.TextureTransforms.map((value) => [
+          value.Offset.X, value.Offset.Y, value.Scale.X, value.Scale.Y, value.Rotation,
+        ]),
+        quantised,
+      };
+    });
+
+    record("extensions", () => {
+      const set = new graphics.PbrMaterialExtensions();
+      const other = new graphics.PbrMaterialExtensions();
+      try {
+        const neutral = {
+          isNeutral: set.IsNeutral,
+          text: set.ToText(),
+          sheen: set.IsSheenEnabled,
+          transmission: set.IsTransmissionEnabled,
+          iridescence: set.IsIridescenceEnabled,
+          subsurface: set.IsSubsurfaceEnabled,
+          clearcoat: set.ClearcoatFactor,
+          iridescenceIor: set.IridescenceIor,
+          thicknessRange: [set.IridescenceThicknessMinimum, set.IridescenceThicknessMaximum],
+          attenuation: [set.AttenuationColor.X, set.AttenuationColor.Y, set.AttenuationColor.Z],
+          equalsFresh: set.Equals(other),
+          hashesAgree: set.GetHashCode() === other.GetHashCode(),
+        };
+        // Which field switches which feature on, one at a time from a fresh set each time.
+        const switches = {};
+        for (const [name, apply] of [
+          ["sheenColor", (value) => { value.SheenColorFactor = new Vector3(0.5, 0.25, 0.125); }],
+          ["sheenRoughness", (value) => { value.SheenRoughness = 0.25; }],
+          ["transmission", (value) => { value.TransmissionFactor = 0.75; }],
+          ["thickness", (value) => { value.ThicknessFactor = 2; }],
+          ["iridescence", (value) => { value.IridescenceFactor = 0.375; }],
+          ["subsurfaceColor", (value) => { value.SubsurfaceColor = new Vector3(0.9, 0.2, 0.1); }],
+          ["subsurfaceWrap", (value) => { value.SubsurfaceWrap = 0.625; }],
+          ["clearcoat", (value) => { value.ClearcoatFactor = 0.5; }],
+        ]) {
+          const fresh = new graphics.PbrMaterialExtensions();
+          try {
+            apply(fresh);
+            switches[name] = {
+              neutral: fresh.IsNeutral,
+              sheen: fresh.IsSheenEnabled,
+              transmission: fresh.IsTransmissionEnabled,
+              iridescence: fresh.IsIridescenceEnabled,
+              subsurface: fresh.IsSubsurfaceEnabled,
+            };
+          } finally {
+            fresh.Dispose();
+          }
+        }
+        // Every scalar and vector, written with a value no default equals and read straight back.
+        set.ClearcoatFactor = 0.5;
+        set.ClearcoatRoughness = 0.375;
+        set.ClearcoatNormalScale = 2;
+        set.SheenColorFactor = new Vector3(0.5, 0.25, 0.125);
+        set.SheenRoughness = 0.25;
+        set.TransmissionFactor = 0.75;
+        set.ThicknessFactor = 3;
+        set.AttenuationDistance = 4;
+        set.AttenuationColor = new Vector3(0.9, 0.8, 0.7);
+        set.IridescenceFactor = 0.375;
+        set.IridescenceIor = 1.625;
+        set.IridescenceThicknessMinimum = 150;
+        set.IridescenceThicknessMaximum = 450;
+        set.SubsurfaceWrap = 0.625;
+        set.SubsurfaceColor = new Vector3(0.1, 0.2, 0.3);
+        const written = {
+          clearcoat: [set.ClearcoatFactor, set.ClearcoatRoughness, set.ClearcoatNormalScale],
+          sheen: [
+            set.SheenColorFactor.X, set.SheenColorFactor.Y, set.SheenColorFactor.Z,
+            set.SheenRoughness,
+          ],
+          transmission: [set.TransmissionFactor, set.ThicknessFactor, set.AttenuationDistance],
+          attenuation: [set.AttenuationColor.X, set.AttenuationColor.Y, set.AttenuationColor.Z],
+          iridescence: [
+            set.IridescenceFactor, set.IridescenceIor,
+            set.IridescenceThicknessMinimum, set.IridescenceThicknessMaximum,
+          ],
+          subsurface: [
+            set.SubsurfaceWrap, set.SubsurfaceColor.X, set.SubsurfaceColor.Y, set.SubsurfaceColor.Z,
+          ],
+          isNeutral: set.IsNeutral,
+          text: set.ToText(),
+        };
+        const beforeCopy = {
+          equal: set.Equals(other),
+          hashesAgree: set.GetHashCode() === other.GetHashCode(),
+          otherClearcoat: other.ClearcoatFactor,
+        };
+        other.CopyFrom(set);
+        const afterCopy = {
+          equal: set.Equals(other),
+          hashesAgree: set.GetHashCode() === other.GetHashCode(),
+          otherClearcoat: other.ClearcoatFactor,
+          otherSheen: other.SheenColorFactor.Y,
+          sourceUnchanged: set.ClearcoatFactor,
+        };
+        // The nine texture slots: empty, then filled, then cleared again.
+        const texture = new Graphics.Texture2D(device, 2, 2);
+        let slots;
+        try {
+          const empty = [
+            set.GetClearcoatTexture(), set.GetClearcoatRoughnessTexture(),
+            set.GetClearcoatNormalTexture(), set.GetSheenColorTexture(),
+            set.GetSheenRoughnessTexture(), set.GetTransmissionTexture(),
+            set.GetThicknessTexture(), set.GetIridescenceTexture(),
+            set.GetIridescenceThicknessTexture(),
+          ];
+          set.SetClearcoatTexture(texture);
+          set.SetSheenColorTexture(texture);
+          set.SetIridescenceThicknessTexture(texture);
+          const filled = [
+            set.GetClearcoatTexture() !== 0n, set.GetSheenColorTexture() !== 0n,
+            set.GetIridescenceThicknessTexture() !== 0n, set.GetThicknessTexture() !== 0n,
+          ];
+          set.SetClearcoatTexture(null);
+          set.SetSheenColorTexture(null);
+          set.SetIridescenceThicknessTexture(null);
+          slots = {
+            empty: empty.map((handle) => handle === 0n),
+            filled,
+            cleared: set.GetClearcoatTexture() === 0n && set.GetSheenColorTexture() === 0n,
+          };
+        } finally {
+          texture.Dispose();
+        }
+        return { neutral, switches, written, beforeCopy, afterCopy, slots };
+      } finally {
+        other.Dispose();
+        set.Dispose();
+      }
+    });
+
+    record("extensionBridge", () => {
+      const destination = new graphics.PbrMaterialExtensions();
+      try {
+        const source = graphics.GltfMaterialBridge.CreateExtensionSource();
+        const defaults = {
+          clearcoat: source.ClearcoatFactor,
+          iridescenceIor: source.IridescenceIor,
+          thicknessRange: [source.IridescenceThicknessMinimum, source.IridescenceThicknessMaximum],
+          attenuation: [
+            source.AttenuationColor.X, source.AttenuationColor.Y, source.AttenuationColor.Z,
+          ],
+        };
+        source.ClearcoatFactor = 0.25;
+        source.ClearcoatRoughnessFactor = 0.5;
+        source.SheenColorFactor = new Vector3(0.75, 0.5, 0.25);
+        source.SheenRoughnessFactor = 0.125;
+        source.TransmissionFactor = 0.5;
+        source.ThicknessFactor = 3;
+        source.AttenuationDistance = 7;
+        source.AttenuationColor = new Vector3(0.6, 0.7, 0.8);
+        source.IridescenceFactor = 0.875;
+        source.IridescenceIor = 1.875;
+        source.IridescenceThicknessMinimum = 120;
+        source.IridescenceThicknessMaximum = 480;
+        graphics.GltfMaterialBridge.BuildExtensions(
+          source, graphics.GltfMaterialBridge.CreateExtensionTextures(), destination,
+        );
+        return {
+          defaults,
+          built: {
+            clearcoat: [destination.ClearcoatFactor, destination.ClearcoatRoughness],
+            sheen: [
+              destination.SheenColorFactor.X, destination.SheenColorFactor.Y,
+              destination.SheenColorFactor.Z, destination.SheenRoughness,
+            ],
+            transmission: [
+              destination.TransmissionFactor, destination.ThicknessFactor,
+              destination.AttenuationDistance,
+            ],
+            attenuation: [
+              destination.AttenuationColor.X, destination.AttenuationColor.Y,
+              destination.AttenuationColor.Z,
+            ],
+            iridescence: [
+              destination.IridescenceFactor, destination.IridescenceIor,
+              destination.IridescenceThicknessMinimum, destination.IridescenceThicknessMaximum,
+            ],
+            isNeutral: destination.IsNeutral,
+          },
+        };
+      } finally {
+        destination.Dispose();
+      }
+    });
+
+    record("effect", () => {
+      const effect = graphics.PbrEffect.Create(device);
+      const texture = new Graphics.Texture2D(device, 2, 2);
+      try {
+        const defaults = {
+          metallic: graphics.PbrEffect.GetMetallicFactor(effect),
+          roughness: graphics.PbrEffect.GetRoughnessFactor(effect),
+          alpha: graphics.PbrEffect.GetAlpha(effect),
+          ior: graphics.PbrEffect.GetIor(effect),
+          specular: graphics.PbrEffect.GetSpecularFactor(effect),
+          normalScale: graphics.PbrEffect.GetNormalScale(effect),
+          occlusion: graphics.PbrEffect.GetOcclusionStrength(effect),
+          alphaMode: graphics.PbrEffect.GetAlphaMode(effect),
+          alphaCutoff: graphics.PbrEffect.GetAlphaCutoff(effect),
+          doubleSided: graphics.PbrEffect.GetDoubleSided(effect),
+          vertexColor: graphics.PbrEffect.GetVertexColorEnabled(effect),
+          encodeSrgb: graphics.PbrEffect.GetEncodeOutputToSrgb(effect),
+          diffuse: [
+            graphics.PbrEffect.GetDiffuseColor(effect).X,
+            graphics.PbrEffect.GetDiffuseColor(effect).Y,
+            graphics.PbrEffect.GetDiffuseColor(effect).Z,
+          ],
+        };
+        const material = graphics.CreatePbrMaterialExt();
+        material.MetallicFactor = 0.25;
+        material.RoughnessFactor = 0.75;
+        material.Ior = 1.75;
+        material.SpecularFactor = 0.5;
+        material.NormalScale = 2;
+        material.OcclusionStrength = 0.375;
+        material.AlphaMode = graphics.AlphaMode.Blend;
+        material.AlphaCutoff = 0.625;
+        material.DoubleSided = true;
+        material.EmissiveFactor = new Vector3(0.125, 0.25, 0.375);
+        material.SpecularColorFactor = new Vector3(0.9, 0.8, 0.7);
+        material.TextureCoordinateSets[graphics.PbrTextureSlot.Normal] = 1;
+        material.TextureTransforms[graphics.PbrTextureSlot.Normal] = {
+          Offset: new Vector2(0.5, 0.25), Scale: new Vector2(3, 4), Rotation: 1.25,
+        };
+        material.BaseColorTextureSrgb = false;
+        // A base colour no default equals, in all four channels, so a binding that hard-codes
+        // white or drops a channel is caught rather than agreeing with the default.
+        material.AlbedoColor = new Color(200, 100, 40, 128);
+        graphics.PbrEffect.ApplyMaterial(effect, material);
+        // Read every field back through the individual accessors -- routes the apply never
+        // touched -- and then through the extractor, which is the other independent path.
+        const throughAccessors = {
+          metallic: graphics.PbrEffect.GetMetallicFactor(effect),
+          roughness: graphics.PbrEffect.GetRoughnessFactor(effect),
+          ior: graphics.PbrEffect.GetIor(effect),
+          specular: graphics.PbrEffect.GetSpecularFactor(effect),
+          normalScale: graphics.PbrEffect.GetNormalScale(effect),
+          occlusion: graphics.PbrEffect.GetOcclusionStrength(effect),
+          alphaMode: graphics.PbrEffect.GetAlphaMode(effect),
+          alphaCutoff: graphics.PbrEffect.GetAlphaCutoff(effect),
+          doubleSided: graphics.PbrEffect.GetDoubleSided(effect),
+          emissive: [
+            graphics.PbrEffect.GetEmissiveFactor(effect).X,
+            graphics.PbrEffect.GetEmissiveFactor(effect).Y,
+            graphics.PbrEffect.GetEmissiveFactor(effect).Z,
+          ],
+          specularColor: [
+            graphics.PbrEffect.GetSpecularColorFactor(effect).X,
+            graphics.PbrEffect.GetSpecularColorFactor(effect).Y,
+            graphics.PbrEffect.GetSpecularColorFactor(effect).Z,
+          ],
+          normalSet: graphics.PbrEffect.GetTextureCoordinateSet(
+            effect, graphics.PbrTextureSlot.Normal),
+          baseColorSet: graphics.PbrEffect.GetTextureCoordinateSet(
+            effect, graphics.PbrTextureSlot.BaseColor),
+          normalTransform: (() => {
+            const value = graphics.PbrEffect.GetTextureTransform(
+              effect, graphics.PbrTextureSlot.Normal);
+            return [value.Offset.X, value.Offset.Y, value.Scale.X, value.Scale.Y, value.Rotation];
+          })(),
+          baseColorSrgb: graphics.PbrEffect.GetTextureIsSrgb(
+            effect, graphics.PbrTextureSlot.BaseColor),
+          emissiveSrgb: graphics.PbrEffect.GetTextureIsSrgb(
+            effect, graphics.PbrTextureSlot.Emissive),
+        };
+        const extracted = graphics.PbrEffect.ExtractMaterial(effect);
+        const roundTrip = graphics.PbrMaterialExtOperations.Equals(material, extracted);
+        // The individual setters reach the same state the material does, which is what makes the
+        // two paths above two paths rather than one.
+        graphics.PbrEffect.SetMetallicFactor(effect, 0.875);
+        graphics.PbrEffect.SetAlpha(effect, 0.5);
+        graphics.PbrEffect.SetDiffuseColor(effect, new Vector3(0.2, 0.4, 0.6));
+        graphics.PbrEffect.SetVertexColorEnabled(effect, true);
+        graphics.PbrEffect.SetEncodeOutputToSrgb(effect, false);
+        const afterSetters = {
+          metallic: graphics.PbrEffect.ExtractMaterial(effect).MetallicFactor,
+          alpha: graphics.PbrEffect.GetAlpha(effect),
+          diffuse: [
+            graphics.PbrEffect.GetDiffuseColor(effect).X,
+            graphics.PbrEffect.GetDiffuseColor(effect).Y,
+            graphics.PbrEffect.GetDiffuseColor(effect).Z,
+          ],
+          vertexColor: graphics.PbrEffect.GetVertexColorEnabled(effect),
+          encodeSrgb: graphics.PbrEffect.GetEncodeOutputToSrgb(effect),
+        };
+        // The texture slots, which have two sources of truth that never agree -- upstream finding
+        // 19. All three measured rows are recorded here so a repair fails rather than passes.
+        const emptySlot = graphics.PbrEffect.GetTexture(effect, graphics.PbrTextureSlot.BaseColor);
+        const withTexture = graphics.CreatePbrMaterialExt();
+        withTexture.AlbedoTexture = texture;
+        graphics.PbrEffect.ApplyMaterial(effect, withTexture);
+        const afterApplyWithTexture = graphics.PbrEffect.GetTexture(
+          effect, graphics.PbrTextureSlot.BaseColor);
+        graphics.PbrEffect.SetTexture(effect, graphics.PbrTextureSlot.BaseColor, texture);
+        const filledSlot = graphics.PbrEffect.GetTexture(effect, graphics.PbrTextureSlot.BaseColor);
+        const extractedWithTexture = graphics.PbrEffect.ExtractMaterial(effect);
+        graphics.PbrEffect.ApplyMaterial(effect, graphics.CreatePbrMaterialExt());
+        const afterEmptyApply = graphics.PbrEffect.GetTexture(
+          effect, graphics.PbrTextureSlot.BaseColor);
+        graphics.PbrEffect.SetTexture(effect, graphics.PbrTextureSlot.BaseColor, null);
+        return {
+          defaults,
+          throughAccessors,
+          roundTrip,
+          extracted: {
+            albedo: [
+              extracted.AlbedoColor.R, extracted.AlbedoColor.G,
+              extracted.AlbedoColor.B, extracted.AlbedoColor.A,
+            ],
+            text: graphics.PbrMaterialExtOperations.ToText(extracted),
+            metallic: extracted.MetallicFactor,
+            roughness: extracted.RoughnessFactor,
+            alphaMode: extracted.AlphaMode,
+            doubleSided: extracted.DoubleSided,
+            normalSet: extracted.TextureCoordinateSets[graphics.PbrTextureSlot.Normal],
+            normalTransform: [
+              extracted.TextureTransforms[graphics.PbrTextureSlot.Normal].Scale.X,
+              extracted.TextureTransforms[graphics.PbrTextureSlot.Normal].Rotation,
+            ],
+          },
+          afterSetters,
+          slots: {
+            empty: emptySlot === 0n,
+            afterApplyWithTexture: afterApplyWithTexture !== 0n,
+            afterEmptyApply: afterEmptyApply !== 0n,
+            filled: filledSlot !== 0n,
+            cleared: graphics.PbrEffect.GetTexture(
+              effect, graphics.PbrTextureSlot.BaseColor) === 0n,
+            extractedIsNull: extractedWithTexture.AlbedoTexture,
+          },
+        };
+      } finally {
+        texture.Dispose();
+        effect.Dispose();
+      }
+    });
+
+    record("skinned", () => {
+      const effect = graphics.SkinnedPbrEffect.Create(device);
+      try {
+        const defaultWeights = graphics.SkinnedPbrEffect.GetWeightsPerVertex(effect);
+        graphics.SkinnedPbrEffect.SetWeightsPerVertex(effect, 2);
+        const bones = [
+          Matrix.Identity,
+          Matrix.CreateTranslation(new Vector3(3, 4, 5)),
+          Matrix.CreateScale(2),
+        ];
+        graphics.SkinnedPbrEffect.SetBoneTransforms(effect, bones);
+        const read = graphics.SkinnedPbrEffect.GetBoneTransforms(effect, bones.length);
+        const material = graphics.CreatePbrMaterialExt();
+        material.RoughnessFactor = 0.125;
+        material.AlphaMode = graphics.AlphaMode.Mask;
+        graphics.SkinnedPbrEffect.ApplyMaterial(effect, material);
+        const extracted = graphics.SkinnedPbrEffect.ExtractMaterial(effect);
+        return {
+          defaultWeights,
+          setWeights: graphics.SkinnedPbrEffect.GetWeightsPerVertex(effect),
+          count: read.length,
+          translation: [read[1].M41, read[1].M42, read[1].M43],
+          scale: [read[2].M11, read[2].M22, read[2].M33],
+          identityIsIdentity: [read[0].M11, read[0].M22, read[0].M33, read[0].M44,
+            read[0].M41, read[0].M42, read[0].M43],
+          roundTrip: graphics.PbrMaterialExtOperations.Equals(material, extracted),
+          materialRoughness: extracted.RoughnessFactor,
+          fewerThanSet: graphics.SkinnedPbrEffect.GetBoneTransforms(effect, 1).length,
+        };
+      } finally {
+        effect.Dispose();
+      }
+    });
+
+    record("deviceState", () => {
+      const material = graphics.CreatePbrMaterialExt();
+      const read = () => ({
+        blend: graphics.PbrMaterialExtOperations.ReadDeviceBlendState(device),
+        cull: graphics.PbrMaterialExtOperations.ReadDeviceRasterizerState(device).CullMode,
+      });
+      material.AlphaMode = graphics.AlphaMode.Blend;
+      material.DoubleSided = true;
+      graphics.PbrMaterialExtOperations.ApplyState(material, device);
+      const blended = read();
+      material.AlphaMode = graphics.AlphaMode.Opaque;
+      material.DoubleSided = false;
+      graphics.PbrMaterialExtOperations.ApplyState(material, device);
+      const opaque = read();
+      material.AlphaMode = graphics.AlphaMode.Mask;
+      graphics.PbrMaterialExtOperations.ApplyState(material, device);
+      const masked = read();
+      return {
+        blended, opaque, masked,
+        wrapperUnaware: this.GraphicsDevice.BlendState?.Name ?? null,
+      };
+    });
+
+    record("refusals", () => {
+      const attempt = (body) => {
+        try {
+          body();
+          return "SUCCEEDED";
+        } catch (error) {
+          return error.constructor.name;
+        }
+      };
+      const set = new graphics.PbrMaterialExtensions();
+      set.Dispose();
+      const material = graphics.CreatePbrMaterialExt();
+      return {
+        disposedRead: attempt(() => set.ClearcoatFactor),
+        disposedWrite: attempt(() => { set.ClearcoatFactor = 1; }),
+        disposedTwice: attempt(() => set.Dispose()),
+        isDisposed: set.IsDisposed,
+        shortCoordinateSets: attempt(() => {
+          const bad = graphics.CreatePbrMaterialExt();
+          bad.TextureCoordinateSets = [0, 0, 0];
+          graphics.PbrMaterialExtOperations.GetHashCode(bad);
+        }),
+        nonFinite: attempt(() => {
+          const bad = graphics.CreatePbrMaterialExt();
+          bad.MetallicFactor = Number.NaN;
+          graphics.PbrMaterialExtOperations.GetHashCode(bad);
+        }),
+        fractionalCoordinateSet: attempt(() => {
+          const bad = graphics.CreatePbrMaterialExt();
+          bad.TextureCoordinateSets[0] = 0.5;
+          graphics.PbrMaterialExtOperations.GetHashCode(bad);
+        }),
+        nullMaterial: attempt(() => graphics.PbrMaterialExtOperations.GetHashCode(null)),
+        nullDevice: attempt(
+          () => graphics.PbrMaterialExtOperations.ApplyState(material, null)),
+        nullExtensionDestination: attempt(() => graphics.GltfMaterialBridge.BuildExtensions(
+          graphics.GltfMaterialBridge.CreateExtensionSource(),
+          graphics.GltfMaterialBridge.CreateExtensionTextures(), null)),
+      };
+    });
+
+    this.Exit();
+    super.LoadContent();
+  }
+
+  Update(gameTime) {
+    this.Exit();
+    super.Update(gameTime);
+  }
+}
+
+test("the canonical PBR material is a value, and both PBR effects carry it whole", async () => {
+  const game = new PbrMaterialProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const graphics = computeExtensions;
+  const { AlphaMode, PbrTextureSlot } = graphics;
+  const { Blend, CullMode } = Graphics;
+
+  // --- CNA's own defaults ------------------------------------------------------------------------
+  const defaults = evidence.defaults;
+  assert.equal(typeof defaults, "object", `defaults did not run: ${defaults}`);
+  // The glTF defaults, which are what the canonical type is specified against.
+  assert.equal(defaults.metallic, 1, "glTF's default material is fully metallic");
+  assert.equal(defaults.roughness, 1, "and fully rough");
+  assert.equal(defaults.normalScale, 1);
+  assert.equal(defaults.occlusion, 1);
+  assert.equal(defaults.ior, 1.5, "KHR_materials_ior defaults to 1.5");
+  assert.equal(defaults.specular, 1);
+  assert.equal(defaults.alphaCutoff, 0.5);
+  assert.equal(defaults.alphaMode, AlphaMode.Opaque);
+  assert.equal(defaults.doubleSided, false);
+  assert.deepEqual(defaults.albedo, [255, 255, 255, 255], "and an opaque white base colour");
+  assert.deepEqual(defaults.emissive, [0, 0, 0], "emitting nothing");
+  assert.deepEqual(defaults.specularColor, [1, 1, 1]);
+  assert.deepEqual(defaults.srgb, [true, true, true, true], "colour textures are sRGB by default");
+  // No slot is filled, and none of them is a wrapper this layer invented.
+  assert.equal(defaults.textures.length, 7);
+  for (const texture of defaults.textures) assert.equal(texture, null);
+  assert.deepEqual(defaults.sets, [0, 0, 0, 0, 0, 0, 0], "every slot samples UV channel zero");
+  assert.equal(defaults.transforms.length, graphics.PbrTextureSlotCount);
+  for (const transform of defaults.transforms) {
+    assert.deepEqual(transform, [0, 0, 1, 1, 0], "a neutral transform is no offset, unit scale, no rotation");
+  }
+  assert.deepEqual(defaults.transform, [0, 0, 1, 1, 0], "and CNA's own neutral transform is the same");
+
+  // --- it behaves like a value ---------------------------------------------------------------------
+  const value = evidence.valueSemantics;
+  assert.equal(value.equalIndependently, true, "two materials built the same way are the same material");
+  assert.equal(value.hashesAgree, true, "and hash alike");
+  assert.equal(value.differsAfterEdit, false, "editing one field makes it a different material");
+  assert.equal(value.hashDiffers, true, "and changes its hash");
+  assert.equal(value.sameEditsAgree, true, "the same edit twice gives the same material again");
+  assert.equal(value.sameEditsHashAlike, true, "which is what a content hash means");
+  assert.ok(value.text.includes("Albedo"), `the printed form names its fields: ${value.text}`);
+  assert.ok(value.text.includes("Opaque"), "including the alpha mode by name");
+  assert.notEqual(value.text, value.editedText, "and it changes when the material does");
+  assert.equal(value.colourAlone, false, "a different base colour is a different material");
+  assert.equal(value.colourHashDiffers, true, "and hashes differently");
+  assert.ok(
+    value.recolouredText.includes("R:200") && value.recolouredText.includes("A:128"),
+    `the printed form carries all four channels: ${value.recolouredText}`,
+  );
+  assert.deepEqual(
+    value.independent, [1, 0, 0],
+    "two materials must not share arrays: editing one changed the other",
+  );
+
+  // --- the glTF bridge -------------------------------------------------------------------------------
+  const bridge = evidence.bridge;
+  assert.deepEqual(bridge.defaults.baseColor, [1, 1, 1, 1], "glTF's own default base colour is white");
+  assert.equal(bridge.defaults.metallic, 1);
+  assert.equal(bridge.defaults.ior, 1.5);
+  assert.equal(bridge.defaults.alphaMode, AlphaMode.Opaque);
+  assert.equal(bridge.defaults.doubleSided, false);
+  assert.equal(bridge.defaults.slots.length, graphics.PbrTextureSlotCount);
+  for (const slot of bridge.defaults.slots) assert.equal(slot, null);
+  // Every factor carried across unchanged...
+  assert.equal(bridge.metallic, 0.25);
+  assert.equal(bridge.roughness, 0.75);
+  assert.deepEqual(bridge.emissive, [0.125, 0.25, 0.375]);
+  assert.equal(bridge.normalScale, 2);
+  assert.equal(bridge.occlusion, 0.5);
+  assert.equal(bridge.ior, 1.75);
+  assert.equal(bridge.specular, 0.5);
+  assert.ok(bridge.specularColor.every((v, i) => Math.abs(v - [0.9, 0.8, 0.7][i]) < 1e-6));
+  assert.equal(bridge.alphaMode, AlphaMode.Mask);
+  assert.equal(bridge.alphaCutoff, 0.375);
+  assert.equal(bridge.doubleSided, true);
+  // ...including the per-slot values, in the slots they were written to and nowhere else.
+  assert.equal(bridge.sets[PbrTextureSlot.Emissive], 1);
+  assert.equal(bridge.sets.filter((value) => value !== 0).length, 1, "one slot changed, not all of them");
+  assert.deepEqual(bridge.transforms[PbrTextureSlot.MetallicRoughness], [0.25, 0.5, 2, 3, 0.75]);
+  for (let slot = 0; slot < graphics.PbrTextureSlotCount; slot += 1) {
+    if (slot === PbrTextureSlot.MetallicRoughness) continue;
+    assert.deepEqual(bridge.transforms[slot], [0, 0, 1, 1, 0], `slot ${slot} was not left neutral`);
+  }
+  // The one conversion the bridge performs: a linear float factor becomes an eight-bit colour.
+  assert.deepEqual(
+    bridge.albedo, [255, 128, 64, 128],
+    "a base colour factor of (1, 0.5, 0.25, 0.5) quantises to (255, 128, 64, 128)",
+  );
+  for (const [value, quantised] of bridge.quantised) {
+    assert.equal(
+      quantised, Math.round(value * 255),
+      `the bridge quantises ${value} to ${quantised}, not to round(${value} * 255)`,
+    );
+  }
+
+  // --- the extensions ------------------------------------------------------------------------------
+  const extensions = evidence.extensions;
+  assert.equal(typeof extensions, "object", `extensions did not run: ${extensions}`);
+  assert.equal(extensions.neutral.isNeutral, true, "a fresh extension set is neutral");
+  assert.equal(extensions.neutral.text, "{}", "and prints as nothing at all");
+  assert.deepEqual(
+    [extensions.neutral.sheen, extensions.neutral.transmission,
+      extensions.neutral.iridescence, extensions.neutral.subsurface],
+    [false, false, false, false],
+    "with no feature switched on",
+  );
+  assert.equal(extensions.neutral.clearcoat, 0);
+  // glTF's own defaults for the iridescence extension, which are not zero.
+  assert.ok(Math.abs(extensions.neutral.iridescenceIor - 1.3) < 1e-5, "KHR_materials_iridescence defaults its IOR to 1.3");
+  assert.deepEqual(extensions.neutral.thicknessRange, [100, 400], "and its thickness range to 100..400nm");
+  assert.deepEqual(extensions.neutral.attenuation, [1, 1, 1], "attenuation defaults to white, not black");
+  assert.equal(extensions.neutral.equalsFresh, true, "two fresh sets are the same set");
+  assert.equal(extensions.neutral.hashesAgree, true);
+  // Which field switches which feature on. Each row comes from its own fresh set, so no row can
+  // be carried by another, and the neutral flag falls in every one of them.
+  // `IsNeutral` turns out not to mean "no field was written" -- it means "no feature contributes".
+  // Each row below is its own fresh set, so none can be carried by another, and the pattern is
+  // exact: the factor that *enables* a term makes the set non-neutral, and the fields that only
+  // modulate a term that is off do not, even though they store their value.
+  const expectedSwitches = {
+    sheenColor: { neutral: false, sheen: true, transmission: false, iridescence: false, subsurface: false },
+    sheenRoughness: { neutral: true, sheen: false, transmission: false, iridescence: false, subsurface: false },
+    transmission: { neutral: false, sheen: false, transmission: true, iridescence: false, subsurface: false },
+    thickness: { neutral: true, sheen: false, transmission: false, iridescence: false, subsurface: false },
+    iridescence: { neutral: false, sheen: false, transmission: false, iridescence: true, subsurface: false },
+    subsurfaceColor: { neutral: false, sheen: false, transmission: false, iridescence: false, subsurface: true },
+    subsurfaceWrap: { neutral: true, sheen: false, transmission: false, iridescence: false, subsurface: false },
+    clearcoat: { neutral: false, sheen: false, transmission: false, iridescence: false, subsurface: false },
+  };
+  for (const [name, expected] of Object.entries(expectedSwitches)) {
+    const actual = extensions.switches[name];
+    assert.deepEqual(
+      { neutral: actual.neutral, sheen: actual.sheen, transmission: actual.transmission,
+        iridescence: actual.iridescence, subsurface: actual.subsurface },
+      expected,
+      `writing ${name} left the set in the wrong state`,
+    );
+  }
+  // The three that make that distinction sharp, named so a regression to "any write is
+  // non-neutral" or "any write enables the feature" fails here rather than passing quietly.
+  assert.equal(extensions.switches.sheenRoughness.sheen, false,
+    "sheen roughness alone does not switch sheen on -- the colour does");
+  assert.equal(extensions.switches.sheenRoughness.neutral, true,
+    "and a sheen lobe that contributes nothing leaves the set neutral");
+  assert.equal(extensions.switches.subsurfaceWrap.neutral, true,
+    "as does a subsurface wrap with no subsurface colour behind it");
+  assert.equal(extensions.switches.clearcoat.neutral, false,
+    "while a clearcoat factor does make the set non-neutral, with no predicate of its own");
+  // Written and still neutral is not written and lost: the modulating fields keep their values.
+  assert.deepEqual(extensions.written.clearcoat.slice(1), [0.375, 2],
+    "a clearcoat roughness and normal scale are stored whether or not they switch anything on");
+  assert.equal(extensions.written.subsurface[0], 0.625, "and so is a subsurface wrap");
+  // Every scalar and vector round-trips at float precision.
+  assert.deepEqual(extensions.written.clearcoat, [0.5, 0.375, 2]);
+  assert.deepEqual(extensions.written.sheen, [0.5, 0.25, 0.125, 0.25]);
+  assert.deepEqual(extensions.written.transmission, [0.75, 3, 4]);
+  assert.ok(extensions.written.attenuation.every((v, i) => Math.abs(v - [0.9, 0.8, 0.7][i]) < 1e-6));
+  assert.deepEqual(extensions.written.iridescence, [0.375, 1.625, 150, 450]);
+  assert.ok(extensions.written.subsurface.every(
+    (v, i) => Math.abs(v - [0.625, 0.1, 0.2, 0.3][i]) < 1e-6));
+  assert.equal(extensions.written.isNeutral, false);
+  for (const name of ["Clearcoat", "Sheen", "Transmission", "Iridescence", "Subsurface"]) {
+    assert.ok(extensions.written.text.includes(name), `the printed form omits ${name}`);
+  }
+  // Copying is a copy, not an alias.
+  assert.equal(extensions.beforeCopy.equal, false, "an edited set is not a fresh one");
+  assert.equal(extensions.beforeCopy.hashesAgree, false);
+  assert.equal(extensions.beforeCopy.otherClearcoat, 0);
+  assert.equal(extensions.afterCopy.equal, true, "copying makes them equal");
+  assert.equal(extensions.afterCopy.hashesAgree, true, "and makes them hash alike");
+  assert.equal(extensions.afterCopy.otherClearcoat, 0.5, "with the source's values, not the target's");
+  assert.equal(extensions.afterCopy.otherSheen, 0.25);
+  assert.equal(extensions.afterCopy.sourceUnchanged, 0.5, "and the source untouched");
+  // The nine texture slots.
+  assert.equal(extensions.slots.empty.length, 9);
+  assert.ok(extensions.slots.empty.every(Boolean), "a fresh set names no textures");
+  assert.deepEqual(
+    extensions.slots.filled, [true, true, true, false],
+    "the three slots that were filled are filled and the one that was not is not",
+  );
+  assert.equal(extensions.slots.cleared, true, "and null clears a slot rather than being refused");
+
+  // --- the glTF extension bridge ---------------------------------------------------------------------
+  const extensionBridge = evidence.extensionBridge;
+  assert.equal(extensionBridge.defaults.clearcoat, 0, "glTF's clearcoat defaults to nothing");
+  assert.ok(Math.abs(extensionBridge.defaults.iridescenceIor - 1.3) < 1e-5);
+  assert.deepEqual(extensionBridge.defaults.thicknessRange, [100, 400]);
+  assert.deepEqual(extensionBridge.defaults.attenuation, [1, 1, 1]);
+  assert.deepEqual(extensionBridge.built.clearcoat, [0.25, 0.5]);
+  assert.deepEqual(extensionBridge.built.sheen, [0.75, 0.5, 0.25, 0.125]);
+  assert.deepEqual(extensionBridge.built.transmission, [0.5, 3, 7]);
+  assert.ok(extensionBridge.built.attenuation.every(
+    (v, i) => Math.abs(v - [0.6, 0.7, 0.8][i]) < 1e-6));
+  assert.deepEqual(extensionBridge.built.iridescence, [0.875, 1.875, 120, 480]);
+  assert.equal(extensionBridge.built.isNeutral, false);
+
+  // --- the effect --------------------------------------------------------------------------------------
+  const effect = evidence.effect;
+  assert.equal(typeof effect, "object", `the effect did not run: ${effect}`);
+  // A fresh effect starts at the same defaults the material does, which is what makes them one type.
+  assert.equal(effect.defaults.metallic, defaults.metallic);
+  assert.equal(effect.defaults.roughness, defaults.roughness);
+  assert.equal(effect.defaults.ior, defaults.ior);
+  assert.equal(effect.defaults.specular, defaults.specular);
+  assert.equal(effect.defaults.normalScale, defaults.normalScale);
+  assert.equal(effect.defaults.occlusion, defaults.occlusion);
+  assert.equal(effect.defaults.alphaMode, defaults.alphaMode);
+  assert.equal(effect.defaults.alphaCutoff, defaults.alphaCutoff);
+  assert.equal(effect.defaults.doubleSided, defaults.doubleSided);
+  assert.equal(effect.defaults.alpha, 1);
+  assert.equal(effect.defaults.vertexColor, false);
+  assert.deepEqual(effect.defaults.diffuse, [1, 1, 1]);
+  // Applying a whole material puts every field on the effect, read back through the per-field
+  // routes rather than through the extractor -- two different paths into the same state.
+  assert.equal(effect.throughAccessors.metallic, 0.25);
+  assert.equal(effect.throughAccessors.roughness, 0.75);
+  assert.equal(effect.throughAccessors.ior, 1.75);
+  assert.equal(effect.throughAccessors.specular, 0.5);
+  assert.equal(effect.throughAccessors.normalScale, 2);
+  assert.equal(effect.throughAccessors.occlusion, 0.375);
+  assert.equal(effect.throughAccessors.alphaMode, AlphaMode.Blend);
+  assert.equal(effect.throughAccessors.alphaCutoff, 0.625);
+  assert.equal(effect.throughAccessors.doubleSided, true);
+  assert.deepEqual(effect.throughAccessors.emissive, [0.125, 0.25, 0.375]);
+  assert.ok(effect.throughAccessors.specularColor.every(
+    (v, i) => Math.abs(v - [0.9, 0.8, 0.7][i]) < 1e-6));
+  assert.equal(effect.throughAccessors.normalSet, 1, "the per-slot coordinate set arrived");
+  assert.equal(effect.throughAccessors.baseColorSet, 0, "in its own slot and not another's");
+  assert.deepEqual(effect.throughAccessors.normalTransform, [0.5, 0.25, 3, 4, 1.25]);
+  assert.equal(effect.throughAccessors.baseColorSrgb, false, "the sRGB flag arrived per slot too");
+  assert.equal(effect.throughAccessors.emissiveSrgb, true, "and the slots that were not written kept theirs");
+  // And the extractor gives the same material back, by CNA's own equality.
+  assert.equal(effect.roundTrip, true, "an applied material must extract back equal to itself");
+  assert.deepEqual(
+    effect.extracted.albedo, [200, 100, 40, 128],
+    "a base colour must survive the material round trip in all four channels",
+  );
+  assert.ok(
+    effect.extracted.text.includes("R:200") && effect.extracted.text.includes("A:128"),
+    `and the printed form must name it: ${effect.extracted.text}`,
+  );
+  assert.equal(effect.extracted.metallic, 0.25);
+  assert.equal(effect.extracted.alphaMode, AlphaMode.Blend);
+  assert.equal(effect.extracted.doubleSided, true);
+  assert.equal(effect.extracted.normalSet, 1);
+  assert.deepEqual(effect.extracted.normalTransform, [3, 1.25]);
+  // The individual setters reach the same state, so the two paths above really are two paths.
+  assert.equal(effect.afterSetters.metallic, 0.875, "a per-field setter shows up in the extracted material");
+  assert.equal(effect.afterSetters.alpha, 0.5);
+  assert.ok(effect.afterSetters.diffuse.every((v, i) => Math.abs(v - [0.2, 0.4, 0.6][i]) < 1e-6));
+  assert.equal(effect.afterSetters.vertexColor, true);
+  assert.equal(effect.afterSetters.encodeSrgb, false);
+  // A texture slot is a borrow: the effect records the handle and the extracted material does not
+  // invent a wrapper for it.
+  assert.equal(effect.slots.empty, true);
+  assert.equal(
+    effect.slots.afterApplyWithTexture, false,
+    "finding 19: a texture applied with a material is invisible to the slot getter",
+  );
+  assert.equal(effect.slots.filled, true, "while one placed through the setter is visible");
+  assert.equal(
+    effect.slots.afterEmptyApply, true,
+    "finding 19: and a material with an empty slot does not clear what the setter put there",
+  );
+  assert.equal(effect.slots.cleared, true, "null clears a slot");
+  assert.equal(
+    effect.slots.extractedIsNull, null,
+    "an extracted material must not invent a Texture2D wrapper for a handle it does not own",
+  );
+
+  // --- the skinned effect --------------------------------------------------------------------------------
+  const skinned = evidence.skinned;
+  assert.equal(skinned.defaultWeights, 4, "four bone weights per vertex by default");
+  assert.equal(skinned.setWeights, 2);
+  assert.equal(skinned.count, 3);
+  assert.deepEqual(skinned.translation, [3, 4, 5], "a bone's translation survives the round trip");
+  assert.deepEqual(skinned.scale, [2, 2, 2], "and its scale");
+  assert.deepEqual(skinned.identityIsIdentity, [1, 1, 1, 1, 0, 0, 0], "and identity stays identity");
+  assert.equal(skinned.fewerThanSet, 1, "asking for fewer bones than were set gives that many");
+  assert.equal(skinned.roundTrip, true, "and it carries a whole material like the unskinned one");
+  assert.equal(skinned.materialRoughness, 0.125);
+
+  // --- what ApplyState actually does ------------------------------------------------------------------------
+  // Read back from CNA rather than from the wrapper, and predicted from the XNA states the C++
+  // names -- NonPremultiplied for a blended material, Opaque otherwise; CullNone when double-sided.
+  const state = evidence.deviceState;
+  assert.equal(state.blended.blend.ColorSourceBlend, Blend.SourceAlpha);
+  assert.equal(state.blended.blend.ColorDestinationBlend, Blend.InverseSourceAlpha);
+  assert.equal(state.blended.blend.AlphaSourceBlend, Blend.SourceAlpha);
+  assert.equal(state.blended.blend.AlphaDestinationBlend, Blend.InverseSourceAlpha);
+  assert.equal(state.blended.cull, CullMode.None, "a double-sided material draws both faces");
+  assert.equal(state.opaque.blend.ColorSourceBlend, Blend.One);
+  assert.equal(state.opaque.blend.ColorDestinationBlend, Blend.Zero);
+  assert.equal(state.opaque.cull, CullMode.CullCounterClockwiseFace);
+  assert.equal(
+    state.masked.blend.ColorSourceBlend, Blend.One,
+    "a masked material discards rather than blends, so it takes the opaque blend state",
+  );
+  assert.deepEqual(
+    state.blended.blend.ColorWriteChannels === state.opaque.blend.ColorWriteChannels ? "same" : "different",
+    "same", "the write mask is not what the alpha mode changes",
+  );
+  assert.equal(
+    state.wrapperUnaware, "BlendState.Opaque",
+    "ApplyState writes CNA's state below the wrapper, which keeps reporting what it was given",
+  );
+
+  // --- refusals -----------------------------------------------------------------------------------------
+  const refusals = evidence.refusals;
+  assert.equal(refusals.disposedRead, "NativeUnavailableError", "a disposed set answers nothing");
+  assert.equal(refusals.disposedWrite, "NativeUnavailableError");
+  assert.equal(refusals.disposedTwice, "SUCCEEDED", "and disposing twice is harmless");
+  assert.equal(refusals.isDisposed, true);
+  assert.equal(refusals.shortCoordinateSets, "TypeError", "a material needs all seven slots");
+  assert.equal(refusals.nonFinite, "TypeError", "and finite numbers");
+  assert.equal(refusals.fractionalCoordinateSet, "TypeError", "a coordinate set is an integer");
+  assert.equal(refusals.nullMaterial, "TypeError");
+  assert.equal(refusals.nullDevice, "TypeError");
+  assert.equal(refusals.nullExtensionDestination, "TypeError");
+
+  console.log(
+    `CNA_TS_NATIVE_PBR_MATERIAL=PASS VALUE=EQUALS_HASHES_PRINTS BRIDGE=ROUND(x*255) ` +
+    `EXTENSIONS=${Object.keys(extensions.switches).length}_SWITCH_ROWS EFFECT=TWO_PATHS ` +
+    `SKINNED=${skinned.count}_BONES STATE=READ_FROM_CNA`,
+  );
+});

@@ -17,12 +17,12 @@ layer's compute path, item 10 while projecting its clustered lighting, item 11 -
 segmentation fault -- while projecting camera frame capture, and item 12 while projecting the
 particle draw. Items 13 and 14 are new, found while projecting the depth/normal prepass and the
 decal projector that reads it, item 15 while projecting the atmosphere, item 16 while
-projecting the cascaded, spot and cube shadow passes, and items 17 and 18 while projecting the
-post-process passes.
+projecting the cascaded, spot and cube shadow passes, items 17 and 18 while projecting the
+post-process passes, and item 19 while projecting the physically-based materials.
 
 **Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
 library. Both were found by this package, both were *asserted* rather than worked around, and both
-detectors fired the moment the repair landed. Four of the eighteen findings are now closed.
+detectors fired the moment the repair landed. Four of the nineteen findings are now closed.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -832,3 +832,48 @@ document that the caller has to complete the destroy before exiting.
 asserts that the destroy succeeded, and the suites run one game per process — so any regression that
 starts refusing a destroy shows up as a failing assertion *and* as a non-zero exit code, rather than
 as a passing test file that crashes on the way out.
+
+## 19. A PBR effect's texture slots have two sources of truth, and they never agree
+
+`PbrEffect` carries seven texture slots, and the C API offers two ways to fill them: put a whole
+material on with `cna_pbr_effect_apply_material`, or set one slot with `cna_pbr_effect_set_texture`.
+They write to different places. `applyMaterial` goes through the engine layer's `ApplyTo`, which
+calls `effect.setTextureProperty(...)` and its six siblings on the C++ object. `set_texture` writes
+the C API's own retained-handle table, `GetEffectState(view.resource)->lifetime->pbrTextures[slot]`,
+which is the *only* thing `cna_pbr_effect_get_texture` reads.
+
+**Measured** on `cmake-build-tsnext` (HEADLESS) and `cmake-build-debug` (OPENGLES3), ABI 0.21.0,
+byte-identical on both, one `Texture2D` whose handle is `0x100000004`:
+
+```text
+what the caller did                                    get_texture   extract_material's slot
+apply a material whose albedo slot holds the texture   invalid       invalid
+set_texture on the albedo slot                         0x100000004   invalid
+then apply a material whose albedo slot is empty       0x100000004   invalid
+```
+
+Three separate problems, in one table:
+
+1. **A texture applied with a material is invisible.** The effect really is sampling it — `ApplyTo`
+   set the pointer — but `get_texture` says the slot is empty, so a caller cannot read back what
+   they just applied.
+2. **`extract_material` never reports a texture at all**, in any row, including the one where
+   `set_texture` filled the slot and `get_texture` agrees it is filled. So a material cannot be
+   round-tripped through an effect without silently losing every texture, and the loss is not
+   visible from either side.
+3. **Applying a material does not clear a slot the setter filled.** The third row is the worst of
+   the three: the material said "no albedo texture", the C++ effect was cleared to `nullptr`, and
+   the C API still hands out — and still retains — the handle. The two sources of truth now
+   disagree in the opposite direction from row one.
+
+**Proposed change.** Make `apply_material` and `extract_material` go through the same retained-handle
+table `set_texture` and `get_texture` use: apply should fill or clear each slot's entry from the
+material, and extract should read it back. That makes one source of truth out of two and fixes all
+three rows at once. If the material's slots are deliberately not part of the C API's retained state,
+say so in all four headers, because today none of them mentions the other route.
+
+**Detector in cna-ts:** `PbrEffect.ExtractMaterial` documents on itself that the slots come back
+empty and why; `test/native-cna.integration.mjs` asserts a textureless material round-trips exactly
+while `test/windowed-renderer.integration.mjs` asserts that a material *with* a texture does not, and
+that the difference is exactly the slots. Both files assert all three measured rows, so a repair
+fails here rather than passing unnoticed.
