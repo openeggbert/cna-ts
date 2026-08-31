@@ -13,7 +13,7 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 69,
+    "VERIFIED_NATIVE": 70,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 2,
@@ -174,13 +174,13 @@
       ]
     },
     {
-      "operation": "Modern CNA engine layer beyond the pipeline, the post-process chain, compute, clustered lighting, LOD and shadow-map maths: the shadow depth pass, particles, decals and atmospheric rendering",
+      "operation": "Modern CNA engine layer beyond the pipeline, the post-process chain, compute, clustered lighting, LOD, shadow-map maths and particles: the shadow and particle draw passes, decals and atmospheric rendering",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the render pipeline, the post-process chain, the compute path, the clustered lighting family, level-of-detail groups and the shadow-map maths are projected and verified separately. What is left is the shadow depth pass itself -- begin/end, the caster effects and the shadow texture -- plus cascaded, spot and cube shadow maps, particles, decals, light probes and atmospheric rendering. The depth pass is deliberately unprojected rather than merely unwritten: it needs a real render pass, and on the one renderer here that could run one, reading a render target back answers zeros (upstream finding 7), so there would be no evidence to accept it on",
+      "evidence": "the render pipeline, the post-process chain, the compute path, the clustered lighting family, level-of-detail groups, the shadow-map maths and the particle simulation are projected and verified separately. What is left is the two draw passes -- a shadow map's depth pass and a particle system's draw -- plus cascaded, spot and cube shadow maps, decals, light probes and atmospheric rendering. Both draw passes are deliberately unprojected rather than merely unwritten: each needs a real render pass, and the one renderer here that could run one answers every render-target readback with zeros (upstream finding 7), so there would be no evidence to accept them on",
       "proof": [
         "absentRoute:cna_shadow_map_begin",
-        "absentRoute:cna_particle_system_create"
+        "absentRoute:cna_particle_system_draw"
       ]
     },
     {
@@ -1127,6 +1127,19 @@
         "route:cna_guide_simulate_message_box_click_ext",
         "test:test/native-cna.integration.mjs",
         "test:test/gamer-services-guide.test.mjs"
+      ]
+    },
+    {
+      "operation": "The particle simulation, and the pure functions behind it",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "cna_particle_system_step integrates one particle with no system, device or GPU, and cna_particle_system_random is the deterministic generator the emitter draws from -- so the simulation is checked against arithmetic rather than against numbers recorded from a run. Gravity of -10 over half a second gives velocity -5 and position -2.5 exactly, an axis with no gravity is unchanged, and the age advances by the step. Two half steps and one whole step both reach velocity -10 but land in different places, which is what shows the elapsed time reaching a stepwise integrator rather than being ignored; a zero step changes nothing; and Step returns a new particle rather than mutating the caller's. The same seed always draws the same value and different seeds draw different ones. The system itself round-trips its emitter settings through a different route than they went in, reports its capacity, and says whether it is simulating on the GPU and why not -- forced onto the CPU here, which is how a game gets the same answer on every renderer. Three planted defects fail: a fixed step, a seed that never reaches the generator, and gravity that is always the default",
+      "proof": [
+        "route:cna_particle_system_step",
+        "route:cna_particle_system_random",
+        "route:cna_particle_system_copy_particles_ext",
+        "route:cna_particle_system_set_settings",
+        "test:test/native-cna.integration.mjs"
       ]
     },
     {

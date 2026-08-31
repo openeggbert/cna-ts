@@ -30,6 +30,7 @@ import {
   Quaternion,
   Vector2,
   Vector3,
+  Vector4,
 } from "../dist/index.js";
 import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../dist/internal/abi.js";
 import * as renderPipelineModule from "../dist/extensions/graphics/index.js";
@@ -4278,5 +4279,152 @@ test("shadow-map maths frames a scene from a light, exactly", async () => {
     `CNA_TS_NATIVE_SHADOW_MATH=PASS SIZES=${sizes.join("/")} RADII=${radii.join("/")} ` +
     `ORTHONORMAL=PASS SCENE_FITTED=PASS ` +
     `OBJECT=${state.refused ? `NOT_SUPPORTED(${state.cnaResult})` : `${state.size}px/r${state.filterRadius}`}`,
+  );
+});
+
+test("the particle simulation integrates exactly, and the system agrees with it", async () => {
+  const { ParticleMath, ParticleSystem } = computeExtensions;
+
+  // The deterministic generator the emitter draws from: the same seed is always the same value,
+  // and different seeds are different. A generator that ignored its seed passes neither.
+  const seeds = [0, 1, 2, 3, 7, 100];
+  const draws = seeds.map((seed) => ParticleMath.Random(seed));
+  assert.deepEqual(draws, seeds.map((seed) => ParticleMath.Random(seed)), "the same seed repeats");
+  assert.equal(new Set(draws).size, seeds.length, "different seeds give different values");
+  for (const value of draws) {
+    assert.ok(value >= 0 && value <= 1, `a draw outside [0, 1]: ${value}`);
+  }
+  assert.throws(() => ParticleMath.Random(-1), RangeError);
+  assert.throws(() => ParticleMath.Random(1.5), RangeError);
+
+  // CNA's own defaults, read rather than assumed.
+  const defaults = ParticleMath.DefaultEmitterSettings();
+  assert.ok(defaults.Speed > 0 && defaults.Lifetime > 0 && defaults.EmissionRate > 0);
+  assert.ok(defaults.Gravity.Y < 0, "gravity points down");
+  const fresh = ParticleMath.DefaultParticle();
+  assert.deepEqual(
+    [fresh.Position.X, fresh.Position.Y, fresh.Position.Z], [0, 0, 0],
+    "a fresh particle starts at the origin",
+  );
+
+  // One step of the integrator, checked against the arithmetic rather than a recorded number.
+  // Gravity -10 over half a second: velocity gains -5, and position gains the new velocity times
+  // the step. Drag is zero and the lifetime is long, so nothing else moves the particle.
+  const settings = {
+    ...defaults,
+    Gravity: new Vector3(0, -10, 0),
+    Drag: 0,
+    Lifetime: 100,
+    LifetimeVariance: 0,
+  };
+  const start = {
+    Position: new Vector4(0, 0, 0, 0),
+    Velocity: new Vector4(1, 0, 0, 0),
+    State: new Vector4(0, 100, 0, 0),
+  };
+  const stepped = ParticleMath.Step(start, 0, settings, 0.5);
+  assert.ok(Math.abs(stepped.Velocity.Y - -5) < 1e-5, `velocity: ${stepped.Velocity.Y}`);
+  assert.ok(Math.abs(stepped.Velocity.X - 1) < 1e-5, "an axis with no gravity is unchanged");
+  assert.ok(Math.abs(stepped.Position.Y - -2.5) < 1e-5, `position: ${stepped.Position.Y}`);
+  assert.ok(Math.abs(stepped.Position.X - 0.5) < 1e-5, "and moves by its own velocity");
+  assert.ok(Math.abs(stepped.State.X - 0.5) < 1e-5, "the age advances by the step");
+  // The caller's particle is untouched: Step returns a new one.
+  assert.equal(start.Position.Y, 0, "Step does not mutate the particle it was given");
+
+  // Two half-steps and one whole step differ, because gravity is integrated per step -- which is
+  // what shows the elapsed time reaching the integrator rather than being ignored.
+  const halfThenHalf = ParticleMath.Step(stepped, 0, settings, 0.5);
+  const wholeAtOnce = ParticleMath.Step(start, 0, settings, 1);
+  assert.ok(Math.abs(halfThenHalf.Velocity.Y - -10) < 1e-5, "two half steps reach -10");
+  assert.ok(Math.abs(wholeAtOnce.Velocity.Y - -10) < 1e-5, "and so does one whole step");
+  assert.ok(
+    Math.abs(halfThenHalf.Position.Y - wholeAtOnce.Position.Y) > 1e-3,
+    "but their positions differ, because the integrator is stepwise",
+  );
+
+  // Zero elapsed time changes nothing at all.
+  const unchanged = ParticleMath.Step(start, 0, settings, 0);
+  assert.deepEqual(
+    [unchanged.Position.X, unchanged.Position.Y, unchanged.Velocity.Y],
+    [start.Position.X, start.Position.Y, start.Velocity.Y],
+  );
+
+  for (const call of [
+    () => ParticleMath.Step(null, 0, settings, 0.5),
+    () => ParticleMath.Step(start, -1, settings, 0.5),
+    () => ParticleMath.Step(start, 0, null, 0.5),
+    () => ParticleMath.Step(start, 0, settings, Number.NaN),
+    () => ParticleMath.Step(start, 0, { ...settings, Speed: "fast" }, 0.5),
+  ]) {
+    assert.throws(call, call.toString());
+  }
+
+  // And the system, which needs a device.
+  const game = new (class extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+    LoadContent() {
+      try {
+        const system = new ParticleSystem(this.GraphicsDevice, 64);
+        try {
+          system.ForceSimulationOnCpu(true);
+          system.Settings = settings;
+          const readBack = system.Settings;
+          this.evidence.system = {
+            capacity: system.Capacity,
+            usesCompute: system.UsesCompute,
+            forcedOnCpu: system.IsSimulationForcedOnCpu,
+            reason: system.UnsupportedReason,
+            // Every scalar this test set, read back through a different route than it went in.
+            gravity: [readBack.Gravity.X, readBack.Gravity.Y, readBack.Gravity.Z],
+            drag: readBack.Drag,
+            lifetime: readBack.Lifetime,
+            emissionClamped: system.IsEmissionRateClamped,
+            particlesBefore: system.ToArray().length,
+          };
+          system.Update(0.1);
+          this.evidence.system.particlesAfter = system.ToArray().length;
+          this.evidence.system.activeAfter = system.ActiveCount;
+          system.Reset();
+          this.evidence.system.afterReset = system.ToArray().length;
+        } finally {
+          system.Dispose();
+        }
+      } catch (error) {
+        this.evidence.system = { refused: error.constructor.name, cnaResult: error.cnaResult };
+      }
+      this.Exit();
+      super.LoadContent();
+    }
+    Draw(gameTime) { this.GraphicsDevice.Clear(Color.CornflowerBlue); this.Exit(); super.Draw(gameTime); }
+  })();
+  await game.Run();
+  const system = game.evidence.system;
+  game.Dispose();
+
+  assert.equal(typeof system, "object", `particle system failed: ${JSON.stringify(system)}`);
+  if (system.refused) {
+    assert.equal(system.cnaResult, 6, "a renderer without particles refuses with NOT_SUPPORTED");
+  } else {
+    assert.equal(system.capacity, 64, "the pool is the size it was asked for");
+    assert.equal(system.forcedOnCpu, true, "the CPU path was chosen deliberately");
+    assert.equal(system.usesCompute, false, "so it is not on the GPU");
+    // The settings round-trip through CNA: written as one shape, read back as another.
+    assert.deepEqual(system.gravity, [0, -10, 0]);
+    assert.equal(system.drag, 0);
+    assert.equal(system.lifetime, 100);
+    assert.equal(system.particlesBefore, 64, "the pool is readable before any update");
+    assert.equal(system.particlesAfter, 64, "and after one");
+    assert.ok(system.activeAfter >= 0 && system.activeAfter <= 64);
+    assert.equal(system.afterReset, 64, "reset keeps the pool, it does not shrink it");
+    assert.equal(typeof system.reason, "string");
+  }
+
+  console.log(
+    `CNA_TS_NATIVE_PARTICLES=PASS RANDOM=DETERMINISTIC INTEGRATOR=EXACT STEPWISE=PASS ` +
+    `SYSTEM=${system.refused ? `NOT_SUPPORTED(${system.cnaResult})` : `${system.capacity}/cpu`}`,
   );
 });

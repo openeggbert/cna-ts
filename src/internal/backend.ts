@@ -1290,6 +1290,66 @@ export interface DirectionalLightSnapshot {
  * CNA's shadow maps: the object's state, and the pure functions that compute where one looks from.
  * The rendering half is not here -- see the note in the Node adapter.
  */
+/** Four components, as CNA lays out `CNA_Vector4`. */
+export interface Vector4Snapshot {
+  readonly X: number;
+  readonly Y: number;
+  readonly Z: number;
+  readonly W: number;
+}
+
+/** One particle: position, velocity and the packed state the simulation carries. */
+export interface ParticleSnapshot {
+  readonly Position: Vector4Snapshot;
+  readonly Velocity: Vector4Snapshot;
+  readonly State: Vector4Snapshot;
+}
+
+/** What an emitter produces, in CNA's own shape. */
+export interface ParticleEmitterSettingsSnapshot {
+  readonly Position: Vector3Snapshot;
+  readonly Direction: Vector3Snapshot;
+  readonly Gravity: Vector3Snapshot;
+  readonly StartColor: Vector4Snapshot;
+  readonly EndColor: Vector4Snapshot;
+  readonly ConeAngle: number;
+  readonly Speed: number;
+  readonly SpeedVariance: number;
+  readonly Lifetime: number;
+  readonly LifetimeVariance: number;
+  readonly Drag: number;
+  readonly EmissionRate: number;
+  readonly StartSize: number;
+  readonly EndSize: number;
+}
+
+/** CNA's particle systems, and the pure functions behind them. */
+export interface CnaParticleBackend {
+  createParticleSystem(device: NativeHandle, capacity: number): NativeHandle;
+  destroyParticleSystem(system: NativeHandle): void;
+  resetParticleSystem(system: NativeHandle): void;
+  updateParticleSystem(system: NativeHandle, elapsedSeconds: number): void;
+  getParticleSystemCapacity(system: NativeHandle): number;
+  getParticleSystemActiveCount(system: NativeHandle): number;
+  particleSystemUsesCompute(system: NativeHandle): boolean;
+  isParticleSimulationForcedOnCpu(system: NativeHandle): boolean;
+  setParticleSimulationOnCpu(system: NativeHandle, forced: boolean): void;
+  isParticleEmissionRateClamped(system: NativeHandle): boolean;
+  getParticleSystemUnsupportedReason(system: NativeHandle): string;
+  getParticleEmitterSettings(system: NativeHandle): ParticleEmitterSettingsSnapshot;
+  setParticleEmitterSettings(
+    system: NativeHandle, settings: ParticleEmitterSettingsSnapshot,
+  ): void;
+  copyParticles(system: NativeHandle): readonly ParticleSnapshot[];
+  getDefaultParticleEmitterSettings(): ParticleEmitterSettingsSnapshot;
+  getDefaultParticle(): ParticleSnapshot;
+  particleRandom(seed: number): number;
+  stepParticle(
+    particle: ParticleSnapshot, index: number,
+    settings: ParticleEmitterSettingsSnapshot, elapsedSeconds: number,
+  ): ParticleSnapshot;
+}
+
 export interface CnaShadowBackend {
   createShadowMap(device: NativeHandle, quality: number): NativeHandle;
   destroyShadowMap(map: NativeHandle): void;
@@ -1924,6 +1984,7 @@ export interface CnaBackend {
   readonly ClusteredLighting?: CnaClusteredLightingBackend;
   readonly Lod?: CnaLodBackend;
   readonly Shadows?: CnaShadowBackend;
+  readonly Particles?: CnaParticleBackend;
   readonly Content?: CnaContentBackend;
   readonly Devices?: CnaDeviceBackend;
   readonly GamerServices?: CnaGamerServicesBackend;

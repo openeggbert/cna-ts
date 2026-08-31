@@ -46,6 +46,7 @@ import type {
   CnaGraphicsExtensionBackend,
   CnaLodBackend,
   CnaMediaBackend,
+  CnaParticleBackend,
   CnaRuntimeServicesBackend,
   CnaSensorBackend,
   CnaShadowBackend,
@@ -89,6 +90,8 @@ import type {
   NativeEffectPassSnapshot,
   NativeEffectReflectionSnapshot,
   NativeEffectTechniqueSnapshot,
+  ParticleEmitterSettingsSnapshot,
+  ParticleSnapshot,
   PassTimingSnapshot,
   PbrMaterialDefaults,
   PlatformSnapshot,
@@ -120,6 +123,7 @@ import type {
   Texture3DInfo,
   TextureCubeInfo,
   Vector3Snapshot,
+  Vector4Snapshot,
   VertexBufferBindingSnapshot,
   VertexElementSnapshot,
   VideoFrameSnapshot,
@@ -1157,6 +1161,66 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public getPostProcessChainPassTimings(
     _chain: NativeHandle,
   ): readonly PassTimingSnapshot[] { return this.unsupported("getPostProcessChainPassTimings"); }
+}
+
+/** Refusing base for {@link CnaParticleBackend}. */
+export abstract class CnaParticleBackendBase implements CnaParticleBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createParticleSystem(
+    _device: NativeHandle,
+    _capacity: number,
+  ): NativeHandle { return this.unsupported("createParticleSystem"); }
+  public destroyParticleSystem(
+    _system: NativeHandle,
+  ): void { return this.unsupported("destroyParticleSystem"); }
+  public resetParticleSystem(_system: NativeHandle): void { return this.unsupported("resetParticleSystem"); }
+  public updateParticleSystem(
+    _system: NativeHandle,
+    _elapsedSeconds: number,
+  ): void { return this.unsupported("updateParticleSystem"); }
+  public getParticleSystemCapacity(
+    _system: NativeHandle,
+  ): number { return this.unsupported("getParticleSystemCapacity"); }
+  public getParticleSystemActiveCount(
+    _system: NativeHandle,
+  ): number { return this.unsupported("getParticleSystemActiveCount"); }
+  public particleSystemUsesCompute(
+    _system: NativeHandle,
+  ): boolean { return this.unsupported("particleSystemUsesCompute"); }
+  public isParticleSimulationForcedOnCpu(
+    _system: NativeHandle,
+  ): boolean { return this.unsupported("isParticleSimulationForcedOnCpu"); }
+  public setParticleSimulationOnCpu(
+    _system: NativeHandle,
+    _forced: boolean,
+  ): void { return this.unsupported("setParticleSimulationOnCpu"); }
+  public isParticleEmissionRateClamped(
+    _system: NativeHandle,
+  ): boolean { return this.unsupported("isParticleEmissionRateClamped"); }
+  public getParticleSystemUnsupportedReason(
+    _system: NativeHandle,
+  ): string { return this.unsupported("getParticleSystemUnsupportedReason"); }
+  public getParticleEmitterSettings(
+    _system: NativeHandle,
+  ): ParticleEmitterSettingsSnapshot { return this.unsupported("getParticleEmitterSettings"); }
+  public setParticleEmitterSettings(
+    _system: NativeHandle,
+    _settings: ParticleEmitterSettingsSnapshot,
+  ): void { return this.unsupported("setParticleEmitterSettings"); }
+  public copyParticles(
+    _system: NativeHandle,
+  ): readonly ParticleSnapshot[] { return this.unsupported("copyParticles"); }
+  public getDefaultParticleEmitterSettings(
+  ): ParticleEmitterSettingsSnapshot { return this.unsupported("getDefaultParticleEmitterSettings"); }
+  public getDefaultParticle(): ParticleSnapshot { return this.unsupported("getDefaultParticle"); }
+  public particleRandom(_seed: number): number { return this.unsupported("particleRandom"); }
+  public stepParticle(
+    _particle: ParticleSnapshot,
+    _index: number,
+    _settings: ParticleEmitterSettingsSnapshot,
+    _elapsedSeconds: number,
+  ): ParticleSnapshot { return this.unsupported("stepParticle"); }
 }
 
 /** Refusing base for {@link CnaShadowBackend}. */

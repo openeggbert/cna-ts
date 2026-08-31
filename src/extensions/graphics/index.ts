@@ -18,6 +18,10 @@ import type {
   BoundingSphereSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
   ClusterBoundsSnapshot,
   CnaLodBackend,
+  CnaParticleBackend,
+  ParticleEmitterSettingsSnapshot,
+  ParticleSnapshot,
+  Vector4Snapshot,
   CnaShadowBackend,
   CnaGraphicsExtensionBackend,
 } from "../../internal/backend.js";
@@ -25,6 +29,7 @@ import { BoundingBox } from "../../Microsoft/Xna/Framework/BoundingBox.js";
 import { BoundingSphere } from "../../Microsoft/Xna/Framework/BoundingSphere.js";
 import { Matrix } from "../../Microsoft/Xna/Framework/Matrix.js";
 import { Vector3 } from "../../Microsoft/Xna/Framework/Vector3.js";
+import { Vector4 } from "../../Microsoft/Xna/Framework/Vector4.js";
 import { NativeUnavailableError } from "../../internal/native-error.js";
 import { Color } from "../../Microsoft/Xna/Framework/Color.js";
 import type { GraphicsDevice } from "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
@@ -2109,5 +2114,265 @@ export class ShadowMap implements IDisposable {
     if (handle == null) return;
     this.#handle = null;
     this.#backend.destroyShadowMap(handle);
+  }
+}
+
+
+/* --- particles ------------------------------------------------------------------------------------
+ *
+ * A GPU particle system, and the pure functions behind it.
+ *
+ * {@link ParticleMath.Step} integrates one particle with no system, no device and no GPU, and
+ * {@link ParticleMath.Random} is the deterministic generator the emitter draws from. Together they
+ * mean a caller can predict exactly what a simulation will produce — and that this package can be
+ * checked against arithmetic rather than against numbers copied out of a previous run.
+ *
+ * Where compute shaders exist the simulation runs on the GPU; where they do not it runs on the CPU
+ * and says so. Drawing is not projected: it needs a texture, a camera and a real pass, and the
+ * renderer here that could run one cannot be read back — `docs/upstream-cna-findings.md` item 7.
+ */
+
+/** One particle. `State` is the packed age, lifetime and generation the simulation carries. */
+export interface Particle {
+  readonly Position: Vector4;
+  readonly Velocity: Vector4;
+  readonly State: Vector4;
+}
+
+/** What an emitter produces. */
+export interface ParticleEmitterSettings {
+  readonly Position: Vector3;
+  readonly Direction: Vector3;
+  readonly Gravity: Vector3;
+  /** Linear RGBA, not an XNA `Color`. */
+  readonly StartColor: Vector4;
+  readonly EndColor: Vector4;
+  /** Radians. */
+  readonly ConeAngle: number;
+  readonly Speed: number;
+  readonly SpeedVariance: number;
+  readonly Lifetime: number;
+  readonly LifetimeVariance: number;
+  readonly Drag: number;
+  /** Particles per second. CNA clamps it to what the system's capacity can sustain. */
+  readonly EmissionRate: number;
+  readonly StartSize: number;
+  readonly EndSize: number;
+}
+
+function particles(): CnaParticleBackend {
+  const backend = getBackend();
+  if (!backend.IsAvailable || backend.Particles == null) {
+    throw new NativeUnavailableError(
+      `CNA's particle systems require a loaded backend that has them: ${backend.Detail}`,
+    );
+  }
+  return backend.Particles;
+}
+
+function toVector4(snapshot: Vector4Snapshot): Vector4 {
+  return new Vector4(snapshot.X, snapshot.Y, snapshot.Z, snapshot.W);
+}
+
+function vector4Snapshot(vector: Vector4, what: string): Vector4Snapshot {
+  if (vector == null) throw new TypeError(`${what} is required`);
+  return { X: vector.X, Y: vector.Y, Z: vector.Z, W: vector.W };
+}
+
+function toParticle(snapshot: ParticleSnapshot): Particle {
+  return Object.freeze({
+    Position: toVector4(snapshot.Position),
+    Velocity: toVector4(snapshot.Velocity),
+    State: toVector4(snapshot.State),
+  });
+}
+
+function particleSnapshot(particle: Particle): ParticleSnapshot {
+  if (particle == null) throw new TypeError("particle is required");
+  return {
+    Position: vector4Snapshot(particle.Position, "particle.Position"),
+    Velocity: vector4Snapshot(particle.Velocity, "particle.Velocity"),
+    State: vector4Snapshot(particle.State, "particle.State"),
+  };
+}
+
+const EMITTER_SCALARS = [
+  "ConeAngle", "Speed", "SpeedVariance", "Lifetime", "LifetimeVariance", "Drag",
+  "EmissionRate", "StartSize", "EndSize",
+] as const;
+
+function toEmitterSettings(snapshot: ParticleEmitterSettingsSnapshot): ParticleEmitterSettings {
+  const result: Record<string, unknown> = {
+    Position: toVector3(snapshot.Position),
+    Direction: toVector3(snapshot.Direction),
+    Gravity: toVector3(snapshot.Gravity),
+    StartColor: toVector4(snapshot.StartColor),
+    EndColor: toVector4(snapshot.EndColor),
+  };
+  for (const name of EMITTER_SCALARS) result[name] = snapshot[name];
+  return Object.freeze(result) as unknown as ParticleEmitterSettings;
+}
+
+function emitterSnapshot(settings: ParticleEmitterSettings): ParticleEmitterSettingsSnapshot {
+  if (settings == null) throw new TypeError("settings is required");
+  const result: Record<string, unknown> = {
+    Position: vectorSnapshot(settings.Position, "settings.Position"),
+    Direction: vectorSnapshot(settings.Direction, "settings.Direction"),
+    Gravity: vectorSnapshot(settings.Gravity, "settings.Gravity"),
+    StartColor: vector4Snapshot(settings.StartColor, "settings.StartColor"),
+    EndColor: vector4Snapshot(settings.EndColor, "settings.EndColor"),
+  };
+  for (const name of EMITTER_SCALARS) {
+    const value = settings[name];
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError(`settings.${name} must be a finite number`);
+    }
+    result[name] = value;
+  }
+  return result as unknown as ParticleEmitterSettingsSnapshot;
+}
+
+/**
+ * The particle simulation, without a particle system.
+ *
+ * These are pure: no device, no GPU, no state. A game can predict where a particle will be, and a
+ * test can check the simulation against arithmetic.
+ */
+export const ParticleMath = {
+  /** CNA's own defaults for an emitter. */
+  DefaultEmitterSettings(): ParticleEmitterSettings {
+    return toEmitterSettings(particles().getDefaultParticleEmitterSettings());
+  },
+
+  /** A fresh particle, as CNA initialises one. */
+  DefaultParticle(): Particle {
+    return toParticle(particles().getDefaultParticle());
+  },
+
+  /** The deterministic value CNA's emitter draws for a seed. */
+  Random(seed: number): number {
+    if (!Number.isInteger(seed) || seed < 0 || seed > 0xFFFF_FFFF) {
+      throw new RangeError("seed must be an unsigned 32-bit integer");
+    }
+    return particles().particleRandom(seed);
+  },
+
+  /**
+   * Advances one particle. Returns a new particle rather than mutating the one given: a caller's
+   * object stays theirs.
+   */
+  Step(
+    particle: Particle, index: number, settings: ParticleEmitterSettings, elapsedSeconds: number,
+  ): Particle {
+    if (!Number.isInteger(index) || index < 0) {
+      throw new RangeError("index must be a non-negative integer");
+    }
+    if (typeof elapsedSeconds !== "number" || !Number.isFinite(elapsedSeconds)) {
+      throw new TypeError("elapsedSeconds must be a finite number");
+    }
+    return toParticle(particles().stepParticle(
+      particleSnapshot(particle), index, emitterSnapshot(settings), elapsedSeconds,
+    ));
+  },
+} as const;
+
+/**
+ * A pool of particles CNA simulates.
+ *
+ * Whether it simulates on the GPU is a renderer question: {@link ParticleSystem.UsesCompute} says
+ * which path is running, and {@link ParticleSystem.UnsupportedReason} says why when it is not the
+ * GPU. {@link ParticleSystem.ForceSimulationOnCpu} pins it to the CPU deliberately, which is how a
+ * game gets the same answer everywhere.
+ *
+ * Drawing is not projected — see the note above this class.
+ */
+export class ParticleSystem implements IDisposable {
+  readonly #backend: CnaParticleBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice, capacity: number) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (!Number.isInteger(capacity) || capacity <= 0) {
+      throw new RangeError("capacity must be a positive integer");
+    }
+    this.#backend = particles();
+    this.#handle = this.#backend.createParticleSystem(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), capacity,
+    );
+  }
+
+  /** Whether the system has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the particle system is disposed");
+    return this.#handle;
+  }
+
+  /** How many particles the pool holds. */
+  public get Capacity(): number {
+    return this.#backend.getParticleSystemCapacity(this.#active());
+  }
+
+  /** How many are alive right now. */
+  public get ActiveCount(): number {
+    return this.#backend.getParticleSystemActiveCount(this.#active());
+  }
+
+  /** Whether the simulation is running on the GPU. */
+  public get UsesCompute(): boolean {
+    return this.#backend.particleSystemUsesCompute(this.#active());
+  }
+
+  /** Why it is not, in CNA's own words; empty when it is. */
+  public get UnsupportedReason(): string {
+    return this.#backend.getParticleSystemUnsupportedReason(this.#active());
+  }
+
+  /** Whether the CPU path was chosen deliberately rather than for want of compute. */
+  public get IsSimulationForcedOnCpu(): boolean {
+    return this.#backend.isParticleSimulationForcedOnCpu(this.#active());
+  }
+
+  /** Pins the simulation to the CPU, so every renderer produces the same answer. */
+  public ForceSimulationOnCpu(forced: boolean): void {
+    this.#backend.setParticleSimulationOnCpu(this.#active(), forced === true);
+  }
+
+  /** Whether CNA clamped the emission rate to what this capacity can sustain. */
+  public get IsEmissionRateClamped(): boolean {
+    return this.#backend.isParticleEmissionRateClamped(this.#active());
+  }
+
+  /** What the emitter is producing. */
+  public get Settings(): ParticleEmitterSettings {
+    return toEmitterSettings(this.#backend.getParticleEmitterSettings(this.#active()));
+  }
+  public set Settings(value: ParticleEmitterSettings) {
+    this.#backend.setParticleEmitterSettings(this.#active(), emitterSnapshot(value));
+  }
+
+  /** Advances the simulation. */
+  public Update(elapsedSeconds: number): void {
+    if (typeof elapsedSeconds !== "number" || !Number.isFinite(elapsedSeconds)) {
+      throw new TypeError("elapsedSeconds must be a finite number");
+    }
+    this.#backend.updateParticleSystem(this.#active(), elapsedSeconds);
+  }
+
+  /** Puts every particle back to its unstarted state. */
+  public Reset(): void { this.#backend.resetParticleSystem(this.#active()); }
+
+  /** Every particle in the pool, as the simulation currently holds it. */
+  public ToArray(): readonly Particle[] {
+    return Object.freeze(this.#backend.copyParticles(this.#active()).map(toParticle));
+  }
+
+  /** Releases the system. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyParticleSystem(handle);
   }
 }

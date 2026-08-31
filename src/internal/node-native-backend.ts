@@ -17,7 +17,10 @@ import type {
   CnaClusteredLightingBackend,
   CnaComputeBackend,
   CnaLodBackend,
+  CnaParticleBackend,
   CnaShadowBackend,
+  ParticleEmitterSettingsSnapshot,
+  ParticleSnapshot,
   DirectionalLightSnapshot,
   StandaloneDeviceParameters,
   CnaGraphicsExtensionBackend,
@@ -544,6 +547,24 @@ interface NativeBridge {
   isClusteredLightUsable(light: ClusteredLightSnapshot): boolean;
   createLodGroup(): bigint;
   createShadowMap(device: bigint, quality: number): bigint;
+  createParticleSystem(device: bigint, capacity: number): bigint;
+  destroyParticleSystem(system: bigint): void;
+  resetParticleSystem(system: bigint): void;
+  updateParticleSystem(system: bigint, elapsedSeconds: number): void;
+  getParticleSystemCapacity(system: bigint): number;
+  getParticleSystemActiveCount(system: bigint): number;
+  particleSystemUsesCompute(system: bigint): boolean;
+  isParticleSimulationForcedOnCpu(system: bigint): boolean;
+  setParticleSimulationOnCpu(system: bigint, forced: boolean): void;
+  isParticleEmissionRateClamped(system: bigint): boolean;
+  getParticleSystemUnsupportedReason(system: bigint): string;
+  getParticleEmitterSettings(system: bigint): ParticleEmitterSettingsSnapshot;
+  setParticleEmitterSettings(system: bigint, settings: ParticleEmitterSettingsSnapshot): void;
+  copyParticles(system: bigint): readonly ParticleSnapshot[];
+  getDefaultParticleEmitterSettings(): ParticleEmitterSettingsSnapshot;
+  getDefaultParticle(): ParticleSnapshot;
+  particleRandom(seed: number): number;
+  stepParticle(particle: ParticleSnapshot, index: number, settings: ParticleEmitterSettingsSnapshot, elapsedSeconds: number): ParticleSnapshot;
   destroyShadowMap(map: bigint): void;
   isShadowMapSupported(map: bigint): boolean;
   getShadowMapSize(map: bigint): number;
@@ -1068,6 +1089,7 @@ export class NodeNativeBackend
   public readonly ClusteredLighting: CnaClusteredLightingBackend = this;
   public readonly Lod: CnaLodBackend = this;
   public readonly Shadows: CnaShadowBackend = this;
+  public readonly Particles: CnaParticleBackend = this;
   public readonly Content: CnaContentBackend = this;
   public readonly Devices: CnaDeviceBackend = this;
   public readonly GamerServices: CnaGamerServicesBackend = this;
@@ -2001,6 +2023,60 @@ export class NodeNativeBackend
     return this.#bridge.cnbDecodeModel(document);
   }
 
+  public createParticleSystem(device: NativeHandle, capacity: number): NativeHandle {
+    return this.#bridge.createParticleSystem(device, capacity);
+  }
+  public destroyParticleSystem(system: NativeHandle): void {
+    this.#bridge.destroyParticleSystem(system);
+  }
+  public resetParticleSystem(system: NativeHandle): void {
+    this.#bridge.resetParticleSystem(system);
+  }
+  public updateParticleSystem(system: NativeHandle, elapsedSeconds: number): void {
+    this.#bridge.updateParticleSystem(system, elapsedSeconds);
+  }
+  public getParticleSystemCapacity(system: NativeHandle): number {
+    return this.#bridge.getParticleSystemCapacity(system);
+  }
+  public getParticleSystemActiveCount(system: NativeHandle): number {
+    return this.#bridge.getParticleSystemActiveCount(system);
+  }
+  public particleSystemUsesCompute(system: NativeHandle): boolean {
+    return this.#bridge.particleSystemUsesCompute(system);
+  }
+  public isParticleSimulationForcedOnCpu(system: NativeHandle): boolean {
+    return this.#bridge.isParticleSimulationForcedOnCpu(system);
+  }
+  public setParticleSimulationOnCpu(system: NativeHandle, forced: boolean): void {
+    this.#bridge.setParticleSimulationOnCpu(system, forced);
+  }
+  public isParticleEmissionRateClamped(system: NativeHandle): boolean {
+    return this.#bridge.isParticleEmissionRateClamped(system);
+  }
+  public getParticleSystemUnsupportedReason(system: NativeHandle): string {
+    return this.#bridge.getParticleSystemUnsupportedReason(system);
+  }
+  public getParticleEmitterSettings(system: NativeHandle): ParticleEmitterSettingsSnapshot {
+    return this.#bridge.getParticleEmitterSettings(system);
+  }
+  public setParticleEmitterSettings(system: NativeHandle, settings: ParticleEmitterSettingsSnapshot): void {
+    this.#bridge.setParticleEmitterSettings(system, settings);
+  }
+  public copyParticles(system: NativeHandle): readonly ParticleSnapshot[] {
+    return this.#bridge.copyParticles(system);
+  }
+  public getDefaultParticleEmitterSettings(): ParticleEmitterSettingsSnapshot {
+    return this.#bridge.getDefaultParticleEmitterSettings();
+  }
+  public getDefaultParticle(): ParticleSnapshot {
+    return this.#bridge.getDefaultParticle();
+  }
+  public particleRandom(seed: number): number {
+    return this.#bridge.particleRandom(seed);
+  }
+  public stepParticle(particle: ParticleSnapshot, index: number, settings: ParticleEmitterSettingsSnapshot, elapsedSeconds: number): ParticleSnapshot {
+    return this.#bridge.stepParticle(particle, index, settings, elapsedSeconds);
+  }
   public createShadowMap(device: NativeHandle, quality: number): NativeHandle {
     return this.#bridge.createShadowMap(device, quality);
   }

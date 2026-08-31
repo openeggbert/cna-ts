@@ -331,12 +331,16 @@ Electron, or mobile support.
   recorded numbers — the view's rotation is orthonormal, and all eight corners of the scene box
   land inside the light's clip volume, fitted rather than merely contained, with the depth range
   exactly zero to one.
-- [ ] The shadow depth pass itself — begin/end, the caster effects, the shadow texture — is
-  deliberately unprojected rather than merely unwritten: it needs a real render pass, and the one
+- [x] And the particle simulation: `Step` integrates one particle with no system, device or GPU,
+  and `Random` is the deterministic generator the emitter draws from, so the simulation is checked
+  against arithmetic rather than recorded numbers. Two half steps and one whole step both reach the
+  same velocity but land in different places, which is what shows a stepwise integrator.
+- [ ] The two draw passes — a shadow map's depth pass and a particle system's draw — are
+  deliberately unprojected rather than merely unwritten: each needs a real render pass, and the one
   renderer here that could run one answers every render-target readback with zeros (upstream
-  finding 7), so there is no evidence to accept it on.
-- [ ] The rest of the engine layer — cascaded, spot and cube shadow maps, particles, decals, light
-  probes and atmospheric rendering — is measured and unprojected.
+  finding 7), so there is no evidence to accept them on.
+- [ ] The rest of the engine layer — cascaded, spot and cube shadow maps, decals, light probes and
+  atmospheric rendering — is measured and unprojected.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a

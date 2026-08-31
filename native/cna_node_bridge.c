@@ -574,6 +574,20 @@ typedef CNA_Result (*ShadowLightProjectionFn)(
 typedef CNA_Result (*ShadowQualityToI32Fn)(CNA_ShadowQuality, int32_t*);
 typedef CNA_Result (*DirectionalLightInitFn)(CNA_DirectionalLightEXT*);
 
+/* --- the engine layer's particle systems -------------------------------------------------------- */
+typedef CNA_Result (*ParticleSystemCreateFn)(CNA_Handle, int32_t, CNA_ParticleSystemHandle*);
+typedef CNA_Result (*ParticleSettingsOutFn)(
+  CNA_ParticleSystemHandle, CNA_ParticleEmitterSettings*);
+typedef CNA_Result (*ParticleSettingsInFn)(
+  CNA_ParticleSystemHandle, const CNA_ParticleEmitterSettings*);
+typedef CNA_Result (*ParticleCopyFn)(
+  CNA_ParticleSystemHandle, CNA_Particle*, uint64_t, uint64_t*);
+typedef CNA_Result (*ParticleStepFn)(
+  CNA_Particle*, int32_t, const CNA_ParticleEmitterSettings*, float);
+typedef CNA_Result (*ParticleRandomFn)(uint32_t, float*);
+typedef CNA_Result (*ParticleSettingsInitFn)(CNA_ParticleEmitterSettings*);
+typedef CNA_Result (*ParticleInitFn)(CNA_Particle*);
+
 /* --- the engine layer's compute path ---------------------------------------------------------- */
 /*
  * Storage buffers, compute shaders and GPU timers. The handle typedefs in `engine_layer.h` are all
@@ -1476,6 +1490,24 @@ typedef struct Api {
   ShadowQualityToI32Fn shadow_map_size_for_quality;
   ShadowQualityToI32Fn shadow_map_filter_radius_for_quality;
   DirectionalLightInitFn directional_light_ext_init;
+  ParticleSystemCreateFn particle_system_create_with_capacity;
+  GameHandleFn particle_system_destroy;
+  HandleI32OutFn particle_system_get_capacity;
+  ParticleSettingsOutFn particle_system_get_settings;
+  ParticleSettingsInFn particle_system_set_settings;
+  GameHandleFn particle_system_reset;
+  HandleFloatFn particle_system_update;
+  HandleBoolOutFn particle_system_uses_compute;
+  HandleBoolOutFn particle_system_is_simulation_on_cpu_ext;
+  HandleBoolFn particle_system_set_simulation_on_cpu_ext;
+  HandleCopyStringFn particle_system_copy_unsupported_reason;
+  HandleI32OutFn particle_system_get_active_count;
+  HandleBoolOutFn particle_system_is_emission_rate_clamped;
+  ParticleCopyFn particle_system_copy_particles_ext;
+  ParticleStepFn particle_system_step;
+  ParticleRandomFn particle_system_random;
+  ParticleSettingsInitFn particle_emitter_settings_init;
+  ParticleInitFn particle_init;
   GameHandleFn clustered_shadow_policy_destroy;
 
   /* the engine layer's compute path */
@@ -1715,6 +1747,8 @@ static napi_value pp_set_float(
   napi_env env, napi_callback_info info, HandleFloatFn route, const char* name);
 static napi_value storage_buffer_u64(
   napi_env env, napi_callback_info info, HandleU64OutFn route, const char* name);
+static napi_value copy_sized_text(
+  napi_env env, napi_callback_info info, HandleCopyStringFn route, const char* name);
 static int get_named_handle(napi_env env, napi_value object, const char* name, CNA_Handle* out);
 
 static napi_value throw_message(napi_env env, const char* message) {
@@ -2790,6 +2824,24 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(shadow_map_size_for_quality, ShadowQualityToI32Fn, "cna_shadow_map_size_for_quality");
   LOAD_REQUIRED(shadow_map_filter_radius_for_quality, ShadowQualityToI32Fn, "cna_shadow_map_filter_radius_for_quality");
   LOAD_REQUIRED(directional_light_ext_init, DirectionalLightInitFn, "cna_directional_light_ext_init");
+  LOAD_REQUIRED(particle_system_create_with_capacity, ParticleSystemCreateFn, "cna_particle_system_create_with_capacity");
+  LOAD_REQUIRED(particle_system_destroy, GameHandleFn, "cna_particle_system_destroy");
+  LOAD_REQUIRED(particle_system_get_capacity, HandleI32OutFn, "cna_particle_system_get_capacity");
+  LOAD_REQUIRED(particle_system_get_settings, ParticleSettingsOutFn, "cna_particle_system_get_settings");
+  LOAD_REQUIRED(particle_system_set_settings, ParticleSettingsInFn, "cna_particle_system_set_settings");
+  LOAD_REQUIRED(particle_system_reset, GameHandleFn, "cna_particle_system_reset");
+  LOAD_REQUIRED(particle_system_update, HandleFloatFn, "cna_particle_system_update");
+  LOAD_REQUIRED(particle_system_uses_compute, HandleBoolOutFn, "cna_particle_system_uses_compute");
+  LOAD_REQUIRED(particle_system_is_simulation_on_cpu_ext, HandleBoolOutFn, "cna_particle_system_is_simulation_on_cpu_ext");
+  LOAD_REQUIRED(particle_system_set_simulation_on_cpu_ext, HandleBoolFn, "cna_particle_system_set_simulation_on_cpu_ext");
+  LOAD_REQUIRED(particle_system_copy_unsupported_reason, HandleCopyStringFn, "cna_particle_system_copy_unsupported_reason");
+  LOAD_REQUIRED(particle_system_get_active_count, HandleI32OutFn, "cna_particle_system_get_active_count");
+  LOAD_REQUIRED(particle_system_is_emission_rate_clamped, HandleBoolOutFn, "cna_particle_system_is_emission_rate_clamped");
+  LOAD_REQUIRED(particle_system_copy_particles_ext, ParticleCopyFn, "cna_particle_system_copy_particles_ext");
+  LOAD_REQUIRED(particle_system_step, ParticleStepFn, "cna_particle_system_step");
+  LOAD_REQUIRED(particle_system_random, ParticleRandomFn, "cna_particle_system_random");
+  LOAD_REQUIRED(particle_emitter_settings_init, ParticleSettingsInitFn, "cna_particle_emitter_settings_init");
+  LOAD_REQUIRED(particle_init, ParticleInitFn, "cna_particle_init");
   LOAD_REQUIRED(clustered_shadow_policy_destroy, GameHandleFn, "cna_clustered_shadow_policy_destroy");
 
   LOAD_REQUIRED(presentation_parameters_init, PresentationParametersInitFn, "cna_presentation_parameters_init");
@@ -14570,6 +14622,353 @@ static napi_value clustered_shadow_policy_get_score(napi_env env, napi_callback_
   return output;
 }
 
+/* --- the engine layer's particle systems -------------------------------------------------------- */
+/*
+ * A GPU particle system, and the pure functions behind it. `cna_particle_system_step` integrates
+ * one particle with no handle at all, and `cna_particle_system_random` is the deterministic
+ * generator the emitter uses -- so a caller can predict exactly what a simulation will produce,
+ * and a test can check the system against arithmetic rather than against numbers copied out of a
+ * previous run.
+ *
+ * Where compute shaders exist the simulation runs on the GPU; where they do not it runs on the CPU
+ * and says so, which is what `uses_compute` and the unsupported reason are for. Drawing is not
+ * projected: it needs a texture, a camera and a real pass, and the renderer here that could run one
+ * cannot be read back (docs/upstream-cna-findings.md item 7).
+ */
+
+static int read_emitter_settings(
+  napi_env env, napi_value value, CNA_ParticleEmitterSettings* settings
+) {
+  /* Seeded from CNA's own initialiser, so the version header and any field this ABI adds later
+     stay CNA's; only the fields a caller sets are written over them. */
+  const CNA_Result initialized = g_api.particle_emitter_settings_init(settings);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_particle_emitter_settings_init", initialized);
+    return 0;
+  }
+  napi_value entry;
+  if (!read_vector3(env, value, "Position", &settings->position) ||
+      !read_vector3(env, value, "Direction", &settings->direction) ||
+      !read_vector3(env, value, "Gravity", &settings->gravity)) {
+    throw_message(env, "emitter settings need Position, Direction and Gravity");
+    return 0;
+  }
+  static const char* const scalars[] = {
+    "ConeAngle", "Speed", "SpeedVariance", "Lifetime", "LifetimeVariance", "Drag",
+    "EmissionRate", "StartSize", "EndSize",
+  };
+  float* const targets[] = {
+    &settings->cone_angle, &settings->speed, &settings->speed_variance, &settings->lifetime,
+    &settings->lifetime_variance, &settings->drag, &settings->emission_rate,
+    &settings->start_size, &settings->end_size,
+  };
+  for (size_t index = 0; index < sizeof(scalars) / sizeof(scalars[0]); index += 1) {
+    double number = 0;
+    if (napi_get_named_property(env, value, scalars[index], &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &number) != napi_ok) {
+      throw_message(env, "an emitter setting must be a number");
+      return 0;
+    }
+    *targets[index] = (float) number;
+  }
+  static const char* const colors[] = {"StartColor", "EndColor"};
+  CNA_Vector4* const colorTargets[] = {&settings->start_color, &settings->end_color};
+  for (size_t index = 0; index < 2; index += 1) {
+    napi_value nested, component;
+    static const char* const parts[] = {"X", "Y", "Z", "W"};
+    float* const fields[] = {NULL, NULL, NULL, NULL};
+    (void) fields;
+    if (napi_get_named_property(env, value, colors[index], &nested) != napi_ok) {
+      throw_message(env, "emitter settings need StartColor and EndColor");
+      return 0;
+    }
+    double values[4] = {0, 0, 0, 0};
+    for (size_t part = 0; part < 4; part += 1) {
+      if (napi_get_named_property(env, nested, parts[part], &component) != napi_ok ||
+          napi_get_value_double(env, component, &values[part]) != napi_ok) {
+        throw_message(env, "an emitter colour needs X, Y, Z and W");
+        return 0;
+      }
+    }
+    colorTargets[index]->x = (float) values[0];
+    colorTargets[index]->y = (float) values[1];
+    colorTargets[index]->z = (float) values[2];
+    colorTargets[index]->w = (float) values[3];
+  }
+  return 1;
+}
+
+static int set_vector4(napi_env env, napi_value object, const char* name, const CNA_Vector4* v) {
+  napi_value nested, number;
+  if (napi_create_object(env, &nested) != napi_ok) return 0;
+  static const char* const parts[] = {"X", "Y", "Z", "W"};
+  const float values[4] = {v->x, v->y, v->z, v->w};
+  for (size_t index = 0; index < 4; index += 1) {
+    if (napi_create_double(env, (double) values[index], &number) != napi_ok ||
+        napi_set_named_property(env, nested, parts[index], number) != napi_ok) {
+      return 0;
+    }
+  }
+  return napi_set_named_property(env, object, name, nested) == napi_ok;
+}
+
+static napi_value make_emitter_settings(napi_env env, const CNA_ParticleEmitterSettings* s) {
+  napi_value output, number;
+  if (napi_create_object(env, &output) != napi_ok) return throw_napi(env, "emitter settings");
+  if (!set_vector3(env, output, "Position", &s->position) ||
+      !set_vector3(env, output, "Direction", &s->direction) ||
+      !set_vector3(env, output, "Gravity", &s->gravity) ||
+      !set_vector4(env, output, "StartColor", &s->start_color) ||
+      !set_vector4(env, output, "EndColor", &s->end_color)) {
+    return throw_napi(env, "emitter settings");
+  }
+  static const char* const scalars[] = {
+    "ConeAngle", "Speed", "SpeedVariance", "Lifetime", "LifetimeVariance", "Drag",
+    "EmissionRate", "StartSize", "EndSize",
+  };
+  const float values[] = {
+    s->cone_angle, s->speed, s->speed_variance, s->lifetime, s->lifetime_variance, s->drag,
+    s->emission_rate, s->start_size, s->end_size,
+  };
+  for (size_t index = 0; index < sizeof(scalars) / sizeof(scalars[0]); index += 1) {
+    if (napi_create_double(env, (double) values[index], &number) != napi_ok ||
+        napi_set_named_property(env, output, scalars[index], number) != napi_ok) {
+      return throw_napi(env, "emitter settings");
+    }
+  }
+  return output;
+}
+
+static int read_particle(napi_env env, napi_value value, CNA_Particle* particle) {
+  const CNA_Result initialized = g_api.particle_init(particle);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_particle_init", initialized);
+    return 0;
+  }
+  static const char* const names[] = {"Position", "Velocity", "State"};
+  CNA_Vector4* const targets[] = {&particle->position, &particle->velocity, &particle->state};
+  static const char* const parts[] = {"X", "Y", "Z", "W"};
+  for (size_t index = 0; index < 3; index += 1) {
+    napi_value nested, component;
+    if (napi_get_named_property(env, value, names[index], &nested) != napi_ok) {
+      throw_message(env, "a particle needs Position, Velocity and State");
+      return 0;
+    }
+    double values[4] = {0, 0, 0, 0};
+    for (size_t part = 0; part < 4; part += 1) {
+      if (napi_get_named_property(env, nested, parts[part], &component) != napi_ok ||
+          napi_get_value_double(env, component, &values[part]) != napi_ok) {
+        throw_message(env, "a particle's vectors need X, Y, Z and W");
+        return 0;
+      }
+    }
+    targets[index]->x = (float) values[0];
+    targets[index]->y = (float) values[1];
+    targets[index]->z = (float) values[2];
+    targets[index]->w = (float) values[3];
+  }
+  return 1;
+}
+
+static napi_value make_particle(napi_env env, const CNA_Particle* particle) {
+  napi_value output;
+  if (napi_create_object(env, &output) != napi_ok) return throw_napi(env, "particle");
+  if (!set_vector4(env, output, "Position", &particle->position) ||
+      !set_vector4(env, output, "Velocity", &particle->velocity) ||
+      !set_vector4(env, output, "State", &particle->state)) {
+    return throw_napi(env, "particle");
+  }
+  return output;
+}
+
+static napi_value particle_default_settings(napi_env env, napi_callback_info info) {
+  CNA_ParticleEmitterSettings settings;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.particle_emitter_settings_init(&settings);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_particle_emitter_settings_init", result);
+  }
+  return make_emitter_settings(env, &settings);
+}
+
+static napi_value particle_default(napi_env env, napi_callback_info info) {
+  CNA_Particle particle;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.particle_init(&particle);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_particle_init", result);
+  return make_particle(env, &particle);
+}
+
+static napi_value particle_random(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  uint32_t seed = 0;
+  float value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_uint32(env, args[0], &seed) != napi_ok) return NULL;
+  const CNA_Result result = g_api.particle_system_random(seed, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_particle_system_random", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) value, &output), "particle random");
+  return output;
+}
+
+static napi_value particle_step(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Particle particle;
+  CNA_ParticleEmitterSettings settings;
+  int32_t index = 0;
+  double elapsed = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_particle(env, args[0], &particle) ||
+      napi_get_value_int32(env, args[1], &index) != napi_ok ||
+      !read_emitter_settings(env, args[2], &settings) ||
+      napi_get_value_double(env, args[3], &elapsed) != napi_ok) return NULL;
+  const CNA_Result result =
+    g_api.particle_system_step(&particle, index, &settings, (float) elapsed);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_particle_system_step", result);
+  }
+  /* A copy back rather than a mutation: the caller's object is theirs. */
+  return make_particle(env, &particle);
+}
+
+static napi_value particle_system_create(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0, system = 0;
+  int32_t capacity = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &capacity) != napi_ok) return NULL;
+  const CNA_Result result =
+    g_api.particle_system_create_with_capacity(device, capacity, &system);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_particle_system_create_with_capacity", result);
+  }
+  return make_handle(env, system);
+}
+
+static napi_value particle_system_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.particle_system_destroy, "cna_particle_system_destroy");
+}
+static napi_value particle_system_reset(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.particle_system_reset, "cna_particle_system_reset");
+}
+static napi_value particle_system_update(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.particle_system_update, "cna_particle_system_update");
+}
+static napi_value particle_system_get_capacity(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.particle_system_get_capacity,
+    "cna_particle_system_get_capacity");
+}
+static napi_value particle_system_get_active_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.particle_system_get_active_count,
+    "cna_particle_system_get_active_count");
+}
+static napi_value particle_system_uses_compute(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.particle_system_uses_compute,
+    "cna_particle_system_uses_compute");
+}
+static napi_value particle_system_is_cpu_forced(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.particle_system_is_simulation_on_cpu_ext,
+    "cna_particle_system_is_simulation_on_cpu_ext");
+}
+static napi_value particle_system_is_emission_clamped(napi_env env, napi_callback_info info) {
+  return get_handle_bool(env, info, g_api.particle_system_is_emission_rate_clamped,
+    "cna_particle_system_is_emission_rate_clamped");
+}
+static napi_value particle_system_unsupported_reason(napi_env env, napi_callback_info info) {
+  return copy_sized_text(env, info, g_api.particle_system_copy_unsupported_reason,
+    "cna_particle_system_copy_unsupported_reason");
+}
+
+static napi_value particle_system_set_cpu_forced(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle system = 0;
+  bool forced = false;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &system) ||
+      napi_get_value_bool(env, args[1], &forced) != napi_ok) return NULL;
+  const CNA_Result result =
+    g_api.particle_system_set_simulation_on_cpu_ext(system, forced ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_particle_system_set_simulation_on_cpu_ext", result);
+  }
+  return undefined_result(env, "cna_particle_system_set_simulation_on_cpu_ext");
+}
+
+static napi_value particle_system_get_settings(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle system = 0;
+  CNA_ParticleEmitterSettings settings;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &system)) return NULL;
+  const CNA_Result initialized = g_api.particle_emitter_settings_init(&settings);
+  if (initialized != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_particle_emitter_settings_init", initialized);
+  }
+  const CNA_Result result = g_api.particle_system_get_settings(system, &settings);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_particle_system_get_settings", result);
+  }
+  return make_emitter_settings(env, &settings);
+}
+
+static napi_value particle_system_set_settings(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle system = 0;
+  CNA_ParticleEmitterSettings settings;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &system) ||
+      !read_emitter_settings(env, args[1], &settings)) return NULL;
+  const CNA_Result result = g_api.particle_system_set_settings(system, &settings);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_particle_system_set_settings", result);
+  }
+  return undefined_result(env, "cna_particle_system_set_settings");
+}
+
+static napi_value particle_system_copy_particles(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle system = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &system)) return NULL;
+  /* Ask for the count first: a short buffer is BUFFER_TOO_SMALL and writes nothing, so the array
+     allocated here is the size CNA reports rather than one this bridge guessed. */
+  uint64_t required = 0;
+  CNA_Result result = g_api.particle_system_copy_particles_ext(system, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_particle_system_copy_particles_ext", result);
+  }
+  if (required > SIZE_MAX / sizeof(CNA_Particle)) {
+    return throw_message(env, "the particle list exceeds the host address space");
+  }
+  CNA_Particle* particles = required == 0
+    ? NULL : (CNA_Particle*) calloc((size_t) required, sizeof(CNA_Particle));
+  if (required != 0 && !particles) return throw_message(env, "particle-list allocation failed");
+  uint64_t produced = 0;
+  result = g_api.particle_system_copy_particles_ext(system, particles, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(particles);
+    return throw_result(env, "cna_particle_system_copy_particles_ext", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) required, &output) != napi_ok) {
+    free(particles);
+    return throw_napi(env, "particle list");
+  }
+  for (uint64_t index = 0; index < required; index += 1) {
+    napi_value element = make_particle(env, &particles[index]);
+    if (element == NULL || napi_set_element(env, output, (uint32_t) index, element) != napi_ok) {
+      free(particles);
+      return NULL;
+    }
+  }
+  free(particles);
+  return output;
+}
+
 /* --- the engine layer's shadow maps ------------------------------------------------------------ */
 /*
  * The shadow map object's state, and the four pure functions that compute where a shadow map looks
@@ -17823,6 +18222,24 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "selectShadowCasters", NULL, clustered_shadow_policy_select, NULL, NULL, NULL, napi_default, NULL },
     { "createLodGroup", NULL, lod_group_create, NULL, NULL, NULL, napi_default, NULL },
     { "createShadowMap", NULL, shadow_map_create, NULL, NULL, NULL, napi_default, NULL },
+    { "createParticleSystem", NULL, particle_system_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyParticleSystem", NULL, particle_system_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "resetParticleSystem", NULL, particle_system_reset, NULL, NULL, NULL, napi_default, NULL },
+    { "updateParticleSystem", NULL, particle_system_update, NULL, NULL, NULL, napi_default, NULL },
+    { "getParticleSystemCapacity", NULL, particle_system_get_capacity, NULL, NULL, NULL, napi_default, NULL },
+    { "getParticleSystemActiveCount", NULL, particle_system_get_active_count, NULL, NULL, NULL, napi_default, NULL },
+    { "particleSystemUsesCompute", NULL, particle_system_uses_compute, NULL, NULL, NULL, napi_default, NULL },
+    { "isParticleSimulationForcedOnCpu", NULL, particle_system_is_cpu_forced, NULL, NULL, NULL, napi_default, NULL },
+    { "setParticleSimulationOnCpu", NULL, particle_system_set_cpu_forced, NULL, NULL, NULL, napi_default, NULL },
+    { "isParticleEmissionRateClamped", NULL, particle_system_is_emission_clamped, NULL, NULL, NULL, napi_default, NULL },
+    { "getParticleSystemUnsupportedReason", NULL, particle_system_unsupported_reason, NULL, NULL, NULL, napi_default, NULL },
+    { "getParticleEmitterSettings", NULL, particle_system_get_settings, NULL, NULL, NULL, napi_default, NULL },
+    { "setParticleEmitterSettings", NULL, particle_system_set_settings, NULL, NULL, NULL, napi_default, NULL },
+    { "copyParticles", NULL, particle_system_copy_particles, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultParticleEmitterSettings", NULL, particle_default_settings, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultParticle", NULL, particle_default, NULL, NULL, NULL, napi_default, NULL },
+    { "particleRandom", NULL, particle_random, NULL, NULL, NULL, napi_default, NULL },
+    { "stepParticle", NULL, particle_step, NULL, NULL, NULL, napi_default, NULL },
     { "destroyShadowMap", NULL, shadow_map_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "isShadowMapSupported", NULL, shadow_map_is_supported, NULL, NULL, NULL, napi_default, NULL },
     { "getShadowMapSize", NULL, shadow_map_get_size, NULL, NULL, NULL, napi_default, NULL },
