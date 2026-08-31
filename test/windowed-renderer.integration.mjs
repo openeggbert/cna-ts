@@ -34,6 +34,7 @@ import {
   GraphicsDeviceManager,
   LoadNodeNativeBackend,
   Matrix,
+  Rectangle,
   Vector2,
   Vector3,
   Vector4,
@@ -2001,6 +2002,403 @@ class WindowedProbeGame extends Game {
             resource.Dispose();
           } catch (error) {
             (this.evidence.otherShadowCleanup ??= []).push(
+              `${error.constructor.name}: ${(error.message ?? "").slice(0, 90)}`,
+            );
+          }
+        }
+      }
+    });
+
+
+    // --- the post-process passes, as pixels -------------------------------------------------------
+    //
+    // Every pass here is checked against something that is not the pass. The colour grade is
+    // checked against a LUT this test wrote and can rotate in JavaScript; the tonemapper against
+    // TonemapPass.TonemapChannel, whose own agreement with the published curves is established
+    // separately in the headless suite; the CRT scanlines against source x (1 - intensity); and the
+    // rest against the exact identities their own parameters promise. The source is a gradient with
+    // every texel distinct and no symmetry, so a flip, a mirror or a transpose fails here.
+    record("postProcess", () => {
+      const {
+        AsciiPostProcessEffect, BloomPass, ChromaticAberrationPass, ColorGradePass, CrtEffect,
+        CrtMaskType, CubeLut, DepthEffect, DepthEffectMode, DitherMode, EffectPass, FilmGrainPass,
+        FullscreenPass, FxaaPass, IsGraphicsExtensionLayerAvailable, LensFlarePass,
+        LutInterpolation, MotionBlurPass, TonemapPass, TonemappingMode,
+      } = computeModule;
+      const N = 4;
+      const owned = [];
+      try {
+        let blit;
+        try {
+          blit = new FullscreenPass(device);
+        } catch (error) {
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(blit);
+
+        // Distinct in all three channels and in both axes, and not symmetric under any flip.
+        const texels = [];
+        for (let y = 0; y < N; y += 1) {
+          for (let x = 0; x < N; x += 1) {
+            texels.push(new Color(16 + x * 60, 8 + y * 70, 250 - (x + y) * 30, 255));
+          }
+        }
+        const source = new Graphics.Texture2D(device, N, N);
+        owned.push(source);
+        source.SetData(texels);
+        const read = (texture, count) => {
+          const pixels = new Array(count);
+          texture.GetData(pixels);
+          return pixels.map((color) => [color.R, color.G, color.B, color.A]);
+        };
+        const sourcePixels = read(source, N * N);
+
+        // Runs one pass over the gradient into its own target, and gives the target back.
+        const through = (pass, tune) => {
+          const destination = new Graphics.RenderTarget2D(device, N, N);
+          try {
+            tune?.(pass);
+            pass.Apply({ Source: source, Destination: destination, Width: N, Height: N });
+            return read(destination, N * N);
+          } finally {
+            destination.Dispose();
+          }
+        };
+        const withPass = (make, tune) => {
+          const pass = make();
+          try {
+            return through(pass, tune);
+          } finally {
+            pass.Dispose();
+          }
+        };
+
+        const result = { source: sourcePixels };
+
+        // --- the colour grade -------------------------------------------------------------------
+        // A size-2 cube whose transfer is the channel rotation (r,g,b) -> (b,r,g). That map is
+        // linear in each channel, so trilinear interpolation of the eight corners reproduces it
+        // exactly for every input -- which is why the expected output can be computed here texel by
+        // texel rather than sampled off a run.
+        const corners = [
+          [0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1],
+        ];
+        const rotate = ([r, g, b]) => [b, r, g];
+        const cube = CubeLut.Parse(
+          ['TITLE "rotate"', "LUT_3D_SIZE 2", ...corners.map((c) => rotate(c).join(" "))].join("\n"),
+        );
+        owned.push(cube);
+        const strip = cube.CreateStripTexture(device);
+        owned.push(strip);
+        const volume = cube.CreateVolumeTexture(device);
+        owned.push(volume);
+        result.lut = {
+          stripSize: [strip.Width, strip.Height],
+          volumeSize: [volume.Width, volume.Height, volume.Depth],
+          size: cube.Size,
+        };
+        result.grade = {
+          fullStrip: withPass(() => new ColorGradePass(device), (p) => {
+            p.SetLut(strip);
+            p.Strength = 1;
+            p.Interpolation = LutInterpolation.Trilinear;
+          }),
+          fullVolume: withPass(() => new ColorGradePass(device), (p) => {
+            p.SetVolumeLut(volume);
+            p.Strength = 1;
+          }),
+          half: withPass(() => new ColorGradePass(device), (p) => {
+            p.SetLut(strip);
+            p.Strength = 0.5;
+          }),
+          zeroStrength: withPass(() => new ColorGradePass(device), (p) => {
+            p.SetLut(strip);
+            p.Strength = 0;
+          }),
+          noLut: withPass(() => new ColorGradePass(device), (p) => { p.Strength = 1; }),
+        };
+        // The pass reports which kind of table it holds, and forgets one when told to.
+        const grade = new ColorGradePass(device);
+        try {
+          result.grade.hasNothing = [grade.HasLut, grade.HasVolumeLut];
+          grade.SetLut(strip);
+          result.grade.hasStrip = [grade.HasLut, grade.HasVolumeLut];
+          grade.SetVolumeLut(volume);
+          result.grade.hasBoth = [grade.HasLut, grade.HasVolumeLut];
+          grade.SetLut(null);
+          grade.SetVolumeLut(null);
+          result.grade.hasNeitherAgain = [grade.HasLut, grade.HasVolumeLut];
+          grade.Interpolation = LutInterpolation.Tetrahedral;
+          result.grade.interpolation = grade.Interpolation;
+          grade.Strength = 0.375;
+          result.grade.strength = grade.Strength;
+        } finally {
+          grade.Dispose();
+        }
+
+        // --- the tonemapper ----------------------------------------------------------------------
+        result.tonemap = {
+          identity: withPass(() => new TonemapPass(device), (p) => {
+            p.Mode = TonemappingMode.None;
+            p.Exposure = 1;
+            p.Gamma = 1;
+          }),
+          quarterExposure: withPass(() => new TonemapPass(device), (p) => {
+            p.Mode = TonemappingMode.None;
+            p.Exposure = 0.25;
+            p.Gamma = 1;
+          }),
+          gammaTwo: withPass(() => new TonemapPass(device), (p) => {
+            p.Mode = TonemappingMode.None;
+            p.Exposure = 1;
+            p.Gamma = 2;
+          }),
+          reinhard: withPass(() => new TonemapPass(device), (p) => {
+            p.Mode = TonemappingMode.Reinhard;
+            p.Exposure = 1;
+            p.Gamma = 1;
+          }),
+          aces: withPass(() => new TonemapPass(device), (p) => {
+            p.Mode = TonemappingMode.Aces;
+            p.Exposure = 1;
+            p.Gamma = 1;
+          }),
+        };
+
+        // --- what each pass's own "off" setting promises -------------------------------------------
+        // Each of these is an identity by construction, not by luck: a bloom of no intensity adds
+        // nothing, a threshold above every channel extracts nothing, a blur of no strength moves
+        // nothing. A pass that ignored its parameter would fail here even though it "worked".
+        result.identities = {
+          bloomNoIntensity: withPass(() => new BloomPass(device), (p) => {
+            p.Intensity = 0;
+            p.Threshold = 0.5;
+          }),
+          bloomThresholdAboveAll: withPass(() => new BloomPass(device), (p) => {
+            p.Intensity = 1;
+            p.Threshold = 2;
+          }),
+          motionBlurNoStrength: withPass(() => new MotionBlurPass(device), (p) => { p.Strength = 0; }),
+          flareNoIntensity: withPass(() => new LensFlarePass(device), (p) => { p.Intensity = 0; }),
+          flareThresholdAboveAll: withPass(() => new LensFlarePass(device), (p) => {
+            p.Intensity = 1;
+            p.Threshold = 2;
+          }),
+          aberrationNoStrength: withPass(
+            () => new ChromaticAberrationPass(device), (p) => { p.Strength = 0; },
+          ),
+          grainNoIntensity: withPass(() => new FilmGrainPass(device), (p) => { p.Intensity = 0; }),
+        };
+        // A fullscreen pass with no effect is the layer's own blit, which must be an exact copy.
+        const blitTarget = new Graphics.RenderTarget2D(device, N, N);
+        try {
+          blit.Draw(source, blitTarget, null, N, N);
+          result.identities.blit = read(blitTarget, N * N);
+        } finally {
+          blitTarget.Dispose();
+        }
+
+        // --- the passes that must change something --------------------------------------------------
+        result.changed = {
+          bloom: withPass(() => new BloomPass(device), (p) => {
+            p.Threshold = 0.5;
+            p.Intensity = 1;
+            p.Iterations = 1;
+          }),
+          aberration: withPass(
+            () => new ChromaticAberrationPass(device), (p) => { p.Strength = 0.25; },
+          ),
+          grain: withPass(() => new FilmGrainPass(device), (p) => { p.Intensity = 0.5; }),
+          fxaa: withPass(() => new FxaaPass(device)),
+        };
+
+        // --- the CRT effect, drawn through the fullscreen pass ---------------------------------------
+        // A flat grey source, so the pattern the shader adds is the only thing in the output. Every
+        // parameter is turned off first: that identity is what makes each later change attributable.
+        const FLAT = 200;
+        const GRID = 8;
+        const flat = new Graphics.Texture2D(device, GRID, GRID);
+        owned.push(flat);
+        flat.SetData(new Array(GRID * GRID).fill(0).map(() => new Color(FLAT, FLAT, FLAT, 255)));
+        const crtThrough = (tune) => {
+          const effect = CrtEffect.Create(device);
+          const target = new Graphics.RenderTarget2D(device, GRID, GRID);
+          try {
+            CrtEffect.SetScanlineIntensity(effect, 0);
+            CrtEffect.SetCurvature(effect, 0);
+            CrtEffect.SetVignetteIntensity(effect, 0);
+            CrtEffect.SetMaskIntensity(effect, 0);
+            tune?.(effect);
+            blit.Draw(flat, target, effect, GRID, GRID);
+            return read(target, GRID * GRID);
+          } finally {
+            target.Dispose();
+            effect.Dispose();
+          }
+        };
+        result.crt = {
+          flatValue: FLAT,
+          grid: GRID,
+          allOff: crtThrough(),
+          scanlinesHalf: crtThrough((e) => CrtEffect.SetScanlineIntensity(e, 0.5)),
+          scanlinesQuarter: crtThrough((e) => CrtEffect.SetScanlineIntensity(e, 0.25)),
+          vignette: crtThrough((e) => CrtEffect.SetVignetteIntensity(e, 1)),
+        };
+        const crtState = CrtEffect.Create(device);
+        try {
+          result.crt.defaults = [
+            CrtEffect.GetScanlineIntensity(crtState), CrtEffect.GetCurvature(crtState),
+            CrtEffect.GetVignetteIntensity(crtState), CrtEffect.GetMaskIntensity(crtState),
+            CrtEffect.GetMaskType(crtState),
+          ];
+          // Every value here differs from the default it replaces, so a setter that did nothing
+          // would be caught rather than agreeing with itself.
+          CrtEffect.SetScanlineIntensity(crtState, 0.4375);
+          CrtEffect.SetCurvature(crtState, 0.5);
+          CrtEffect.SetVignetteIntensity(crtState, 0.75);
+          CrtEffect.SetMaskIntensity(crtState, 0.125);
+          CrtEffect.SetMaskType(crtState, CrtMaskType.ShadowMask);
+          result.crt.set = [
+            CrtEffect.GetScanlineIntensity(crtState), CrtEffect.GetCurvature(crtState),
+            CrtEffect.GetVignetteIntensity(crtState), CrtEffect.GetMaskIntensity(crtState),
+            CrtEffect.GetMaskType(crtState),
+          ];
+          result.crt.technique = crtState.CurrentTechnique.Name;
+        } finally {
+          crtState.Dispose();
+        }
+
+        const depthEffect = DepthEffect.Create(device);
+        try {
+          result.depthEffect = {
+            defaults: [DepthEffect.GetMode(depthEffect), DepthEffect.GetDitherMode(depthEffect)],
+            technique: depthEffect.CurrentTechnique.Name,
+          };
+          DepthEffect.SetMode(depthEffect, DepthEffectMode.Grayscale1Bit);
+          DepthEffect.SetDitherMode(depthEffect, DitherMode.Bayer8X8);
+          result.depthEffect.set = [
+            DepthEffect.GetMode(depthEffect), DepthEffect.GetDitherMode(depthEffect),
+          ];
+        } finally {
+          depthEffect.Dispose();
+        }
+
+        // --- the ASCII effect's grid ------------------------------------------------------------------
+        // The grid comes from the SOURCE size over the cell size, not from the rectangle it is drawn
+        // into: a 32x24 source in 8x12 cells is 4x2 no matter how large the destination is.
+        const asciiSource = new Graphics.Texture2D(device, 32, 24);
+        owned.push(asciiSource);
+        asciiSource.SetData(new Array(32 * 24).fill(0).map(
+          (_, i) => new Color(i % 256, (i * 3) % 256, (i * 7) % 256, 255),
+        ));
+        const asciiTarget = new Graphics.RenderTarget2D(device, 64, 48);
+        const ascii = new AsciiPostProcessEffect(device);
+        try {
+          const before = ascii.LastGridDimensions;
+          const drawWith = (width, height) => {
+            ascii.SetCellSize(width, height);
+            device.SetRenderTarget(asciiTarget);
+            device.Clear(new Color(0, 0, 0, 255));
+            try {
+              ascii.Draw(asciiSource, new Rectangle(0, 0, 64, 48));
+            } finally {
+              device.SetRenderTarget(null);
+            }
+            const grid = ascii.LastGridDimensions;
+            return [grid.Columns, grid.Rows];
+          };
+          result.ascii = {
+            sourceSize: [asciiSource.Width, asciiSource.Height],
+            destinationSize: [asciiTarget.Width, asciiTarget.Height],
+            beforeAnyDraw: [before.Columns, before.Rows],
+            cell8x12: drawWith(8, 12),
+            cell4x4: drawWith(4, 4),
+            cell16x8: drawWith(16, 8),
+            defaultCell: (() => {
+              const fresh = new AsciiPostProcessEffect(device);
+              try {
+                return [fresh.CellSize.Width, fresh.CellSize.Height, fresh.QuantizeMode];
+              } finally {
+                fresh.Dispose();
+              }
+            })(),
+            isBorrowed: ascii.IsBorrowed,
+          };
+        } finally {
+          ascii.Dispose();
+          asciiTarget.Dispose();
+        }
+
+        // --- finding 17: the effect pass's borrow -------------------------------------------------------
+        // cna_post_process_effect_pass_get_effect says "do not destroy it" and mints a registered
+        // handle anyway. HasEffect releases it; this reads it either side of a detach and a
+        // reattach, and the game's own clean shutdown at the end of this file is the other half of
+        // the evidence -- a leaked borrow makes cna_game_destroy refuse for the rest of the process.
+        const passEffect = CrtEffect.Create(device);
+        try {
+          const pass = new EffectPass(device, passEffect, "crt");
+          try {
+            result.effectPass = { name: pass.Name, supported: pass.IsSupportedOn(device) };
+            result.effectPass.reads = [];
+            for (let i = 0; i < 4; i += 1) result.effectPass.reads.push(pass.HasEffect);
+            pass.SetEffect(null);
+            result.effectPass.afterDetach = pass.HasEffect;
+            pass.SetEffect(passEffect);
+            result.effectPass.afterReattach = pass.HasEffect;
+          } finally {
+            pass.Dispose();
+          }
+        } finally {
+          passEffect.Dispose();
+        }
+        // An owning pass takes the effect, so the caller's own Dispose must become a refusal
+        // rather than a second release of the same object.
+        const ownedEffect = CrtEffect.Create(device);
+        const owningPass = EffectPass.CreateOwning(device, ownedEffect, "owned-crt");
+        try {
+          result.owningPass = { name: owningPass.Name, hasEffect: owningPass.HasEffect };
+          try {
+            ownedEffect.Dispose();
+            result.owningPass.callerDisposeAfterTransfer = "SUCCEEDED";
+          } catch (error) {
+            result.owningPass.callerDisposeAfterTransfer = error.constructor.name;
+          }
+        } finally {
+          owningPass.Dispose();
+        }
+
+        // --- the ASCII pass and the effect it lends -------------------------------------------------
+        // The pass's effect is a borrow: setting through it changes the pass's own, and giving it
+        // back does not destroy it.
+        const asciiPass = new computeModule.AsciiPass(device);
+        try {
+          const lent = asciiPass.Effect;
+          result.asciiPass = {
+            name: asciiPass.Name,
+            borrowed: lent.IsBorrowed,
+            sameObjectTwice: asciiPass.Effect === lent,
+            cellBefore: [lent.CellSize.Width, lent.CellSize.Height],
+          };
+          lent.SetCellSize(12, 16);
+          lent.QuantizeMode = computeModule.AsciiQuantizeMode.BlackWhite;
+          const again = asciiPass.Effect;
+          result.asciiPass.cellAfter = [again.CellSize.Width, again.CellSize.Height];
+          result.asciiPass.quantizeAfter = again.QuantizeMode;
+        } finally {
+          asciiPass.Dispose();
+        }
+
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch (error) {
+            (this.evidence.postProcessCleanup ??= []).push(
               `${error.constructor.name}: ${(error.message ?? "").slice(0, 90)}`,
             );
           }
@@ -4091,5 +4489,294 @@ test("a windowed CNA renderer runs 600 frames without drift", { skip }, async ()
   assert.ok(
     effect === "SUCCESS" || /^result \d+$/.test(effect),
     `unexpected stock-effect evidence ${effect}`,
+  );
+});
+
+test("a windowed CNA renderer runs every post-process pass to the exact pixels its own maths predicts", { skip }, async () => {
+  const game = new WindowedProbeGame(6);
+  await game.Run();
+  const evidence = game.evidence;
+  // The game must destroy cleanly: a leaked borrow makes cna_game_destroy refuse, and finding 18
+  // records that a process which exits in that state segfaults after its last line has run.
+  game.Dispose();
+
+  const pp = evidence.postProcess;
+  assert.equal(typeof pp, "object", `the post-process block did not run: ${pp}`);
+  if (pp.layerAbsent) {
+    assert.equal(pp.extensionLayer, false, "a layer that is present must not refuse to make a pass");
+    console.log(`CNA_TS_WINDOWED_POST_PROCESS=SKIPPED_NO_LAYER RESULT=${pp.cnaResult}`);
+    return;
+  }
+  assert.equal(evidence.postProcessCleanup, undefined, `cleanup failed: ${evidence.postProcessCleanup}`);
+
+  const { TonemapPass, TonemappingMode } = computeModule;
+  const N = 4;
+  const source = pp.source;
+  assert.equal(source.length, N * N);
+  // The source really is asymmetric: no flip of it is itself, so any of them would be caught below.
+  const flipX = [];
+  const flipY = [];
+  const transpose = [];
+  for (let y = 0; y < N; y += 1) {
+    for (let x = 0; x < N; x += 1) {
+      flipX.push(source[y * N + (N - 1 - x)]);
+      flipY.push(source[(N - 1 - y) * N + x]);
+      transpose.push(source[x * N + y]);
+    }
+  }
+  for (const [name, other] of [["mirrored", flipX], ["flipped", flipY], ["transposed", transpose]]) {
+    assert.notDeepEqual(source, other, `the source gradient is ${name}-symmetric, so it proves nothing`);
+  }
+
+  /** Every channel of every texel, against a prediction computed from the source texel. */
+  const eachTexel = (actual, predict, label, tolerance = 0) => {
+    assert.equal(actual.length, N * N, `${label} did not come back at full size`);
+    for (let index = 0; index < N * N; index += 1) {
+      const expected = predict(source[index], index);
+      for (let channel = 0; channel < 4; channel += 1) {
+        assert.ok(
+          Math.abs(actual[index][channel] - expected[channel]) <= tolerance,
+          `${label} texel ${index % N},${Math.floor(index / N)} channel ${channel}: ` +
+          `${actual[index][channel]} vs ${expected[channel]} (source ${source[index].join(",")})`,
+        );
+      }
+    }
+  };
+
+  // --- the colour grade ---------------------------------------------------------------------------
+  // The LUT this test wrote rotates the channels, and that map is linear, so trilinear
+  // interpolation reproduces it exactly. The prediction is the rotation applied in JavaScript --
+  // nothing here was read off a run.
+  assert.deepEqual(pp.lut.stripSize, [4, 2], "a size-2 cube is a 4x2 strip: two 2x2 slices");
+  assert.deepEqual(pp.lut.volumeSize, [2, 2, 2], "and a 2x2x2 volume");
+  const rotated = ([r, g, b, a]) => [b, r, g, a];
+  eachTexel(pp.grade.fullStrip, rotated, "the strip LUT at full strength");
+  eachTexel(pp.grade.fullVolume, rotated, "the volume LUT at full strength");
+  assert.deepEqual(
+    pp.grade.fullStrip, pp.grade.fullVolume,
+    "the same table as a strip and as a volume must grade to the same pixels",
+  );
+  // Strength is a lerp between the source and the graded result, so half is exactly the midpoint.
+  eachTexel(
+    pp.grade.half,
+    (texel) => {
+      const target = rotated(texel);
+      return texel.map((value, channel) => Math.round((value + target[channel]) / 2));
+    },
+    "the strip LUT at half strength",
+    1,
+  );
+  eachTexel(pp.grade.zeroStrength, (texel) => texel, "a LUT at zero strength");
+  eachTexel(pp.grade.noLut, (texel) => texel, "a grade with no LUT at all");
+  // The rotation is not the identity, so the four assertions above are four different assertions.
+  assert.notDeepEqual(pp.grade.fullStrip, pp.grade.zeroStrength);
+  assert.notDeepEqual(pp.grade.half, pp.grade.fullStrip);
+  assert.notDeepEqual(pp.grade.half, pp.grade.zeroStrength);
+  // What the pass says it holds, through a strip, a volume, both, and neither again.
+  assert.deepEqual(pp.grade.hasNothing, [false, false]);
+  assert.deepEqual(pp.grade.hasStrip, [true, false]);
+  assert.deepEqual(pp.grade.hasBoth, [true, true]);
+  assert.deepEqual(pp.grade.hasNeitherAgain, [false, false], "setting null detaches rather than keeping");
+  assert.equal(pp.grade.interpolation, computeModule.LutInterpolation.Tetrahedral);
+  assert.ok(Math.abs(pp.grade.strength - 0.375) < 1e-6);
+
+  // --- the tonemapper ------------------------------------------------------------------------------
+  // Predicted texel by texel through TonemapPass.TonemapChannel, whose own agreement with the
+  // published curves is established in the headless suite against the closed forms. So this is the
+  // shader checked against the model, not the shader checked against itself.
+  const tonemapped = (mode, exposure, gamma) => (texel) => [
+    ...texel.slice(0, 3).map(
+      (value) => Math.round(TonemapPass.TonemapChannel(mode, value / 255, exposure, gamma) * 255),
+    ),
+    texel[3],
+  ];
+  eachTexel(pp.tonemap.identity, tonemapped(TonemappingMode.None, 1, 1), "no tonemapping at unit settings");
+  eachTexel(pp.tonemap.quarterExposure, tonemapped(TonemappingMode.None, 0.25, 1), "quarter exposure", 1);
+  eachTexel(pp.tonemap.gammaTwo, tonemapped(TonemappingMode.None, 1, 2), "gamma two", 1);
+  eachTexel(pp.tonemap.reinhard, tonemapped(TonemappingMode.Reinhard, 1, 1), "Reinhard", 1);
+  eachTexel(pp.tonemap.aces, tonemapped(TonemappingMode.Aces, 1, 1), "ACES", 2);
+  // At unit settings "None" is a copy, and the three curves are three different pictures.
+  eachTexel(pp.tonemap.identity, (texel) => texel, "no tonemapping at unit settings, again");
+  const distinct = new Set(
+    ["identity", "quarterExposure", "gammaTwo", "reinhard", "aces"].map((k) => JSON.stringify(pp.tonemap[k])),
+  );
+  assert.equal(distinct.size, 5, "five tonemapper settings must give five different frames");
+
+  // --- what each pass's own "off" setting promises --------------------------------------------------
+  for (const [name, pixels] of Object.entries(pp.identities)) {
+    eachTexel(pixels, (texel) => texel, `${name} must be an exact copy`);
+  }
+  assert.ok(
+    Object.keys(pp.identities).length >= 8,
+    `too few identities checked: ${Object.keys(pp.identities).join(",")}`,
+  );
+
+  // --- and that those passes do something when turned on ---------------------------------------------
+  // A bloom only ever adds light, and adds none where nothing crosses the threshold -- which is what
+  // the two bloom identities above already showed. Here it is turned on and must brighten.
+  const bloom = pp.changed.bloom;
+  let brightened = 0;
+  for (let index = 0; index < N * N; index += 1) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      assert.ok(
+        bloom[index][channel] >= source[index][channel] - 1,
+        `a bloom must not darken texel ${index} channel ${channel}: ` +
+        `${bloom[index][channel]} < ${source[index][channel]}`,
+      );
+      if (bloom[index][channel] > source[index][channel]) brightened += 1;
+    }
+  }
+  assert.ok(brightened > N * N, `a bloom over a bright gradient brightened only ${brightened} channels`);
+
+  // Chromatic aberration displaces red and blue in opposite directions and leaves green alone --
+  // that is what makes it chromatic rather than a blur.
+  const aberration = pp.changed.aberration;
+  for (let index = 0; index < N * N; index += 1) {
+    assert.equal(
+      aberration[index][1], source[index][1],
+      `chromatic aberration moved green at texel ${index}`,
+    );
+  }
+  assert.notDeepEqual(
+    aberration.map((t) => t[0]), source.map((t) => t[0]), "and it must move red",
+  );
+  assert.notDeepEqual(
+    aberration.map((t) => t[2]), source.map((t) => t[2]), "and blue",
+  );
+
+  // Film grain is noise: it must change most of the frame, and it must not be the same everywhere,
+  // which a constant offset mistaken for grain would be.
+  const grain = pp.changed.grain;
+  const changedTexels = grain.filter((texel, index) => texel.some((v, c) => v !== source[index][c]));
+  assert.ok(changedTexels.length > N * N / 2, `grain changed only ${changedTexels.length} of ${N * N} texels`);
+  const offsets = new Set(grain.map((texel, index) => texel[0] - source[index][0]));
+  assert.ok(offsets.size > 1, "grain that offsets every texel by the same amount is not noise");
+
+  // FXAA blends across edges, so it changes the border of this gradient and leaves its smooth
+  // interior alone.
+  const fxaa = pp.changed.fxaa;
+  for (const [x, y] of [[1, 1], [2, 1], [1, 2], [2, 2]]) {
+    const index = y * N + x;
+    assert.deepEqual(
+      fxaa[index], source[index],
+      `FXAA must leave the interior of a smooth gradient alone at ${x},${y}`,
+    );
+  }
+  assert.notDeepEqual(fxaa[0], source[0], "and it must touch the corner it clamps at");
+
+  // --- the CRT effect -------------------------------------------------------------------------------
+  const flat = pp.crt.flatValue;
+  const grid = pp.crt.grid;
+  const crtRow = (pixels, row) => pixels.slice(row * grid, row * grid + grid);
+  const isFlat = (pixels, value) => pixels.every((texel) => texel.slice(0, 3).every((c) => c === value));
+  assert.ok(isFlat(pp.crt.allOff, flat), "a CRT with every parameter at zero must be an exact copy");
+  // Scanlines darken alternate rows by exactly the intensity, which is the whole model.
+  for (const [name, intensity] of [["scanlinesHalf", 0.5], ["scanlinesQuarter", 0.25]]) {
+    const pixels = pp.crt[name];
+    const dark = Math.round(flat * (1 - intensity));
+    for (let row = 0; row < grid; row += 1) {
+      const expected = row % 2 === 0 ? dark : flat;
+      assert.ok(
+        isFlat(crtRow(pixels, row), expected),
+        `${name} row ${row}: expected a flat ${expected}, got ${JSON.stringify(crtRow(pixels, row)[0])}`,
+      );
+    }
+  }
+  assert.notDeepEqual(pp.crt.scanlinesHalf, pp.crt.scanlinesQuarter, "and the intensity must matter");
+  // A vignette is radial: symmetric under both mirrors, and strictly darker towards the corner.
+  const vignette = pp.crt.vignette;
+  const at = (x, y) => vignette[y * grid + x][0];
+  for (let y = 0; y < grid; y += 1) {
+    for (let x = 0; x < grid; x += 1) {
+      assert.equal(at(x, y), at(grid - 1 - x, y), `the vignette is not left-right symmetric at ${x},${y}`);
+      assert.equal(at(x, y), at(x, grid - 1 - y), `the vignette is not top-bottom symmetric at ${x},${y}`);
+    }
+  }
+  for (let step = 1; step < grid / 2; step += 1) {
+    assert.ok(
+      at(step, step) > at(step - 1, step - 1),
+      `the vignette must brighten towards the centre: ${at(step - 1, step - 1)} then ${at(step, step)}`,
+    );
+  }
+  assert.ok(at(0, 0) < flat / 2, `the corner of a full vignette is barely lit, not ${at(0, 0)}`);
+  assert.ok(
+    at(grid / 2, grid / 2) > flat * 0.9,
+    `and its centre is nearly untouched, not ${at(grid / 2, grid / 2)}`,
+  );
+  // The parameters CNA reports, and the values it takes back. Every one written differs from the
+  // default it replaced, so a setter that did nothing would be caught.
+  const [scan, curve, vig, mask, maskType] = pp.crt.defaults;
+  assert.ok(scan > 0 && scan < 1 && curve > 0 && vig > 0 && mask > 0, `odd CRT defaults: ${pp.crt.defaults}`);
+  assert.deepEqual(pp.crt.set, [0.4375, 0.5, 0.75, 0.125, computeModule.CrtMaskType.ShadowMask]);
+  for (let index = 0; index < 5; index += 1) {
+    assert.notEqual(pp.crt.set[index], pp.crt.defaults[index], `CRT parameter ${index} was set to its default`);
+  }
+  assert.equal(maskType, computeModule.CrtMaskType.ApertureGrille);
+  assert.equal(typeof pp.crt.technique, "string");
+  assert.ok(pp.crt.technique.length > 0, "a CRT effect has a named technique");
+
+  // --- the depth effect ------------------------------------------------------------------------------
+  // No pixel claim here: this effect quantises a depth input that a fullscreen colour blit does not
+  // supply, so what is qualified is the state CNA keeps -- VERIFIED_NATIVE_STATE, not VERIFIED_PIXEL.
+  assert.deepEqual(
+    pp.depthEffect.defaults,
+    [computeModule.DepthEffectMode.Color16Bit, computeModule.DitherMode.None],
+  );
+  assert.deepEqual(
+    pp.depthEffect.set,
+    [computeModule.DepthEffectMode.Grayscale1Bit, computeModule.DitherMode.Bayer8X8],
+  );
+  assert.ok(pp.depthEffect.technique.length > 0);
+
+  // --- the ASCII grid -----------------------------------------------------------------------------------
+  // The grid is the SOURCE size over the cell size. The destination rectangle is four times the
+  // source's area here and never appears in any of the three answers, which is the point.
+  assert.deepEqual(pp.ascii.sourceSize, [32, 24]);
+  assert.deepEqual(pp.ascii.destinationSize, [64, 48]);
+  assert.deepEqual(pp.ascii.beforeAnyDraw, [0, 0], "nothing has been quantised yet");
+  for (const [cell, expected] of [[[8, 12], [4, 2]], [[4, 4], [8, 6]], [[16, 8], [2, 3]]]) {
+    const key = `cell${cell[0]}x${cell[1]}`;
+    assert.deepEqual(
+      pp.ascii[key], expected,
+      `a ${pp.ascii.sourceSize.join("x")} source in ${cell.join("x")} cells is ` +
+      `${expected.join("x")}, not ${pp.ascii[key]}`,
+    );
+    assert.deepEqual(
+      expected,
+      [pp.ascii.sourceSize[0] / cell[0], pp.ascii.sourceSize[1] / cell[1]],
+      "and that is exactly the source divided by the cell",
+    );
+  }
+  assert.deepEqual(pp.ascii.defaultCell.slice(0, 2), [8, 8]);
+  assert.equal(pp.ascii.defaultCell[2], computeModule.AsciiQuantizeMode.Color);
+  assert.equal(pp.ascii.isBorrowed, false, "an effect the caller made is the caller's");
+
+  // --- finding 17: the effect pass's borrow ---------------------------------------------------------
+  // Reading it four times must not accumulate anything -- the clean Dispose above is that half of
+  // the evidence -- and the answer must track what the pass actually holds.
+  assert.equal(pp.effectPass.name, "crt");
+  assert.equal(pp.effectPass.supported, true);
+  assert.deepEqual(pp.effectPass.reads, [true, true, true, true], "the borrow must not consume the effect");
+  assert.equal(pp.effectPass.afterDetach, false, "SetEffect(null) detaches");
+  assert.equal(pp.effectPass.afterReattach, true, "and the same effect goes back on");
+  // An owning pass consumes the effect: the caller's wrapper stops owning anything, so its own
+  // Dispose becomes the no-op that Dispose always is once a resource has been given away.
+  assert.equal(pp.owningPass.name, "owned-crt");
+  assert.equal(pp.owningPass.hasEffect, true);
+  assert.equal(pp.owningPass.callerDisposeAfterTransfer, "SUCCEEDED");
+
+  // --- the ASCII pass's borrowed effect ---------------------------------------------------------------
+  assert.equal(pp.asciiPass.name, "Ascii");
+  assert.equal(pp.asciiPass.borrowed, true, "a pass's own effect is a borrow");
+  assert.equal(pp.asciiPass.sameObjectTwice, true, "and the same borrow twice, not two handles");
+  assert.deepEqual(pp.asciiPass.cellBefore, [8, 8]);
+  assert.deepEqual(pp.asciiPass.cellAfter, [12, 16], "writing through the borrow changes the pass's own");
+  assert.equal(pp.asciiPass.quantizeAfter, computeModule.AsciiQuantizeMode.BlackWhite);
+
+  console.log(
+    `CNA_TS_WINDOWED_POST_PROCESS=PASS GRADE=ROTATION_EXACT TONEMAP=PREDICTED_BY_MODEL ` +
+    `IDENTITIES=${Object.keys(pp.identities).length} CRT_SCANLINES=EXACT CRT_VIGNETTE=RADIAL ` +
+    `ASCII_GRID=${pp.ascii.cell8x12.join("x")}/${pp.ascii.cell4x4.join("x")}/${pp.ascii.cell16x8.join("x")} ` +
+    `BORROWS=RETURNED`,
   );
 });

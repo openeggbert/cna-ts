@@ -16,12 +16,13 @@ qualification to three renderers; items 8 and 9 are new, found while projecting 
 layer's compute path, item 10 while projecting its clustered lighting, item 11 -- a
 segmentation fault -- while projecting camera frame capture, and item 12 while projecting the
 particle draw. Items 13 and 14 are new, found while projecting the depth/normal prepass and the
-decal projector that reads it, item 15 while projecting the atmosphere, and item 16 while
-projecting the cascaded, spot and cube shadow passes.
+decal projector that reads it, item 15 while projecting the atmosphere, item 16 while
+projecting the cascaded, spot and cube shadow passes, and items 17 and 18 while projecting the
+post-process passes.
 
 **Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
 library. Both were found by this package, both were *asserted* rather than worked around, and both
-detectors fired the moment the repair landed. Four of the sixteen findings are now closed.
+detectors fired the moment the repair landed. Four of the eighteen findings are now closed.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -743,3 +744,91 @@ public API, and asserts three refusals and one success. A repair fails the fourt
 so. The binding itself returns every borrow before the map it came from in all four cases, so no
 consumer of this package can reach the defect -- which is also why the mutation that reverses that
 order in `SpotShadowMap.Dispose` survives, and is recorded rather than hidden.
+
+## 17. One borrow route in the effect family says "do not destroy it", and obeying it wedges the game
+
+Three engine-layer routes lend an `Effect` a caller did not create, and all three reach the same
+handle registry. Two document the release the registry needs, one forbids it:
+
+| route | header sentence | what the body does |
+| --- | --- | --- |
+| `cna_shader_effect_factory_acquire` | "Release it with `cna_effect_destroy`." | `CreateBorrowedEffect(...)` |
+| `cna_ascii_pass_get_effect` | "releasing the returned handle does not release the pass" | `GetRuntimeHandles().Create(...)` |
+| `cna_post_process_effect_pass_get_effect` | "The returned handle is borrowed from the pass; **do not destroy it**." | `CreateBorrowedEffect(...)` |
+
+All three mint a **new registered handle** parented to the game. `CreateBorrowedEffect` is
+`CreateEffectHandle(std::move(effect), parentGame, outEffect, /*owning=*/false)`: the `false` decides
+whether destroying the handle disposes the `Effect` behind it, not whether the handle exists. It
+exists, the game counts it, and nothing else will ever release it.
+
+**Measured** on `cmake-build-debug` (OPENGLES3, ABI 0.21.0) under `xvfb-run`, one `EffectPass` built
+over a `CrtEffect`, its effect read four times, then the pass, the effect and the game released in
+that order:
+
+```text
+caller releases each borrow?   reads saw an effect   effect still attached   cna_game_destroy   next cna_game_create
+no  (what the header says)     true,true,true        true                   REFUSED: "All      INVALID_STATE: "Only
+                                                                            owned C child      one C-owned CNA game
+                                                                            resources must be  may be active at a
+                                                                            destroyed before   time"
+                                                                            the game"
+yes (what the siblings say)    true,true,true        true                   OK                 OK
+```
+
+The `effect still attached` column is the point: releasing the borrow four times does **not** detach
+or destroy the pass's effect. The release costs the caller nothing and is the only way to shut down.
+Following the header instead makes the game undestroyable for the rest of the process — the same
+shape as findings 1 and 15, reached from a different door.
+
+**Proposed change.** Replace the sentence with the one `cna_shader_effect_factory_acquire` already
+uses: "Release it with `cna_effect_destroy`; releasing it does not release the pass." If a
+zero-cost non-registering borrow is wanted here, that is a different fix — echo the effect handle
+the caller already owns, as `cna_render_pipeline_get_skybox` does — but then finding 15's objection
+applies and the header has to say which handle it is giving back.
+
+**Detector in cna-ts:** `EffectPass.HasEffect` takes the handle, tests it, and gives it straight back
+through `cna_effect_destroy`, documenting on itself why it disobeys the header. The windowed test
+reads it on both sides of a `SetEffect(null)`/`SetEffect(effect)` pair and then asserts the game
+destroys cleanly, so a repaired route — or a regression that starts refusing the release — fails
+here.
+
+## 18. A refused `cna_game_destroy` is not side-effect-free: the process then segfaults on the way out
+
+Every leak finding in this document ends the same way — `cna_game_destroy` answers
+`CNA_RESULT_INVALID_STATE`, "All owned C child resources must be destroyed before the game." That
+refusal is recoverable, and it is documented as one. What is not documented is that a process which
+*ends* in that state does not exit: it takes SIGSEGV after the last line of the program has run.
+
+**Measured** on `cmake-build-debug` (OPENGLES3, ABI 0.21.0) under `xvfb-run`, one game per process,
+the leak being a single `cna_texture_2d_create` handle the program forgets. Nothing in the table
+depends on which route made the resource — an effect-pass borrow gives the identical result:
+
+```text
+what the process did                                                      exit
+game created, never destroyed at all                                      0
+game created and destroyed                                                0
+destroy refused, leaked handle released, destroy retried and succeeded     0
+destroy refused, leaked handle released, destroy NOT retried             139 (SIGSEGV)
+destroy refused, nothing else done                                        139 (SIGSEGV)
+```
+
+Read the first and the last rows together: a game that is simply left alive tears down cleanly, and
+a game that is left alive *after a refused destroy* does not. So the crash is not "a live game at
+exit". The refusal itself leaves the game in a state its own teardown cannot survive, and the only
+way back out is to complete the destroy — releasing the offending resource is necessary but not
+sufficient, as row four shows. The crash happens after the script's last statement and survives an
+explicit `process.exit(0)`, which places it in the library's own teardown rather than in the host.
+
+**Consequence.** This multiplies findings 1, 15 and 17. Each of those turns a documented-looking
+call into an undestroyable game; this turns an undestroyable game into a crashing process. It also
+makes the failure look like it belongs to whatever ran last, because the segfault arrives after the
+program has finished and printed everything it meant to print.
+
+**Proposed change.** Make the refusal path leave the game exactly as it found it, so that a refused
+destroy is inert; or, if the refusal must partially tear the game down, say so in the header and
+document that the caller has to complete the destroy before exiting.
+
+**Detector in cna-ts:** every windowed and headless probe game in this package destroys its game and
+asserts that the destroy succeeded, and the suites run one game per process — so any regression that
+starts refusing a destroy shows up as a failing assertion *and* as a non-zero exit code, rather than
+as a passing test file that crashes on the way out.

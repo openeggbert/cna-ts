@@ -49,7 +49,7 @@ import { graphicsDeviceBackendForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
 import { adoptNativeEffectForInternalUse, type Effect } from
   "../../Microsoft/Xna/Framework/Graphics/Effect.js";
-import { resolveEffectHandleForInternalUse } from
+import { resolveEffectHandleForInternalUse, markEffectTransferredForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/Effect.js";
 import type { IDisposable } from "../../Microsoft/Xna/Framework/Contracts.js";
 import type { PassTimingSnapshot, PostProcessFrameSnapshot } from "../../internal/backend.js";
@@ -58,6 +58,10 @@ import { Texture2D } from "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
 import { resolveTexture2DHandleForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
 import { TextureCube } from "../../Microsoft/Xna/Framework/Graphics/TextureCube.js";
+import { Texture3D } from "../../Microsoft/Xna/Framework/Graphics/Texture3D.js";
+import { resolveTexture3DHandleForInternalUse } from
+  "../../Microsoft/Xna/Framework/Graphics/Texture3D.js";
+import { Rectangle } from "../../Microsoft/Xna/Framework/Rectangle.js";
 import {
   resolveTextureCubeHandleForInternalUse, transferTextureCubeForInternalUse,
 } from "../../Microsoft/Xna/Framework/Graphics/TextureCube.js";
@@ -503,6 +507,24 @@ export class BloomPass extends PostProcessPass {
     return extensions().bloomIterationsForQuality(quality);
   }
 
+  /**
+   * What one channel contributes to the bloom, given a threshold.
+   *
+   * The pure function behind the extraction step, and it is a **soft knee** rather than a cut: the
+   * contribution ramps from nothing at half a threshold below it to all of it at half a threshold
+   * above, squared so the ramp starts gently. Exactly at the threshold a channel contributes a
+   * quarter of itself. A hard cut would make a bright edge pop into the bloom as it crossed, which
+   * is the flicker this shape exists to avoid.
+   */
+  public static ExtractChannel(value: number, threshold: number): number {
+    for (const [name, argument] of [["value", value], ["threshold", threshold]] as const) {
+      if (typeof argument !== "number" || !Number.isFinite(argument)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    return extensions().extractBloomChannel(value, threshold);
+  }
+
   /** Releases the pass's pooled intermediate targets without releasing the pass. */
   public ResetTargets(): void { extensions().resetBloomTargets(this.HandleForInternalUse); }
 }
@@ -513,6 +535,27 @@ export class BloomPass extends PostProcessPass {
 export class TonemapPass extends PostProcessPass {
   public constructor(graphicsDevice: GraphicsDevice) {
     super(extensions().createTonemapPass(postProcessDeviceHandle(graphicsDevice)));
+  }
+
+  /**
+   * One channel through one of the curves, on the CPU and without a pass.
+   *
+   * The same arithmetic the shader runs, which is what makes a tonemapped frame checkable: apply
+   * the exposure, then the curve, then the gamma. {@link TonemappingMode.None} is the identity
+   * apart from those two, so it is the control every other mode is compared against.
+   */
+  public static TonemapChannel(
+    mode: TonemappingMode, value: number, exposure: number, gamma: number,
+  ): number {
+    if (!Number.isInteger(mode)) throw new TypeError("mode must be a TonemappingMode");
+    for (const [name, argument] of [
+      ["value", value], ["exposure", exposure], ["gamma", gamma],
+    ] as const) {
+      if (typeof argument !== "number" || !Number.isFinite(argument)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    return extensions().tonemapChannel(mode, value, exposure, gamma);
   }
 
   /** The linear exposure applied before the curve. */
@@ -558,6 +601,9 @@ export class FxaaPass extends PostProcessPass {
   public static EdgeThresholdForQuality(quality: RenderQuality): number {
     return extensions().fxaaEdgeThresholdForQuality(quality);
   }
+
+  /** CNA's own fragment source, for a game that wants the same anti-aliasing in its own shader. */
+  public static get FragmentGlsl(): string { return extensions().getFxaaFragmentGlsl(); }
 }
 
 /**
@@ -591,6 +637,28 @@ export class SsaoPass extends PostProcessPass {
   /** CNA's own sample count for a quality tier. */
   public static SampleCountForQuality(quality: RenderQuality): number {
     return extensions().ssaoSampleCountForQuality(quality);
+  }
+
+  /**
+   * The hemisphere of sample directions this pass occludes with.
+   *
+   * Every one lies in the hemisphere around +Z and inside the unit sphere, and they are packed
+   * towards the origin rather than spread evenly — near samples say more about a crease than far
+   * ones do. Reading them is how a game writing its own occlusion shader gets the same kernel
+   * rather than inventing a second one.
+   */
+  public get Kernel(): readonly Vector3[] {
+    return Object.freeze(extensions().getSsaoKernel(this.HandleForInternalUse).map(toVector3));
+  }
+
+  /**
+   * CNA's own occlusion GLSL, for the packed or the half-float depth encoding.
+   *
+   * `packed` must match what the prepass feeding it actually stores;
+   * {@link DepthNormalPrepass.IsDepthPacked} answers that.
+   */
+  public static OcclusionGlsl(packed: boolean): string {
+    return extensions().getSsaoOcclusionGlsl(packed === true);
   }
 
   /** Releases the pass's pooled intermediate targets without releasing the pass. */
@@ -2169,6 +2237,33 @@ function adoptNativeTexture2DForInternalUse(
   ) => Texture2D)(
     device, info.Width, info.Height, info.LevelCount > 1, info.Format as SurfaceFormat,
     { Handle: handle, LevelCount: info.LevelCount, Label: label },
+  );
+}
+
+/** The same, for a volume texture, whose three dimensions also come from CNA. */
+function adoptNativeTexture3DForInternalUse(
+  device: GraphicsDevice, handle: NativeHandle,
+): Texture3D {
+  const backend = graphicsBackendFor(device);
+  let info;
+  try {
+    info = backend.getTexture3DInfo(handle);
+  } catch (error) {
+    backend.destroyTexture3D(handle);
+    throw error;
+  }
+  return new (Texture3D as unknown as new (
+    graphicsDevice: GraphicsDevice,
+    width: number,
+    height: number,
+    depth: number,
+    mipMap: boolean,
+    format: SurfaceFormat,
+    adopted: { readonly Handle: NativeHandle; readonly Label: string },
+  ) => Texture3D)(
+    device, info.Width, info.Height, info.Depth, info.LevelCount > 1,
+    info.Format as SurfaceFormat,
+    { Handle: handle, Label: "colour lookup table volume" },
   );
 }
 
@@ -4932,4 +5027,893 @@ export class CubeShadowMap implements IDisposable {
     this.#shadowTexture = null;
     this.#backend.destroyCubeShadowMap(handle);
   }
+}
+
+
+/* --- the rest of the post-process chain -----------------------------------------------------------
+ *
+ * Seven more passes for the chain that already carries blit, bloom, tonemapping, FXAA, SSAO and
+ * screen-space reflections, plus the pass that runs a game's *own* effect inside it, the colour
+ * lookup table those passes grade through, and the two lower-level pieces the whole layer is built
+ * on: a fullscreen quad and a scoped render-target binding.
+ *
+ * Most of what these carry is settings, and settings that only round-trip are worth little. What
+ * makes them checkable is that several also publish the pure function behind them — a circle of
+ * confusion from the thin-lens equation, a bloom's extraction curve, a tonemapping curve, the SSAO
+ * kernel — so the arithmetic a shader runs can be evaluated without a GPU and compared with what
+ * the frame actually shows.
+ */
+
+/** How a colour lookup table is sampled between its entries. */
+export enum LutInterpolation {
+  /** Eight corners weighted by distance: the ordinary cube filter. */
+  Trilinear = 0,
+  /** Four corners of the tetrahedron the sample falls in, which keeps a neutral axis neutral. */
+  Tetrahedral = 1,
+}
+
+/** Whether the ASCII effect keeps the scene's colour or reduces it to black and white. */
+export enum AsciiQuantizeMode {
+  BlackWhite = 0,
+  Color = 1,
+}
+
+/** The shadow-mask pattern a CRT effect lays over the image. */
+export enum CrtMaskType {
+  None = 0,
+  ApertureGrille = 1,
+  ShadowMask = 2,
+}
+
+/** The colour depth a depth effect reduces the image to. */
+export enum DepthEffectMode {
+  Color16Bit = 0,
+  Color8Bit = 1,
+  Grayscale4Bit = 2,
+  Grayscale2Bit = 3,
+  Grayscale1Bit = 4,
+  Palette256 = 5,
+  Palette16 = 6,
+}
+
+/** The ordered pattern a depth effect dithers with, or none. */
+export enum DitherMode {
+  None = 0,
+  Bayer4X4 = 1,
+  Bayer8X8 = 2,
+}
+
+/**
+ * Grades the frame through a colour lookup table.
+ *
+ * The table is either a **strip** — a 2D texture holding the cube's slices side by side, which any
+ * renderer can sample — or a **volume**, a real 3D texture, which is one lookup instead of two and
+ * needs volume-texture support. Set whichever the renderer has; the pass takes both and prefers the
+ * volume.
+ */
+export class ColorGradePass extends PostProcessPass {
+  readonly #device: GraphicsDevice;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createColorGradePass(postProcessDeviceHandle(graphicsDevice)));
+    this.#device = graphicsDevice;
+  }
+
+  /** How far the graded result is mixed over the original, from none to all of it. */
+  public get Strength(): number {
+    return extensions().getColorGradeStrength(this.HandleForInternalUse);
+  }
+  public set Strength(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("Strength must be a finite number");
+    }
+    extensions().setColorGradeStrength(this.HandleForInternalUse, value);
+  }
+
+  /** How the table is sampled between its entries. */
+  public get Interpolation(): LutInterpolation {
+    return extensions().getColorGradeInterpolation(this.HandleForInternalUse) as LutInterpolation;
+  }
+  public set Interpolation(value: LutInterpolation) {
+    if (!Number.isInteger(value)) throw new TypeError("Interpolation must be a LutInterpolation");
+    extensions().setColorGradeInterpolation(this.HandleForInternalUse, value);
+  }
+
+  /** Whether a strip table is attached. */
+  public get HasLut(): boolean {
+    return this.#releaseBorrow(
+      extensions().getColorGradeLut(this.HandleForInternalUse),
+      (handle) => graphicsBackendFor(this.#device).destroyRenderTarget(handle),
+    );
+  }
+
+  /** Whether a volume table is attached. */
+  public get HasVolumeLut(): boolean {
+    return this.#releaseBorrow(
+      extensions().getColorGradeVolumeLut(this.HandleForInternalUse),
+      (handle) => graphicsBackendFor(this.#device).destroyTexture3D(handle),
+    );
+  }
+
+  /*
+   * Both getters mint a handle onto the pass's own texture rather than handing back the one that
+   * was set, so each is taken, tested and given straight back -- the same rule
+   * `Skybox.HasEnvironment` follows, and for the same reason.
+   *
+   * They do not mint the same kind of handle, which is why the release route is a parameter rather
+   * than a constant: a strip comes back as a borrowed render target and a volume as a Texture3D,
+   * and releasing either through the other's route is refused with `INVALID_HANDLE` -- which is
+   * how the difference was found.
+   */
+  #releaseBorrow(handle: NativeHandle, release: (handle: NativeHandle) => void): boolean {
+    if (handle === 0n) return false;
+    release(handle);
+    return true;
+  }
+
+  /** Attaches a strip table, borrowed and never owned, or `null` to detach. */
+  public SetLut(lut: Texture2D | null): void {
+    extensions().setColorGradeLut(
+      this.HandleForInternalUse,
+      lut == null ? 0n : resolveTexture2DHandleForInternalUse(lut),
+    );
+  }
+
+  /** Attaches a volume table on the same terms. */
+  public SetVolumeLut(lut: Texture3D | null): void {
+    extensions().setColorGradeVolumeLut(
+      this.HandleForInternalUse,
+      lut == null ? 0n : resolveTexture3DHandleForInternalUse(lut),
+    );
+  }
+
+  /**
+   * A neutral strip table of a given cube size, which grades nothing and is what a game starts from.
+   */
+  public static CreateIdentityLut(graphicsDevice: GraphicsDevice, size: number): Texture2D {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (!Number.isInteger(size) || size <= 0) {
+      throw new RangeError("size must be a positive integer");
+    }
+    return adoptNativeTexture2DForInternalUse(
+      graphicsDevice,
+      extensions().createIdentityLutTexture(
+        resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), size,
+      ),
+      "colour grading identity lookup table",
+    );
+  }
+
+  /**
+   * The cube size a strip of these pixel dimensions carries, or zero when they are not a strip.
+   *
+   * A strip is the cube's slices in a row, so its width is the cube size squared and its height is
+   * the cube size. Anything else is not a lookup table, and this says so rather than guessing.
+   */
+  public static LutSizeForStrip(width: number, height: number): number {
+    for (const [name, value] of [["width", width], ["height", height]] as const) {
+      if (!Number.isInteger(value)) throw new TypeError(`${name} must be an integer`);
+    }
+    return extensions().lutSizeForStrip(width, height);
+  }
+}
+
+/**
+ * A parsed `.cube` colour lookup table.
+ *
+ * The format Resolve, Photoshop and every grading tool exports: a title, a domain, and one RGB
+ * triple per cube entry in blue-slowest order. This parses the **text**, not a path — a game reads
+ * the bytes however it reads its other content, and a build script that wants a file on disk
+ * belongs in `cna-ts-content`, which is where this package puts every route that takes a path.
+ */
+export class CubeLut implements IDisposable {
+  #handle: NativeHandle | null;
+
+  private constructor(handle: NativeHandle) { this.#handle = handle; }
+
+  /** Parses the text of a `.cube` file. */
+  public static Parse(text: string): CubeLut {
+    if (typeof text !== "string") throw new TypeError("text must be a string");
+    return new (CubeLut as unknown as new (handle: NativeHandle) => CubeLut)(
+      extensions().parseCubeLut(text),
+    );
+  }
+
+  /** Whether the table has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the colour lookup table is disposed");
+    return this.#handle;
+  }
+
+  /** The cube's edge length: a table of this size holds size cubed entries. */
+  public get Size(): number { return extensions().getCubeLutSize(this.#active()); }
+
+  /** The title the file declared, or an empty string where it declared none. */
+  public get Title(): string { return extensions().getCubeLutTitle(this.#active()); }
+
+  /** The input range the table is defined over, which is usually but not always zero to one. */
+  public get DomainMin(): Vector3 {
+    return toVector3(extensions().getCubeLutDomainMin(this.#active()));
+  }
+  public get DomainMax(): Vector3 {
+    return toVector3(extensions().getCubeLutDomainMax(this.#active()));
+  }
+
+  /** Whether that range is exactly zero to one, which is the case a shader can skip a rescale in. */
+  public get IsUnitDomain(): boolean {
+    return extensions().isCubeLutUnitDomain(this.#active());
+  }
+
+  /** One entry of the cube, by its three axis indices. */
+  public GetEntry(red: number, green: number, blue: number): Vector3 {
+    for (const [name, value] of [["red", red], ["green", green], ["blue", blue]] as const) {
+      if (!Number.isInteger(value)) throw new TypeError(`${name} must be an integer`);
+    }
+    return toVector3(extensions().getCubeLutEntry(this.#active(), red, green, blue));
+  }
+
+  /** The table as a strip texture the caller owns: the cube's slices side by side. */
+  public CreateStripTexture(graphicsDevice: GraphicsDevice): Texture2D {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    return adoptNativeTexture2DForInternalUse(
+      graphicsDevice,
+      extensions().createCubeLutStripTexture(
+        this.#active(), resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+      ),
+      "colour lookup table strip",
+    );
+  }
+
+  /** The table as a volume texture the caller owns, where the renderer has 3D textures. */
+  public CreateVolumeTexture(graphicsDevice: GraphicsDevice): Texture3D {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    return adoptNativeTexture3DForInternalUse(
+      graphicsDevice,
+      extensions().createCubeLutVolumeTexture(
+        this.#active(), resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+      ),
+    );
+  }
+
+  /** Releases the table. The textures it produced are the caller's and outlive it. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroyCubeLut(handle);
+  }
+}
+
+/**
+ * Blurs what is not in focus, from a real lens rather than from a curve.
+ *
+ * The four settings are the ones a photographer has: where the lens is focused, how long it is,
+ * how wide its aperture is, and the largest blur the pass will draw.
+ * {@link CircleOfConfusionMillimetres} is the thin-lens equation behind them, on the CPU.
+ */
+export class DepthOfFieldPass extends PostProcessPass {
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createDepthOfFieldPass(postProcessDeviceHandle(graphicsDevice)));
+  }
+
+  /** The distance the lens is focused at, in world units. */
+  public get FocusDistance(): number {
+    return extensions().getDepthOfFieldFocusDistance(this.HandleForInternalUse);
+  }
+  public set FocusDistance(value: number) {
+    extensions().setDepthOfFieldFocusDistance(this.HandleForInternalUse, finite(value, "FocusDistance"));
+  }
+
+  /** The lens's focal length, in millimetres. */
+  public get FocalLength(): number {
+    return extensions().getDepthOfFieldFocalLength(this.HandleForInternalUse);
+  }
+  public set FocalLength(value: number) {
+    extensions().setDepthOfFieldFocalLength(this.HandleForInternalUse, finite(value, "FocalLength"));
+  }
+
+  /** The aperture, as the f-number engraved on a lens: smaller is wider and blurs more. */
+  public get FNumber(): number {
+    return extensions().getDepthOfFieldFNumber(this.HandleForInternalUse);
+  }
+  public set FNumber(value: number) {
+    extensions().setDepthOfFieldFNumber(this.HandleForInternalUse, finite(value, "FNumber"));
+  }
+
+  /** The largest blur radius the pass will draw, in texels. */
+  public get MaxRadius(): number {
+    return extensions().getDepthOfFieldMaxRadius(this.HandleForInternalUse);
+  }
+  public set MaxRadius(value: number) {
+    extensions().setDepthOfFieldMaxRadius(this.HandleForInternalUse, finite(value, "MaxRadius"));
+  }
+
+  /**
+   * How large a point at `depth` is on the sensor, in millimetres — the thin-lens circle of
+   * confusion.
+   *
+   * Zero exactly at the focus distance, and growing on both sides of it: a point nearer than the
+   * focus and a point further away are both blurred, which is what makes this the pure function
+   * behind the pass rather than a distance falloff.
+   */
+  public static CircleOfConfusionMillimetres(
+    depth: number, focusDistance: number, focalLength: number, fNumber: number,
+  ): number {
+    for (const [name, value] of [
+      ["depth", depth], ["focusDistance", focusDistance],
+      ["focalLength", focalLength], ["fNumber", fNumber],
+    ] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    return extensions().circleOfConfusionMillimetres(depth, focusDistance, focalLength, fNumber);
+  }
+}
+
+/** The streaks and ghosts a bright source leaves across a lens. */
+export class LensFlarePass extends PostProcessPass {
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createLensFlarePass(postProcessDeviceHandle(graphicsDevice)));
+  }
+
+  /** The luminance above which a texel becomes a flare source. */
+  public get Threshold(): number {
+    return extensions().getLensFlareThreshold(this.HandleForInternalUse);
+  }
+  public set Threshold(value: number) {
+    extensions().setLensFlareThreshold(this.HandleForInternalUse, finite(value, "Threshold"));
+  }
+
+  /** How strongly the ghosts are added back over the frame. */
+  public get Intensity(): number {
+    return extensions().getLensFlareIntensity(this.HandleForInternalUse);
+  }
+  public set Intensity(value: number) {
+    extensions().setLensFlareIntensity(this.HandleForInternalUse, finite(value, "Intensity"));
+  }
+
+  /** How far apart the ghosts are spaced along the line through the screen's centre. */
+  public get Dispersal(): number {
+    return extensions().getLensFlareDispersal(this.HandleForInternalUse);
+  }
+  public set Dispersal(value: number) {
+    extensions().setLensFlareDispersal(this.HandleForInternalUse, finite(value, "Dispersal"));
+  }
+
+  /** How many ghost images the pass draws, which is CNA's own number rather than one chosen here. */
+  public static get GhostCount(): number { return 4; }
+}
+
+/** Smears the frame along the velocity the prepass recorded. */
+export class MotionBlurPass extends PostProcessPass {
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createMotionBlurPass(postProcessDeviceHandle(graphicsDevice)));
+  }
+
+  /** How much of the recorded velocity is drawn as a smear. */
+  public get Strength(): number {
+    return extensions().getMotionBlurStrength(this.HandleForInternalUse);
+  }
+  public set Strength(value: number) {
+    extensions().setMotionBlurStrength(this.HandleForInternalUse, finite(value, "Strength"));
+  }
+
+  /** The furthest a texel is smeared, in UV units, whatever the velocity says. */
+  public get MaxDistance(): number {
+    return extensions().getMotionBlurMaxDistance(this.HandleForInternalUse);
+  }
+  public set MaxDistance(value: number) {
+    extensions().setMotionBlurMaxDistance(this.HandleForInternalUse, finite(value, "MaxDistance"));
+  }
+
+  /** How many samples the pass takes along the velocity vector. CNA's number, not one chosen here. */
+  public static get SampleCount(): number { return 8; }
+}
+
+/** Splits the channels apart towards the edges of the frame, as a real lens does. */
+export class ChromaticAberrationPass extends PostProcessPass {
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createChromaticAberrationPass(postProcessDeviceHandle(graphicsDevice)));
+  }
+
+  /** How far the channels are pushed apart at the corners. */
+  public get Strength(): number {
+    return extensions().getChromaticAberrationStrength(this.HandleForInternalUse);
+  }
+  public set Strength(value: number) {
+    extensions().setChromaticAberrationStrength(
+      this.HandleForInternalUse, finite(value, "Strength"),
+    );
+  }
+}
+
+/** Adds film grain over the frame. */
+export class FilmGrainPass extends PostProcessPass {
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createFilmGrainPass(postProcessDeviceHandle(graphicsDevice)));
+  }
+
+  /** How visible the grain is. */
+  public get Intensity(): number {
+    return extensions().getFilmGrainIntensity(this.HandleForInternalUse);
+  }
+  public set Intensity(value: number) {
+    extensions().setFilmGrainIntensity(this.HandleForInternalUse, finite(value, "Intensity"));
+  }
+}
+
+/**
+ * Redraws the frame as a grid of characters.
+ *
+ * The pass is a thin wrapper over {@link AsciiPostProcessEffect}, which it lends: the settings live
+ * on the effect, and the pass exists so the whole thing can go in a chain.
+ */
+export class AsciiPass extends PostProcessPass {
+  readonly #device: GraphicsDevice;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createAsciiPass(postProcessDeviceHandle(graphicsDevice)));
+    this.#device = graphicsDevice;
+  }
+
+  /**
+   * The effect this pass draws with, borrowed from it.
+   *
+   * Borrowed rather than owned: the pass keeps it, and the object handed back must not be disposed.
+   * Its settings are the pass's settings.
+   */
+  public get Effect(): AsciiPostProcessEffect {
+    this.#effect ??= adoptAsciiEffect(
+      this.#device, extensions().getAsciiPassEffect(this.HandleForInternalUse), true,
+    );
+    return this.#effect;
+  }
+
+  #effect: AsciiPostProcessEffect | null = null;
+
+  /** Releases the pass, and the borrow of its effect first. */
+  public override Dispose(): void {
+    this.#effect?.Dispose();
+    this.#effect = null;
+    super.Dispose();
+  }
+}
+
+/**
+ * A pass that runs a game's **own** compiled effect over the frame.
+ *
+ * The escape hatch the chain needs: everything else in this layer is a pass CNA wrote, and this is
+ * the one that runs a shader the game wrote, inside the same chain, with the same pooled targets
+ * and the same GPU timings. The effect is borrowed by default and can be handed over instead.
+ */
+export class EffectPass extends PostProcessPass {
+  #device: GraphicsDevice;
+
+  public constructor(graphicsDevice: GraphicsDevice, effect: Effect, name: string);
+  public constructor(
+    graphicsDevice: GraphicsDevice, effect: Effect, name: string, owning?: boolean,
+  ) {
+    super(EffectPass.#create(graphicsDevice, effect, name, owning === true));
+    this.#device = graphicsDevice;
+  }
+
+  static #create(
+    graphicsDevice: GraphicsDevice, effect: Effect, name: string, owning: boolean,
+  ): NativeHandle {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (effect == null) throw new TypeError("effect is required");
+    if (typeof name !== "string") throw new TypeError("name must be a string");
+    const device = postProcessDeviceHandle(graphicsDevice);
+    const handle = resolveEffectHandleForInternalUse(effect);
+    return owning
+      ? extensions().createOwningEffectPass(device, handle, name)
+      : extensions().createEffectPass(device, handle, name);
+  }
+
+  /**
+   * A pass that **takes** the effect rather than borrowing it, releasing it with the pass.
+   *
+   * The caller's `Effect` stops being an owner, exactly as `PostProcessChain.AddOwned` does with a
+   * pass — named for the transfer rather than hidden behind a flag.
+   */
+  public static CreateOwning(
+    graphicsDevice: GraphicsDevice, effect: Effect, name: string,
+  ): EffectPass {
+    const pass = new (EffectPass as unknown as new (
+      graphicsDevice: GraphicsDevice, effect: Effect, name: string, owning: boolean,
+    ) => EffectPass)(graphicsDevice, effect, name, true);
+    markEffectTransferredForInternalUse(effect);
+    return pass;
+  }
+
+  /**
+   * Whether an effect is attached at all. A pass with none copies its source unchanged.
+   *
+   * CNA mints a *fresh borrow handle* here rather than echoing one it already holds — despite the
+   * header saying not to destroy it — so the handle is released immediately. Releasing a borrow
+   * does not touch the effect behind it; leaving one outstanding keeps the pass alive and makes the
+   * game refuse to be destroyed. See finding 17 in `docs/upstream-cna-findings.md`.
+   */
+  public get HasEffect(): boolean {
+    const handle = extensions().getEffectPassEffect(this.HandleForInternalUse);
+    if (handle === 0n) return false;
+    effectBackendFor(this.#device).destroyEffect(handle);
+    return true;
+  }
+
+  /** Replaces the effect, borrowed as the constructor's is, or `null` to run none. */
+  public SetEffect(effect: Effect | null): void {
+    extensions().setEffectPassEffect(
+      this.HandleForInternalUse,
+      effect == null ? 0n : resolveEffectHandleForInternalUse(effect),
+    );
+  }
+}
+
+/**
+ * The fullscreen quad every screen-space pass in this layer is drawn with.
+ *
+ * Exposed because a game writing its own screen-space effect wants the same quad rather than a
+ * second one: the same vertex program, the same texture coordinates, and the same choice between
+ * drawing into a named target and drawing over whatever is bound.
+ */
+export class FullscreenPass implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#handle = extensions().createFullscreenPass(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+    );
+  }
+
+  /** Whether the pass has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the fullscreen pass is disposed");
+    return this.#handle;
+  }
+
+  /**
+   * Draws `source` into `destination`, or into the back buffer when that is `null`.
+   *
+   * `effect` may be `null`, in which case the source is copied through the layer's own blit
+   * program. The size is the destination's in pixels.
+   */
+  public Draw(
+    source: Texture2D, destination: RenderTarget2D | null, effect: Effect | null,
+    width: number, height: number,
+  ): void {
+    if (source == null) throw new TypeError("source is required");
+    assertPositiveCounts({ width, height });
+    extensions().drawFullscreenPass(
+      this.#active(), resolveTexture2DHandleForInternalUse(source),
+      destination == null ? 0n : resolveTexture2DHandleForInternalUse(destination),
+      effect == null ? 0n : resolveEffectHandleForInternalUse(effect),
+      width, height,
+    );
+  }
+
+  /** The same, over whatever target is already bound — which is what a pass inside a chain does. */
+  public DrawOverCurrentTarget(
+    source: Texture2D, effect: Effect | null, width: number, height: number,
+  ): void {
+    if (source == null) throw new TypeError("source is required");
+    assertPositiveCounts({ width, height });
+    extensions().drawFullscreenPassOverCurrentTarget(
+      this.#active(), resolveTexture2DHandleForInternalUse(source),
+      effect == null ? 0n : resolveEffectHandleForInternalUse(effect),
+      width, height,
+    );
+  }
+
+  /** Releases the pass. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroyFullscreenPass(handle);
+  }
+}
+
+/**
+ * Binds a render target and puts back whatever was bound before, on {@link Dispose}.
+ *
+ * The piece every pass in this layer is written on top of, and the reason a pass that throws does
+ * not leave the frame drawing into the wrong place. {@link HasRecordedPrevious} says whether there
+ * *was* a previous target to remember — outside a frame there is not, and restoring nothing is the
+ * right answer rather than a failure.
+ */
+export class ScopedRenderTarget implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice, destination: RenderTarget2D | null) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#handle = extensions().beginScopedRenderTarget(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+      destination == null ? 0n : resolveTexture2DHandleForInternalUse(destination),
+    );
+  }
+
+  /** Whether the binding has been ended. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Whether there was a target bound before this one, to put back. */
+  public get HasRecordedPrevious(): boolean {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the scoped render target has already ended");
+    }
+    return extensions().scopedRenderTargetHasRecordedPrevious(this.#handle);
+  }
+
+  /** Restores the previous target. Ending twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().endScopedRenderTarget(handle);
+  }
+}
+
+/**
+ * The effect behind {@link AsciiPass}, usable on its own.
+ *
+ * It reduces the frame to a grid of cells and draws a character per cell. The grid follows from the
+ * cell size and the destination rectangle, and {@link LastGridDimensions} reports what the last
+ * draw actually used — which is the only way to know, because the rectangle decides it.
+ */
+export class AsciiPostProcessEffect implements IDisposable {
+  #handle: NativeHandle | null;
+  readonly #borrowed: boolean;
+
+  public constructor(graphicsDevice: GraphicsDevice);
+  public constructor(graphicsDevice: GraphicsDevice, adopted?: NativeHandle, borrowed?: boolean) {
+    if (adopted !== undefined) {
+      this.#handle = adopted;
+      this.#borrowed = borrowed === true;
+      return;
+    }
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#handle = extensions().createAsciiEffect(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+    );
+    this.#borrowed = false;
+  }
+
+  /** Whether the effect has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /**
+   * Whether this object points at a pass's own effect rather than one the caller made.
+   *
+   * It still owns a handle either way — CNA mints a fresh one for the borrow — so {@link Dispose}
+   * releases it in both cases. What "borrowed" changes is the *meaning*: changing a borrowed
+   * effect's settings changes the pass's, and releasing the handle does not touch the effect
+   * behind it.
+   */
+  public get IsBorrowed(): boolean { return this.#borrowed; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the ASCII effect is disposed");
+    return this.#handle;
+  }
+
+  /** How many texels of the source one character covers. */
+  public get CellSize(): { readonly Width: number; readonly Height: number } {
+    const size = extensions().getAsciiCellSize(this.#active());
+    return Object.freeze({ Width: size.Width, Height: size.Height });
+  }
+
+  /** Sets it. A cell of one texel is a character per texel, which is a very large grid. */
+  public SetCellSize(width: number, height: number): void {
+    assertPositiveCounts({ width, height });
+    extensions().setAsciiCellSize(this.#active(), width, height);
+  }
+
+  /** Whether the characters keep the scene's colour. */
+  public get QuantizeMode(): AsciiQuantizeMode {
+    return extensions().getAsciiQuantizeMode(this.#active()) as AsciiQuantizeMode;
+  }
+  public set QuantizeMode(value: AsciiQuantizeMode) {
+    if (!Number.isInteger(value)) throw new TypeError("QuantizeMode must be an AsciiQuantizeMode");
+    extensions().setAsciiQuantizeMode(this.#active(), value);
+  }
+
+  /** The grid the last {@link Draw} used: the destination divided by the cell size. */
+  public get LastGridDimensions(): { readonly Columns: number; readonly Rows: number } {
+    const size = extensions().getAsciiLastGridDimensions(this.#active());
+    return Object.freeze({ Columns: size.Width, Rows: size.Height });
+  }
+
+  /** Draws the source as characters into a rectangle of whatever target is bound. */
+  public Draw(source: Texture2D, destination: Rectangle): void {
+    if (source == null) throw new TypeError("source is required");
+    if (destination == null) throw new TypeError("destination is required");
+    extensions().drawAsciiEffect(
+      this.#active(), resolveTexture2DHandleForInternalUse(source),
+      {
+        X: Math.trunc(destination.X), Y: Math.trunc(destination.Y),
+        Width: Math.trunc(destination.Width), Height: Math.trunc(destination.Height),
+      },
+    );
+  }
+
+  /**
+   * Releases the handle. Disposing twice is harmless.
+   *
+   * For a borrowed effect this releases the borrow and leaves the pass's own effect alone, which is
+   * what CNA's destroy route does with an aliasing handle — and it has to happen, because a borrow
+   * left outstanding keeps the pass alive and the game undestroyable.
+   */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroyAsciiEffect(handle);
+  }
+}
+
+function adoptAsciiEffect(
+  device: GraphicsDevice, handle: NativeHandle, borrowed: boolean,
+): AsciiPostProcessEffect {
+  return new (AsciiPostProcessEffect as unknown as new (
+    graphicsDevice: GraphicsDevice, adopted: NativeHandle, borrowed: boolean,
+  ) => AsciiPostProcessEffect)(device, handle, borrowed);
+}
+
+/**
+ * A CRT: scanlines, a curved glass, a vignette and a shadow mask.
+ *
+ * An ordinary `Effect` rather than a pass, so it goes wherever an effect goes — a `SpriteBatch`
+ * begin, a {@link FullscreenPass} draw, or an {@link EffectPass} inside a chain.
+ */
+export class CrtEffect {
+  private constructor() { /* created through Create */ }
+
+  /** Makes one, as a real `Effect` the caller owns and disposes. */
+  public static Create(graphicsDevice: GraphicsDevice): Effect {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    return adoptNativeEffectForInternalUse(
+      graphicsDevice, effectBackendFor(graphicsDevice),
+      extensions().createCrtEffect(resolveGraphicsDeviceHandleForInternalUse(graphicsDevice)),
+    );
+  }
+
+  /** How dark the scanlines are. */
+  public static GetScanlineIntensity(effect: Effect): number {
+    return extensions().getCrtScanlineIntensity(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetScanlineIntensity(effect: Effect, value: number): void {
+    extensions().setCrtScanlineIntensity(
+      resolveEffectHandleForInternalUse(effect), finite(value, "value"),
+    );
+  }
+
+  /** How much the glass bulges. */
+  public static GetCurvature(effect: Effect): number {
+    return extensions().getCrtCurvature(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetCurvature(effect: Effect, value: number): void {
+    extensions().setCrtCurvature(
+      resolveEffectHandleForInternalUse(effect), finite(value, "value"),
+    );
+  }
+
+  /** How dark the corners go. */
+  public static GetVignetteIntensity(effect: Effect): number {
+    return extensions().getCrtVignetteIntensity(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetVignetteIntensity(effect: Effect, value: number): void {
+    extensions().setCrtVignetteIntensity(
+      resolveEffectHandleForInternalUse(effect), finite(value, "value"),
+    );
+  }
+
+  /** How strongly the shadow mask shows. */
+  public static GetMaskIntensity(effect: Effect): number {
+    return extensions().getCrtMaskIntensity(resolveEffectHandleForInternalUse(effect));
+  }
+  public static SetMaskIntensity(effect: Effect, value: number): void {
+    extensions().setCrtMaskIntensity(
+      resolveEffectHandleForInternalUse(effect), finite(value, "value"),
+    );
+  }
+
+  /** Which mask pattern it is. */
+  public static GetMaskType(effect: Effect): CrtMaskType {
+    return extensions().getCrtMaskType(resolveEffectHandleForInternalUse(effect)) as CrtMaskType;
+  }
+  public static SetMaskType(effect: Effect, value: CrtMaskType): void {
+    if (!Number.isInteger(value)) throw new TypeError("value must be a CrtMaskType");
+    extensions().setCrtMaskType(resolveEffectHandleForInternalUse(effect), value);
+  }
+}
+
+/**
+ * Reduces the frame's colour depth, with or without an ordered dither.
+ *
+ * The other half of the retro pair with {@link CrtEffect}, and an `Effect` on the same terms.
+ */
+export class DepthEffect {
+  private constructor() { /* created through Create */ }
+
+  /** Makes one, as a real `Effect` the caller owns and disposes. */
+  public static Create(graphicsDevice: GraphicsDevice): Effect {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    return adoptNativeEffectForInternalUse(
+      graphicsDevice, effectBackendFor(graphicsDevice),
+      extensions().createDepthEffect(resolveGraphicsDeviceHandleForInternalUse(graphicsDevice)),
+    );
+  }
+
+  /** Which colour depth the frame is reduced to. */
+  public static GetMode(effect: Effect): DepthEffectMode {
+    return extensions().getDepthEffectMode(
+      resolveEffectHandleForInternalUse(effect),
+    ) as DepthEffectMode;
+  }
+  public static SetMode(effect: Effect, mode: DepthEffectMode): void {
+    if (!Number.isInteger(mode)) throw new TypeError("mode must be a DepthEffectMode");
+    extensions().setDepthEffectMode(resolveEffectHandleForInternalUse(effect), mode);
+  }
+
+  /** Which ordered pattern the reduction dithers with, or none. */
+  public static GetDitherMode(effect: Effect): DitherMode {
+    return extensions().getDepthEffectDitherMode(
+      resolveEffectHandleForInternalUse(effect),
+    ) as DitherMode;
+  }
+  public static SetDitherMode(effect: Effect, mode: DitherMode): void {
+    if (!Number.isInteger(mode)) throw new TypeError("mode must be a DitherMode");
+    extensions().setDepthEffectDitherMode(resolveEffectHandleForInternalUse(effect), mode);
+  }
+}
+
+/**
+ * The colour a thin film reflects, which is why a soap bubble and an oil slick have colours their
+ * materials do not.
+ *
+ * Light reflected off the top of the film and light reflected off the bottom travel different
+ * distances, so some wavelengths cancel and others reinforce — and which ones depends on the angle,
+ * which is why the colours move as the surface turns. A pure function of its five arguments, with
+ * CNA's own GLSL beside it for the shader that wants the same answer.
+ */
+export const ThinFilmIridescence = {
+  /**
+   * The reflectance of a film of `thicknessNanometres` at `cosTheta`, over a base reflectance.
+   *
+   * `outsideIor` is the medium the light arrives through — 1 for air — and `filmIor` is the film's
+   * own. A thickness of zero is no film at all, so the base reflectance comes back unchanged.
+   */
+  Evaluate(
+    outsideIor: number, filmIor: number, cosTheta: number, thicknessNanometres: number,
+    baseReflectance: Vector3,
+  ): Vector3 {
+    for (const [name, value] of [
+      ["outsideIor", outsideIor], ["filmIor", filmIor], ["cosTheta", cosTheta],
+      ["thicknessNanometres", thicknessNanometres],
+    ] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    return toVector3(extensions().evaluateThinFilmIridescence(
+      outsideIor, filmIor, cosTheta, thicknessNanometres,
+      vectorSnapshot(baseReflectance, "baseReflectance"),
+    ));
+  },
+
+  /** CNA's own GLSL for the same model. */
+  get Glsl(): string { return extensions().getThinFilmIridescenceGlsl(); },
+} as const;
+
+function finite(value: number, what: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new TypeError(`${what} must be a finite number`);
+  }
+  return value;
 }

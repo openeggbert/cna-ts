@@ -90,6 +90,30 @@ export class NativeResourceLifetime {
   }
 
   /**
+   * Releases every child this wrapper lent, leaving the handle itself alone.
+   *
+   * Only for the routes that **consume** a handle: CNA takes over the parent, and the views taken
+   * off it — an Effect's techniques and passes, for instance — have to be given back first,
+   * because the wrapper that would have released them is about to stop owning anything. Errors
+   * from the children are collected rather than swallowed, and the first failure still leaves the
+   * rest released.
+   */
+  public ReleaseChildren(): void {
+    this.AssertActive();
+    const errors: unknown[] = [];
+    for (const child of [...this.#children].reverse()) {
+      try {
+        child.Dispose();
+      } catch (error) {
+        errors.push(error);
+      }
+    }
+    if (errors.length > 0) {
+      throw new AggregateError(errors, `failed to release the children of ${this.#label}`);
+    }
+  }
+
+  /**
    * Transfers an owned handle out of this wrapper without releasing it.
    * The recipient must immediately adopt it into another deterministic owner.
    */

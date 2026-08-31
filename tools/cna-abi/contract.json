@@ -905,6 +905,42 @@
     {
       "typeScriptEnum": "DepthEncoding",
       "cnaPrefix": "CNA_DEPTH_ENCODING"
+    },
+    {
+      "typeScriptEnum": "LutInterpolation",
+      "cnaPrefix": "CNA_LUT_INTERPOLATION"
+    },
+    {
+      "typeScriptEnum": "AsciiQuantizeMode",
+      "cnaPrefix": "CNA_ASCII_QUANTIZE_MODE",
+      "suffixOverrides": {
+        "BlackWhite": "BLACK_WHITE"
+      }
+    },
+    {
+      "typeScriptEnum": "CrtMaskType",
+      "cnaPrefix": "CNA_CRT_MASK_TYPE"
+    },
+    {
+      "typeScriptEnum": "DepthEffectMode",
+      "cnaPrefix": "CNA_DEPTH_EFFECT_MODE",
+      "suffixOverrides": {
+        "Color16Bit": "COLOR_16_BIT",
+        "Color8Bit": "COLOR_8_BIT",
+        "Grayscale4Bit": "GRAYSCALE_4_BIT",
+        "Grayscale2Bit": "GRAYSCALE_2_BIT",
+        "Grayscale1Bit": "GRAYSCALE_1_BIT",
+        "Palette256": "PALETTE_256",
+        "Palette16": "PALETTE_16"
+      }
+    },
+    {
+      "typeScriptEnum": "DitherMode",
+      "cnaPrefix": "CNA_DITHER_MODE",
+      "suffixOverrides": {
+        "Bayer4X4": "BAYER_4X4",
+        "Bayer8X8": "BAYER_8X8"
+      }
     }
   ]
 }

@@ -6630,3 +6630,283 @@ test("cascade splits, spot cones and cube faces are exact geometry", async () =>
     `SPOT_CONE=EXACT CUBE_FACES=3_OPPOSITE_PAIRS CUBE_SIZES=${cubeSizes.join("/")}`,
   );
 });
+
+test("every post-process pass's own maths is exact where no renderer is needed", async () => {
+  const {
+    AsciiQuantizeMode, BloomPass, ColorGradePass, CrtMaskType, CubeLut, DepthEffectMode,
+    DepthOfFieldPass, DitherMode, LensFlarePass, LutInterpolation, MotionBlurPass, ThinFilmIridescence,
+    TonemapPass, TonemappingMode,
+  } = computeExtensions;
+
+  // --- bloom's soft knee ------------------------------------------------------------------------
+  // The extraction is a knee, not a cut: a channel ramps in over a window one threshold wide,
+  // squared. Predicted here from the shape rather than from numbers recorded off a run, so a
+  // change to either end of the ramp fails.
+  const softKnee = (value, threshold) => {
+    const knee = Math.max(threshold * 0.5, 1e-4);
+    const t = Math.min(Math.max((value - threshold + knee) / (2 * knee), 0), 1);
+    return value * t * t;
+  };
+  for (const threshold of [0.25, 0.8, 1]) {
+    for (const value of [0, 0.1, threshold * 0.5, threshold * 0.9, threshold, threshold * 1.1, 1.5, 4]) {
+      const measured = BloomPass.ExtractChannel(value, threshold);
+      const predicted = softKnee(value, threshold);
+      assert.ok(
+        Math.abs(measured - predicted) < 1e-5,
+        `bloom knee at value ${value} threshold ${threshold}: ${measured} vs ${predicted}`,
+      );
+    }
+  }
+  // The three points that make it a knee rather than a subtraction, named so a regression to
+  // "value - threshold" is unmistakable: nothing half a threshold below, a quarter of the channel
+  // exactly at it, and the whole channel half a threshold above.
+  assert.equal(BloomPass.ExtractChannel(0.4, 0.8), 0, "half a threshold below contributes nothing");
+  assert.ok(
+    Math.abs(BloomPass.ExtractChannel(0.8, 0.8) - 0.2) < 1e-6,
+    "exactly at the threshold a channel contributes a quarter of itself",
+  );
+  assert.equal(BloomPass.ExtractChannel(1.5, 0.8), 1.5, "well above it, all of it");
+  // Monotone: a brighter channel never contributes less, and a higher threshold never more.
+  let previous = -1;
+  for (let value = 0; value <= 2.0001; value += 0.05) {
+    const current = BloomPass.ExtractChannel(value, 0.8);
+    assert.ok(current >= previous - 1e-6, `bloom extraction fell at ${value}`);
+    previous = current;
+  }
+  for (const value of [0.5, 1, 2]) {
+    assert.ok(
+      BloomPass.ExtractChannel(value, 0.4) >= BloomPass.ExtractChannel(value, 1.2) - 1e-6,
+      "raising the threshold cannot brighten the bloom",
+    );
+  }
+
+  // --- the tonemapping curves -------------------------------------------------------------------
+  // Each mode is a published closed form, so each is checked against that form.
+  const reinhard = (v) => v / (1 + v);
+  const aces = (v) => {
+    const value = Math.min(Math.max((v * (2.51 * v + 0.03)) / (v * (2.43 * v + 0.59) + 0.14), 0), 1);
+    return value;
+  };
+  for (const v of [0, 0.25, 0.5, 1, 2, 4]) {
+    assert.ok(
+      Math.abs(TonemapPass.TonemapChannel(TonemappingMode.None, v, 1, 1) - Math.min(v, 1)) < 1e-6,
+      `no tonemapping is a clamp, not a curve, at ${v}`,
+    );
+    assert.ok(
+      Math.abs(TonemapPass.TonemapChannel(TonemappingMode.Reinhard, v, 1, 1) - reinhard(v)) < 1e-5,
+      `Reinhard at ${v}`,
+    );
+    assert.ok(
+      Math.abs(TonemapPass.TonemapChannel(TonemappingMode.Aces, v, 1, 1) - aces(v)) < 1e-4,
+      `ACES at ${v}`,
+    );
+  }
+  // Exposure multiplies before the curve and gamma raises after it, which is the only order in
+  // which these two numbers commute with anything.
+  assert.ok(
+    Math.abs(TonemapPass.TonemapChannel(TonemappingMode.None, 0.5, 2, 1) - 1) < 1e-6,
+    "exposure scales the channel before the curve",
+  );
+  assert.ok(
+    Math.abs(TonemapPass.TonemapChannel(TonemappingMode.None, 0.25, 1, 2) - 0.5) < 1e-6,
+    "gamma 2 is a square root",
+  );
+  assert.ok(
+    Math.abs(TonemapPass.TonemapChannel(TonemappingMode.Reinhard, 0.5, 2, 2) - Math.sqrt(reinhard(1))) < 1e-5,
+    "and the two compose in that order",
+  );
+  // Every mode is bounded and rising; the curves genuinely differ from each other at midrange.
+  const midrange = new Set();
+  for (const mode of [
+    TonemappingMode.None, TonemappingMode.Reinhard, TonemappingMode.Filmic,
+    TonemappingMode.Aces, TonemappingMode.Uncharted2,
+  ]) {
+    let last = -1;
+    for (let v = 0; v <= 8.0001; v += 0.25) {
+      const mapped = TonemapPass.TonemapChannel(mode, v, 1, 1);
+      assert.ok(mapped >= -1e-6 && mapped <= 1 + 1e-6, `mode ${mode} left [0,1] at ${v}: ${mapped}`);
+      assert.ok(mapped >= last - 1e-6, `mode ${mode} fell at ${v}`);
+      last = mapped;
+    }
+    midrange.add(TonemapPass.TonemapChannel(mode, 1, 1, 1).toFixed(4));
+  }
+  assert.equal(midrange.size, 5, `five modes must be five curves, got ${[...midrange].join(",")}`);
+
+  // --- the thin-lens circle of confusion ---------------------------------------------------------
+  // The textbook formula, with the scene's metres against the lens's millimetres. Written out here
+  // so the binding is checked against optics rather than against itself.
+  const coc = (distance, focus, focalMillimetres, fNumber) => {
+    const d = distance * 1000;
+    const f = focus * 1000;
+    return (focalMillimetres ** 2 / fNumber) * Math.abs(d - f) / (d * (f - focalMillimetres));
+  };
+  for (const [distance, focus, focal, stop] of [
+    [5, 10, 50, 2.8], [20, 10, 50, 2.8], [20, 10, 50, 1.4], [2, 3, 35, 4], [50, 8, 85, 1.8],
+  ]) {
+    const measured = DepthOfFieldPass.CircleOfConfusionMillimetres(distance, focus, focal, stop);
+    const predicted = coc(distance, focus, focal, stop);
+    assert.ok(
+      Math.abs(measured - predicted) < Math.max(predicted * 1e-4, 1e-7),
+      `CoC at ${distance}m focus ${focus}m ${focal}mm f/${stop}: ${measured} vs ${predicted}`,
+    );
+  }
+  assert.equal(
+    DepthOfFieldPass.CircleOfConfusionMillimetres(10, 10, 50, 2.8), 0,
+    "nothing at the focus distance is out of focus",
+  );
+  // Opening the aperture two stops doubles the blur; the sign of the defocus does not matter.
+  const wide = DepthOfFieldPass.CircleOfConfusionMillimetres(20, 10, 50, 1.4);
+  const narrow = DepthOfFieldPass.CircleOfConfusionMillimetres(20, 10, 50, 2.8);
+  assert.ok(Math.abs(wide / narrow - 2) < 1e-4, `f/1.4 must blur exactly twice f/2.8: ${wide / narrow}`);
+  assert.ok(
+    DepthOfFieldPass.CircleOfConfusionMillimetres(5, 10, 50, 2.8) > 0 &&
+    DepthOfFieldPass.CircleOfConfusionMillimetres(15, 10, 50, 2.8) > 0,
+    "both sides of the focal plane blur",
+  );
+
+  // --- the LUT strip's own arithmetic ------------------------------------------------------------
+  // A LUT strip lays a cube out as size tiles of size x size, so a valid strip is size^2 wide and
+  // size tall. Anything that is not is refused with 0 rather than a guess.
+  for (const size of [2, 4, 8, 16, 32, 64]) {
+    assert.equal(ColorGradePass.LutSizeForStrip(size * size, size), size, `strip for size ${size}`);
+  }
+  for (const [width, height] of [[100, 7], [255, 16], [256, 15], [0, 0], [16, 16]]) {
+    assert.equal(ColorGradePass.LutSizeForStrip(width, height), 0, `${width}x${height} is not a strip`);
+  }
+
+  // --- the .cube file ----------------------------------------------------------------------------
+  // A two-entry-per-axis cube whose transfer is the exact channel rotation (r,g,b) -> (b,r,g).
+  // Every corner is read back and checked against that permutation, so a transposed or reversed
+  // parse of the file's own ordering fails here rather than on a GPU.
+  const corners = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1]];
+  const rotate = ([r, g, b]) => [b, r, g];
+  const text = ['TITLE "rotate"', "LUT_3D_SIZE 2", ...corners.map((c) => rotate(c).join(" "))].join("\n");
+  const lut = CubeLut.Parse(text);
+  try {
+    assert.equal(lut.Size, 2);
+    assert.equal(lut.Title, "rotate");
+    assert.equal(lut.IsUnitDomain, true, "a file with no DOMAIN lines is the unit cube");
+    assert.deepEqual([lut.DomainMin.X, lut.DomainMin.Y, lut.DomainMin.Z], [0, 0, 0]);
+    assert.deepEqual([lut.DomainMax.X, lut.DomainMax.Y, lut.DomainMax.Z], [1, 1, 1]);
+    for (const corner of corners) {
+      const entry = lut.GetEntry(corner[0], corner[1], corner[2]);
+      assert.deepEqual(
+        [entry.X, entry.Y, entry.Z], rotate(corner),
+        `entry ${corner.join(",")} did not come back rotated`,
+      );
+    }
+    // Out of range is CNA's own refusal, not a clamp and not a read past the table.
+    for (const bad of [[2, 0, 0], [-1, 0, 0], [0, 2, 0], [0, 0, 9]]) {
+      assert.throws(
+        () => lut.GetEntry(bad[0], bad[1], bad[2]),
+        (error) => error.cnaResult === 1,
+        `entry ${bad.join(",")} is outside a size-2 cube`,
+      );
+    }
+    assert.throws(() => lut.GetEntry(0.5, 0, 0), TypeError, "and a fraction is not an index");
+  } finally {
+    lut.Dispose();
+  }
+  // A domain that is not the unit cube is carried through rather than normalised away.
+  const shifted = CubeLut.Parse([
+    "LUT_3D_SIZE 2", "DOMAIN_MIN 0 0 0.25", "DOMAIN_MAX 1 0.5 1",
+    ...corners.map(() => "0.5 0.5 0.5"),
+  ].join("\n"));
+  try {
+    assert.equal(shifted.IsUnitDomain, false);
+    assert.ok(Math.abs(shifted.DomainMin.Z - 0.25) < 1e-6);
+    assert.ok(Math.abs(shifted.DomainMax.Y - 0.5) < 1e-6);
+    assert.equal(shifted.Title, "", "a file with no TITLE has none, rather than a made-up one");
+  } finally {
+    shifted.Dispose();
+  }
+  // Text that is not a .cube file is refused by CNA with its own result, not parsed into a
+  // default LUT that would silently grade nothing.
+  for (const bad of ["", "hello", "LUT_3D_SIZE 2\n0 0 0", "LUT_3D_SIZE 0"]) {
+    assert.throws(
+      () => CubeLut.Parse(bad),
+      (error) => typeof error.cnaResult === "number" && error.cnaResult !== 0,
+      `parsing ${JSON.stringify(bad.slice(0, 20))} should be refused`,
+    );
+  }
+  assert.throws(() => CubeLut.Parse(null), TypeError);
+
+  // --- thin-film iridescence ----------------------------------------------------------------------
+  // A film of no thickness has no path difference to make, so it cannot separate the wavelengths:
+  // the three channels come back equal. Any real thickness splits them.
+  const base = new Vector3(0.04, 0.07, 0.11);
+  const flat = ThinFilmIridescence.Evaluate(1, 1.5, 1, 0, base);
+  assert.ok(
+    Math.abs(flat.X - base.X) < 1e-6 && Math.abs(flat.Y - base.Y) < 1e-6 &&
+    Math.abs(flat.Z - base.Z) < 1e-6,
+    `a film of zero thickness must hand the base back untouched: ${flat.X},${flat.Y},${flat.Z}`,
+  );
+  const grey = new Vector3(0.04, 0.04, 0.04);
+  const colours = [300, 600].map((nm) => ThinFilmIridescence.Evaluate(1, 1.5, 1, nm, grey));
+  for (const colour of colours) {
+    const channels = [colour.X, colour.Y, colour.Z];
+    assert.ok(
+      Math.max(...channels) - Math.min(...channels) > 1e-3,
+      `a real film thickness must separate the channels: ${channels.join(",")}`,
+    );
+    for (const channel of channels) assert.ok(channel >= 0 && channel <= 1, "reflectance stays a fraction");
+  }
+  assert.ok(
+    Math.hypot(colours[0].X - colours[1].X, colours[0].Y - colours[1].Y, colours[0].Z - colours[1].Z) > 1e-2,
+    "two different thicknesses must not give the same colour",
+  );
+
+  // --- the shader sources the layer hands out ------------------------------------------------------
+  // Never asserted against a dialect: what matters is that they are real programs, that they differ
+  // when the flag that selects them differs, and that the binding does not synthesise them.
+  const sources = {
+    fxaa: computeExtensions.FxaaPass.FragmentGlsl,
+    ssaoPacked: computeExtensions.SsaoPass.OcclusionGlsl(true),
+    ssaoPlain: computeExtensions.SsaoPass.OcclusionGlsl(false),
+    thinFilm: ThinFilmIridescence.Glsl,
+  };
+  for (const [name, source] of Object.entries(sources)) {
+    assert.equal(typeof source, "string", name);
+    assert.ok(source.length > 200, `${name} is too short to be a shader: ${source.length}`);
+    assert.ok(/\bvec[234]\b/.test(source) && source.includes("{"), `${name} is not GLSL`);
+  }
+  // The two that are whole passes have an entry point; the iridescence source is a library of
+  // functions meant to be included, so it has none and is identified by what it declares instead.
+  for (const name of ["fxaa", "ssaoPacked", "ssaoPlain"]) {
+    assert.ok(/\bvoid\s+main\s*\(/.test(sources[name]), `${name} has no entry point`);
+  }
+  assert.ok(
+    !/\bvoid\s+main\s*\(/.test(sources.thinFilm) && /cnaFilm\w+\s*\(/.test(sources.thinFilm),
+    "the iridescence source is a function library, named for the model it implements",
+  );
+  assert.notEqual(
+    sources.ssaoPacked, sources.ssaoPlain,
+    "the packed-depth variant must not be the same program as the plain one",
+  );
+  assert.equal(sources.fxaa, computeExtensions.FxaaPass.FragmentGlsl, "and each is stable across calls");
+
+  // --- the fixed shapes -----------------------------------------------------------------------------
+  assert.equal(MotionBlurPass.SampleCount, 8);
+  assert.equal(LensFlarePass.GhostCount, 4);
+  assert.ok(MotionBlurPass.SampleCount > 1 && LensFlarePass.GhostCount > 1);
+
+  // --- the enums are CNA's, not this binding's ------------------------------------------------------
+  // Each is checked for the distinctness the C header gives it; a duplicated value would make two
+  // different settings the same setting.
+  for (const [name, values] of Object.entries({
+    LutInterpolation, AsciiQuantizeMode, CrtMaskType, DepthEffectMode, DitherMode,
+  })) {
+    const numbers = Object.values(values).filter((v) => typeof v === "number");
+    assert.equal(new Set(numbers).size, numbers.length, `${name} has a duplicated value`);
+    assert.ok(numbers.length >= 2, `${name} needs more than one member`);
+    assert.equal(Math.min(...numbers), 0, `${name} starts at zero, as the C enum does`);
+  }
+  assert.equal(LutInterpolation.Tetrahedral, 1);
+  assert.equal(DepthEffectMode.Grayscale1Bit, 4);
+  assert.equal(DitherMode.Bayer8X8, 2);
+
+  console.log(
+    `CNA_TS_NATIVE_POST_PROCESS_MATHS=PASS BLOOM=SOFT_KNEE TONEMAP=5_DISTINCT_CURVES ` +
+    `COC=THIN_LENS LUT=ROTATION_EXACT THIN_FILM=SPLITS GLSL=${sources.fxaa.length}/${sources.ssaoPacked.length}`,
+  );
+});

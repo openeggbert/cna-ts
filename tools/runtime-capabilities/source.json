@@ -5,10 +5,10 @@
   "granularity": "Each row is a reviewed operation family; overloads with the same implementation and evidence share a row.",
   "sourceAudit": {
     "root": "src/Microsoft/Xna/Framework",
-    "nativeUnavailableErrorSites": 61,
+    "nativeUnavailableErrorSites": 62,
     "notSupportedExceptionSites": 7,
     "filesWithExplicitFailureSites": 23,
-    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it. The count fell by one when VideoPlayer.GetTexture stopped refusing outright and began projecting CNA's borrowed frame."
+    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it. The count fell by one when VideoPlayer.GetTexture stopped refusing outright and began projecting CNA's borrowed frame. It rose by one when Texture3D gained the adopting construction the colour grade's volume LUT arrives through."
   },
   "categories": [
     "VERIFIED_MANAGED",
@@ -1580,6 +1580,108 @@
       "evidence": "destroying a test-backend camera and then opening the platform one is a segmentation fault in CNA 0.21.0: the C ABI installs the test provider as a process-wide platform override holding a raw pointer into the camera resource, and cna_camera_destroy frees that resource without clearing the override. Reproduced in plain C with no binding involved, backtrace resolved to CNA::Devices::Camera::Camera at Camera.cpp:68. cna-ts runs the crashing sequence in a child process and asserts the child dies, so a repair fails the test rather than passing unnoticed; every probe here that opens the platform camera runs before the first test-backend one",
       "proof": [
         "route:cna_camera_destroy",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Colour grading through a .cube LUT, as a strip and as a volume",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the acceptance is a table this package wrote and can apply itself. A size-2 .cube whose transfer is the channel rotation (r,g,b) -> (b,r,g) is parsed, every one of its eight corners is read back and checked against that permutation, and it is then handed to a ColorGradePass twice -- once as the 4x2 strip texture CNA builds from it and once as the 2x2x2 volume -- and run over a sixteen-texel gradient on a windowed OPENGLES3 renderer under Xvfb. The rotation is linear in each channel, so trilinear interpolation reproduces it exactly, and every channel of every texel comes back byte-identical to the rotation computed in JavaScript, through both kinds of table, which also proves no flip, mirror or transpose: the source gradient is asserted to be asymmetric under all three first. Strength is a lerp, so half strength is the exact midpoint and zero strength is the exact source, as is a pass with no table at all. LutSizeForStrip is checked against the shape a strip must have -- N slices of N by N -- for six valid sizes and five invalid ones, which are refused with 0 rather than guessed. Text that is not a .cube file is refused by CNA with its own result rather than parsed into a table that would grade nothing, an index outside the cube is refused rather than clamped, and a non-unit DOMAIN is carried through rather than normalised away. One real binding defect was found by running this: the two getters mint different kinds of handle -- a strip comes back as a borrowed render target and a volume as a Texture3D -- and releasing either through the other's route is refused, which is now what the code does and says",
+      "proof": [
+        "route:cna_cube_lut_parse",
+        "route:cna_cube_lut_get_entry",
+        "route:cna_cube_lut_get_size",
+        "route:cna_cube_lut_copy_title",
+        "route:cna_cube_lut_get_domain_min",
+        "route:cna_cube_lut_create_strip_texture",
+        "route:cna_cube_lut_create_volume_texture",
+        "route:cna_color_grade_pass_create",
+        "route:cna_color_grade_pass_set_lut",
+        "route:cna_color_grade_pass_set_volume_lut",
+        "route:cna_color_grade_pass_get_lut",
+        "route:cna_color_grade_pass_get_volume_lut",
+        "route:cna_color_grade_pass_set_strength",
+        "route:cna_color_grade_pass_set_interpolation",
+        "route:cna_color_grade_pass_lut_size_for_strip",
+        "route:cna_color_grade_pass_create_identity_lut",
+        "test:test/windowed-renderer.integration.mjs",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "The rest of the post-process passes: tonemapping, depth of field, lens flare, motion blur, chromatic aberration and film grain",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "every pass is checked against something that is not the pass. The tonemapper is the clearest case: CNA ships the curve twice, once as the shader and once as cna_tonemap_pass_tonemap_channel on the CPU, and the headless suite first pins that CPU route to the published closed forms -- Reinhard is exactly v/(1+v), ACES is the Narkowicz fit, None is a clamp not a curve, exposure multiplies before the curve and gamma raises after it -- and the windowed suite then predicts every channel of every texel of a drawn frame through it, at five different settings that produce five different frames. Bloom's extraction is a soft knee, not the subtraction its comment used to claim: measured at (0.8, 0.8) it returns 0.2, a quarter of the channel, and the headless test now predicts the whole ramp from the knee's shape and checks monotonicity in both value and threshold. Depth of field's circle of confusion is checked against the thin-lens equation written out in the test, at five lens settings: it is zero at the focus distance, symmetric about it, and opening two stops doubles it exactly. Each pass's own off switch is an exact identity on a real GPU -- a bloom of no intensity, a bloom whose threshold is above every channel, a flare of either, a blur of no strength, an aberration of no strength, grain of no intensity, and the layer's own blit -- eight of them, all byte-exact. Turned on, each must change the frame in the way its name means: a bloom only ever adds light, chromatic aberration moves red and blue and leaves green untouched at every texel, grain changes most of the frame by amounts that differ per texel rather than a constant offset, and FXAA leaves the smooth interior alone and touches the border it clamps at. The GLSL the layer hands out is never compared against a dialect: what is asserted is that each source is a real program, that the packed-depth SSAO variant is a different program from the plain one, and that the iridescence source is the function library it claims to be",
+      "proof": [
+        "route:cna_tonemap_pass_tonemap_channel",
+        "route:cna_tonemap_pass_set_mode",
+        "route:cna_tonemap_pass_set_exposure",
+        "route:cna_tonemap_pass_set_gamma",
+        "route:cna_bloom_pass_extract_channel",
+        "route:cna_depth_of_field_pass_create",
+        "route:cna_depth_of_field_pass_circle_of_confusion_millimetres",
+        "route:cna_depth_of_field_pass_set_focus_distance",
+        "route:cna_lens_flare_pass_create",
+        "route:cna_lens_flare_pass_set_intensity",
+        "route:cna_motion_blur_pass_create",
+        "route:cna_motion_blur_pass_set_strength",
+        "route:cna_chromatic_aberration_pass_create",
+        "route:cna_chromatic_aberration_pass_set_strength",
+        "route:cna_film_grain_pass_create",
+        "route:cna_film_grain_pass_set_intensity",
+        "route:cna_fullscreen_pass_draw",
+        "route:cna_thin_film_iridescence_evaluate",
+        "route:cna_thin_film_iridescence_copy_glsl",
+        "test:test/windowed-renderer.integration.mjs",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "The retro effects: a CRT shader, an ASCII quantiser and a depth-quantising effect",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the CRT is drawn through the layer's own fullscreen pass over a flat grey source, so what comes back is the pattern the shader adds and nothing else. With all four parameters at zero it is a byte-exact copy, which is what makes each later change attributable. Scanlines darken alternate rows by exactly the intensity -- 200 becomes 100 at 0.5 and 150 at 0.25, on every texel of every second row, with the rows between untouched -- and a vignette is verified as radial rather than as recorded numbers: symmetric under both mirrors at all 64 texels, strictly brightening along the diagonal towards the centre, a corner below half the source and a centre above nine tenths of it. Every CRT parameter is written with a value that differs from the default it replaces, so a setter that did nothing is caught rather than agreeing with itself. The ASCII effect's grid is the source size over the cell size and never the destination's: a 32x24 source drawn into a rectangle four times its area gives 4x2 in 8x12 cells, 8x6 in 4x4 and 2x3 in 16x8, each checked against that division, and 0x0 before anything has been quantised. An AsciiPass lends its own effect, and writing a cell size through the borrow changes the pass's own. The depth effect is qualified as native state rather than pixels and says so: it quantises a depth input a colour blit does not supply, so its mode and dither round-trip through CNA and no picture is claimed",
+      "proof": [
+        "route:cna_crt_effect_create",
+        "route:cna_crt_effect_set_scanline_intensity",
+        "route:cna_crt_effect_set_curvature",
+        "route:cna_crt_effect_set_vignette_intensity",
+        "route:cna_crt_effect_set_mask_intensity",
+        "route:cna_crt_effect_set_mask_type",
+        "route:cna_ascii_post_process_effect_create",
+        "route:cna_ascii_post_process_effect_draw",
+        "route:cna_ascii_post_process_effect_set_cell_size",
+        "route:cna_ascii_post_process_effect_get_last_grid_dimensions",
+        "route:cna_ascii_pass_get_effect",
+        "route:cna_depth_effect_create",
+        "route:cna_depth_effect_set_mode",
+        "route:cna_depth_effect_set_dither_mode",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "An effect pass: a caller's own Effect run over a frame, borrowed or taken",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "two ownership rules, both measured rather than read. A borrowing pass leaves the effect the caller's: reading it four times returns it four times and detaches nothing, SetEffect(null) detaches and setting it back reattaches. An owning pass consumes the handle, which CNA does by releasing it out of its own registry, so the caller's Effect wrapper gives up its child views and stops owning anything, and its Dispose becomes the no-op Dispose always is once a resource has been given away -- established by measuring that CNA refuses the consumed handle with INVALID_HANDLE and that the technique and pass views release cleanly on either side of the consume. The getter is upstream finding 17: its header says the borrow must not be destroyed, and it mints a registered handle anyway, so obeying the header makes cna_game_destroy refuse for the rest of the process. The binding releases it and documents why on itself, and the windowed game's clean shutdown is the other half of that evidence",
+      "proof": [
+        "route:cna_post_process_effect_pass_create",
+        "route:cna_post_process_effect_pass_create_owning",
+        "route:cna_post_process_effect_pass_get_effect",
+        "route:cna_post_process_effect_pass_set_effect",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Exiting a process after cna_game_destroy has refused",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA",
+      "evidence": "a refused cna_game_destroy is not side-effect-free: a process that ends in that state takes SIGSEGV after its last statement has run, and an explicit process.exit(0) does not avoid it. Measured five ways in one shape -- a game never destroyed exits cleanly, a game destroyed exits cleanly, a refusal that is cleaned up and retried exits cleanly, and a refusal that is left standing crashes whether or not the offending handle was released afterwards -- so the crash belongs to the refusal rather than to a live game at exit. Written up as upstream finding 18. Every probe game in this package destroys its game and asserts the destroy succeeded, and the suites run one game per process, so a regression that starts refusing shows up as a failed assertion and as a non-zero exit code rather than as a passing file that crashes on the way out",
+      "proof": [
+        "route:cna_game_destroy",
+        "test:test/windowed-renderer.integration.mjs",
         "test:test/native-cna.integration.mjs"
       ]
     }

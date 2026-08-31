@@ -734,6 +734,53 @@ typedef CNA_Result (*CubeShadowCreateFn)(
   CNA_Handle, CNA_ShadowQuality, CNA_CubeShadowMapHandle*);
 typedef CNA_Result (*CubeShadowUpdateFn)(CNA_CubeShadowMapHandle, const CNA_PointLightEXT*);
 
+/* --- the rest of the post-process chain, and the extended screen effects ----------------------- */
+typedef CNA_Result (*LutInterpolationOutFn)(CNA_PostProcessPassHandle, CNA_LutInterpolation*);
+typedef CNA_Result (*LutInterpolationInFn)(CNA_PostProcessPassHandle, CNA_LutInterpolation);
+typedef CNA_Result (*IdentityLutFn)(CNA_Handle, int32_t, CNA_Handle*);
+typedef CNA_Result (*LutStripSizeFn)(int32_t, int32_t, int32_t*);
+typedef CNA_Result (*CubeLutParseFn)(CNA_StringView, CNA_CubeLutHandle*);
+typedef CNA_Result (*CubeLutTextureFn)(CNA_CubeLutHandle, CNA_Handle, CNA_Handle*);
+typedef CNA_Result (*CubeLutVector3OutFn)(CNA_CubeLutHandle, CNA_Vector3*);
+typedef CNA_Result (*CubeLutEntryFn)(
+  CNA_CubeLutHandle, int32_t, int32_t, int32_t, CNA_Vector3*);
+typedef CNA_Result (*CircleOfConfusionFn)(float, float, float, float, float*);
+typedef CNA_Result (*BloomExtractFn)(float, float, float*);
+typedef CNA_Result (*TonemapChannelFn)(CNA_TonemappingMode, float, float, float, float*);
+typedef CNA_Result (*SsaoKernelFn)(
+  CNA_PostProcessPassHandle, CNA_Vector3*, uint64_t, uint64_t*);
+typedef CNA_Result (*PackedCopyTextFn)(CNA_Bool, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*ThinFilmFn)(float, float, float, float, const CNA_Vector3*, CNA_Vector3*);
+typedef CNA_Result (*FullscreenCreateFn)(CNA_Handle, CNA_FullscreenPassHandle*);
+typedef CNA_Result (*FullscreenDrawFn)(
+  CNA_FullscreenPassHandle, CNA_Handle, CNA_Handle, CNA_EffectHandle, int32_t, int32_t,
+  const CNA_SamplerState*);
+typedef CNA_Result (*FullscreenDrawOverFn)(
+  CNA_FullscreenPassHandle, CNA_Handle, CNA_EffectHandle, int32_t, int32_t,
+  const CNA_SamplerState*);
+typedef CNA_Result (*EffectPassCreateFn)(
+  CNA_Handle, CNA_EffectHandle, CNA_StringView, CNA_PostProcessPassHandle*);
+typedef CNA_Result (*ScopedTargetBeginFn)(
+  CNA_Handle, CNA_Handle, CNA_ScopedRenderTargetHandle*);
+typedef CNA_Result (*AsciiEffectOutFn)(
+  CNA_PostProcessPassHandle, CNA_AsciiPostProcessEffectHandle*);
+typedef CNA_Result (*AsciiCellSizeOutFn)(
+  CNA_AsciiPostProcessEffectHandle, int32_t*, int32_t*);
+typedef CNA_Result (*AsciiCellSizeInFn)(CNA_AsciiPostProcessEffectHandle, int32_t, int32_t);
+typedef CNA_Result (*AsciiQuantizeOutFn)(
+  CNA_AsciiPostProcessEffectHandle, CNA_AsciiQuantizeMode*);
+typedef CNA_Result (*AsciiQuantizeInFn)(CNA_AsciiPostProcessEffectHandle, CNA_AsciiQuantizeMode);
+typedef CNA_Result (*AsciiDrawFn)(
+  CNA_AsciiPostProcessEffectHandle, CNA_Handle, const CNA_Rectangle*);
+typedef CNA_Result (*CrtMaskOutFn)(CNA_EffectHandle, CNA_CRTMaskType*);
+typedef CNA_Result (*CrtMaskInFn)(CNA_EffectHandle, CNA_CRTMaskType);
+typedef CNA_Result (*DepthEffectModeOutFn)(CNA_EffectHandle, CNA_DepthEffectMode*);
+typedef CNA_Result (*DepthEffectModeInFn)(CNA_EffectHandle, CNA_DepthEffectMode);
+typedef CNA_Result (*DitherModeOutFn)(CNA_EffectHandle, CNA_DitherMode*);
+typedef CNA_Result (*DitherModeInFn)(CNA_EffectHandle, CNA_DitherMode);
+typedef CNA_Result (*EffectFloatOutFn)(CNA_EffectHandle, float*);
+typedef CNA_Result (*EffectFloatInFn)(CNA_EffectHandle, float);
+
 /* --- the engine layer's compute path ---------------------------------------------------------- */
 /*
  * Storage buffers, compute shaders and GPU timers. The handle typedefs in `engine_layer.h` are all
@@ -1861,6 +1908,101 @@ typedef struct Api {
   HandleHandleOutFn cube_shadow_map_get_shadow_texture;
   BoolGetFn cube_shadow_map_is_supported;
 
+  /* the rest of the post-process chain, and the extended screen effects */
+  PostProcessPassCreateFn color_grade_pass_create;
+  IdentityLutFn color_grade_pass_create_identity_lut;
+  LutInterpolationOutFn color_grade_pass_get_interpolation;
+  LutInterpolationInFn color_grade_pass_set_interpolation;
+  HandleHandleOutFn color_grade_pass_get_lut;
+  TwoHandleFn color_grade_pass_set_lut;
+  HandleHandleOutFn color_grade_pass_get_volume_lut;
+  TwoHandleFn color_grade_pass_set_volume_lut;
+  HandleFloatOutFn color_grade_pass_get_strength;
+  HandleFloatFn color_grade_pass_set_strength;
+  LutStripSizeFn color_grade_pass_lut_size_for_strip;
+  CubeLutParseFn cube_lut_parse;
+  GameHandleFn cube_lut_destroy;
+  HandleI32OutFn cube_lut_get_size;
+  CubeLutEntryFn cube_lut_get_entry;
+  CubeLutVector3OutFn cube_lut_get_domain_min;
+  CubeLutVector3OutFn cube_lut_get_domain_max;
+  BoolGetFn cube_lut_is_unit_domain;
+  HandleCopyStringFn cube_lut_copy_title;
+  CubeLutTextureFn cube_lut_create_strip_texture;
+  CubeLutTextureFn cube_lut_create_volume_texture;
+  PostProcessPassCreateFn depth_of_field_pass_create;
+  HandleFloatOutFn depth_of_field_pass_get_focus_distance;
+  HandleFloatFn depth_of_field_pass_set_focus_distance;
+  HandleFloatOutFn depth_of_field_pass_get_focal_length;
+  HandleFloatFn depth_of_field_pass_set_focal_length;
+  HandleFloatOutFn depth_of_field_pass_get_f_number;
+  HandleFloatFn depth_of_field_pass_set_f_number;
+  HandleFloatOutFn depth_of_field_pass_get_max_radius;
+  HandleFloatFn depth_of_field_pass_set_max_radius;
+  CircleOfConfusionFn depth_of_field_pass_circle_of_confusion_millimetres;
+  PostProcessPassCreateFn lens_flare_pass_create;
+  HandleFloatOutFn lens_flare_pass_get_threshold;
+  HandleFloatFn lens_flare_pass_set_threshold;
+  HandleFloatOutFn lens_flare_pass_get_intensity;
+  HandleFloatFn lens_flare_pass_set_intensity;
+  HandleFloatOutFn lens_flare_pass_get_dispersal;
+  HandleFloatFn lens_flare_pass_set_dispersal;
+  PostProcessPassCreateFn motion_blur_pass_create;
+  HandleFloatOutFn motion_blur_pass_get_strength;
+  HandleFloatFn motion_blur_pass_set_strength;
+  HandleFloatOutFn motion_blur_pass_get_max_distance;
+  HandleFloatFn motion_blur_pass_set_max_distance;
+  PostProcessPassCreateFn chromatic_aberration_pass_create;
+  HandleFloatOutFn chromatic_aberration_pass_get_strength;
+  HandleFloatFn chromatic_aberration_pass_set_strength;
+  PostProcessPassCreateFn film_grain_pass_create;
+  HandleFloatOutFn film_grain_pass_get_intensity;
+  HandleFloatFn film_grain_pass_set_intensity;
+  PostProcessPassCreateFn ascii_pass_create;
+  AsciiEffectOutFn ascii_pass_get_effect;
+  BloomExtractFn bloom_pass_extract_channel;
+  TonemapChannelFn tonemap_pass_tonemap_channel;
+  CopyGlslFn fxaa_pass_copy_fragment_glsl;
+  SsaoKernelFn ssao_pass_copy_kernel;
+  PackedCopyTextFn ssao_pass_copy_occlusion_glsl;
+  ThinFilmFn thin_film_iridescence_evaluate;
+  CopyGlslFn thin_film_iridescence_copy_glsl;
+  FullscreenCreateFn fullscreen_pass_create;
+  GameHandleFn fullscreen_pass_destroy;
+  FullscreenDrawFn fullscreen_pass_draw;
+  FullscreenDrawOverFn fullscreen_pass_draw_over_current_target;
+  EffectPassCreateFn post_process_effect_pass_create;
+  EffectPassCreateFn post_process_effect_pass_create_owning;
+  HandleHandleOutFn post_process_effect_pass_get_effect;
+  TwoHandleFn post_process_effect_pass_set_effect;
+  ScopedTargetBeginFn scoped_render_target_begin;
+  GameHandleFn scoped_render_target_end;
+  BoolGetFn scoped_render_target_get_has_recorded_previous;
+  HandleHandleOutFn ascii_post_process_effect_create;
+  GameHandleFn ascii_post_process_effect_destroy;
+  AsciiCellSizeOutFn ascii_post_process_effect_get_cell_size;
+  AsciiCellSizeInFn ascii_post_process_effect_set_cell_size;
+  AsciiQuantizeOutFn ascii_post_process_effect_get_quantize_mode;
+  AsciiQuantizeInFn ascii_post_process_effect_set_quantize_mode;
+  AsciiDrawFn ascii_post_process_effect_draw;
+  AsciiCellSizeOutFn ascii_post_process_effect_get_last_grid_dimensions;
+  HandleHandleOutFn crt_effect_create;
+  EffectFloatOutFn crt_effect_get_scanline_intensity;
+  EffectFloatInFn crt_effect_set_scanline_intensity;
+  EffectFloatOutFn crt_effect_get_curvature;
+  EffectFloatInFn crt_effect_set_curvature;
+  EffectFloatOutFn crt_effect_get_vignette_intensity;
+  EffectFloatInFn crt_effect_set_vignette_intensity;
+  EffectFloatOutFn crt_effect_get_mask_intensity;
+  EffectFloatInFn crt_effect_set_mask_intensity;
+  CrtMaskOutFn crt_effect_get_mask_type;
+  CrtMaskInFn crt_effect_set_mask_type;
+  HandleHandleOutFn depth_effect_create;
+  DepthEffectModeOutFn depth_effect_get_mode;
+  DepthEffectModeInFn depth_effect_set_mode;
+  DitherModeOutFn depth_effect_get_dither_mode;
+  DitherModeInFn depth_effect_set_dither_mode;
+
   /* the engine layer's compute path */
   PresentationParametersInitFn presentation_parameters_init;
   StandaloneDeviceCreateFn graphics_device_create;
@@ -2196,6 +2338,35 @@ static int get_args(napi_env env, napi_callback_info info, size_t expected, napi
     return 0;
   }
   return 1;
+}
+
+/*
+ * The `(char*, capacity, uint64_t*)` shape CNA uses for every piece of shader source it hands out:
+ * asked with a zero capacity first, so the buffer is the size CNA reports rather than one guessed
+ * here.
+ */
+static napi_value copy_glsl_string(
+  napi_env env, napi_callback_info info, CopyGlslFn route, const char* name
+) {
+  uint64_t required = 0;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  CNA_Result result = route(NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, name, result);
+  }
+  char* text = (char*) malloc((size_t) required + 1U);
+  if (!text) return throw_message(env, "shader source allocation failed");
+  result = route(text, required + 1U, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(text);
+    return throw_result(env, name, result);
+  }
+  napi_value output = NULL;
+  const napi_status status = napi_create_string_utf8(env, text, (size_t) required, &output);
+  free(text);
+  if (status != napi_ok) return throw_message(env, "the shader source is not UTF-8");
+  return output;
 }
 
 static GameContext* find_game(CNA_Handle handle) {
@@ -3398,6 +3569,100 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(cube_shadow_map_get_shadow_texture, HandleHandleOutFn, "cna_cube_shadow_map_get_shadow_texture");
   LOAD_REQUIRED(cube_shadow_map_is_supported, BoolGetFn, "cna_cube_shadow_map_is_supported");
 
+  LOAD_REQUIRED(color_grade_pass_create, PostProcessPassCreateFn, "cna_color_grade_pass_create");
+  LOAD_REQUIRED(color_grade_pass_create_identity_lut, IdentityLutFn, "cna_color_grade_pass_create_identity_lut");
+  LOAD_REQUIRED(color_grade_pass_get_interpolation, LutInterpolationOutFn, "cna_color_grade_pass_get_interpolation");
+  LOAD_REQUIRED(color_grade_pass_set_interpolation, LutInterpolationInFn, "cna_color_grade_pass_set_interpolation");
+  LOAD_REQUIRED(color_grade_pass_get_lut, HandleHandleOutFn, "cna_color_grade_pass_get_lut");
+  LOAD_REQUIRED(color_grade_pass_set_lut, TwoHandleFn, "cna_color_grade_pass_set_lut");
+  LOAD_REQUIRED(color_grade_pass_get_volume_lut, HandleHandleOutFn, "cna_color_grade_pass_get_volume_lut");
+  LOAD_REQUIRED(color_grade_pass_set_volume_lut, TwoHandleFn, "cna_color_grade_pass_set_volume_lut");
+  LOAD_REQUIRED(color_grade_pass_get_strength, HandleFloatOutFn, "cna_color_grade_pass_get_strength");
+  LOAD_REQUIRED(color_grade_pass_set_strength, HandleFloatFn, "cna_color_grade_pass_set_strength");
+  LOAD_REQUIRED(color_grade_pass_lut_size_for_strip, LutStripSizeFn, "cna_color_grade_pass_lut_size_for_strip");
+  LOAD_REQUIRED(cube_lut_parse, CubeLutParseFn, "cna_cube_lut_parse");
+  LOAD_REQUIRED(cube_lut_destroy, GameHandleFn, "cna_cube_lut_destroy");
+  LOAD_REQUIRED(cube_lut_get_size, HandleI32OutFn, "cna_cube_lut_get_size");
+  LOAD_REQUIRED(cube_lut_get_entry, CubeLutEntryFn, "cna_cube_lut_get_entry");
+  LOAD_REQUIRED(cube_lut_get_domain_min, CubeLutVector3OutFn, "cna_cube_lut_get_domain_min");
+  LOAD_REQUIRED(cube_lut_get_domain_max, CubeLutVector3OutFn, "cna_cube_lut_get_domain_max");
+  LOAD_REQUIRED(cube_lut_is_unit_domain, BoolGetFn, "cna_cube_lut_is_unit_domain");
+  LOAD_REQUIRED(cube_lut_copy_title, HandleCopyStringFn, "cna_cube_lut_copy_title");
+  LOAD_REQUIRED(cube_lut_create_strip_texture, CubeLutTextureFn, "cna_cube_lut_create_strip_texture");
+  LOAD_REQUIRED(cube_lut_create_volume_texture, CubeLutTextureFn, "cna_cube_lut_create_volume_texture");
+  LOAD_REQUIRED(depth_of_field_pass_create, PostProcessPassCreateFn, "cna_depth_of_field_pass_create");
+  LOAD_REQUIRED(depth_of_field_pass_get_focus_distance, HandleFloatOutFn, "cna_depth_of_field_pass_get_focus_distance");
+  LOAD_REQUIRED(depth_of_field_pass_set_focus_distance, HandleFloatFn, "cna_depth_of_field_pass_set_focus_distance");
+  LOAD_REQUIRED(depth_of_field_pass_get_focal_length, HandleFloatOutFn, "cna_depth_of_field_pass_get_focal_length");
+  LOAD_REQUIRED(depth_of_field_pass_set_focal_length, HandleFloatFn, "cna_depth_of_field_pass_set_focal_length");
+  LOAD_REQUIRED(depth_of_field_pass_get_f_number, HandleFloatOutFn, "cna_depth_of_field_pass_get_f_number");
+  LOAD_REQUIRED(depth_of_field_pass_set_f_number, HandleFloatFn, "cna_depth_of_field_pass_set_f_number");
+  LOAD_REQUIRED(depth_of_field_pass_get_max_radius, HandleFloatOutFn, "cna_depth_of_field_pass_get_max_radius");
+  LOAD_REQUIRED(depth_of_field_pass_set_max_radius, HandleFloatFn, "cna_depth_of_field_pass_set_max_radius");
+  LOAD_REQUIRED(depth_of_field_pass_circle_of_confusion_millimetres, CircleOfConfusionFn, "cna_depth_of_field_pass_circle_of_confusion_millimetres");
+  LOAD_REQUIRED(lens_flare_pass_create, PostProcessPassCreateFn, "cna_lens_flare_pass_create");
+  LOAD_REQUIRED(lens_flare_pass_get_threshold, HandleFloatOutFn, "cna_lens_flare_pass_get_threshold");
+  LOAD_REQUIRED(lens_flare_pass_set_threshold, HandleFloatFn, "cna_lens_flare_pass_set_threshold");
+  LOAD_REQUIRED(lens_flare_pass_get_intensity, HandleFloatOutFn, "cna_lens_flare_pass_get_intensity");
+  LOAD_REQUIRED(lens_flare_pass_set_intensity, HandleFloatFn, "cna_lens_flare_pass_set_intensity");
+  LOAD_REQUIRED(lens_flare_pass_get_dispersal, HandleFloatOutFn, "cna_lens_flare_pass_get_dispersal");
+  LOAD_REQUIRED(lens_flare_pass_set_dispersal, HandleFloatFn, "cna_lens_flare_pass_set_dispersal");
+  LOAD_REQUIRED(motion_blur_pass_create, PostProcessPassCreateFn, "cna_motion_blur_pass_create");
+  LOAD_REQUIRED(motion_blur_pass_get_strength, HandleFloatOutFn, "cna_motion_blur_pass_get_strength");
+  LOAD_REQUIRED(motion_blur_pass_set_strength, HandleFloatFn, "cna_motion_blur_pass_set_strength");
+  LOAD_REQUIRED(motion_blur_pass_get_max_distance, HandleFloatOutFn, "cna_motion_blur_pass_get_max_distance");
+  LOAD_REQUIRED(motion_blur_pass_set_max_distance, HandleFloatFn, "cna_motion_blur_pass_set_max_distance");
+  LOAD_REQUIRED(chromatic_aberration_pass_create, PostProcessPassCreateFn, "cna_chromatic_aberration_pass_create");
+  LOAD_REQUIRED(chromatic_aberration_pass_get_strength, HandleFloatOutFn, "cna_chromatic_aberration_pass_get_strength");
+  LOAD_REQUIRED(chromatic_aberration_pass_set_strength, HandleFloatFn, "cna_chromatic_aberration_pass_set_strength");
+  LOAD_REQUIRED(film_grain_pass_create, PostProcessPassCreateFn, "cna_film_grain_pass_create");
+  LOAD_REQUIRED(film_grain_pass_get_intensity, HandleFloatOutFn, "cna_film_grain_pass_get_intensity");
+  LOAD_REQUIRED(film_grain_pass_set_intensity, HandleFloatFn, "cna_film_grain_pass_set_intensity");
+  LOAD_REQUIRED(ascii_pass_create, PostProcessPassCreateFn, "cna_ascii_pass_create");
+  LOAD_REQUIRED(ascii_pass_get_effect, AsciiEffectOutFn, "cna_ascii_pass_get_effect");
+  LOAD_REQUIRED(bloom_pass_extract_channel, BloomExtractFn, "cna_bloom_pass_extract_channel");
+  LOAD_REQUIRED(tonemap_pass_tonemap_channel, TonemapChannelFn, "cna_tonemap_pass_tonemap_channel");
+  LOAD_REQUIRED(fxaa_pass_copy_fragment_glsl, CopyGlslFn, "cna_fxaa_pass_copy_fragment_glsl");
+  LOAD_REQUIRED(ssao_pass_copy_kernel, SsaoKernelFn, "cna_ssao_pass_copy_kernel");
+  LOAD_REQUIRED(ssao_pass_copy_occlusion_glsl, PackedCopyTextFn, "cna_ssao_pass_copy_occlusion_glsl");
+  LOAD_REQUIRED(thin_film_iridescence_evaluate, ThinFilmFn, "cna_thin_film_iridescence_evaluate");
+  LOAD_REQUIRED(thin_film_iridescence_copy_glsl, CopyGlslFn, "cna_thin_film_iridescence_copy_glsl");
+  LOAD_REQUIRED(fullscreen_pass_create, FullscreenCreateFn, "cna_fullscreen_pass_create");
+  LOAD_REQUIRED(fullscreen_pass_destroy, GameHandleFn, "cna_fullscreen_pass_destroy");
+  LOAD_REQUIRED(fullscreen_pass_draw, FullscreenDrawFn, "cna_fullscreen_pass_draw");
+  LOAD_REQUIRED(fullscreen_pass_draw_over_current_target, FullscreenDrawOverFn, "cna_fullscreen_pass_draw_over_current_target");
+  LOAD_REQUIRED(post_process_effect_pass_create, EffectPassCreateFn, "cna_post_process_effect_pass_create");
+  LOAD_REQUIRED(post_process_effect_pass_create_owning, EffectPassCreateFn, "cna_post_process_effect_pass_create_owning");
+  LOAD_REQUIRED(post_process_effect_pass_get_effect, HandleHandleOutFn, "cna_post_process_effect_pass_get_effect");
+  LOAD_REQUIRED(post_process_effect_pass_set_effect, TwoHandleFn, "cna_post_process_effect_pass_set_effect");
+  LOAD_REQUIRED(scoped_render_target_begin, ScopedTargetBeginFn, "cna_scoped_render_target_begin");
+  LOAD_REQUIRED(scoped_render_target_end, GameHandleFn, "cna_scoped_render_target_end");
+  LOAD_REQUIRED(scoped_render_target_get_has_recorded_previous, BoolGetFn, "cna_scoped_render_target_get_has_recorded_previous");
+  LOAD_REQUIRED(ascii_post_process_effect_create, HandleHandleOutFn, "cna_ascii_post_process_effect_create");
+  LOAD_REQUIRED(ascii_post_process_effect_destroy, GameHandleFn, "cna_ascii_post_process_effect_destroy");
+  LOAD_REQUIRED(ascii_post_process_effect_get_cell_size, AsciiCellSizeOutFn, "cna_ascii_post_process_effect_get_cell_size");
+  LOAD_REQUIRED(ascii_post_process_effect_set_cell_size, AsciiCellSizeInFn, "cna_ascii_post_process_effect_set_cell_size");
+  LOAD_REQUIRED(ascii_post_process_effect_get_quantize_mode, AsciiQuantizeOutFn, "cna_ascii_post_process_effect_get_quantize_mode");
+  LOAD_REQUIRED(ascii_post_process_effect_set_quantize_mode, AsciiQuantizeInFn, "cna_ascii_post_process_effect_set_quantize_mode");
+  LOAD_REQUIRED(ascii_post_process_effect_draw, AsciiDrawFn, "cna_ascii_post_process_effect_draw");
+  LOAD_REQUIRED(ascii_post_process_effect_get_last_grid_dimensions, AsciiCellSizeOutFn, "cna_ascii_post_process_effect_get_last_grid_dimensions");
+  LOAD_REQUIRED(crt_effect_create, HandleHandleOutFn, "cna_crt_effect_create");
+  LOAD_REQUIRED(crt_effect_get_scanline_intensity, EffectFloatOutFn, "cna_crt_effect_get_scanline_intensity");
+  LOAD_REQUIRED(crt_effect_set_scanline_intensity, EffectFloatInFn, "cna_crt_effect_set_scanline_intensity");
+  LOAD_REQUIRED(crt_effect_get_curvature, EffectFloatOutFn, "cna_crt_effect_get_curvature");
+  LOAD_REQUIRED(crt_effect_set_curvature, EffectFloatInFn, "cna_crt_effect_set_curvature");
+  LOAD_REQUIRED(crt_effect_get_vignette_intensity, EffectFloatOutFn, "cna_crt_effect_get_vignette_intensity");
+  LOAD_REQUIRED(crt_effect_set_vignette_intensity, EffectFloatInFn, "cna_crt_effect_set_vignette_intensity");
+  LOAD_REQUIRED(crt_effect_get_mask_intensity, EffectFloatOutFn, "cna_crt_effect_get_mask_intensity");
+  LOAD_REQUIRED(crt_effect_set_mask_intensity, EffectFloatInFn, "cna_crt_effect_set_mask_intensity");
+  LOAD_REQUIRED(crt_effect_get_mask_type, CrtMaskOutFn, "cna_crt_effect_get_mask_type");
+  LOAD_REQUIRED(crt_effect_set_mask_type, CrtMaskInFn, "cna_crt_effect_set_mask_type");
+  LOAD_REQUIRED(depth_effect_create, HandleHandleOutFn, "cna_depth_effect_create");
+  LOAD_REQUIRED(depth_effect_get_mode, DepthEffectModeOutFn, "cna_depth_effect_get_mode");
+  LOAD_REQUIRED(depth_effect_set_mode, DepthEffectModeInFn, "cna_depth_effect_set_mode");
+  LOAD_REQUIRED(depth_effect_get_dither_mode, DitherModeOutFn, "cna_depth_effect_get_dither_mode");
+  LOAD_REQUIRED(depth_effect_set_dither_mode, DitherModeInFn, "cna_depth_effect_set_dither_mode");
+
   LOAD_REQUIRED(presentation_parameters_init, PresentationParametersInitFn, "cna_presentation_parameters_init");
   LOAD_REQUIRED(graphics_device_create, StandaloneDeviceCreateFn, "cna_graphics_device_create");
   LOAD_REQUIRED(graphics_device_destroy, GameHandleFn, "cna_graphics_device_destroy");
@@ -4024,6 +4289,24 @@ static int read_vector3(napi_env env, napi_value object, const char* name, CNA_V
   out->x = (float) values[0];
   out->y = (float) values[1];
   out->z = (float) values[2];
+  return 1;
+}
+
+static int read_rectangle(napi_env env, napi_value value, CNA_Rectangle* out) {
+  napi_value component;
+  int32_t fields[4] = {0, 0, 0, 0};
+  static const char* const names[] = {"X", "Y", "Width", "Height"};
+  for (size_t index = 0; index < 4; index += 1) {
+    if (napi_get_named_property(env, value, names[index], &component) != napi_ok ||
+        napi_get_value_int32(env, component, &fields[index]) != napi_ok) {
+      throw_message(env, "a rectangle needs X, Y, Width and Height");
+      return 0;
+    }
+  }
+  out->x = fields[0];
+  out->y = fields[1];
+  out->width = fields[2];
+  out->height = fields[3];
   return 1;
 }
 
@@ -17286,6 +17569,696 @@ static napi_value cube_shadow_map_is_supported(napi_env env, napi_callback_info 
     "cna_cube_shadow_map_is_supported");
 }
 
+/* --- the rest of the post-process chain, and the extended screen effects ----------------------- */
+
+/* A uint32 identity out of one handle, which the five enum getters below share. */
+static napi_value handle_u32_enum(
+  napi_env env, napi_callback_info info, LutInterpolationOutFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle handle = 0;
+  uint32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &handle)) return NULL;
+  const CNA_Result result = route(handle, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, value, &output), name);
+  return output;
+}
+
+static napi_value handle_set_u32_enum(
+  napi_env env, napi_callback_info info, LutInterpolationInFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle handle = 0;
+  uint32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &handle) ||
+      napi_get_value_uint32(env, args[1], &value) != napi_ok) {
+    return throw_message(env, "expected a handle and an identity");
+  }
+  const CNA_Result result = route(handle, value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value color_grade_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.color_grade_pass_create, "cna_color_grade_pass_create");
+}
+static napi_value color_grade_pass_create_identity_lut(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0, lut = 0;
+  int32_t size = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &size) != napi_ok) {
+    return throw_message(env, "expected a device and a lookup-table size");
+  }
+  const CNA_Result result = g_api.color_grade_pass_create_identity_lut(device, size, &lut);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_color_grade_pass_create_identity_lut", result);
+  }
+  return make_handle(env, lut);
+}
+static napi_value color_grade_pass_get_interpolation(napi_env env, napi_callback_info info) {
+  return handle_u32_enum(env, info, g_api.color_grade_pass_get_interpolation,
+    "cna_color_grade_pass_get_interpolation");
+}
+static napi_value color_grade_pass_set_interpolation(napi_env env, napi_callback_info info) {
+  return handle_set_u32_enum(env, info, g_api.color_grade_pass_set_interpolation,
+    "cna_color_grade_pass_set_interpolation");
+}
+static napi_value color_grade_pass_get_lut(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.color_grade_pass_get_lut,
+    "cna_color_grade_pass_get_lut");
+}
+static napi_value color_grade_pass_get_volume_lut(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.color_grade_pass_get_volume_lut,
+    "cna_color_grade_pass_get_volume_lut");
+}
+static napi_value color_grade_pass_set_lut(napi_env env, napi_callback_info info) {
+  return skybox_environment(env, info, g_api.color_grade_pass_set_lut,
+    "cna_color_grade_pass_set_lut");
+}
+static napi_value color_grade_pass_set_volume_lut(napi_env env, napi_callback_info info) {
+  return skybox_environment(env, info, g_api.color_grade_pass_set_volume_lut,
+    "cna_color_grade_pass_set_volume_lut");
+}
+static napi_value color_grade_pass_get_strength(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.color_grade_pass_get_strength,
+    "cna_color_grade_pass_get_strength");
+}
+static napi_value color_grade_pass_set_strength(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.color_grade_pass_set_strength,
+    "cna_color_grade_pass_set_strength");
+}
+static napi_value color_grade_pass_lut_size_for_strip(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  int32_t width = 0, height = 0, size = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      napi_get_value_int32(env, args[0], &width) != napi_ok ||
+      napi_get_value_int32(env, args[1], &height) != napi_ok) {
+    return throw_message(env, "expected a strip width and height");
+  }
+  const CNA_Result result = g_api.color_grade_pass_lut_size_for_strip(width, height, &size);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_color_grade_pass_lut_size_for_strip", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, size, &output),
+    "cna_color_grade_pass_lut_size_for_strip");
+  return output;
+}
+
+static napi_value cube_lut_parse(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_CubeLutHandle lut = 0;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_string_utf8(env, args[0], NULL, 0, &length) != napi_ok) {
+    return throw_message(env, "expected the text of a .cube file");
+  }
+  char* text = (char*) malloc(length + 1U);
+  if (!text) return throw_message(env, "cube LUT text allocation failed");
+  if (napi_get_value_string_utf8(env, args[0], text, length + 1U, &length) != napi_ok) {
+    free(text);
+    return throw_message(env, "expected the text of a .cube file");
+  }
+  const CNA_StringView view = {text, (uint64_t) length};
+  const CNA_Result result = g_api.cube_lut_parse(view, &lut);
+  free(text);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cube_lut_parse", result);
+  return make_handle(env, lut);
+}
+static napi_value cube_lut_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.cube_lut_destroy, "cna_cube_lut_destroy");
+}
+static napi_value cube_lut_get_size(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.cube_lut_get_size, "cna_cube_lut_get_size");
+}
+static napi_value cube_lut_get_entry(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  CNA_Handle lut = 0;
+  int32_t axes[3] = {0, 0, 0};
+  CNA_Vector3 colour = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &lut)) return NULL;
+  for (size_t index = 0; index < 3; index += 1) {
+    if (napi_get_value_int32(env, args[index + 1], &axes[index]) != napi_ok) {
+      return throw_message(env, "a lookup-table entry needs three indices");
+    }
+  }
+  const CNA_Result result =
+    g_api.cube_lut_get_entry(lut, axes[0], axes[1], axes[2], &colour);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cube_lut_get_entry", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "lookup-table entry");
+  if (!set_vector3_fields(env, output, &colour)) return throw_napi(env, "lookup-table entry");
+  return output;
+}
+static napi_value cube_lut_get_domain_min(napi_env env, napi_callback_info info) {
+  return sky_vector3(env, info, g_api.cube_lut_get_domain_min, "cna_cube_lut_get_domain_min");
+}
+static napi_value cube_lut_get_domain_max(napi_env env, napi_callback_info info) {
+  return sky_vector3(env, info, g_api.cube_lut_get_domain_max, "cna_cube_lut_get_domain_max");
+}
+static napi_value cube_lut_is_unit_domain(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.cube_lut_is_unit_domain, "cna_cube_lut_is_unit_domain");
+}
+static napi_value cube_lut_copy_title(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle lut = 0;
+  uint64_t required = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &lut)) return NULL;
+  CNA_Result result = g_api.cube_lut_copy_title(lut, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_cube_lut_copy_title", result);
+  }
+  char* text = (char*) malloc((size_t) required + 1U);
+  if (!text) return throw_message(env, "lookup-table title allocation failed");
+  result = g_api.cube_lut_copy_title(lut, text, required + 1U, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(text);
+    return throw_result(env, "cna_cube_lut_copy_title", result);
+  }
+  napi_value output = NULL;
+  const napi_status status = napi_create_string_utf8(env, text, (size_t) required, &output);
+  free(text);
+  if (status != napi_ok) return throw_message(env, "the lookup-table title is not UTF-8");
+  return output;
+}
+static napi_value cube_lut_texture(
+  napi_env env, napi_callback_info info, CubeLutTextureFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle lut = 0, device = 0, texture = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &lut) ||
+      !read_handle(env, args[1], &device)) return NULL;
+  const CNA_Result result = route(lut, device, &texture);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return make_handle(env, texture);
+}
+static napi_value cube_lut_create_strip_texture(napi_env env, napi_callback_info info) {
+  return cube_lut_texture(env, info, g_api.cube_lut_create_strip_texture,
+    "cna_cube_lut_create_strip_texture");
+}
+static napi_value cube_lut_create_volume_texture(napi_env env, napi_callback_info info) {
+  return cube_lut_texture(env, info, g_api.cube_lut_create_volume_texture,
+    "cna_cube_lut_create_volume_texture");
+}
+
+static napi_value depth_of_field_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.depth_of_field_pass_create,
+    "cna_depth_of_field_pass_create");
+}
+static napi_value depth_of_field_pass_circle_of_confusion(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  double values[4] = {0, 0, 0, 0};
+  float millimetres = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args)) return NULL;
+  for (size_t index = 0; index < 4; index += 1) {
+    if (napi_get_value_double(env, args[index], &values[index]) != napi_ok) {
+      return throw_message(env, "expected a depth, a focus distance, a focal length and an f-number");
+    }
+  }
+  const CNA_Result result = g_api.depth_of_field_pass_circle_of_confusion_millimetres(
+    (float) values[0], (float) values[1], (float) values[2], (float) values[3], &millimetres);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_depth_of_field_pass_circle_of_confusion_millimetres", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) millimetres, &output),
+    "circle of confusion");
+  return output;
+}
+
+static napi_value lens_flare_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.lens_flare_pass_create, "cna_lens_flare_pass_create");
+}
+static napi_value motion_blur_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.motion_blur_pass_create, "cna_motion_blur_pass_create");
+}
+static napi_value chromatic_aberration_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.chromatic_aberration_pass_create,
+    "cna_chromatic_aberration_pass_create");
+}
+static napi_value film_grain_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.film_grain_pass_create, "cna_film_grain_pass_create");
+}
+static napi_value ascii_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.ascii_pass_create, "cna_ascii_pass_create");
+}
+static napi_value ascii_pass_get_effect(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.ascii_pass_get_effect, "cna_ascii_pass_get_effect");
+}
+
+static napi_value bloom_pass_extract_channel(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  double value = 0, threshold = 0;
+  float extracted = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      napi_get_value_double(env, args[0], &value) != napi_ok ||
+      napi_get_value_double(env, args[1], &threshold) != napi_ok) {
+    return throw_message(env, "expected a channel value and a threshold");
+  }
+  const CNA_Result result = g_api.bloom_pass_extract_channel(
+    (float) value, (float) threshold, &extracted);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_bloom_pass_extract_channel", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) extracted, &output), "bloom extraction");
+  return output;
+}
+
+static napi_value tonemap_pass_tonemap_channel(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  uint32_t mode = 0;
+  double value = 0, exposure = 0, gamma = 0;
+  float mapped = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      napi_get_value_uint32(env, args[0], &mode) != napi_ok ||
+      napi_get_value_double(env, args[1], &value) != napi_ok ||
+      napi_get_value_double(env, args[2], &exposure) != napi_ok ||
+      napi_get_value_double(env, args[3], &gamma) != napi_ok) {
+    return throw_message(env, "expected a mode, a value, an exposure and a gamma");
+  }
+  const CNA_Result result = g_api.tonemap_pass_tonemap_channel(
+    mode, (float) value, (float) exposure, (float) gamma, &mapped);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_tonemap_pass_tonemap_channel", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) mapped, &output), "tonemapped channel");
+  return output;
+}
+
+static napi_value fxaa_pass_fragment_glsl(napi_env env, napi_callback_info info) {
+  return copy_glsl_string(env, info, g_api.fxaa_pass_copy_fragment_glsl,
+    "cna_fxaa_pass_copy_fragment_glsl");
+}
+static napi_value thin_film_glsl(napi_env env, napi_callback_info info) {
+  return copy_glsl_string(env, info, g_api.thin_film_iridescence_copy_glsl,
+    "cna_thin_film_iridescence_copy_glsl");
+}
+
+static napi_value ssao_pass_copy_kernel(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle pass = 0;
+  uint64_t required = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pass)) return NULL;
+  CNA_Result result = g_api.ssao_pass_copy_kernel(pass, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_ssao_pass_copy_kernel", result);
+  }
+  CNA_Vector3* samples = (CNA_Vector3*) calloc((size_t) required + 1U, sizeof(CNA_Vector3));
+  if (!samples) return throw_message(env, "SSAO kernel allocation failed");
+  result = g_api.ssao_pass_copy_kernel(pass, samples, required, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(samples);
+    return throw_result(env, "cna_ssao_pass_copy_kernel", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) required, &output) != napi_ok) {
+    free(samples);
+    return throw_napi(env, "SSAO kernel");
+  }
+  for (uint64_t index = 0; index < required; index += 1) {
+    napi_value element;
+    if (napi_create_object(env, &element) != napi_ok ||
+        !set_vector3_fields(env, element, &samples[index]) ||
+        napi_set_element(env, output, (uint32_t) index, element) != napi_ok) {
+      free(samples);
+      return throw_napi(env, "SSAO kernel");
+    }
+  }
+  free(samples);
+  return output;
+}
+
+static napi_value ssao_pass_occlusion_glsl(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  bool packed = false;
+  uint64_t required = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_bool(env, args[0], &packed) != napi_ok) {
+    return throw_message(env, "expected a packed flag");
+  }
+  const CNA_Bool flag = packed ? CNA_TRUE : CNA_FALSE;
+  CNA_Result result = g_api.ssao_pass_copy_occlusion_glsl(flag, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_ssao_pass_copy_occlusion_glsl", result);
+  }
+  char* text = (char*) malloc((size_t) required + 1U);
+  if (!text) return throw_message(env, "SSAO GLSL allocation failed");
+  result = g_api.ssao_pass_copy_occlusion_glsl(flag, text, required + 1U, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(text);
+    return throw_result(env, "cna_ssao_pass_copy_occlusion_glsl", result);
+  }
+  napi_value output = NULL;
+  const napi_status status = napi_create_string_utf8(env, text, (size_t) required, &output);
+  free(text);
+  if (status != napi_ok) return throw_message(env, "the SSAO GLSL is not UTF-8");
+  return output;
+}
+
+static napi_value thin_film_evaluate(napi_env env, napi_callback_info info) {
+  napi_value args[5], output;
+  double values[4] = {0, 0, 0, 0};
+  CNA_Vector3 base = {0, 0, 0}, result_colour = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 5, args)) return NULL;
+  for (size_t index = 0; index < 4; index += 1) {
+    if (napi_get_value_double(env, args[index], &values[index]) != napi_ok) {
+      return throw_message(env, "expected four numbers and a base reflectance");
+    }
+  }
+  if (!read_vector3_fields(env, args[4], &base)) {
+    return throw_message(env, "the base reflectance needs X, Y and Z");
+  }
+  const CNA_Result result = g_api.thin_film_iridescence_evaluate(
+    (float) values[0], (float) values[1], (float) values[2], (float) values[3], &base,
+    &result_colour);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_thin_film_iridescence_evaluate", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "iridescence");
+  if (!set_vector3_fields(env, output, &result_colour)) return throw_napi(env, "iridescence");
+  return output;
+}
+
+static napi_value fullscreen_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.fullscreen_pass_create, "cna_fullscreen_pass_create");
+}
+static napi_value fullscreen_pass_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.fullscreen_pass_destroy, "cna_fullscreen_pass_destroy");
+}
+
+static napi_value fullscreen_pass_draw(napi_env env, napi_callback_info info) {
+  napi_value args[6];
+  CNA_Handle pass = 0, source = 0, destination = 0, effect = 0;
+  int32_t width = 0, height = 0;
+  CNA_SamplerState sampler;
+  memset(&sampler, 0, sizeof(sampler));
+  if (!require_loaded(env) || !get_args(env, info, 6, args) ||
+      !read_handle(env, args[0], &pass) ||
+      !read_handle(env, args[1], &source) ||
+      !read_handle_allow_zero(env, args[2], &destination) ||
+      !read_handle_allow_zero(env, args[3], &effect)) return NULL;
+  if (napi_get_value_int32(env, args[4], &width) != napi_ok ||
+      napi_get_value_int32(env, args[5], &height) != napi_ok) {
+    return throw_message(env, "a fullscreen draw needs a width and a height");
+  }
+  const CNA_Result result = g_api.fullscreen_pass_draw(
+    pass, source, destination, effect, width, height, NULL);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_fullscreen_pass_draw", result);
+  }
+  return undefined_result(env, "cna_fullscreen_pass_draw");
+}
+
+static napi_value fullscreen_pass_draw_over_current_target(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[5];
+  CNA_Handle pass = 0, source = 0, effect = 0;
+  int32_t width = 0, height = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &pass) ||
+      !read_handle(env, args[1], &source) ||
+      !read_handle_allow_zero(env, args[2], &effect)) return NULL;
+  if (napi_get_value_int32(env, args[3], &width) != napi_ok ||
+      napi_get_value_int32(env, args[4], &height) != napi_ok) {
+    return throw_message(env, "a fullscreen draw needs a width and a height");
+  }
+  const CNA_Result result = g_api.fullscreen_pass_draw_over_current_target(
+    pass, source, effect, width, height, NULL);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_fullscreen_pass_draw_over_current_target", result);
+  }
+  return undefined_result(env, "cna_fullscreen_pass_draw_over_current_target");
+}
+
+static napi_value effect_pass_create(
+  napi_env env, napi_callback_info info, EffectPassCreateFn route, const char* name
+) {
+  napi_value args[3];
+  CNA_Handle device = 0, effect = 0, pass = 0;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &device) ||
+      !read_handle(env, args[1], &effect) ||
+      napi_get_value_string_utf8(env, args[2], NULL, 0, &length) != napi_ok) {
+    return throw_message(env, "expected a device, an effect and a name");
+  }
+  char* text = (char*) malloc(length + 1U);
+  if (!text) return throw_message(env, "pass name allocation failed");
+  if (napi_get_value_string_utf8(env, args[2], text, length + 1U, &length) != napi_ok) {
+    free(text);
+    return throw_message(env, "expected a device, an effect and a name");
+  }
+  const CNA_StringView view = {text, (uint64_t) length};
+  const CNA_Result result = route(device, effect, view, &pass);
+  free(text);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return make_handle(env, pass);
+}
+
+static napi_value post_process_effect_pass_create(napi_env env, napi_callback_info info) {
+  return effect_pass_create(env, info, g_api.post_process_effect_pass_create,
+    "cna_post_process_effect_pass_create");
+}
+static napi_value post_process_effect_pass_create_owning(napi_env env, napi_callback_info info) {
+  return effect_pass_create(env, info, g_api.post_process_effect_pass_create_owning,
+    "cna_post_process_effect_pass_create_owning");
+}
+static napi_value post_process_effect_pass_get_effect(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.post_process_effect_pass_get_effect,
+    "cna_post_process_effect_pass_get_effect");
+}
+static napi_value post_process_effect_pass_set_effect(napi_env env, napi_callback_info info) {
+  return skybox_environment(env, info, g_api.post_process_effect_pass_set_effect,
+    "cna_post_process_effect_pass_set_effect");
+}
+
+static napi_value scoped_render_target_begin(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0, destination = 0, scope = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      !read_handle_allow_zero(env, args[1], &destination)) return NULL;
+  const CNA_Result result = g_api.scoped_render_target_begin(device, destination, &scope);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_scoped_render_target_begin", result);
+  }
+  return make_handle(env, scope);
+}
+static napi_value scoped_render_target_end(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.scoped_render_target_end,
+    "cna_scoped_render_target_end");
+}
+static napi_value scoped_render_target_has_recorded_previous(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_bool(env, info, g_api.scoped_render_target_get_has_recorded_previous,
+    "cna_scoped_render_target_get_has_recorded_previous");
+}
+
+static napi_value ascii_effect_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.ascii_post_process_effect_create,
+    "cna_ascii_post_process_effect_create");
+}
+static napi_value ascii_effect_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.ascii_post_process_effect_destroy,
+    "cna_ascii_post_process_effect_destroy");
+}
+static napi_value ascii_pair(
+  napi_env env, napi_callback_info info, AsciiCellSizeOutFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle effect = 0;
+  int32_t first = 0, second = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &effect)) return NULL;
+  const CNA_Result result = route(effect, &first, &second);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), name);
+  if (!set_i32(env, output, "Width", first) || !set_i32(env, output, "Height", second)) {
+    return throw_napi(env, name);
+  }
+  return output;
+}
+static napi_value ascii_effect_get_cell_size(napi_env env, napi_callback_info info) {
+  return ascii_pair(env, info, g_api.ascii_post_process_effect_get_cell_size,
+    "cna_ascii_post_process_effect_get_cell_size");
+}
+static napi_value ascii_effect_get_last_grid_dimensions(napi_env env, napi_callback_info info) {
+  return ascii_pair(env, info, g_api.ascii_post_process_effect_get_last_grid_dimensions,
+    "cna_ascii_post_process_effect_get_last_grid_dimensions");
+}
+static napi_value ascii_effect_set_cell_size(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  int32_t width = 0, height = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &effect) ||
+      napi_get_value_int32(env, args[1], &width) != napi_ok ||
+      napi_get_value_int32(env, args[2], &height) != napi_ok) {
+    return throw_message(env, "expected an effect, a cell width and a cell height");
+  }
+  const CNA_Result result =
+    g_api.ascii_post_process_effect_set_cell_size(effect, width, height);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_ascii_post_process_effect_set_cell_size", result);
+  }
+  return undefined_result(env, "cna_ascii_post_process_effect_set_cell_size");
+}
+static napi_value ascii_effect_get_quantize_mode(napi_env env, napi_callback_info info) {
+  return handle_u32_enum(env, info, g_api.ascii_post_process_effect_get_quantize_mode,
+    "cna_ascii_post_process_effect_get_quantize_mode");
+}
+static napi_value ascii_effect_set_quantize_mode(napi_env env, napi_callback_info info) {
+  return handle_set_u32_enum(env, info, g_api.ascii_post_process_effect_set_quantize_mode,
+    "cna_ascii_post_process_effect_set_quantize_mode");
+}
+static napi_value ascii_effect_draw(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle effect = 0, source = 0;
+  CNA_Rectangle rectangle;
+  memset(&rectangle, 0, sizeof(rectangle));
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_handle(env, args[1], &source) ||
+      !read_rectangle(env, args[2], &rectangle)) return NULL;
+  const CNA_Result result =
+    g_api.ascii_post_process_effect_draw(effect, source, &rectangle);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_ascii_post_process_effect_draw", result);
+  }
+  return undefined_result(env, "cna_ascii_post_process_effect_draw");
+}
+
+
+/* The plain scalar accessors of the passes and effects above, one line each. */
+static napi_value depth_of_field_pass_get_focus_distance(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.depth_of_field_pass_get_focus_distance, "cna_depth_of_field_pass_get_focus_distance");
+}
+static napi_value depth_of_field_pass_set_focus_distance(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.depth_of_field_pass_set_focus_distance, "cna_depth_of_field_pass_set_focus_distance");
+}
+static napi_value depth_of_field_pass_get_focal_length(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.depth_of_field_pass_get_focal_length, "cna_depth_of_field_pass_get_focal_length");
+}
+static napi_value depth_of_field_pass_set_focal_length(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.depth_of_field_pass_set_focal_length, "cna_depth_of_field_pass_set_focal_length");
+}
+static napi_value depth_of_field_pass_get_f_number(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.depth_of_field_pass_get_f_number, "cna_depth_of_field_pass_get_f_number");
+}
+static napi_value depth_of_field_pass_set_f_number(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.depth_of_field_pass_set_f_number, "cna_depth_of_field_pass_set_f_number");
+}
+static napi_value depth_of_field_pass_get_max_radius(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.depth_of_field_pass_get_max_radius, "cna_depth_of_field_pass_get_max_radius");
+}
+static napi_value depth_of_field_pass_set_max_radius(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.depth_of_field_pass_set_max_radius, "cna_depth_of_field_pass_set_max_radius");
+}
+static napi_value lens_flare_pass_get_threshold(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.lens_flare_pass_get_threshold, "cna_lens_flare_pass_get_threshold");
+}
+static napi_value lens_flare_pass_set_threshold(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.lens_flare_pass_set_threshold, "cna_lens_flare_pass_set_threshold");
+}
+static napi_value lens_flare_pass_get_intensity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.lens_flare_pass_get_intensity, "cna_lens_flare_pass_get_intensity");
+}
+static napi_value lens_flare_pass_set_intensity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.lens_flare_pass_set_intensity, "cna_lens_flare_pass_set_intensity");
+}
+static napi_value lens_flare_pass_get_dispersal(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.lens_flare_pass_get_dispersal, "cna_lens_flare_pass_get_dispersal");
+}
+static napi_value lens_flare_pass_set_dispersal(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.lens_flare_pass_set_dispersal, "cna_lens_flare_pass_set_dispersal");
+}
+static napi_value motion_blur_pass_get_strength(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.motion_blur_pass_get_strength, "cna_motion_blur_pass_get_strength");
+}
+static napi_value motion_blur_pass_set_strength(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.motion_blur_pass_set_strength, "cna_motion_blur_pass_set_strength");
+}
+static napi_value motion_blur_pass_get_max_distance(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.motion_blur_pass_get_max_distance, "cna_motion_blur_pass_get_max_distance");
+}
+static napi_value motion_blur_pass_set_max_distance(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.motion_blur_pass_set_max_distance, "cna_motion_blur_pass_set_max_distance");
+}
+static napi_value chromatic_aberration_pass_get_strength(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.chromatic_aberration_pass_get_strength, "cna_chromatic_aberration_pass_get_strength");
+}
+static napi_value chromatic_aberration_pass_set_strength(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.chromatic_aberration_pass_set_strength, "cna_chromatic_aberration_pass_set_strength");
+}
+static napi_value film_grain_pass_get_intensity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.film_grain_pass_get_intensity, "cna_film_grain_pass_get_intensity");
+}
+static napi_value film_grain_pass_set_intensity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.film_grain_pass_set_intensity, "cna_film_grain_pass_set_intensity");
+}
+static napi_value crt_effect_get_scanline_intensity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.crt_effect_get_scanline_intensity, "cna_crt_effect_get_scanline_intensity");
+}
+static napi_value crt_effect_set_scanline_intensity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.crt_effect_set_scanline_intensity, "cna_crt_effect_set_scanline_intensity");
+}
+static napi_value crt_effect_get_curvature(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.crt_effect_get_curvature, "cna_crt_effect_get_curvature");
+}
+static napi_value crt_effect_set_curvature(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.crt_effect_set_curvature, "cna_crt_effect_set_curvature");
+}
+static napi_value crt_effect_get_vignette_intensity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.crt_effect_get_vignette_intensity, "cna_crt_effect_get_vignette_intensity");
+}
+static napi_value crt_effect_set_vignette_intensity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.crt_effect_set_vignette_intensity, "cna_crt_effect_set_vignette_intensity");
+}
+static napi_value crt_effect_get_mask_intensity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.crt_effect_get_mask_intensity, "cna_crt_effect_get_mask_intensity");
+}
+static napi_value crt_effect_set_mask_intensity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.crt_effect_set_mask_intensity, "cna_crt_effect_set_mask_intensity");
+}
+
+static napi_value crt_effect_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.crt_effect_create, "cna_crt_effect_create");
+}
+static napi_value crt_effect_get_mask_type(napi_env env, napi_callback_info info) {
+  return handle_u32_enum(env, info, g_api.crt_effect_get_mask_type,
+    "cna_crt_effect_get_mask_type");
+}
+static napi_value crt_effect_set_mask_type(napi_env env, napi_callback_info info) {
+  return handle_set_u32_enum(env, info, g_api.crt_effect_set_mask_type,
+    "cna_crt_effect_set_mask_type");
+}
+static napi_value depth_effect_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.depth_effect_create, "cna_depth_effect_create");
+}
+static napi_value depth_effect_get_mode(napi_env env, napi_callback_info info) {
+  return handle_u32_enum(env, info, g_api.depth_effect_get_mode, "cna_depth_effect_get_mode");
+}
+static napi_value depth_effect_set_mode(napi_env env, napi_callback_info info) {
+  return handle_set_u32_enum(env, info, g_api.depth_effect_set_mode,
+    "cna_depth_effect_set_mode");
+}
+static napi_value depth_effect_get_dither_mode(napi_env env, napi_callback_info info) {
+  return handle_u32_enum(env, info, g_api.depth_effect_get_dither_mode,
+    "cna_depth_effect_get_dither_mode");
+}
+static napi_value depth_effect_set_dither_mode(napi_env env, napi_callback_info info) {
+  return handle_set_u32_enum(env, info, g_api.depth_effect_set_dither_mode,
+    "cna_depth_effect_set_dither_mode");
+}
+
+
 
 
 static napi_value decal_pass_is_inside_decal_box(napi_env env, napi_callback_info info) {
@@ -21492,6 +22465,99 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getCubeShadowCasterEffect", NULL, cube_shadow_map_get_caster_effect, NULL, NULL, NULL, napi_default, NULL },
     { "getCubeShadowTexture", NULL, cube_shadow_map_get_shadow_texture, NULL, NULL, NULL, napi_default, NULL },
     { "isCubeShadowMapSupported", NULL, cube_shadow_map_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "createColorGradePass", NULL, color_grade_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "createIdentityLutTexture", NULL, color_grade_pass_create_identity_lut, NULL, NULL, NULL, napi_default, NULL },
+    { "getColorGradeInterpolation", NULL, color_grade_pass_get_interpolation, NULL, NULL, NULL, napi_default, NULL },
+    { "setColorGradeInterpolation", NULL, color_grade_pass_set_interpolation, NULL, NULL, NULL, napi_default, NULL },
+    { "getColorGradeLut", NULL, color_grade_pass_get_lut, NULL, NULL, NULL, napi_default, NULL },
+    { "setColorGradeLut", NULL, color_grade_pass_set_lut, NULL, NULL, NULL, napi_default, NULL },
+    { "getColorGradeVolumeLut", NULL, color_grade_pass_get_volume_lut, NULL, NULL, NULL, napi_default, NULL },
+    { "setColorGradeVolumeLut", NULL, color_grade_pass_set_volume_lut, NULL, NULL, NULL, napi_default, NULL },
+    { "getColorGradeStrength", NULL, color_grade_pass_get_strength, NULL, NULL, NULL, napi_default, NULL },
+    { "setColorGradeStrength", NULL, color_grade_pass_set_strength, NULL, NULL, NULL, napi_default, NULL },
+    { "lutSizeForStrip", NULL, color_grade_pass_lut_size_for_strip, NULL, NULL, NULL, napi_default, NULL },
+    { "parseCubeLut", NULL, cube_lut_parse, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyCubeLut", NULL, cube_lut_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeLutSize", NULL, cube_lut_get_size, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeLutEntry", NULL, cube_lut_get_entry, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeLutDomainMin", NULL, cube_lut_get_domain_min, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeLutDomainMax", NULL, cube_lut_get_domain_max, NULL, NULL, NULL, napi_default, NULL },
+    { "isCubeLutUnitDomain", NULL, cube_lut_is_unit_domain, NULL, NULL, NULL, napi_default, NULL },
+    { "getCubeLutTitle", NULL, cube_lut_copy_title, NULL, NULL, NULL, napi_default, NULL },
+    { "createCubeLutStripTexture", NULL, cube_lut_create_strip_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "createCubeLutVolumeTexture", NULL, cube_lut_create_volume_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "createDepthOfFieldPass", NULL, depth_of_field_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthOfFieldFocusDistance", NULL, depth_of_field_pass_get_focus_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "setDepthOfFieldFocusDistance", NULL, depth_of_field_pass_set_focus_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthOfFieldFocalLength", NULL, depth_of_field_pass_get_focal_length, NULL, NULL, NULL, napi_default, NULL },
+    { "setDepthOfFieldFocalLength", NULL, depth_of_field_pass_set_focal_length, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthOfFieldFNumber", NULL, depth_of_field_pass_get_f_number, NULL, NULL, NULL, napi_default, NULL },
+    { "setDepthOfFieldFNumber", NULL, depth_of_field_pass_set_f_number, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthOfFieldMaxRadius", NULL, depth_of_field_pass_get_max_radius, NULL, NULL, NULL, napi_default, NULL },
+    { "setDepthOfFieldMaxRadius", NULL, depth_of_field_pass_set_max_radius, NULL, NULL, NULL, napi_default, NULL },
+    { "circleOfConfusionMillimetres", NULL, depth_of_field_pass_circle_of_confusion, NULL, NULL, NULL, napi_default, NULL },
+    { "createLensFlarePass", NULL, lens_flare_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getLensFlareThreshold", NULL, lens_flare_pass_get_threshold, NULL, NULL, NULL, napi_default, NULL },
+    { "setLensFlareThreshold", NULL, lens_flare_pass_set_threshold, NULL, NULL, NULL, napi_default, NULL },
+    { "getLensFlareIntensity", NULL, lens_flare_pass_get_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "setLensFlareIntensity", NULL, lens_flare_pass_set_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "getLensFlareDispersal", NULL, lens_flare_pass_get_dispersal, NULL, NULL, NULL, napi_default, NULL },
+    { "setLensFlareDispersal", NULL, lens_flare_pass_set_dispersal, NULL, NULL, NULL, napi_default, NULL },
+    { "createMotionBlurPass", NULL, motion_blur_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getMotionBlurStrength", NULL, motion_blur_pass_get_strength, NULL, NULL, NULL, napi_default, NULL },
+    { "setMotionBlurStrength", NULL, motion_blur_pass_set_strength, NULL, NULL, NULL, napi_default, NULL },
+    { "getMotionBlurMaxDistance", NULL, motion_blur_pass_get_max_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "setMotionBlurMaxDistance", NULL, motion_blur_pass_set_max_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "createChromaticAberrationPass", NULL, chromatic_aberration_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getChromaticAberrationStrength", NULL, chromatic_aberration_pass_get_strength, NULL, NULL, NULL, napi_default, NULL },
+    { "setChromaticAberrationStrength", NULL, chromatic_aberration_pass_set_strength, NULL, NULL, NULL, napi_default, NULL },
+    { "createFilmGrainPass", NULL, film_grain_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getFilmGrainIntensity", NULL, film_grain_pass_get_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "setFilmGrainIntensity", NULL, film_grain_pass_set_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "createAsciiPass", NULL, ascii_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getAsciiPassEffect", NULL, ascii_pass_get_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "extractBloomChannel", NULL, bloom_pass_extract_channel, NULL, NULL, NULL, napi_default, NULL },
+    { "tonemapChannel", NULL, tonemap_pass_tonemap_channel, NULL, NULL, NULL, napi_default, NULL },
+    { "getFxaaFragmentGlsl", NULL, fxaa_pass_fragment_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsaoKernel", NULL, ssao_pass_copy_kernel, NULL, NULL, NULL, napi_default, NULL },
+    { "getSsaoOcclusionGlsl", NULL, ssao_pass_occlusion_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "evaluateThinFilmIridescence", NULL, thin_film_evaluate, NULL, NULL, NULL, napi_default, NULL },
+    { "getThinFilmIridescenceGlsl", NULL, thin_film_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "createFullscreenPass", NULL, fullscreen_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyFullscreenPass", NULL, fullscreen_pass_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "drawFullscreenPass", NULL, fullscreen_pass_draw, NULL, NULL, NULL, napi_default, NULL },
+    { "drawFullscreenPassOverCurrentTarget", NULL, fullscreen_pass_draw_over_current_target, NULL, NULL, NULL, napi_default, NULL },
+    { "createEffectPass", NULL, post_process_effect_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "createOwningEffectPass", NULL, post_process_effect_pass_create_owning, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectPassEffect", NULL, post_process_effect_pass_get_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectPassEffect", NULL, post_process_effect_pass_set_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "beginScopedRenderTarget", NULL, scoped_render_target_begin, NULL, NULL, NULL, napi_default, NULL },
+    { "endScopedRenderTarget", NULL, scoped_render_target_end, NULL, NULL, NULL, napi_default, NULL },
+    { "scopedRenderTargetHasRecordedPrevious", NULL, scoped_render_target_has_recorded_previous, NULL, NULL, NULL, napi_default, NULL },
+    { "createAsciiEffect", NULL, ascii_effect_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyAsciiEffect", NULL, ascii_effect_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "getAsciiCellSize", NULL, ascii_effect_get_cell_size, NULL, NULL, NULL, napi_default, NULL },
+    { "setAsciiCellSize", NULL, ascii_effect_set_cell_size, NULL, NULL, NULL, napi_default, NULL },
+    { "getAsciiQuantizeMode", NULL, ascii_effect_get_quantize_mode, NULL, NULL, NULL, napi_default, NULL },
+    { "setAsciiQuantizeMode", NULL, ascii_effect_set_quantize_mode, NULL, NULL, NULL, napi_default, NULL },
+    { "drawAsciiEffect", NULL, ascii_effect_draw, NULL, NULL, NULL, napi_default, NULL },
+    { "getAsciiLastGridDimensions", NULL, ascii_effect_get_last_grid_dimensions, NULL, NULL, NULL, napi_default, NULL },
+    { "createCrtEffect", NULL, crt_effect_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getCrtScanlineIntensity", NULL, crt_effect_get_scanline_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "setCrtScanlineIntensity", NULL, crt_effect_set_scanline_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "getCrtCurvature", NULL, crt_effect_get_curvature, NULL, NULL, NULL, napi_default, NULL },
+    { "setCrtCurvature", NULL, crt_effect_set_curvature, NULL, NULL, NULL, napi_default, NULL },
+    { "getCrtVignetteIntensity", NULL, crt_effect_get_vignette_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "setCrtVignetteIntensity", NULL, crt_effect_set_vignette_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "getCrtMaskIntensity", NULL, crt_effect_get_mask_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "setCrtMaskIntensity", NULL, crt_effect_set_mask_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "getCrtMaskType", NULL, crt_effect_get_mask_type, NULL, NULL, NULL, napi_default, NULL },
+    { "setCrtMaskType", NULL, crt_effect_set_mask_type, NULL, NULL, NULL, napi_default, NULL },
+    { "createDepthEffect", NULL, depth_effect_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthEffectMode", NULL, depth_effect_get_mode, NULL, NULL, NULL, napi_default, NULL },
+    { "setDepthEffectMode", NULL, depth_effect_set_mode, NULL, NULL, NULL, napi_default, NULL },
+    { "getDepthEffectDitherMode", NULL, depth_effect_get_dither_mode, NULL, NULL, NULL, napi_default, NULL },
+    { "setDepthEffectDitherMode", NULL, depth_effect_set_dither_mode, NULL, NULL, NULL, napi_default, NULL },
     { "supportsGraphicsCapability", NULL, graphics_device_supports_capability, NULL, NULL, NULL, napi_default, NULL },
     { "createStandaloneGraphicsDevice", NULL, create_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },
     { "destroyStandaloneGraphicsDevice", NULL, destroy_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },

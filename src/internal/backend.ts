@@ -914,6 +914,112 @@ export interface CnaGraphicsExtensionBackend {
   endRenderPipeline(pipeline: NativeHandle): void;
   getRenderPipelineStatistics(pipeline: NativeHandle): RenderPipelineStatisticsSnapshot;
   createBlitPass(device: NativeHandle): NativeHandle;
+  createColorGradePass(device: NativeHandle): NativeHandle;
+  createIdentityLutTexture(device: NativeHandle, size: number): NativeHandle;
+  getColorGradeInterpolation(pass: NativeHandle): number;
+  setColorGradeInterpolation(pass: NativeHandle, interpolation: number): void;
+  getColorGradeLut(pass: NativeHandle): NativeHandle;
+  setColorGradeLut(pass: NativeHandle, lut: NativeHandle): void;
+  getColorGradeVolumeLut(pass: NativeHandle): NativeHandle;
+  setColorGradeVolumeLut(pass: NativeHandle, lut: NativeHandle): void;
+  getColorGradeStrength(pass: NativeHandle): number;
+  setColorGradeStrength(pass: NativeHandle, strength: number): void;
+  lutSizeForStrip(width: number, height: number): number;
+  parseCubeLut(text: string): NativeHandle;
+  destroyCubeLut(lut: NativeHandle): void;
+  getCubeLutSize(lut: NativeHandle): number;
+  getCubeLutEntry(lut: NativeHandle, red: number, green: number, blue: number): Vector3Snapshot;
+  getCubeLutDomainMin(lut: NativeHandle): Vector3Snapshot;
+  getCubeLutDomainMax(lut: NativeHandle): Vector3Snapshot;
+  isCubeLutUnitDomain(lut: NativeHandle): boolean;
+  getCubeLutTitle(lut: NativeHandle): string;
+  createCubeLutStripTexture(lut: NativeHandle, device: NativeHandle): NativeHandle;
+  createCubeLutVolumeTexture(lut: NativeHandle, device: NativeHandle): NativeHandle;
+  createDepthOfFieldPass(device: NativeHandle): NativeHandle;
+  getDepthOfFieldFocusDistance(pass: NativeHandle): number;
+  setDepthOfFieldFocusDistance(pass: NativeHandle, value: number): void;
+  getDepthOfFieldFocalLength(pass: NativeHandle): number;
+  setDepthOfFieldFocalLength(pass: NativeHandle, value: number): void;
+  getDepthOfFieldFNumber(pass: NativeHandle): number;
+  setDepthOfFieldFNumber(pass: NativeHandle, value: number): void;
+  getDepthOfFieldMaxRadius(pass: NativeHandle): number;
+  setDepthOfFieldMaxRadius(pass: NativeHandle, value: number): void;
+  circleOfConfusionMillimetres(
+    depth: number, focusDistance: number, focalLength: number, fNumber: number,
+  ): number;
+  createLensFlarePass(device: NativeHandle): NativeHandle;
+  getLensFlareThreshold(pass: NativeHandle): number;
+  setLensFlareThreshold(pass: NativeHandle, value: number): void;
+  getLensFlareIntensity(pass: NativeHandle): number;
+  setLensFlareIntensity(pass: NativeHandle, value: number): void;
+  getLensFlareDispersal(pass: NativeHandle): number;
+  setLensFlareDispersal(pass: NativeHandle, value: number): void;
+  createMotionBlurPass(device: NativeHandle): NativeHandle;
+  getMotionBlurStrength(pass: NativeHandle): number;
+  setMotionBlurStrength(pass: NativeHandle, value: number): void;
+  getMotionBlurMaxDistance(pass: NativeHandle): number;
+  setMotionBlurMaxDistance(pass: NativeHandle, value: number): void;
+  createChromaticAberrationPass(device: NativeHandle): NativeHandle;
+  getChromaticAberrationStrength(pass: NativeHandle): number;
+  setChromaticAberrationStrength(pass: NativeHandle, value: number): void;
+  createFilmGrainPass(device: NativeHandle): NativeHandle;
+  getFilmGrainIntensity(pass: NativeHandle): number;
+  setFilmGrainIntensity(pass: NativeHandle, value: number): void;
+  createAsciiPass(device: NativeHandle): NativeHandle;
+  getAsciiPassEffect(pass: NativeHandle): NativeHandle;
+  extractBloomChannel(value: number, threshold: number): number;
+  tonemapChannel(mode: number, value: number, exposure: number, gamma: number): number;
+  getFxaaFragmentGlsl(): string;
+  getSsaoKernel(pass: NativeHandle): readonly Vector3Snapshot[];
+  getSsaoOcclusionGlsl(packed: boolean): string;
+  evaluateThinFilmIridescence(
+    outsideIor: number, filmIor: number, cosTheta: number, thicknessNanometres: number,
+    baseReflectance: Vector3Snapshot,
+  ): Vector3Snapshot;
+  getThinFilmIridescenceGlsl(): string;
+  createFullscreenPass(device: NativeHandle): NativeHandle;
+  destroyFullscreenPass(pass: NativeHandle): void;
+  drawFullscreenPass(
+    pass: NativeHandle, source: NativeHandle, destination: NativeHandle, effect: NativeHandle,
+    width: number, height: number,
+  ): void;
+  drawFullscreenPassOverCurrentTarget(
+    pass: NativeHandle, source: NativeHandle, effect: NativeHandle,
+    width: number, height: number,
+  ): void;
+  createEffectPass(device: NativeHandle, effect: NativeHandle, name: string): NativeHandle;
+  createOwningEffectPass(device: NativeHandle, effect: NativeHandle, name: string): NativeHandle;
+  getEffectPassEffect(pass: NativeHandle): NativeHandle;
+  setEffectPassEffect(pass: NativeHandle, effect: NativeHandle): void;
+  beginScopedRenderTarget(device: NativeHandle, destination: NativeHandle): NativeHandle;
+  endScopedRenderTarget(scope: NativeHandle): void;
+  scopedRenderTargetHasRecordedPrevious(scope: NativeHandle): boolean;
+  createAsciiEffect(device: NativeHandle): NativeHandle;
+  destroyAsciiEffect(effect: NativeHandle): void;
+  getAsciiCellSize(effect: NativeHandle): SizeSnapshot;
+  setAsciiCellSize(effect: NativeHandle, width: number, height: number): void;
+  getAsciiQuantizeMode(effect: NativeHandle): number;
+  setAsciiQuantizeMode(effect: NativeHandle, mode: number): void;
+  drawAsciiEffect(
+    effect: NativeHandle, source: NativeHandle, destination: RectangleSnapshot,
+  ): void;
+  getAsciiLastGridDimensions(effect: NativeHandle): SizeSnapshot;
+  createCrtEffect(device: NativeHandle): NativeHandle;
+  getCrtScanlineIntensity(effect: NativeHandle): number;
+  setCrtScanlineIntensity(effect: NativeHandle, value: number): void;
+  getCrtCurvature(effect: NativeHandle): number;
+  setCrtCurvature(effect: NativeHandle, value: number): void;
+  getCrtVignetteIntensity(effect: NativeHandle): number;
+  setCrtVignetteIntensity(effect: NativeHandle, value: number): void;
+  getCrtMaskIntensity(effect: NativeHandle): number;
+  setCrtMaskIntensity(effect: NativeHandle, value: number): void;
+  getCrtMaskType(effect: NativeHandle): number;
+  setCrtMaskType(effect: NativeHandle, maskType: number): void;
+  createDepthEffect(device: NativeHandle): NativeHandle;
+  getDepthEffectMode(effect: NativeHandle): number;
+  setDepthEffectMode(effect: NativeHandle, mode: number): void;
+  getDepthEffectDitherMode(effect: NativeHandle): number;
+  setDepthEffectDitherMode(effect: NativeHandle, mode: number): void;
   createBloomPass(device: NativeHandle): NativeHandle;
   createTonemapPass(device: NativeHandle): NativeHandle;
   createFxaaPass(device: NativeHandle): NativeHandle;
@@ -1216,6 +1322,20 @@ export interface Vector3Snapshot {
   readonly X: number;
   readonly Y: number;
   readonly Z: number;
+}
+
+/** A width and a height, as CNA answers a pair of them. */
+export interface SizeSnapshot {
+  readonly Width: number;
+  readonly Height: number;
+}
+
+/** A rectangle in the shape CNA lays one out. */
+export interface RectangleSnapshot {
+  readonly X: number;
+  readonly Y: number;
+  readonly Width: number;
+  readonly Height: number;
 }
 
 /** A two-component vector, as CNA answers one. */

@@ -29,6 +29,8 @@ import type {
   DirectionalLightSnapshot,
   StandaloneDeviceParameters,
   CnaGraphicsExtensionBackend,
+  RectangleSnapshot,
+  SizeSnapshot,
   Vector2Snapshot,
   Vector3Snapshot,
   ColorSnapshot,
@@ -904,6 +906,99 @@ interface NativeBridge {
   isGpuTimerOpen(timer: bigint): boolean;
   destroyGpuTimer(timer: bigint): void;
   createBlitPass(device: bigint): bigint;
+  createColorGradePass(device: bigint): bigint;
+  createIdentityLutTexture(device: bigint, size: number): bigint;
+  getColorGradeInterpolation(pass: bigint): number;
+  setColorGradeInterpolation(pass: bigint, interpolation: number): void;
+  getColorGradeLut(pass: bigint): bigint;
+  setColorGradeLut(pass: bigint, lut: bigint): void;
+  getColorGradeVolumeLut(pass: bigint): bigint;
+  setColorGradeVolumeLut(pass: bigint, lut: bigint): void;
+  getColorGradeStrength(pass: bigint): number;
+  setColorGradeStrength(pass: bigint, strength: number): void;
+  lutSizeForStrip(width: number, height: number): number;
+  parseCubeLut(text: string): bigint;
+  destroyCubeLut(lut: bigint): void;
+  getCubeLutSize(lut: bigint): number;
+  getCubeLutEntry(lut: bigint, red: number, green: number, blue: number): Vector3Snapshot;
+  getCubeLutDomainMin(lut: bigint): Vector3Snapshot;
+  getCubeLutDomainMax(lut: bigint): Vector3Snapshot;
+  isCubeLutUnitDomain(lut: bigint): boolean;
+  getCubeLutTitle(lut: bigint): string;
+  createCubeLutStripTexture(lut: bigint, device: bigint): bigint;
+  createCubeLutVolumeTexture(lut: bigint, device: bigint): bigint;
+  createDepthOfFieldPass(device: bigint): bigint;
+  getDepthOfFieldFocusDistance(pass: bigint): number;
+  setDepthOfFieldFocusDistance(pass: bigint, value: number): void;
+  getDepthOfFieldFocalLength(pass: bigint): number;
+  setDepthOfFieldFocalLength(pass: bigint, value: number): void;
+  getDepthOfFieldFNumber(pass: bigint): number;
+  setDepthOfFieldFNumber(pass: bigint, value: number): void;
+  getDepthOfFieldMaxRadius(pass: bigint): number;
+  setDepthOfFieldMaxRadius(pass: bigint, value: number): void;
+  circleOfConfusionMillimetres( depth: number, focusDistance: number, focalLength: number, fNumber: number, ): number;
+  createLensFlarePass(device: bigint): bigint;
+  getLensFlareThreshold(pass: bigint): number;
+  setLensFlareThreshold(pass: bigint, value: number): void;
+  getLensFlareIntensity(pass: bigint): number;
+  setLensFlareIntensity(pass: bigint, value: number): void;
+  getLensFlareDispersal(pass: bigint): number;
+  setLensFlareDispersal(pass: bigint, value: number): void;
+  createMotionBlurPass(device: bigint): bigint;
+  getMotionBlurStrength(pass: bigint): number;
+  setMotionBlurStrength(pass: bigint, value: number): void;
+  getMotionBlurMaxDistance(pass: bigint): number;
+  setMotionBlurMaxDistance(pass: bigint, value: number): void;
+  createChromaticAberrationPass(device: bigint): bigint;
+  getChromaticAberrationStrength(pass: bigint): number;
+  setChromaticAberrationStrength(pass: bigint, value: number): void;
+  createFilmGrainPass(device: bigint): bigint;
+  getFilmGrainIntensity(pass: bigint): number;
+  setFilmGrainIntensity(pass: bigint, value: number): void;
+  createAsciiPass(device: bigint): bigint;
+  getAsciiPassEffect(pass: bigint): bigint;
+  extractBloomChannel(value: number, threshold: number): number;
+  tonemapChannel(mode: number, value: number, exposure: number, gamma: number): number;
+  getFxaaFragmentGlsl(): string;
+  getSsaoKernel(pass: bigint): readonly Vector3Snapshot[];
+  getSsaoOcclusionGlsl(packed: boolean): string;
+  evaluateThinFilmIridescence( outsideIor: number, filmIor: number, cosTheta: number, thicknessNanometres: number, baseReflectance: Vector3Snapshot, ): Vector3Snapshot;
+  getThinFilmIridescenceGlsl(): string;
+  createFullscreenPass(device: bigint): bigint;
+  destroyFullscreenPass(pass: bigint): void;
+  drawFullscreenPass( pass: bigint, source: bigint, destination: bigint, effect: bigint, width: number, height: number, ): void;
+  drawFullscreenPassOverCurrentTarget( pass: bigint, source: bigint, effect: bigint, width: number, height: number, ): void;
+  createEffectPass(device: bigint, effect: bigint, name: string): bigint;
+  createOwningEffectPass(device: bigint, effect: bigint, name: string): bigint;
+  getEffectPassEffect(pass: bigint): bigint;
+  setEffectPassEffect(pass: bigint, effect: bigint): void;
+  beginScopedRenderTarget(device: bigint, destination: bigint): bigint;
+  endScopedRenderTarget(scope: bigint): void;
+  scopedRenderTargetHasRecordedPrevious(scope: bigint): boolean;
+  createAsciiEffect(device: bigint): bigint;
+  destroyAsciiEffect(effect: bigint): void;
+  getAsciiCellSize(effect: bigint): SizeSnapshot;
+  setAsciiCellSize(effect: bigint, width: number, height: number): void;
+  getAsciiQuantizeMode(effect: bigint): number;
+  setAsciiQuantizeMode(effect: bigint, mode: number): void;
+  drawAsciiEffect( effect: bigint, source: bigint, destination: RectangleSnapshot, ): void;
+  getAsciiLastGridDimensions(effect: bigint): SizeSnapshot;
+  createCrtEffect(device: bigint): bigint;
+  getCrtScanlineIntensity(effect: bigint): number;
+  setCrtScanlineIntensity(effect: bigint, value: number): void;
+  getCrtCurvature(effect: bigint): number;
+  setCrtCurvature(effect: bigint, value: number): void;
+  getCrtVignetteIntensity(effect: bigint): number;
+  setCrtVignetteIntensity(effect: bigint, value: number): void;
+  getCrtMaskIntensity(effect: bigint): number;
+  setCrtMaskIntensity(effect: bigint, value: number): void;
+  getCrtMaskType(effect: bigint): number;
+  setCrtMaskType(effect: bigint, maskType: number): void;
+  createDepthEffect(device: bigint): bigint;
+  getDepthEffectMode(effect: bigint): number;
+  setDepthEffectMode(effect: bigint, mode: number): void;
+  getDepthEffectDitherMode(effect: bigint): number;
+  setDepthEffectDitherMode(effect: bigint, mode: number): void;
   createBloomPass(device: bigint): bigint;
   createTonemapPass(device: bigint): bigint;
   createFxaaPass(device: bigint): bigint;
@@ -2983,6 +3078,99 @@ export class NodeNativeBackend
   public createBlitPass(device: NativeHandle): NativeHandle {
     return this.#bridge.createBlitPass(device);
   }
+  public createColorGradePass(device: NativeHandle): NativeHandle { return this.#bridge.createColorGradePass(device); }
+  public createIdentityLutTexture(device: NativeHandle, size: number): NativeHandle { return this.#bridge.createIdentityLutTexture(device, size); }
+  public getColorGradeInterpolation(pass: NativeHandle): number { return this.#bridge.getColorGradeInterpolation(pass); }
+  public setColorGradeInterpolation(pass: NativeHandle, interpolation: number): void { this.#bridge.setColorGradeInterpolation(pass, interpolation); }
+  public getColorGradeLut(pass: NativeHandle): NativeHandle { return this.#bridge.getColorGradeLut(pass); }
+  public setColorGradeLut(pass: NativeHandle, lut: NativeHandle): void { this.#bridge.setColorGradeLut(pass, lut); }
+  public getColorGradeVolumeLut(pass: NativeHandle): NativeHandle { return this.#bridge.getColorGradeVolumeLut(pass); }
+  public setColorGradeVolumeLut(pass: NativeHandle, lut: NativeHandle): void { this.#bridge.setColorGradeVolumeLut(pass, lut); }
+  public getColorGradeStrength(pass: NativeHandle): number { return this.#bridge.getColorGradeStrength(pass); }
+  public setColorGradeStrength(pass: NativeHandle, strength: number): void { this.#bridge.setColorGradeStrength(pass, strength); }
+  public lutSizeForStrip(width: number, height: number): number { return this.#bridge.lutSizeForStrip(width, height); }
+  public parseCubeLut(text: string): NativeHandle { return this.#bridge.parseCubeLut(text); }
+  public destroyCubeLut(lut: NativeHandle): void { this.#bridge.destroyCubeLut(lut); }
+  public getCubeLutSize(lut: NativeHandle): number { return this.#bridge.getCubeLutSize(lut); }
+  public getCubeLutEntry(lut: NativeHandle, red: number, green: number, blue: number): Vector3Snapshot { return this.#bridge.getCubeLutEntry(lut, red, green, blue); }
+  public getCubeLutDomainMin(lut: NativeHandle): Vector3Snapshot { return this.#bridge.getCubeLutDomainMin(lut); }
+  public getCubeLutDomainMax(lut: NativeHandle): Vector3Snapshot { return this.#bridge.getCubeLutDomainMax(lut); }
+  public isCubeLutUnitDomain(lut: NativeHandle): boolean { return this.#bridge.isCubeLutUnitDomain(lut); }
+  public getCubeLutTitle(lut: NativeHandle): string { return this.#bridge.getCubeLutTitle(lut); }
+  public createCubeLutStripTexture(lut: NativeHandle, device: NativeHandle): NativeHandle { return this.#bridge.createCubeLutStripTexture(lut, device); }
+  public createCubeLutVolumeTexture(lut: NativeHandle, device: NativeHandle): NativeHandle { return this.#bridge.createCubeLutVolumeTexture(lut, device); }
+  public createDepthOfFieldPass(device: NativeHandle): NativeHandle { return this.#bridge.createDepthOfFieldPass(device); }
+  public getDepthOfFieldFocusDistance(pass: NativeHandle): number { return this.#bridge.getDepthOfFieldFocusDistance(pass); }
+  public setDepthOfFieldFocusDistance(pass: NativeHandle, value: number): void { this.#bridge.setDepthOfFieldFocusDistance(pass, value); }
+  public getDepthOfFieldFocalLength(pass: NativeHandle): number { return this.#bridge.getDepthOfFieldFocalLength(pass); }
+  public setDepthOfFieldFocalLength(pass: NativeHandle, value: number): void { this.#bridge.setDepthOfFieldFocalLength(pass, value); }
+  public getDepthOfFieldFNumber(pass: NativeHandle): number { return this.#bridge.getDepthOfFieldFNumber(pass); }
+  public setDepthOfFieldFNumber(pass: NativeHandle, value: number): void { this.#bridge.setDepthOfFieldFNumber(pass, value); }
+  public getDepthOfFieldMaxRadius(pass: NativeHandle): number { return this.#bridge.getDepthOfFieldMaxRadius(pass); }
+  public setDepthOfFieldMaxRadius(pass: NativeHandle, value: number): void { this.#bridge.setDepthOfFieldMaxRadius(pass, value); }
+  public circleOfConfusionMillimetres( depth: number, focusDistance: number, focalLength: number, fNumber: number, ): number { return this.#bridge.circleOfConfusionMillimetres(depth, focusDistance, focalLength, fNumber, ); }
+  public createLensFlarePass(device: NativeHandle): NativeHandle { return this.#bridge.createLensFlarePass(device); }
+  public getLensFlareThreshold(pass: NativeHandle): number { return this.#bridge.getLensFlareThreshold(pass); }
+  public setLensFlareThreshold(pass: NativeHandle, value: number): void { this.#bridge.setLensFlareThreshold(pass, value); }
+  public getLensFlareIntensity(pass: NativeHandle): number { return this.#bridge.getLensFlareIntensity(pass); }
+  public setLensFlareIntensity(pass: NativeHandle, value: number): void { this.#bridge.setLensFlareIntensity(pass, value); }
+  public getLensFlareDispersal(pass: NativeHandle): number { return this.#bridge.getLensFlareDispersal(pass); }
+  public setLensFlareDispersal(pass: NativeHandle, value: number): void { this.#bridge.setLensFlareDispersal(pass, value); }
+  public createMotionBlurPass(device: NativeHandle): NativeHandle { return this.#bridge.createMotionBlurPass(device); }
+  public getMotionBlurStrength(pass: NativeHandle): number { return this.#bridge.getMotionBlurStrength(pass); }
+  public setMotionBlurStrength(pass: NativeHandle, value: number): void { this.#bridge.setMotionBlurStrength(pass, value); }
+  public getMotionBlurMaxDistance(pass: NativeHandle): number { return this.#bridge.getMotionBlurMaxDistance(pass); }
+  public setMotionBlurMaxDistance(pass: NativeHandle, value: number): void { this.#bridge.setMotionBlurMaxDistance(pass, value); }
+  public createChromaticAberrationPass(device: NativeHandle): NativeHandle { return this.#bridge.createChromaticAberrationPass(device); }
+  public getChromaticAberrationStrength(pass: NativeHandle): number { return this.#bridge.getChromaticAberrationStrength(pass); }
+  public setChromaticAberrationStrength(pass: NativeHandle, value: number): void { this.#bridge.setChromaticAberrationStrength(pass, value); }
+  public createFilmGrainPass(device: NativeHandle): NativeHandle { return this.#bridge.createFilmGrainPass(device); }
+  public getFilmGrainIntensity(pass: NativeHandle): number { return this.#bridge.getFilmGrainIntensity(pass); }
+  public setFilmGrainIntensity(pass: NativeHandle, value: number): void { this.#bridge.setFilmGrainIntensity(pass, value); }
+  public createAsciiPass(device: NativeHandle): NativeHandle { return this.#bridge.createAsciiPass(device); }
+  public getAsciiPassEffect(pass: NativeHandle): NativeHandle { return this.#bridge.getAsciiPassEffect(pass); }
+  public extractBloomChannel(value: number, threshold: number): number { return this.#bridge.extractBloomChannel(value, threshold); }
+  public tonemapChannel(mode: number, value: number, exposure: number, gamma: number): number { return this.#bridge.tonemapChannel(mode, value, exposure, gamma); }
+  public getFxaaFragmentGlsl(): string { return this.#bridge.getFxaaFragmentGlsl(); }
+  public getSsaoKernel(pass: NativeHandle): readonly Vector3Snapshot[] { return this.#bridge.getSsaoKernel(pass); }
+  public getSsaoOcclusionGlsl(packed: boolean): string { return this.#bridge.getSsaoOcclusionGlsl(packed); }
+  public evaluateThinFilmIridescence( outsideIor: number, filmIor: number, cosTheta: number, thicknessNanometres: number, baseReflectance: Vector3Snapshot, ): Vector3Snapshot { return this.#bridge.evaluateThinFilmIridescence(outsideIor, filmIor, cosTheta, thicknessNanometres, baseReflectance, ); }
+  public getThinFilmIridescenceGlsl(): string { return this.#bridge.getThinFilmIridescenceGlsl(); }
+  public createFullscreenPass(device: NativeHandle): NativeHandle { return this.#bridge.createFullscreenPass(device); }
+  public destroyFullscreenPass(pass: NativeHandle): void { this.#bridge.destroyFullscreenPass(pass); }
+  public drawFullscreenPass( pass: NativeHandle, source: NativeHandle, destination: NativeHandle, effect: NativeHandle, width: number, height: number, ): void { this.#bridge.drawFullscreenPass(pass, source, destination, effect, width, height, ); }
+  public drawFullscreenPassOverCurrentTarget( pass: NativeHandle, source: NativeHandle, effect: NativeHandle, width: number, height: number, ): void { this.#bridge.drawFullscreenPassOverCurrentTarget(pass, source, effect, width, height, ); }
+  public createEffectPass(device: NativeHandle, effect: NativeHandle, name: string): NativeHandle { return this.#bridge.createEffectPass(device, effect, name); }
+  public createOwningEffectPass(device: NativeHandle, effect: NativeHandle, name: string): NativeHandle { return this.#bridge.createOwningEffectPass(device, effect, name); }
+  public getEffectPassEffect(pass: NativeHandle): NativeHandle { return this.#bridge.getEffectPassEffect(pass); }
+  public setEffectPassEffect(pass: NativeHandle, effect: NativeHandle): void { this.#bridge.setEffectPassEffect(pass, effect); }
+  public beginScopedRenderTarget(device: NativeHandle, destination: NativeHandle): NativeHandle { return this.#bridge.beginScopedRenderTarget(device, destination); }
+  public endScopedRenderTarget(scope: NativeHandle): void { this.#bridge.endScopedRenderTarget(scope); }
+  public scopedRenderTargetHasRecordedPrevious(scope: NativeHandle): boolean { return this.#bridge.scopedRenderTargetHasRecordedPrevious(scope); }
+  public createAsciiEffect(device: NativeHandle): NativeHandle { return this.#bridge.createAsciiEffect(device); }
+  public destroyAsciiEffect(effect: NativeHandle): void { this.#bridge.destroyAsciiEffect(effect); }
+  public getAsciiCellSize(effect: NativeHandle): SizeSnapshot { return this.#bridge.getAsciiCellSize(effect); }
+  public setAsciiCellSize(effect: NativeHandle, width: number, height: number): void { this.#bridge.setAsciiCellSize(effect, width, height); }
+  public getAsciiQuantizeMode(effect: NativeHandle): number { return this.#bridge.getAsciiQuantizeMode(effect); }
+  public setAsciiQuantizeMode(effect: NativeHandle, mode: number): void { this.#bridge.setAsciiQuantizeMode(effect, mode); }
+  public drawAsciiEffect( effect: NativeHandle, source: NativeHandle, destination: RectangleSnapshot, ): void { this.#bridge.drawAsciiEffect(effect, source, destination, ); }
+  public getAsciiLastGridDimensions(effect: NativeHandle): SizeSnapshot { return this.#bridge.getAsciiLastGridDimensions(effect); }
+  public createCrtEffect(device: NativeHandle): NativeHandle { return this.#bridge.createCrtEffect(device); }
+  public getCrtScanlineIntensity(effect: NativeHandle): number { return this.#bridge.getCrtScanlineIntensity(effect); }
+  public setCrtScanlineIntensity(effect: NativeHandle, value: number): void { this.#bridge.setCrtScanlineIntensity(effect, value); }
+  public getCrtCurvature(effect: NativeHandle): number { return this.#bridge.getCrtCurvature(effect); }
+  public setCrtCurvature(effect: NativeHandle, value: number): void { this.#bridge.setCrtCurvature(effect, value); }
+  public getCrtVignetteIntensity(effect: NativeHandle): number { return this.#bridge.getCrtVignetteIntensity(effect); }
+  public setCrtVignetteIntensity(effect: NativeHandle, value: number): void { this.#bridge.setCrtVignetteIntensity(effect, value); }
+  public getCrtMaskIntensity(effect: NativeHandle): number { return this.#bridge.getCrtMaskIntensity(effect); }
+  public setCrtMaskIntensity(effect: NativeHandle, value: number): void { this.#bridge.setCrtMaskIntensity(effect, value); }
+  public getCrtMaskType(effect: NativeHandle): number { return this.#bridge.getCrtMaskType(effect); }
+  public setCrtMaskType(effect: NativeHandle, maskType: number): void { this.#bridge.setCrtMaskType(effect, maskType); }
+  public createDepthEffect(device: NativeHandle): NativeHandle { return this.#bridge.createDepthEffect(device); }
+  public getDepthEffectMode(effect: NativeHandle): number { return this.#bridge.getDepthEffectMode(effect); }
+  public setDepthEffectMode(effect: NativeHandle, mode: number): void { this.#bridge.setDepthEffectMode(effect, mode); }
+  public getDepthEffectDitherMode(effect: NativeHandle): number { return this.#bridge.getDepthEffectDitherMode(effect); }
+  public setDepthEffectDitherMode(effect: NativeHandle, mode: number): void { this.#bridge.setDepthEffectDitherMode(effect, mode); }
   public createBloomPass(device: NativeHandle): NativeHandle {
     return this.#bridge.createBloomPass(device);
   }

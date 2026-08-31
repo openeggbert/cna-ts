@@ -56,10 +56,21 @@ function stateOf(texture: Texture3D): Texture3DState {
   return state;
 }
 
+/** How a Texture3D CNA already made is wrapped, rather than one this constructor creates. */
+export type AdoptedTexture3DState = {
+  readonly Handle: NativeHandle;
+  readonly Release?: (handle: NativeHandle) => void;
+  readonly Label?: string;
+};
+
 export class Texture3D extends Texture {
   public constructor(
     graphicsDevice: GraphicsDevice, width: number, height: number, depth: number,
     mipMap: boolean, format: SurfaceFormat,
+  );
+  public constructor(
+    graphicsDevice: GraphicsDevice, width: number, height: number, depth: number,
+    mipMap: boolean, format: SurfaceFormat, adopted?: AdoptedTexture3DState,
   ) {
     super();
     if (graphicsDevice == null) throw new ArgumentNullException("graphicsDevice");
@@ -70,7 +81,7 @@ export class Texture3D extends Texture {
     const rootBackend = graphicsDeviceBackendForInternalUse(graphicsDevice);
     const backend = rootBackend.Graphics;
     if (!backend) throw new NativeUnavailableError("Texture3D requires CNA volume-texture routes");
-    const handle = backend.createTexture3D(
+    const handle = adopted?.Handle ?? backend.createTexture3D(
       resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
       width, height, depth, Boolean(mipMap), format,
     );
@@ -80,8 +91,8 @@ export class Texture3D extends Texture {
         Handle: handle,
         Ownership: "owned",
         Parent: graphicsDeviceParentLifetimeForInternalUse(graphicsDevice),
-        Release: (value) => backend.destroyTexture3D(value),
-        Label: "Texture3D",
+        Release: adopted?.Release ?? ((value) => backend.destroyTexture3D(value)),
+        Label: adopted?.Label ?? "Texture3D",
       });
       const info = backend.getTexture3DInfo(handle);
       if (info.Width !== width || info.Height !== height || info.Depth !== depth ||

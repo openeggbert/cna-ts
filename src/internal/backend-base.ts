@@ -105,6 +105,7 @@ import type {
   PostProcessFrameSnapshot,
   PreferredLocaleSnapshot,
   RasterizerStateSnapshot,
+  RectangleSnapshot,
   RenderPipelineSettingsDefaults,
   RenderPipelineStatisticsSnapshot,
   RenderTargetBindingSnapshot,
@@ -117,6 +118,7 @@ import type {
   SceneFaceDraw,
   SensorStateSnapshot,
   SensorSupportSnapshot,
+  SizeSnapshot,
   SoundEffectInstanceSnapshot,
   SpotLightSnapshot,
   SpriteBatchCommand,
@@ -992,6 +994,315 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
     _pipeline: NativeHandle,
   ): RenderPipelineStatisticsSnapshot { return this.unsupported("getRenderPipelineStatistics"); }
   public createBlitPass(_device: NativeHandle): NativeHandle { return this.unsupported("createBlitPass"); }
+  public createColorGradePass(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createColorGradePass"); }
+  public createIdentityLutTexture(
+    _device: NativeHandle,
+    _size: number,
+  ): NativeHandle { return this.unsupported("createIdentityLutTexture"); }
+  public getColorGradeInterpolation(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getColorGradeInterpolation"); }
+  public setColorGradeInterpolation(
+    _pass: NativeHandle,
+    _interpolation: number,
+  ): void { return this.unsupported("setColorGradeInterpolation"); }
+  public getColorGradeLut(_pass: NativeHandle): NativeHandle { return this.unsupported("getColorGradeLut"); }
+  public setColorGradeLut(
+    _pass: NativeHandle,
+    _lut: NativeHandle,
+  ): void { return this.unsupported("setColorGradeLut"); }
+  public getColorGradeVolumeLut(
+    _pass: NativeHandle,
+  ): NativeHandle { return this.unsupported("getColorGradeVolumeLut"); }
+  public setColorGradeVolumeLut(
+    _pass: NativeHandle,
+    _lut: NativeHandle,
+  ): void { return this.unsupported("setColorGradeVolumeLut"); }
+  public getColorGradeStrength(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getColorGradeStrength"); }
+  public setColorGradeStrength(
+    _pass: NativeHandle,
+    _strength: number,
+  ): void { return this.unsupported("setColorGradeStrength"); }
+  public lutSizeForStrip(
+    _width: number,
+    _height: number,
+  ): number { return this.unsupported("lutSizeForStrip"); }
+  public parseCubeLut(_text: string): NativeHandle { return this.unsupported("parseCubeLut"); }
+  public destroyCubeLut(_lut: NativeHandle): void { return this.unsupported("destroyCubeLut"); }
+  public getCubeLutSize(_lut: NativeHandle): number { return this.unsupported("getCubeLutSize"); }
+  public getCubeLutEntry(
+    _lut: NativeHandle,
+    _red: number,
+    _green: number,
+    _blue: number,
+  ): Vector3Snapshot { return this.unsupported("getCubeLutEntry"); }
+  public getCubeLutDomainMin(
+    _lut: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getCubeLutDomainMin"); }
+  public getCubeLutDomainMax(
+    _lut: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getCubeLutDomainMax"); }
+  public isCubeLutUnitDomain(_lut: NativeHandle): boolean { return this.unsupported("isCubeLutUnitDomain"); }
+  public getCubeLutTitle(_lut: NativeHandle): string { return this.unsupported("getCubeLutTitle"); }
+  public createCubeLutStripTexture(
+    _lut: NativeHandle,
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createCubeLutStripTexture"); }
+  public createCubeLutVolumeTexture(
+    _lut: NativeHandle,
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createCubeLutVolumeTexture"); }
+  public createDepthOfFieldPass(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createDepthOfFieldPass"); }
+  public getDepthOfFieldFocusDistance(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getDepthOfFieldFocusDistance"); }
+  public setDepthOfFieldFocusDistance(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setDepthOfFieldFocusDistance"); }
+  public getDepthOfFieldFocalLength(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getDepthOfFieldFocalLength"); }
+  public setDepthOfFieldFocalLength(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setDepthOfFieldFocalLength"); }
+  public getDepthOfFieldFNumber(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getDepthOfFieldFNumber"); }
+  public setDepthOfFieldFNumber(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setDepthOfFieldFNumber"); }
+  public getDepthOfFieldMaxRadius(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getDepthOfFieldMaxRadius"); }
+  public setDepthOfFieldMaxRadius(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setDepthOfFieldMaxRadius"); }
+  public circleOfConfusionMillimetres(
+    _depth: number,
+    _focusDistance: number,
+    _focalLength: number,
+    _fNumber: number,
+  ): number { return this.unsupported("circleOfConfusionMillimetres"); }
+  public createLensFlarePass(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createLensFlarePass"); }
+  public getLensFlareThreshold(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getLensFlareThreshold"); }
+  public setLensFlareThreshold(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setLensFlareThreshold"); }
+  public getLensFlareIntensity(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getLensFlareIntensity"); }
+  public setLensFlareIntensity(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setLensFlareIntensity"); }
+  public getLensFlareDispersal(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getLensFlareDispersal"); }
+  public setLensFlareDispersal(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setLensFlareDispersal"); }
+  public createMotionBlurPass(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createMotionBlurPass"); }
+  public getMotionBlurStrength(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getMotionBlurStrength"); }
+  public setMotionBlurStrength(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setMotionBlurStrength"); }
+  public getMotionBlurMaxDistance(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getMotionBlurMaxDistance"); }
+  public setMotionBlurMaxDistance(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setMotionBlurMaxDistance"); }
+  public createChromaticAberrationPass(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createChromaticAberrationPass"); }
+  public getChromaticAberrationStrength(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getChromaticAberrationStrength"); }
+  public setChromaticAberrationStrength(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setChromaticAberrationStrength"); }
+  public createFilmGrainPass(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createFilmGrainPass"); }
+  public getFilmGrainIntensity(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getFilmGrainIntensity"); }
+  public setFilmGrainIntensity(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setFilmGrainIntensity"); }
+  public createAsciiPass(_device: NativeHandle): NativeHandle { return this.unsupported("createAsciiPass"); }
+  public getAsciiPassEffect(
+    _pass: NativeHandle,
+  ): NativeHandle { return this.unsupported("getAsciiPassEffect"); }
+  public extractBloomChannel(
+    _value: number,
+    _threshold: number,
+  ): number { return this.unsupported("extractBloomChannel"); }
+  public tonemapChannel(
+    _mode: number,
+    _value: number,
+    _exposure: number,
+    _gamma: number,
+  ): number { return this.unsupported("tonemapChannel"); }
+  public getFxaaFragmentGlsl(): string { return this.unsupported("getFxaaFragmentGlsl"); }
+  public getSsaoKernel(
+    _pass: NativeHandle,
+  ): readonly Vector3Snapshot[] { return this.unsupported("getSsaoKernel"); }
+  public getSsaoOcclusionGlsl(_packed: boolean): string { return this.unsupported("getSsaoOcclusionGlsl"); }
+  public evaluateThinFilmIridescence(
+    _outsideIor: number,
+    _filmIor: number,
+    _cosTheta: number,
+    _thicknessNanometres: number,
+    _baseReflectance: Vector3Snapshot,
+  ): Vector3Snapshot { return this.unsupported("evaluateThinFilmIridescence"); }
+  public getThinFilmIridescenceGlsl(): string { return this.unsupported("getThinFilmIridescenceGlsl"); }
+  public createFullscreenPass(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createFullscreenPass"); }
+  public destroyFullscreenPass(
+    _pass: NativeHandle,
+  ): void { return this.unsupported("destroyFullscreenPass"); }
+  public drawFullscreenPass(
+    _pass: NativeHandle,
+    _source: NativeHandle,
+    _destination: NativeHandle,
+    _effect: NativeHandle,
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("drawFullscreenPass"); }
+  public drawFullscreenPassOverCurrentTarget(
+    _pass: NativeHandle,
+    _source: NativeHandle,
+    _effect: NativeHandle,
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("drawFullscreenPassOverCurrentTarget"); }
+  public createEffectPass(
+    _device: NativeHandle,
+    _effect: NativeHandle,
+    _name: string,
+  ): NativeHandle { return this.unsupported("createEffectPass"); }
+  public createOwningEffectPass(
+    _device: NativeHandle,
+    _effect: NativeHandle,
+    _name: string,
+  ): NativeHandle { return this.unsupported("createOwningEffectPass"); }
+  public getEffectPassEffect(
+    _pass: NativeHandle,
+  ): NativeHandle { return this.unsupported("getEffectPassEffect"); }
+  public setEffectPassEffect(
+    _pass: NativeHandle,
+    _effect: NativeHandle,
+  ): void { return this.unsupported("setEffectPassEffect"); }
+  public beginScopedRenderTarget(
+    _device: NativeHandle,
+    _destination: NativeHandle,
+  ): NativeHandle { return this.unsupported("beginScopedRenderTarget"); }
+  public endScopedRenderTarget(
+    _scope: NativeHandle,
+  ): void { return this.unsupported("endScopedRenderTarget"); }
+  public scopedRenderTargetHasRecordedPrevious(
+    _scope: NativeHandle,
+  ): boolean { return this.unsupported("scopedRenderTargetHasRecordedPrevious"); }
+  public createAsciiEffect(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createAsciiEffect"); }
+  public destroyAsciiEffect(_effect: NativeHandle): void { return this.unsupported("destroyAsciiEffect"); }
+  public getAsciiCellSize(
+    _effect: NativeHandle,
+  ): SizeSnapshot { return this.unsupported("getAsciiCellSize"); }
+  public setAsciiCellSize(
+    _effect: NativeHandle,
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("setAsciiCellSize"); }
+  public getAsciiQuantizeMode(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getAsciiQuantizeMode"); }
+  public setAsciiQuantizeMode(
+    _effect: NativeHandle,
+    _mode: number,
+  ): void { return this.unsupported("setAsciiQuantizeMode"); }
+  public drawAsciiEffect(
+    _effect: NativeHandle,
+    _source: NativeHandle,
+    _destination: RectangleSnapshot,
+  ): void { return this.unsupported("drawAsciiEffect"); }
+  public getAsciiLastGridDimensions(
+    _effect: NativeHandle,
+  ): SizeSnapshot { return this.unsupported("getAsciiLastGridDimensions"); }
+  public createCrtEffect(_device: NativeHandle): NativeHandle { return this.unsupported("createCrtEffect"); }
+  public getCrtScanlineIntensity(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getCrtScanlineIntensity"); }
+  public setCrtScanlineIntensity(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setCrtScanlineIntensity"); }
+  public getCrtCurvature(_effect: NativeHandle): number { return this.unsupported("getCrtCurvature"); }
+  public setCrtCurvature(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setCrtCurvature"); }
+  public getCrtVignetteIntensity(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getCrtVignetteIntensity"); }
+  public setCrtVignetteIntensity(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setCrtVignetteIntensity"); }
+  public getCrtMaskIntensity(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getCrtMaskIntensity"); }
+  public setCrtMaskIntensity(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setCrtMaskIntensity"); }
+  public getCrtMaskType(_effect: NativeHandle): number { return this.unsupported("getCrtMaskType"); }
+  public setCrtMaskType(
+    _effect: NativeHandle,
+    _maskType: number,
+  ): void { return this.unsupported("setCrtMaskType"); }
+  public createDepthEffect(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createDepthEffect"); }
+  public getDepthEffectMode(_effect: NativeHandle): number { return this.unsupported("getDepthEffectMode"); }
+  public setDepthEffectMode(
+    _effect: NativeHandle,
+    _mode: number,
+  ): void { return this.unsupported("setDepthEffectMode"); }
+  public getDepthEffectDitherMode(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getDepthEffectDitherMode"); }
+  public setDepthEffectDitherMode(
+    _effect: NativeHandle,
+    _mode: number,
+  ): void { return this.unsupported("setDepthEffectDitherMode"); }
   public createBloomPass(_device: NativeHandle): NativeHandle { return this.unsupported("createBloomPass"); }
   public createTonemapPass(
     _device: NativeHandle,

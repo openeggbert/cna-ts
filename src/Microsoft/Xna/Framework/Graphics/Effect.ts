@@ -576,6 +576,27 @@ export function resolveEffectHandleForInternalUse(effect: Effect): NativeHandle 
   return native.Lifetime.Handle;
 }
 
+/**
+ * Hands the effect's native handle to another owner and leaves this wrapper owning nothing.
+ *
+ * For the CNA routes that consume an effect rather than borrowing it --
+ * `cna_post_process_effect_pass_create_owning` is the one in the engine layer. After this the
+ * wrapper is transferred rather than disposed: releasing it again would be a double free, and CNA
+ * refuses the consumed handle with `INVALID_HANDLE` rather than crashing, which is how this was
+ * measured.
+ *
+ * An Effect always has children -- a technique view and a pass view per technique, minted when the
+ * reflection is read -- so the views are given back here before the handle goes. They release
+ * cleanly on either side of the consume; doing it first is what keeps this wrapper's own teardown
+ * from reaching a handle that is no longer ours.
+ */
+export function markEffectTransferredForInternalUse(effect: Effect): void {
+  const native = effectState(effect).Native;
+  if (native == null) throw new NativeUnavailableError("Effect has no native handle to transfer");
+  native.Lifetime.ReleaseChildren();
+  native.Lifetime.Transfer();
+}
+
 export function leaseEffectForInternalUse(effect: Effect): () => void {
   const native = effectState(effect).Native;
   if (native == null) throw new NativeUnavailableError("Effect has no executable native ownership");

@@ -419,6 +419,35 @@ Electron, or mobile support.
   angle — is checked against its own definitions on HEADLESS. Twenty-three planted defects fail and
   none survives. Two ownership traps came out of it, both by writing the binding to the header and
   measuring what happened: `docs/upstream-cna-findings.md` item 15.
+- [x] **The whole post-process family**, in one pass over `graphics_ext.h` and the rest of the
+  engine layer's passes. Colour grading is the clean case: a size-2 `.cube` whose transfer is the
+  channel rotation `(r,g,b) -> (b,r,g)` is written by the test, parsed by CNA, checked corner by
+  corner, then applied twice — as the 4x2 strip texture and as the 2x2x2 volume — and every channel
+  of every texel comes back **byte-identical** to the rotation computed in JavaScript, through both
+  tables. The rotation is linear in each channel, so trilinear interpolation reproduces it exactly;
+  half strength is the exact midpoint and zero strength the exact source. The gradient it runs over
+  is asserted asymmetric under mirror, flip and transpose first, so no such error could hide. The
+  tonemapper is checked against the model rather than against itself: CNA ships the curve as a
+  shader and as a CPU route, HEADLESS pins the CPU route to the published closed forms — Reinhard is
+  exactly `v/(1+v)`, ACES is the Narkowicz fit, `None` is a clamp and not a curve, exposure
+  multiplies before and gamma raises after — and the windowed suite then predicts every texel of a
+  drawn frame through it at five settings that give five different frames. Every pass's own "off"
+  switch is a byte-exact identity on a real GPU, eight of them, and turned on each must change the
+  frame the way its name means: a bloom only ever adds light, chromatic aberration moves red and
+  blue and leaves green untouched at every texel, grain differs per texel rather than offsetting
+  the frame, and FXAA leaves a smooth interior alone. The CRT is drawn over flat grey through the
+  layer's own fullscreen pass: all parameters at zero is an exact copy, scanlines darken alternate
+  rows by exactly the intensity — 200 to 100 at 0.5, to 150 at 0.25 — and the vignette is verified
+  as *radial*, symmetric under both mirrors at all 64 texels and strictly brightening along the
+  diagonal. The ASCII grid is the source size over the cell size and never the destination's,
+  checked at three cell sizes against that division. Bloom's extraction turned out to be a soft knee
+  rather than the subtraction its own comment claimed, and the comment now says what it measured.
+  Depth-of-field's circle of confusion is checked against the thin-lens equation written out in the
+  test. The depth effect is labelled native state rather than pixels, because its input is a depth
+  buffer a colour blit does not supply. Twelve planted binding defects fail and none survives, and
+  two more real ones were found by running it: the two colour-grade getters mint different kinds of
+  handle, and an `Effect` always has child views, so the route that *consumes* an effect has to be
+  given them back first.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -513,9 +542,9 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 98 operation families: 20 verified managed, 46 verified native, seven
-  verified WebAssembly, five explicitly unavailable on the qualified backend, one upstream-CNA
-  blocked, three fixture pending, four hardware pending, three platform pending, five unimplemented
+- [x] Current baseline is 144 operation families: 21 verified managed, 84 verified native, 13
+  verified WebAssembly, five explicitly unavailable on the qualified backend, three upstream-CNA
+  blocked, three fixture pending, six hardware pending, three platform pending, two unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.
 - [x] Audit every `NativeUnavailableError` and `NotSupportedException` construction site in the
   selected-framework source into those operation-family boundaries; the generator refuses to run
@@ -600,7 +629,7 @@ Electron, or mobile support.
 
 ## Upstream CNA blockers
 
-Six runtime defects and two build-system gaps remain, all in `cnanext`, all measured here and none
+Eight runtime defects and two build-system gaps remain, all in `cnanext`, all measured here and none
 fixed from this session. `docs/upstream-cna-findings.md` records each with its reproduction and a
 proposed change, and each has a test in this package that fails when the behaviour changes.
 
@@ -618,6 +647,16 @@ route they read (item 15). The sixth is the same shape one level down: all four 
 document the counted-borrow rule in the same words and the spot map is the only one whose destroy
 never reads the borrow count its own resource keeps, so the mistake the other three catch is a
 use-after-free there (item 16).
+
+The last two came out of the post-process passes. One is the borrow rule again from a third door:
+three engine-layer routes lend an `Effect`, all three mint a registered handle, and only
+`cna_post_process_effect_pass_get_effect` tells the caller not to destroy it -- so obeying that
+header is what makes the game undestroyable (item 17). The other is the consequence every leak
+finding here shares, and it is worse than the refusal itself: a process that *ends* with a game
+whose destroy was refused takes SIGSEGV after its last statement has run, and an explicit
+`process.exit(0)` does not avoid it. A game simply left alive exits cleanly and a refusal that is
+cleaned up and retried exits cleanly, so the crash belongs to the refusal rather than to a live
+game at exit (item 18).
 
 The runtime one: `cna_post_process_chain_add_owned_pass` consumes a pass handle without the
 `RemoveOwnedGraphicsResourceFor` its sibling `_destroy` performs, so the game's
