@@ -16,6 +16,10 @@ qualification to three renderers; items 8 and 9 are new, found while projecting 
 layer's compute path, item 10 while projecting its clustered lighting, and item 11 -- a
 segmentation fault -- while projecting camera frame capture.
 
+**Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
+library. Both were found by this package, both were *asserted* rather than worked around, and both
+detectors fired the moment the repair landed. Four of the eleven findings are now closed.
+
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
 **Status: still present** in `cnanext` 599d14e5. Re-read from source at that revision:
@@ -200,7 +204,7 @@ the gyroscope's is not, and `test/native-cna.integration.mjs` asserts exactly th
 override alone leaves the state `NotSupported`, `Start` is refused, the injection is accepted and
 no valid reading appears. If CNA adds the backend, those assertions fail and the coverage can grow.
 
-## 7. OPENGLES3 render-target readback returns zeros
+## 7. OPENGLES3 render-target readback returned zeros — FIXED in 48ab0de7f
 
 **Measured:** CNA ABI 0.21.0, `CNA_GRAPHICS_RENDERER=OPENGLES3`, `CNA_PLATFORM=SDL3`, under Xvfb
 with Mesa 25.0.7 (OpenGL ES 3.2). This is the renderer whose exact-texel readback was this
@@ -244,6 +248,17 @@ This was not confirmed by bisection: `cmake-build-debug` is another session's bu
 exact source revision cannot be recovered from the artifact, and building a second OPENGLES3 tree
 or checking out an earlier revision would mean modifying a dependency this session must not touch.
 The mechanism and the timing are offered as the lead; the measurement above is the fact.
+
+**Fixed, and the hypothesis was right.** CNA repaired it in `48ab0de7f`, *"fix(CABI-46): separate
+frame context handoff from operation leases"* — which touches `EasyGLRenderer.cpp` and
+`GraphicsDevice.cpp`, the two files the lead above named. Verified independently here rather than
+taken on the commit message: `test/windowed-renderer.integration.mjs` asserted the zeros rather
+than skipping the check, and on the rebuilt library that assertion **failed** with all sixteen
+texels reading `ff38220c` — `Color(12, 34, 56, 255)`, exactly what `Clear` was given. The test now
+asserts the correct texels on all three windowed renderers.
+
+That is the whole point of asserting a defect instead of working around it: nobody had to remember
+to come back and look.
 
 **Proposed fix:** re-acquire the renderer's own context before a readback, or restore it at the
 lease boundary for the non-threaded path while keeping the release the threaded path needs.
@@ -302,7 +317,7 @@ the implementation agree, that assertion fails rather than the difference going 
 `ComputeShader.IsValid` and `ComputeShader.CompileError` are projected regardless, because they are
 the documented contract.
 
-## 9. OPENGLES3 compute work-group limits go to zero at the first draw and never return
+## 9. OPENGLES3 compute work-group limits went to zero at the first draw — FIXED in 48ab0de7f
 
 **Measured:** CNA ABI 0.21.0, revision 599d14e5, `CNA_GRAPHICS_RENDERER=OPENGLES3`, Mesa 25.0.7
 (OpenGL ES 3.2), under Xvfb. All three `_ext` limit routes, read repeatedly on one device:
@@ -345,10 +360,18 @@ recorded separately because only one mechanism is hypothesised, and this one has
 that a bisection could use: the transition happens at the first draw, on a device that is otherwise
 fully working.
 
-**Detector in cna-ts:** `test/windowed-renderer.integration.mjs` reads the limits before anything
-draws — the only point at which they are meaningful — and then asserts the zeros after one `Clear`,
-together with the capability query still answering `true`. Both halves have to change together for
-that assertion to pass again, which is what a repair would look like.
+**Fixed by the same commit as item 7**, `48ab0de7f`. The two were one defect: a GL query and a
+`glReadPixels` both answering as though no context were current, after a lease boundary stopped
+restoring the renderer's own. On the rebuilt library the limits read `2147483646 / 1024 / 1024`
+after a `Clear` — the same values as before it.
+
+**Detector in cna-ts:** the test read the limits before anything drew — the only point at which
+they were meaningful — and asserted the zeros after one `Clear`, together with the capability query
+still answering `true`. Both halves had to change together for that assertion to pass again, which
+is exactly what happened. It now asserts the agreement itself: the limits after a draw equal the
+limits before it, on both sides, which is the property CNA's own
+`ComputeTest.TheCapabilityAndTheLimitsAgreeWithEachOther` checks and could not have caught, because
+its fixture never draws first.
 
 ## 10. Four clustered-lighting creates document a game handle and require a device handle
 

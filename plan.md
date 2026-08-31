@@ -336,9 +336,9 @@ Electron, or mobile support.
   against arithmetic rather than recorded numbers. Two half steps and one whole step both reach the
   same velocity but land in different places, which is what shows a stepwise integrator.
 - [ ] The two draw passes — a shadow map's depth pass and a particle system's draw — are
-  deliberately unprojected rather than merely unwritten: each needs a real render pass, and the one
-  renderer here that could run one answers every render-target readback with zeros (upstream
-  finding 7), so there is no evidence to accept them on.
+  unprojected. Each needs a real depth or sprite pass with geometry, a camera and an effect. Until
+  CNA fixed upstream findings 7 and 9 there was also no evidence to accept them on, because
+  render-target readback answered zeros; that obstacle is gone.
 - [x] And the rest of the shadow-map maths: a cascaded map's split distances checked against both
   closed forms and their midpoint, the bounding sphere that sizes a cascade snugly, a spot light's
   cone, and a cube map's six faces proved to be three opposite pairs.

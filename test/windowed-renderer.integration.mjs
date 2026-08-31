@@ -360,16 +360,15 @@ class WindowedProbeGame extends Game {
   }
 }
 
-/**
- * Renderers whose render-target readback is currently broken upstream, and the exact symptom.
+/*
+ * Every renderer here reads a render target back correctly.
  *
- * `docs/upstream-cna-findings.md` item 7: OPENGLES3 answers every render-target readback with
- * zeros, while an ordinary texture readback on the same device is correct and while SDL_RENDERER
- * and SOFTWARE produce the exact texels. Listing it here rather than skipping the assertion means
- * **the defect is asserted**: when CNA repairs it, this file fails and says so, which is the only
- * way a recorded defect stops being silently permanent.
+ * That was not true earlier: `docs/upstream-cna-findings.md` item 7 recorded OPENGLES3 answering
+ * every render-target readback with zeros, and this file asserted those zeros rather than skipping
+ * the check -- which is what made the repair visible the moment it landed. CNA fixed it in
+ * 48ab0de7f, "separate frame context handoff from operation leases", and the assertion below is
+ * now the ordinary one again.
  */
-const READBACK_DEFECTIVE = new Set(["OPENGLES3"]);
 
 test("a windowed CNA renderer produces the exact pixels the public API asked for", { skip }, async () => {
   const game = new WindowedProbeGame(60);
@@ -388,22 +387,13 @@ test("a windowed CNA renderer produces the exact pixels the public API asked for
 
   const expected = CLEAR.PackedValue;
   assert.equal(evidence.targetPixels.length, 16);
-  let readback;
-  if (READBACK_DEFECTIVE.has(evidence.renderer.name)) {
-    // Asserted, not skipped. Every texel is zero -- not merely "not the expected colour" -- which
-    // is the shape of a read from an unbound framebuffer rather than of a wrong clear.
-    assert.deepEqual(
-      evidence.targetPixels, new Array(16).fill(0),
-      `${evidence.renderer.name} is recorded as returning zeros; a different answer means the ` +
-      "upstream defect changed and docs/upstream-cna-findings.md item 7 needs re-measuring",
-    );
-    readback = "DEFECTIVE_ZEROS";
-  } else {
-    // Sixteen texels, each exactly the colour Clear was given. This is the assertion that
-    // separates a drawing path from a dispatch path.
-    assert.deepEqual(evidence.targetPixels, new Array(16).fill(expected));
-    readback = "EXACT";
-  }
+  // Sixteen texels, each exactly the colour Clear was given. This is the assertion that separates
+  // a drawing path from a dispatch path, and it now holds on every renderer this file runs on.
+  assert.deepEqual(
+    evidence.targetPixels, new Array(16).fill(expected),
+    `${evidence.renderer.name} did not read its render target back exactly`,
+  );
+  const readback = "EXACT";
 
   assert.equal(game.frames, 60);
   console.log(
@@ -548,19 +538,21 @@ test("a windowed CNA renderer computes exact results on the GPU", { skip }, asyn
     "the per-axis limits are read per axis, not one value repeated",
   );
 
-  // Asserted, not skipped: the same three limits, read again after one Clear, are all zero, and
-  // stay zero for the rest of the device's life. Zero is not a legal answer for a device that
-  // still reports compute support and still dispatches exactly, which is what the rest of this
-  // test goes on to prove. CNA's own ComputeTest.TheCapabilityAndTheLimitsAgreeWithEachOther
-  // checks this agreement and passes only because it never draws first. When CNA repairs it, this
-  // assertion fails and says so.
+  // The limits survive a draw. They did not once: `docs/upstream-cna-findings.md` item 9 recorded
+  // all three going to zero at the first Clear and never coming back, while the capability query
+  // kept reporting compute support -- a contradiction CNA's own
+  // ComputeTest.TheCapabilityAndTheLimitsAgreeWithEachOther checks for and missed, because its
+  // fixture never draws first. This file asserted the zeros rather than working around them, and
+  // that is what made the repair visible; it landed in 48ab0de7f with the readback fix. What is
+  // asserted now is the agreement itself, on both sides of a draw.
   assert.deepEqual(
-    [compute.afterDraw.countX, compute.afterDraw.sizeX, compute.afterDraw.invocations], [0, 0, 0],
-    "the recorded upstream defect changed: re-measure docs/upstream-cna-findings.md item 9",
+    [compute.afterDraw.countX, compute.afterDraw.sizeX, compute.afterDraw.invocations],
+    [compute.limits.countX, compute.limits.sizeX, compute.limits.invocations],
+    "the work-group limits must not change because something drew",
   );
   assert.equal(
     compute.afterDraw.stillSupported, true,
-    "the capability query is unaffected, which is what makes the zeroed limits a contradiction",
+    "and the capability query still agrees with them",
   );
 
   // The buffer's declared shape, read back from CNA rather than remembered here.
