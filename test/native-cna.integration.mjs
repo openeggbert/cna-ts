@@ -8861,3 +8861,146 @@ test("the HDR display transfer chain is the published one, in every part and in 
     `ENCODE=COMPOSES_ITS_PARTS`,
   );
 });
+
+test("the render pipeline's settings are a value that clamps, presets and parses itself", async () => {
+  const graphics = computeExtensions;
+  const { CreatePipelineSettings, PipelineSettingsOperations, RenderQuality, TonemappingMode } = graphics;
+
+  // --- CNA's own defaults ------------------------------------------------------------------------
+  const defaults = CreatePipelineSettings();
+  assert.equal(typeof defaults, "object");
+  assert.ok(Object.keys(defaults).length >= 40, "the canonical settings carry every pass's fields");
+  assert.equal(defaults.Exposure, 1);
+  assert.ok(Math.abs(defaults.Gamma - 2.2) < 1e-5, "and a display gamma of 2.2");
+  assert.equal(defaults.BloomIterations, 4);
+  assert.equal(defaults.SsaoSampleCount, 16);
+  assert.equal(defaults.SsrStepCount, 32);
+  // The expensive passes start off, so a pipeline costs nothing a game did not ask for.
+  for (const key of ["HdrEnabled", "BloomEnabled", "SsaoEnabled", "SsrEnabled", "ColorGradeEnabled"]) {
+    assert.equal(defaults[key], false, `${key} must start off`);
+  }
+  // Two calls are two values, not one view.
+  const other = CreatePipelineSettings();
+  other.Exposure = 5;
+  assert.equal(defaults.Exposure, 1, "two settings bags must not share state");
+
+  // --- normalize -----------------------------------------------------------------------------------
+  // A floor rather than a two-sided clamp: what is below its range comes up to the bottom of it.
+  const bad = {
+    ...defaults, Exposure: -5, Gamma: 0, BloomIntensity: -1, SsrMaxDistance: -1,
+    HeightFogFalloff: -1, ColorGradeStrength: 5, DofFocusDistance: -2,
+  };
+  const normalized = PipelineSettingsOperations.Normalize(bad);
+  assert.equal(normalized.Exposure, 0, "a negative exposure comes up to zero");
+  assert.ok(
+    Math.abs(normalized.Gamma - 0.01) < 1e-6,
+    `gamma has a floor of 0.01 because dividing by it is what gamma is for: ${normalized.Gamma}`,
+  );
+  assert.equal(normalized.BloomIntensity, 0);
+  assert.equal(normalized.SsrMaxDistance, 0);
+  assert.equal(normalized.HeightFogFalloff, 0);
+  assert.equal(normalized.DofFocusDistance, 0);
+  assert.equal(
+    normalized.ColorGradeStrength, 1,
+    "and a strength above one comes down, because a grade is a fraction",
+  );
+  // It answers a new bag rather than editing the one it was given.
+  assert.equal(bad.Exposure, -5, "normalizing must not edit the settings it was handed");
+  // What is already in range is left exactly alone.
+  const clean = PipelineSettingsOperations.Normalize(defaults);
+  for (const key of Object.keys(defaults)) {
+    assert.equal(clean[key], defaults[key], `normalizing CNA's own defaults changed ${key}`);
+  }
+  // The enums are validated rather than clamped: guessing which tier a caller meant would be worse.
+  assert.throws(
+    () => PipelineSettingsOperations.Normalize({ ...defaults, RenderQuality: 99 }),
+    (error) => error.cnaResult === 1,
+    "an undefined render quality is refused, not rounded to the nearest tier",
+  );
+  assert.throws(
+    () => PipelineSettingsOperations.Normalize({ ...defaults, ShadowQuality: 99 }),
+    (error) => error.cnaResult === 1,
+  );
+
+  // --- the quality preset ----------------------------------------------------------------------------
+  // The tier decides how much work each pass does, not which passes run.
+  const tiers = [RenderQuality.Low, RenderQuality.Medium, RenderQuality.High, RenderQuality.Ultra];
+  const applied = tiers.map(
+    (quality) => PipelineSettingsOperations.ApplyRenderQualityPreset(
+      { ...defaults, RenderQuality: quality }));
+  for (let index = 1; index < applied.length; index += 1) {
+    assert.ok(
+      applied[index].BloomIterations > applied[index - 1].BloomIterations,
+      `a higher tier must blur more: ${applied[index - 1].BloomIterations} then ` +
+      `${applied[index].BloomIterations}`,
+    );
+    assert.ok(
+      applied[index].SsaoSampleCount > applied[index - 1].SsaoSampleCount,
+      "and sample more",
+    );
+  }
+  assert.equal(applied[0].SsaoSampleCount, 8, "eight samples at the lowest tier");
+  assert.equal(applied[3].SsaoSampleCount, 64, "and sixty-four at the highest");
+  for (const [index, settings] of applied.entries()) {
+    assert.equal(
+      settings.BloomEnabled, defaults.BloomEnabled,
+      `tier ${index} switched a pass on, which is the caller's decision and not the preset's`,
+    );
+    assert.equal(settings.SsaoEnabled, defaults.SsaoEnabled);
+    assert.equal(settings.SsrEnabled, defaults.SsrEnabled);
+    assert.equal(settings.RenderQuality, tiers[index], "and the tier itself is kept");
+  }
+
+  // --- the settings text -------------------------------------------------------------------------------
+  // Semicolon-separated key=value pairs; the count is how a caller tells a settings file that
+  // loaded from one that was mostly typos.
+  const good = PipelineSettingsOperations.ApplyFromString(
+    defaults, "exposure=2.5;gamma=2.4;bloom=1;ssaoSampleCount=24;quality=Ultra");
+  assert.equal(good.Applied, 5, "five fields written is five fields recognised");
+  assert.equal(good.Settings.Exposure, 2.5);
+  assert.ok(Math.abs(good.Settings.Gamma - 2.4) < 1e-5);
+  assert.equal(good.Settings.BloomEnabled, true, "a flag parses from one");
+  assert.equal(good.Settings.SsaoSampleCount, 24, "an integer parses as an integer");
+  assert.equal(
+    good.Settings.RenderQuality, RenderQuality.Ultra,
+    "and a quality parses by its name rather than by a number",
+  );
+  assert.equal(defaults.Exposure, 1, "and the settings it was handed are unchanged");
+  // What it does not recognise is skipped rather than refused, and counted as not applied.
+  const partial = PipelineSettingsOperations.ApplyFromString(
+    defaults, "exposure=3;nonsense=1;alsoNonsenseWithNoEquals");
+  assert.equal(partial.Applied, 1, "one of three recognised");
+  assert.equal(partial.Settings.Exposure, 3, "and the one that was recognised still landed");
+  assert.equal(
+    PipelineSettingsOperations.ApplyFromString(defaults, "").Applied, 0,
+    "empty text applies nothing and says so",
+  );
+  assert.equal(
+    PipelineSettingsOperations.ApplyFromString(defaults, "exposure=notanumber").Applied, 0,
+    "and a value that will not parse is not applied either",
+  );
+  // A loaded value goes through the same clamping a written one does, which is the trap a settings
+  // file with a stale gamma of zero in it would otherwise walk straight past.
+  const clamped = PipelineSettingsOperations.ApplyFromString(defaults, "gamma=0;exposure=-4");
+  assert.equal(clamped.Applied, 2, "both were recognised");
+  assert.ok(
+    Math.abs(clamped.Settings.Gamma - 0.01) < 1e-6,
+    `and a loaded gamma lands on the same floor a written one does: ${clamped.Settings.Gamma}`,
+  );
+  assert.equal(clamped.Settings.Exposure, 0);
+
+  assert.throws(() => PipelineSettingsOperations.Normalize(null), TypeError);
+  assert.throws(
+    () => PipelineSettingsOperations.Normalize({ ...defaults, Exposure: Number.NaN }), TypeError);
+  assert.throws(
+    () => PipelineSettingsOperations.Normalize({ ...defaults, HdrEnabled: 1 }), TypeError,
+    "a flag is a Boolean, not a one",
+  );
+  assert.throws(() => PipelineSettingsOperations.ApplyFromString(defaults, null), TypeError);
+
+  console.log(
+    `CNA_TS_NATIVE_PIPELINE_SETTINGS=PASS FIELDS=${Object.keys(defaults).length} ` +
+    `NORMALIZE=FLOORS_AND_REFUSES_ENUMS PRESET=${applied.map((s) => s.SsaoSampleCount).join("/")} ` +
+    `PARSE=5_OF_5/1_OF_3`,
+  );
+});

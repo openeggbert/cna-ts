@@ -1282,6 +1282,46 @@ export interface CnaGraphicsExtensionBackend {
     autoExposure: NativeHandle, brighteningPerSecond: number, darkeningPerSecond: number,
   ): void;
   setAutoExposureRange(autoExposure: NativeHandle, minimum: number, maximum: number): void;
+  // --- the render pipeline and the settings bag it runs with -------------------------------------
+  getDefaultPipelineSettings(): PipelineSettingsSnapshot;
+  normalizePipelineSettings(settings: PipelineSettingsSnapshot): PipelineSettingsSnapshot;
+  applyPipelineQualityPreset(settings: PipelineSettingsSnapshot): PipelineSettingsSnapshot;
+  applyPipelineSettingsFromString(
+    settings: PipelineSettingsSnapshot, text: string,
+  ): { readonly Applied: number; readonly Settings: PipelineSettingsSnapshot };
+  getPipelineSettings(pipeline: NativeHandle): PipelineSettingsSnapshot;
+  setPipelineSettings(pipeline: NativeHandle, settings: PipelineSettingsSnapshot): void;
+  applyAutoExposureToSettings(
+    autoExposure: NativeHandle, settings: PipelineSettingsSnapshot,
+  ): PipelineSettingsSnapshot;
+  addPipelineUserPass(pipeline: NativeHandle, pass: NativeHandle): void;
+  clearPipelineUserPasses(pipeline: NativeHandle): void;
+  setPipelineDepthNormalInputs(
+    pipeline: NativeHandle, depth: NativeHandle, normals: NativeHandle,
+  ): void;
+  setPipelineVelocityInput(pipeline: NativeHandle, velocity: NativeHandle): void;
+  setPipelineCamera(
+    pipeline: NativeHandle, view: readonly number[], projection: readonly number[],
+    nearPlane: number, farPlane: number,
+  ): void;
+  setPipelineSkyboxCamera(
+    pipeline: NativeHandle, view: readonly number[], projection: readonly number[],
+  ): void;
+  getPipelineTransparencyFallbackReason(pipeline: NativeHandle): string;
+  setPipelineGpuTimingEnabled(pipeline: NativeHandle, value: boolean): void;
+  isPipelineGpuTimingEnabled(pipeline: NativeHandle): boolean;
+  didPipelineSkyboxDraw(pipeline: NativeHandle): boolean;
+  didPipelineShadowPassRun(pipeline: NativeHandle): boolean;
+  getPipelineShadowMap(pipeline: NativeHandle): NativeHandle;
+  getPipelineSceneTarget(pipeline: NativeHandle): NativeHandle;
+  getPipelineSceneTargetFormat(pipeline: NativeHandle): number;
+  isPipelineUsingSceneTarget(pipeline: NativeHandle): boolean;
+  releasePipelineDeviceResources(pipeline: NativeHandle): void;
+  getPipelinePassTimingCount(pipeline: NativeHandle): number;
+  getPipelinePassTiming(
+    pipeline: NativeHandle, index: number,
+  ): { readonly Milliseconds: number; readonly SampleCount: number };
+  getPipelinePassTimingName(pipeline: NativeHandle, index: number): string;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
@@ -1852,6 +1892,62 @@ export interface CullableInstanceSnapshot {
 export interface DebugVertexSnapshot {
   readonly Position: Vector3Snapshot;
   readonly Color: number;
+}
+
+/**
+ * The canonical render-pipeline settings in full: every field every pass in the layer reads.
+ *
+ * Distinct from {@link RenderPipelineDefaults}, which is the layout frozen before the extended
+ * passes existed and cannot change within an ABI major.
+ */
+export interface PipelineSettingsSnapshot {
+  readonly HdrEnabled: boolean;
+  readonly Exposure: number;
+  readonly Gamma: number;
+  readonly TonemappingMode: number;
+  readonly BloomEnabled: boolean;
+  readonly BloomIntensity: number;
+  readonly BloomThreshold: number;
+  readonly BloomIterations: number;
+  readonly SsaoEnabled: boolean;
+  readonly TransparencyMode: number;
+  readonly SsaoRadius: number;
+  readonly SsaoIntensity: number;
+  readonly SsaoSampleCount: number;
+  readonly SsrEnabled: boolean;
+  readonly SsrMaxDistance: number;
+  readonly SsrStepCount: number;
+  readonly SsrThickness: number;
+  readonly SsrDepthBias: number;
+  readonly SsrEdgeFade: number;
+  readonly VolumetricFogDensity: number;
+  readonly LightShaftThreshold: number;
+  readonly LightShaftIntensity: number;
+  readonly LightShaftDecay: number;
+  readonly HeightFogDensity: number;
+  readonly HeightFogFalloff: number;
+  readonly HeightFogBaseHeight: number;
+  readonly MotionBlurStrength: number;
+  readonly MotionBlurMaxDistance: number;
+  readonly ChromaticAberrationStrength: number;
+  readonly FilmGrainIntensity: number;
+  readonly LensFlareThreshold: number;
+  readonly LensFlareIntensity: number;
+  readonly LensFlareDispersal: number;
+  readonly ColorGradeEnabled: boolean;
+  readonly ColorGradeStrength: number;
+  readonly DofEnabled: boolean;
+  readonly DofFocusDistance: number;
+  readonly DofFocalLength: number;
+  readonly DofFNumber: number;
+  readonly DofMaxRadius: number;
+  readonly SsrRoughnessBlur: number;
+  readonly SsrIntensity: number;
+  readonly FxaaEnabled: boolean;
+  readonly FxaaEdgeThresholdExt: number;
+  readonly RenderQuality: number;
+  readonly ShadowQuality: number;
+  readonly ShadowsEnabled: boolean;
 }
 
 export interface Vector4Snapshot {

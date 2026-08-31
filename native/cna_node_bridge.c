@@ -967,6 +967,19 @@ typedef CNA_Result (*AutoExposureMeasureFn)(CNA_Handle, CNA_Handle, float*);
 typedef CNA_Result (*AutoExposureUpdateFn)(CNA_Handle, CNA_Handle, float, float*);
 typedef CNA_Result (*HandleTwoFloatFn)(CNA_Handle, float, float);
 
+typedef CNA_Result (*SettingsInPlaceFn)(CNA_RenderPipelineSettingsEXT*);
+typedef CNA_Result (*SettingsFromStringFn)(CNA_RenderPipelineSettingsEXT*, CNA_StringView, int32_t*);
+typedef CNA_Result (*PipelineGetSettingsFn)(CNA_Handle, CNA_RenderPipelineSettingsEXT*);
+typedef CNA_Result (*PipelineSetSettingsFn)(CNA_Handle, const CNA_RenderPipelineSettingsEXT*);
+typedef CNA_Result (*ExposureApplyToFn)(CNA_Handle, CNA_RenderPipelineSettingsEXT*);
+typedef CNA_Result (*PipelineCameraFn)(CNA_Handle, const CNA_Matrix*, const CNA_Matrix*, float, float);
+typedef CNA_Result (*PipelineSkyboxCameraFn)(CNA_Handle, const CNA_Matrix*, const CNA_Matrix*);
+typedef CNA_Result (*PipelineDepthNormalFn)(CNA_Handle, CNA_Handle, CNA_Handle);
+typedef CNA_Result (*PipelineFormatOutFn)(CNA_Handle, CNA_SurfaceFormat*);
+typedef CNA_Result (*PipelineTimingCountFn)(CNA_Handle, uint64_t*);
+typedef CNA_Result (*PipelineTimingFn)(CNA_Handle, uint64_t, CNA_PassTimingEXT*);
+typedef CNA_Result (*PipelineTimingNameFn)(CNA_Handle, uint64_t, char*, uint64_t, uint64_t*);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2508,6 +2521,32 @@ typedef struct Api {
   HandleFloatOutFn auto_exposure_ext_get_darkening_speed;
   HandleTwoFloatFn auto_exposure_ext_set_adaptation_speeds;
   HandleTwoFloatFn auto_exposure_ext_set_exposure_range;
+  SettingsInPlaceFn render_pipeline_settings_ext_init;
+  SettingsInPlaceFn render_pipeline_settings_ext_normalize;
+  SettingsInPlaceFn render_pipeline_settings_ext_apply_render_quality_preset;
+  SettingsFromStringFn render_pipeline_settings_ext_apply_from_string;
+  PipelineGetSettingsFn render_pipeline_get_settings;
+  PipelineSetSettingsFn render_pipeline_set_settings;
+  ExposureApplyToFn auto_exposure_ext_apply_to;
+  TwoHandleFn render_pipeline_add_user_pass;
+  GameHandleFn render_pipeline_clear_user_passes;
+  PipelineDepthNormalFn render_pipeline_set_depth_normal_inputs;
+  TwoHandleFn render_pipeline_set_velocity_input_ext;
+  PipelineCameraFn render_pipeline_set_camera;
+  PipelineSkyboxCameraFn render_pipeline_set_skybox_camera;
+  HandleCopyStringFn render_pipeline_copy_transparency_fallback_reason_ext;
+  HandleBoolFn render_pipeline_set_gpu_timing_enabled_ext;
+  BoolGetFn render_pipeline_is_gpu_timing_enabled_ext;
+  BoolGetFn render_pipeline_did_skybox_draw;
+  BoolGetFn render_pipeline_did_shadow_pass_run;
+  HandleHandleOutFn render_pipeline_get_shadow_map;
+  HandleHandleOutFn render_pipeline_get_scene_target;
+  PipelineFormatOutFn render_pipeline_get_scene_target_format;
+  BoolGetFn render_pipeline_is_using_scene_target;
+  GameHandleFn render_pipeline_release_device_resources_ext;
+  PipelineTimingCountFn render_pipeline_get_pass_timing_count_ext;
+  PipelineTimingFn render_pipeline_get_pass_timing_ext;
+  PipelineTimingNameFn render_pipeline_copy_pass_timing_name_ext;
 } Api;
 
 typedef struct GameContext {
@@ -4336,6 +4375,32 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(auto_exposure_ext_get_darkening_speed, HandleFloatOutFn, "cna_auto_exposure_ext_get_darkening_speed");
   LOAD_REQUIRED(auto_exposure_ext_set_adaptation_speeds, HandleTwoFloatFn, "cna_auto_exposure_ext_set_adaptation_speeds");
   LOAD_REQUIRED(auto_exposure_ext_set_exposure_range, HandleTwoFloatFn, "cna_auto_exposure_ext_set_exposure_range");
+  LOAD_REQUIRED(render_pipeline_settings_ext_init, SettingsInPlaceFn, "cna_render_pipeline_settings_ext_init");
+  LOAD_REQUIRED(render_pipeline_settings_ext_normalize, SettingsInPlaceFn, "cna_render_pipeline_settings_ext_normalize");
+  LOAD_REQUIRED(render_pipeline_settings_ext_apply_render_quality_preset, SettingsInPlaceFn, "cna_render_pipeline_settings_ext_apply_render_quality_preset");
+  LOAD_REQUIRED(render_pipeline_settings_ext_apply_from_string, SettingsFromStringFn, "cna_render_pipeline_settings_ext_apply_from_string");
+  LOAD_REQUIRED(render_pipeline_get_settings, PipelineGetSettingsFn, "cna_render_pipeline_get_settings");
+  LOAD_REQUIRED(render_pipeline_set_settings, PipelineSetSettingsFn, "cna_render_pipeline_set_settings");
+  LOAD_REQUIRED(auto_exposure_ext_apply_to, ExposureApplyToFn, "cna_auto_exposure_ext_apply_to");
+  LOAD_REQUIRED(render_pipeline_add_user_pass, TwoHandleFn, "cna_render_pipeline_add_user_pass");
+  LOAD_REQUIRED(render_pipeline_clear_user_passes, GameHandleFn, "cna_render_pipeline_clear_user_passes");
+  LOAD_REQUIRED(render_pipeline_set_depth_normal_inputs, PipelineDepthNormalFn, "cna_render_pipeline_set_depth_normal_inputs");
+  LOAD_REQUIRED(render_pipeline_set_velocity_input_ext, TwoHandleFn, "cna_render_pipeline_set_velocity_input_ext");
+  LOAD_REQUIRED(render_pipeline_set_camera, PipelineCameraFn, "cna_render_pipeline_set_camera");
+  LOAD_REQUIRED(render_pipeline_set_skybox_camera, PipelineSkyboxCameraFn, "cna_render_pipeline_set_skybox_camera");
+  LOAD_REQUIRED(render_pipeline_copy_transparency_fallback_reason_ext, HandleCopyStringFn, "cna_render_pipeline_copy_transparency_fallback_reason_ext");
+  LOAD_REQUIRED(render_pipeline_set_gpu_timing_enabled_ext, HandleBoolFn, "cna_render_pipeline_set_gpu_timing_enabled_ext");
+  LOAD_REQUIRED(render_pipeline_is_gpu_timing_enabled_ext, BoolGetFn, "cna_render_pipeline_is_gpu_timing_enabled_ext");
+  LOAD_REQUIRED(render_pipeline_did_skybox_draw, BoolGetFn, "cna_render_pipeline_did_skybox_draw");
+  LOAD_REQUIRED(render_pipeline_did_shadow_pass_run, BoolGetFn, "cna_render_pipeline_did_shadow_pass_run");
+  LOAD_REQUIRED(render_pipeline_get_shadow_map, HandleHandleOutFn, "cna_render_pipeline_get_shadow_map");
+  LOAD_REQUIRED(render_pipeline_get_scene_target, HandleHandleOutFn, "cna_render_pipeline_get_scene_target");
+  LOAD_REQUIRED(render_pipeline_get_scene_target_format, PipelineFormatOutFn, "cna_render_pipeline_get_scene_target_format");
+  LOAD_REQUIRED(render_pipeline_is_using_scene_target, BoolGetFn, "cna_render_pipeline_is_using_scene_target");
+  LOAD_REQUIRED(render_pipeline_release_device_resources_ext, GameHandleFn, "cna_render_pipeline_release_device_resources_ext");
+  LOAD_REQUIRED(render_pipeline_get_pass_timing_count_ext, PipelineTimingCountFn, "cna_render_pipeline_get_pass_timing_count_ext");
+  LOAD_REQUIRED(render_pipeline_get_pass_timing_ext, PipelineTimingFn, "cna_render_pipeline_get_pass_timing_ext");
+  LOAD_REQUIRED(render_pipeline_copy_pass_timing_name_ext, PipelineTimingNameFn, "cna_render_pipeline_copy_pass_timing_name_ext");
   LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
   LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
   LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
@@ -25041,10 +25106,506 @@ static napi_value bridge_hdr_display_output_set_color_space(
     "cna_hdr_display_output_set_color_space");
 }
 
+/* ---- the render pipeline, and the settings bag it runs with -----------------------------------
+   CNA_RenderPipelineSettingsEXT is the canonical settings type in full: forty-seven fields that
+   every pass in the layer reads. It is moved field by field through three tables rather than by
+   hand, so a field added upstream is a compile error here rather than a silently dropped value --
+   the audit compiles every offsetof below against the real header. */
+
+typedef struct SettingsField {
+  const char* name;
+  size_t offset;
+} SettingsField;
+
+static const SettingsField kSettingsFloats[] = {
+  { "Exposure", offsetof(CNA_RenderPipelineSettingsEXT, exposure) },
+  { "Gamma", offsetof(CNA_RenderPipelineSettingsEXT, gamma) },
+  { "BloomIntensity", offsetof(CNA_RenderPipelineSettingsEXT, bloom_intensity) },
+  { "BloomThreshold", offsetof(CNA_RenderPipelineSettingsEXT, bloom_threshold) },
+  { "SsaoRadius", offsetof(CNA_RenderPipelineSettingsEXT, ssao_radius) },
+  { "SsaoIntensity", offsetof(CNA_RenderPipelineSettingsEXT, ssao_intensity) },
+  { "SsrMaxDistance", offsetof(CNA_RenderPipelineSettingsEXT, ssr_max_distance) },
+  { "SsrThickness", offsetof(CNA_RenderPipelineSettingsEXT, ssr_thickness) },
+  { "SsrDepthBias", offsetof(CNA_RenderPipelineSettingsEXT, ssr_depth_bias) },
+  { "SsrEdgeFade", offsetof(CNA_RenderPipelineSettingsEXT, ssr_edge_fade) },
+  { "VolumetricFogDensity", offsetof(CNA_RenderPipelineSettingsEXT, volumetric_fog_density) },
+  { "LightShaftThreshold", offsetof(CNA_RenderPipelineSettingsEXT, light_shaft_threshold) },
+  { "LightShaftIntensity", offsetof(CNA_RenderPipelineSettingsEXT, light_shaft_intensity) },
+  { "LightShaftDecay", offsetof(CNA_RenderPipelineSettingsEXT, light_shaft_decay) },
+  { "HeightFogDensity", offsetof(CNA_RenderPipelineSettingsEXT, height_fog_density) },
+  { "HeightFogFalloff", offsetof(CNA_RenderPipelineSettingsEXT, height_fog_falloff) },
+  { "HeightFogBaseHeight", offsetof(CNA_RenderPipelineSettingsEXT, height_fog_base_height) },
+  { "MotionBlurStrength", offsetof(CNA_RenderPipelineSettingsEXT, motion_blur_strength) },
+  { "MotionBlurMaxDistance", offsetof(CNA_RenderPipelineSettingsEXT, motion_blur_max_distance) },
+  { "ChromaticAberrationStrength", offsetof(CNA_RenderPipelineSettingsEXT, chromatic_aberration_strength) },
+  { "FilmGrainIntensity", offsetof(CNA_RenderPipelineSettingsEXT, film_grain_intensity) },
+  { "LensFlareThreshold", offsetof(CNA_RenderPipelineSettingsEXT, lens_flare_threshold) },
+  { "LensFlareIntensity", offsetof(CNA_RenderPipelineSettingsEXT, lens_flare_intensity) },
+  { "LensFlareDispersal", offsetof(CNA_RenderPipelineSettingsEXT, lens_flare_dispersal) },
+  { "ColorGradeStrength", offsetof(CNA_RenderPipelineSettingsEXT, color_grade_strength) },
+  { "DofFocusDistance", offsetof(CNA_RenderPipelineSettingsEXT, dof_focus_distance) },
+  { "DofFocalLength", offsetof(CNA_RenderPipelineSettingsEXT, dof_focal_length) },
+  { "DofFNumber", offsetof(CNA_RenderPipelineSettingsEXT, doff_number) },
+  { "DofMaxRadius", offsetof(CNA_RenderPipelineSettingsEXT, dof_max_radius) },
+  { "SsrRoughnessBlur", offsetof(CNA_RenderPipelineSettingsEXT, ssr_roughness_blur) },
+  { "SsrIntensity", offsetof(CNA_RenderPipelineSettingsEXT, ssr_intensity) },
+  { "FxaaEdgeThresholdExt", offsetof(CNA_RenderPipelineSettingsEXT, fxaa_edge_threshold_ext) },
+};
+
+static const SettingsField kSettingsInts[] = {
+  { "BloomIterations", offsetof(CNA_RenderPipelineSettingsEXT, bloom_iterations) },
+  { "SsaoSampleCount", offsetof(CNA_RenderPipelineSettingsEXT, ssao_sample_count) },
+  { "SsrStepCount", offsetof(CNA_RenderPipelineSettingsEXT, ssr_step_count) },
+};
+
+static const SettingsField kSettingsBools[] = {
+  { "HdrEnabled", offsetof(CNA_RenderPipelineSettingsEXT, hdr_enabled) },
+  { "BloomEnabled", offsetof(CNA_RenderPipelineSettingsEXT, bloom_enabled) },
+  { "SsaoEnabled", offsetof(CNA_RenderPipelineSettingsEXT, ssao_enabled) },
+  { "SsrEnabled", offsetof(CNA_RenderPipelineSettingsEXT, ssr_enabled) },
+  { "ColorGradeEnabled", offsetof(CNA_RenderPipelineSettingsEXT, color_grade_enabled) },
+  { "DofEnabled", offsetof(CNA_RenderPipelineSettingsEXT, dof_enabled) },
+  { "FxaaEnabled", offsetof(CNA_RenderPipelineSettingsEXT, fxaa_enabled) },
+  { "ShadowsEnabled", offsetof(CNA_RenderPipelineSettingsEXT, shadows_enabled) },
+};
+
+static const SettingsField kSettingsEnums[] = {
+  { "TonemappingMode", offsetof(CNA_RenderPipelineSettingsEXT, tonemapping_mode) },
+  { "TransparencyMode", offsetof(CNA_RenderPipelineSettingsEXT, transparency_mode) },
+  { "RenderQuality", offsetof(CNA_RenderPipelineSettingsEXT, render_quality) },
+  { "ShadowQuality", offsetof(CNA_RenderPipelineSettingsEXT, shadow_quality) },
+};
+
+#define SETTINGS_FIELD(settings, field, type) (*(type*) ((char*) (settings) + (field)->offset))
+
+static int read_pipeline_settings(
+  napi_env env, napi_value value, CNA_RenderPipelineSettingsEXT* out
+) {
+  CNA_Result result = g_api.render_pipeline_settings_ext_init(out);
+  if (result != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_render_pipeline_settings_ext_init", result);
+    return 0;
+  }
+  for (size_t index = 0; index < sizeof(kSettingsFloats) / sizeof(kSettingsFloats[0]); index += 1) {
+    const SettingsField* const field = &kSettingsFloats[index];
+    double scratch = 0;
+    if (!get_named_double(env, value, field->name, &scratch)) return 0;
+    SETTINGS_FIELD(out, field, float) = (float) scratch;
+  }
+  for (size_t index = 0; index < sizeof(kSettingsInts) / sizeof(kSettingsInts[0]); index += 1) {
+    const SettingsField* const field = &kSettingsInts[index];
+    if (!get_named_i32(env, value, field->name, &SETTINGS_FIELD(out, field, int32_t))) return 0;
+  }
+  for (size_t index = 0; index < sizeof(kSettingsBools) / sizeof(kSettingsBools[0]); index += 1) {
+    const SettingsField* const field = &kSettingsBools[index];
+    if (!get_named_bool(env, value, field->name, &SETTINGS_FIELD(out, field, CNA_Bool))) return 0;
+  }
+  for (size_t index = 0; index < sizeof(kSettingsEnums) / sizeof(kSettingsEnums[0]); index += 1) {
+    const SettingsField* const field = &kSettingsEnums[index];
+    if (!get_named_u32(env, value, field->name, &SETTINGS_FIELD(out, field, uint32_t))) return 0;
+  }
+  return 1;
+}
+
+static napi_value make_pipeline_settings(
+  napi_env env, const CNA_RenderPipelineSettingsEXT* settings
+) {
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "render pipeline settings");
+  for (size_t index = 0; index < sizeof(kSettingsFloats) / sizeof(kSettingsFloats[0]); index += 1) {
+    const SettingsField* const field = &kSettingsFloats[index];
+    if (!set_f32_property(
+          env, output, field->name, SETTINGS_FIELD(settings, field, const float))) {
+      return throw_napi(env, "render pipeline settings");
+    }
+  }
+  for (size_t index = 0; index < sizeof(kSettingsInts) / sizeof(kSettingsInts[0]); index += 1) {
+    const SettingsField* const field = &kSettingsInts[index];
+    if (!set_i32_property(
+          env, output, field->name, SETTINGS_FIELD(settings, field, const int32_t))) {
+      return throw_napi(env, "render pipeline settings");
+    }
+  }
+  for (size_t index = 0; index < sizeof(kSettingsBools) / sizeof(kSettingsBools[0]); index += 1) {
+    const SettingsField* const field = &kSettingsBools[index];
+    if (!set_bool_property(
+          env, output, field->name, SETTINGS_FIELD(settings, field, const CNA_Bool))) {
+      return throw_napi(env, "render pipeline settings");
+    }
+  }
+  for (size_t index = 0; index < sizeof(kSettingsEnums) / sizeof(kSettingsEnums[0]); index += 1) {
+    const SettingsField* const field = &kSettingsEnums[index];
+    if (!set_u32_property(
+          env, output, field->name, SETTINGS_FIELD(settings, field, const uint32_t))) {
+      return throw_napi(env, "render pipeline settings");
+    }
+  }
+  return output;
+}
+
+static napi_value settings_defaults(napi_env env, napi_callback_info info) {
+  (void) info;
+  CNA_RenderPipelineSettingsEXT settings;
+  if (!require_loaded(env)) return NULL;
+  memset(&settings, 0, sizeof(settings));
+  settings.struct_size = sizeof(settings);
+  settings.struct_version = 1;
+  const CNA_Result result = g_api.render_pipeline_settings_ext_init(&settings);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_settings_ext_init", result);
+  }
+  return make_pipeline_settings(env, &settings);
+}
+
+/** Runs one of the routes that rewrite a settings bag in place and answers the result. */
+static napi_value settings_in_place(
+  napi_env env, napi_callback_info info, SettingsInPlaceFn route, const char* name
+) {
+  napi_value args[1];
+  CNA_RenderPipelineSettingsEXT settings;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_pipeline_settings(env, args[0], &settings)) return NULL;
+  const CNA_Result result = route(&settings);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return make_pipeline_settings(env, &settings);
+}
+
+static napi_value bridge_render_pipeline_settings_ext_normalize(
+  napi_env env, napi_callback_info info
+) {
+  return settings_in_place(
+    env, info, g_api.render_pipeline_settings_ext_normalize,
+    "cna_render_pipeline_settings_ext_normalize");
+}
+
+static napi_value bridge_render_pipeline_settings_ext_apply_render_quality_preset(
+  napi_env env, napi_callback_info info
+) {
+  return settings_in_place(
+    env, info, g_api.render_pipeline_settings_ext_apply_render_quality_preset,
+    "cna_render_pipeline_settings_ext_apply_render_quality_preset");
+}
+
+static napi_value bridge_render_pipeline_settings_ext_apply_from_string(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output, applied_value, settings_value;
+  CNA_RenderPipelineSettingsEXT settings;
+  char* text = NULL;
+  size_t length = 0;
+  int32_t applied = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_pipeline_settings(env, args[0], &settings)) return NULL;
+  if (napi_get_value_string_utf8(env, args[1], NULL, 0, &length) != napi_ok) {
+    return throw_message(env, "expected settings text");
+  }
+  text = (char*) malloc(length + 1);
+  if (!text) return throw_message(env, "settings text allocation failed");
+  if (napi_get_value_string_utf8(env, args[1], text, length + 1, &length) != napi_ok) {
+    free(text);
+    return throw_napi(env, "settings text");
+  }
+  const CNA_StringView view = { text, (uint64_t) length };
+  const CNA_Result result =
+    g_api.render_pipeline_settings_ext_apply_from_string(&settings, view, &applied);
+  free(text);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_settings_ext_apply_from_string", result);
+  }
+  settings_value = make_pipeline_settings(env, &settings);
+  if (!settings_value) return NULL;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "applied settings");
+  NAPI_OR_RETURN(env, napi_create_int32(env, applied, &applied_value), "applied settings");
+  NAPI_OR_RETURN(
+    env, napi_set_named_property(env, output, "Applied", applied_value), "applied settings");
+  NAPI_OR_RETURN(
+    env, napi_set_named_property(env, output, "Settings", settings_value), "applied settings");
+  return output;
+}
+
+static napi_value bridge_render_pipeline_get_settings(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle pipeline = 0;
+  CNA_RenderPipelineSettingsEXT settings;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pipeline)) return NULL;
+  memset(&settings, 0, sizeof(settings));
+  settings.struct_size = sizeof(settings);
+  settings.struct_version = 1;
+  const CNA_Result result = g_api.render_pipeline_get_settings(pipeline, &settings);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_get_settings", result);
+  }
+  return make_pipeline_settings(env, &settings);
+}
+
+static napi_value bridge_render_pipeline_set_settings(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle pipeline = 0;
+  CNA_RenderPipelineSettingsEXT settings;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pipeline) ||
+      !read_pipeline_settings(env, args[1], &settings)) return NULL;
+  const CNA_Result result = g_api.render_pipeline_set_settings(pipeline, &settings);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_set_settings", result);
+  }
+  return undefined_result(env, "cna_render_pipeline_set_settings");
+}
+
+static napi_value bridge_auto_exposure_ext_apply_to(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle exposure = 0;
+  CNA_RenderPipelineSettingsEXT settings;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &exposure) ||
+      !read_pipeline_settings(env, args[1], &settings)) return NULL;
+  const CNA_Result result = g_api.auto_exposure_ext_apply_to(exposure, &settings);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_auto_exposure_ext_apply_to", result);
+  }
+  return make_pipeline_settings(env, &settings);
+}
+
+
+static napi_value bridge_render_pipeline_set_camera(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle pipeline = 0;
+  CNA_Matrix view, projection;
+  double near_plane = 0, far_plane = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &pipeline) ||
+      !read_matrix16(env, args[1], &view, "a view") ||
+      !read_matrix16(env, args[2], &projection, "a projection") ||
+      napi_get_value_double(env, args[3], &near_plane) != napi_ok ||
+      napi_get_value_double(env, args[4], &far_plane) != napi_ok) {
+    return throw_message(env, "expected a pipeline, a camera and its planes");
+  }
+  const CNA_Result result = g_api.render_pipeline_set_camera(
+    pipeline, &view, &projection, (float) near_plane, (float) far_plane);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_set_camera", result);
+  }
+  return undefined_result(env, "cna_render_pipeline_set_camera");
+}
+
+static napi_value bridge_render_pipeline_set_skybox_camera(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle pipeline = 0;
+  CNA_Matrix view, projection;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &pipeline) ||
+      !read_matrix16(env, args[1], &view, "a view") ||
+      !read_matrix16(env, args[2], &projection, "a projection")) return NULL;
+  const CNA_Result result =
+    g_api.render_pipeline_set_skybox_camera(pipeline, &view, &projection);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_set_skybox_camera", result);
+  }
+  return undefined_result(env, "cna_render_pipeline_set_skybox_camera");
+}
+
+static napi_value bridge_render_pipeline_set_depth_normal_inputs(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle pipeline = 0, depth = 0, normals = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &pipeline) ||
+      !read_handle_allow_zero(env, args[1], &depth) ||
+      !read_handle_allow_zero(env, args[2], &normals)) return NULL;
+  const CNA_Result result =
+    g_api.render_pipeline_set_depth_normal_inputs(pipeline, depth, normals);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_set_depth_normal_inputs", result);
+  }
+  return undefined_result(env, "cna_render_pipeline_set_depth_normal_inputs");
+}
+
+static napi_value bridge_render_pipeline_set_velocity_input_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2];
+  CNA_Handle pipeline = 0, velocity = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pipeline) ||
+      !read_handle_allow_zero(env, args[1], &velocity)) return NULL;
+  const CNA_Result result = g_api.render_pipeline_set_velocity_input_ext(pipeline, velocity);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_set_velocity_input_ext", result);
+  }
+  return undefined_result(env, "cna_render_pipeline_set_velocity_input_ext");
+}
+
+static napi_value bridge_render_pipeline_get_scene_target(napi_env env, napi_callback_info info) {
+  return prepass_borrow(
+    env, info, g_api.render_pipeline_get_scene_target, "cna_render_pipeline_get_scene_target");
+}
+
+static napi_value bridge_render_pipeline_get_shadow_map(napi_env env, napi_callback_info info) {
+  return prepass_borrow(
+    env, info, g_api.render_pipeline_get_shadow_map, "cna_render_pipeline_get_shadow_map");
+}
+
+static napi_value bridge_render_pipeline_get_scene_target_format(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(
+    env, info, (HandleI32OutFn) (void*) g_api.render_pipeline_get_scene_target_format,
+    "cna_render_pipeline_get_scene_target_format");
+}
+
+static napi_value bridge_render_pipeline_get_pass_timing_count_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1], output;
+  CNA_Handle pipeline = 0;
+  uint64_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pipeline)) return NULL;
+  const CNA_Result result = g_api.render_pipeline_get_pass_timing_count_ext(pipeline, &count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_get_pass_timing_count_ext", result);
+  }
+  if (count > (uint64_t) 1 << 53) {
+    return throw_message(env, "the size exceeds an exact JavaScript integer");
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) count, &output),
+    "cna_render_pipeline_get_pass_timing_count_ext");
+  return output;
+}
+
+static napi_value bridge_render_pipeline_get_pass_timing_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  CNA_Handle pipeline = 0;
+  uint32_t index = 0;
+  CNA_PassTimingEXT timing;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pipeline) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a pipeline and a timing index");
+  }
+  memset(&timing, 0, sizeof(timing));
+  timing.struct_size = sizeof(timing);
+  timing.struct_version = 1;
+  const CNA_Result result =
+    g_api.render_pipeline_get_pass_timing_ext(pipeline, index, &timing);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_get_pass_timing_ext", result);
+  }
+  napi_value milliseconds;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "a pass timing");
+  NAPI_OR_RETURN(env, napi_create_double(env, timing.milliseconds, &milliseconds), "a pass timing");
+  if (napi_set_named_property(env, output, "Milliseconds", milliseconds) != napi_ok ||
+      !set_i32_property(env, output, "SampleCount", timing.sample_count)) {
+    return throw_napi(env, "a pass timing");
+  }
+  return output;
+}
+
+static napi_value bridge_render_pipeline_copy_pass_timing_name_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  CNA_Handle pipeline = 0;
+  uint32_t index = 0;
+  uint64_t length = 0, copied = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pipeline) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a pipeline and a timing index");
+  }
+  CNA_Result result =
+    g_api.render_pipeline_copy_pass_timing_name_ext(pipeline, index, NULL, 0, &length);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_render_pipeline_copy_pass_timing_name_ext", result);
+  }
+  if (length > SIZE_MAX) return throw_message(env, "native string exceeds host address space");
+  char* text = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !text) return throw_message(env, "native string allocation failed");
+  result = g_api.render_pipeline_copy_pass_timing_name_ext(pipeline, index, text, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(text);
+    return throw_result(env, "cna_render_pipeline_copy_pass_timing_name_ext", result);
+  }
+  const napi_status status =
+    napi_create_string_utf8(env, text ? text : "", (size_t) length, &output);
+  free(text);
+  if (status != napi_ok) {
+    return throw_napi(env, "cna_render_pipeline_copy_pass_timing_name_ext");
+  }
+  return output;
+}
+
+static napi_value bridge_render_pipeline_add_user_pass(napi_env env, napi_callback_info info) {
+  return post_process_chain_two_handles(env, info, g_api.render_pipeline_add_user_pass, "cna_render_pipeline_add_user_pass");
+}
+
+static napi_value bridge_render_pipeline_clear_user_passes(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.render_pipeline_clear_user_passes, "cna_render_pipeline_clear_user_passes");
+}
+
+static napi_value bridge_render_pipeline_copy_transparency_fallback_reason_ext(napi_env env, napi_callback_info info) {
+  return copy_sized_text(env, info, g_api.render_pipeline_copy_transparency_fallback_reason_ext, "cna_render_pipeline_copy_transparency_fallback_reason_ext");
+}
+
+static napi_value bridge_render_pipeline_set_gpu_timing_enabled_ext(napi_env env, napi_callback_info info) {
+  return pp_set_bool(env, info, g_api.render_pipeline_set_gpu_timing_enabled_ext, "cna_render_pipeline_set_gpu_timing_enabled_ext");
+}
+
+static napi_value bridge_render_pipeline_is_gpu_timing_enabled_ext(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.render_pipeline_is_gpu_timing_enabled_ext, "cna_render_pipeline_is_gpu_timing_enabled_ext");
+}
+
+static napi_value bridge_render_pipeline_did_skybox_draw(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.render_pipeline_did_skybox_draw, "cna_render_pipeline_did_skybox_draw");
+}
+
+static napi_value bridge_render_pipeline_did_shadow_pass_run(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.render_pipeline_did_shadow_pass_run, "cna_render_pipeline_did_shadow_pass_run");
+}
+
+static napi_value bridge_render_pipeline_is_using_scene_target(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.render_pipeline_is_using_scene_target, "cna_render_pipeline_is_using_scene_target");
+}
+
+static napi_value bridge_render_pipeline_release_device_resources_ext(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.render_pipeline_release_device_resources_ext, "cna_render_pipeline_release_device_resources_ext");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultPipelineSettings", NULL, settings_defaults, NULL, NULL, NULL, napi_default, NULL },
+    { "normalizePipelineSettings", NULL, bridge_render_pipeline_settings_ext_normalize, NULL, NULL, NULL, napi_default, NULL },
+    { "applyPipelineQualityPreset", NULL, bridge_render_pipeline_settings_ext_apply_render_quality_preset, NULL, NULL, NULL, napi_default, NULL },
+    { "applyPipelineSettingsFromString", NULL, bridge_render_pipeline_settings_ext_apply_from_string, NULL, NULL, NULL, napi_default, NULL },
+    { "getPipelineSettings", NULL, bridge_render_pipeline_get_settings, NULL, NULL, NULL, napi_default, NULL },
+    { "setPipelineSettings", NULL, bridge_render_pipeline_set_settings, NULL, NULL, NULL, napi_default, NULL },
+    { "applyAutoExposureToSettings", NULL, bridge_auto_exposure_ext_apply_to, NULL, NULL, NULL, napi_default, NULL },
+    { "addPipelineUserPass", NULL, bridge_render_pipeline_add_user_pass, NULL, NULL, NULL, napi_default, NULL },
+    { "clearPipelineUserPasses", NULL, bridge_render_pipeline_clear_user_passes, NULL, NULL, NULL, napi_default, NULL },
+    { "setPipelineDepthNormalInputs", NULL, bridge_render_pipeline_set_depth_normal_inputs, NULL, NULL, NULL, napi_default, NULL },
+    { "setPipelineVelocityInput", NULL, bridge_render_pipeline_set_velocity_input_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPipelineCamera", NULL, bridge_render_pipeline_set_camera, NULL, NULL, NULL, napi_default, NULL },
+    { "setPipelineSkyboxCamera", NULL, bridge_render_pipeline_set_skybox_camera, NULL, NULL, NULL, napi_default, NULL },
+    { "getPipelineTransparencyFallbackReason", NULL, bridge_render_pipeline_copy_transparency_fallback_reason_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setPipelineGpuTimingEnabled", NULL, bridge_render_pipeline_set_gpu_timing_enabled_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "isPipelineGpuTimingEnabled", NULL, bridge_render_pipeline_is_gpu_timing_enabled_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "didPipelineSkyboxDraw", NULL, bridge_render_pipeline_did_skybox_draw, NULL, NULL, NULL, napi_default, NULL },
+    { "didPipelineShadowPassRun", NULL, bridge_render_pipeline_did_shadow_pass_run, NULL, NULL, NULL, napi_default, NULL },
+    { "getPipelineShadowMap", NULL, bridge_render_pipeline_get_shadow_map, NULL, NULL, NULL, napi_default, NULL },
+    { "getPipelineSceneTarget", NULL, bridge_render_pipeline_get_scene_target, NULL, NULL, NULL, napi_default, NULL },
+    { "getPipelineSceneTargetFormat", NULL, bridge_render_pipeline_get_scene_target_format, NULL, NULL, NULL, napi_default, NULL },
+    { "isPipelineUsingSceneTarget", NULL, bridge_render_pipeline_is_using_scene_target, NULL, NULL, NULL, napi_default, NULL },
+    { "releasePipelineDeviceResources", NULL, bridge_render_pipeline_release_device_resources_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPipelinePassTimingCount", NULL, bridge_render_pipeline_get_pass_timing_count_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPipelinePassTiming", NULL, bridge_render_pipeline_get_pass_timing_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getPipelinePassTimingName", NULL, bridge_render_pipeline_copy_pass_timing_name_ext, NULL, NULL, NULL, napi_default, NULL },
     { "createSpatialUpscalePass", NULL, bridge_spatial_upscale_pass_create, NULL, NULL, NULL, napi_default, NULL },
     { "destroySpatialUpscalePass", NULL, bridge_spatial_upscale_pass_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "getSpatialUpscaleSharpness", NULL, bridge_spatial_upscale_pass_get_sharpness, NULL, NULL, NULL, napi_default, NULL },

@@ -7980,3 +7980,132 @@ export class SpatialUpscalePass implements IDisposable {
       wholeNumber(targetWidth, "targetWidth"), wholeNumber(targetHeight, "targetHeight"));
   }
 }
+
+/* ================================================================================================
+ * The render pipeline in full: the canonical settings, and what one frame did
+ * ==============================================================================================*/
+
+/**
+ * The canonical render-pipeline settings: every field every pass in the layer reads.
+ *
+ * {@link RenderPipelineSettings} is the layout CNA froze before the extended passes existed and
+ * cannot change within an ABI major; this is the shape the pipeline itself speaks. It is a
+ * **value** — {@link PipelineSettingsOperations.Normalize} and its siblings answer a new one rather
+ * than editing the one they were given.
+ */
+export interface PipelineSettings {
+  HdrEnabled: boolean;
+  Exposure: number;
+  Gamma: number;
+  TonemappingMode: number;
+  BloomEnabled: boolean;
+  BloomIntensity: number;
+  BloomThreshold: number;
+  BloomIterations: number;
+  SsaoEnabled: boolean;
+  TransparencyMode: number;
+  SsaoRadius: number;
+  SsaoIntensity: number;
+  SsaoSampleCount: number;
+  SsrEnabled: boolean;
+  SsrMaxDistance: number;
+  SsrStepCount: number;
+  SsrThickness: number;
+  SsrDepthBias: number;
+  SsrEdgeFade: number;
+  VolumetricFogDensity: number;
+  LightShaftThreshold: number;
+  LightShaftIntensity: number;
+  LightShaftDecay: number;
+  HeightFogDensity: number;
+  HeightFogFalloff: number;
+  HeightFogBaseHeight: number;
+  MotionBlurStrength: number;
+  MotionBlurMaxDistance: number;
+  ChromaticAberrationStrength: number;
+  FilmGrainIntensity: number;
+  LensFlareThreshold: number;
+  LensFlareIntensity: number;
+  LensFlareDispersal: number;
+  ColorGradeEnabled: boolean;
+  ColorGradeStrength: number;
+  DofEnabled: boolean;
+  DofFocusDistance: number;
+  DofFocalLength: number;
+  DofFNumber: number;
+  DofMaxRadius: number;
+  SsrRoughnessBlur: number;
+  SsrIntensity: number;
+  FxaaEnabled: boolean;
+  FxaaEdgeThresholdExt: number;
+  RenderQuality: number;
+  ShadowQuality: number;
+  ShadowsEnabled: boolean;}
+
+/** What one pass of a pipeline frame cost, when GPU timing was on. */
+export interface PipelinePassTiming {
+  /** How long it took on the GPU. */
+  readonly Milliseconds: number;
+  /** How many samples that average is over. */
+  readonly SampleCount: number;
+}
+
+/** The value operations on a settings bag, which CNA owns rather than this binding. */
+export const PipelineSettingsOperations = {
+  /**
+   * Brings every field back inside the range its pass can use, and answers a new bag.
+   *
+   * A floor rather than a clamp in both directions: a negative exposure, intensity or distance
+   * becomes zero, gamma has a floor of 0.01 because dividing by it is what gamma is for, and a
+   * colour-grade strength above one comes back as one. The enums are **validated rather than
+   * clamped** — an undefined quality is refused with CNA's own result, because guessing which tier
+   * a caller meant would be worse than saying so.
+   */
+  Normalize(settings: PipelineSettings): PipelineSettings {
+    return extensions().normalizePipelineSettings(settingsSnapshot(settings));
+  },
+
+  /**
+   * Sets the pass counts the settings' own {@link PipelineSettings.RenderQuality} implies.
+   *
+   * The tier decides how much work each pass does — bloom iterations, ambient-occlusion samples —
+   * rather than which passes run, which stays the caller's decision.
+   */
+  ApplyRenderQualityPreset(settings: PipelineSettings): PipelineSettings {
+    return extensions().applyPipelineQualityPreset(settingsSnapshot(settings));
+  },
+
+  /**
+   * Applies serialized settings text, saying how many fields it recognised.
+   *
+   * The text is `key=value` pairs separated by semicolons. Anything it does not recognise is
+   * skipped rather than refused, and the count is how a caller tells a settings file that loaded
+   * from one that was mostly typos. Every value goes through the same clamping a written one does,
+   * so a stale gamma of zero in a file lands on the floor rather than getting past it.
+   */
+  ApplyFromString(
+    settings: PipelineSettings, text: string,
+  ): { readonly Applied: number; readonly Settings: PipelineSettings } {
+    if (typeof text !== "string") throw new TypeError("text must be a string");
+    return extensions().applyPipelineSettingsFromString(settingsSnapshot(settings), text);
+  },
+} as const;
+
+/** A settings bag seeded with CNA's own defaults. */
+export function CreatePipelineSettings(): PipelineSettings {
+  return { ...extensions().getDefaultPipelineSettings() };
+}
+
+function settingsSnapshot(settings: PipelineSettings): PipelineSettings {
+  if (settings == null) throw new TypeError("settings is required");
+  const defaults = extensions().getDefaultPipelineSettings();
+  for (const key of Object.keys(defaults) as (keyof PipelineSettings)[]) {
+    const value = settings[key];
+    if (typeof defaults[key] === "boolean") {
+      if (typeof value !== "boolean") throw new TypeError(`${String(key)} must be a Boolean`);
+    } else if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError(`${String(key)} must be a finite number`);
+    }
+  }
+  return settings;
+}

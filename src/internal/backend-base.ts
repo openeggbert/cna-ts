@@ -107,6 +107,7 @@ import type {
   PassTimingSnapshot,
   PbrMaterialDefaults,
   PbrMaterialExtSnapshot,
+  PipelineSettingsSnapshot,
   PlatformSnapshot,
   PointLightSnapshot,
   PostProcessFrameSnapshot,
@@ -1947,6 +1948,105 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
     _minimum: number,
     _maximum: number,
   ): void { return this.unsupported("setAutoExposureRange"); }
+  public getDefaultPipelineSettings(
+  ): PipelineSettingsSnapshot { return this.unsupported("getDefaultPipelineSettings"); }
+  public normalizePipelineSettings(
+    _settings: PipelineSettingsSnapshot,
+  ): PipelineSettingsSnapshot { return this.unsupported("normalizePipelineSettings"); }
+  public applyPipelineQualityPreset(
+    _settings: PipelineSettingsSnapshot,
+  ): PipelineSettingsSnapshot { return this.unsupported("applyPipelineQualityPreset"); }
+  public applyPipelineSettingsFromString(
+    _settings: PipelineSettingsSnapshot,
+    _text: string,
+  ): {
+    readonly Applied: number;
+    readonly Settings: PipelineSettingsSnapshot;
+} { return this.unsupported("applyPipelineSettingsFromString"); }
+  public getPipelineSettings(
+    _pipeline: NativeHandle,
+  ): PipelineSettingsSnapshot { return this.unsupported("getPipelineSettings"); }
+  public setPipelineSettings(
+    _pipeline: NativeHandle,
+    _settings: PipelineSettingsSnapshot,
+  ): void { return this.unsupported("setPipelineSettings"); }
+  public applyAutoExposureToSettings(
+    _autoExposure: NativeHandle,
+    _settings: PipelineSettingsSnapshot,
+  ): PipelineSettingsSnapshot { return this.unsupported("applyAutoExposureToSettings"); }
+  public addPipelineUserPass(
+    _pipeline: NativeHandle,
+    _pass: NativeHandle,
+  ): void { return this.unsupported("addPipelineUserPass"); }
+  public clearPipelineUserPasses(
+    _pipeline: NativeHandle,
+  ): void { return this.unsupported("clearPipelineUserPasses"); }
+  public setPipelineDepthNormalInputs(
+    _pipeline: NativeHandle,
+    _depth: NativeHandle,
+    _normals: NativeHandle,
+  ): void { return this.unsupported("setPipelineDepthNormalInputs"); }
+  public setPipelineVelocityInput(
+    _pipeline: NativeHandle,
+    _velocity: NativeHandle,
+  ): void { return this.unsupported("setPipelineVelocityInput"); }
+  public setPipelineCamera(
+    _pipeline: NativeHandle,
+    _view: readonly number[],
+    _projection: readonly number[],
+    _nearPlane: number,
+    _farPlane: number,
+  ): void { return this.unsupported("setPipelineCamera"); }
+  public setPipelineSkyboxCamera(
+    _pipeline: NativeHandle,
+    _view: readonly number[],
+    _projection: readonly number[],
+  ): void { return this.unsupported("setPipelineSkyboxCamera"); }
+  public getPipelineTransparencyFallbackReason(
+    _pipeline: NativeHandle,
+  ): string { return this.unsupported("getPipelineTransparencyFallbackReason"); }
+  public setPipelineGpuTimingEnabled(
+    _pipeline: NativeHandle,
+    _value: boolean,
+  ): void { return this.unsupported("setPipelineGpuTimingEnabled"); }
+  public isPipelineGpuTimingEnabled(
+    _pipeline: NativeHandle,
+  ): boolean { return this.unsupported("isPipelineGpuTimingEnabled"); }
+  public didPipelineSkyboxDraw(
+    _pipeline: NativeHandle,
+  ): boolean { return this.unsupported("didPipelineSkyboxDraw"); }
+  public didPipelineShadowPassRun(
+    _pipeline: NativeHandle,
+  ): boolean { return this.unsupported("didPipelineShadowPassRun"); }
+  public getPipelineShadowMap(
+    _pipeline: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPipelineShadowMap"); }
+  public getPipelineSceneTarget(
+    _pipeline: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPipelineSceneTarget"); }
+  public getPipelineSceneTargetFormat(
+    _pipeline: NativeHandle,
+  ): number { return this.unsupported("getPipelineSceneTargetFormat"); }
+  public isPipelineUsingSceneTarget(
+    _pipeline: NativeHandle,
+  ): boolean { return this.unsupported("isPipelineUsingSceneTarget"); }
+  public releasePipelineDeviceResources(
+    _pipeline: NativeHandle,
+  ): void { return this.unsupported("releasePipelineDeviceResources"); }
+  public getPipelinePassTimingCount(
+    _pipeline: NativeHandle,
+  ): number { return this.unsupported("getPipelinePassTimingCount"); }
+  public getPipelinePassTiming(
+    _pipeline: NativeHandle,
+    _index: number,
+  ): {
+    readonly Milliseconds: number;
+    readonly SampleCount: number;
+} { return this.unsupported("getPipelinePassTiming"); }
+  public getPipelinePassTimingName(
+    _pipeline: NativeHandle,
+    _index: number,
+  ): string { return this.unsupported("getPipelinePassTimingName"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,

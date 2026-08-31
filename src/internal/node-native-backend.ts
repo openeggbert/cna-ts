@@ -53,6 +53,7 @@ import type {
   CullableInstanceSnapshot,
   DebugVertexSnapshot,
   PassTimingSnapshot,
+  PipelineSettingsSnapshot,
   PbrMaterialExtSnapshot,
   PostProcessFrameSnapshot,
   CnbChunkEntrySnapshot,
@@ -1198,6 +1199,32 @@ interface NativeBridge {
   getAutoExposureDarkeningSpeed(autoExposure: bigint): number;
   setAutoExposureAdaptationSpeeds(autoExposure: bigint, brighteningPerSecond: number, darkeningPerSecond: number): void;
   setAutoExposureRange(autoExposure: bigint, minimum: number, maximum: number): void;
+  getDefaultPipelineSettings(): PipelineSettingsSnapshot;
+  normalizePipelineSettings(settings: PipelineSettingsSnapshot): PipelineSettingsSnapshot;
+  applyPipelineQualityPreset(settings: PipelineSettingsSnapshot): PipelineSettingsSnapshot;
+  getPipelineSettings(pipeline: bigint): PipelineSettingsSnapshot;
+  setPipelineSettings(pipeline: bigint, settings: PipelineSettingsSnapshot): void;
+  applyAutoExposureToSettings(autoExposure: bigint, settings: PipelineSettingsSnapshot): PipelineSettingsSnapshot;
+  addPipelineUserPass(pipeline: bigint, pass: bigint): void;
+  clearPipelineUserPasses(pipeline: bigint): void;
+  setPipelineDepthNormalInputs(pipeline: bigint, depth: bigint, normals: bigint): void;
+  setPipelineVelocityInput(pipeline: bigint, velocity: bigint): void;
+  setPipelineCamera(pipeline: bigint, view: readonly number[], projection: readonly number[], nearPlane: number, farPlane: number): void;
+  setPipelineSkyboxCamera(pipeline: bigint, view: readonly number[], projection: readonly number[]): void;
+  getPipelineTransparencyFallbackReason(pipeline: bigint): string;
+  setPipelineGpuTimingEnabled(pipeline: bigint, value: boolean): void;
+  isPipelineGpuTimingEnabled(pipeline: bigint): boolean;
+  didPipelineSkyboxDraw(pipeline: bigint): boolean;
+  didPipelineShadowPassRun(pipeline: bigint): boolean;
+  getPipelineShadowMap(pipeline: bigint): bigint;
+  getPipelineSceneTarget(pipeline: bigint): bigint;
+  getPipelineSceneTargetFormat(pipeline: bigint): number;
+  isPipelineUsingSceneTarget(pipeline: bigint): boolean;
+  releasePipelineDeviceResources(pipeline: bigint): void;
+  getPipelinePassTimingCount(pipeline: bigint): number;
+  getPipelinePassTimingName(pipeline: bigint, index: number): string;
+  applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { Applied: number; Settings: PipelineSettingsSnapshot };
+  getPipelinePassTiming(pipeline: bigint, index: number): { Milliseconds: number; SampleCount: number };
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: bigint): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -3663,6 +3690,34 @@ export class NodeNativeBackend
   public getAutoExposureDarkeningSpeed(autoExposure: NativeHandle): number { return this.#bridge.getAutoExposureDarkeningSpeed(autoExposure); }
   public setAutoExposureAdaptationSpeeds(autoExposure: NativeHandle, brighteningPerSecond: number, darkeningPerSecond: number): void { this.#bridge.setAutoExposureAdaptationSpeeds(autoExposure, brighteningPerSecond, darkeningPerSecond); }
   public setAutoExposureRange(autoExposure: NativeHandle, minimum: number, maximum: number): void { this.#bridge.setAutoExposureRange(autoExposure, minimum, maximum); }
+
+  // The render pipeline and its settings.
+  public getDefaultPipelineSettings(): PipelineSettingsSnapshot { return this.#bridge.getDefaultPipelineSettings(); }
+  public normalizePipelineSettings(settings: PipelineSettingsSnapshot): PipelineSettingsSnapshot { return this.#bridge.normalizePipelineSettings(settings); }
+  public applyPipelineQualityPreset(settings: PipelineSettingsSnapshot): PipelineSettingsSnapshot { return this.#bridge.applyPipelineQualityPreset(settings); }
+  public getPipelineSettings(pipeline: NativeHandle): PipelineSettingsSnapshot { return this.#bridge.getPipelineSettings(pipeline); }
+  public setPipelineSettings(pipeline: NativeHandle, settings: PipelineSettingsSnapshot): void { this.#bridge.setPipelineSettings(pipeline, settings); }
+  public applyAutoExposureToSettings(autoExposure: NativeHandle, settings: PipelineSettingsSnapshot): PipelineSettingsSnapshot { return this.#bridge.applyAutoExposureToSettings(autoExposure, settings); }
+  public addPipelineUserPass(pipeline: NativeHandle, pass: NativeHandle): void { this.#bridge.addPipelineUserPass(pipeline, pass); }
+  public clearPipelineUserPasses(pipeline: NativeHandle): void { this.#bridge.clearPipelineUserPasses(pipeline); }
+  public setPipelineDepthNormalInputs(pipeline: NativeHandle, depth: NativeHandle, normals: NativeHandle): void { this.#bridge.setPipelineDepthNormalInputs(pipeline, depth, normals); }
+  public setPipelineVelocityInput(pipeline: NativeHandle, velocity: NativeHandle): void { this.#bridge.setPipelineVelocityInput(pipeline, velocity); }
+  public setPipelineCamera(pipeline: NativeHandle, view: readonly number[], projection: readonly number[], nearPlane: number, farPlane: number): void { this.#bridge.setPipelineCamera(pipeline, view, projection, nearPlane, farPlane); }
+  public setPipelineSkyboxCamera(pipeline: NativeHandle, view: readonly number[], projection: readonly number[]): void { this.#bridge.setPipelineSkyboxCamera(pipeline, view, projection); }
+  public getPipelineTransparencyFallbackReason(pipeline: NativeHandle): string { return this.#bridge.getPipelineTransparencyFallbackReason(pipeline); }
+  public setPipelineGpuTimingEnabled(pipeline: NativeHandle, value: boolean): void { this.#bridge.setPipelineGpuTimingEnabled(pipeline, value); }
+  public isPipelineGpuTimingEnabled(pipeline: NativeHandle): boolean { return this.#bridge.isPipelineGpuTimingEnabled(pipeline); }
+  public didPipelineSkyboxDraw(pipeline: NativeHandle): boolean { return this.#bridge.didPipelineSkyboxDraw(pipeline); }
+  public didPipelineShadowPassRun(pipeline: NativeHandle): boolean { return this.#bridge.didPipelineShadowPassRun(pipeline); }
+  public getPipelineShadowMap(pipeline: NativeHandle): NativeHandle { return this.#bridge.getPipelineShadowMap(pipeline); }
+  public getPipelineSceneTarget(pipeline: NativeHandle): NativeHandle { return this.#bridge.getPipelineSceneTarget(pipeline); }
+  public getPipelineSceneTargetFormat(pipeline: NativeHandle): number { return this.#bridge.getPipelineSceneTargetFormat(pipeline); }
+  public isPipelineUsingSceneTarget(pipeline: NativeHandle): boolean { return this.#bridge.isPipelineUsingSceneTarget(pipeline); }
+  public releasePipelineDeviceResources(pipeline: NativeHandle): void { this.#bridge.releasePipelineDeviceResources(pipeline); }
+  public getPipelinePassTimingCount(pipeline: NativeHandle): number { return this.#bridge.getPipelinePassTimingCount(pipeline); }
+  public getPipelinePassTimingName(pipeline: NativeHandle, index: number): string { return this.#bridge.getPipelinePassTimingName(pipeline, index); }
+  public applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { readonly Applied: number; readonly Settings: PipelineSettingsSnapshot } { return this.#bridge.applyPipelineSettingsFromString(settings, text); }
+  public getPipelinePassTiming(pipeline: NativeHandle, index: number): { readonly Milliseconds: number; readonly SampleCount: number } { return this.#bridge.getPipelinePassTiming(pipeline, index); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }
   public extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot { return this.#bridge.extractPbrEffectMaterial(effect); }
   public applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applySkinnedPbrEffectMaterial(effect, material); }

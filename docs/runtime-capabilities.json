@@ -13,7 +13,7 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 95,
+    "VERIFIED_NATIVE": 96,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 5,
@@ -1400,6 +1400,25 @@
         "route:cna_graphics_device_get_rasterizer_state",
         "test:test/native-cna.integration.mjs",
         "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "The canonical render-pipeline settings: clamping, quality presets and the settings text",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "forty-seven fields, moved through the bridge by three offsetof tables rather than by hand, so a field added upstream is a compile error in the ABI audit rather than a silently dropped value. It is a value and is checked as one: two bags do not share state, and every operation answers a new bag rather than editing the one it was handed. Normalizing is a floor rather than a two-sided clamp -- a negative exposure, intensity or distance comes up to zero, gamma has a floor of 0.01 because dividing by it is what gamma is for, and a colour-grade strength above one comes down because a grade is a fraction -- while CNA's own defaults pass through completely unchanged, field for field. The enums are validated rather than clamped: an undefined render or shadow quality is refused with CNA's own result, because guessing which tier a caller meant would be worse than saying so. The quality preset sets how much work each pass does and never which passes run: bloom iterations and ambient-occlusion samples rise strictly across the four tiers, eight samples to sixty-four, and every enable flag is left exactly as the caller had it. The settings text is semicolon-separated key=value pairs, and the count it answers is the point -- five of five recognised, one of three when two are typos, none for empty text or a value that will not parse -- so a caller can tell a settings file that loaded from one that did not. A loaded value goes through the same clamping a written one does, which is the trap a stale gamma of zero in a file would otherwise walk straight past. Four planted binding defects fail and none survives",
+      "proof": [
+        "route:cna_render_pipeline_settings_ext_init",
+        "route:cna_render_pipeline_settings_ext_normalize",
+        "route:cna_render_pipeline_settings_ext_apply_render_quality_preset",
+        "route:cna_render_pipeline_settings_ext_apply_from_string",
+        "route:cna_render_pipeline_get_settings",
+        "route:cna_render_pipeline_set_settings",
+        "route:cna_auto_exposure_ext_apply_to",
+        "route:cna_render_pipeline_set_camera",
+        "route:cna_render_pipeline_did_skybox_draw",
+        "route:cna_render_pipeline_get_pass_timing_ext",
+        "test:test/native-cna.integration.mjs"
       ]
     },
     {

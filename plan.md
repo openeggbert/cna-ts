@@ -541,6 +541,17 @@ Electron, or mobile support.
   moved. Eight planted defects fail; two survive and are recorded as **equivalent** rather than as
   gaps, because a Reinhard roll-off and an "are these sizes equal" predicate are both symmetric in
   the arguments the mutation swaps.
+- [x] **The canonical render-pipeline settings** — forty-seven fields moved through the bridge by
+  three `offsetof` tables rather than by hand, so a field added upstream is a compile error in the
+  ABI audit rather than a silently dropped value. Normalizing is a *floor* rather than a two-sided
+  clamp, gamma's is 0.01 because dividing by it is what gamma is for, and CNA's own defaults pass
+  through unchanged field for field. The enums are **validated rather than clamped**: an undefined
+  quality is refused, because guessing which tier a caller meant would be worse than saying so. The
+  quality preset sets how much work each pass does — eight ambient-occlusion samples to sixty-four
+  across four tiers — and never which passes run, which stays the caller's decision. The settings
+  text answers *how many fields it recognised*, which is how a caller tells a settings file that
+  loaded from one that was mostly typos, and a loaded value goes through the same clamping a written
+  one does. Four planted defects fail and none survives.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -635,7 +646,7 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 157 operation families: 21 verified managed, 95 verified native, 13
+- [x] Current baseline is 158 operation families: 21 verified managed, 96 verified native, 13
   verified WebAssembly, five explicitly unavailable on the qualified backend, five upstream-CNA
   blocked, three fixture pending, six hardware pending, three platform pending, two unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.
