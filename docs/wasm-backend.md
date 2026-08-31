@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=226
+WASM_BACKEND_ROUTES=247
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 226 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 247 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started.
 
@@ -46,7 +46,8 @@ graphics-device-manager configuration and device creation, renderer identity, `C
 create/upload/read/destroy, `SpriteBatch` begin/submit/end/destroy, keyboard and mouse snapshots,
 **`GamePad`**, **`TouchPanel`**, the modern runtime-services family, **title storage**,
 **render targets**, **sound effects**, and **CNB**, CNA's own compiled content format — including
-its **model schema**, the largest one it carries, and its three **media schemas**.
+its **model schema**, the largest one it carries, its three **media schemas**, and its **curve and
+animation-clip schemas**.
 
 CNB crossing to the browser needed no new public API at all, which is the point of having designed
 it backend-neutrally: a page gets the same `CnbDocument`, `CnbTextureData`, `CnbModelData` and

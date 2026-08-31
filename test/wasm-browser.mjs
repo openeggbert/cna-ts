@@ -416,6 +416,43 @@ test("a browser reads CNA's compiled media schemas, and measures a real duration
   assert.deepEqual(consoleErrors, []);
 });
 
+test("a browser reads CNA's compiled curve and animation clip", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+
+  // The curve's native handle never leaves the backend -- XNA's Curve is managed -- so the page
+  // gets an ordinary Curve and checks it by *evaluating* it, sampled between the keys where the
+  // tangents and the continuity actually matter. Matching values at the keys alone would not.
+  const curve = result.cnbCurve;
+  assert.ok(curve, "no CNB curve evidence was produced");
+  assert.equal(curve.assetType, 7, "CnbAssetType.Curve");
+  assert.equal(curve.preLoop, 1, "CurveLoopType.Cycle");
+  assert.equal(curve.postLoop, 3, "CurveLoopType.Oscillate, distinct from PreLoop");
+  assert.equal(curve.keyCount, 3);
+  assert.deepEqual(curve.continuities, [0, 1, 0], "Smooth, Step, Smooth");
+  assert.equal(curve.evaluatesIdentically, true, "the decoded curve evaluates like the authored one");
+
+  // The clip keeps its handle, because XNA has no animation-clip type to become.
+  const clip = result.cnbClip;
+  assert.ok(clip, "no CNB animation-clip evidence was produced");
+  assert.equal(clip.assetType, 6, "CnbAssetType.AnimationClip");
+  assert.equal(clip.durationSeconds, 2.5);
+  assert.equal(clip.trackCount, 2);
+  assert.equal(clip.targetSpace, 1);
+  // Two tracks with different bone indexes and different keyframe counts: a reader that returned
+  // the first for both fails on either.
+  assert.deepEqual(clip.boneIndices, [3, 7]);
+  assert.deepEqual(clip.keyframeCounts, [2, 1]);
+  assert.deepEqual(clip.firstTimes, [0, 1.25]);
+  // Three vectors of different lengths at different offsets in a 48-byte structure whose wasm32
+  // layout is measured, not written: transposing any two of them fails here.
+  assert.deepEqual(clip.lastTranslation, [-1, -2, -3]);
+  assert.deepEqual(clip.lastRotation, [0, 1, 0, 0]);
+  assert.deepEqual(clip.lastScale, [0.5, 0.25, 0.125]);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(consoleErrors, []);
+});
+
 test("the WebAssembly backend runs 600 real browser frames without drift", { skip }, async () => {
   const { result, consoleErrors } = await runFrames(600);
   assert.equal(result.status, "ok", result.error ?? "");

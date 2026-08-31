@@ -325,9 +325,15 @@ Electron, or mobile support.
   A song and a video carry a **stream reference** rather than the media, so both schemas are
   complete and fully testable with no encoded audio or video: this package projects the containers
   truthfully and makes no claim about decoding what they name.
-- [ ] CNB's curve and animation-clip schemas, the model's morph targets and per-slot texture
-  arrays, its bounded byte cursor, its primitive byte writer, its loader registry and the `.cnj`
-  compile path are measured and unprojected.
+- [x] The same subpath projects **CNB's curve and animation-clip schemas**. A curve decodes into an
+  ordinary managed XNA `Curve` — the native handle and its key collection are both released inside
+  the decode, so what a consumer holds evaluates in TypeScript as always — and the round trip is
+  checked by *evaluating* both curves between the keys, where the tangents and continuity decide
+  the answer. An animation clip keeps its handle, because XNA has no clip type to become.
+- [ ] CNB's build-time tooling — the primitive byte writer, the loader registry, the `.cnj` compile
+  front ends and the path-taking importers — plus the model's morph targets and per-slot texture
+  arrays, are measured and unprojected. The tooling is the natural content of the separate
+  build-time product `docs/content-pipeline-boundary.md` chose.
 - [x] `cna-ts/extensions/devices` projects CNA's extended device layer: the host's cores and
   memory, its power state with absences reported as absences, the display's content scale and safe
   area, the user's preferred locales, the clipboard, and camera enumeration that keeps "no camera
@@ -386,7 +392,7 @@ Electron, or mobile support.
   probe; nothing at that boundary is hand-written.
 - [x] Handles cross the boundary as `bigint` under `WASM_BIGINT` and are never converted through
   `Number`.
-- [x] The browser slice reaches 226 routes: the game loop, the graphics device, `Clear`,
+- [x] The browser slice reaches 247 routes: the game loop, the graphics device, `Clear`,
   `Texture2D`, `SpriteBatch`, keyboard and mouse, **`GamePad` and `TouchPanel`**, the modern runtime
   services, **title storage and the whole managed content stack**, **render targets with asserted
   pixel readback**, **sound effects**, and **CNB including its model schema**.

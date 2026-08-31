@@ -22,7 +22,8 @@ window.addEventListener("unhandledrejection", (event) => result.errors.push(
 try {
   const {
     Audio, Color, Content, Game, GraphicsDeviceManager, Graphics, GetRuntimeStatus, LoadWasmBackend,
-    Matrix, TitleContainer, TimeSpan, Vector2, Vector3,
+    Curve, CurveContinuity, CurveKey, CurveLoopType,
+    Matrix, Quaternion, TitleContainer, TimeSpan, Vector2, Vector3,
   } = await import("/cna-ts/index.js");
   const createCnaCApi = (await import("/wasm/cna_c_api.mjs")).default;
   const canvas = document.getElementById("canvas");
@@ -409,6 +410,95 @@ try {
         };
       } finally {
         videoDocument.Dispose();
+      }
+
+
+      // The curve and animation-clip schemas. The curve is the interesting one here: its native
+      // handle never leaves the backend, so what comes back is an ordinary managed XNA Curve that
+      // evaluates in TypeScript -- and the page checks that by comparing it against the curve it
+      // authored, sampled between the keys where the tangents and continuity actually matter.
+      const authoredCurve = new Curve();
+      authoredCurve.PreLoop = CurveLoopType.Cycle;
+      authoredCurve.PostLoop = CurveLoopType.Oscillate;
+      authoredCurve.Keys.Add(new CurveKey(0, 1, 0.25, 0.5, CurveContinuity.Smooth));
+      authoredCurve.Keys.Add(new CurveKey(2, 5, 0.75, 1.25, CurveContinuity.Step));
+      authoredCurve.Keys.Add(new CurveKey(4, -3, -0.5, -1.5, CurveContinuity.Smooth));
+      const curveDocument = cnb.CnbDocument.Parse(
+        cnb.EncodeCnbCurve(authoredCurve, "Browser/Ease"), "Browser/Ease.cnb",
+      );
+      try {
+        const decodedCurve = cnb.DecodeCnbCurve(curveDocument);
+        const samples = [-1, 0, 0.5, 1, 1.9, 2, 2.1, 3, 4, 5.5];
+        result.cnbCurve = {
+          assetType: curveDocument.AssetType,
+          preLoop: decodedCurve.PreLoop,
+          postLoop: decodedCurve.PostLoop,
+          keyCount: decodedCurve.Keys.Count,
+          continuities: Array.from(
+            { length: decodedCurve.Keys.Count }, (_, i) => decodedCurve.Keys.Get(i).Continuity,
+          ),
+          evaluatesIdentically: samples.every(
+            (at) => decodedCurve.Evaluate(at) === authoredCurve.Evaluate(at),
+          ),
+        };
+      } finally {
+        curveDocument.Dispose();
+      }
+
+      const clipDocument = cnb.CnbDocument.Parse(cnb.EncodeCnbAnimationClip({
+        DurationSeconds: 2.5,
+        TargetSpace: 1,
+        Tracks: [
+          {
+            BoneIndex: 3,
+            Keyframes: [
+              {
+                TimeSeconds: 0, Translation: new Vector3(1, 2, 3),
+                Rotation: new Quaternion(0, 0, 0, 1), Scale: new Vector3(1, 1, 1),
+              },
+              {
+                TimeSeconds: 1.25, Translation: new Vector3(4, 5, 6),
+                Rotation: new Quaternion(0.5, 0.5, 0.5, 0.5), Scale: new Vector3(2, 3, 4),
+              },
+            ],
+          },
+          {
+            BoneIndex: 7,
+            Keyframes: [{
+              TimeSeconds: 2.5, Translation: new Vector3(-1, -2, -3),
+              Rotation: new Quaternion(0, 1, 0, 0), Scale: new Vector3(0.5, 0.25, 0.125),
+            }],
+          },
+        ],
+      }, "Browser/Walk"), "Browser/Walk.cnb");
+      try {
+        const clip = cnb.CnbAnimationClip.Decode(clipDocument);
+        try {
+          const description = clip.Description;
+          const first = clip.ReadKeyframes(0);
+          const second = clip.ReadKeyframes(1);
+          result.cnbClip = {
+            assetType: clipDocument.AssetType,
+            durationSeconds: description.DurationSeconds,
+            trackCount: description.TrackCount,
+            targetSpace: description.TargetSpace,
+            boneIndices: [clip.GetTrack(0).BoneIndex, clip.GetTrack(1).BoneIndex],
+            keyframeCounts: [first.length, second.length],
+            firstTimes: first.map((frame) => frame.TimeSeconds),
+            lastTranslation: [
+              second[0].Translation.X, second[0].Translation.Y, second[0].Translation.Z,
+            ],
+            lastRotation: [
+              second[0].Rotation.X, second[0].Rotation.Y,
+              second[0].Rotation.Z, second[0].Rotation.W,
+            ],
+            lastScale: [second[0].Scale.X, second[0].Scale.Y, second[0].Scale.Z],
+          };
+        } finally {
+          clip.Dispose();
+        }
+      } finally {
+        clipDocument.Dispose();
       }
 
       super.LoadContent();

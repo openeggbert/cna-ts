@@ -17,11 +17,16 @@ import test, { after } from "node:test";
 
 import {
   Color,
+  Curve,
+  CurveContinuity,
+  CurveKey,
+  CurveLoopType,
   Game,
   Graphics,
   GraphicsDeviceManager,
   LoadNodeNativeBackend,
   Matrix,
+  Quaternion,
   Rectangle,
   Vector2,
   Vector3,
@@ -30,6 +35,7 @@ import {
 import {
   CnbAssetType,
   CnbCompression,
+  CnbAnimationClip,
   CnbAudioFormat,
   CnbDocument,
   CnbEffectKind,
@@ -45,8 +51,11 @@ import {
   CreateSoundEffectFromCnbSoundEffectData,
   CreateSpriteFontFromCnb,
   CreateTexture2DFromCnb,
+  DecodeCnbCurve,
   DecodeCnbSong,
   DecodeCnbVideo,
+  EncodeCnbAnimationClip,
+  EncodeCnbCurve,
   EncodeCnbSong,
   EncodeCnbVideo,
 } from "../dist/extensions/content/index.js";
@@ -1135,4 +1144,230 @@ test("a disposed sound effect refuses by name and disposes idempotently", { skip
   assert.throws(() => sound.Description, /CnbSoundEffectData\.Description/);
   assert.throws(() => sound.ReadSamples(), /CnbSoundEffectData\.ReadSamples/);
   assert.throws(() => sound.Encode("x"), /CnbSoundEffectData\.Encode/);
+});
+
+/* ---- the CNB curve and animation-clip schemas ------------------------------------------------- */
+
+test("a curve round-trips through CNA and evaluates identically afterwards", { skip }, () => {
+  // Every field of every key gets its own value, and the two loop modes differ from each other and
+  // from the default, so a reader that returned the default for either would fail rather than
+  // round-trip. Continuity is Step on one key and Smooth on the other, because a reader that
+  // ignored it would still produce a curve that looks right at the keys.
+  const authored = new Curve();
+  authored.PreLoop = CurveLoopType.Cycle;
+  authored.PostLoop = CurveLoopType.Oscillate;
+  authored.Keys.Add(new CurveKey(0, 1, 0.25, 0.5, CurveContinuity.Smooth));
+  authored.Keys.Add(new CurveKey(2, 5, 0.75, 1.25, CurveContinuity.Step));
+  authored.Keys.Add(new CurveKey(4, -3, -0.5, -1.5, CurveContinuity.Smooth));
+
+  const image = EncodeCnbCurve(authored, "Reference/Ease");
+  const document = CnbDocument.Parse(image, "Reference/Ease.cnb");
+  let decoded;
+  try {
+    assert.equal(document.AssetType, CnbAssetType.Curve);
+    assert.equal(document.Metadata.ContentName, "Reference/Ease");
+    decoded = DecodeCnbCurve(document);
+  } finally {
+    document.Dispose();
+  }
+
+  assert.equal(decoded.PreLoop, CurveLoopType.Cycle);
+  assert.equal(decoded.PostLoop, CurveLoopType.Oscillate, "the two loop modes are distinct fields");
+  assert.equal(decoded.Keys.Count, 3);
+  for (let index = 0; index < 3; index += 1) {
+    const original = authored.Keys.Get(index);
+    const key = decoded.Keys.Get(index);
+    assert.deepEqual(
+      [key.Position, key.Value, key.TangentIn, key.TangentOut, key.Continuity],
+      [
+        original.Position, original.Value, original.TangentIn, original.TangentOut,
+        original.Continuity,
+      ],
+      `key ${index} did not survive the round trip`,
+    );
+  }
+
+  // The real test of a curve is what it computes, not what it stores. Sampling between the keys
+  // exercises the tangents and the continuity, so a curve whose keys survived but whose tangents
+  // did not would fail here even though every field above matched.
+  for (const at of [-1, 0, 0.5, 1, 1.9, 2, 2.1, 3, 4, 5.5]) {
+    assert.equal(
+      decoded.Evaluate(at), authored.Evaluate(at),
+      `the decoded curve evaluates differently at ${at}`,
+    );
+  }
+
+  // And a managed curve stays managed: there is nothing to dispose and no backend behind it.
+  assert.equal(decoded.IsConstant, false);
+  assert.equal(typeof decoded.Clone().Evaluate(1), "number");
+});
+
+test("a single-key curve reports itself constant on both sides", { skip }, () => {
+  const authored = new Curve();
+  authored.Keys.Add(new CurveKey(1, 7));
+  assert.equal(authored.IsConstant, true);
+  const document = CnbDocument.Parse(EncodeCnbCurve(authored, "Flat"), "Flat.cnb");
+  try {
+    const decoded = DecodeCnbCurve(document);
+    assert.equal(decoded.IsConstant, true);
+    assert.equal(decoded.Keys.Count, 1);
+    assert.equal(decoded.Evaluate(100), 7, "a constant curve evaluates to its one value");
+  } finally {
+    document.Dispose();
+  }
+});
+
+/** Two tracks with different bone indexes and different keyframe counts. */
+const CLIP = Object.freeze({
+  DurationSeconds: 2.5,
+  // CNA_CLIP_TARGET_SPACE_SCENE_NODE_EXT; the other identity is asserted to differ below.
+  TargetSpace: 1,
+  Tracks: [
+    {
+      BoneIndex: 3,
+      Keyframes: [
+        {
+          TimeSeconds: 0,
+          Translation: new Vector3(1, 2, 3),
+          Rotation: new Quaternion(0, 0, 0, 1),
+          Scale: new Vector3(1, 1, 1),
+        },
+        {
+          TimeSeconds: 1.25,
+          Translation: new Vector3(4, 5, 6),
+          Rotation: new Quaternion(0.5, 0.5, 0.5, 0.5),
+          Scale: new Vector3(2, 3, 4),
+        },
+      ],
+    },
+    {
+      BoneIndex: 7,
+      Keyframes: [
+        {
+          TimeSeconds: 2.5,
+          Translation: new Vector3(-1, -2, -3),
+          Rotation: new Quaternion(0, 1, 0, 0),
+          Scale: new Vector3(0.5, 0.25, 0.125),
+        },
+      ],
+    },
+  ],
+});
+
+test("an animation clip keeps its duration, tracks and every keyframe component", { skip }, () => {
+  const image = EncodeCnbAnimationClip(CLIP, "Reference/Walk");
+  const document = CnbDocument.Parse(image, "Reference/Walk.cnb");
+  try {
+    assert.equal(document.AssetType, CnbAssetType.AnimationClip);
+    const clip = CnbAnimationClip.Decode(document);
+    try {
+      const description = clip.Description;
+      assert.equal(description.DurationSeconds, 2.5);
+      assert.equal(description.TrackCount, 2);
+      assert.equal(description.TargetSpace, 1);
+
+      // Two tracks with different bone indexes and different keyframe counts: a reader that
+      // returned the first track for both would fail on either.
+      assert.deepEqual(
+        [clip.GetTrack(0).BoneIndex, clip.GetTrack(1).BoneIndex], [3, 7],
+      );
+      assert.deepEqual(
+        [clip.GetTrack(0).KeyframeCount, clip.GetTrack(1).KeyframeCount], [2, 1],
+      );
+      assert.throws(() => clip.GetTrack(2), /no CNB animation track at index 2/);
+
+      // Every component of every keyframe. Translation, rotation and scale are three separate
+      // vectors of different lengths at different offsets, and each keyframe here has values that
+      // could not be mistaken for another's.
+      const first = clip.ReadKeyframes(0);
+      assert.equal(first.length, 2);
+      assert.equal(first[0].TimeSeconds, 0);
+      assert.deepEqual(
+        [first[0].Translation.X, first[0].Translation.Y, first[0].Translation.Z], [1, 2, 3],
+      );
+      assert.deepEqual(
+        [first[0].Rotation.X, first[0].Rotation.Y, first[0].Rotation.Z, first[0].Rotation.W],
+        [0, 0, 0, 1], "an identity rotation is x=y=z=0, w=1, not the other way round",
+      );
+      assert.deepEqual([first[0].Scale.X, first[0].Scale.Y, first[0].Scale.Z], [1, 1, 1]);
+
+      assert.equal(first[1].TimeSeconds, 1.25);
+      assert.deepEqual(
+        [first[1].Translation.X, first[1].Translation.Y, first[1].Translation.Z], [4, 5, 6],
+      );
+      assert.deepEqual(
+        [first[1].Rotation.X, first[1].Rotation.Y, first[1].Rotation.Z, first[1].Rotation.W],
+        [0.5, 0.5, 0.5, 0.5],
+      );
+      assert.deepEqual([first[1].Scale.X, first[1].Scale.Y, first[1].Scale.Z], [2, 3, 4]);
+
+      const second = clip.ReadKeyframes(1);
+      assert.equal(second.length, 1);
+      assert.equal(second[0].TimeSeconds, 2.5);
+      assert.deepEqual(
+        [second[0].Translation.X, second[0].Translation.Y, second[0].Translation.Z], [-1, -2, -3],
+      );
+      assert.deepEqual(
+        [second[0].Rotation.X, second[0].Rotation.Y, second[0].Rotation.Z, second[0].Rotation.W],
+        [0, 1, 0, 0],
+      );
+      assert.deepEqual(
+        [second[0].Scale.X, second[0].Scale.Y, second[0].Scale.Z], [0.5, 0.25, 0.125],
+      );
+      assert.throws(() => clip.ReadKeyframes(2), /no CNB animation track at index 2/);
+    } finally {
+      clip.Dispose();
+    }
+  } finally {
+    document.Dispose();
+  }
+});
+
+test("a clip's target space is carried rather than defaulted", { skip }, () => {
+  // The same clip written in the other target space must decode as the other target space.
+  const other = { ...CLIP, TargetSpace: 0 };
+  const document = CnbDocument.Parse(
+    EncodeCnbAnimationClip(other, "Reference/WalkBone"), "WalkBone.cnb",
+  );
+  try {
+    const clip = CnbAnimationClip.Decode(document);
+    try {
+      assert.equal(clip.Description.TargetSpace, 0);
+    } finally {
+      clip.Dispose();
+    }
+  } finally {
+    document.Dispose();
+  }
+});
+
+test("a disposed animation clip refuses by name and disposes idempotently", { skip }, () => {
+  const document = CnbDocument.Parse(EncodeCnbAnimationClip(CLIP, "W"), "W.cnb");
+  try {
+    const clip = CnbAnimationClip.Decode(document);
+    clip.Dispose();
+    assert.equal(clip.IsDisposed, true);
+    clip.Dispose();
+    assert.throws(() => clip.Description, /CnbAnimationClip\.Description/);
+    assert.throws(() => clip.ReadKeyframes(0), /CnbAnimationClip\.ReadKeyframes/);
+  } finally {
+    document.Dispose();
+  }
+});
+
+test("a curve and a clip refuse each other's containers", { skip }, () => {
+  const curve = new Curve();
+  curve.Keys.Add(new CurveKey(0, 0));
+  const curveDocument = CnbDocument.Parse(EncodeCnbCurve(curve, "C"), "C.cnb");
+  try {
+    assert.throws(() => CnbAnimationClip.Decode(curveDocument), /cna_cnb_decode_animation_clip/);
+  } finally {
+    curveDocument.Dispose();
+  }
+  const clipDocument = CnbDocument.Parse(EncodeCnbAnimationClip(CLIP, "A"), "A.cnb");
+  try {
+    assert.throws(() => DecodeCnbCurve(clipDocument), /cna_cnb_decode_curve/);
+  } finally {
+    clipDocument.Dispose();
+  }
 });

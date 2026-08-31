@@ -315,6 +315,34 @@ typedef CNA_Result (*CnbSpriteFontAddGlyphFn)(CNA_CnbSpriteFontDataHandle, const
 typedef CNA_Result (*CnbSpriteFontSetAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle);
 typedef CNA_Result (*CnbSpriteFontCopyAtlasFn)(CNA_CnbSpriteFontDataHandle, CNA_CnbTextureDataHandle*);
 typedef CNA_Result (*CnbEncodeSpriteFontFn)(CNA_CnbSpriteFontDataHandle, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CurveCreateFn)(CNA_CurveHandle*);
+typedef CNA_Result (*CurveDestroyFn)(CNA_CurveHandle);
+typedef CNA_Result (*CurveGetKeysFn)(CNA_CurveHandle, CNA_CurveKeyCollectionHandle*);
+typedef CNA_Result (*CurveGetLoopFn)(CNA_CurveHandle, CNA_CurveLoopType*);
+typedef CNA_Result (*CurveSetLoopFn)(CNA_CurveHandle, CNA_CurveLoopType);
+typedef CNA_Result (*CurveGetIsConstantFn)(CNA_CurveHandle, CNA_Bool*);
+typedef CNA_Result (*CurveKeyCollectionDestroyFn)(CNA_CurveKeyCollectionHandle);
+typedef CNA_Result (*CurveKeyCollectionCountFn)(CNA_CurveKeyCollectionHandle, uint64_t*);
+typedef CNA_Result (*CurveKeyCollectionGetFn)(
+  CNA_CurveKeyCollectionHandle, int32_t, CNA_CurveKey*);
+typedef CNA_Result (*CurveKeyCollectionAddFn)(CNA_CurveKeyCollectionHandle, CNA_CurveKey);
+typedef CNA_Result (*CurveKeyInitFullFn)(
+  float, float, float, float, CNA_CurveContinuity, CNA_CurveKey*);
+typedef CNA_Result (*CnbEncodeCurveFn)(
+  CNA_CurveHandle, CNA_StringView, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbDecodeCurveFn)(CNA_CnbDocumentHandle, CNA_CurveHandle*);
+typedef CNA_Result (*CnbEncodeAnimationClipFn)(
+  const CNA_AnimationClipEXTDescriptor*, CNA_ClipTargetSpaceEXT, CNA_StringView,
+  uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*CnbDecodeAnimationClipFn)(
+  CNA_CnbDocumentHandle, CNA_CnbAnimationClipHandle*);
+typedef CNA_Result (*CnbAnimationClipDestroyFn)(CNA_CnbAnimationClipHandle);
+typedef CNA_Result (*CnbAnimationClipGetFn)(
+  CNA_CnbAnimationClipHandle, double*, uint64_t*, CNA_ClipTargetSpaceEXT*);
+typedef CNA_Result (*CnbAnimationClipGetTrackFn)(
+  CNA_CnbAnimationClipHandle, uint64_t, int32_t*, uint64_t*);
+typedef CNA_Result (*CnbAnimationClipCopyKeyframesFn)(
+  CNA_CnbAnimationClipHandle, uint64_t, CNA_KeyframeEXT*, uint64_t, uint64_t*);
 typedef CNA_Result (*CnbSoundEffectCreateFn)(
   const CNA_CnbSoundEffectInfo*, const uint8_t*, uint64_t, CNA_CnbSoundEffectDataHandle*);
 typedef CNA_Result (*CnbSoundEffectDestroyFn)(CNA_CnbSoundEffectDataHandle);
@@ -897,6 +925,27 @@ typedef struct Api {
   CnbSpriteFontSetAtlasFn cnb_sprite_font_data_set_atlas;
   CnbSpriteFontCopyAtlasFn cnb_sprite_font_data_copy_atlas;
   CnbEncodeSpriteFontFn cnb_encode_sprite_font;
+  CurveCreateFn curve_create;
+  CurveDestroyFn curve_destroy;
+  CurveGetKeysFn curve_get_keys;
+  CurveGetLoopFn curve_get_pre_loop;
+  CurveSetLoopFn curve_set_pre_loop;
+  CurveGetLoopFn curve_get_post_loop;
+  CurveSetLoopFn curve_set_post_loop;
+  CurveGetIsConstantFn curve_get_is_constant;
+  CurveKeyCollectionDestroyFn curve_key_collection_destroy;
+  CurveKeyCollectionCountFn curve_key_collection_get_count;
+  CurveKeyCollectionGetFn curve_key_collection_get;
+  CurveKeyCollectionAddFn curve_key_collection_add;
+  CurveKeyInitFullFn curve_key_init_full;
+  CnbEncodeCurveFn cnb_encode_curve;
+  CnbDecodeCurveFn cnb_decode_curve;
+  CnbEncodeAnimationClipFn cnb_encode_animation_clip;
+  CnbDecodeAnimationClipFn cnb_decode_animation_clip;
+  CnbAnimationClipDestroyFn cnb_animation_clip_destroy;
+  CnbAnimationClipGetFn cnb_animation_clip_get;
+  CnbAnimationClipGetTrackFn cnb_animation_clip_get_track;
+  CnbAnimationClipCopyKeyframesFn cnb_animation_clip_copy_keyframes;
   CnbSoundEffectCreateFn cnb_sound_effect_data_create;
   CnbSoundEffectDestroyFn cnb_sound_effect_data_destroy;
   CnbSoundEffectInfoFn cnb_sound_effect_data_get_info;
@@ -1859,6 +1908,27 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(cnb_sprite_font_data_set_atlas, CnbSpriteFontSetAtlasFn, "cna_cnb_sprite_font_data_set_atlas");
   LOAD_REQUIRED(cnb_sprite_font_data_copy_atlas, CnbSpriteFontCopyAtlasFn, "cna_cnb_sprite_font_data_copy_atlas");
   LOAD_REQUIRED(cnb_encode_sprite_font, CnbEncodeSpriteFontFn, "cna_cnb_encode_sprite_font");
+  LOAD_REQUIRED(curve_create, CurveCreateFn, "cna_curve_create");
+  LOAD_REQUIRED(curve_destroy, CurveDestroyFn, "cna_curve_destroy");
+  LOAD_REQUIRED(curve_get_keys, CurveGetKeysFn, "cna_curve_get_keys");
+  LOAD_REQUIRED(curve_get_pre_loop, CurveGetLoopFn, "cna_curve_get_pre_loop");
+  LOAD_REQUIRED(curve_set_pre_loop, CurveSetLoopFn, "cna_curve_set_pre_loop");
+  LOAD_REQUIRED(curve_get_post_loop, CurveGetLoopFn, "cna_curve_get_post_loop");
+  LOAD_REQUIRED(curve_set_post_loop, CurveSetLoopFn, "cna_curve_set_post_loop");
+  LOAD_REQUIRED(curve_get_is_constant, CurveGetIsConstantFn, "cna_curve_get_is_constant");
+  LOAD_REQUIRED(curve_key_collection_destroy, CurveKeyCollectionDestroyFn, "cna_curve_key_collection_destroy");
+  LOAD_REQUIRED(curve_key_collection_get_count, CurveKeyCollectionCountFn, "cna_curve_key_collection_get_count");
+  LOAD_REQUIRED(curve_key_collection_get, CurveKeyCollectionGetFn, "cna_curve_key_collection_get");
+  LOAD_REQUIRED(curve_key_collection_add, CurveKeyCollectionAddFn, "cna_curve_key_collection_add");
+  LOAD_REQUIRED(curve_key_init_full, CurveKeyInitFullFn, "cna_curve_key_init_full");
+  LOAD_REQUIRED(cnb_encode_curve, CnbEncodeCurveFn, "cna_cnb_encode_curve");
+  LOAD_REQUIRED(cnb_decode_curve, CnbDecodeCurveFn, "cna_cnb_decode_curve");
+  LOAD_REQUIRED(cnb_encode_animation_clip, CnbEncodeAnimationClipFn, "cna_cnb_encode_animation_clip");
+  LOAD_REQUIRED(cnb_decode_animation_clip, CnbDecodeAnimationClipFn, "cna_cnb_decode_animation_clip");
+  LOAD_REQUIRED(cnb_animation_clip_destroy, CnbAnimationClipDestroyFn, "cna_cnb_animation_clip_destroy");
+  LOAD_REQUIRED(cnb_animation_clip_get, CnbAnimationClipGetFn, "cna_cnb_animation_clip_get");
+  LOAD_REQUIRED(cnb_animation_clip_get_track, CnbAnimationClipGetTrackFn, "cna_cnb_animation_clip_get_track");
+  LOAD_REQUIRED(cnb_animation_clip_copy_keyframes, CnbAnimationClipCopyKeyframesFn, "cna_cnb_animation_clip_copy_keyframes");
   LOAD_REQUIRED(cnb_sound_effect_data_create, CnbSoundEffectCreateFn, "cna_cnb_sound_effect_data_create");
   LOAD_REQUIRED(cnb_sound_effect_data_destroy, CnbSoundEffectDestroyFn, "cna_cnb_sound_effect_data_destroy");
   LOAD_REQUIRED(cnb_sound_effect_data_get_info, CnbSoundEffectInfoFn, "cna_cnb_sound_effect_data_get_info");
@@ -2400,6 +2470,44 @@ static int set_bigint(napi_env env, napi_value object, const char* name, uint64_
   napi_value property;
   return napi_create_bigint_uint64(env, value, &property) == napi_ok &&
     napi_set_named_property(env, object, name, property) == napi_ok;
+}
+
+static int read_float_array(
+  napi_env env, napi_value value, float* out, uint32_t expected, const char* const what
+) {
+  bool is_array = false;
+  uint32_t length = 0;
+  if (napi_is_array(env, value, &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, value, &length) != napi_ok || length != expected) {
+    throw_message(env, what);
+    return 0;
+  }
+  for (uint32_t index = 0; index < expected; index += 1) {
+    napi_value element;
+    double number = 0;
+    if (napi_get_element(env, value, index, &element) != napi_ok ||
+        napi_get_value_double(env, element, &number) != napi_ok) {
+      throw_message(env, what);
+      return 0;
+    }
+    out[index] = (float) number;
+  }
+  return 1;
+}
+
+static int set_float_array(
+  napi_env env, napi_value object, const char* name, const float* values, uint32_t count
+) {
+  napi_value array;
+  if (napi_create_array_with_length(env, count, &array) != napi_ok) return 0;
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value number;
+    if (napi_create_double(env, (double) values[index], &number) != napi_ok ||
+        napi_set_element(env, array, index, number) != napi_ok) {
+      return 0;
+    }
+  }
+  return napi_set_named_property(env, object, name, array) == napi_ok;
 }
 
 static int read_byte_view(
@@ -8481,6 +8589,451 @@ static napi_value cnb_encode_sprite_font(napi_env env, napi_callback_info info) 
   return output;
 }
 
+/* --- the CNB curve and animation-clip schemas -------------------------------------------------- */
+/*
+ * Two schemas whose decoded form is a *native* object this binding immediately reads out and
+ * releases, rather than keeping. `cna_cnb_decode_curve` hands back a `CNA_CurveHandle`, but XNA's
+ * `Curve` is one of the value types this package implements exactly in TypeScript -- so the native
+ * curve exists only long enough to have its loop modes and its keys copied out, and the object a
+ * consumer ends up holding evaluates in TypeScript with no backend behind it at all.
+ *
+ * The animation clip is the opposite: it has no XNA counterpart, so its handle is kept and its
+ * tracks are addressed by index, as the model's nodes are.
+ */
+
+static napi_value make_curve_key(napi_env env, const CNA_CurveKey* key) {
+  napi_value output;
+  if (napi_create_object(env, &output) != napi_ok) return throw_napi(env, "CNB curve key");
+  if (!set_number(env, output, "Position", (double) key->position) ||
+      !set_number(env, output, "Value", (double) key->value) ||
+      !set_number(env, output, "TangentIn", (double) key->tangent_in) ||
+      !set_number(env, output, "TangentOut", (double) key->tangent_out) ||
+      !set_u32(env, output, "Continuity", key->continuity)) {
+    return throw_napi(env, "CNB curve key");
+  }
+  return output;
+}
+
+/*
+ * Reads a whole managed curve out of a native handle and releases both it and its key collection.
+ * A partial read still releases: the collection is a separate handle and leaking it would outlive
+ * the curve it came from.
+ */
+static napi_value read_curve(napi_env env, CNA_CurveHandle curve) {
+  CNA_CurveKeyCollectionHandle keys = 0;
+  napi_value output = NULL, array = NULL;
+  uint32_t pre = 0, post = 0;
+  CNA_Bool constant = CNA_FALSE;
+  uint64_t count = 0;
+  CNA_Result result = g_api.curve_get_pre_loop(curve, &pre);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.curve_get_post_loop(curve, &post);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.curve_get_is_constant(curve, &constant);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.curve_get_keys(curve, &keys);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.curve_key_collection_get_count(keys, &count);
+  if (result != CNA_RESULT_SUCCESS) goto done;
+  if (count > (uint64_t) INT32_MAX) {
+    if (keys) g_api.curve_key_collection_destroy(keys);
+    g_api.curve_destroy(curve);
+    return throw_message(env, "a CNB curve declares more keys than an index can address");
+  }
+  if (napi_create_object(env, &output) != napi_ok ||
+      napi_create_array_with_length(env, (size_t) count, &array) != napi_ok) {
+    output = throw_napi(env, "CNB curve");
+    goto release;
+  }
+  for (uint64_t index = 0; index < count; index += 1) {
+    CNA_CurveKey key;
+    memset(&key, 0, sizeof(key));
+    result = g_api.curve_key_collection_get(keys, (int32_t) index, &key);
+    if (result != CNA_RESULT_SUCCESS) {
+      output = NULL;
+      goto done;
+    }
+    napi_value entry = make_curve_key(env, &key);
+    if (!entry || napi_set_element(env, array, (uint32_t) index, entry) != napi_ok) {
+      output = entry ? throw_napi(env, "CNB curve keys") : NULL;
+      goto release;
+    }
+  }
+  if (!set_u32(env, output, "PreLoop", pre) ||
+      !set_u32(env, output, "PostLoop", post) ||
+      !set_bool(env, output, "IsConstant", constant != CNA_FALSE) ||
+      napi_set_named_property(env, output, "Keys", array) != napi_ok) {
+    output = throw_napi(env, "CNB curve");
+  }
+release:
+  if (keys) g_api.curve_key_collection_destroy(keys);
+  g_api.curve_destroy(curve);
+  return output;
+done:
+  if (keys) g_api.curve_key_collection_destroy(keys);
+  g_api.curve_destroy(curve);
+  return output ? output : throw_result(env, "cna_curve", result);
+}
+
+static napi_value cnb_decode_curve(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle document = 0;
+  CNA_CurveHandle curve = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &document)) return NULL;
+  const CNA_Result result = g_api.cnb_decode_curve(document, &curve);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_decode_curve", result);
+  return read_curve(env, curve);
+}
+
+/* Builds a native curve from a managed one, encodes it, and releases the native side. */
+static napi_value cnb_encode_curve(napi_env env, napi_callback_info info) {
+  napi_value args[2], keys_value, output = NULL;
+  CNA_CurveHandle curve = 0;
+  CNA_CurveKeyCollectionHandle keys = 0;
+  char* name = NULL;
+  size_t name_length = 0;
+  uint32_t pre = 0, post = 0, count = 0;
+  uint8_t* bytes = NULL;
+  bool is_array = false;
+  napi_value entry;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_utf8(env, args[1], &name, &name_length)) return NULL;
+  if (napi_get_named_property(env, args[0], "PreLoop", &entry) != napi_ok ||
+      napi_get_value_uint32(env, entry, &pre) != napi_ok ||
+      napi_get_named_property(env, args[0], "PostLoop", &entry) != napi_ok ||
+      napi_get_value_uint32(env, entry, &post) != napi_ok ||
+      napi_get_named_property(env, args[0], "Keys", &keys_value) != napi_ok ||
+      napi_is_array(env, keys_value, &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, keys_value, &count) != napi_ok) {
+    free(name);
+    return throw_message(env, "a curve needs PreLoop, PostLoop and a Keys array");
+  }
+  CNA_Result result = g_api.curve_create(&curve);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(name);
+    return throw_result(env, "cna_curve_create", result);
+  }
+  result = g_api.curve_set_pre_loop(curve, pre);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.curve_set_post_loop(curve, post);
+  if (result == CNA_RESULT_SUCCESS) result = g_api.curve_get_keys(curve, &keys);
+  if (result != CNA_RESULT_SUCCESS) goto fail;
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value element, field;
+    double numbers[4] = {0, 0, 0, 0};
+    uint32_t continuity = 0;
+    static const char* const names[] = {"Position", "Value", "TangentIn", "TangentOut"};
+    if (napi_get_element(env, keys_value, index, &element) != napi_ok) goto bad_key;
+    for (size_t which = 0; which < 4; which += 1) {
+      if (napi_get_named_property(env, element, names[which], &field) != napi_ok ||
+          napi_get_value_double(env, field, &numbers[which]) != napi_ok) {
+        goto bad_key;
+      }
+    }
+    if (napi_get_named_property(env, element, "Continuity", &field) != napi_ok ||
+        napi_get_value_uint32(env, field, &continuity) != napi_ok) {
+      goto bad_key;
+    }
+    CNA_CurveKey key;
+    memset(&key, 0, sizeof(key));
+    result = g_api.curve_key_init_full(
+      (float) numbers[0], (float) numbers[1], (float) numbers[2], (float) numbers[3],
+      continuity, &key);
+    if (result == CNA_RESULT_SUCCESS) result = g_api.curve_key_collection_add(keys, key);
+    if (result != CNA_RESULT_SUCCESS) goto fail;
+  }
+  {
+    const CNA_StringView view = {name, name_length};
+    uint64_t required = 0;
+    result = g_api.cnb_encode_curve(curve, view, NULL, 0, &required);
+    if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) goto fail;
+    if (required > SIZE_MAX) {
+      output = throw_message(env, "CNB image exceeds the Node address space");
+      goto release;
+    }
+    bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+    if (required != 0 && !bytes) {
+      output = throw_message(env, "CNB image allocation failed");
+      goto release;
+    }
+    uint64_t written = 0;
+    result = g_api.cnb_encode_curve(curve, view, bytes, required, &written);
+    if (result != CNA_RESULT_SUCCESS || written != required) {
+      if (result == CNA_RESULT_SUCCESS) result = CNA_RESULT_INTERNAL;
+      goto fail;
+    }
+    output = copy_bytes(env, bytes, (size_t) written, "CNB image copy");
+  }
+release:
+  free(bytes);
+  free(name);
+  if (keys) g_api.curve_key_collection_destroy(keys);
+  g_api.curve_destroy(curve);
+  return output;
+bad_key:
+  output = throw_message(env, "a curve key needs Position, Value, TangentIn, TangentOut and Continuity");
+  goto release;
+fail:
+  free(bytes);
+  free(name);
+  if (keys) g_api.curve_key_collection_destroy(keys);
+  g_api.curve_destroy(curve);
+  return throw_result(env, "cna_cnb_encode_curve", result);
+}
+
+static napi_value cnb_decode_animation_clip(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle document = 0;
+  CNA_CnbAnimationClipHandle clip = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &document)) return NULL;
+  const CNA_Result result = g_api.cnb_decode_animation_clip(document, &clip);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_decode_animation_clip", result);
+  }
+  return make_handle(env, clip);
+}
+
+static napi_value cnb_animation_clip_destroy(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle clip = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &clip)) return NULL;
+  const CNA_Result result = g_api.cnb_animation_clip_destroy(clip);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_animation_clip_destroy", result);
+  }
+  return undefined_result(env, "CNB animation clip release");
+}
+
+static napi_value cnb_animation_clip_get(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle clip = 0;
+  double duration = 0;
+  uint64_t tracks = 0;
+  CNA_ClipTargetSpaceEXT space = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &clip)) return NULL;
+  const CNA_Result result = g_api.cnb_animation_clip_get(clip, &duration, &tracks, &space);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_cnb_animation_clip_get", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB animation clip");
+  if (!set_number(env, output, "DurationSeconds", duration) ||
+      !set_number(env, output, "TrackCount", (double) tracks) ||
+      !set_u32(env, output, "TargetSpace", space)) {
+    return throw_napi(env, "CNB animation clip");
+  }
+  return output;
+}
+
+static napi_value cnb_animation_clip_get_track(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle clip = 0;
+  uint32_t track = 0;
+  int32_t bone = 0;
+  uint64_t keyframes = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &clip) ||
+      napi_get_value_uint32(env, args[1], &track) != napi_ok) {
+    return throw_message(env, "expected a CNB animation clip and a track index");
+  }
+  const CNA_Result result = g_api.cnb_animation_clip_get_track(clip, track, &bone, &keyframes);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cnb_animation_clip_get_track", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "CNB animation track");
+  if (!set_i32(env, output, "BoneIndex", bone) ||
+      !set_number(env, output, "KeyframeCount", (double) keyframes)) {
+    return throw_napi(env, "CNB animation track");
+  }
+  return output;
+}
+
+static napi_value make_keyframe(napi_env env, const CNA_KeyframeEXT* frame) {
+  napi_value output;
+  if (napi_create_object(env, &output) != napi_ok) return throw_napi(env, "CNB keyframe");
+  const float translation[3] = {frame->translation.x, frame->translation.y, frame->translation.z};
+  const float rotation[4] = {
+    frame->rotation.x, frame->rotation.y, frame->rotation.z, frame->rotation.w};
+  const float scale[3] = {frame->scale.x, frame->scale.y, frame->scale.z};
+  if (!set_number(env, output, "TimeSeconds", frame->time_seconds) ||
+      !set_float_array(env, output, "Translation", translation, 3) ||
+      !set_float_array(env, output, "Rotation", rotation, 4) ||
+      !set_float_array(env, output, "Scale", scale, 3)) {
+    return throw_napi(env, "CNB keyframe");
+  }
+  return output;
+}
+
+static napi_value cnb_animation_clip_copy_keyframes(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle clip = 0;
+  uint32_t track = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &clip) ||
+      napi_get_value_uint32(env, args[1], &track) != napi_ok) {
+    return throw_message(env, "expected a CNB animation clip and a track index");
+  }
+  uint64_t required = 0;
+  CNA_Result result = g_api.cnb_animation_clip_copy_keyframes(clip, track, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_cnb_animation_clip_copy_keyframes", result);
+  }
+  if (required > SIZE_MAX / sizeof(CNA_KeyframeEXT)) {
+    return throw_message(env, "CNB keyframes exceed the address space");
+  }
+  CNA_KeyframeEXT* frames = required == 0
+    ? NULL
+    : (CNA_KeyframeEXT*) malloc((size_t) required * sizeof(CNA_KeyframeEXT));
+  if (required != 0 && !frames) return throw_message(env, "CNB keyframe allocation failed");
+  uint64_t produced = 0;
+  result = g_api.cnb_animation_clip_copy_keyframes(clip, track, frames, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(frames);
+    return throw_result(
+      env, "cna_cnb_animation_clip_copy_keyframes",
+      result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+  }
+  if (napi_create_array_with_length(env, (size_t) produced, &output) != napi_ok) {
+    free(frames);
+    return throw_napi(env, "CNB keyframes");
+  }
+  for (uint64_t index = 0; index < produced; index += 1) {
+    napi_value entry = make_keyframe(env, &frames[index]);
+    if (!entry || napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      free(frames);
+      return entry ? throw_napi(env, "CNB keyframes") : NULL;
+    }
+  }
+  free(frames);
+  return output;
+}
+
+/* Builds a clip descriptor from nested JavaScript arrays and encodes it. */
+static napi_value cnb_encode_animation_clip(napi_env env, napi_callback_info info) {
+  napi_value args[4], tracks_value;
+  char* name = NULL;
+  size_t name_length = 0;
+  double duration = 0;
+  uint32_t space = 0, track_count = 0;
+  bool is_array = false;
+  CNA_BoneTrackEXTDescriptor* tracks = NULL;
+  CNA_KeyframeEXT** frames = NULL;
+  uint8_t* bytes = NULL;
+  napi_value output = NULL;
+  CNA_Result result = CNA_RESULT_SUCCESS;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      napi_get_value_double(env, args[0], &duration) != napi_ok ||
+      napi_is_array(env, args[1], &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, args[1], &track_count) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &space) != napi_ok) {
+    return throw_message(env, "expected a duration, a track array and a target space");
+  }
+  tracks_value = args[1];
+  if (!read_utf8(env, args[3], &name, &name_length)) return NULL;
+  if (track_count > UINT32_C(65536)) {
+    free(name);
+    return throw_message(env, "a CNB animation clip carries at most 65536 tracks");
+  }
+  tracks = (CNA_BoneTrackEXTDescriptor*) calloc(
+    track_count == 0 ? 1 : track_count, sizeof(CNA_BoneTrackEXTDescriptor));
+  frames = (CNA_KeyframeEXT**) calloc(track_count == 0 ? 1 : track_count, sizeof(CNA_KeyframeEXT*));
+  if (!tracks || !frames) {
+    output = throw_message(env, "CNB animation clip allocation failed");
+    goto release;
+  }
+  for (uint32_t index = 0; index < track_count; index += 1) {
+    napi_value track, field, keys;
+    int32_t bone = 0;
+    uint32_t keyframe_count = 0;
+    if (napi_get_element(env, tracks_value, index, &track) != napi_ok ||
+        napi_get_named_property(env, track, "BoneIndex", &field) != napi_ok ||
+        napi_get_value_int32(env, field, &bone) != napi_ok ||
+        napi_get_named_property(env, track, "Keyframes", &keys) != napi_ok ||
+        napi_is_array(env, keys, &is_array) != napi_ok || !is_array ||
+        napi_get_array_length(env, keys, &keyframe_count) != napi_ok) {
+      output = throw_message(env, "a track needs a BoneIndex and a Keyframes array");
+      goto release;
+    }
+    if (keyframe_count > UINT32_C(1048576)) {
+      output = throw_message(env, "a CNB animation track carries at most 1048576 keyframes");
+      goto release;
+    }
+    frames[index] = (CNA_KeyframeEXT*) calloc(
+      keyframe_count == 0 ? 1 : keyframe_count, sizeof(CNA_KeyframeEXT));
+    if (!frames[index]) {
+      output = throw_message(env, "CNB keyframe allocation failed");
+      goto release;
+    }
+    for (uint32_t which = 0; which < keyframe_count; which += 1) {
+      napi_value frame, component;
+      double time = 0;
+      float translation[3], rotation[4], scale[3];
+      if (napi_get_element(env, keys, which, &frame) != napi_ok ||
+          napi_get_named_property(env, frame, "TimeSeconds", &component) != napi_ok ||
+          napi_get_value_double(env, component, &time) != napi_ok ||
+          napi_get_named_property(env, frame, "Translation", &component) != napi_ok ||
+          !read_float_array(env, component, translation, 3, "a keyframe needs a three-component translation") ||
+          napi_get_named_property(env, frame, "Rotation", &component) != napi_ok ||
+          !read_float_array(env, component, rotation, 4, "a keyframe needs a four-component rotation") ||
+          napi_get_named_property(env, frame, "Scale", &component) != napi_ok ||
+          !read_float_array(env, component, scale, 3, "a keyframe needs a three-component scale")) {
+        output = NULL;
+        goto release;
+      }
+      CNA_KeyframeEXT* target = &frames[index][which];
+      target->time_seconds = time;
+      target->translation.x = translation[0];
+      target->translation.y = translation[1];
+      target->translation.z = translation[2];
+      target->rotation.x = rotation[0];
+      target->rotation.y = rotation[1];
+      target->rotation.z = rotation[2];
+      target->rotation.w = rotation[3];
+      target->scale.x = scale[0];
+      target->scale.y = scale[1];
+      target->scale.z = scale[2];
+    }
+    tracks[index].bone_index = bone;
+    tracks[index].keyframes = frames[index];
+    tracks[index].keyframe_count = keyframe_count;
+  }
+  {
+    CNA_AnimationClipEXTDescriptor clip;
+    memset(&clip, 0, sizeof(clip));
+    clip.duration_seconds = duration;
+    clip.tracks = tracks;
+    clip.track_count = track_count;
+    const CNA_StringView view = {name, name_length};
+    uint64_t required = 0;
+    result = g_api.cnb_encode_animation_clip(&clip, space, view, NULL, 0, &required);
+    if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+      output = throw_result(env, "cna_cnb_encode_animation_clip", result);
+      goto release;
+    }
+    if (required > SIZE_MAX) {
+      output = throw_message(env, "CNB image exceeds the Node address space");
+      goto release;
+    }
+    bytes = required == 0 ? NULL : (uint8_t*) malloc((size_t) required);
+    if (required != 0 && !bytes) {
+      output = throw_message(env, "CNB image allocation failed");
+      goto release;
+    }
+    uint64_t written = 0;
+    result = g_api.cnb_encode_animation_clip(&clip, space, view, bytes, required, &written);
+    if (result != CNA_RESULT_SUCCESS || written != required) {
+      output = throw_result(
+        env, "cna_cnb_encode_animation_clip",
+        result == CNA_RESULT_SUCCESS ? CNA_RESULT_INTERNAL : result);
+      goto release;
+    }
+    output = copy_bytes(env, bytes, (size_t) written, "CNB image copy");
+  }
+release:
+  if (frames) for (uint32_t index = 0; index < track_count; index += 1) free(frames[index]);
+  free(frames);
+  free(tracks);
+  free(bytes);
+  free(name);
+  return output;
+}
+
 /* --- the CNB media schemas: sound effects, songs and videos ----------------------------------- */
 /*
  * Three schemas that share one property worth stating: a song and a video container carry a
@@ -8984,28 +9537,6 @@ static napi_value model_index_bytes(
 }
 
 /* Reads a float array of an exact length out of a JavaScript array. */
-static int read_float_array(
-  napi_env env, napi_value value, float* out, uint32_t expected, const char* const what
-) {
-  bool is_array = false;
-  uint32_t length = 0;
-  if (napi_is_array(env, value, &is_array) != napi_ok || !is_array ||
-      napi_get_array_length(env, value, &length) != napi_ok || length != expected) {
-    throw_message(env, what);
-    return 0;
-  }
-  for (uint32_t index = 0; index < expected; index += 1) {
-    napi_value element;
-    double number = 0;
-    if (napi_get_element(env, value, index, &element) != napi_ok ||
-        napi_get_value_double(env, element, &number) != napi_ok) {
-      throw_message(env, what);
-      return 0;
-    }
-    out[index] = (float) number;
-  }
-  return 1;
-}
 
 static napi_value cnb_model_create(napi_env env, napi_callback_info info) {
   (void) info;
@@ -9330,20 +9861,6 @@ static int read_material_info(napi_env env, napi_value value, CNA_CnbMaterialInf
   return 1;
 }
 
-static int set_float_array(
-  napi_env env, napi_value object, const char* name, const float* values, uint32_t count
-) {
-  napi_value array;
-  if (napi_create_array_with_length(env, count, &array) != napi_ok) return 0;
-  for (uint32_t index = 0; index < count; index += 1) {
-    napi_value number;
-    if (napi_create_double(env, (double) values[index], &number) != napi_ok ||
-        napi_set_element(env, array, index, number) != napi_ok) {
-      return 0;
-    }
-  }
-  return napi_set_named_property(env, object, name, array) == napi_ok;
-}
 
 static napi_value cnb_model_get_material(napi_env env, napi_callback_info info) {
   napi_value args[2], output;
@@ -11248,6 +11765,14 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "cnbSpriteFontDataSetAtlas", NULL, cnb_sprite_font_data_set_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbSpriteFontDataCopyAtlas", NULL, cnb_sprite_font_data_copy_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbEncodeSpriteFont", NULL, cnb_encode_sprite_font, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbEncodeCurve", NULL, cnb_encode_curve, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeCurve", NULL, cnb_decode_curve, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbEncodeAnimationClip", NULL, cnb_encode_animation_clip, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbDecodeAnimationClip", NULL, cnb_decode_animation_clip, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbAnimationClipDestroy", NULL, cnb_animation_clip_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbAnimationClipGet", NULL, cnb_animation_clip_get, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbAnimationClipGetTrack", NULL, cnb_animation_clip_get_track, NULL, NULL, NULL, napi_default, NULL },
+    { "cnbAnimationClipCopyKeyframes", NULL, cnb_animation_clip_copy_keyframes, NULL, NULL, NULL, napi_default, NULL },
     { "cnbSoundEffectDataCreate", NULL, cnb_sound_effect_data_create, NULL, NULL, NULL, napi_default, NULL },
     { "cnbSoundEffectDataDestroy", NULL, cnb_sound_effect_data_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "cnbSoundEffectDataGetInfo", NULL, cnb_sound_effect_data_get_info, NULL, NULL, NULL, napi_default, NULL },

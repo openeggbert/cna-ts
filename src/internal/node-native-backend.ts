@@ -28,6 +28,8 @@ import type {
   CnbGlyphSnapshot,
   CnbMaterialSnapshot,
   CnbModelInfoSnapshot,
+  CnbCurveSnapshot,
+  CnbKeyframeSnapshot,
   CnbSoundEffectInfoSnapshot,
   CnbVideoInfoSnapshot,
   CnbModelPartSnapshot,
@@ -414,6 +416,23 @@ interface NativeBridge {
   cnbSpriteFontDataSetAtlas(font: bigint, atlas: bigint): void;
   cnbSpriteFontDataCopyAtlas(font: bigint): bigint;
   cnbEncodeSpriteFont(font: bigint, contentName: string): Uint8Array;
+  cnbEncodeCurve(curve: CnbCurveSnapshot, contentName: string): Uint8Array;
+  cnbDecodeCurve(document: bigint): CnbCurveSnapshot;
+  cnbEncodeAnimationClip(
+    durationSeconds: number,
+    tracks: readonly { readonly BoneIndex: number; readonly Keyframes: readonly CnbKeyframeSnapshot[] }[],
+    targetSpace: number,
+    contentName: string,
+  ): Uint8Array;
+  cnbDecodeAnimationClip(document: bigint): bigint;
+  cnbAnimationClipDestroy(clip: bigint): void;
+  cnbAnimationClipGet(clip: bigint): {
+    readonly DurationSeconds: number; readonly TrackCount: number; readonly TargetSpace: number;
+  };
+  cnbAnimationClipGetTrack(clip: bigint, track: number): {
+    readonly BoneIndex: number; readonly KeyframeCount: number;
+  };
+  cnbAnimationClipCopyKeyframes(clip: bigint, track: number): readonly CnbKeyframeSnapshot[];
   cnbSoundEffectDataCreate(info: CnbSoundEffectInfoSnapshot, samples: Uint8Array): bigint;
   cnbSoundEffectDataDestroy(sound: bigint): void;
   cnbSoundEffectDataGetInfo(sound: bigint): CnbSoundEffectInfoSnapshot;
@@ -1373,6 +1392,47 @@ export class NodeNativeBackend
   }
 
 
+
+  // ---- the CNB curve and animation-clip schemas ------------------------------------------------
+  // The curve's native handle never reaches TypeScript: the bridge reads the whole thing out and
+  // releases it, because XNA's `Curve` is a managed value type this package implements exactly.
+  public cnbEncodeCurve(curve: CnbCurveSnapshot, contentName: string): Uint8Array {
+    return new Uint8Array(this.#bridge.cnbEncodeCurve(curve, contentName));
+  }
+  public cnbDecodeCurve(document: NativeHandle): CnbCurveSnapshot {
+    return this.#bridge.cnbDecodeCurve(document);
+  }
+  public cnbEncodeAnimationClip(
+    durationSeconds: number,
+    tracks: readonly { readonly BoneIndex: number; readonly Keyframes: readonly CnbKeyframeSnapshot[] }[],
+    targetSpace: number,
+    contentName: string,
+  ): Uint8Array {
+    return new Uint8Array(
+      this.#bridge.cnbEncodeAnimationClip(durationSeconds, tracks, targetSpace, contentName),
+    );
+  }
+  public cnbDecodeAnimationClip(document: NativeHandle): NativeHandle {
+    return this.#bridge.cnbDecodeAnimationClip(document);
+  }
+  public cnbAnimationClipDestroy(clip: NativeHandle): void {
+    this.#bridge.cnbAnimationClipDestroy(clip);
+  }
+  public cnbAnimationClipGet(clip: NativeHandle): {
+    readonly DurationSeconds: number; readonly TrackCount: number; readonly TargetSpace: number;
+  } {
+    return this.#bridge.cnbAnimationClipGet(clip);
+  }
+  public cnbAnimationClipGetTrack(clip: NativeHandle, track: number): {
+    readonly BoneIndex: number; readonly KeyframeCount: number;
+  } {
+    return this.#bridge.cnbAnimationClipGetTrack(clip, track);
+  }
+  public cnbAnimationClipCopyKeyframes(
+    clip: NativeHandle, track: number,
+  ): readonly CnbKeyframeSnapshot[] {
+    return this.#bridge.cnbAnimationClipCopyKeyframes(clip, track);
+  }
   // ---- the CNB media schemas -------------------------------------------------------------------
   // A song and a video container carry a *stream reference* rather than the media, so both are
   // fully testable with no encoded audio or video at all. The sound effect is the one that carries

@@ -1031,6 +1031,28 @@ export interface CnbVideoInfoSnapshot {
   readonly SoundtrackType: number;
 }
 
+/** A `.cnb` curve, read whole: XNA's `Curve` is managed, so the native handle never escapes. */
+export interface CnbCurveSnapshot {
+  readonly PreLoop: number;
+  readonly PostLoop: number;
+  readonly IsConstant: boolean;
+  readonly Keys: readonly {
+    readonly Position: number;
+    readonly Value: number;
+    readonly TangentIn: number;
+    readonly TangentOut: number;
+    readonly Continuity: number;
+  }[];
+}
+
+/** One keyframe of a `.cnb` animation track. */
+export interface CnbKeyframeSnapshot {
+  readonly TimeSeconds: number;
+  readonly Translation: readonly number[];
+  readonly Rotation: readonly number[];
+  readonly Scale: readonly number[];
+}
+
 export interface CnaContentBackend {
   cnbHasMagic(bytes: Uint8Array): boolean;
   cnbFormatMagic(): Uint8Array;
@@ -1089,6 +1111,28 @@ export interface CnaContentBackend {
   cnbSpriteFontDataSetAtlas(font: NativeHandle, atlas: NativeHandle): void;
   cnbSpriteFontDataCopyAtlas(font: NativeHandle): NativeHandle;
   cnbEncodeSpriteFont(font: NativeHandle, contentName: string): Uint8Array;
+  cnbEncodeCurve(curve: CnbCurveSnapshot, contentName: string): Uint8Array;
+  cnbDecodeCurve(document: NativeHandle): CnbCurveSnapshot;
+  cnbEncodeAnimationClip(
+    durationSeconds: number,
+    tracks: readonly { readonly BoneIndex: number; readonly Keyframes: readonly CnbKeyframeSnapshot[] }[],
+    targetSpace: number,
+    contentName: string,
+  ): Uint8Array;
+  cnbDecodeAnimationClip(document: NativeHandle): NativeHandle;
+  cnbAnimationClipDestroy(clip: NativeHandle): void;
+  cnbAnimationClipGet(clip: NativeHandle): {
+    readonly DurationSeconds: number;
+    readonly TrackCount: number;
+    readonly TargetSpace: number;
+  };
+  cnbAnimationClipGetTrack(clip: NativeHandle, track: number): {
+    readonly BoneIndex: number;
+    readonly KeyframeCount: number;
+  };
+  cnbAnimationClipCopyKeyframes(
+    clip: NativeHandle, track: number,
+  ): readonly CnbKeyframeSnapshot[];
   cnbSoundEffectDataCreate(info: CnbSoundEffectInfoSnapshot, samples: Uint8Array): NativeHandle;
   cnbSoundEffectDataDestroy(sound: NativeHandle): void;
   cnbSoundEffectDataGetInfo(sound: NativeHandle): CnbSoundEffectInfoSnapshot;

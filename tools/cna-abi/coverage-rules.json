@@ -4,7 +4,7 @@
     "XNA_BACKING": "backs an XNA 4.0 member this package projects, reached through a different route or an exact managed implementation",
     "CNA_EXTENSION_BACKING": "modern CNA surface outside Microsoft.Xna.Framework, the target of cna-ts/extensions",
     "INTERNAL_RUNTIME_ONLY": "runtime plumbing the binding never exposes as public API",
-    "MANAGED_BY_DESIGN": "XNA value semantics kept exact in TypeScript; routing them through native would add ownership and error paths XNA does not have",
+    "MANAGED_BY_DESIGN": "XNA value semantics kept exact in TypeScript; routing their *evaluation* through native would add ownership and error paths XNA does not have. A few are still reached where a compiled asset decodes into one.",
     "TOOLING_ONLY": "test, diagnostic and fuzzing hooks that are not application surface",
     "INTENTIONALLY_DEFERRED": "real XNA 4.0 surface this package has measured and not yet projected",
     "UPSTREAM_RUNTIME_UNAVAILABLE": "declared by the ABI but with no runtime that answers it on a locally buildable backend",
@@ -32,7 +32,7 @@
         "graphics3d.h"
       ],
       "category": "MANAGED_BY_DESIGN",
-      "reason": "XNA's math, geometry, curve, colour and packed-value semantics are deterministic and are implemented exactly in TypeScript; the differential corpus pins them against the reference implementation. Calling native for them would add a handle, an error path and a backend dependency to operations XNA performs with no failure mode at all."
+      "reason": "XNA's math, geometry, curve, colour and packed-value semantics are deterministic and are implemented exactly in TypeScript; the differential corpus pins them against the reference implementation. Calling native to *evaluate* them would add a handle, an error path and a backend dependency to operations XNA performs with no failure mode at all. Note that purpose is not reachability: thirteen of these routes are reached, because `cna_cnb_decode_curve` hands back a native curve and the only way to lift it into the managed one is to read its loop modes and its keys. The native object is released inside that call and the curve a consumer holds still evaluates in TypeScript."
     },
     {
       "headers": [

@@ -609,6 +609,56 @@ export const WASM_STRUCT_LAYOUTS = {
       soundtrack_type: { offset: 24, size: 4 },
     },
   },
+  CNA_CurveKey: {
+    size: 20,
+    align: 4,
+    fields: {
+      position: { offset: 0, size: 4 },
+      value: { offset: 4, size: 4 },
+      tangent_in: { offset: 8, size: 4 },
+      tangent_out: { offset: 12, size: 4 },
+      continuity: { offset: 16, size: 4 },
+    },
+  },
+  CNA_Quaternion: {
+    size: 16,
+    align: 4,
+    fields: {
+      x: { offset: 0, size: 4 },
+      y: { offset: 4, size: 4 },
+      z: { offset: 8, size: 4 },
+      w: { offset: 12, size: 4 },
+    },
+  },
+  CNA_KeyframeEXT: {
+    size: 48,
+    align: 8,
+    fields: {
+      time_seconds: { offset: 0, size: 8 },
+      translation: { offset: 8, size: 12 },
+      rotation: { offset: 20, size: 16 },
+      scale: { offset: 36, size: 12 },
+    },
+  },
+  CNA_BoneTrackEXTDescriptor: {
+    size: 24,
+    align: 8,
+    fields: {
+      bone_index: { offset: 0, size: 4 },
+      reserved: { offset: 4, size: 4 },
+      keyframes: { offset: 8, size: 4 },
+      keyframe_count: { offset: 16, size: 8 },
+    },
+  },
+  CNA_AnimationClipEXTDescriptor: {
+    size: 24,
+    align: 8,
+    fields: {
+      duration_seconds: { offset: 0, size: 8 },
+      tracks: { offset: 8, size: 4 },
+      track_count: { offset: 16, size: 8 },
+    },
+  },
   CNA_SpriteFontGlyph: {
     size: 56,
     align: 4,

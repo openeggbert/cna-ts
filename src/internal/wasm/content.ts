@@ -19,9 +19,11 @@
 import { CnaContentBackendBase } from "../backend-base.js";
 import type {
   CnbChunkEntrySnapshot,
+  CnbCurveSnapshot,
   CnbDocumentSnapshot,
   CnbExternalReferenceSnapshot,
   CnbGlyphSnapshot,
+  CnbKeyframeSnapshot,
   CnbMaterialSnapshot,
   CnbModelInfoSnapshot,
   CnbModelPartSnapshot,
@@ -32,8 +34,9 @@ import type {
 } from "../backend.js";
 import { CnaResult } from "../cna-results.js";
 import type { NativeHandle } from "../ownership.js";
+import { WASM_STRUCT_LAYOUTS } from "./layout.js";
 import {
-  allocateStruct, readUtf8, WasmCnaError, type WasmRouteTable, type WasmStruct,
+  allocateStruct, readUtf8, WasmCnaError, WasmStruct, type WasmRouteTable,
 } from "./module.js";
 
 export class WasmContentBackend extends CnaContentBackendBase {
@@ -632,6 +635,230 @@ export class WasmContentBackend extends CnaContentBackendBase {
   }
 
 
+
+  // ---- the CNB curve and animation-clip schemas ------------------------------------------------
+  // The curve's native handle never leaves this file, exactly as on Node: XNA's `Curve` is managed,
+  // so the native object exists only long enough to be read out. `CNA_CurveKey` crosses **by
+  // value** in `cna_curve_key_collection_add`, which Emscripten lowers to a pointer — the same
+  // convention `CNA_StringView` uses and which the browser suite already settles with evidence.
+
+  public override cnbDecodeCurve(document: NativeHandle): CnbCurveSnapshot {
+    const curve = this.#routes.outHandle("cna_cnb_decode_curve", document);
+    let keys: NativeHandle | null = null;
+    try {
+      const preLoop = this.#u32Of("cna_curve_get_pre_loop", curve);
+      const postLoop = this.#u32Of("cna_curve_get_post_loop", curve);
+      const isConstant = this.#boolOf("cna_curve_get_is_constant", curve);
+      keys = this.#routes.outHandle("cna_curve_get_keys", curve);
+      const count = this.#u64Of("cna_curve_key_collection_get_count", keys);
+      const scope = this.#routes.scope();
+      try {
+        const entry = allocateStruct(this.#routes.module, scope, "CNA_CurveKey", false);
+        const read: CnbCurveSnapshot["Keys"][number][] = [];
+        for (let index = 0; index < count; index += 1) {
+          this.#routes.invoke("cna_curve_key_collection_get", keys, index, entry.pointer);
+          read.push(Object.freeze({
+            Position: entry.getF32("position"),
+            Value: entry.getF32("value"),
+            TangentIn: entry.getF32("tangent_in"),
+            TangentOut: entry.getF32("tangent_out"),
+            Continuity: entry.getU32("continuity"),
+          }));
+        }
+        return Object.freeze({ PreLoop: preLoop, PostLoop: postLoop, IsConstant: isConstant, Keys: read });
+      } finally {
+        scope.dispose();
+      }
+    } finally {
+      // Two handles, released in reverse order and independently of whether the read succeeded:
+      // the collection is its own handle and leaking it would outlive the curve it came from.
+      if (keys != null) this.#routes.invoke("cna_curve_key_collection_destroy", keys);
+      this.#routes.invoke("cna_curve_destroy", curve);
+    }
+  }
+
+  public override cnbEncodeCurve(curve: CnbCurveSnapshot, contentName: string): Uint8Array {
+    const handle = this.#routes.outHandle("cna_curve_create");
+    let keys: NativeHandle | null = null;
+    try {
+      this.#routes.invoke("cna_curve_set_pre_loop", handle, curve.PreLoop);
+      this.#routes.invoke("cna_curve_set_post_loop", handle, curve.PostLoop);
+      keys = this.#routes.outHandle("cna_curve_get_keys", handle);
+      const scope = this.#routes.scope();
+      try {
+        const entry = allocateStruct(this.#routes.module, scope, "CNA_CurveKey", false);
+        for (const key of curve.Keys) {
+          this.#routes.invoke(
+            "cna_curve_key_init_full",
+            key.Position, key.Value, key.TangentIn, key.TangentOut, key.Continuity, entry.pointer,
+          );
+          this.#routes.invoke("cna_curve_key_collection_add", keys, entry.pointer);
+        }
+      } finally {
+        scope.dispose();
+      }
+      const scope2 = this.#routes.scope();
+      try {
+        const name = this.#stringView(scope2, contentName);
+        return this.#countAndCopy("cna_cnb_encode_curve", [handle, name], "bytes");
+      } finally {
+        scope2.dispose();
+      }
+    } finally {
+      if (keys != null) this.#routes.invoke("cna_curve_key_collection_destroy", keys);
+      this.#routes.invoke("cna_curve_destroy", handle);
+    }
+  }
+
+  public override cnbDecodeAnimationClip(document: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_cnb_decode_animation_clip", document);
+  }
+
+  public override cnbAnimationClipDestroy(clip: NativeHandle): void {
+    this.#routes.invoke("cna_cnb_animation_clip_destroy", clip);
+  }
+
+  public override cnbAnimationClipGet(clip: NativeHandle): {
+    readonly DurationSeconds: number; readonly TrackCount: number; readonly TargetSpace: number;
+  } {
+    const scope = this.#routes.scope();
+    try {
+      const duration = scope.allocate(8);
+      const tracks = scope.allocate(8);
+      const space = scope.allocate(4);
+      this.#routes.invoke("cna_cnb_animation_clip_get", clip, duration, tracks, space);
+      const view = this.#routes.view();
+      return Object.freeze({
+        DurationSeconds: view.getFloat64(duration, true),
+        TrackCount: Number(view.getBigUint64(tracks, true)),
+        TargetSpace: view.getUint32(space, true),
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbAnimationClipGetTrack(clip: NativeHandle, track: number): {
+    readonly BoneIndex: number; readonly KeyframeCount: number;
+  } {
+    const scope = this.#routes.scope();
+    try {
+      const bone = scope.allocate(4);
+      const count = scope.allocate(8);
+      this.#routes.invoke("cna_cnb_animation_clip_get_track", clip, BigInt(track), bone, count);
+      const view = this.#routes.view();
+      return Object.freeze({
+        BoneIndex: view.getInt32(bone, true),
+        KeyframeCount: Number(view.getBigUint64(count, true)),
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbAnimationClipCopyKeyframes(
+    clip: NativeHandle, track: number,
+  ): readonly CnbKeyframeSnapshot[] {
+    const scope = this.#routes.scope();
+    try {
+      const countPointer = scope.allocate(8);
+      const probe = this.#routes.call(
+        "cna_cnb_animation_clip_copy_keyframes", clip, BigInt(track), 0, 0n, countPointer,
+      );
+      if (probe !== CnaResult.Success && probe !== CnaResult.BufferTooSmall) {
+        throw new WasmCnaError(
+          "cna_cnb_animation_clip_copy_keyframes", probe, this.#routes.lastError(),
+        );
+      }
+      const count = Number(this.#routes.view().getBigUint64(countPointer, true));
+      if (count === 0) return Object.freeze([]);
+      const stride = WASM_STRUCT_LAYOUTS.CNA_KeyframeEXT.size;
+      const destination = scope.allocate(count * stride);
+      this.#routes.invoke(
+        "cna_cnb_animation_clip_copy_keyframes", clip, BigInt(track), destination,
+        BigInt(count), countPointer,
+      );
+      const written = Number(this.#routes.view().getBigUint64(countPointer, true));
+      const frames: CnbKeyframeSnapshot[] = [];
+      for (let index = 0; index < written; index += 1) {
+        const frame = new WasmStruct(
+          this.#routes.module, "CNA_KeyframeEXT", destination + index * stride,
+        );
+        const vector = (field: string): number[] => {
+          const value = frame.nested(field, "CNA_Vector3");
+          return [value.getF32("x"), value.getF32("y"), value.getF32("z")];
+        };
+        const rotation = frame.nested("rotation", "CNA_Quaternion");
+        frames.push(Object.freeze({
+          TimeSeconds: frame.getF64("time_seconds"),
+          Translation: Object.freeze(vector("translation")),
+          Rotation: Object.freeze([
+            rotation.getF32("x"), rotation.getF32("y"),
+            rotation.getF32("z"), rotation.getF32("w"),
+          ]),
+          Scale: Object.freeze(vector("scale")),
+        }));
+      }
+      return Object.freeze(frames);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbEncodeAnimationClip(
+    durationSeconds: number,
+    tracks: readonly { readonly BoneIndex: number; readonly Keyframes: readonly CnbKeyframeSnapshot[] }[],
+    targetSpace: number,
+    contentName: string,
+  ): Uint8Array {
+    const scope = this.#routes.scope();
+    try {
+      const frameStride = WASM_STRUCT_LAYOUTS.CNA_KeyframeEXT.size;
+      const trackStride = WASM_STRUCT_LAYOUTS.CNA_BoneTrackEXTDescriptor.size;
+      const trackArray = scope.allocate(Math.max(tracks.length * trackStride, 1));
+      for (const [index, track] of tracks.entries()) {
+        const frameArray = scope.allocate(Math.max(track.Keyframes.length * frameStride, 1));
+        for (const [which, keyframe] of track.Keyframes.entries()) {
+          const frame = new WasmStruct(
+            this.#routes.module, "CNA_KeyframeEXT", frameArray + which * frameStride,
+          );
+          frame.setF64("time_seconds", keyframe.TimeSeconds);
+          frame.nested("translation", "CNA_Vector3")
+            .setF32("x", keyframe.Translation[0])
+            .setF32("y", keyframe.Translation[1])
+            .setF32("z", keyframe.Translation[2]);
+          frame.nested("rotation", "CNA_Quaternion")
+            .setF32("x", keyframe.Rotation[0]).setF32("y", keyframe.Rotation[1])
+            .setF32("z", keyframe.Rotation[2]).setF32("w", keyframe.Rotation[3]);
+          frame.nested("scale", "CNA_Vector3")
+            .setF32("x", keyframe.Scale[0])
+            .setF32("y", keyframe.Scale[1])
+            .setF32("z", keyframe.Scale[2]);
+        }
+        const descriptor = new WasmStruct(
+          this.#routes.module, "CNA_BoneTrackEXTDescriptor", trackArray + index * trackStride,
+        );
+        descriptor
+          .setI32("bone_index", track.BoneIndex)
+          .setU32("reserved", 0)
+          .setPointer("keyframes", frameArray)
+          .setU64("keyframe_count", BigInt(track.Keyframes.length));
+      }
+      const clip = allocateStruct(
+        this.#routes.module, scope, "CNA_AnimationClipEXTDescriptor", false,
+      );
+      clip
+        .setF64("duration_seconds", durationSeconds)
+        .setPointer("tracks", trackArray)
+        .setU64("track_count", BigInt(tracks.length));
+      const name = this.#stringView(scope, contentName);
+      return this.#countAndCopy(
+        "cna_cnb_encode_animation_clip", [clip.pointer, targetSpace, name], "bytes",
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
   // ---- the CNB media schemas -------------------------------------------------------------------
   // Songs and videos carry a stream reference rather than the media, so both schemas cross intact
   // and neither needs a byte of encoded audio or video to be exercised in a page.

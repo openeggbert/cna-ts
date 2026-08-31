@@ -118,6 +118,11 @@ export class WasmStruct {
     return this;
   }
 
+  public setF64(field: string, value: number): this {
+    this.#view().setFloat64(this.#offset(field), value, true);
+    return this;
+  }
+
   public setI64(field: string, value: bigint): this {
     this.#view().setBigInt64(this.#offset(field), value, true);
     return this;
@@ -139,6 +144,7 @@ export class WasmStruct {
   public getI32(field: string): number { return this.#view().getInt32(this.#offset(field), true); }
   public getU8(field: string): number { return this.#view().getUint8(this.#offset(field)); }
   public getF32(field: string): number { return this.#view().getFloat32(this.#offset(field), true); }
+  public getF64(field: string): number { return this.#view().getFloat64(this.#offset(field), true); }
   public getI64(field: string): bigint { return this.#view().getBigInt64(this.#offset(field), true); }
   public getU64(field: string): bigint { return this.#view().getBigUint64(this.#offset(field), true); }
   public getPointer(field: string): number { return this.#view().getUint32(this.#offset(field), true); }

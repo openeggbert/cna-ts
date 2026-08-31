@@ -13,8 +13,8 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 20,
-    "VERIFIED_NATIVE": 48,
-    "VERIFIED_WEBASSEMBLY": 11,
+    "VERIFIED_NATIVE": 49,
+    "VERIFIED_WEBASSEMBLY": 12,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 1,
     "FIXTURE_PENDING": 3,
@@ -151,16 +151,15 @@
       ]
     },
     {
-      "operation": "CNB curve and animation-clip schemas, and the compilation front ends",
+      "operation": "CNB's remaining tooling: the byte writer, the loader registry and the .cnj front ends",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the container, the Texture2D, SpriteFont, model, sound-effect, song and video schemas are projected and verified above; what remains -- the curve and animation-clip schemas, the model's morph targets and per-slot texture arrays, the bounded byte cursor, the primitive byte writer, the loader registry and the .cnj compile path -- is measured and unprojected",
+      "evidence": "the container and every runtime asset schema -- Texture2D, SpriteFont, model, sound effect, song, video, curve and animation clip -- are projected and verified above. What remains is build-time tooling rather than runtime surface: the primitive byte writer, the loader registry, the .cnj compile front ends, the path-taking importers, and the model's morph targets and per-slot texture arrays",
       "proof": [
-        "absentRoute:cna_cnb_decode_curve",
-        "absentRoute:cna_cnb_decode_animation_clip",
-        "absentRoute:cna_cnb_compile_cnj",
-        "absentRoute:cna_cnb_loader_registry_register",
         "absentRoute:cna_cnb_byte_writer_create",
+        "absentRoute:cna_cnb_loader_registry_register",
+        "absentRoute:cna_cnb_compile_cnj",
+        "absentRoute:cna_cnb_import_image_as_texture2d",
         "absentRoute:cna_cnb_model_get_morph"
       ]
     },
@@ -447,6 +446,20 @@
         "route:cna_cnb_document_copy_chunk_data",
         "route:cna_cnb_document_require_mandatory_chunks_understood",
         "route:cna_cnb_crc32c",
+        "test:test/cnb-content.integration.mjs"
+      ]
+    },
+    {
+      "operation": "CNB curves and animation clips",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/content",
+      "evidence": "A curve round-trips its two loop modes, its key count and every field of every key, including a continuity that differs between keys -- and then it is checked the way a curve actually matters, by evaluating both the authored and the decoded curve at ten positions including four between the keys, where the tangents and the continuity decide the answer. What comes back is a managed XNA Curve with no native object behind it: the native handle and its key collection are both released inside the decode. An animation clip keeps its handle, because XNA has no clip type to become; its duration, target space, two tracks with different bone indexes and different keyframe counts, and every component of every keyframe -- three vectors of different lengths at different offsets -- are asserted, along with out-of-range refusals and the fact that a curve and a clip refuse each other's containers. Two planted bridge defects, a dropped key continuity and an ignored track index, each fail exactly one test",
+      "proof": [
+        "route:cna_cnb_decode_curve",
+        "route:cna_cnb_encode_curve",
+        "route:cna_curve_key_collection_get",
+        "route:cna_cnb_decode_animation_clip",
+        "route:cna_cnb_animation_clip_copy_keyframes",
         "test:test/cnb-content.integration.mjs"
       ]
     },
@@ -1016,6 +1029,19 @@
         "wasmRoute:cna_game_create",
         "wasmRoute:cna_game_run_one_frame",
         "wasmRoute:cna_game_destroy",
+        "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "CNB curves and animation clips in a browser",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "cna-ts/extensions/content",
+      "evidence": "the same two schemas over the WebAssembly backend, and the one that settles a wasm32 convention with evidence: cna_curve_key_collection_add takes CNA_CurveKey **by value**, and cna_cnb_encode_animation_clip takes a descriptor holding a pointer to an array of descriptors each holding a pointer to an array of 48-byte keyframes. Both cross correctly -- the page's decoded curve evaluates identically to the one it authored at ten sample positions, and every keyframe component of both clip tracks comes back exactly. All the layouts involved are measured by the Emscripten probe rather than written",
+      "proof": [
+        "wasmRoute:cna_cnb_decode_curve",
+        "wasmRoute:cna_curve_key_collection_add",
+        "wasmRoute:cna_cnb_encode_animation_clip",
+        "wasmRoute:cna_cnb_animation_clip_copy_keyframes",
         "test:test/wasm-browser.mjs"
       ]
     },

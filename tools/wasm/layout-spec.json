@@ -399,6 +399,36 @@
       "frames_per_second",
       "soundtrack_type"
     ],
+    "CNA_CurveKey": [
+      "position",
+      "value",
+      "tangent_in",
+      "tangent_out",
+      "continuity"
+    ],
+    "CNA_Quaternion": [
+      "x",
+      "y",
+      "z",
+      "w"
+    ],
+    "CNA_KeyframeEXT": [
+      "time_seconds",
+      "translation",
+      "rotation",
+      "scale"
+    ],
+    "CNA_BoneTrackEXTDescriptor": [
+      "bone_index",
+      "reserved",
+      "keyframes",
+      "keyframe_count"
+    ],
+    "CNA_AnimationClipEXTDescriptor": [
+      "duration_seconds",
+      "tracks",
+      "track_count"
+    ],
     "CNA_SpriteFontGlyph": [
       "struct_size",
       "struct_version",

@@ -44,9 +44,11 @@ import type {
   CnaVideoBackend,
   CnaXactBackend,
   CnbChunkEntrySnapshot,
+  CnbCurveSnapshot,
   CnbDocumentSnapshot,
   CnbExternalReferenceSnapshot,
   CnbGlyphSnapshot,
+  CnbKeyframeSnapshot,
   CnbMaterialSnapshot,
   CnbModelInfoSnapshot,
   CnbModelPartSnapshot,
@@ -1233,6 +1235,46 @@ export abstract class CnaContentBackendBase implements CnaContentBackend {
     _font: NativeHandle,
     _contentName: string,
   ): Uint8Array { return this.unsupported("cnbEncodeSpriteFont"); }
+  public cnbEncodeCurve(
+    _curve: CnbCurveSnapshot,
+    _contentName: string,
+  ): Uint8Array { return this.unsupported("cnbEncodeCurve"); }
+  public cnbDecodeCurve(
+    _document: NativeHandle,
+  ): CnbCurveSnapshot { return this.unsupported("cnbDecodeCurve"); }
+  public cnbEncodeAnimationClip(
+    _durationSeconds: number,
+    _tracks: readonly {
+    readonly BoneIndex: number;
+    readonly Keyframes: readonly CnbKeyframeSnapshot[];
+}[],
+    _targetSpace: number,
+    _contentName: string,
+  ): Uint8Array { return this.unsupported("cnbEncodeAnimationClip"); }
+  public cnbDecodeAnimationClip(
+    _document: NativeHandle,
+  ): NativeHandle { return this.unsupported("cnbDecodeAnimationClip"); }
+  public cnbAnimationClipDestroy(
+    _clip: NativeHandle,
+  ): void { return this.unsupported("cnbAnimationClipDestroy"); }
+  public cnbAnimationClipGet(
+    _clip: NativeHandle,
+  ): {
+    readonly DurationSeconds: number;
+    readonly TrackCount: number;
+    readonly TargetSpace: number;
+} { return this.unsupported("cnbAnimationClipGet"); }
+  public cnbAnimationClipGetTrack(
+    _clip: NativeHandle,
+    _track: number,
+  ): {
+    readonly BoneIndex: number;
+    readonly KeyframeCount: number;
+} { return this.unsupported("cnbAnimationClipGetTrack"); }
+  public cnbAnimationClipCopyKeyframes(
+    _clip: NativeHandle,
+    _track: number,
+  ): readonly CnbKeyframeSnapshot[] { return this.unsupported("cnbAnimationClipCopyKeyframes"); }
   public cnbSoundEffectDataCreate(
     _info: CnbSoundEffectInfoSnapshot,
     _samples: Uint8Array,

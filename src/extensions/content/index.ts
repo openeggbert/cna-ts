@@ -29,7 +29,13 @@
  */
 
 import { getBackend } from "../../internal/backend.js";
-import type { CnaContentBackend } from "../../internal/backend.js";
+import type {
+  CnaContentBackend,
+  CnbCurveSnapshot,
+} from "../../internal/backend.js";
+
+/** One key of a curve as the private boundary carries it. */
+type CnbCurveKeySnapshot = CnbCurveSnapshot["Keys"][number];
 import { NativeUnavailableError } from "../../internal/native-error.js";
 import {
   ArgumentException,
@@ -38,7 +44,12 @@ import {
   ObjectDisposedException,
 } from "../../internal/exceptions.js";
 import type { IDisposable } from "../../Microsoft/Xna/Framework/Contracts.js";
+import { Curve } from "../../Microsoft/Xna/Framework/Curve.js";
+import { CurveKey } from "../../Microsoft/Xna/Framework/CurveKey.js";
+import type { CurveContinuity } from "../../Microsoft/Xna/Framework/CurveContinuity.js";
+import type { CurveLoopType } from "../../Microsoft/Xna/Framework/CurveLoopType.js";
 import { Matrix } from "../../Microsoft/Xna/Framework/Matrix.js";
+import { Quaternion } from "../../Microsoft/Xna/Framework/Quaternion.js";
 import { Rectangle } from "../../Microsoft/Xna/Framework/Rectangle.js";
 import { Vector3 } from "../../Microsoft/Xna/Framework/Vector3.js";
 import { Vector4 } from "../../Microsoft/Xna/Framework/Vector4.js";
@@ -734,6 +745,187 @@ function adoptTextureData(handle: NativeHandle): CnbTextureData {
   return adopted;
 }
 
+
+/**
+ * Writes an XNA {@link Curve} as a `.cnb` container.
+ *
+ * The curve crosses to CNA only to be written. XNA's `Curve` is one of the value types this package
+ * implements exactly in TypeScript — evaluation, tangent computation and loop handling are all
+ * managed — so a curve is built natively, encoded, and released inside this call rather than kept
+ * behind a handle a consumer would have to dispose.
+ */
+export function EncodeCnbCurve(curve: Curve, contentName: string): Uint8Array {
+  if (curve == null) throw new ArgumentNullException("curve");
+  if (typeof contentName !== "string") throw new ArgumentException("contentName must be a string");
+  const keys: CnbCurveKeySnapshot[] = [];
+  for (let index = 0; index < curve.Keys.Count; index += 1) {
+    const key = curve.Keys.Get(index);
+    keys.push({
+      Position: key.Position,
+      Value: key.Value,
+      TangentIn: key.TangentIn,
+      TangentOut: key.TangentOut,
+      Continuity: key.Continuity,
+    });
+  }
+  return content("EncodeCnbCurve").cnbEncodeCurve({
+    PreLoop: curve.PreLoop,
+    PostLoop: curve.PostLoop,
+    IsConstant: curve.IsConstant,
+    Keys: keys,
+  }, contentName);
+}
+
+/**
+ * Reads a `.cnb` curve into an ordinary XNA {@link Curve}.
+ *
+ * What comes back is a managed curve with no native object behind it, so `Evaluate` works exactly
+ * as it does for a curve a game built itself, and there is nothing to dispose.
+ */
+export function DecodeCnbCurve(document: CnbDocument): Curve {
+  if (document == null) throw new ArgumentNullException("document");
+  const decoded = content("DecodeCnbCurve")
+    .cnbDecodeCurve(documentHandle(document, "DecodeCnbCurve"));
+  const curve = new Curve();
+  curve.PreLoop = decoded.PreLoop as CurveLoopType;
+  curve.PostLoop = decoded.PostLoop as CurveLoopType;
+  for (const key of decoded.Keys) {
+    curve.Keys.Add(new CurveKey(
+      key.Position, key.Value, key.TangentIn, key.TangentOut, key.Continuity as CurveContinuity,
+    ));
+  }
+  return curve;
+}
+
+/** One sampled pose in a `.cnb` animation track. */
+export interface CnbKeyframe {
+  readonly TimeSeconds: number;
+  readonly Translation: Vector3;
+  readonly Rotation: Quaternion;
+  readonly Scale: Vector3;
+}
+
+/** One bone's track within a clip. */
+export interface CnbAnimationTrack {
+  /** The bone this track drives, or `-1` where the clip targets a scene node. */
+  readonly BoneIndex: number;
+  readonly KeyframeCount: number;
+}
+
+const clipHandles = new WeakMap<CnbAnimationClip, NativeHandle>();
+
+function clipHandle(clip: CnbAnimationClip, operation: string): NativeHandle {
+  const handle = clipHandles.get(clip);
+  if (handle == null) throw new ObjectDisposedException(`CnbAnimationClip.${operation}`);
+  return handle;
+}
+
+/**
+ * A decoded `.cnb` animation clip: a duration, a target space and a track per animated bone.
+ *
+ * Unlike a curve this keeps its native handle, because XNA has no animation-clip type to become —
+ * skeletal animation is CNA's own surface, so it lives here under `cna-ts/extensions/content` and
+ * its nodes are addressed by index, as a model's are. Keyframes are copied out on request rather
+ * than materialised up front: a long clip's keyframes are the bulk of the file.
+ */
+export class CnbAnimationClip implements IDisposable {
+  private constructor(handle: NativeHandle) { clipHandles.set(this, handle); }
+
+  /** Decodes the animation clip a document carries. */
+  public static Decode(document: CnbDocument): CnbAnimationClip {
+    if (document == null) throw new ArgumentNullException("document");
+    return new CnbAnimationClip(content("CnbAnimationClip.Decode")
+      .cnbDecodeAnimationClip(documentHandle(document, "Decode")));
+  }
+
+  /** Duration in seconds, track count, and which space the clip's transforms are in. */
+  public get Description(): {
+    readonly DurationSeconds: number;
+    readonly TrackCount: number;
+    readonly TargetSpace: number;
+  } {
+    const info = content("CnbAnimationClip.Description")
+      .cnbAnimationClipGet(clipHandle(this, "Description"));
+    return Object.freeze({
+      DurationSeconds: info.DurationSeconds,
+      TrackCount: info.TrackCount,
+      TargetSpace: info.TargetSpace,
+    });
+  }
+
+  /** One track's bone index and keyframe count. */
+  public GetTrack(track: number): CnbAnimationTrack {
+    const handle = clipHandle(this, "GetTrack");
+    if (!Number.isInteger(track) || track < 0 || track >= this.Description.TrackCount) {
+      throw new ArgumentException(`no CNB animation track at index ${track}`);
+    }
+    const info = content("CnbAnimationClip.GetTrack").cnbAnimationClipGetTrack(handle, track);
+    return Object.freeze({ BoneIndex: info.BoneIndex, KeyframeCount: info.KeyframeCount });
+  }
+
+  /** A copy of one track's keyframes, in time order. */
+  public ReadKeyframes(track: number): readonly CnbKeyframe[] {
+    const handle = clipHandle(this, "ReadKeyframes");
+    if (!Number.isInteger(track) || track < 0 || track >= this.Description.TrackCount) {
+      throw new ArgumentException(`no CNB animation track at index ${track}`);
+    }
+    return Object.freeze(
+      content("CnbAnimationClip.ReadKeyframes").cnbAnimationClipCopyKeyframes(handle, track)
+        .map((frame) => Object.freeze({
+          TimeSeconds: frame.TimeSeconds,
+          Translation: new Vector3(
+            frame.Translation[0], frame.Translation[1], frame.Translation[2],
+          ),
+          // CNA writes a quaternion x, y, z, w; XNA's constructor takes the same order.
+          Rotation: new Quaternion(
+            frame.Rotation[0], frame.Rotation[1], frame.Rotation[2], frame.Rotation[3],
+          ),
+          Scale: new Vector3(frame.Scale[0], frame.Scale[1], frame.Scale[2]),
+        })),
+    );
+  }
+
+  /** Whether this clip has been released. */
+  public get IsDisposed(): boolean { return !clipHandles.has(this); }
+
+  /** Releases the decoded clip. Idempotent. */
+  public Dispose(): void {
+    const handle = clipHandles.get(this);
+    if (handle == null) return;
+    clipHandles.delete(this);
+    content("CnbAnimationClip.Dispose").cnbAnimationClipDestroy(handle);
+  }
+}
+
+/** Writes an animation clip as a `.cnb` container. */
+export function EncodeCnbAnimationClip(
+  clip: {
+    readonly DurationSeconds: number;
+    readonly TargetSpace: number;
+    readonly Tracks: readonly {
+      readonly BoneIndex: number;
+      readonly Keyframes: readonly CnbKeyframe[];
+    }[];
+  },
+  contentName: string,
+): Uint8Array {
+  if (clip == null) throw new ArgumentNullException("clip");
+  if (typeof contentName !== "string") throw new ArgumentException("contentName must be a string");
+  return content("EncodeCnbAnimationClip").cnbEncodeAnimationClip(
+    clip.DurationSeconds,
+    clip.Tracks.map((track) => ({
+      BoneIndex: Math.trunc(track.BoneIndex) | 0,
+      Keyframes: track.Keyframes.map((frame) => ({
+        TimeSeconds: frame.TimeSeconds,
+        Translation: [frame.Translation.X, frame.Translation.Y, frame.Translation.Z],
+        Rotation: [frame.Rotation.X, frame.Rotation.Y, frame.Rotation.Z, frame.Rotation.W],
+        Scale: [frame.Scale.X, frame.Scale.Y, frame.Scale.Z],
+      })),
+    })),
+    Math.trunc(clip.TargetSpace) >>> 0,
+    contentName,
+  );
+}
 
 /**
  * How a `.cnb` sound effect's samples are stored.
