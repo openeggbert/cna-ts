@@ -159,6 +159,18 @@ export function resolveTextureCubeHandleForInternalUse(texture: TextureCube): Na
   return stateOf(texture).Lifetime.Handle;
 }
 
+/**
+ * Hands the cube map's handle to another owner and leaves this wrapper owning nothing.
+ *
+ * For the CNA routes that consume a texture rather than borrow it -- `cna_skybox_set_owned_
+ * environment` is the one in the engine layer. After this the wrapper is transferred rather than
+ * disposed: releasing it again would be a double free, and CNA's contract is that the handle is
+ * gone whether or not the call it was handed to succeeded.
+ */
+export function transferTextureCubeForInternalUse(texture: TextureCube): NativeHandle {
+  return stateOf(texture).Lifetime.Transfer();
+}
+
 function prepareTransfer(
   state: TextureCubeState,
   format: SurfaceFormat,

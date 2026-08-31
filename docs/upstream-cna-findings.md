@@ -16,11 +16,11 @@ qualification to three renderers; items 8 and 9 are new, found while projecting 
 layer's compute path, item 10 while projecting its clustered lighting, item 11 -- a
 segmentation fault -- while projecting camera frame capture, and item 12 while projecting the
 particle draw. Items 13 and 14 are new, found while projecting the depth/normal prepass and the
-decal projector that reads it.
+decal projector that reads it, and item 15 while projecting the atmosphere.
 
 **Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
 library. Both were found by this package, both were *asserted* rather than worked around, and both
-detectors fired the moment the repair landed. Four of the fourteen findings are now closed.
+detectors fired the moment the repair landed. Four of the fifteen findings are now closed.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -636,3 +636,57 @@ message each already produces. `begin`'s out-of-range pass index deserves the sa
 **Detector in cna-ts:** `test/windowed-renderer.integration.mjs` asserts all four codes as returned,
 and `test/native-cna.integration.mjs` asserts the unopened close by its code and its message
 together. Both name the finding and fail when the codes become the documented ones.
+
+## 15. Two skybox getters document the same borrow contract and only one of them mints a handle
+
+The engine layer's counted-borrow rule is consistent everywhere else in this ABI: a getter that
+lends something returns a **fresh handle** the caller releases, and releasing it releases the handle
+and nothing else. Two routes document exactly that and behave differently.
+
+`cna_skybox_get_environment` keeps the contract. Its answer is a new owned handle aliasing the
+skybox — `CreateOwnedTextureCube(shared_ptr(s, cube), s->parentGame, outEnvironment)` — so a caller
+must release it, and a caller who does not leaves the game counting an owned graphics resource it
+can no longer name. That is what happens: reading it once per frame and dropping the answer makes
+`cna_game_destroy` refuse for the rest of the process.
+
+`cna_render_pipeline_get_skybox` documents the identical contract — "The handle **borrows**: it
+keeps the pipeline alive while it exists and releases only itself" — and its body is:
+
+```cpp
+*outSkybox = p->skybox;
+return CNA_RESULT_SUCCESS;
+```
+
+It hands back the caller's own handle. Releasing it, which is what the documentation instructs, calls
+`cna_skybox_destroy` on the skybox the caller still holds and still owns.
+
+**Measured** on `cmake-build-debug` (OPENGLES3, ABI 0.21.0) under `xvfb-run`, ABI 0.21.0, in one
+process:
+
+```text
+route                                   released by the caller?   result
+cna_skybox_get_environment              no                        cna_game_destroy refuses,
+                                                                  every later cna_game_create
+                                                                  answers INVALID_STATE
+cna_skybox_get_environment              yes                       clean shutdown
+cna_render_pipeline_get_skybox          no                        clean shutdown
+cna_render_pipeline_get_skybox          yes                       the caller's own Skybox.Dispose
+                                                                  then fails: "The Skybox handle is
+                                                                  invalid for this call."
+```
+
+Both halves of the table were reached by writing this binding to the documentation and then
+measuring: the environment getter without a release, and the pipeline getter with one. Each broke in
+its own direction.
+
+**Proposed change.** Make the pipeline getter mint a borrow the way the skybox getter does — an
+alias of the pipeline resource, released with `cna_skybox_destroy` — so the documented rule holds
+everywhere; or, if echoing the stored handle is deliberate, say so in the header and drop the
+sentence about the handle keeping the pipeline alive, because that sentence is what makes a careful
+caller destroy their own object.
+
+**Detector in cna-ts:** `Skybox.HasEnvironment` takes the environment handle, tests it and gives it
+straight back, and documents why on itself; `RenderPipeline.Skybox` deliberately does not release
+what it is given and documents that too. `test/windowed-renderer.integration.mjs` reads both inside
+one game and asserts that the game still destroys cleanly, so either behaviour changing upstream
+fails here.

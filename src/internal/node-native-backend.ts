@@ -20,6 +20,7 @@ import type {
   CnaParticleBackend,
   CnaShadowBackend,
   CnaDecalBackend,
+  CnaAtmosphereBackend,
   CnaLightProbeBackend,
   SceneFaceDraw,
   CnaDepthNormalPrepassBackend,
@@ -625,6 +626,47 @@ interface NativeBridge {
   decodeVelocityTexel(texel: ColorSnapshot): Vector2Snapshot;
   packLinearDepth(value: number): PackedDepthSnapshot;
   unpackLinearDepth(r: number, g: number, b: number, a: number): number;
+  createAtmosphericSky(device: bigint): bigint;
+  destroyAtmosphericSky(sky: bigint): void;
+  isAtmosphericSkySupported(sky: bigint): boolean;
+  drawAtmosphericSky(sky: bigint, view: readonly number[], projection: readonly number[], width: number, height: number): void;
+  getAtmosphericSkySunDirection(sky: bigint): Vector3Snapshot;
+  setAtmosphericSkySunDirection(sky: bigint, direction: Vector3Snapshot): void;
+  getAtmosphericSkyTurbidity(sky: bigint): number;
+  setAtmosphericSkyTurbidity(sky: bigint, turbidity: number): void;
+  getAtmosphericSkyIntensity(sky: bigint): number;
+  setAtmosphericSkyIntensity(sky: bigint, intensity: number): void;
+  getAtmosphericSkyModelGlsl(): string;
+  atmosphericSkyRadiance(viewDirection: Vector3Snapshot, sunDirection: Vector3Snapshot, turbidity: number): Vector3Snapshot;
+  createSkybox(device: bigint, environment: bigint): bigint;
+  destroySkybox(skybox: bigint): void;
+  isSkyboxSupported(skybox: bigint): boolean;
+  drawSkybox(skybox: bigint, view: readonly number[], projection: readonly number[], width: number, height: number): void;
+  getSkyboxEnvironment(skybox: bigint): bigint;
+  setSkyboxEnvironment(skybox: bigint, environment: bigint): void;
+  setSkyboxOwnedEnvironment(skybox: bigint, environment: bigint): void;
+  getSkyboxYaw(skybox: bigint): number;
+  setSkyboxYaw(skybox: bigint, radians: number): void;
+  getSkyboxIntensity(skybox: bigint): number;
+  setSkyboxIntensity(skybox: bigint, intensity: number): void;
+  getSkyboxTint(skybox: bigint): Vector3Snapshot;
+  setSkyboxTint(skybox: bigint, tint: Vector3Snapshot): void;
+  computeSkyboxViewRay(view: readonly number[], projection: readonly number[], ndcX: number, ndcY: number, yaw: number): Vector3Snapshot;
+  createEnvironmentProcessor(device: bigint): bigint;
+  destroyEnvironmentProcessor(processor: bigint): void;
+  convertEquirectangular(processor: bigint, panorama: bigint, faceSize: number): bigint;
+  generateIrradianceCube(processor: bigint, environment: bigint, size: number, sampleCount: number): bigint;
+  generatePrefilteredSpecular(processor: bigint, environment: bigint, baseSize: number, mipCount: number, sampleCount: number): bigint;
+  generateProbeFromEnvironment(processor: bigint, environment: bigint, position: Vector3Snapshot): bigint;
+  generateBrdfLut(processor: bigint, size: number, sampleCount: number): bigint;
+  mipForRoughness(roughness: number, mipCount: number): number;
+  roughnessForMip(mip: number, mipCount: number): number;
+  hammersleyPoint(index: number, count: number): Vector2Snapshot;
+  importanceSampleGgx(x: number, y: number, normal: Vector3Snapshot, roughness: number): Vector3Snapshot;
+  cubeFaceDirection(face: number, u: number, v: number): Vector3Snapshot;
+  directionToEquirectangular(direction: Vector3Snapshot): Vector2Snapshot;
+  getRenderPipelineSkybox(pipeline: bigint): bigint;
+  setRenderPipelineSkybox(pipeline: bigint, skybox: bigint): void;
   createLightProbe(): bigint;
   createLightProbeAt(position: Vector3Snapshot): bigint;
   destroyLightProbe(probe: bigint): void;
@@ -1198,7 +1240,8 @@ export class NodeNativeBackend
   implements CnaBackend, CnaGraphicsBackend, CnaEffectBackend, CnaGameWindowBackend,
     CnaRuntimeServicesBackend, CnaGraphicsExtensionBackend, CnaContentBackend,
     CnaDeviceBackend, CnaGamerServicesBackend, CnaSensorBackend,
-    CnaDepthNormalPrepassBackend, CnaDecalBackend, CnaLightProbeBackend {
+    CnaDepthNormalPrepassBackend, CnaDecalBackend, CnaLightProbeBackend,
+    CnaAtmosphereBackend {
   public readonly Kind = "node-native";
   public readonly IsAvailable = true;
   public readonly AbiVersion: string;
@@ -1222,6 +1265,7 @@ export class NodeNativeBackend
   public readonly DepthNormalPrepass: CnaDepthNormalPrepassBackend = this;
   public readonly Decals: CnaDecalBackend = this;
   public readonly LightProbes: CnaLightProbeBackend = this;
+  public readonly Atmosphere: CnaAtmosphereBackend = this;
   public readonly Particles: CnaParticleBackend = this;
   public readonly Content: CnaContentBackend = this;
   public readonly Devices: CnaDeviceBackend = this;
@@ -2313,6 +2357,47 @@ export class NodeNativeBackend
   public unpackLinearDepth(r: number, g: number, b: number, a: number): number {
     return this.#bridge.unpackLinearDepth(r, g, b, a);
   }
+  public createAtmosphericSky(device: NativeHandle): NativeHandle { return this.#bridge.createAtmosphericSky(device); }
+  public destroyAtmosphericSky(sky: NativeHandle): void { this.#bridge.destroyAtmosphericSky(sky); }
+  public isAtmosphericSkySupported(sky: NativeHandle): boolean { return this.#bridge.isAtmosphericSkySupported(sky); }
+  public drawAtmosphericSky(sky: NativeHandle, view: readonly number[], projection: readonly number[], width: number, height: number): void { this.#bridge.drawAtmosphericSky(sky, view, projection, width, height); }
+  public getAtmosphericSkySunDirection(sky: NativeHandle): Vector3Snapshot { return this.#bridge.getAtmosphericSkySunDirection(sky); }
+  public setAtmosphericSkySunDirection(sky: NativeHandle, direction: Vector3Snapshot): void { this.#bridge.setAtmosphericSkySunDirection(sky, direction); }
+  public getAtmosphericSkyTurbidity(sky: NativeHandle): number { return this.#bridge.getAtmosphericSkyTurbidity(sky); }
+  public setAtmosphericSkyTurbidity(sky: NativeHandle, turbidity: number): void { this.#bridge.setAtmosphericSkyTurbidity(sky, turbidity); }
+  public getAtmosphericSkyIntensity(sky: NativeHandle): number { return this.#bridge.getAtmosphericSkyIntensity(sky); }
+  public setAtmosphericSkyIntensity(sky: NativeHandle, intensity: number): void { this.#bridge.setAtmosphericSkyIntensity(sky, intensity); }
+  public getAtmosphericSkyModelGlsl(): string { return this.#bridge.getAtmosphericSkyModelGlsl(); }
+  public atmosphericSkyRadiance(viewDirection: Vector3Snapshot, sunDirection: Vector3Snapshot, turbidity: number): Vector3Snapshot { return this.#bridge.atmosphericSkyRadiance(viewDirection, sunDirection, turbidity); }
+  public createSkybox(device: NativeHandle, environment: NativeHandle): NativeHandle { return this.#bridge.createSkybox(device, environment); }
+  public destroySkybox(skybox: NativeHandle): void { this.#bridge.destroySkybox(skybox); }
+  public isSkyboxSupported(skybox: NativeHandle): boolean { return this.#bridge.isSkyboxSupported(skybox); }
+  public drawSkybox(skybox: NativeHandle, view: readonly number[], projection: readonly number[], width: number, height: number): void { this.#bridge.drawSkybox(skybox, view, projection, width, height); }
+  public getSkyboxEnvironment(skybox: NativeHandle): NativeHandle { return this.#bridge.getSkyboxEnvironment(skybox); }
+  public setSkyboxEnvironment(skybox: NativeHandle, environment: NativeHandle): void { this.#bridge.setSkyboxEnvironment(skybox, environment); }
+  public setSkyboxOwnedEnvironment(skybox: NativeHandle, environment: NativeHandle): void { this.#bridge.setSkyboxOwnedEnvironment(skybox, environment); }
+  public getSkyboxYaw(skybox: NativeHandle): number { return this.#bridge.getSkyboxYaw(skybox); }
+  public setSkyboxYaw(skybox: NativeHandle, radians: number): void { this.#bridge.setSkyboxYaw(skybox, radians); }
+  public getSkyboxIntensity(skybox: NativeHandle): number { return this.#bridge.getSkyboxIntensity(skybox); }
+  public setSkyboxIntensity(skybox: NativeHandle, intensity: number): void { this.#bridge.setSkyboxIntensity(skybox, intensity); }
+  public getSkyboxTint(skybox: NativeHandle): Vector3Snapshot { return this.#bridge.getSkyboxTint(skybox); }
+  public setSkyboxTint(skybox: NativeHandle, tint: Vector3Snapshot): void { this.#bridge.setSkyboxTint(skybox, tint); }
+  public computeSkyboxViewRay(view: readonly number[], projection: readonly number[], ndcX: number, ndcY: number, yaw: number): Vector3Snapshot { return this.#bridge.computeSkyboxViewRay(view, projection, ndcX, ndcY, yaw); }
+  public createEnvironmentProcessor(device: NativeHandle): NativeHandle { return this.#bridge.createEnvironmentProcessor(device); }
+  public destroyEnvironmentProcessor(processor: NativeHandle): void { this.#bridge.destroyEnvironmentProcessor(processor); }
+  public convertEquirectangular(processor: NativeHandle, panorama: NativeHandle, faceSize: number): NativeHandle { return this.#bridge.convertEquirectangular(processor, panorama, faceSize); }
+  public generateIrradianceCube(processor: NativeHandle, environment: NativeHandle, size: number, sampleCount: number): NativeHandle { return this.#bridge.generateIrradianceCube(processor, environment, size, sampleCount); }
+  public generatePrefilteredSpecular(processor: NativeHandle, environment: NativeHandle, baseSize: number, mipCount: number, sampleCount: number): NativeHandle { return this.#bridge.generatePrefilteredSpecular(processor, environment, baseSize, mipCount, sampleCount); }
+  public generateProbeFromEnvironment(processor: NativeHandle, environment: NativeHandle, position: Vector3Snapshot): NativeHandle { return this.#bridge.generateProbeFromEnvironment(processor, environment, position); }
+  public generateBrdfLut(processor: NativeHandle, size: number, sampleCount: number): NativeHandle { return this.#bridge.generateBrdfLut(processor, size, sampleCount); }
+  public mipForRoughness(roughness: number, mipCount: number): number { return this.#bridge.mipForRoughness(roughness, mipCount); }
+  public roughnessForMip(mip: number, mipCount: number): number { return this.#bridge.roughnessForMip(mip, mipCount); }
+  public hammersleyPoint(index: number, count: number): Vector2Snapshot { return this.#bridge.hammersleyPoint(index, count); }
+  public importanceSampleGgx(x: number, y: number, normal: Vector3Snapshot, roughness: number): Vector3Snapshot { return this.#bridge.importanceSampleGgx(x, y, normal, roughness); }
+  public cubeFaceDirection(face: number, u: number, v: number): Vector3Snapshot { return this.#bridge.cubeFaceDirection(face, u, v); }
+  public directionToEquirectangular(direction: Vector3Snapshot): Vector2Snapshot { return this.#bridge.directionToEquirectangular(direction); }
+  public getRenderPipelineSkybox(pipeline: NativeHandle): NativeHandle { return this.#bridge.getRenderPipelineSkybox(pipeline); }
+  public setRenderPipelineSkybox(pipeline: NativeHandle, skybox: NativeHandle): void { this.#bridge.setRenderPipelineSkybox(pipeline, skybox); }
   public createLightProbe(): NativeHandle { return this.#bridge.createLightProbe(); }
   public createLightProbeAt(position: Vector3Snapshot): NativeHandle { return this.#bridge.createLightProbeAt(position); }
   public destroyLightProbe(probe: NativeHandle): void { this.#bridge.destroyLightProbe(probe); }

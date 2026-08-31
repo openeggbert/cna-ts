@@ -18,6 +18,7 @@ import type {
   BoundingSphereSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
   CnaDecalBackend,
   CnaDepthNormalPrepassBackend,
+  CnaAtmosphereBackend,
   CnaLightProbeBackend,
   SceneFaceDraw,
   ClusterBoundsSnapshot,
@@ -54,6 +55,10 @@ import type { RenderTarget2D } from "../../Microsoft/Xna/Framework/Graphics/Rend
 import { Texture2D } from "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
 import { resolveTexture2DHandleForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
+import { TextureCube } from "../../Microsoft/Xna/Framework/Graphics/TextureCube.js";
+import {
+  resolveTextureCubeHandleForInternalUse, transferTextureCubeForInternalUse,
+} from "../../Microsoft/Xna/Framework/Graphics/TextureCube.js";
 import type { NativeHandle } from "../../internal/ownership.js";
 
 /** How CNA maps high dynamic range onto the display. */
@@ -215,6 +220,17 @@ export function CreateRenderPipelineSettings(): RenderPipelineSettings {
  * why it carries `Dispose` rather than leaving cleanup to garbage collection. It needs the extended
  * graphics layer; construction refuses where the layer was compiled out.
  */
+/*
+ * The pipeline's skybox is CNA's borrow, and this side of it is a plain association: CNA hands back
+ * a fresh handle for a borrow, so the only way to give a caller the object it set is to remember
+ * it. The map is weak on both sides, so neither keeps the other alive.
+ */
+const attachedSkyboxes = new WeakMap<RenderPipeline, Skybox>();
+
+/* Filled in by Skybox's static block, which is the only place its private handle is reachable. */
+let skyboxOfPipeline!: (pipeline: NativeHandle) => NativeHandle;
+let setSkyboxOfPipeline!: (pipeline: NativeHandle, skybox: Skybox | null) => void;
+
 export class RenderPipeline implements IDisposable {
   readonly #backend: CnaGraphicsExtensionBackend;
   #handle: NativeHandle | null;
@@ -233,6 +249,32 @@ export class RenderPipeline implements IDisposable {
   #active(): NativeHandle {
     if (this.#handle == null) throw new NativeUnavailableError("the render pipeline is disposed");
     return this.#handle;
+  }
+
+  /**
+   * The sky this pipeline draws behind the scene, or `null` for none.
+   *
+   * **Borrowed, not owned**: the skybox stays the caller's and must outlive the pipeline's use of
+   * it. Reading it back gives the same skybox object that was set, rather than a wrapper around a
+   * fresh borrow, so a caller can compare it.
+   */
+  public get Skybox(): Skybox | null {
+    /*
+     * **Not released here, although the header says it is a borrow.**
+     * `cna_render_pipeline_get_skybox` documents its answer as a handle that "keeps the pipeline
+     * alive while it exists and releases only itself" -- the counted-borrow contract the rest of
+     * this layer uses. Its implementation returns the stored handle unchanged, so releasing it
+     * destroys the caller's own skybox. That is `docs/upstream-cna-findings.md` item 15, measured
+     * rather than read: this getter released the answer for exactly one revision of this file, and
+     * the skybox's own Dispose then refused with an invalid handle.
+     */
+    const handle = skyboxOfPipeline(this.#active());
+    return handle === 0n ? null : (attachedSkyboxes.get(this) ?? null);
+  }
+  public set Skybox(value: Skybox | null) {
+    setSkyboxOfPipeline(this.#active(), value);
+    if (value == null) attachedSkyboxes.delete(this);
+    else attachedSkyboxes.set(this, value);
   }
 
   /** Resizes the pipeline's targets. */
@@ -2093,6 +2135,69 @@ function borrowNativeTextureForInternalUse(
   );
 }
 
+/**
+ * Wraps a texture CNA created and handed over as an owned `Texture2D`.
+ *
+ * Unlike {@link borrowNativeTextureForInternalUse} this owns what it wraps: the environment
+ * processor's outputs outlive the processor that made them, so the caller disposes them, and the
+ * release is the ordinary texture one rather than the render-target one.
+ */
+function adoptNativeTexture2DForInternalUse(
+  device: GraphicsDevice, handle: NativeHandle, label: string,
+): Texture2D {
+  const root = graphicsDeviceBackendForInternalUse(device);
+  let info;
+  try {
+    info = root.getTexture2DInfo(handle);
+  } catch (error) {
+    root.destroyTexture2D(handle);
+    throw error;
+  }
+  return new (Texture2D as unknown as new (
+    graphicsDevice: GraphicsDevice,
+    width: number,
+    height: number,
+    mipMap: boolean,
+    format: SurfaceFormat,
+    adopted: {
+      readonly Handle: NativeHandle;
+      readonly LevelCount: number;
+      readonly Label: string;
+    },
+  ) => Texture2D)(
+    device, info.Width, info.Height, info.LevelCount > 1, info.Format as SurfaceFormat,
+    { Handle: handle, LevelCount: info.LevelCount, Label: label },
+  );
+}
+
+/** The same, for a cube map. Its size and format come from CNA rather than from the caller. */
+function adoptNativeTextureCubeForInternalUse(
+  device: GraphicsDevice, handle: NativeHandle,
+): TextureCube {
+  const backend = graphicsBackendFor(device);
+  let info;
+  try {
+    info = backend.getTextureCubeInfo(handle);
+  } catch (error) {
+    backend.destroyTextureCube(handle);
+    throw error;
+  }
+  return new (TextureCube as unknown as new (
+    graphicsDevice: GraphicsDevice,
+    size: number,
+    mipMap: boolean,
+    format: SurfaceFormat,
+    adopted: {
+      readonly Handle: NativeHandle;
+      readonly LevelCount: number;
+      readonly Label: string;
+    },
+  ) => TextureCube)(
+    device, info.Size, info.LevelCount > 1, info.Format as SurfaceFormat,
+    { Handle: handle, LevelCount: info.LevelCount, Label: "EnvironmentProcessor cube map" },
+  );
+}
+
 function boundsSnapshot(bounds: BoundingBox): ClusterBoundsSnapshot {
   if (bounds == null) throw new TypeError("bounds is required");
   return {
@@ -3781,3 +3886,521 @@ export class LightProbeBaker implements IDisposable {
 function wrapSceneDraw(draw: SceneFaceDrawCallback): SceneFaceDraw {
   return (view, projection) => { draw(toMatrix(view), toMatrix(projection)); };
 }
+
+
+/* --- the atmosphere -------------------------------------------------------------------------------
+ *
+ * Two skies and the processor that prepares one of them.
+ *
+ * {@link AtmosphericSky} computes the sky from a sun direction and a turbidity — single-scattering
+ * with Rayleigh's wavelength dependence, which is why a clear one is blue, and Mie's, which is why
+ * haze is white. {@link Skybox} samples a captured cube map instead. They share a draw shape and
+ * differ in where the colour comes from, and a game usually has one or the other rather than both.
+ *
+ * {@link AtmosphericSkyMath.Radiance} is the same model the shader runs, on the CPU and without a
+ * device — which is both a CPU-side ambient term and the way to know what a frame is going to look
+ * like before drawing it. {@link EnvironmentProcessor} turns a panorama into the cube map a skybox
+ * wants and the two convolutions a physically-based material wants beside it.
+ */
+
+function atmosphere(): CnaAtmosphereBackend {
+  const backend = getBackend();
+  if (!backend.IsAvailable || backend.Atmosphere == null) {
+    throw new NativeUnavailableError(
+      `CNA's atmosphere requires a loaded backend that has it: ${backend.Detail}`,
+    );
+  }
+  return backend.Atmosphere;
+}
+
+/** The atmosphere's pure routes: the model itself, and the ray a screen point looks along. */
+export const AtmosphericSkyMath = {
+  /**
+   * The sky's radiance along one view direction, evaluated on the CPU.
+   *
+   * The same model {@link AtmosphericSky} runs in its shader, so this is what a drawn sky will be
+   * before it is drawn. **The turbidity is used as given** — unlike
+   * {@link AtmosphericSky.Turbidity}, which clamps into the model's range, because a setter guards
+   * a sky that will be drawn many times while this evaluates whatever it is handed. A degenerate
+   * view direction falls back to straight up rather than refusing.
+   */
+  Radiance(viewDirection: Vector3, sunDirection: Vector3, turbidity: number): Vector3 {
+    if (typeof turbidity !== "number" || !Number.isFinite(turbidity)) {
+      throw new TypeError("turbidity must be a finite number");
+    }
+    return toVector3(atmosphere().atmosphericSkyRadiance(
+      vectorSnapshot(viewDirection, "viewDirection"),
+      vectorSnapshot(sunDirection, "sunDirection"),
+      turbidity,
+    ));
+  },
+
+  /** CNA's own GLSL for the model, for a game whose shader wants the sky in it. */
+  get ModelGlsl(): string { return atmosphere().getAtmosphericSkyModelGlsl(); },
+
+  /**
+   * The world direction one screen point looks along, through a sky rotated by `yaw`.
+   *
+   * A pure function needing no sky: it is how a caller reproduces the lookup either sky performs,
+   * for picking or for checking on the CPU what the shader sampled. Only the view's rotation is
+   * used, and a degenerate ray answers straight ahead rather than refusing.
+   */
+  ViewRay(
+    view: Matrix, projection: Matrix, ndcX: number, ndcY: number, yaw: number,
+  ): Vector3 {
+    for (const [name, value] of [["ndcX", ndcX], ["ndcY", ndcY], ["yaw", yaw]] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    return toVector3(atmosphere().computeSkyboxViewRay(
+      matrixValues(view, "view"), matrixValues(projection, "projection"), ndcX, ndcY, yaw,
+    ));
+  },
+} as const;
+
+/**
+ * The analytic sky: scattering computed from a sun direction rather than sampled from a capture.
+ *
+ * **Its three setters behave three different ways, and this keeps each rather than regularising
+ * them.** The turbidity is clamped into the model's range, the intensity is a guarded assignment
+ * that keeps the previous value for a negative one, and the sun direction is a guarded assignment
+ * that also normalises — so a vector too short to have a direction leaves the sun where it was, and
+ * a successful call is no proof anything changed. That is why the getters exist.
+ *
+ * Support is probed at construction: an unsupported sky draws nothing and reports success, because
+ * a missing sky is a scene without a sky rather than a broken frame.
+ */
+export class AtmosphericSky implements IDisposable {
+  readonly #backend: CnaAtmosphereBackend;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#backend = atmosphere();
+    this.#handle = this.#backend.createAtmosphericSky(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+    );
+  }
+
+  /** Whether the sky has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the atmospheric sky is disposed");
+    return this.#handle;
+  }
+
+  /** Whether this renderer compiled the sky shader, measured at construction. */
+  public get IsSupported(): boolean {
+    return this.#backend.isAtmosphericSkySupported(this.#active());
+  }
+
+  /**
+   * The direction the sun's light travels in — pointing *away* from the sun, as a light direction
+   * does. Always a unit vector on the way out, whatever was written.
+   */
+  public get SunDirection(): Vector3 {
+    return toVector3(this.#backend.getAtmosphericSkySunDirection(this.#active()));
+  }
+  public set SunDirection(value: Vector3) {
+    this.#backend.setAtmosphericSkySunDirection(
+      this.#active(), vectorSnapshot(value, "SunDirection"),
+    );
+  }
+
+  /**
+   * How much aerosol the air holds, as a ratio against a perfectly clear atmosphere.
+   *
+   * One is air with nothing in it, and the haze term vanishes there. **Clamped to one through ten**,
+   * the range the model is defined over.
+   */
+  public get Turbidity(): number {
+    return this.#backend.getAtmosphericSkyTurbidity(this.#active());
+  }
+  public set Turbidity(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("Turbidity must be a finite number");
+    }
+    this.#backend.setAtmosphericSkyTurbidity(this.#active(), value);
+  }
+
+  /**
+   * The brightness the whole sky is multiplied by.
+   *
+   * A negative value is a **silent no-op that keeps the previous intensity** — not a clamp to zero,
+   * which is what the identically named {@link Skybox.Intensity} does. The two setters genuinely
+   * differ and this preserves the difference.
+   */
+  public get Intensity(): number {
+    return this.#backend.getAtmosphericSkyIntensity(this.#active());
+  }
+  public set Intensity(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("Intensity must be a finite number");
+    }
+    this.#backend.setAtmosphericSkyIntensity(this.#active(), value);
+  }
+
+  /**
+   * Draws the sky over whatever target is bound: the scene target inside a pipeline frame, the back
+   * buffer outside one.
+   *
+   * Only the view's rotation is used, so the sky does not move with the camera's position. A sky
+   * this renderer could not compile draws nothing and succeeds.
+   */
+  public Draw(view: Matrix, projection: Matrix, width: number, height: number): void {
+    if (!Number.isInteger(width) || width <= 0) {
+      throw new RangeError("width must be a positive integer");
+    }
+    if (!Number.isInteger(height) || height <= 0) {
+      throw new RangeError("height must be a positive integer");
+    }
+    this.#backend.drawAtmosphericSky(
+      this.#active(), matrixValues(view, "view"), matrixValues(projection, "projection"),
+      width, height,
+    );
+  }
+
+  /** Releases the sky. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyAtmosphericSky(handle);
+  }
+}
+
+/**
+ * The captured sky: a cube map drawn behind everything, rotated and tinted.
+ *
+ * A skybox that cannot draw — because the renderer refused the shader, or because no environment is
+ * attached — **skips silently rather than failing**, and {@link Draw} succeeds in both cases. A
+ * missing sky is a scene without a sky, not a broken frame; {@link IsSupported} and
+ * {@link Environment} are the questions that say whether anything was drawn.
+ */
+export class Skybox implements IDisposable {
+  readonly #backend: CnaAtmosphereBackend;
+  readonly #device: GraphicsDevice;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice, environment?: TextureCube | null) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#backend = atmosphere();
+    this.#device = graphicsDevice;
+    this.#handle = this.#backend.createSkybox(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+      environment == null ? 0n : resolveTextureCubeHandleForInternalUse(environment),
+    );
+  }
+
+  /** Whether the skybox has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the skybox is disposed");
+    return this.#handle;
+  }
+
+  /** Whether this renderer compiled the sky shader, measured at construction. */
+  public get IsSupported(): boolean {
+    return this.#backend.isSkyboxSupported(this.#active());
+  }
+
+  /**
+   * Whether a cube map is attached at all. Drawing without one paints nothing and succeeds.
+   *
+   * **This is a question rather than an accessor for a reason.** `cna_skybox_get_environment` does
+   * not hand back the cube map that was attached: it mints a *new owned handle* aliasing the
+   * skybox, which the caller must release and which counts against the game's owned resources until
+   * it is. Reading it once per frame and dropping the answer makes the game undestroyable, which is
+   * how this was found. So the handle is taken, tested and given straight back, and the cube map
+   * itself is not projected -- a caller already holds whatever it attached.
+   */
+  public get HasEnvironment(): boolean {
+    const handle = this.#backend.getSkyboxEnvironment(this.#active());
+    if (handle === 0n) return false;
+    graphicsBackendFor(this.#device).destroyTextureCube(handle);
+    return true;
+  }
+
+  /**
+   * Attaches a cube map the caller keeps, or `null` to detach.
+   *
+   * **Borrowed, never owned**: it must outlive the drawing that uses it. Attaching a borrowed cube
+   * over one handed to {@link SetOwnedEnvironment} releases the owned one first, so it cannot be
+   * left alive with nothing referring to it.
+   */
+  public SetEnvironment(environment: TextureCube | null): void {
+    this.#backend.setSkyboxEnvironment(
+      this.#active(),
+      environment == null ? 0n : resolveTextureCubeHandleForInternalUse(environment),
+    );
+  }
+
+  /**
+   * Hands a cube map over, and the skybox releases it with itself.
+   *
+   * **The texture is consumed.** On success the caller's `TextureCube` no longer owns anything and
+   * must not be used again -- disposing it would be a second release. Named for the transfer rather
+   * than hidden behind a flag, exactly as `PostProcessChain.AddOwned` is.
+   */
+  public SetOwnedEnvironment(environment: TextureCube): void {
+    if (environment == null) throw new TypeError("environment is required");
+    // Transferred first, because CNA's contract is that the handle is gone whether or not the
+    // call succeeds: a wrapper that still owned it after a refusal would release it twice.
+    const handle = transferTextureCubeForInternalUse(environment);
+    this.#backend.setSkyboxOwnedEnvironment(this.#active(), handle);
+  }
+
+  /** The horizontal rotation applied to the sky. Assigned as given: any angle is meaningful. */
+  public get Yaw(): number { return this.#backend.getSkyboxYaw(this.#active()); }
+  public set Yaw(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("Yaw must be a finite number");
+    }
+    this.#backend.setSkyboxYaw(this.#active(), value);
+  }
+
+  /**
+   * The brightness the sky is multiplied by.
+   *
+   * **Floored at zero**, so a negative value reads back as zero — which is *not* what
+   * {@link AtmosphericSky.Intensity} does with a negative value. The two setters differ upstream
+   * and this preserves the difference rather than making them agree.
+   */
+  public get Intensity(): number { return this.#backend.getSkyboxIntensity(this.#active()); }
+  public set Intensity(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("Intensity must be a finite number");
+    }
+    this.#backend.setSkyboxIntensity(this.#active(), value);
+  }
+
+  /** Linear RGB the sky is multiplied by. Assigned with no clamp: above one brightens an HDR sky. */
+  public get Tint(): Vector3 {
+    return toVector3(this.#backend.getSkyboxTint(this.#active()));
+  }
+  public set Tint(value: Vector3) {
+    this.#backend.setSkyboxTint(this.#active(), vectorSnapshot(value, "Tint"));
+  }
+
+  /** Draws the sky over whatever target is bound. Only the view's rotation is used. */
+  public Draw(view: Matrix, projection: Matrix, width: number, height: number): void {
+    if (!Number.isInteger(width) || width <= 0) {
+      throw new RangeError("width must be a positive integer");
+    }
+    if (!Number.isInteger(height) || height <= 0) {
+      throw new RangeError("height must be a positive integer");
+    }
+    this.#backend.drawSkybox(
+      this.#active(), matrixValues(view, "view"), matrixValues(projection, "projection"),
+      width, height,
+    );
+  }
+
+  /** Releases the skybox, and any environment handed to {@link SetOwnedEnvironment} with it. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroySkybox(handle);
+  }
+
+  // The render pipeline needs a skybox's handle to borrow it, and a skybox's private field is
+  // reachable only from inside this class body.
+  static {
+    skyboxOfPipeline = (pipeline: NativeHandle) =>
+      atmosphere().getRenderPipelineSkybox(pipeline);
+    setSkyboxOfPipeline = (pipeline: NativeHandle, skybox: Skybox | null) => {
+      atmosphere().setRenderPipelineSkybox(
+        pipeline, skybox == null ? 0n : skybox.#active(),
+      );
+    };
+  }
+}
+
+/**
+ * Turns a panorama into the three things a physically-based frame samples: the environment cube a
+ * {@link Skybox} draws, the diffuse convolution and the specular one.
+ *
+ * A pure transformer with **no settings at all**: every operation takes an environment and hands
+ * back a new texture the caller owns. The three generators that build a `TextureCube` are the ones
+ * a renderer without cube storage refuses, and that refusal arrives as `NotSupported` — which is
+ * also what a build without the engine layer answers, so
+ * {@link IsGraphicsExtensionLayerAvailable} is what tells the two apart.
+ *
+ * **The three products of the split sum must be generated together.** Pairing a prefiltered cube
+ * with a mip count from a different one is the failure the bundle exists to prevent.
+ */
+export class EnvironmentProcessor implements IDisposable {
+  readonly #backend: CnaAtmosphereBackend;
+  readonly #device: GraphicsDevice;
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#backend = atmosphere();
+    this.#device = graphicsDevice;
+    this.#handle = this.#backend.createEnvironmentProcessor(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+    );
+  }
+
+  /** Whether the processor has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the environment processor is disposed");
+    }
+    return this.#handle;
+  }
+
+  /** Converts an equirectangular panorama into a cube map the caller owns. */
+  public ConvertEquirectangular(panorama: Texture2D, faceSize: number): TextureCube {
+    if (panorama == null) throw new TypeError("panorama is required");
+    if (!Number.isInteger(faceSize) || faceSize <= 0) {
+      throw new RangeError("faceSize must be a positive integer");
+    }
+    return this.#adoptCube(this.#backend.convertEquirectangular(
+      this.#active(), resolveTexture2DHandleForInternalUse(panorama), faceSize,
+    ));
+  }
+
+  /** The cosine-convolved diffuse cube: what a matte surface sees from every direction. */
+  public GenerateIrradiance(
+    environment: TextureCube, size: number, sampleCount: number,
+  ): TextureCube {
+    if (environment == null) throw new TypeError("environment is required");
+    assertPositiveCounts({ size, sampleCount });
+    return this.#adoptCube(this.#backend.generateIrradianceCube(
+      this.#active(), resolveTextureCubeHandleForInternalUse(environment), size, sampleCount,
+    ));
+  }
+
+  /**
+   * The GGX-prefiltered specular cube, whose mip chain is a roughness ramp.
+   *
+   * `mipCount` is the number a material must be given back, because
+   * {@link EnvironmentProcessorMath.MipForRoughness} indexes the ramp by it.
+   */
+  public GeneratePrefilteredSpecular(
+    environment: TextureCube, baseSize: number, mipCount: number, sampleCount: number,
+  ): TextureCube {
+    if (environment == null) throw new TypeError("environment is required");
+    assertPositiveCounts({ baseSize, mipCount, sampleCount });
+    return this.#adoptCube(this.#backend.generatePrefilteredSpecular(
+      this.#active(), resolveTextureCubeHandleForInternalUse(environment),
+      baseSize, mipCount, sampleCount,
+    ));
+  }
+
+  /** Projects an environment into one {@link LightProbe} the caller owns. */
+  public GenerateProbe(environment: TextureCube, position: Vector3): LightProbe {
+    if (environment == null) throw new TypeError("environment is required");
+    return adoptNativeLightProbe(this.#backend.generateProbeFromEnvironment(
+      this.#active(), resolveTextureCubeHandleForInternalUse(environment),
+      vectorSnapshot(position, "position"),
+    ));
+  }
+
+  /**
+   * The BRDF table, indexed by the cosine of the view angle across and roughness down.
+   *
+   * It depends on neither an environment nor a scene, so it can be generated once and shared by
+   * every bundle — and it is a 2D texture rather than a cube, which is why a renderer without cube
+   * storage still produces it.
+   */
+  public GenerateBrdfLut(size: number, sampleCount: number): Texture2D {
+    assertPositiveCounts({ size, sampleCount });
+    const handle = this.#backend.generateBrdfLut(this.#active(), size, sampleCount);
+    return adoptNativeTexture2DForInternalUse(this.#device, handle, "BRDF lookup table");
+  }
+
+  #adoptCube(handle: NativeHandle): TextureCube {
+    return adoptNativeTextureCubeForInternalUse(this.#device, handle);
+  }
+
+  /** Releases the processor. The textures it made are the caller's and outlive it. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyEnvironmentProcessor(handle);
+  }
+}
+
+function assertPositiveCounts(counts: Readonly<Record<string, number>>): void {
+  for (const [name, value] of Object.entries(counts)) {
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new RangeError(`${name} must be a positive integer`);
+    }
+  }
+}
+
+/**
+ * The environment processor's pure routes: the roughness ramp, the sampling sequence behind it, and
+ * the two mappings between a direction and a texture coordinate.
+ *
+ * None needs a processor or a device, and all five **answer rather than refuse**: a mip count with
+ * no ramp to index gives mip zero, and a roughness outside the unit range is clamped into it.
+ */
+export const EnvironmentProcessorMath = {
+  /** Which mip of a prefiltered cube carries a roughness, as a fractional level. */
+  MipForRoughness(roughness: number, mipCount: number): number {
+    if (typeof roughness !== "number" || !Number.isFinite(roughness)) {
+      throw new TypeError("roughness must be a finite number");
+    }
+    if (!Number.isInteger(mipCount)) throw new TypeError("mipCount must be an integer");
+    return atmosphere().mipForRoughness(roughness, mipCount);
+  },
+
+  /** The inverse: which roughness a mip carries. */
+  RoughnessForMip(mip: number, mipCount: number): number {
+    if (typeof mip !== "number" || !Number.isFinite(mip)) {
+      throw new TypeError("mip must be a finite number");
+    }
+    if (!Number.isInteger(mipCount)) throw new TypeError("mipCount must be an integer");
+    return atmosphere().roughnessForMip(mip, mipCount);
+  },
+
+  /** One point of the Hammersley low-discrepancy sequence the convolutions sample with. */
+  Hammersley(index: number, count: number): Vector2 {
+    if (!Number.isInteger(index)) throw new TypeError("index must be an integer");
+    if (!Number.isInteger(count)) throw new TypeError("count must be an integer");
+    const point = atmosphere().hammersleyPoint(index, count);
+    return new Vector2(point.X, point.Y);
+  },
+
+  /** One sequence point turned into a GGX half-vector around a normal. */
+  ImportanceSampleGgx(x: number, y: number, normal: Vector3, roughness: number): Vector3 {
+    for (const [name, value] of [["x", x], ["y", y], ["roughness", roughness]] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    return toVector3(atmosphere().importanceSampleGgx(
+      x, y, vectorSnapshot(normal, "normal"), roughness,
+    ));
+  },
+
+  /** The direction one texel of one cube face looks along. */
+  FaceDirection(face: CubeMapFace, u: number, v: number): Vector3 {
+    if (!Number.isInteger(face)) throw new TypeError("face must be a CubeMapFace");
+    for (const [name, value] of [["u", u], ["v", v]] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    return toVector3(atmosphere().cubeFaceDirection(face, u, v));
+  },
+
+  /** And the mapping back: where a direction falls on an equirectangular panorama. */
+  DirectionToEquirectangular(direction: Vector3): Vector2 {
+    const point = atmosphere().directionToEquirectangular(
+      vectorSnapshot(direction, "direction"),
+    );
+    return new Vector2(point.X, point.Y);
+  },
+} as const;

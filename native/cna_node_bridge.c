@@ -692,6 +692,31 @@ typedef CNA_Result (*LightProbeBakerBakeProbeFn)(
 typedef CNA_Result (*LightProbeBakerBakeVolumeFn)(
   CNA_LightProbeBakerHandle, CNA_LightProbeVolumeHandle, CNA_LightProbeSceneDrawCallback, void*);
 
+/* --- the engine layer's atmosphere: the analytic sky, the skybox, and what feeds them ---------- */
+typedef CNA_Result (*SkyDrawFn)(
+  CNA_Handle, const CNA_Matrix*, const CNA_Matrix*, int32_t, int32_t);
+typedef CNA_Result (*SkyVector3OutFn)(CNA_Handle, CNA_Vector3*);
+typedef CNA_Result (*SkyVector3InFn)(CNA_Handle, const CNA_Vector3*);
+typedef CNA_Result (*SkyRadianceFn)(
+  const CNA_Vector3*, const CNA_Vector3*, float, CNA_Vector3*);
+typedef CNA_Result (*SkyboxCreateFn)(CNA_Handle, CNA_Handle, CNA_SkyboxHandle*);
+typedef CNA_Result (*SkyViewRayFn)(
+  const CNA_Matrix*, const CNA_Matrix*, float, float, float, CNA_Vector3*);
+typedef CNA_Result (*EnvConvertFn)(
+  CNA_EnvironmentProcessorHandle, CNA_Handle, int32_t, CNA_Handle*);
+typedef CNA_Result (*EnvIrradianceFn)(
+  CNA_EnvironmentProcessorHandle, CNA_Handle, int32_t, int32_t, CNA_Handle*);
+typedef CNA_Result (*EnvSpecularFn)(
+  CNA_EnvironmentProcessorHandle, CNA_Handle, int32_t, int32_t, int32_t, CNA_Handle*);
+typedef CNA_Result (*EnvProbeFn)(
+  CNA_EnvironmentProcessorHandle, CNA_Handle, const CNA_Vector3*, CNA_LightProbeHandle*);
+typedef CNA_Result (*EnvLutFn)(CNA_EnvironmentProcessorHandle, int32_t, int32_t, CNA_Handle*);
+typedef CNA_Result (*EnvMipFn)(float, int32_t, float*);
+typedef CNA_Result (*EnvHammersleyFn)(int32_t, int32_t, float*, float*);
+typedef CNA_Result (*EnvGgxFn)(float, float, const CNA_Vector3*, float, CNA_Vector3*);
+typedef CNA_Result (*EnvFaceDirectionFn)(int32_t, float, float, CNA_Vector3*);
+typedef CNA_Result (*EnvDirectionUvFn)(const CNA_Vector3*, float*, float*);
+
 /* --- the engine layer's compute path ---------------------------------------------------------- */
 /*
  * Storage buffers, compute shaders and GPU timers. The handle typedefs in `engine_layer.h` are all
@@ -1724,6 +1749,49 @@ typedef struct Api {
   LightProbeBakerBakeProbeFn light_probe_baker_bake_probe;
   LightProbeBakerBakeVolumeFn light_probe_baker_bake_light;
   LightProbeBakerBakeVolumeFn light_probe_baker_bake_visibility;
+
+  /* the atmosphere */
+  HandleHandleOutFn atmospheric_sky_create;
+  GameHandleFn atmospheric_sky_destroy;
+  BoolGetFn atmospheric_sky_is_supported;
+  SkyDrawFn atmospheric_sky_draw;
+  SkyVector3OutFn atmospheric_sky_get_sun_direction;
+  SkyVector3InFn atmospheric_sky_set_sun_direction;
+  HandleFloatOutFn atmospheric_sky_get_turbidity;
+  HandleFloatFn atmospheric_sky_set_turbidity;
+  HandleFloatOutFn atmospheric_sky_get_intensity;
+  HandleFloatFn atmospheric_sky_set_intensity;
+  CopyGlslFn atmospheric_sky_copy_model_glsl;
+  SkyRadianceFn atmospheric_sky_radiance;
+  SkyboxCreateFn skybox_create;
+  GameHandleFn skybox_destroy;
+  BoolGetFn skybox_is_supported;
+  SkyDrawFn skybox_draw;
+  HandleHandleOutFn skybox_get_environment;
+  TwoHandleFn skybox_set_environment;
+  TwoHandleFn skybox_set_owned_environment;
+  HandleFloatOutFn skybox_get_yaw;
+  HandleFloatFn skybox_set_yaw;
+  HandleFloatOutFn skybox_get_intensity;
+  HandleFloatFn skybox_set_intensity;
+  SkyVector3OutFn skybox_get_tint;
+  SkyVector3InFn skybox_set_tint;
+  SkyViewRayFn skybox_compute_view_ray;
+  HandleHandleOutFn environment_processor_create;
+  GameHandleFn environment_processor_destroy;
+  EnvConvertFn environment_processor_convert_equirectangular;
+  EnvIrradianceFn environment_processor_generate_irradiance;
+  EnvSpecularFn environment_processor_generate_prefiltered_specular;
+  EnvProbeFn environment_processor_generate_probe;
+  EnvLutFn environment_processor_generate_brdf_lut;
+  EnvMipFn environment_processor_mip_for_roughness;
+  EnvMipFn environment_processor_roughness_for_mip;
+  EnvHammersleyFn environment_processor_hammersley;
+  EnvGgxFn environment_processor_importance_sample_ggx;
+  EnvFaceDirectionFn environment_processor_face_direction;
+  EnvDirectionUvFn environment_processor_direction_to_equirectangular;
+  HandleHandleOutFn render_pipeline_get_skybox;
+  TwoHandleFn render_pipeline_set_skybox;
 
   /* the engine layer's compute path */
   PresentationParametersInitFn presentation_parameters_init;
@@ -3169,6 +3237,48 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(light_probe_baker_bake_probe, LightProbeBakerBakeProbeFn, "cna_light_probe_baker_bake_probe");
   LOAD_REQUIRED(light_probe_baker_bake_light, LightProbeBakerBakeVolumeFn, "cna_light_probe_baker_bake_light");
   LOAD_REQUIRED(light_probe_baker_bake_visibility, LightProbeBakerBakeVolumeFn, "cna_light_probe_baker_bake_visibility");
+
+  LOAD_REQUIRED(atmospheric_sky_create, HandleHandleOutFn, "cna_atmospheric_sky_create");
+  LOAD_REQUIRED(atmospheric_sky_destroy, GameHandleFn, "cna_atmospheric_sky_destroy");
+  LOAD_REQUIRED(atmospheric_sky_is_supported, BoolGetFn, "cna_atmospheric_sky_is_supported");
+  LOAD_REQUIRED(atmospheric_sky_draw, SkyDrawFn, "cna_atmospheric_sky_draw");
+  LOAD_REQUIRED(atmospheric_sky_get_sun_direction, SkyVector3OutFn, "cna_atmospheric_sky_get_sun_direction");
+  LOAD_REQUIRED(atmospheric_sky_set_sun_direction, SkyVector3InFn, "cna_atmospheric_sky_set_sun_direction");
+  LOAD_REQUIRED(atmospheric_sky_get_turbidity, HandleFloatOutFn, "cna_atmospheric_sky_get_turbidity");
+  LOAD_REQUIRED(atmospheric_sky_set_turbidity, HandleFloatFn, "cna_atmospheric_sky_set_turbidity");
+  LOAD_REQUIRED(atmospheric_sky_get_intensity, HandleFloatOutFn, "cna_atmospheric_sky_get_intensity");
+  LOAD_REQUIRED(atmospheric_sky_set_intensity, HandleFloatFn, "cna_atmospheric_sky_set_intensity");
+  LOAD_REQUIRED(atmospheric_sky_copy_model_glsl, CopyGlslFn, "cna_atmospheric_sky_copy_model_glsl");
+  LOAD_REQUIRED(atmospheric_sky_radiance, SkyRadianceFn, "cna_atmospheric_sky_radiance");
+  LOAD_REQUIRED(skybox_create, SkyboxCreateFn, "cna_skybox_create");
+  LOAD_REQUIRED(skybox_destroy, GameHandleFn, "cna_skybox_destroy");
+  LOAD_REQUIRED(skybox_is_supported, BoolGetFn, "cna_skybox_is_supported");
+  LOAD_REQUIRED(skybox_draw, SkyDrawFn, "cna_skybox_draw");
+  LOAD_REQUIRED(skybox_get_environment, HandleHandleOutFn, "cna_skybox_get_environment");
+  LOAD_REQUIRED(skybox_set_environment, TwoHandleFn, "cna_skybox_set_environment");
+  LOAD_REQUIRED(skybox_set_owned_environment, TwoHandleFn, "cna_skybox_set_owned_environment");
+  LOAD_REQUIRED(skybox_get_yaw, HandleFloatOutFn, "cna_skybox_get_yaw");
+  LOAD_REQUIRED(skybox_set_yaw, HandleFloatFn, "cna_skybox_set_yaw");
+  LOAD_REQUIRED(skybox_get_intensity, HandleFloatOutFn, "cna_skybox_get_intensity");
+  LOAD_REQUIRED(skybox_set_intensity, HandleFloatFn, "cna_skybox_set_intensity");
+  LOAD_REQUIRED(skybox_get_tint, SkyVector3OutFn, "cna_skybox_get_tint");
+  LOAD_REQUIRED(skybox_set_tint, SkyVector3InFn, "cna_skybox_set_tint");
+  LOAD_REQUIRED(skybox_compute_view_ray, SkyViewRayFn, "cna_skybox_compute_view_ray");
+  LOAD_REQUIRED(environment_processor_create, HandleHandleOutFn, "cna_environment_processor_create");
+  LOAD_REQUIRED(environment_processor_destroy, GameHandleFn, "cna_environment_processor_destroy");
+  LOAD_REQUIRED(environment_processor_convert_equirectangular, EnvConvertFn, "cna_environment_processor_convert_equirectangular");
+  LOAD_REQUIRED(environment_processor_generate_irradiance, EnvIrradianceFn, "cna_environment_processor_generate_irradiance");
+  LOAD_REQUIRED(environment_processor_generate_prefiltered_specular, EnvSpecularFn, "cna_environment_processor_generate_prefiltered_specular");
+  LOAD_REQUIRED(environment_processor_generate_probe, EnvProbeFn, "cna_environment_processor_generate_probe");
+  LOAD_REQUIRED(environment_processor_generate_brdf_lut, EnvLutFn, "cna_environment_processor_generate_brdf_lut");
+  LOAD_REQUIRED(environment_processor_mip_for_roughness, EnvMipFn, "cna_environment_processor_mip_for_roughness");
+  LOAD_REQUIRED(environment_processor_roughness_for_mip, EnvMipFn, "cna_environment_processor_roughness_for_mip");
+  LOAD_REQUIRED(environment_processor_hammersley, EnvHammersleyFn, "cna_environment_processor_hammersley");
+  LOAD_REQUIRED(environment_processor_importance_sample_ggx, EnvGgxFn, "cna_environment_processor_importance_sample_ggx");
+  LOAD_REQUIRED(environment_processor_face_direction, EnvFaceDirectionFn, "cna_environment_processor_face_direction");
+  LOAD_REQUIRED(environment_processor_direction_to_equirectangular, EnvDirectionUvFn, "cna_environment_processor_direction_to_equirectangular");
+  LOAD_REQUIRED(render_pipeline_get_skybox, HandleHandleOutFn, "cna_render_pipeline_get_skybox");
+  LOAD_REQUIRED(render_pipeline_set_skybox, TwoHandleFn, "cna_render_pipeline_set_skybox");
 
   LOAD_REQUIRED(presentation_parameters_init, PresentationParametersInitFn, "cna_presentation_parameters_init");
   LOAD_REQUIRED(graphics_device_create, StandaloneDeviceCreateFn, "cna_graphics_device_create");
@@ -16132,6 +16242,485 @@ static napi_value light_probe_baker_bake_visibility(napi_env env, napi_callback_
     "cna_light_probe_baker_bake_visibility");
 }
 
+/* --- the atmosphere ---------------------------------------------------------------------------- */
+
+/* Both skies draw over the current target with the same five arguments. */
+static napi_value sky_draw(
+  napi_env env, napi_callback_info info, SkyDrawFn route, const char* name
+) {
+  napi_value args[5];
+  CNA_Handle sky = 0;
+  CNA_Matrix view, projection;
+  int32_t width = 0, height = 0;
+  memset(&view, 0, sizeof(view));
+  memset(&projection, 0, sizeof(projection));
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &sky) ||
+      !read_matrix16(env, args[1], &view, "a sky view needs sixteen numbers") ||
+      !read_matrix16(env, args[2], &projection, "a sky projection needs sixteen numbers")) {
+    return NULL;
+  }
+  if (napi_get_value_int32(env, args[3], &width) != napi_ok ||
+      napi_get_value_int32(env, args[4], &height) != napi_ok) {
+    return throw_message(env, "a sky draw needs a target width and height");
+  }
+  const CNA_Result result = route(sky, &view, &projection, width, height);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+/* One Vector3 out of one handle; four routes across the two skies share it. */
+static napi_value sky_vector3(
+  napi_env env, napi_callback_info info, SkyVector3OutFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle sky = 0;
+  CNA_Vector3 value = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &sky)) return NULL;
+  const CNA_Result result = route(sky, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), name);
+  if (!set_vector3_fields(env, output, &value)) return throw_napi(env, name);
+  return output;
+}
+
+static napi_value sky_set_vector3(
+  napi_env env, napi_callback_info info, SkyVector3InFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle sky = 0;
+  CNA_Vector3 value = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &sky) ||
+      !read_vector3_fields(env, args[1], &value)) {
+    return throw_message(env, "expected a sky and a vector with X, Y and Z");
+  }
+  const CNA_Result result = route(sky, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value atmospheric_sky_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.atmospheric_sky_create, "cna_atmospheric_sky_create");
+}
+static napi_value atmospheric_sky_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.atmospheric_sky_destroy, "cna_atmospheric_sky_destroy");
+}
+static napi_value atmospheric_sky_is_supported(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.atmospheric_sky_is_supported,
+    "cna_atmospheric_sky_is_supported");
+}
+static napi_value atmospheric_sky_draw(napi_env env, napi_callback_info info) {
+  return sky_draw(env, info, g_api.atmospheric_sky_draw, "cna_atmospheric_sky_draw");
+}
+static napi_value atmospheric_sky_get_sun_direction(napi_env env, napi_callback_info info) {
+  return sky_vector3(env, info, g_api.atmospheric_sky_get_sun_direction,
+    "cna_atmospheric_sky_get_sun_direction");
+}
+static napi_value atmospheric_sky_set_sun_direction(napi_env env, napi_callback_info info) {
+  return sky_set_vector3(env, info, g_api.atmospheric_sky_set_sun_direction,
+    "cna_atmospheric_sky_set_sun_direction");
+}
+static napi_value atmospheric_sky_get_turbidity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.atmospheric_sky_get_turbidity,
+    "cna_atmospheric_sky_get_turbidity");
+}
+static napi_value atmospheric_sky_set_turbidity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.atmospheric_sky_set_turbidity,
+    "cna_atmospheric_sky_set_turbidity");
+}
+static napi_value atmospheric_sky_get_intensity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.atmospheric_sky_get_intensity,
+    "cna_atmospheric_sky_get_intensity");
+}
+static napi_value atmospheric_sky_set_intensity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.atmospheric_sky_set_intensity,
+    "cna_atmospheric_sky_set_intensity");
+}
+
+static napi_value atmospheric_sky_model_glsl(napi_env env, napi_callback_info info) {
+  uint64_t required = 0;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  CNA_Result result = g_api.atmospheric_sky_copy_model_glsl(NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_atmospheric_sky_copy_model_glsl", result);
+  }
+  char* text = (char*) malloc((size_t) required + 1U);
+  if (!text) return throw_message(env, "sky model GLSL allocation failed");
+  result = g_api.atmospheric_sky_copy_model_glsl(text, required + 1U, &required);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(text);
+    return throw_result(env, "cna_atmospheric_sky_copy_model_glsl", result);
+  }
+  napi_value output = NULL;
+  const napi_status status = napi_create_string_utf8(env, text, (size_t) required, &output);
+  free(text);
+  if (status != napi_ok) return throw_message(env, "the sky model GLSL is not UTF-8");
+  return output;
+}
+
+static napi_value atmospheric_sky_radiance(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  CNA_Vector3 view = {0, 0, 0}, sun = {0, 0, 0}, radiance = {0, 0, 0};
+  double turbidity = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_vector3_fields(env, args[0], &view) ||
+      !read_vector3_fields(env, args[1], &sun) ||
+      napi_get_value_double(env, args[2], &turbidity) != napi_ok) {
+    return throw_message(env, "expected a view direction, a sun direction and a turbidity");
+  }
+  const CNA_Result result =
+    g_api.atmospheric_sky_radiance(&view, &sun, (float) turbidity, &radiance);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_atmospheric_sky_radiance", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "sky radiance");
+  if (!set_vector3_fields(env, output, &radiance)) return throw_napi(env, "sky radiance");
+  return output;
+}
+
+static napi_value skybox_create(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0, environment = 0, skybox = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      !read_handle_allow_zero(env, args[1], &environment)) return NULL;
+  const CNA_Result result = g_api.skybox_create(device, environment, &skybox);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_skybox_create", result);
+  return make_handle(env, skybox);
+}
+
+static napi_value skybox_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.skybox_destroy, "cna_skybox_destroy");
+}
+static napi_value skybox_is_supported(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.skybox_is_supported, "cna_skybox_is_supported");
+}
+static napi_value skybox_draw(napi_env env, napi_callback_info info) {
+  return sky_draw(env, info, g_api.skybox_draw, "cna_skybox_draw");
+}
+
+static napi_value skybox_get_environment(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle skybox = 0, environment = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &skybox)) return NULL;
+  const CNA_Result result = g_api.skybox_get_environment(skybox, &environment);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_skybox_get_environment", result);
+  }
+  return make_handle(env, environment);
+}
+
+/* Both environment setters take a handle that may deliberately be the invalid one. */
+static napi_value skybox_environment(
+  napi_env env, napi_callback_info info, TwoHandleFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle skybox = 0, environment = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &skybox) ||
+      !read_handle_allow_zero(env, args[1], &environment)) return NULL;
+  const CNA_Result result = route(skybox, environment);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value skybox_set_environment(napi_env env, napi_callback_info info) {
+  return skybox_environment(env, info, g_api.skybox_set_environment,
+    "cna_skybox_set_environment");
+}
+static napi_value skybox_set_owned_environment(napi_env env, napi_callback_info info) {
+  return skybox_environment(env, info, g_api.skybox_set_owned_environment,
+    "cna_skybox_set_owned_environment");
+}
+static napi_value skybox_get_yaw(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.skybox_get_yaw, "cna_skybox_get_yaw");
+}
+static napi_value skybox_set_yaw(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.skybox_set_yaw, "cna_skybox_set_yaw");
+}
+static napi_value skybox_get_intensity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.skybox_get_intensity, "cna_skybox_get_intensity");
+}
+static napi_value skybox_set_intensity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.skybox_set_intensity, "cna_skybox_set_intensity");
+}
+static napi_value skybox_get_tint(napi_env env, napi_callback_info info) {
+  return sky_vector3(env, info, g_api.skybox_get_tint, "cna_skybox_get_tint");
+}
+static napi_value skybox_set_tint(napi_env env, napi_callback_info info) {
+  return sky_set_vector3(env, info, g_api.skybox_set_tint, "cna_skybox_set_tint");
+}
+
+static napi_value skybox_compute_view_ray(napi_env env, napi_callback_info info) {
+  napi_value args[5], output;
+  CNA_Matrix view, projection;
+  double ndc_x = 0, ndc_y = 0, yaw = 0;
+  CNA_Vector3 direction = {0, 0, 0};
+  memset(&view, 0, sizeof(view));
+  memset(&projection, 0, sizeof(projection));
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_matrix16(env, args[0], &view, "a view ray needs a sixteen-number view") ||
+      !read_matrix16(env, args[1], &projection,
+        "a view ray needs a sixteen-number projection")) return NULL;
+  if (napi_get_value_double(env, args[2], &ndc_x) != napi_ok ||
+      napi_get_value_double(env, args[3], &ndc_y) != napi_ok ||
+      napi_get_value_double(env, args[4], &yaw) != napi_ok) {
+    return throw_message(env, "a view ray needs two device coordinates and a yaw");
+  }
+  const CNA_Result result = g_api.skybox_compute_view_ray(
+    &view, &projection, (float) ndc_x, (float) ndc_y, (float) yaw, &direction);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_skybox_compute_view_ray", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "sky view ray");
+  if (!set_vector3_fields(env, output, &direction)) return throw_napi(env, "sky view ray");
+  return output;
+}
+
+static napi_value environment_processor_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.environment_processor_create,
+    "cna_environment_processor_create");
+}
+static napi_value environment_processor_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.environment_processor_destroy,
+    "cna_environment_processor_destroy");
+}
+
+static napi_value environment_processor_convert_equirectangular(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle processor = 0, panorama = 0, environment = 0;
+  int32_t face_size = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &processor) ||
+      !read_handle(env, args[1], &panorama) ||
+      napi_get_value_int32(env, args[2], &face_size) != napi_ok) {
+    return throw_message(env, "expected a processor, a panorama and a face size");
+  }
+  const CNA_Result result = g_api.environment_processor_convert_equirectangular(
+    processor, panorama, face_size, &environment);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_environment_processor_convert_equirectangular", result);
+  }
+  return make_handle(env, environment);
+}
+
+static napi_value environment_processor_generate_irradiance(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[4];
+  CNA_Handle processor = 0, environment = 0, irradiance = 0;
+  int32_t size = 0, samples = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &processor) ||
+      !read_handle(env, args[1], &environment) ||
+      napi_get_value_int32(env, args[2], &size) != napi_ok ||
+      napi_get_value_int32(env, args[3], &samples) != napi_ok) {
+    return throw_message(env, "expected a processor, an environment, a size and a sample count");
+  }
+  const CNA_Result result = g_api.environment_processor_generate_irradiance(
+    processor, environment, size, samples, &irradiance);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_environment_processor_generate_irradiance", result);
+  }
+  return make_handle(env, irradiance);
+}
+
+static napi_value environment_processor_generate_prefiltered_specular(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[5];
+  CNA_Handle processor = 0, environment = 0, specular = 0;
+  int32_t base_size = 0, mip_count = 0, samples = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &processor) ||
+      !read_handle(env, args[1], &environment) ||
+      napi_get_value_int32(env, args[2], &base_size) != napi_ok ||
+      napi_get_value_int32(env, args[3], &mip_count) != napi_ok ||
+      napi_get_value_int32(env, args[4], &samples) != napi_ok) {
+    return throw_message(env, "expected a processor, an environment and three counts");
+  }
+  const CNA_Result result = g_api.environment_processor_generate_prefiltered_specular(
+    processor, environment, base_size, mip_count, samples, &specular);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_environment_processor_generate_prefiltered_specular", result);
+  }
+  return make_handle(env, specular);
+}
+
+static napi_value environment_processor_generate_probe(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle processor = 0, environment = 0;
+  CNA_LightProbeHandle probe = 0;
+  CNA_Vector3 position = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &processor) ||
+      !read_handle(env, args[1], &environment) ||
+      !read_vector3_fields(env, args[2], &position)) {
+    return throw_message(env, "expected a processor, an environment and a position");
+  }
+  const CNA_Result result =
+    g_api.environment_processor_generate_probe(processor, environment, &position, &probe);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_environment_processor_generate_probe", result);
+  }
+  return make_handle(env, probe);
+}
+
+static napi_value environment_processor_generate_brdf_lut(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle processor = 0, lut = 0;
+  int32_t size = 0, samples = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &processor) ||
+      napi_get_value_int32(env, args[1], &size) != napi_ok ||
+      napi_get_value_int32(env, args[2], &samples) != napi_ok) {
+    return throw_message(env, "expected a processor, a size and a sample count");
+  }
+  const CNA_Result result =
+    g_api.environment_processor_generate_brdf_lut(processor, size, samples, &lut);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_environment_processor_generate_brdf_lut", result);
+  }
+  return make_handle(env, lut);
+}
+
+static napi_value environment_mip(
+  napi_env env, napi_callback_info info, EnvMipFn route, const char* name
+) {
+  napi_value args[2], output;
+  double value = 0;
+  int32_t mip_count = 0;
+  float answer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      napi_get_value_double(env, args[0], &value) != napi_ok ||
+      napi_get_value_int32(env, args[1], &mip_count) != napi_ok) {
+    return throw_message(env, "expected a value and a mip count");
+  }
+  const CNA_Result result = route((float) value, mip_count, &answer);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) answer, &output), name);
+  return output;
+}
+
+static napi_value environment_processor_mip_for_roughness(napi_env env, napi_callback_info info) {
+  return environment_mip(env, info, g_api.environment_processor_mip_for_roughness,
+    "cna_environment_processor_mip_for_roughness");
+}
+static napi_value environment_processor_roughness_for_mip(napi_env env, napi_callback_info info) {
+  return environment_mip(env, info, g_api.environment_processor_roughness_for_mip,
+    "cna_environment_processor_roughness_for_mip");
+}
+
+static napi_value environment_processor_hammersley(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  int32_t index = 0, count = 0;
+  float x = 0, y = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      napi_get_value_int32(env, args[0], &index) != napi_ok ||
+      napi_get_value_int32(env, args[1], &count) != napi_ok) {
+    return throw_message(env, "expected an index and a sequence length");
+  }
+  const CNA_Result result = g_api.environment_processor_hammersley(index, count, &x, &y);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_environment_processor_hammersley", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "hammersley point");
+  if (!set_number(env, output, "X", (double) x) || !set_number(env, output, "Y", (double) y)) {
+    return throw_napi(env, "hammersley point");
+  }
+  return output;
+}
+
+static napi_value environment_processor_importance_sample_ggx(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[4], output;
+  double x = 0, y = 0, roughness = 0;
+  CNA_Vector3 normal = {0, 0, 0}, direction = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      napi_get_value_double(env, args[0], &x) != napi_ok ||
+      napi_get_value_double(env, args[1], &y) != napi_ok ||
+      !read_vector3_fields(env, args[2], &normal) ||
+      napi_get_value_double(env, args[3], &roughness) != napi_ok) {
+    return throw_message(env, "expected two coordinates, a normal and a roughness");
+  }
+  const CNA_Result result = g_api.environment_processor_importance_sample_ggx(
+    (float) x, (float) y, &normal, (float) roughness, &direction);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_environment_processor_importance_sample_ggx", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "ggx sample");
+  if (!set_vector3_fields(env, output, &direction)) return throw_napi(env, "ggx sample");
+  return output;
+}
+
+static napi_value environment_processor_face_direction(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  int32_t face = 0;
+  double u = 0, v = 0;
+  CNA_Vector3 direction = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      napi_get_value_int32(env, args[0], &face) != napi_ok ||
+      napi_get_value_double(env, args[1], &u) != napi_ok ||
+      napi_get_value_double(env, args[2], &v) != napi_ok) {
+    return throw_message(env, "expected a face and two texel coordinates");
+  }
+  const CNA_Result result = g_api.environment_processor_face_direction(
+    face, (float) u, (float) v, &direction);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_environment_processor_face_direction", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "face direction");
+  if (!set_vector3_fields(env, output, &direction)) return throw_napi(env, "face direction");
+  return output;
+}
+
+static napi_value environment_processor_direction_to_equirectangular(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1], output;
+  CNA_Vector3 direction = {0, 0, 0};
+  float u = 0, v = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_vector3_fields(env, args[0], &direction)) {
+    return throw_message(env, "expected a direction with X, Y and Z");
+  }
+  const CNA_Result result =
+    g_api.environment_processor_direction_to_equirectangular(&direction, &u, &v);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_environment_processor_direction_to_equirectangular", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "panorama coordinate");
+  if (!set_number(env, output, "X", (double) u) || !set_number(env, output, "Y", (double) v)) {
+    return throw_napi(env, "panorama coordinate");
+  }
+  return output;
+}
+
+static napi_value render_pipeline_get_skybox(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle pipeline = 0, skybox = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pipeline)) return NULL;
+  const CNA_Result result = g_api.render_pipeline_get_skybox(pipeline, &skybox);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_pipeline_get_skybox", result);
+  }
+  return make_handle(env, skybox);
+}
+
+static napi_value render_pipeline_set_skybox(napi_env env, napi_callback_info info) {
+  return skybox_environment(env, info, g_api.render_pipeline_set_skybox,
+    "cna_render_pipeline_set_skybox");
+}
+
+
 static napi_value decal_pass_is_inside_decal_box(napi_env env, napi_callback_info info) {
   napi_value args[1], output;
   CNA_Vector3 point = {0, 0, 0};
@@ -20273,6 +20862,47 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "bakeLightProbe", NULL, light_probe_baker_bake_probe, NULL, NULL, NULL, napi_default, NULL },
     { "bakeLightProbeVolumeLight", NULL, light_probe_baker_bake_light, NULL, NULL, NULL, napi_default, NULL },
     { "bakeLightProbeVolumeVisibility", NULL, light_probe_baker_bake_visibility, NULL, NULL, NULL, napi_default, NULL },
+    { "createAtmosphericSky", NULL, atmospheric_sky_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyAtmosphericSky", NULL, atmospheric_sky_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "isAtmosphericSkySupported", NULL, atmospheric_sky_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "drawAtmosphericSky", NULL, atmospheric_sky_draw, NULL, NULL, NULL, napi_default, NULL },
+    { "getAtmosphericSkySunDirection", NULL, atmospheric_sky_get_sun_direction, NULL, NULL, NULL, napi_default, NULL },
+    { "setAtmosphericSkySunDirection", NULL, atmospheric_sky_set_sun_direction, NULL, NULL, NULL, napi_default, NULL },
+    { "getAtmosphericSkyTurbidity", NULL, atmospheric_sky_get_turbidity, NULL, NULL, NULL, napi_default, NULL },
+    { "setAtmosphericSkyTurbidity", NULL, atmospheric_sky_set_turbidity, NULL, NULL, NULL, napi_default, NULL },
+    { "getAtmosphericSkyIntensity", NULL, atmospheric_sky_get_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "setAtmosphericSkyIntensity", NULL, atmospheric_sky_set_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "getAtmosphericSkyModelGlsl", NULL, atmospheric_sky_model_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "atmosphericSkyRadiance", NULL, atmospheric_sky_radiance, NULL, NULL, NULL, napi_default, NULL },
+    { "createSkybox", NULL, skybox_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroySkybox", NULL, skybox_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "isSkyboxSupported", NULL, skybox_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "drawSkybox", NULL, skybox_draw, NULL, NULL, NULL, napi_default, NULL },
+    { "getSkyboxEnvironment", NULL, skybox_get_environment, NULL, NULL, NULL, napi_default, NULL },
+    { "setSkyboxEnvironment", NULL, skybox_set_environment, NULL, NULL, NULL, napi_default, NULL },
+    { "setSkyboxOwnedEnvironment", NULL, skybox_set_owned_environment, NULL, NULL, NULL, napi_default, NULL },
+    { "getSkyboxYaw", NULL, skybox_get_yaw, NULL, NULL, NULL, napi_default, NULL },
+    { "setSkyboxYaw", NULL, skybox_set_yaw, NULL, NULL, NULL, napi_default, NULL },
+    { "getSkyboxIntensity", NULL, skybox_get_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "setSkyboxIntensity", NULL, skybox_set_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "getSkyboxTint", NULL, skybox_get_tint, NULL, NULL, NULL, napi_default, NULL },
+    { "setSkyboxTint", NULL, skybox_set_tint, NULL, NULL, NULL, napi_default, NULL },
+    { "computeSkyboxViewRay", NULL, skybox_compute_view_ray, NULL, NULL, NULL, napi_default, NULL },
+    { "createEnvironmentProcessor", NULL, environment_processor_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyEnvironmentProcessor", NULL, environment_processor_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "convertEquirectangular", NULL, environment_processor_convert_equirectangular, NULL, NULL, NULL, napi_default, NULL },
+    { "generateIrradianceCube", NULL, environment_processor_generate_irradiance, NULL, NULL, NULL, napi_default, NULL },
+    { "generatePrefilteredSpecular", NULL, environment_processor_generate_prefiltered_specular, NULL, NULL, NULL, napi_default, NULL },
+    { "generateProbeFromEnvironment", NULL, environment_processor_generate_probe, NULL, NULL, NULL, napi_default, NULL },
+    { "generateBrdfLut", NULL, environment_processor_generate_brdf_lut, NULL, NULL, NULL, napi_default, NULL },
+    { "mipForRoughness", NULL, environment_processor_mip_for_roughness, NULL, NULL, NULL, napi_default, NULL },
+    { "roughnessForMip", NULL, environment_processor_roughness_for_mip, NULL, NULL, NULL, napi_default, NULL },
+    { "hammersleyPoint", NULL, environment_processor_hammersley, NULL, NULL, NULL, napi_default, NULL },
+    { "importanceSampleGgx", NULL, environment_processor_importance_sample_ggx, NULL, NULL, NULL, napi_default, NULL },
+    { "cubeFaceDirection", NULL, environment_processor_face_direction, NULL, NULL, NULL, napi_default, NULL },
+    { "directionToEquirectangular", NULL, environment_processor_direction_to_equirectangular, NULL, NULL, NULL, napi_default, NULL },
+    { "getRenderPipelineSkybox", NULL, render_pipeline_get_skybox, NULL, NULL, NULL, napi_default, NULL },
+    { "setRenderPipelineSkybox", NULL, render_pipeline_set_skybox, NULL, NULL, NULL, napi_default, NULL },
     { "supportsGraphicsCapability", NULL, graphics_device_supports_capability, NULL, NULL, NULL, napi_default, NULL },
     { "createStandaloneGraphicsDevice", NULL, create_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },
     { "destroyStandaloneGraphicsDevice", NULL, destroy_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },

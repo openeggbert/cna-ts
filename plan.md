@@ -391,8 +391,22 @@ Electron, or mobile support.
   two-cell volume lit only for the cell the callback recognises leaves the other carrying nothing.
   Visibility records exactly the fraction of the far plane its byte encodes. Twenty-two planted
   binding defects fail and none survives.
-- [ ] Atmospheric rendering is measured and unprojected: the analytic sky, the skybox, and the
-  environment processor that feeds it.
+- [x] **Atmospheric rendering**, and it is the strongest acceptance in this package. CNA ships the
+  scattering model twice — once as the GLSL its sky shader runs, once as a CPU route that needs no
+  device — and ships a third route saying which way a screen point looks. So every texel of a drawn
+  sky has a prediction assembled from two routes that never touch the GPU: six skies of 1024 texels
+  each agree with it to within one part in 255 everywhere, most of them bit-identical. Around that:
+  a sun below the horizon is ten times darker, a sun inside the frustum makes that half the bright
+  one while a sun overhead lights both halves to within two per cent, halving the intensity halves
+  every unclipped texel, and a turbidity change moves the picture the same way and by the same
+  amount as it moves the model — asserted rather than guessed, because near the horizon aerosol both
+  adds scattered light and takes sunlight away. The captured sky is checked without assuming a
+  cube-map convention: six flat faces down six axes give six colours, and a right angle about the up
+  axis moves exactly the four equatorial ones. Its arithmetic half — the ramp, the Hammersley
+  sequence, GGX sampling, the face and panorama mappings, and the yaw as a rotation rather than an
+  angle — is checked against its own definitions on HEADLESS. Twenty-three planted defects fail and
+  none survives. Two ownership traps came out of it, both by writing the binding to the header and
+  measuring what happened: `docs/upstream-cna-findings.md` item 15.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -574,7 +588,7 @@ Electron, or mobile support.
 
 ## Upstream CNA blockers
 
-Four runtime defects and two build-system gaps remain, all in `cnanext`, all measured here and none
+Five runtime defects and two build-system gaps remain, all in `cnanext`, all measured here and none
 fixed from this session. `docs/upstream-cna-findings.md` records each with its reproduction and a
 proposed change, and each has a test in this package that fails when the behaviour changes.
 
@@ -585,7 +599,10 @@ part in 255 where its own source claims one part in 2^24 — measured with a swe
 rather than guessed by a 256-level control that restores the exact accuracy (item 13). And three
 depth/normal prepass routes answer `INTERNAL` where their header documents `INVALID_STATE`, because
 `std::logic_error` is not translated where CNA's own render pipeline translates it in the same
-source file (item 14).
+source file (item 14). The fifth came out of the atmosphere: two getters document the same
+counted-borrow contract and only one of them keeps it, so a caller who follows the header either
+leaks a handle that makes the game undestroyable or destroys their own skybox, depending which
+route they read (item 15).
 
 The runtime one: `cna_post_process_chain_add_owned_pass` consumes a pass handle without the
 `RemoveOwnedGraphicsResourceFor` its sibling `_destroy` performs, so the game's

@@ -1386,6 +1386,265 @@ class WindowedProbeGame extends Game {
       }
     });
 
+    // --- the atmosphere: a drawn sky against the model that drew it -------------------------------
+    //
+    // The strongest form this file can take. CNA ships the scattering model twice -- once as the
+    // GLSL the sky's shader runs, and once as `cna_atmospheric_sky_radiance`, evaluated on the CPU
+    // without a device -- and it ships a third route, `cna_skybox_compute_view_ray`, that says which
+    // way a screen point looks. So every texel of a rendered sky has a prediction assembled from two
+    // CNA routes that never touch the GPU, and the picture either agrees with it or does not.
+    record("atmosphere", () => {
+      const {
+        AtmosphericSky, AtmosphericSkyMath, EnvironmentProcessor, IsGraphicsExtensionLayerAvailable,
+        RenderPipeline, Skybox,
+      } = computeModule;
+      const SIZE = 32;
+      const owned = [];
+      try {
+        let sky;
+        try {
+          sky = new AtmosphericSky(device);
+        } catch (error) {
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(sky);
+        const result = { size: SIZE, supported: sky.IsSupported };
+        if (!result.supported) return result;
+
+        const target = new Graphics.RenderTarget2D(device, SIZE, SIZE);
+        owned.push(target);
+        const pixels = new Array(SIZE * SIZE);
+        // A camera looking along -Z with a square 90-degree frustum, so a device coordinate is a
+        // tangent offset and the sky fills the target from horizon to well above it.
+        const view = Matrix.CreateLookAt(Vector3.Zero, new Vector3(0, 0, -1), Vector3.Up);
+        const projection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 2, 1, 0.1, 100);
+        result.view = matrixRow(view);
+        result.projection = matrixRow(projection);
+        const drawSky = () => {
+          device.SetRenderTarget(target);
+          try {
+            device.Clear(new Color(0, 0, 0, 255));
+            sky.Draw(view, projection, SIZE, SIZE);
+          } finally {
+            device.SetRenderTarget(null);
+          }
+          target.GetData(pixels);
+          return pixels.map((texel) => [texel.R, texel.G, texel.B, texel.A]);
+        };
+        // The prediction, from the two routes that never touch the GPU: which way each texel looks,
+        // and what the model says arrives from there.
+        const predictSky = (sunDirection, turbidity, intensity) => {
+          const predicted = new Array(SIZE * SIZE);
+          for (let y = 0; y < SIZE; y += 1) {
+            for (let x = 0; x < SIZE; x += 1) {
+              const ndcX = ((x + 0.5) / SIZE) * 2 - 1;
+              const ndcY = ((y + 0.5) / SIZE) * 2 - 1;
+              const ray = AtmosphericSkyMath.ViewRay(view, projection, ndcX, ndcY, 0);
+              const radiance = AtmosphericSkyMath.Radiance(ray, sunDirection, turbidity);
+              predicted[y * SIZE + x] = [radiance.X, radiance.Y, radiance.Z].map(
+                (channel) => Math.round(Math.min(Math.max(channel * intensity, 0), 1) * 255),
+              );
+            }
+          }
+          return predicted;
+        };
+
+        const NOON = new Vector3(0, -1, 0);
+        // Light travelling down and to the left, so the sun itself is up and to the right --
+        // inside this camera's 90-degree frustum rather than off the edge of it, which is what
+        // makes the two halves of the picture different.
+        const LOW_EAST = new Vector3(-0.6, -0.2, 0.8);
+        const MIDNIGHT = new Vector3(0, 1, 0);
+        // The last two are deliberately dim: at full intensity a turbid sky saturates the target,
+        // and a clipped picture cannot show that haze brightens it. These two do not clip, so the
+        // comparison between them is about the model rather than about the eight bits.
+        const cases = [
+          ["noon", NOON, 3, 1],
+          ["lowSun", LOW_EAST, 1, 0.2],
+          ["halfDim", NOON, 1, 0.1],
+          ["night", MIDNIGHT, 3, 1],
+          ["clearDim", NOON, 1, 0.2],
+          ["hazyDim", NOON, 8, 0.2],
+        ];
+        result.cases = {};
+        for (const [name, sunDirection, turbidity, intensity] of cases) {
+          sky.SunDirection = sunDirection;
+          sky.Turbidity = turbidity;
+          sky.Intensity = intensity;
+          result.cases[name] = {
+            sun: [sky.SunDirection.X, sky.SunDirection.Y, sky.SunDirection.Z],
+            turbidity: sky.Turbidity,
+            intensity: sky.Intensity,
+            drawn: drawSky(),
+            predicted: predictSky(sunDirection, turbidity, intensity),
+          };
+        }
+        sky.SunDirection = NOON;
+        sky.Turbidity = 3;
+        sky.Intensity = 1;
+
+        // --- the captured sky ------------------------------------------------------------------
+        //
+        // Six faces, six flat colours, six cameras. Which cube-map convention CNA uses is not
+        // assumed: what the test asserts is that the six directions produce six *different* flat
+        // colours, each one of the six that were uploaded -- a bijection -- and that turning the sky
+        // through a right angle moves one face's colour to where another's was.
+        const FACE_COLOURS = [
+          new Color(200, 20, 20, 255), new Color(20, 200, 20, 255), new Color(20, 20, 200, 255),
+          new Color(200, 200, 20, 255), new Color(200, 20, 200, 255), new Color(20, 200, 200, 255),
+        ];
+        const environment = new Graphics.TextureCube(device, 4, false, Graphics.SurfaceFormat.Color);
+        owned.push(environment);
+        for (const [face, colour] of FACE_COLOURS.entries()) {
+          environment.SetData(face, new Array(16).fill(colour));
+        }
+        const skybox = new Skybox(device, environment);
+        owned.push(skybox);
+        result.skybox = {
+          supported: skybox.IsSupported,
+          hasEnvironment: skybox.HasEnvironment,
+          faceColours: FACE_COLOURS.map((colour) => colour.PackedValue),
+        };
+        if (result.skybox.supported) {
+          const AXES = [
+            [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1],
+          ];
+          const drawSkybox = (forward) => {
+            const up = Math.abs(forward[1]) > 0.5 ? new Vector3(0, 0, 1) : Vector3.Up;
+            const axisView = Matrix.CreateLookAt(Vector3.Zero, new Vector3(...forward), up);
+            device.SetRenderTarget(target);
+            try {
+              device.Clear(new Color(0, 0, 0, 255));
+              skybox.Draw(axisView, projection, SIZE, SIZE);
+            } finally {
+              device.SetRenderTarget(null);
+            }
+            target.GetData(pixels);
+            // The middle of the picture. A ninety-degree frustum reaches past a cube face's own
+            // forty-five degrees at the corners, so the edges of the image genuinely look at
+            // neighbouring faces -- the middle quarter is the part that is all one face, and it is
+            // what says the camera is looking at a flat face rather than across a seam.
+            const centre = pixels[SIZE * (SIZE / 2) + SIZE / 2];
+            const middle = new Set();
+            for (let y = SIZE / 2 - 4; y < SIZE / 2 + 4; y += 1) {
+              for (let x = SIZE / 2 - 4; x < SIZE / 2 + 4; x += 1) {
+                middle.add(pixels[y * SIZE + x].PackedValue);
+              }
+            }
+            return {
+              centre: centre.PackedValue,
+              middleColours: middle.size,
+              distinctColours: new Set(pixels.map((texel) => texel.PackedValue)).size,
+            };
+          };
+          result.skybox.axes = AXES.map(drawSkybox);
+          // Turned a right angle about the up axis, so what was ahead is now to one side.
+          skybox.Yaw = Math.PI / 2;
+          result.skybox.turned = AXES.map(drawSkybox);
+          skybox.Yaw = 0;
+          // Intensity and tint multiply what was sampled, which is arithmetic on a flat face.
+          skybox.Intensity = 0.5;
+          result.skybox.dimmed = drawSkybox([0, 0, -1]);
+          skybox.Intensity = 1;
+          skybox.Tint = new Vector3(1, 0, 0);
+          result.skybox.tinted = drawSkybox([0, 0, -1]);
+          skybox.Tint = new Vector3(1, 1, 1);
+          // With no environment there is nothing to sample, so the target keeps its clear.
+          skybox.SetEnvironment(null);
+          result.skybox.detached = drawSkybox([0, 0, -1]);
+          result.skybox.detachedHasEnvironment = skybox.HasEnvironment;
+          skybox.SetEnvironment(environment);
+          result.skybox.reattached = drawSkybox([0, 0, -1]);
+        }
+
+        // --- the owned transfer, which consumes the caller's cube map ---------------------------
+        const processor = new EnvironmentProcessor(device);
+        owned.push(processor);
+        const panorama = new Graphics.Texture2D(device, 8, 4);
+        owned.push(panorama);
+        panorama.SetData(Array.from(
+          { length: 32 }, (_, index) => new Color(index * 8, 255 - index * 8, 128, 255),
+        ));
+        const generated = processor.ConvertEquirectangular(panorama, 8);
+        result.generated = { size: generated.Size, levels: generated.LevelCount };
+        const owning = new Skybox(device);
+        owned.push(owning);
+        owning.SetOwnedEnvironment(generated);
+        result.transfer = {
+          hasEnvironment: owning.HasEnvironment,
+          // The wrapper handed over owns nothing now: using it again would be a use after free and
+          // disposing it a double one, so it refuses both by name.
+          cubeRefusesUse: (() => {
+            try {
+              generated.SetData(0, new Array(64).fill(Color.White));
+              return "ACCEPTED";
+            } catch (error) {
+              return error.constructor.name;
+            }
+          })(),
+          cubeDisposeIsSafe: (() => {
+            try {
+              generated.Dispose();
+              return "ACCEPTED";
+            } catch (error) {
+              return error.constructor.name;
+            }
+          })(),
+        };
+
+        // --- and the pipeline's own borrow --------------------------------------------------------
+        result.pipeline = (() => {
+          const pipeline = new RenderPipeline(device);
+          owned.push(pipeline);
+          const before = pipeline.Skybox;
+          pipeline.Skybox = skybox;
+          const after = pipeline.Skybox;
+          pipeline.Skybox = null;
+          return {
+            beforeIsNull: before === null,
+            // The same object back, not a wrapper around a fresh borrow.
+            sameObject: after === skybox,
+            clearedIsNull: pipeline.Skybox === null,
+          };
+        })();
+
+        const refusal = (body) => {
+          try {
+            body();
+            return "ACCEPTED";
+          } catch (error) {
+            return error.cnaResult ?? error.constructor.name;
+          }
+        };
+        result.refusals = {
+          zeroWidth: refusal(() => sky.Draw(view, projection, 0, SIZE)),
+          zeroHeight: refusal(() => skybox.Draw(view, projection, SIZE, 0)),
+          disposedSky: refusal(() => {
+            const spare = new AtmosphericSky(device);
+            spare.Dispose();
+            spare.Draw(view, projection, SIZE, SIZE);
+          }),
+        };
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch (error) {
+            // A cleanup failure must not replace the failure that matters, but it is recorded:
+            // a resource that will not release is exactly what leaves a game undestroyable.
+            (this.evidence.atmosphereCleanup ??= []).push(
+              `${error.constructor.name}: ${(error.message ?? "").slice(0, 90)}`,
+            );
+          }
+        }
+      }
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -2843,6 +3102,333 @@ test("a windowed CNA renderer bakes a light probe out of the scene it drew", { s
     `PLUS_X=${first.irradiance[0][0].toFixed(4)} MINUS_X=${first.irradiance[1][0].toFixed(4)} ` +
     `ISOTROPIC=${evidence.allBright.irradiance[0][0].toFixed(4)} ` +
     `VOLUME_FACES=${volume.faceDraws} VISIBILITY=${visibility.recorded[0].means[0].toFixed(3)}`,
+  );
+});
+
+test("a windowed CNA renderer draws the sky its own model predicts", { skip }, async () => {
+  const game = new WindowedProbeGame(2);
+  try {
+    await game.Run();
+  } finally {
+    game.Dispose();
+  }
+  const evidence = game.evidence.atmosphere;
+  assert.equal(typeof evidence, "object", `the atmosphere probe did not run: ${evidence}`);
+  assert.equal(
+    game.evidence.atmosphereCleanup, undefined,
+    `every atmosphere resource released: ${JSON.stringify(game.evidence.atmosphereCleanup)}`,
+  );
+
+  if (evidence.layerAbsent) {
+    assert.equal(evidence.extensionLayer, false, "a refused create must mean the layer is absent");
+    assert.equal(evidence.cnaResult, CnaResult.NotSupported);
+    console.log("CNA_TS_WINDOWED_ATMOSPHERE=LAYER_ABSENT");
+    return;
+  }
+  if (!evidence.supported) {
+    console.log("CNA_TS_WINDOWED_ATMOSPHERE=SKY_UNSUPPORTED");
+    return;
+  }
+
+  /*
+   * The acceptance: every texel of a drawn sky, against a prediction assembled from two CNA routes
+   * that never touch the GPU.
+   *
+   * `cna_skybox_compute_view_ray` says which way each screen point looks, and
+   * `cna_atmospheric_sky_radiance` is the same scattering model the shader runs, evaluated on the
+   * CPU. So the shader and the model are two implementations of one formula, joined by a third
+   * route, and this compares them a thousand texels at a time. A sky that ignored the sun, the
+   * turbidity, the intensity or the camera cannot agree with it.
+   */
+  const SIZE = evidence.size;
+  const summarise = (name) => {
+    const { drawn, predicted } = evidence.cases[name];
+    let exact = 0;
+    let worst = 0;
+    let worstAt = -1;
+    for (let index = 0; index < drawn.length; index += 1) {
+      let difference = 0;
+      for (const channel of [0, 1, 2]) {
+        difference = Math.max(difference, Math.abs(drawn[index][channel] - predicted[index][channel]));
+      }
+      if (difference === 0) exact += 1;
+      if (difference > worst) {
+        worst = difference;
+        worstAt = index;
+      }
+      assert.equal(drawn[index][3], 255, `every sky texel is opaque (texel ${index})`);
+    }
+    return { exact, worst, worstAt, total: drawn.length };
+  };
+  const agreement = {};
+  for (const name of Object.keys(evidence.cases)) {
+    const summary = summarise(name);
+    agreement[name] = summary;
+    assert.equal(summary.total, SIZE * SIZE);
+    assert.ok(
+      summary.worst <= 1,
+      `${name}: the drawn sky and the model disagree by ${summary.worst} at texel ` +
+      `${summary.worstAt} — drawn ${evidence.cases[name].drawn[summary.worstAt]} against ` +
+      `predicted ${evidence.cases[name].predicted[summary.worstAt]}`,
+    );
+    /*
+     * The claim that matters is the one above: nowhere in the picture do the shader and the model
+     * differ by more than one part in 255, which is the resolution the target has. Most texels are
+     * bit-identical on top of that, and the fraction is asserted with room for the last bit of a
+     * float32 evaluation on the CPU meeting a highp one on the GPU -- the two are different
+     * machines running the same formula, not the same machine twice.
+     */
+    assert.ok(
+      summary.exact / summary.total > 0.75,
+      `${name}: only ${summary.exact} of ${summary.total} texels are bit-identical`,
+    );
+  }
+
+  /*
+   * And the picture is a sky rather than a flat fill, which is what makes the agreement above worth
+   * anything: a shader that answered one constant would match a model that also answered one.
+   */
+  const channelOf = (texel) => texel[2];
+  const rowMean = (drawn, row) => {
+    let total = 0;
+    for (let x = 0; x < SIZE; x += 1) total += channelOf(drawn[row * SIZE + x]);
+    return total / SIZE;
+  };
+  const noon = evidence.cases.noon.drawn;
+  assert.ok(
+    new Set(noon.map((texel) => texel.join(","))).size > 50,
+    "a drawn sky is a gradient rather than a flat fill",
+  );
+  // The camera looks at the horizon, so the bottom of the picture is nearer it and the top is
+  // nearer the zenith -- and a horizontal ray passes through more air, so it is the brighter half.
+  const topRows = (rowMean(noon, 0) + rowMean(noon, 1)) / 2;
+  const bottomRows = (rowMean(noon, SIZE - 1) + rowMean(noon, SIZE - 2)) / 2;
+  assert.ok(
+    Math.abs(topRows - bottomRows) > 20,
+    `the sky is graded from one edge to the other: ${topRows} against ${bottomRows}`,
+  );
+
+  // Night. The sun below the horizon leaves the whole picture an order of magnitude darker, and it
+  // is the model that says so as well as the shader.
+  const meanOf = (drawn) =>
+    drawn.reduce((total, texel) => total + texel[0] + texel[1] + texel[2], 0) / drawn.length;
+  assert.ok(
+    meanOf(evidence.cases.noon.drawn) > meanOf(evidence.cases.night.drawn) * 10,
+    `a sun below the horizon is far darker: ${meanOf(evidence.cases.noon.drawn)} against ` +
+    meanOf(evidence.cases.night.drawn),
+  );
+  /*
+   * Haze, on the pair drawn dim enough that neither saturates: more aerosol scatters more light
+   * into the eye, and Mie's scattering has no wavelength dependence at all -- which is why haze is
+   * white and why the same picture loses its colour as it gains its brightness.
+   */
+  const clear = evidence.cases.clearDim.drawn;
+  const hazy = evidence.cases.hazyDim.drawn;
+  const saturated = (drawn) =>
+    drawn.filter((texel) => texel[0] === 255 || texel[1] === 255 || texel[2] === 255).length;
+  assert.equal(saturated(clear) + saturated(hazy), 0, "neither dim picture clips");
+  const colourfulness = (drawn) => {
+    const at = (channel) => drawn.reduce((total, texel) => total + texel[channel], 0) / drawn.length;
+    return at(2) / Math.max(at(0), 1);
+  };
+  /*
+   * Aerosol changes the sky, and near the horizon it changes it in more than one direction at once:
+   * the Mie term scatters more light into the eye, and the same term lengthens the path the
+   * sunlight crosses to get here, which takes light away. Which one wins depends on where the
+   * camera is pointing, and this test does not guess.
+   *
+   * What it asserts instead is the thing it is actually here to establish: that the **shader and
+   * the model agree** about both, in sign and in size. Two implementations of one formula, on two
+   * different machines, moving the same way when the turbidity changes -- and moving far enough
+   * that agreeing is not free.
+   */
+  const clearPredicted = evidence.cases.clearDim.predicted;
+  const hazyPredicted = evidence.cases.hazyDim.predicted;
+  for (const [what, measure] of [["brightness", meanOf], ["colour", colourfulness]]) {
+    const drawnChange = measure(hazy) - measure(clear);
+    const modelledChange = measure(hazyPredicted) - measure(clearPredicted);
+    assert.equal(
+      Math.sign(drawnChange), Math.sign(modelledChange),
+      `the drawn sky and the model must move the same way in ${what}: ` +
+      `${drawnChange} drawn against ${modelledChange} modelled`,
+    );
+    assert.ok(
+      Math.abs(drawnChange - modelledChange) < Math.abs(modelledChange) * 0.05 + 1,
+      `and by the same amount: ${drawnChange} against ${modelledChange}`,
+    );
+  }
+  assert.ok(
+    Math.abs(meanOf(hazy) - meanOf(clear)) > 20,
+    `and the turbidity really changed the picture: ${meanOf(hazy)} against ${meanOf(clear)}`,
+  );
+  assert.ok(
+    colourfulness(clear) > 1 && colourfulness(hazy) > 1,
+    `a scattering sky is blue rather than grey (${colourfulness(clear)}, ${colourfulness(hazy)})`,
+  );
+  // A low sun to one side makes one side of the picture the bright one, which a sun overhead does
+  // not: the two halves of the noon sky are the same and the two halves of this one are not.
+  const halves = (drawn) => {
+    let left = 0, right = 0;
+    for (let y = 0; y < SIZE; y += 1) {
+      for (let x = 0; x < SIZE; x += 1) {
+        const value = drawn[y * SIZE + x].slice(0, 3).reduce((total, c) => total + c, 0);
+        if (x < SIZE / 2) left += value;
+        else right += value;
+      }
+    }
+    return [left, right];
+  };
+  const [overheadLeft, overheadRight] = halves(evidence.cases.clearDim.drawn);
+  const [lowLeft, lowRight] = halves(evidence.cases.lowSun.drawn);
+  assert.ok(
+    Math.abs(overheadLeft - overheadRight) / overheadLeft < 0.02,
+    `a sun overhead lights both halves of the picture equally: ${overheadLeft} against ` +
+    overheadRight,
+  );
+  assert.ok(
+    lowRight > lowLeft * 1.2,
+    `and a sun up to the right makes that half the bright one: ${lowLeft} against ${lowRight}`,
+  );
+  /*
+   * Intensity is a plain multiplier, and half of it is half of every texel -- checked across the
+   * whole picture rather than at three points, and between two exposures that both stay clear of
+   * the target's ceiling, because a clipped texel is not evidence of anything.
+   */
+  {
+    const bright = evidence.cases.clearDim.drawn;
+    const half = evidence.cases.halfDim.drawn;
+    const ratio = evidence.cases.halfDim.intensity / evidence.cases.clearDim.intensity;
+    let compared = 0;
+    for (let index = 0; index < bright.length; index += 1) {
+      for (const channel of [0, 1, 2]) {
+        const source = bright[index][channel];
+        if (source < 20 || source > 250) continue;
+        compared += 1;
+        assert.ok(
+          Math.abs(half[index][channel] - source * ratio) <= 2,
+          `halving the intensity halves the texel: ${half[index][channel]} against ` +
+          `${source * ratio} at texel ${index} channel ${channel}`,
+        );
+      }
+    }
+    assert.ok(compared > 1000, `and there were texels to compare (${compared})`);
+  }
+  // The setters that reached CNA are the ones the pictures were drawn with.
+  assert.deepEqual(evidence.cases.noon.sun, [0, -1, 0]);
+  assert.equal(evidence.cases.hazyDim.turbidity, 8);
+  assert.equal(evidence.cases.clearDim.turbidity, 1, "and a turbidity of one is clamped-in air");
+  // Read back through a float, so the tenth that went in comes back as the nearest one.
+  assert.ok(
+    Math.abs(evidence.cases.halfDim.intensity - 0.1) < 1e-7,
+    `the intensity CNA holds is the one that was set (${evidence.cases.halfDim.intensity})`,
+  );
+
+  /*
+   * The captured sky. Which cube-map convention CNA uses is not assumed: what is asserted is that
+   * the six axes produce six *different* flat colours, each one of the six uploaded -- a bijection
+   * -- and that turning the sky a right angle moves those colours between the axes.
+   */
+  const skybox = evidence.skybox;
+  assert.equal(skybox.hasEnvironment, true, "a skybox made with a cube map has one");
+  if (skybox.supported) {
+    const seen = skybox.axes.map((axis) => axis.centre);
+    for (const [index, axis] of skybox.axes.entries()) {
+      assert.ok(
+        skybox.faceColours.includes(axis.centre),
+        `axis ${index} shows one of the six face colours, not ${axis.centre}`,
+      );
+      assert.equal(
+        axis.middleColours, 1,
+        `axis ${index} looks straight at one flat face, so the middle of the picture is one colour`,
+      );
+      assert.ok(
+        axis.distinctColours > 1,
+        `and its edges reach past that face, because a 90-degree frustum is wider than one ` +
+        `(${axis.distinctColours} colours in all)`,
+      );
+    }
+    assert.equal(new Set(seen).size, 6, "the six axes show six different faces");
+    // Turning the sky a right angle about the up axis: the four faces around the equator move
+    // round, and the two poles stay where they are.
+    const turned = skybox.turned.map((axis) => axis.centre);
+    assert.equal(new Set(turned).size, 6, "and still six different faces after turning");
+    assert.notDeepEqual(turned, seen, "a right angle moves the sky");
+    const moved = turned.filter((colour, index) => colour !== seen[index]).length;
+    assert.equal(
+      moved, 4,
+      `a turn about the up axis moves the four equatorial faces and leaves the two poles (${moved})`,
+    );
+    // Intensity and tint multiply what was sampled, which is arithmetic on a flat face.
+    const unpack = (packed) => [
+      packed & 0xff, (packed >>> 8) & 0xff, (packed >>> 16) & 0xff,
+    ];
+    // Whichever face the last camera happened to look at; the arithmetic below is against that
+    // rather than against a face index this test decided on.
+    const facing = skybox.axes[5].centre;
+    const straightOn = unpack(facing);
+    const dimmed = unpack(skybox.dimmed.centre);
+    const tinted = unpack(skybox.tinted.centre);
+    for (const channel of [0, 1, 2]) {
+      assert.ok(
+        Math.abs(dimmed[channel] - straightOn[channel] * 0.5) <= 2,
+        `half intensity halves channel ${channel}: ${dimmed[channel]} against ` +
+        straightOn[channel] * 0.5,
+      );
+    }
+    assert.deepEqual(
+      [tinted[1], tinted[2]], [0, 0],
+      "a red tint leaves nothing of the other two channels",
+    );
+    assert.ok(
+      Math.abs(tinted[0] - straightOn[0]) <= 2, "and leaves the red one where it was",
+    );
+    // With no cube map there is nothing to sample, so the pass skips and the clear stands.
+    assert.equal(
+      skybox.detached.centre, new Color(0, 0, 0, 255).PackedValue,
+      "a skybox with no environment draws nothing rather than failing",
+    );
+    assert.equal(skybox.detachedHasEnvironment, false);
+    assert.equal(
+      skybox.reattached.centre, facing, "and attaching it again brings the same sky back",
+    );
+  }
+
+  /*
+   * The owned transfer, which is the one route in this family that consumes a handle the caller
+   * still holds. After it the wrapper owns nothing: using it is a use after free and disposing it
+   * would be a double one, so it refuses the first and makes the second harmless.
+   */
+  assert.deepEqual(
+    evidence.generated, [evidence.generated.size, evidence.generated.levels].length === 2
+      ? { size: 8, levels: 1 } : evidence.generated,
+    "the processor produced the cube map at the face size asked for",
+  );
+  assert.equal(evidence.transfer.hasEnvironment, true, "the skybox took the cube map");
+  assert.match(
+    evidence.transfer.cubeRefusesUse, /Exception|Error/,
+    `the handed-over wrapper refuses further use: ${evidence.transfer.cubeRefusesUse}`,
+  );
+  assert.equal(
+    evidence.transfer.cubeDisposeIsSafe, "ACCEPTED",
+    "and disposing it is harmless rather than a second release",
+  );
+
+  // The pipeline borrows a skybox and gives back the object that was set.
+  assert.deepEqual(
+    evidence.pipeline, { beforeIsNull: true, sameObject: true, clearedIsNull: true },
+    "a pipeline with no sky has none, takes one, gives back the same object, and lets it go",
+  );
+
+  assert.equal(evidence.refusals.zeroWidth, "RangeError");
+  assert.equal(evidence.refusals.zeroHeight, "RangeError");
+  assert.equal(evidence.refusals.disposedSky, "NativeUnavailableError");
+
+  console.log(
+    `CNA_TS_WINDOWED_ATMOSPHERE=OK TEXELS=${SIZE * SIZE} ` +
+    Object.entries(agreement)
+      .map(([name, summary]) => `${name}=${summary.exact}/${summary.total}`)
+      .join(" ") +
+    ` SKYBOX=${skybox.supported ? "6_FACES" : "UNSUPPORTED"}`,
   );
 });
 

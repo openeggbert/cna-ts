@@ -28,6 +28,7 @@ import type {
   CameraInventorySnapshot,
   ClusterBoundsSnapshot,
   ClusteredLightSnapshot,
+  CnaAtmosphereBackend,
   CnaAudioBackend,
   CnaBackend,
   CnaClusteredLightingBackend,
@@ -1529,6 +1530,166 @@ export abstract class CnaLightProbeBackendBase implements CnaLightProbeBackend {
     _volume: NativeHandle,
     _draw: SceneFaceDraw,
   ): number { return this.unsupported("bakeLightProbeVolumeVisibility"); }
+}
+
+/** Refusing base for {@link CnaAtmosphereBackend}. */
+export abstract class CnaAtmosphereBackendBase implements CnaAtmosphereBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createAtmosphericSky(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createAtmosphericSky"); }
+  public destroyAtmosphericSky(_sky: NativeHandle): void { return this.unsupported("destroyAtmosphericSky"); }
+  public isAtmosphericSkySupported(
+    _sky: NativeHandle,
+  ): boolean { return this.unsupported("isAtmosphericSkySupported"); }
+  public drawAtmosphericSky(
+    _sky: NativeHandle,
+    _view: readonly number[],
+    _projection: readonly number[],
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("drawAtmosphericSky"); }
+  public getAtmosphericSkySunDirection(
+    _sky: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getAtmosphericSkySunDirection"); }
+  public setAtmosphericSkySunDirection(
+    _sky: NativeHandle,
+    _direction: Vector3Snapshot,
+  ): void { return this.unsupported("setAtmosphericSkySunDirection"); }
+  public getAtmosphericSkyTurbidity(
+    _sky: NativeHandle,
+  ): number { return this.unsupported("getAtmosphericSkyTurbidity"); }
+  public setAtmosphericSkyTurbidity(
+    _sky: NativeHandle,
+    _turbidity: number,
+  ): void { return this.unsupported("setAtmosphericSkyTurbidity"); }
+  public getAtmosphericSkyIntensity(
+    _sky: NativeHandle,
+  ): number { return this.unsupported("getAtmosphericSkyIntensity"); }
+  public setAtmosphericSkyIntensity(
+    _sky: NativeHandle,
+    _intensity: number,
+  ): void { return this.unsupported("setAtmosphericSkyIntensity"); }
+  public getAtmosphericSkyModelGlsl(): string { return this.unsupported("getAtmosphericSkyModelGlsl"); }
+  public atmosphericSkyRadiance(
+    _viewDirection: Vector3Snapshot,
+    _sunDirection: Vector3Snapshot,
+    _turbidity: number,
+  ): Vector3Snapshot { return this.unsupported("atmosphericSkyRadiance"); }
+  public createSkybox(
+    _device: NativeHandle,
+    _environment: NativeHandle,
+  ): NativeHandle { return this.unsupported("createSkybox"); }
+  public destroySkybox(_skybox: NativeHandle): void { return this.unsupported("destroySkybox"); }
+  public isSkyboxSupported(_skybox: NativeHandle): boolean { return this.unsupported("isSkyboxSupported"); }
+  public drawSkybox(
+    _skybox: NativeHandle,
+    _view: readonly number[],
+    _projection: readonly number[],
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("drawSkybox"); }
+  public getSkyboxEnvironment(
+    _skybox: NativeHandle,
+  ): NativeHandle { return this.unsupported("getSkyboxEnvironment"); }
+  public setSkyboxEnvironment(
+    _skybox: NativeHandle,
+    _environment: NativeHandle,
+  ): void { return this.unsupported("setSkyboxEnvironment"); }
+  public setSkyboxOwnedEnvironment(
+    _skybox: NativeHandle,
+    _environment: NativeHandle,
+  ): void { return this.unsupported("setSkyboxOwnedEnvironment"); }
+  public getSkyboxYaw(_skybox: NativeHandle): number { return this.unsupported("getSkyboxYaw"); }
+  public setSkyboxYaw(
+    _skybox: NativeHandle,
+    _radians: number,
+  ): void { return this.unsupported("setSkyboxYaw"); }
+  public getSkyboxIntensity(_skybox: NativeHandle): number { return this.unsupported("getSkyboxIntensity"); }
+  public setSkyboxIntensity(
+    _skybox: NativeHandle,
+    _intensity: number,
+  ): void { return this.unsupported("setSkyboxIntensity"); }
+  public getSkyboxTint(_skybox: NativeHandle): Vector3Snapshot { return this.unsupported("getSkyboxTint"); }
+  public setSkyboxTint(
+    _skybox: NativeHandle,
+    _tint: Vector3Snapshot,
+  ): void { return this.unsupported("setSkyboxTint"); }
+  public computeSkyboxViewRay(
+    _view: readonly number[],
+    _projection: readonly number[],
+    _ndcX: number,
+    _ndcY: number,
+    _yaw: number,
+  ): Vector3Snapshot { return this.unsupported("computeSkyboxViewRay"); }
+  public createEnvironmentProcessor(
+    _device: NativeHandle,
+  ): NativeHandle { return this.unsupported("createEnvironmentProcessor"); }
+  public destroyEnvironmentProcessor(
+    _processor: NativeHandle,
+  ): void { return this.unsupported("destroyEnvironmentProcessor"); }
+  public convertEquirectangular(
+    _processor: NativeHandle,
+    _panorama: NativeHandle,
+    _faceSize: number,
+  ): NativeHandle { return this.unsupported("convertEquirectangular"); }
+  public generateIrradianceCube(
+    _processor: NativeHandle,
+    _environment: NativeHandle,
+    _size: number,
+    _sampleCount: number,
+  ): NativeHandle { return this.unsupported("generateIrradianceCube"); }
+  public generatePrefilteredSpecular(
+    _processor: NativeHandle,
+    _environment: NativeHandle,
+    _baseSize: number,
+    _mipCount: number,
+    _sampleCount: number,
+  ): NativeHandle { return this.unsupported("generatePrefilteredSpecular"); }
+  public generateProbeFromEnvironment(
+    _processor: NativeHandle,
+    _environment: NativeHandle,
+    _position: Vector3Snapshot,
+  ): NativeHandle { return this.unsupported("generateProbeFromEnvironment"); }
+  public generateBrdfLut(
+    _processor: NativeHandle,
+    _size: number,
+    _sampleCount: number,
+  ): NativeHandle { return this.unsupported("generateBrdfLut"); }
+  public mipForRoughness(
+    _roughness: number,
+    _mipCount: number,
+  ): number { return this.unsupported("mipForRoughness"); }
+  public roughnessForMip(
+    _mip: number,
+    _mipCount: number,
+  ): number { return this.unsupported("roughnessForMip"); }
+  public hammersleyPoint(
+    _index: number,
+    _count: number,
+  ): Vector2Snapshot { return this.unsupported("hammersleyPoint"); }
+  public importanceSampleGgx(
+    _x: number,
+    _y: number,
+    _normal: Vector3Snapshot,
+    _roughness: number,
+  ): Vector3Snapshot { return this.unsupported("importanceSampleGgx"); }
+  public cubeFaceDirection(
+    _face: number,
+    _u: number,
+    _v: number,
+  ): Vector3Snapshot { return this.unsupported("cubeFaceDirection"); }
+  public directionToEquirectangular(
+    _direction: Vector3Snapshot,
+  ): Vector2Snapshot { return this.unsupported("directionToEquirectangular"); }
+  public getRenderPipelineSkybox(
+    _pipeline: NativeHandle,
+  ): NativeHandle { return this.unsupported("getRenderPipelineSkybox"); }
+  public setRenderPipelineSkybox(
+    _pipeline: NativeHandle,
+    _skybox: NativeHandle,
+  ): void { return this.unsupported("setRenderPipelineSkybox"); }
 }
 
 /** Refusing base for {@link CnaDecalBackend}. */

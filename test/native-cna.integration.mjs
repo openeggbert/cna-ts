@@ -5331,6 +5331,557 @@ function matrixRowOf(matrix) {
 /** The inverse of the `vector` reader the probes above use. */
 function vectorOf([x, y, z]) { return new Vector3(x, y, z); }
 
+test("the atmosphere's model and its sampling sequence are exact where no renderer is needed", async () => {
+  const {
+    AtmosphericSky, AtmosphericSkyMath, EnvironmentProcessor, EnvironmentProcessorMath,
+    IsGraphicsExtensionLayerAvailable, Skybox,
+  } = computeExtensions;
+
+  /*
+   * Everything about the atmosphere that is arithmetic rather than rendering: the scattering model
+   * itself, the roughness ramp a prefiltered cube is indexed by, the low-discrepancy sequence the
+   * convolutions sample with, and the two mappings between a direction and a texture coordinate.
+   * None of it needs a renderer, and the windowed suite then checks that CNA's shader agrees with
+   * this same model texel for texel.
+   */
+  const game = new (class extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+    LoadContent() {
+      const device = this.GraphicsDevice;
+      const attempt = (body) => {
+        try {
+          const value = body();
+          return value === undefined ? "ACCEPTED" : value;
+        } catch (error) {
+          return `${error.constructor.name}(${error.cnaResult ?? "-"}): ${error.message}`;
+        }
+      };
+      const vector = (value) => [value.X, value.Y, value.Z];
+      const owned = [];
+      try {
+        const evidence = { extensionLayer: IsGraphicsExtensionLayerAvailable() };
+
+        // --- the scattering model -------------------------------------------------------------
+        const NOON = new Vector3(0, -1, 0);
+        const MIDNIGHT = new Vector3(0, 1, 0);
+        const radiance = (view, sun, turbidity) =>
+          vector(AtmosphericSkyMath.Radiance(view, sun, turbidity));
+        evidence.model = {
+          zenithAtNoon: radiance(new Vector3(0, 1, 0), NOON, 2),
+          horizonAtNoon: radiance(new Vector3(1, 0.02, 0), NOON, 2),
+          zenithAtMidnight: radiance(new Vector3(0, 1, 0), MIDNIGHT, 2),
+          clearest: radiance(new Vector3(0, 1, 0), NOON, 1),
+          hazy: radiance(new Vector3(0, 1, 0), NOON, 8),
+          // A view direction with no length falls back to straight up rather than refusing.
+          degenerate: radiance(new Vector3(0, 0, 0), NOON, 2),
+          zenith: radiance(new Vector3(0, 1, 0), NOON, 2),
+          // The same direction at a different length is the same direction.
+          longer: radiance(new Vector3(0, 7, 0), NOON, 2),
+          glsl: AtmosphericSkyMath.ModelGlsl,
+        };
+
+        // --- the ray a screen point looks along, and what a yaw does to it ---------------------
+        //
+        // A pure route needing no sky. Only the view's rotation is used, and the yaw turns the whole
+        // sky about the up axis -- so the same screen point under a quarter turn has to look a
+        // quarter turn round, which is a rotation this test performs itself.
+        const rayView = Matrix.CreateLookAt(Vector3.Zero, new Vector3(0, 0, -1), Vector3.Up);
+        const rayProjection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 2, 1, 0.1, 100);
+        const rayAt = (ndcX, ndcY, yaw) =>
+          vector(AtmosphericSkyMath.ViewRay(rayView, rayProjection, ndcX, ndcY, yaw));
+        evidence.rays = {
+          centre: rayAt(0, 0, 0),
+          right: rayAt(1, 0, 0),
+          up: rayAt(0, 1, 0),
+          quarterTurn: rayAt(0, 0, Math.PI / 2),
+          halfTurn: rayAt(0, 0, Math.PI),
+          eighthTurn: rayAt(0.5, 0.25, Math.PI / 4),
+          eighthTurnUnturned: rayAt(0.5, 0.25, 0),
+        };
+
+        // --- the roughness ramp -----------------------------------------------------------------
+        const MIPS = 5;
+        evidence.ramp = {
+          mipFor: [0, 0.25, 0.5, 0.75, 1].map(
+            (roughness) => EnvironmentProcessorMath.MipForRoughness(roughness, MIPS),
+          ),
+          roughnessFor: [0, 1, 2, 3, 4].map(
+            (mip) => EnvironmentProcessorMath.RoughnessForMip(mip, MIPS),
+          ),
+          // Answers rather than refuses: no ramp to index is mip zero, and a roughness outside the
+          // unit range is clamped into it.
+          noChain: EnvironmentProcessorMath.MipForRoughness(0.5, 1),
+          noChainZero: EnvironmentProcessorMath.MipForRoughness(0.5, 0),
+          aboveOne: EnvironmentProcessorMath.MipForRoughness(5, MIPS),
+          belowZero: EnvironmentProcessorMath.MipForRoughness(-5, MIPS),
+          roughnessAbove: EnvironmentProcessorMath.RoughnessForMip(99, MIPS),
+          roughnessBelow: EnvironmentProcessorMath.RoughnessForMip(-99, MIPS),
+        };
+
+        // --- the sampling sequence ---------------------------------------------------------------
+        const COUNT = 8;
+        evidence.hammersley = Array.from({ length: COUNT }, (_, index) => {
+          const point = EnvironmentProcessorMath.Hammersley(index, COUNT);
+          return [point.X, point.Y];
+        });
+        evidence.hammersleyCount = COUNT;
+        evidence.ggx = {
+          // A mirror scatters nowhere: at roughness zero the sampled direction is the normal.
+          mirror: vector(EnvironmentProcessorMath.ImportanceSampleGgx(
+            0.25, 0.5, new Vector3(0, 0, 1), 0)),
+          rough: vector(EnvironmentProcessorMath.ImportanceSampleGgx(
+            0.25, 0.5, new Vector3(0, 0, 1), 0.5)),
+          rougher: vector(EnvironmentProcessorMath.ImportanceSampleGgx(
+            0.25, 0.5, new Vector3(0, 0, 1), 1)),
+          // Around a different normal, the same sequence point stays in that normal's hemisphere.
+          tilted: vector(EnvironmentProcessorMath.ImportanceSampleGgx(
+            0.25, 0.5, new Vector3(0, 1, 0), 0.5)),
+        };
+
+        // --- directions and panorama coordinates -------------------------------------------------
+        evidence.faceCentres = [0, 1, 2, 3, 4, 5].map(
+          (face) => vector(EnvironmentProcessorMath.FaceDirection(face, 0.5, 0.5)),
+        );
+        evidence.faceCorners = [0, 4].map(
+          (face) => vector(EnvironmentProcessorMath.FaceDirection(face, 0, 0)),
+        );
+        const panorama = (x, y, z) => {
+          const point = EnvironmentProcessorMath.DirectionToEquirectangular(new Vector3(x, y, z));
+          return [point.X, point.Y];
+        };
+        evidence.panorama = {
+          plusX: panorama(1, 0, 0),
+          minusX: panorama(-1, 0, 0),
+          plusZ: panorama(0, 0, 1),
+          minusZ: panorama(0, 0, -1),
+          up: panorama(0, 1, 0),
+          down: panorama(0, -1, 0),
+          // Every cube face centre, mapped back, so the two routes have to agree about which way
+          // each axis points.
+          faceCentres: evidence.faceCentres.map(([x, y, z]) => panorama(x, y, z)),
+        };
+
+        // --- the two skies' setters, which behave three different ways ---------------------------
+        const sky = new AtmosphericSky(device);
+        owned.push(sky);
+        evidence.sky = {
+          supported: sky.IsSupported,
+          sun: vector(sky.SunDirection),
+          turbidity: sky.Turbidity,
+          intensity: sky.Intensity,
+        };
+        // Normalised on the way in, so what reads back is a unit vector rather than what was set.
+        sky.SunDirection = new Vector3(0, -3, 0);
+        evidence.sky.normalised = vector(sky.SunDirection);
+        // A vector too short to have a direction is a silent no-op that keeps the previous one.
+        sky.SunDirection = new Vector3(0, 0, 0);
+        evidence.sky.keptOnDegenerate = vector(sky.SunDirection);
+        sky.Turbidity = 100;
+        evidence.sky.turbidityClamped = sky.Turbidity;
+        sky.Turbidity = -5;
+        evidence.sky.turbidityFloored = sky.Turbidity;
+        sky.Turbidity = 3.5;
+        evidence.sky.turbiditySet = sky.Turbidity;
+        sky.Intensity = 2;
+        evidence.sky.intensitySet = sky.Intensity;
+        // Negative keeps the previous value rather than clamping to zero, which is what the
+        // identically named skybox setter does. The two genuinely differ upstream.
+        sky.Intensity = -1;
+        evidence.sky.intensityKept = sky.Intensity;
+        sky.Intensity = 0;
+        evidence.sky.intensityZero = sky.Intensity;
+
+        const skybox = new Skybox(device);
+        owned.push(skybox);
+        evidence.skybox = {
+          supported: skybox.IsSupported,
+          hasEnvironment: skybox.HasEnvironment,
+          yaw: skybox.Yaw,
+          intensity: skybox.Intensity,
+          tint: vector(skybox.Tint),
+        };
+        // Any angle is meaningful, so there is nothing to clamp.
+        skybox.Yaw = -7.5;
+        evidence.skybox.yawSet = skybox.Yaw;
+        skybox.Intensity = 3;
+        evidence.skybox.intensitySet = skybox.Intensity;
+        skybox.Intensity = -2;
+        evidence.skybox.intensityFloored = skybox.Intensity;
+        // A tint above one brightens an HDR sky, so it is taken as given.
+        skybox.Tint = new Vector3(0.5, 2, -1);
+        evidence.skybox.tintSet = vector(skybox.Tint);
+        evidence.skybox.detached = attempt(() => skybox.SetEnvironment(null));
+        evidence.skybox.stillNone = skybox.HasEnvironment;
+
+        // --- the environment processor's split by output type -------------------------------------
+        //
+        // The three generators that build a cube are the ones a renderer without cube storage
+        // refuses; the table is a 2D texture and works anyway. Both refusals arrive as
+        // NOT_SUPPORTED, and the engine-layer query is what tells "this renderer cannot" apart from
+        // "this build has no layer".
+        const processor = new EnvironmentProcessor(device);
+        owned.push(processor);
+        const panoramaTexture = new Graphics.Texture2D(device, 8, 4);
+        owned.push(panoramaTexture);
+        panoramaTexture.SetData(Array.from(
+          { length: 32 }, (_, index) => new Color(index * 8, 255 - index * 8, 128, 255),
+        ));
+        evidence.processor = {
+          lut: attempt(() => {
+            const lut = processor.GenerateBrdfLut(8, 4);
+            owned.push(lut);
+            return [lut.Width, lut.Height];
+          }),
+          cube: attempt(() => {
+            const cube = processor.ConvertEquirectangular(panoramaTexture, 8);
+            owned.push(cube);
+            return [cube.Size, cube.LevelCount];
+          }),
+          refusals: {
+            zeroFaceSize: attempt(() => processor.ConvertEquirectangular(panoramaTexture, 0)),
+            nullPanorama: attempt(() => processor.ConvertEquirectangular(null, 8)),
+            zeroLutSize: attempt(() => processor.GenerateBrdfLut(0, 4)),
+            zeroSamples: attempt(() => processor.GenerateBrdfLut(8, 0)),
+          },
+        };
+        this.evidence.probe = evidence;
+      } finally {
+        this.evidence.dispose = attempt(() => {
+          for (const resource of owned.reverse()) resource.Dispose();
+        });
+      }
+      this.Exit();
+      super.LoadContent();
+    }
+    Draw(gameTime) {
+      this.GraphicsDevice.Clear(Color.CornflowerBlue);
+      this.Exit();
+      super.Draw(gameTime);
+    }
+  })();
+  await game.Run();
+  const evidence = game.evidence.probe;
+  game.Dispose();
+
+  assert.equal(typeof evidence, "object", `atmosphere probe failed: ${JSON.stringify(evidence)}`);
+  assert.equal(game.evidence.dispose, "ACCEPTED", "every sky and processor is released");
+
+  /*
+   * The scattering model, checked on the relationships that make it a scattering model rather than
+   * on numbers copied out of a run.
+   */
+  const model = evidence.model;
+  const brightness = ([red, green, blue]) => red + green + blue;
+  assert.ok(
+    brightness(model.zenithAtNoon) > brightness(model.zenithAtMidnight) * 20,
+    "a sun below the horizon leaves a sky an order of magnitude darker than one above it: " +
+    `${brightness(model.zenithAtNoon)} against ${brightness(model.zenithAtMidnight)}`,
+  );
+  assert.ok(
+    brightness(model.horizonAtNoon) > brightness(model.zenithAtNoon),
+    "the horizon is brighter than the zenith, because a horizontal ray passes through more air",
+  );
+  // Rayleigh's coefficients fall as the fourth power of wavelength, so a clear sky is blue: the
+  // blue channel is the largest one, and by more than a little.
+  assert.ok(
+    model.zenithAtNoon[2] > model.zenithAtNoon[1] &&
+    model.zenithAtNoon[1] > model.zenithAtNoon[0],
+    `a clear zenith is blue, then green, then red: ${model.zenithAtNoon}`,
+  );
+  // Haze is Mie's, which has no wavelength dependence at all -- so adding it brightens the sky and
+  // takes the colour out of it, which is what a white haze is.
+  const spread = ([red, , blue]) => blue / red;
+  assert.ok(
+    brightness(model.hazy) > brightness(model.clearest),
+    "more aerosol scatters more light into the eye",
+  );
+  assert.ok(
+    spread(model.hazy) < spread(model.clearest),
+    `and washes the colour out of it: ${spread(model.hazy)} against ${spread(model.clearest)}`,
+  );
+  // A turbidity of one is air with no aerosol in it, so the haze term has to vanish there and the
+  // sky is at its bluest.
+  assert.ok(spread(model.clearest) > 1.4, `the clearest sky is the bluest (${spread(model.clearest)})`);
+  assert.deepEqual(
+    model.degenerate, model.zenith,
+    "a view direction with no length is treated as straight up rather than refused",
+  );
+  assert.deepEqual(model.longer, model.zenith, "and a direction is a direction, whatever its length");
+  assert.ok(
+    model.glsl.includes("cnaSkyRadiance") && model.glsl.includes("cnaAirMass"),
+    "the model GLSL names the function the shader calls and the air mass it integrates",
+  );
+
+  /*
+   * The ray a screen point looks along, and the yaw that turns the whole sky about the up axis.
+   *
+   * The camera looks down -Z with a square ninety-degree frustum, so the centre of the screen looks
+   * exactly that way and the edges look forty-five degrees off it. A yaw of a quarter turn has to
+   * rotate every one of those rays a quarter turn about +Y, which the test performs itself rather
+   * than asking for a second time.
+   */
+  const rays = evidence.rays;
+  const unit = (direction) => Math.hypot(...direction);
+  for (const [name, direction] of Object.entries(rays)) {
+    assert.ok(Math.abs(unit(direction) - 1) < 1e-5, `${name} is a unit direction (${unit(direction)})`);
+  }
+  for (const [axis, component] of rays.centre.entries()) {
+    assert.ok(
+      Math.abs(component - [0, 0, -1][axis]) < 1e-5,
+      `the centre of the screen looks the way the camera does (${rays.centre})`,
+    );
+  }
+  // The edges are forty-five degrees off, which is what a ninety-degree frustum means.
+  const degreesFrom = (direction, other) => (Math.acos(Math.min(1, Math.max(-1,
+    direction[0] * other[0] + direction[1] * other[1] + direction[2] * other[2]))) * 180) / Math.PI;
+  for (const [name, edge] of [["right", rays.right], ["up", rays.up]]) {
+    assert.ok(
+      Math.abs(degreesFrom(edge, rays.centre) - 45) < 0.01,
+      `the ${name} edge of a ninety-degree frustum is forty-five degrees off centre ` +
+      `(${degreesFrom(edge, rays.centre)})`,
+    );
+  }
+  const turnAboutUp = ([x, y, z], radians) => [
+    x * Math.cos(radians) + z * Math.sin(radians), y, -x * Math.sin(radians) + z * Math.cos(radians),
+  ];
+  for (const [name, turned, radians] of [
+    ["quarterTurn", rays.quarterTurn, Math.PI / 2],
+    ["halfTurn", rays.halfTurn, Math.PI],
+  ]) {
+    const expected = turnAboutUp(rays.centre, radians);
+    const back = turnAboutUp(rays.centre, -radians);
+    const matchesEither = [expected, back].some(
+      (candidate) => candidate.every((component, axis) => Math.abs(component - turned[axis]) < 1e-5),
+    );
+    assert.ok(
+      matchesEither,
+      `${name} turns the ray a ${radians} rotation about the up axis: ${turned} against ` +
+      `${expected} or ${back}`,
+    );
+    assert.ok(
+      degreesFrom(turned, rays.centre) > 1,
+      `and it really moved (${degreesFrom(turned, rays.centre)} degrees)`,
+    );
+  }
+  /*
+   * And an off-centre point is turned by the same rotation, which is the part that says the yaw
+   * turns the whole sky rather than only the direction down the middle. It is checked as a rotation
+   * rather than as an angle: a ray that is tilted off the axis sweeps through *less* than the yaw
+   * when it turns about that axis, so an angle between the two would be the wrong invariant. What
+   * has to hold is that its up component is untouched and its other two are rotated.
+   */
+  {
+    const turned = rays.eighthTurn;
+    const before = rays.eighthTurnUnturned;
+    const candidates = [Math.PI / 4, -Math.PI / 4].map((radians) => turnAboutUp(before, radians));
+    assert.ok(
+      candidates.some(
+        (candidate) => candidate.every((c, axis) => Math.abs(c - turned[axis]) < 1e-5),
+      ),
+      `an off-centre ray is turned by the same rotation: ${turned} against ${candidates[0]} or ` +
+      candidates[1],
+    );
+    assert.ok(
+      Math.abs(turned[1] - before[1]) < 1e-6,
+      "and a rotation about the up axis leaves the up component where it was",
+    );
+    assert.ok(
+      degreesFrom(turned, before) > 1, `and it really moved (${degreesFrom(turned, before)})`,
+    );
+  }
+
+  /*
+   * The roughness ramp, which is a straight line between mip zero and the last one -- and answers
+   * rather than refusing at both ends.
+   */
+  const ramp = evidence.ramp;
+  assert.deepEqual(ramp.mipFor, [0, 1, 2, 3, 4], "roughness maps linearly onto the mip chain");
+  assert.deepEqual(ramp.roughnessFor, [0, 0.25, 0.5, 0.75, 1], "and back again");
+  assert.deepEqual(
+    [ramp.noChain, ramp.noChainZero], [0, 0],
+    "a chain with no ramp to index answers mip zero rather than refusing",
+  );
+  assert.deepEqual(
+    [ramp.aboveOne, ramp.belowZero], [4, 0], "and a roughness outside the unit range is clamped",
+  );
+  assert.deepEqual([ramp.roughnessAbove, ramp.roughnessBelow], [1, 0]);
+
+  /*
+   * The Hammersley sequence: the first coordinate is the index's place in the count, and the second
+   * is the radical inverse of the index in base two -- the bits of the index, reversed after the
+   * point. Both are computed here rather than recorded.
+   */
+  const radicalInverse = (index) => {
+    let result = 0;
+    let denominator = 2;
+    for (let value = index; value > 0; value = Math.floor(value / 2)) {
+      result += (value % 2) / denominator;
+      denominator *= 2;
+    }
+    return result;
+  };
+  for (const [index, [x, y]] of evidence.hammersley.entries()) {
+    assert.ok(
+      Math.abs(x - (index + 0.5) / evidence.hammersleyCount) < 1e-6,
+      `Hammersley point ${index} is not evenly spaced: ${x}`,
+    );
+    assert.ok(
+      Math.abs(y - radicalInverse(index)) < 1e-6,
+      `Hammersley point ${index}'s second coordinate is not the radical inverse: ` +
+      `${y} against ${radicalInverse(index)}`,
+    );
+  }
+  assert.equal(
+    new Set(evidence.hammersley.map(([, y]) => y)).size, evidence.hammersleyCount,
+    "and no two points share it, which is the whole purpose of the sequence",
+  );
+
+  // GGX importance sampling. A mirror scatters nowhere, so at roughness zero the sample is the
+  // normal itself; roughening it spreads the sample away, and always inside the hemisphere.
+  const ggx = evidence.ggx;
+  assert.deepEqual(ggx.mirror, [0, 0, 1], "a perfect mirror samples along its own normal");
+  const angleFrom = ([x, y, z], [nx, ny, nz]) => Math.acos(
+    Math.min(1, Math.max(-1, x * nx + y * ny + z * nz)),
+  );
+  const spreadRough = angleFrom(ggx.rough, [0, 0, 1]);
+  const spreadRougher = angleFrom(ggx.rougher, [0, 0, 1]);
+  assert.ok(
+    spreadRougher > spreadRough && spreadRough > 0,
+    `a rougher surface scatters further from its normal: ${spreadRough} then ${spreadRougher}`,
+  );
+  for (const [name, sample, normal] of [
+    ["rough", ggx.rough, [0, 0, 1]], ["tilted", ggx.tilted, [0, 1, 0]],
+  ]) {
+    const length = Math.hypot(...sample);
+    assert.ok(Math.abs(length - 1) < 1e-5, `${name} samples a unit direction (${length})`);
+    assert.ok(angleFrom(sample, normal) < Math.PI / 2, `${name} stays in its normal's hemisphere`);
+  }
+  assert.ok(
+    Math.abs(angleFrom(ggx.tilted, [0, 1, 0]) - spreadRough) < 1e-4,
+    "the same sequence point around a different normal spreads by the same angle",
+  );
+
+  /*
+   * Which way each cube face looks, and where a direction falls on a panorama. Two routes that have
+   * to agree with each other about the axes, checked by sending one's answers into the other.
+   */
+  // Compared componentwise rather than by deep equality, because a signed zero is still a zero and
+  // an axis that came out as one is pointing exactly where it should.
+  const EXPECTED_FACES = [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]];
+  for (const [face, direction] of evidence.faceCentres.entries()) {
+    for (const [axis, component] of direction.entries()) {
+      assert.ok(
+        Math.abs(component - EXPECTED_FACES[face][axis]) < 1e-6,
+        `the centre of cube face ${face} must look straight down its own axis: ${direction}`,
+      );
+    }
+  }
+  for (const corner of evidence.faceCorners) {
+    assert.ok(
+      Math.abs(Math.hypot(...corner) - 1) < 1e-5, "and a face's corner is a unit direction too",
+    );
+    assert.ok(
+      corner.every((component) => Math.abs(component) > 0.5),
+      `a corner looks diagonally rather than down an axis (${corner})`,
+    );
+  }
+  // The panorama mapping: longitude around, latitude down, with the poles at nought and one.
+  const p = evidence.panorama;
+  assert.deepEqual(p.up, [p.up[0], 0], "straight up is the top edge of a panorama");
+  assert.deepEqual(p.down, [p.down[0], 1], "and straight down is the bottom");
+  for (const [name, point] of [["plusX", p.plusX], ["minusX", p.minusX], ["plusZ", p.plusZ],
+    ["minusZ", p.minusZ]]) {
+    assert.equal(point[1], 0.5, `${name} is on the horizon, so it is halfway down (${point[1]})`);
+  }
+  // Opposite directions are half a turn apart around the panorama, whichever way it wraps.
+  const apart = (left, right) => {
+    const difference = Math.abs(left[0] - right[0]);
+    return Math.min(difference, 1 - difference);
+  };
+  assert.ok(Math.abs(apart(p.plusX, p.minusX) - 0.5) < 1e-6, "east and west are half a turn apart");
+  assert.ok(Math.abs(apart(p.plusZ, p.minusZ) - 0.5) < 1e-6, "and so are north and south");
+  assert.ok(
+    Math.abs(apart(p.plusX, p.plusZ) - 0.25) < 1e-6, "and perpendicular axes a quarter turn",
+  );
+  assert.deepEqual(
+    p.faceCentres.slice(0, 4).map((point) => point[1]), [0.5, 0.5, 0, 1],
+    "the four cube faces mapped back land on the horizon and the two poles",
+  );
+
+  /*
+   * The two skies' setters. Three guards that behave three different ways, kept apart rather than
+   * regularised, because CNA's own three do.
+   */
+  const sky = evidence.sky;
+  assert.equal(Math.hypot(...sky.sun), 1, "a sky's sun direction is a unit vector to begin with");
+  assert.deepEqual(sky.normalised, [0, -1, 0], "and normalised on the way in, not stored as given");
+  assert.deepEqual(
+    sky.keptOnDegenerate, sky.normalised,
+    "a direction too short to point anywhere leaves the sun where it was",
+  );
+  assert.deepEqual(
+    [sky.turbidityClamped, sky.turbidityFloored, sky.turbiditySet], [10, 1, 3.5],
+    "turbidity is clamped into the range the model is defined over",
+  );
+  assert.deepEqual(
+    [sky.intensitySet, sky.intensityKept, sky.intensityZero], [2, 2, 0],
+    "a negative intensity keeps the previous one rather than clamping to zero, and zero is taken",
+  );
+  const skybox = evidence.skybox;
+  assert.equal(skybox.hasEnvironment, false, "a skybox made with no cube map has none");
+  assert.deepEqual([skybox.yaw, skybox.intensity, skybox.tint], [0, 1, [1, 1, 1]]);
+  assert.equal(skybox.yawSet, -7.5, "any yaw is meaningful, so there is nothing to clamp");
+  assert.deepEqual(
+    [skybox.intensitySet, skybox.intensityFloored], [3, 0],
+    "and a skybox's negative intensity IS clamped to zero, unlike the analytic sky's",
+  );
+  assert.deepEqual(
+    skybox.tintSet, [0.5, 2, -1], "a tint is taken as given: above one brightens an HDR sky",
+  );
+  assert.deepEqual([skybox.detached, skybox.stillNone], ["ACCEPTED", false]);
+
+  /*
+   * The environment processor, split by what it produces rather than by whether it is a generator:
+   * a 2D table works where a cube map does not.
+   */
+  const processor = evidence.processor;
+  assert.deepEqual(
+    processor.lut, [8, 8],
+    "the BRDF table depends on no environment and no cube storage, so it is always produced",
+  );
+  assert.match(processor.refusals.nullPanorama, /^TypeError/);
+  for (const name of ["zeroFaceSize", "zeroLutSize", "zeroSamples"]) {
+    assert.match(
+      processor.refusals[name], /^RangeError/, `${name} is refused before CNA sees it`,
+    );
+  }
+  if (Array.isArray(processor.cube)) {
+    assert.deepEqual(processor.cube, [8, 1], "a cube map is the face size asked for");
+    console.log(`CNA_TS_NATIVE_ATMOSPHERE=CUBE_STORAGE LUT=${processor.lut.join("x")}`);
+    return;
+  }
+  // A renderer that creates the cube and then refuses the upload answers NOT_SUPPORTED, which is
+  // also what a build with no engine layer answers -- and the layer query is what tells them apart.
+  assert.match(
+    processor.cube, /^Error\(6\)/,
+    `a renderer without cube storage refuses the conversion: ${processor.cube}`,
+  );
+  assert.equal(
+    evidence.extensionLayer, true,
+    "and the engine layer is present, so the renderer is the reason rather than the build",
+  );
+
+  console.log(
+    `CNA_TS_NATIVE_ATMOSPHERE=NO_CUBE_STORAGE LUT=${processor.lut.join("x")} ` +
+    `ZENITH=${evidence.model.zenithAtNoon.map((v) => v.toFixed(3)).join("/")} ` +
+    `MIDNIGHT=${evidence.model.zenithAtMidnight[2].toExponential(2)}`,
+  );
+});
+
 test("the particle simulation integrates exactly, and the system agrees with it", async () => {
   const { ParticleMath, ParticleShaderSource, ParticleSystem } = computeExtensions;
 

@@ -1506,6 +1506,79 @@ export interface CnaLightProbeBackend {
   ): number;
 }
 
+/**
+ * CNA's atmosphere: the analytic sky, the captured skybox, and the processor that prepares one.
+ *
+ * The two skies share a draw shape and differ in where their colour comes from -- one computes it
+ * from a sun direction and a turbidity, the other samples a cube map -- so they share an interface
+ * without sharing a handle.
+ */
+export interface CnaAtmosphereBackend {
+  createAtmosphericSky(device: NativeHandle): NativeHandle;
+  destroyAtmosphericSky(sky: NativeHandle): void;
+  isAtmosphericSkySupported(sky: NativeHandle): boolean;
+  drawAtmosphericSky(
+    sky: NativeHandle, view: readonly number[], projection: readonly number[],
+    width: number, height: number,
+  ): void;
+  getAtmosphericSkySunDirection(sky: NativeHandle): Vector3Snapshot;
+  setAtmosphericSkySunDirection(sky: NativeHandle, direction: Vector3Snapshot): void;
+  getAtmosphericSkyTurbidity(sky: NativeHandle): number;
+  setAtmosphericSkyTurbidity(sky: NativeHandle, turbidity: number): void;
+  getAtmosphericSkyIntensity(sky: NativeHandle): number;
+  setAtmosphericSkyIntensity(sky: NativeHandle, intensity: number): void;
+  getAtmosphericSkyModelGlsl(): string;
+  atmosphericSkyRadiance(
+    viewDirection: Vector3Snapshot, sunDirection: Vector3Snapshot, turbidity: number,
+  ): Vector3Snapshot;
+  createSkybox(device: NativeHandle, environment: NativeHandle): NativeHandle;
+  destroySkybox(skybox: NativeHandle): void;
+  isSkyboxSupported(skybox: NativeHandle): boolean;
+  drawSkybox(
+    skybox: NativeHandle, view: readonly number[], projection: readonly number[],
+    width: number, height: number,
+  ): void;
+  getSkyboxEnvironment(skybox: NativeHandle): NativeHandle;
+  setSkyboxEnvironment(skybox: NativeHandle, environment: NativeHandle): void;
+  setSkyboxOwnedEnvironment(skybox: NativeHandle, environment: NativeHandle): void;
+  getSkyboxYaw(skybox: NativeHandle): number;
+  setSkyboxYaw(skybox: NativeHandle, radians: number): void;
+  getSkyboxIntensity(skybox: NativeHandle): number;
+  setSkyboxIntensity(skybox: NativeHandle, intensity: number): void;
+  getSkyboxTint(skybox: NativeHandle): Vector3Snapshot;
+  setSkyboxTint(skybox: NativeHandle, tint: Vector3Snapshot): void;
+  computeSkyboxViewRay(
+    view: readonly number[], projection: readonly number[],
+    ndcX: number, ndcY: number, yaw: number,
+  ): Vector3Snapshot;
+  createEnvironmentProcessor(device: NativeHandle): NativeHandle;
+  destroyEnvironmentProcessor(processor: NativeHandle): void;
+  convertEquirectangular(
+    processor: NativeHandle, panorama: NativeHandle, faceSize: number,
+  ): NativeHandle;
+  generateIrradianceCube(
+    processor: NativeHandle, environment: NativeHandle, size: number, sampleCount: number,
+  ): NativeHandle;
+  generatePrefilteredSpecular(
+    processor: NativeHandle, environment: NativeHandle, baseSize: number, mipCount: number,
+    sampleCount: number,
+  ): NativeHandle;
+  generateProbeFromEnvironment(
+    processor: NativeHandle, environment: NativeHandle, position: Vector3Snapshot,
+  ): NativeHandle;
+  generateBrdfLut(processor: NativeHandle, size: number, sampleCount: number): NativeHandle;
+  mipForRoughness(roughness: number, mipCount: number): number;
+  roughnessForMip(mip: number, mipCount: number): number;
+  hammersleyPoint(index: number, count: number): Vector2Snapshot;
+  importanceSampleGgx(
+    x: number, y: number, normal: Vector3Snapshot, roughness: number,
+  ): Vector3Snapshot;
+  cubeFaceDirection(face: number, u: number, v: number): Vector3Snapshot;
+  directionToEquirectangular(direction: Vector3Snapshot): Vector2Snapshot;
+  getRenderPipelineSkybox(pipeline: NativeHandle): NativeHandle;
+  setRenderPipelineSkybox(pipeline: NativeHandle, skybox: NativeHandle): void;
+}
+
 /** What a bake calls once per cube face, with the camera it chose for that face. */
 export type SceneFaceDraw = (
   view: readonly number[], projection: readonly number[],
@@ -2195,6 +2268,7 @@ export interface CnaBackend {
   readonly DepthNormalPrepass?: CnaDepthNormalPrepassBackend;
   readonly Decals?: CnaDecalBackend;
   readonly LightProbes?: CnaLightProbeBackend;
+  readonly Atmosphere?: CnaAtmosphereBackend;
   readonly Particles?: CnaParticleBackend;
   readonly Content?: CnaContentBackend;
   readonly Devices?: CnaDeviceBackend;

@@ -13,14 +13,14 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 77,
+    "VERIFIED_NATIVE": 79,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 2,
     "FIXTURE_PENDING": 3,
     "HARDWARE_PENDING": 6,
     "PLATFORM_PENDING": 3,
-    "UNIMPLEMENTED_CNA_TS": 3,
+    "UNIMPLEMENTED_CNA_TS": 2,
     "LANGUAGE_MAPPING_LIMITATION": 3,
     "NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT": 1
   },
@@ -171,15 +171,6 @@
       "proof": [
         "absentRoute:cna_signed_in_gamer_get_achievements",
         "absentRoute:cna_network_session_create"
-      ]
-    },
-    {
-      "operation": "Modern CNA engine layer beyond the pipeline, the post-process chain, compute, clustered lighting, LOD, the shadow maps, particles, the prepass, decals and light probes: atmospheric rendering",
-      "category": "UNIMPLEMENTED_CNA_TS",
-      "owner": "CNA-TS",
-      "evidence": "the render pipeline, the post-process chain, the compute path, the clustered lighting family, level-of-detail groups, the shadow-map maths for all four shadow kinds, the shadow depth pass, the particle simulation, the particle draw, the depth/normal prepass, the decal projector and the whole light-probe family are projected and verified separately. What is left is atmospheric rendering: the analytic sky, the skybox and the environment processor that feeds it",
-      "proof": [
-        "absentRoute:cna_atmospheric_sky_create"
       ]
     },
     {
@@ -393,6 +384,32 @@
       "evidence": "managed native-shaped backend verifies boxes, faces and exact packed Color round trips; all ABI signatures are compiler-audited and the qualified HEADLESS artifact returns documented NOT_SUPPORTED at creation",
       "proof": [
         "test:test/graphics-foundation.test.mjs"
+      ]
+    },
+    {
+      "operation": "Atmospheric rendering: the drawn sky, the captured one, and the environment behind it",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "the strongest acceptance in this package. CNA ships the scattering model twice -- once as the GLSL its sky shader runs and once as cna_atmospheric_sky_radiance, evaluated on the CPU without a device -- and ships a third route that says which way a screen point looks. So every texel of a drawn sky has a prediction assembled from two routes that never touch the GPU, and six skies of 1024 texels each are compared against it on a windowed OPENGLES3 renderer under Xvfb: nowhere do the shader and the model differ by more than one part in 255, which is the resolution the target has, and most texels are bit-identical. The picture is a gradient rather than a fill, a sun below the horizon is ten times darker, a sun placed inside the frustum makes that half of the image the bright one while a sun overhead lights both halves to within two per cent, halving the intensity halves every unclipped texel across the whole image, and a change of turbidity moves the drawn picture the same way and by the same amount as it moves the model -- which is asserted rather than a direction guessed here, because near the horizon aerosol both adds scattered light and takes away sunlight. The captured sky is checked without assuming a cube-map convention: six faces of six flat colours seen down six axes produce six different colours, each the middle of its own face and each of the six that were uploaded, and turning the sky a right angle about the up axis moves exactly the four equatorial faces and leaves the two poles. Intensity and tint multiply what was sampled, a skybox with no environment draws nothing and succeeds, and attaching it again brings the same sky back. The environment processor converts a panorama into a cube map, and handing that cube map over with SetOwnedEnvironment consumes it: the wrapper refuses further use and its Dispose becomes harmless. Two ownership traps were found by writing the binding to the header and measuring: cna_skybox_get_environment mints an owned handle whose loss makes the game undestroyable, and cna_render_pipeline_get_skybox documents the same contract and echoes the caller's own handle, so releasing it destroys their skybox -- upstream finding 15, with the binding doing the opposite thing in each case and saying why. Twenty-three planted binding defects fail and none survives",
+      "proof": [
+        "route:cna_atmospheric_sky_create",
+        "route:cna_atmospheric_sky_draw",
+        "route:cna_atmospheric_sky_set_sun_direction",
+        "route:cna_atmospheric_sky_set_turbidity",
+        "route:cna_atmospheric_sky_set_intensity",
+        "route:cna_skybox_create",
+        "route:cna_skybox_draw",
+        "route:cna_skybox_set_environment",
+        "route:cna_skybox_set_owned_environment",
+        "route:cna_skybox_get_environment",
+        "route:cna_skybox_set_yaw",
+        "route:cna_skybox_set_tint",
+        "route:cna_environment_processor_convert_equirectangular",
+        "route:cna_environment_processor_generate_brdf_lut",
+        "route:cna_render_pipeline_get_skybox",
+        "route:cna_render_pipeline_set_skybox",
+        "test:test/windowed-renderer.integration.mjs",
+        "test:test/native-cna.integration.mjs"
       ]
     },
     {
@@ -1179,6 +1196,24 @@
         "route:cna_cnb_compile_cnj",
         "route:cna_cnb_cnj_result_copy_absorbed_file",
         "test:content/test/content-pipeline.test.mjs"
+      ]
+    },
+    {
+      "operation": "The atmosphere's model, its sampling sequence, and the two mappings around a cube map",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "everything about the atmosphere that is arithmetic rather than rendering, checked on relationships and identities rather than on recorded numbers. A sun below the horizon leaves a sky twenty times darker than one above it; the horizon is brighter than the zenith because a horizontal ray passes through more air; a clear zenith is blue then green then red, which is Rayleigh's fourth-power wavelength dependence; and aerosol brightens the sky and washes the colour out of it, because Mie's has none. A view direction with no length is treated as straight up, and a direction is a direction whatever its length. The roughness ramp is a straight line between mip zero and the last, inverse in both directions, answering rather than refusing for a chain with nothing to index and clamping a roughness outside the unit range. The Hammersley sequence is checked point by point against its own definition -- evenly spaced along one coordinate, the radical inverse of the index in base two along the other, and no two points sharing it. GGX importance sampling at roughness zero is the normal itself, roughening it spreads the sample further, and every sample is a unit direction inside its normal's hemisphere. The six cube faces look down the six axes; the panorama mapping puts the poles at nought and one, every horizon direction halfway down, opposite axes half a turn apart and perpendicular ones a quarter -- and the two routes are made to agree by sending one's answers into the other. The view ray a screen point looks along is checked as geometry too: the centre looks the way the camera does, the edges are forty-five degrees off a ninety-degree frustum, and a yaw rotates every ray about the up axis by exactly that rotation, which is asserted as a rotation rather than as an angle because a tilted ray sweeps through less than the yaw. The three setters that guard three different ways are kept apart and asserted apart: turbidity clamps into the model's range, a sky's negative intensity keeps the previous value while a skybox's is floored at zero, and a sun direction is normalised with a degenerate one a silent no-op",
+      "proof": [
+        "route:cna_atmospheric_sky_radiance",
+        "route:cna_atmospheric_sky_copy_model_glsl",
+        "route:cna_skybox_compute_view_ray",
+        "route:cna_environment_processor_mip_for_roughness",
+        "route:cna_environment_processor_roughness_for_mip",
+        "route:cna_environment_processor_hammersley",
+        "route:cna_environment_processor_importance_sample_ggx",
+        "route:cna_environment_processor_face_direction",
+        "route:cna_environment_processor_direction_to_equirectangular",
+        "test:test/native-cna.integration.mjs"
       ]
     },
     {
