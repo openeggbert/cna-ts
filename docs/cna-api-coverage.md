@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=729
+REACHABLE_NODE=769
 REACHABLE_WASM=247
-REACHABLE_BY_ANY_BACKEND=729
+REACHABLE_BY_ANY_BACKEND=769
 REACHABLE_BY_EVERY_BACKEND=247
-REACHABLE_NODE_ONLY=482
+REACHABLE_NODE_ONLY=522
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -35,10 +35,10 @@ What each backend reaches, by what the routes are for:
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
 | `XNA_BACKING` | 1152 | 370 | 73 |
-| `CNA_EXTENSION_BACKING` | 1737 | 344 | 160 |
+| `CNA_EXTENSION_BACKING` | 1737 | 383 | 160 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 457 | 13 | 13 |
-| `TOOLING_ONLY` | 31 | 1 | 0 |
+| `TOOLING_ONLY` | 31 | 2 | 0 |
 | `INTENTIONALLY_DEFERRED` | 676 | 0 | 0 |
 
 ## By header
@@ -92,7 +92,7 @@ What each backend reaches, by what the routes are for:
 | `runtime_graphics_manager.h` | 17 | 16 | 35 | 3 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `runtime_window.h` | 12 | 0 | 14 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `runtime.h` | 10 | 6 | 33 | 9 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `sensors.h` | 13 | 0 | 0 | 120 | 0 | 0 | 24 | 0 | 0 | 0 |
+| `sensors.h` | 53 | 0 | 0 | 120 | 0 | 0 | 24 | 0 | 0 | 0 |
 | `sprite_font.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
 | `storage.h` | 27 | 0 | 46 | 3 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `texture_volume.h` | 10 | 0 | 16 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |

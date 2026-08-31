@@ -25,6 +25,7 @@ import {
   TitleContainer,
   Matrix,
   Point,
+  Quaternion,
   Vector2,
   Vector3,
 } from "../dist/index.js";
@@ -1981,4 +1982,293 @@ test("typed text and IME composition reach the extension, non-ASCII included", a
     evidence.textureCursor === "SUCCESS" || /^result /.test(evidence.textureCursor),
     `unexpected texture-cursor evidence ${evidence.textureCursor}`,
   );
+});
+
+class ExtendedSensorProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const { CnaSensorTestHooks, Compass, Gyroscope, Motion, SensorState } = sensorsModule;
+    const record = (name, body) => {
+      try {
+        this.evidence[name] = body();
+      } catch (error) {
+        this.evidence[name] = `${error.constructor.name}`;
+      }
+    };
+
+    // ---- absence, first. This host has none of these three, and every one must say so ----------
+    const compass = new Compass();
+    const gyroscope = new Gyroscope();
+    const motion = new Motion();
+    this.evidence.absent = {
+      compassState: compass.State,
+      compassValid: compass.IsDataValid,
+      gyroscopeState: gyroscope.State,
+      gyroscopeValid: gyroscope.IsDataValid,
+      motionState: motion.State,
+      motionValid: motion.IsDataValid,
+      // CNA's canonical default, before any backend exists to answer for it.
+      motionNorth: motion.IsAttitudeNorthReferenced,
+    };
+    record("compassValueWhenAbsent", () => { compass.CurrentValue; return "returned a reading"; });
+    record("gyroscopeValueWhenAbsent", () => { gyroscope.CurrentValue; return "returned a reading"; });
+    record("motionValueWhenAbsent", () => { motion.CurrentValue; return "returned a reading"; });
+
+    // ---- the data path, through CNA's own injection hooks --------------------------------------
+    // Every component gets a value no other component has, so a transposed or substituted field is
+    // visible. This is injection evidence: nothing physical was measured.
+    CnaSensorTestHooks.SetCompassBackend(compass, true, true);
+    compass.Start();
+    const compassTimestamp = 638_000_000_000_000_000n;
+    CnaSensorTestHooks.InjectCompassReading(compass, {
+      HeadingAccuracy: 2.5,
+      MagneticHeading: 91.25,
+      TrueHeading: 88.75,
+      MagnetometerReading: new Vector3(11.5, -22.25, 33.125),
+      TimestampTicks: compassTimestamp,
+      TimestampOffset: TimeSpan.FromTicks(36_000_000_000n),
+    });
+    record("compassAfterInjection", () => {
+      const reading = compass.CurrentValue;
+      return {
+        state: compass.State,
+        valid: compass.IsDataValid,
+        headingAccuracy: reading.HeadingAccuracy,
+        magneticHeading: reading.MagneticHeading,
+        trueHeading: reading.TrueHeading,
+        magnetometer: [
+          reading.MagnetometerReading.X,
+          reading.MagnetometerReading.Y,
+          reading.MagnetometerReading.Z,
+        ],
+        timestampTicks: String(reading.TimestampTicks),
+        offsetTicks: String(reading.TimestampOffset.Ticks),
+      };
+    });
+
+    // The gyroscope is the exception, and it is measured rather than assumed. CNA gives the
+    // compass and the motion sensor a full synthetic *backend*; the gyroscope gets only a support
+    // override, so starting it still needs a real platform sensor service and this host has none.
+    // The injection call is accepted but produces no valid data, which is the honest outcome.
+    CnaSensorTestHooks.SetGyroscopeSupported(gyroscope, true);
+    this.evidence.gyroscopeStateAfterSupportOverride = gyroscope.State;
+    record("gyroscopeStart", () => { gyroscope.Start(); return "SUCCESS"; });
+    record("gyroscopeInject", () => {
+      CnaSensorTestHooks.InjectGyroscopeReading(gyroscope, new Vector3(0.25, -0.5, 0.75));
+      return "accepted";
+    });
+    this.evidence.gyroscopeValidAfterInjection = gyroscope.IsDataValid;
+    record("gyroscopeValueAfterInjection", () => {
+      gyroscope.CurrentValue;
+      return "returned a reading";
+    });
+
+    // Installed *without* a north reference first, so the flag is proved to be read rather than
+    // defaulted: a game drawing a compass rose branches on this, and a getter that always agreed
+    // with CNA's default would pass a one-sided check.
+    CnaSensorTestHooks.SetMotionBackend(motion, true, true, false);
+    this.evidence.motionNorthWhenNotReferenced = motion.IsAttitudeNorthReferenced;
+    CnaSensorTestHooks.SetMotionBackend(motion, true, true, true);
+    this.evidence.motionNorthWhenReferenced = motion.IsAttitudeNorthReferenced;
+    motion.Start();
+    const motionTimestamp = 638_000_000_000_000_001n;
+    CnaSensorTestHooks.InjectMotionReading(motion, {
+      Attitude: {
+        Pitch: 0.125, Roll: -0.25, Yaw: 1.5,
+        Quaternion: new Quaternion(0.1, 0.2, 0.3, 0.4),
+        // Sixteen distinguishable values, so a transposed or shifted matrix read fails.
+        RotationMatrix: new Matrix(
+          1, 2, 3, 4,
+          5, 6, 7, 8,
+          9, 10, 11, 12,
+          13, 14, 15, 16,
+        ),
+        TimestampTicks: motionTimestamp,
+        TimestampOffset: TimeSpan.FromTicks(36_000_000_000n),
+      },
+      DeviceAcceleration: new Vector3(1.5, 2.5, 3.5),
+      DeviceRotationRate: new Vector3(-1.25, -2.25, -3.25),
+      Gravity: new Vector3(0, -9.80665, 0),
+      TimestampTicks: motionTimestamp,
+      TimestampOffset: TimeSpan.FromTicks(36_000_000_000n),
+    });
+    record("motionAfterInjection", () => {
+      const reading = motion.CurrentValue;
+      return {
+        state: motion.State,
+        valid: motion.IsDataValid,
+        northReferenced: motion.IsAttitudeNorthReferenced,
+        pitch: reading.Attitude.Pitch,
+        roll: reading.Attitude.Roll,
+        yaw: reading.Attitude.Yaw,
+        quaternion: [
+          reading.Attitude.Quaternion.X, reading.Attitude.Quaternion.Y,
+          reading.Attitude.Quaternion.Z, reading.Attitude.Quaternion.W,
+        ],
+        matrixDiagonal: [
+          reading.Attitude.RotationMatrix.M11, reading.Attitude.RotationMatrix.M22,
+          reading.Attitude.RotationMatrix.M33, reading.Attitude.RotationMatrix.M44,
+        ],
+        matrixFirstRow: [
+          reading.Attitude.RotationMatrix.M11, reading.Attitude.RotationMatrix.M12,
+          reading.Attitude.RotationMatrix.M13, reading.Attitude.RotationMatrix.M14,
+        ],
+        acceleration: [
+          reading.DeviceAcceleration.X, reading.DeviceAcceleration.Y, reading.DeviceAcceleration.Z,
+        ],
+        rotationRate: [
+          reading.DeviceRotationRate.X, reading.DeviceRotationRate.Y, reading.DeviceRotationRate.Z,
+        ],
+        gravity: [reading.Gravity.X, reading.Gravity.Y, reading.Gravity.Z],
+        timestampTicks: String(reading.TimestampTicks),
+      };
+    });
+
+    // The interval is a request, read back rather than assumed.
+    compass.TimeBetweenUpdates = TimeSpan.FromTicks(200_000n);
+    this.evidence.compassInterval = String(compass.TimeBetweenUpdates.Ticks);
+
+    // A backend cannot be swapped underneath a running acquisition: CNA refuses, which is the
+    // right answer -- a reading whose source changed mid-stream would be neither the old sensor's
+    // nor the new one's.
+    record("motionBackendSwapWhileStarted", () => {
+      CnaSensorTestHooks.SetMotionBackend(motion, false, false, false);
+      return "accepted";
+    });
+    // Stopped, the swap is allowed -- and removing the synthetic backend must take the readings
+    // with it. A sensor that kept answering after its source was withdrawn would be reporting a
+    // stale measurement as a current one.
+    motion.Stop();
+    this.evidence.motionStateAfterStop = motion.State;
+    CnaSensorTestHooks.SetMotionBackend(motion, false, false, false);
+    this.evidence.motionAfterRemoval = {
+      state: motion.State,
+      isDataValid: motion.IsDataValid,
+    };
+    record("motionValueAfterRemoval", () => { motion.CurrentValue; return "returned a reading"; });
+
+    compass.Stop();
+    for (const sensor of [compass, gyroscope, motion]) {
+      sensor.Dispose();
+      sensor.Dispose();
+    }
+    this.evidence.disposed = [compass.IsDisposed, gyroscope.IsDisposed, motion.IsDisposed];
+    record("compassAfterDispose", () => { compass.State; return "answered"; });
+    this.evidence.states = { NotSupported: SensorState.NotSupported, Ready: SensorState.Ready };
+    super.LoadContent();
+  }
+
+  Draw(gameTime) {
+    this.GraphicsDevice.Clear(Color.CornflowerBlue);
+    this.Exit();
+    super.Draw(gameTime);
+  }
+}
+
+test("the compass, gyroscope and motion sensor report absence, then carry a real reading", async () => {
+  const game = new ExtendedSensorProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  // Absence first. A heading of zero and a rotation rate of zero are both perfectly plausible
+  // measurements, so returning them for "no sensor" would be indistinguishable from a real one.
+  assert.equal(evidence.absent.compassState, evidence.states.NotSupported);
+  assert.equal(evidence.absent.gyroscopeState, evidence.states.NotSupported);
+  assert.equal(evidence.absent.motionState, evidence.states.NotSupported);
+  assert.deepEqual(
+    [evidence.absent.compassValid, evidence.absent.gyroscopeValid, evidence.absent.motionValid],
+    [false, false, false],
+  );
+  // CNA's documented default for an attitude with no backend behind it is north-referenced; what
+  // matters is that the flag follows the backend rather than staying at that default, which the
+  // two assertions further down establish.
+  assert.equal(evidence.absent.motionNorth, true, "CNA's default before any backend exists");
+  assert.equal(evidence.compassValueWhenAbsent, "InvalidOperationException");
+  assert.equal(evidence.gyroscopeValueWhenAbsent, "InvalidOperationException");
+  assert.equal(evidence.motionValueWhenAbsent, "InvalidOperationException");
+
+  // The data path, through CNA's own injection hooks. This is injection evidence: no physical
+  // compass, gyroscope or motion sensor exists on this host and none was measured.
+  const compass = evidence.compassAfterInjection;
+  assert.equal(typeof compass, "object", `compass injection failed: ${compass}`);
+  assert.equal(compass.state, evidence.states.Ready);
+  assert.equal(compass.valid, true);
+  // Three headings with three different values. The two headings are separate measurements --
+  // magnetic and true north differ by the local declination -- so a reader that returned one for
+  // both would fail here rather than round-trip.
+  assert.equal(compass.headingAccuracy, 2.5);
+  assert.equal(compass.magneticHeading, 91.25);
+  assert.equal(compass.trueHeading, 88.75);
+  assert.deepEqual(compass.magnetometer, [11.5, -22.25, 33.125]);
+  // A timestamp is 100-nanosecond ticks since year one and does not survive a double, so it
+  // crosses as a bigint. This exact value would be wrong by hundreds of ticks through a Number.
+  assert.equal(compass.timestampTicks, "638000000000000000");
+  assert.equal(compass.offsetTicks, "36000000000");
+
+  // The gyroscope's data path is *not* reachable on this host, and that is recorded rather than
+  // worked around. CNA gives the compass and the motion sensor a full synthetic backend through
+  // cna_compass_set_test_backend_ext and cna_motion_set_test_backend_ext; the gyroscope has only
+  // cna_gyroscope_set_supported_for_tests_ext, which flips the support answer without installing
+  // anything to read. So Start still needs a platform sensor service, HEADLESS has none, and the
+  // injection is accepted while producing nothing valid. Asserting a reading here would mean
+  // asserting something that did not happen.
+  assert.equal(
+    evidence.gyroscopeStateAfterSupportOverride, evidence.states.NotSupported,
+    "a support override alone does not make the sensor readable",
+  );
+  assert.equal(evidence.gyroscopeStart, "Error", "no sensor service: starting is refused");
+  assert.equal(evidence.gyroscopeInject, "accepted", "the injection route itself works");
+  assert.equal(
+    evidence.gyroscopeValidAfterInjection, false,
+    "an injection with no backend behind it produces no valid reading",
+  );
+  assert.equal(evidence.gyroscopeValueAfterInjection, "InvalidOperationException");
+
+  const motion = evidence.motionAfterInjection;
+  assert.equal(typeof motion, "object", `motion injection failed: ${motion}`);
+  assert.equal(motion.state, evidence.states.Ready);
+  assert.equal(motion.valid, true);
+  assert.equal(motion.northReferenced, true, "the synthetic backend was installed north-referenced");
+  // Both directions, which is what proves the flag is read from the backend rather than defaulted.
+  assert.equal(evidence.motionNorthWhenNotReferenced, false);
+  assert.equal(evidence.motionNorthWhenReferenced, true);
+  assert.deepEqual([motion.pitch, motion.roll, motion.yaw], [0.125, -0.25, 1.5]);
+  assert.deepEqual(motion.quaternion, [0.1, 0.2, 0.3, 0.4].map((v) => Math.fround(v)));
+  // The matrix is sixteen distinguishable values, so a transposed read is caught: the first row
+  // is 1..4 and the diagonal is 1, 6, 11, 16.
+  assert.deepEqual(motion.matrixFirstRow, [1, 2, 3, 4]);
+  assert.deepEqual(motion.matrixDiagonal, [1, 6, 11, 16]);
+  // Three vectors with disjoint value sets: acceleration positive, rotation rate negative, gravity
+  // a single physical constant on one axis. Substituting any for any other fails.
+  assert.deepEqual(motion.acceleration, [1.5, 2.5, 3.5]);
+  assert.deepEqual(motion.rotationRate, [-1.25, -2.25, -3.25]);
+  assert.deepEqual(motion.gravity, [0, Math.fround(-9.80665), 0]);
+  assert.equal(motion.timestampTicks, "638000000000000001");
+
+  assert.equal(evidence.compassInterval, "200000", "the interval request is read back");
+  assert.equal(
+    evidence.motionBackendSwapWhileStarted, "Error",
+    "a backend cannot be swapped underneath a running acquisition",
+  );
+  // What withdrawing a backend actually does, measured rather than assumed -- and the three parts
+  // do not agree with each other. Stopping moves the state to Disabled; removing the backend
+  // leaves the state there and leaves IsDataValid reporting true; but reading the value refuses
+  // with "the sensor is not supported on this device". So a caller that trusted IsDataValid would
+  // be told there is a reading and then refused it. That disagreement is recorded in
+  // docs/upstream-cna-findings.md, and this assertion is what notices if CNA changes it.
+  assert.equal(evidence.motionStateAfterStop, 5, "SensorState.Disabled");
+  assert.equal(evidence.motionAfterRemoval.state, 5, "removal leaves the state where Stop put it");
+  assert.equal(evidence.motionAfterRemoval.isDataValid, true, "IsDataValid still says yes");
+  assert.equal(
+    evidence.motionValueAfterRemoval, "Error",
+    "...while the value itself refuses: the two disagree, which is the upstream observation",
+  );
+  assert.deepEqual(evidence.disposed, [true, true, true]);
+  assert.equal(evidence.compassAfterDispose, "ObjectDisposedException");
 });

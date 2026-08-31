@@ -498,6 +498,18 @@ typedef CNA_Result (*GamerServicesVoidFn)(void);
 typedef CNA_Result (*GamerServicesU64InFn)(uint64_t);
 
 /* --- sensors ---------------------------------------------------------------------------------- */
+typedef CNA_Result (*CompassReadingInitFn)(CNA_CompassReading*);
+typedef CNA_Result (*GyroscopeReadingInitFn)(CNA_GyroscopeReading*);
+typedef CNA_Result (*MotionReadingInitFn)(CNA_MotionReading*);
+typedef CNA_Result (*CompassReadingFn)(CNA_CompassHandle, CNA_CompassReading*);
+typedef CNA_Result (*GyroscopeReadingFn)(CNA_GyroscopeHandle, CNA_GyroscopeReading*);
+typedef CNA_Result (*MotionReadingFn)(CNA_MotionHandle, CNA_MotionReading*);
+typedef CNA_Result (*CompassInjectFn)(CNA_CompassHandle, const CNA_CompassReading*);
+typedef CNA_Result (*MotionInjectFn)(CNA_MotionHandle, const CNA_MotionReading*);
+typedef CNA_Result (*GyroscopeInjectFn)(CNA_GyroscopeHandle, float, float, float);
+typedef CNA_Result (*CompassTestBackendFn)(CNA_CompassHandle, CNA_Bool, CNA_Bool);
+typedef CNA_Result (*MotionTestBackendFn)(CNA_MotionHandle, CNA_Bool, CNA_Bool, CNA_Bool);
+typedef CNA_Result (*GyroscopeSetSupportedFn)(CNA_GyroscopeHandle, CNA_Bool);
 typedef CNA_Result (*AccelerometerCreateFn)(CNA_Handle, CNA_AccelerometerHandle*);
 typedef CNA_Result (*AccelerometerReadingFn)(CNA_AccelerometerHandle, CNA_AccelerometerReading*);
 typedef CNA_Result (*AccelerometerTicksInFn)(CNA_AccelerometerHandle, int64_t);
@@ -1221,6 +1233,46 @@ typedef struct Api {
   BoolInFn guide_set_is_screen_saver_enabled;
   U32OutFn guide_get_notification_position;
   U32InFn guide_set_notification_position;
+  CompassReadingInitFn compass_reading_init;
+  GyroscopeReadingInitFn gyroscope_reading_init;
+  MotionReadingInitFn motion_reading_init;
+  AccelerometerCreateFn compass_create;
+  GameHandleFn compass_destroy;
+  GameHandleFn compass_start;
+  GameHandleFn compass_stop;
+  GameHandleFn compass_dispose;
+  GameU32OutFn compass_get_state;
+  BoolGetFn compass_is_data_valid;
+  CompassReadingFn compass_get_current_value;
+  HandleInt64OutFn compass_get_interval;
+  AccelerometerTicksInFn compass_set_interval;
+  CompassInjectFn compass_inject;
+  CompassTestBackendFn compass_set_test_backend;
+  AccelerometerCreateFn gyroscope_create;
+  GameHandleFn gyroscope_destroy;
+  GameHandleFn gyroscope_start;
+  GameHandleFn gyroscope_stop;
+  GameHandleFn gyroscope_dispose;
+  GameU32OutFn gyroscope_get_state;
+  BoolGetFn gyroscope_is_data_valid;
+  GyroscopeReadingFn gyroscope_get_current_value;
+  HandleInt64OutFn gyroscope_get_interval;
+  AccelerometerTicksInFn gyroscope_set_interval;
+  GyroscopeInjectFn gyroscope_inject;
+  GyroscopeSetSupportedFn gyroscope_set_supported;
+  AccelerometerCreateFn motion_create;
+  GameHandleFn motion_destroy;
+  GameHandleFn motion_start;
+  GameHandleFn motion_stop;
+  GameHandleFn motion_dispose;
+  GameU32OutFn motion_get_state;
+  BoolGetFn motion_is_data_valid;
+  BoolGetFn motion_is_north_referenced;
+  MotionReadingFn motion_get_current_value;
+  HandleInt64OutFn motion_get_interval;
+  AccelerometerTicksInFn motion_set_interval;
+  MotionInjectFn motion_inject;
+  MotionTestBackendFn motion_set_test_backend;
   BoolGetFn accelerometer_is_supported;
   BoolGetFn compass_is_supported;
   BoolGetFn gyroscope_is_supported;
@@ -2278,6 +2330,46 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(guide_get_notification_position, U32OutFn, "cna_guide_get_notification_position");
   LOAD_REQUIRED(guide_set_notification_position, U32InFn, "cna_guide_set_notification_position");
 
+  LOAD_REQUIRED(compass_reading_init, CompassReadingInitFn, "cna_compass_reading_init");
+  LOAD_REQUIRED(gyroscope_reading_init, GyroscopeReadingInitFn, "cna_gyroscope_reading_init");
+  LOAD_REQUIRED(motion_reading_init, MotionReadingInitFn, "cna_motion_reading_init");
+  LOAD_REQUIRED(compass_create, AccelerometerCreateFn, "cna_compass_create");
+  LOAD_REQUIRED(compass_destroy, GameHandleFn, "cna_compass_destroy");
+  LOAD_REQUIRED(compass_start, GameHandleFn, "cna_compass_start");
+  LOAD_REQUIRED(compass_stop, GameHandleFn, "cna_compass_stop");
+  LOAD_REQUIRED(compass_dispose, GameHandleFn, "cna_compass_dispose");
+  LOAD_REQUIRED(compass_get_state, GameU32OutFn, "cna_compass_get_state");
+  LOAD_REQUIRED(compass_is_data_valid, BoolGetFn, "cna_compass_get_is_data_valid");
+  LOAD_REQUIRED(compass_get_current_value, CompassReadingFn, "cna_compass_get_current_value");
+  LOAD_REQUIRED(compass_get_interval, HandleInt64OutFn, "cna_compass_get_time_between_updates_ticks");
+  LOAD_REQUIRED(compass_set_interval, AccelerometerTicksInFn, "cna_compass_set_time_between_updates_ticks");
+  LOAD_REQUIRED(compass_inject, CompassInjectFn, "cna_compass_inject_synthetic_update_ext");
+  LOAD_REQUIRED(compass_set_test_backend, CompassTestBackendFn, "cna_compass_set_test_backend_ext");
+  LOAD_REQUIRED(gyroscope_create, AccelerometerCreateFn, "cna_gyroscope_create");
+  LOAD_REQUIRED(gyroscope_destroy, GameHandleFn, "cna_gyroscope_destroy");
+  LOAD_REQUIRED(gyroscope_start, GameHandleFn, "cna_gyroscope_start");
+  LOAD_REQUIRED(gyroscope_stop, GameHandleFn, "cna_gyroscope_stop");
+  LOAD_REQUIRED(gyroscope_dispose, GameHandleFn, "cna_gyroscope_dispose");
+  LOAD_REQUIRED(gyroscope_get_state, GameU32OutFn, "cna_gyroscope_get_state");
+  LOAD_REQUIRED(gyroscope_is_data_valid, BoolGetFn, "cna_gyroscope_get_is_data_valid");
+  LOAD_REQUIRED(gyroscope_get_current_value, GyroscopeReadingFn, "cna_gyroscope_get_current_value");
+  LOAD_REQUIRED(gyroscope_get_interval, HandleInt64OutFn, "cna_gyroscope_get_time_between_updates_ticks");
+  LOAD_REQUIRED(gyroscope_set_interval, AccelerometerTicksInFn, "cna_gyroscope_set_time_between_updates_ticks");
+  LOAD_REQUIRED(gyroscope_inject, GyroscopeInjectFn, "cna_gyroscope_inject_synthetic_update_ext");
+  LOAD_REQUIRED(gyroscope_set_supported, GyroscopeSetSupportedFn, "cna_gyroscope_set_supported_for_tests_ext");
+  LOAD_REQUIRED(motion_create, AccelerometerCreateFn, "cna_motion_create");
+  LOAD_REQUIRED(motion_destroy, GameHandleFn, "cna_motion_destroy");
+  LOAD_REQUIRED(motion_start, GameHandleFn, "cna_motion_start");
+  LOAD_REQUIRED(motion_stop, GameHandleFn, "cna_motion_stop");
+  LOAD_REQUIRED(motion_dispose, GameHandleFn, "cna_motion_dispose");
+  LOAD_REQUIRED(motion_get_state, GameU32OutFn, "cna_motion_get_state");
+  LOAD_REQUIRED(motion_is_data_valid, BoolGetFn, "cna_motion_get_is_data_valid");
+  LOAD_REQUIRED(motion_is_north_referenced, BoolGetFn, "cna_motion_get_is_attitude_north_referenced_ext");
+  LOAD_REQUIRED(motion_get_current_value, MotionReadingFn, "cna_motion_get_current_value");
+  LOAD_REQUIRED(motion_get_interval, HandleInt64OutFn, "cna_motion_get_time_between_updates_ticks");
+  LOAD_REQUIRED(motion_set_interval, AccelerometerTicksInFn, "cna_motion_set_time_between_updates_ticks");
+  LOAD_REQUIRED(motion_inject, MotionInjectFn, "cna_motion_inject_synthetic_update_ext");
+  LOAD_REQUIRED(motion_set_test_backend, MotionTestBackendFn, "cna_motion_set_test_backend_ext");
   LOAD_REQUIRED(accelerometer_is_supported, BoolGetFn, "cna_accelerometer_get_is_supported");
   LOAD_REQUIRED(compass_is_supported, BoolGetFn, "cna_compass_get_is_supported");
   LOAD_REQUIRED(gyroscope_is_supported, BoolGetFn, "cna_gyroscope_get_is_supported");
@@ -12783,6 +12875,517 @@ static napi_value set_accelerometer_interval(napi_env env, napi_callback_info in
   return undefined_result(env, "accelerometer interval");
 }
 
+/* --- the compass, the gyroscope and the motion sensor ------------------------------------------ */
+/*
+ * The three sensors beside the accelerometer, and the three CNA gives deterministic injection hooks
+ * for. That matters: a build machine has none of this hardware, so without those hooks the only
+ * honest claim would be "absent", which is what the accelerometer's evidence is limited to. With
+ * them the *data path* can be proved -- a reading with real values, through the real routes, into
+ * the public API -- while staying clear that a synthetic update is injection evidence and not a
+ * measurement of anything physical.
+ *
+ * Every reading carries a `CNA_DateTimeOffset` whose ticks are 100-nanosecond units since
+ * 0001-01-01. That does not survive a double, so it crosses as a bigint, exactly as the
+ * accelerometer's does.
+ */
+
+static int set_timestamp(napi_env env, napi_value object, const CNA_DateTimeOffset* timestamp) {
+  napi_value ticks_value, offset_value;
+  return napi_create_bigint_int64(env, timestamp->ticks, &ticks_value) == napi_ok &&
+    napi_create_bigint_int64(env, timestamp->offset_ticks, &offset_value) == napi_ok &&
+    napi_set_named_property(env, object, "TimestampTicks", ticks_value) == napi_ok &&
+    napi_set_named_property(env, object, "TimestampOffsetTicks", offset_value) == napi_ok;
+}
+
+static int set_vector3(napi_env env, napi_value object, const char* name, const CNA_Vector3* value) {
+  napi_value nested;
+  if (napi_create_object(env, &nested) != napi_ok) return 0;
+  return set_number(env, nested, "X", (double) value->x) &&
+    set_number(env, nested, "Y", (double) value->y) &&
+    set_number(env, nested, "Z", (double) value->z) &&
+    napi_set_named_property(env, object, name, nested) == napi_ok;
+}
+
+static int read_vector3(napi_env env, napi_value object, const char* name, CNA_Vector3* out) {
+  napi_value nested, component;
+  double values[3] = {0, 0, 0};
+  static const char* const names[] = {"X", "Y", "Z"};
+  if (napi_get_named_property(env, object, name, &nested) != napi_ok) return 0;
+  for (size_t index = 0; index < 3; index += 1) {
+    if (napi_get_named_property(env, nested, names[index], &component) != napi_ok ||
+        napi_get_value_double(env, component, &values[index]) != napi_ok) {
+      return 0;
+    }
+  }
+  out->x = (float) values[0];
+  out->y = (float) values[1];
+  out->z = (float) values[2];
+  return 1;
+}
+
+static napi_value sensor_bool_out(
+  napi_env env, napi_callback_info info, BoolGetFn function, const char* operation
+) {
+  napi_value args[1], output;
+  CNA_Handle handle = 0;
+  CNA_Bool value = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &handle)) return NULL;
+  const CNA_Result result = function(handle, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  NAPI_OR_RETURN(env, napi_get_boolean(env, value != CNA_FALSE, &output), operation);
+  return output;
+}
+
+static napi_value sensor_u32_out(
+  napi_env env, napi_callback_info info, GameU32OutFn function, const char* operation
+) {
+  napi_value args[1], output;
+  CNA_Handle handle = 0;
+  uint32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &handle)) return NULL;
+  const CNA_Result result = function(handle, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, value, &output), operation);
+  return output;
+}
+
+static napi_value sensor_handle_only(
+  napi_env env, napi_callback_info info, GameHandleFn function, const char* operation
+) {
+  napi_value args[1];
+  CNA_Handle handle = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &handle)) return NULL;
+  const CNA_Result result = function(handle);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return undefined_result(env, operation);
+}
+
+static napi_value sensor_create(
+  napi_env env, napi_callback_info info, AccelerometerCreateFn function, const char* operation
+) {
+  napi_value args[1];
+  CNA_Handle game = 0, sensor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = function(game, &sensor);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return make_handle(env, sensor);
+}
+
+static napi_value sensor_get_ticks(
+  napi_env env, napi_callback_info info, HandleInt64OutFn function, const char* operation
+) {
+  napi_value args[1], output;
+  CNA_Handle handle = 0;
+  int64_t ticks = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &handle)) return NULL;
+  const CNA_Result result = function(handle, &ticks);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  NAPI_OR_RETURN(env, napi_create_bigint_int64(env, ticks, &output), operation);
+  return output;
+}
+
+static napi_value sensor_set_ticks(
+  napi_env env, napi_callback_info info, AccelerometerTicksInFn function, const char* operation
+) {
+  napi_value args[2];
+  CNA_Handle handle = 0;
+  int64_t ticks = 0;
+  bool lossless = false;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &handle) ||
+      napi_get_value_bigint_int64(env, args[1], &ticks, &lossless) != napi_ok || !lossless) {
+    return throw_message(env, "expected a sensor and an interval in ticks");
+  }
+  const CNA_Result result = function(handle, ticks);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, operation, result);
+  return undefined_result(env, operation);
+}
+
+/* ---- the compass ---- */
+
+static napi_value compass_is_supported(napi_env env, napi_callback_info info) {
+  return sensor_bool_out(
+    env, info, g_api.compass_is_supported, "cna_compass_get_is_supported");
+}
+static napi_value compass_create(napi_env env, napi_callback_info info) {
+  return sensor_create(env, info, g_api.compass_create, "cna_compass_create");
+}
+static napi_value compass_destroy(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.compass_destroy, "cna_compass_destroy");
+}
+static napi_value compass_start(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.compass_start, "cna_compass_start");
+}
+static napi_value compass_stop(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.compass_stop, "cna_compass_stop");
+}
+static napi_value compass_dispose(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.compass_dispose, "cna_compass_dispose");
+}
+static napi_value compass_get_state(napi_env env, napi_callback_info info) {
+  return sensor_u32_out(env, info, g_api.compass_get_state, "cna_compass_get_state");
+}
+static napi_value compass_is_data_valid(napi_env env, napi_callback_info info) {
+  return sensor_bool_out(
+    env, info, g_api.compass_is_data_valid, "cna_compass_get_is_data_valid");
+}
+static napi_value compass_get_interval(napi_env env, napi_callback_info info) {
+  return sensor_get_ticks(
+    env, info, g_api.compass_get_interval, "cna_compass_get_time_between_updates_ticks");
+}
+static napi_value compass_set_interval(napi_env env, napi_callback_info info) {
+  return sensor_set_ticks(
+    env, info, g_api.compass_set_interval, "cna_compass_set_time_between_updates_ticks");
+}
+
+static napi_value compass_get_reading(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle sensor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &sensor)) return NULL;
+  CNA_CompassReading reading;
+  memset(&reading, 0, sizeof(reading));
+  const CNA_Result init = g_api.compass_reading_init(&reading);
+  if (init != CNA_RESULT_SUCCESS) return throw_result(env, "cna_compass_reading_init", init);
+  const CNA_Result result = g_api.compass_get_current_value(sensor, &reading);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_compass_get_current_value", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "compass reading");
+  if (!set_timestamp(env, output, &reading.timestamp) ||
+      !set_number(env, output, "HeadingAccuracy", reading.heading_accuracy) ||
+      !set_number(env, output, "MagneticHeading", reading.magnetic_heading) ||
+      !set_number(env, output, "TrueHeading", reading.true_heading) ||
+      !set_vector3(env, output, "MagnetometerReading", &reading.magnetometer_reading)) {
+    return throw_napi(env, "compass reading");
+  }
+  return output;
+}
+
+static napi_value compass_set_test_backend(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle sensor = 0;
+  bool installed = false, supported = false;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &sensor) ||
+      napi_get_value_bool(env, args[1], &installed) != napi_ok ||
+      napi_get_value_bool(env, args[2], &supported) != napi_ok) {
+    return throw_message(env, "expected a compass and two flags");
+  }
+  const CNA_Result result = g_api.compass_set_test_backend(
+    sensor, installed ? CNA_TRUE : CNA_FALSE, supported ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_compass_set_test_backend_ext", result);
+  }
+  return undefined_result(env, "compass test backend");
+}
+
+static napi_value compass_inject(napi_env env, napi_callback_info info) {
+  napi_value args[2], component;
+  CNA_Handle sensor = 0;
+  double numbers[3] = {0, 0, 0};
+  int64_t ticks = 0, offset = 0;
+  bool lossless = false;
+  static const char* const names[] = {"HeadingAccuracy", "MagneticHeading", "TrueHeading"};
+  CNA_CompassReading reading;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &sensor)) return NULL;
+  memset(&reading, 0, sizeof(reading));
+  {
+    const CNA_Result init = g_api.compass_reading_init(&reading);
+    if (init != CNA_RESULT_SUCCESS) return throw_result(env, "cna_compass_reading_init", init);
+  }
+  for (size_t index = 0; index < 3; index += 1) {
+    if (napi_get_named_property(env, args[1], names[index], &component) != napi_ok ||
+        napi_get_value_double(env, component, &numbers[index]) != napi_ok) {
+      return throw_message(env, "a compass reading needs its three heading values");
+    }
+  }
+  if (!read_vector3(env, args[1], "MagnetometerReading", &reading.magnetometer_reading)) {
+    return throw_message(env, "a compass reading needs a magnetometer vector");
+  }
+  if (napi_get_named_property(env, args[1], "TimestampTicks", &component) != napi_ok ||
+      napi_get_value_bigint_int64(env, component, &ticks, &lossless) != napi_ok || !lossless ||
+      napi_get_named_property(env, args[1], "TimestampOffsetTicks", &component) != napi_ok ||
+      napi_get_value_bigint_int64(env, component, &offset, &lossless) != napi_ok || !lossless) {
+    return throw_message(env, "a compass reading needs a bigint timestamp and offset");
+  }
+  reading.heading_accuracy = numbers[0];
+  reading.magnetic_heading = numbers[1];
+  reading.true_heading = numbers[2];
+  reading.timestamp.ticks = ticks;
+  reading.timestamp.offset_ticks = offset;
+  {
+    const CNA_Result result = g_api.compass_inject(sensor, &reading);
+    if (result != CNA_RESULT_SUCCESS) {
+      return throw_result(env, "cna_compass_inject_synthetic_update_ext", result);
+    }
+  }
+  return undefined_result(env, "compass injection");
+}
+
+/* ---- the gyroscope ---- */
+
+static napi_value gyroscope_is_supported(napi_env env, napi_callback_info info) {
+  return sensor_bool_out(
+    env, info, g_api.gyroscope_is_supported, "cna_gyroscope_get_is_supported");
+}
+static napi_value gyroscope_create(napi_env env, napi_callback_info info) {
+  return sensor_create(env, info, g_api.gyroscope_create, "cna_gyroscope_create");
+}
+static napi_value gyroscope_destroy(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.gyroscope_destroy, "cna_gyroscope_destroy");
+}
+static napi_value gyroscope_start(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.gyroscope_start, "cna_gyroscope_start");
+}
+static napi_value gyroscope_stop(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.gyroscope_stop, "cna_gyroscope_stop");
+}
+static napi_value gyroscope_dispose(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.gyroscope_dispose, "cna_gyroscope_dispose");
+}
+static napi_value gyroscope_get_state(napi_env env, napi_callback_info info) {
+  return sensor_u32_out(env, info, g_api.gyroscope_get_state, "cna_gyroscope_get_state");
+}
+static napi_value gyroscope_is_data_valid(napi_env env, napi_callback_info info) {
+  return sensor_bool_out(
+    env, info, g_api.gyroscope_is_data_valid, "cna_gyroscope_get_is_data_valid");
+}
+static napi_value gyroscope_get_interval(napi_env env, napi_callback_info info) {
+  return sensor_get_ticks(
+    env, info, g_api.gyroscope_get_interval, "cna_gyroscope_get_time_between_updates_ticks");
+}
+static napi_value gyroscope_set_interval(napi_env env, napi_callback_info info) {
+  return sensor_set_ticks(
+    env, info, g_api.gyroscope_set_interval, "cna_gyroscope_set_time_between_updates_ticks");
+}
+
+static napi_value gyroscope_get_reading(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle sensor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &sensor)) return NULL;
+  CNA_GyroscopeReading reading;
+  memset(&reading, 0, sizeof(reading));
+  const CNA_Result init = g_api.gyroscope_reading_init(&reading);
+  if (init != CNA_RESULT_SUCCESS) return throw_result(env, "cna_gyroscope_reading_init", init);
+  const CNA_Result result = g_api.gyroscope_get_current_value(sensor, &reading);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gyroscope_get_current_value", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "gyroscope reading");
+  if (!set_timestamp(env, output, &reading.timestamp) ||
+      !set_vector3(env, output, "RotationRate", &reading.rotation_rate)) {
+    return throw_napi(env, "gyroscope reading");
+  }
+  return output;
+}
+
+static napi_value gyroscope_set_supported(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle sensor = 0;
+  bool supported = false;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &sensor) ||
+      napi_get_value_bool(env, args[1], &supported) != napi_ok) {
+    return throw_message(env, "expected a gyroscope and a flag");
+  }
+  const CNA_Result result =
+    g_api.gyroscope_set_supported(sensor, supported ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gyroscope_set_supported_for_tests_ext", result);
+  }
+  return undefined_result(env, "gyroscope support override");
+}
+
+static napi_value gyroscope_inject(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle sensor = 0;
+  double x = 0, y = 0, z = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &sensor) ||
+      napi_get_value_double(env, args[1], &x) != napi_ok ||
+      napi_get_value_double(env, args[2], &y) != napi_ok ||
+      napi_get_value_double(env, args[3], &z) != napi_ok) {
+    return throw_message(env, "expected a gyroscope and three rotation rates");
+  }
+  const CNA_Result result =
+    g_api.gyroscope_inject(sensor, (float) x, (float) y, (float) z);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gyroscope_inject_synthetic_update_ext", result);
+  }
+  return undefined_result(env, "gyroscope injection");
+}
+
+/* ---- the motion sensor ---- */
+
+static napi_value motion_is_supported(napi_env env, napi_callback_info info) {
+  return sensor_bool_out(env, info, g_api.motion_is_supported, "cna_motion_get_is_supported");
+}
+static napi_value motion_create(napi_env env, napi_callback_info info) {
+  return sensor_create(env, info, g_api.motion_create, "cna_motion_create");
+}
+static napi_value motion_destroy(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.motion_destroy, "cna_motion_destroy");
+}
+static napi_value motion_start(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.motion_start, "cna_motion_start");
+}
+static napi_value motion_stop(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.motion_stop, "cna_motion_stop");
+}
+static napi_value motion_dispose(napi_env env, napi_callback_info info) {
+  return sensor_handle_only(env, info, g_api.motion_dispose, "cna_motion_dispose");
+}
+static napi_value motion_get_state(napi_env env, napi_callback_info info) {
+  return sensor_u32_out(env, info, g_api.motion_get_state, "cna_motion_get_state");
+}
+static napi_value motion_is_data_valid(napi_env env, napi_callback_info info) {
+  return sensor_bool_out(env, info, g_api.motion_is_data_valid, "cna_motion_get_is_data_valid");
+}
+static napi_value motion_is_north_referenced(napi_env env, napi_callback_info info) {
+  return sensor_bool_out(
+    env, info, g_api.motion_is_north_referenced,
+    "cna_motion_get_is_attitude_north_referenced_ext");
+}
+static napi_value motion_get_interval(napi_env env, napi_callback_info info) {
+  return sensor_get_ticks(
+    env, info, g_api.motion_get_interval, "cna_motion_get_time_between_updates_ticks");
+}
+static napi_value motion_set_interval(napi_env env, napi_callback_info info) {
+  return sensor_set_ticks(
+    env, info, g_api.motion_set_interval, "cna_motion_set_time_between_updates_ticks");
+}
+
+static napi_value motion_get_reading(napi_env env, napi_callback_info info) {
+  napi_value args[1], output, attitude;
+  CNA_Handle sensor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &sensor)) return NULL;
+  CNA_MotionReading reading;
+  memset(&reading, 0, sizeof(reading));
+  const CNA_Result init = g_api.motion_reading_init(&reading);
+  if (init != CNA_RESULT_SUCCESS) return throw_result(env, "cna_motion_reading_init", init);
+  const CNA_Result result = g_api.motion_get_current_value(sensor, &reading);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_motion_get_current_value", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "motion reading");
+  NAPI_OR_RETURN(env, napi_create_object(env, &attitude), "attitude reading");
+  {
+    const float quaternion[4] = {
+      reading.attitude.quaternion.x, reading.attitude.quaternion.y,
+      reading.attitude.quaternion.z, reading.attitude.quaternion.w};
+    const float* const matrix = &reading.attitude.rotation_matrix.m11;
+    if (!set_timestamp(env, attitude, &reading.attitude.timestamp) ||
+        !set_number(env, attitude, "Pitch", (double) reading.attitude.pitch) ||
+        !set_number(env, attitude, "Roll", (double) reading.attitude.roll) ||
+        !set_number(env, attitude, "Yaw", (double) reading.attitude.yaw) ||
+        !set_float_array(env, attitude, "Quaternion", quaternion, 4) ||
+        !set_float_array(env, attitude, "RotationMatrix", matrix, 16)) {
+      return throw_napi(env, "attitude reading");
+    }
+  }
+  if (!set_timestamp(env, output, &reading.timestamp) ||
+      napi_set_named_property(env, output, "Attitude", attitude) != napi_ok ||
+      !set_vector3(env, output, "DeviceAcceleration", &reading.device_acceleration) ||
+      !set_vector3(env, output, "DeviceRotationRate", &reading.device_rotation_rate) ||
+      !set_vector3(env, output, "Gravity", &reading.gravity)) {
+    return throw_napi(env, "motion reading");
+  }
+  return output;
+}
+
+static napi_value motion_set_test_backend(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle sensor = 0;
+  bool installed = false, supported = false, north = false;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &sensor) ||
+      napi_get_value_bool(env, args[1], &installed) != napi_ok ||
+      napi_get_value_bool(env, args[2], &supported) != napi_ok ||
+      napi_get_value_bool(env, args[3], &north) != napi_ok) {
+    return throw_message(env, "expected a motion sensor and three flags");
+  }
+  const CNA_Result result = g_api.motion_set_test_backend(
+    sensor, installed ? CNA_TRUE : CNA_FALSE, supported ? CNA_TRUE : CNA_FALSE,
+    north ? CNA_TRUE : CNA_FALSE);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_motion_set_test_backend_ext", result);
+  }
+  return undefined_result(env, "motion test backend");
+}
+
+static napi_value motion_inject(napi_env env, napi_callback_info info) {
+  napi_value args[2], attitude, component;
+  CNA_Handle sensor = 0;
+  CNA_MotionReading reading;
+  double numbers[3] = {0, 0, 0};
+  float quaternion[4];
+  float matrix[16];
+  int64_t ticks = 0, offset = 0;
+  bool lossless = false;
+  static const char* const angles[] = {"Pitch", "Roll", "Yaw"};
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &sensor)) return NULL;
+  memset(&reading, 0, sizeof(reading));
+  {
+    const CNA_Result init = g_api.motion_reading_init(&reading);
+    if (init != CNA_RESULT_SUCCESS) return throw_result(env, "cna_motion_reading_init", init);
+  }
+  if (!read_vector3(env, args[1], "DeviceAcceleration", &reading.device_acceleration) ||
+      !read_vector3(env, args[1], "DeviceRotationRate", &reading.device_rotation_rate) ||
+      !read_vector3(env, args[1], "Gravity", &reading.gravity)) {
+    return throw_message(env, "a motion reading needs its three vectors");
+  }
+  if (napi_get_named_property(env, args[1], "Attitude", &attitude) != napi_ok) {
+    return throw_message(env, "a motion reading needs an attitude");
+  }
+  for (size_t index = 0; index < 3; index += 1) {
+    if (napi_get_named_property(env, attitude, angles[index], &component) != napi_ok ||
+        napi_get_value_double(env, component, &numbers[index]) != napi_ok) {
+      return throw_message(env, "an attitude needs a pitch, a roll and a yaw");
+    }
+  }
+  if (napi_get_named_property(env, attitude, "Quaternion", &component) != napi_ok ||
+      !read_float_array(env, component, quaternion, 4, "an attitude quaternion needs four values") ||
+      napi_get_named_property(env, attitude, "RotationMatrix", &component) != napi_ok ||
+      !read_float_array(env, component, matrix, 16, "an attitude matrix needs sixteen values")) {
+    return NULL;
+  }
+  if (napi_get_named_property(env, args[1], "TimestampTicks", &component) != napi_ok ||
+      napi_get_value_bigint_int64(env, component, &ticks, &lossless) != napi_ok || !lossless ||
+      napi_get_named_property(env, args[1], "TimestampOffsetTicks", &component) != napi_ok ||
+      napi_get_value_bigint_int64(env, component, &offset, &lossless) != napi_ok || !lossless) {
+    return throw_message(env, "a motion reading needs a bigint timestamp and offset");
+  }
+  reading.attitude.pitch = (float) numbers[0];
+  reading.attitude.roll = (float) numbers[1];
+  reading.attitude.yaw = (float) numbers[2];
+  reading.attitude.quaternion.x = quaternion[0];
+  reading.attitude.quaternion.y = quaternion[1];
+  reading.attitude.quaternion.z = quaternion[2];
+  reading.attitude.quaternion.w = quaternion[3];
+  memcpy(&reading.attitude.rotation_matrix.m11, matrix, sizeof(matrix));
+  reading.attitude.timestamp.ticks = ticks;
+  reading.attitude.timestamp.offset_ticks = offset;
+  reading.timestamp.ticks = ticks;
+  reading.timestamp.offset_ticks = offset;
+  {
+    const CNA_Result result = g_api.motion_inject(sensor, &reading);
+    if (result != CNA_RESULT_SUCCESS) {
+      return throw_result(env, "cna_motion_inject_synthetic_update_ext", result);
+    }
+  }
+  return undefined_result(env, "motion injection");
+}
+
 static napi_value get_accelerometer_reading(napi_env env, napi_callback_info info) {
   napi_value args[1], output, ticks_value, offset_value;
   CNA_Handle sensor = 0;
@@ -13319,6 +13922,46 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "stopAccelerometer", NULL, stop_accelerometer, NULL, NULL, NULL, napi_default, NULL },
     { "getAccelerometerState", NULL, get_accelerometer_state, NULL, NULL, NULL, napi_default, NULL },
     { "setAccelerometerInterval", NULL, set_accelerometer_interval, NULL, NULL, NULL, napi_default, NULL },
+    { "compassIsSupported", NULL, compass_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "compassCreate", NULL, compass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "compassDestroy", NULL, compass_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "compassStart", NULL, compass_start, NULL, NULL, NULL, napi_default, NULL },
+    { "compassStop", NULL, compass_stop, NULL, NULL, NULL, napi_default, NULL },
+    { "compassDispose", NULL, compass_dispose, NULL, NULL, NULL, napi_default, NULL },
+    { "compassGetState", NULL, compass_get_state, NULL, NULL, NULL, napi_default, NULL },
+    { "compassIsDataValid", NULL, compass_is_data_valid, NULL, NULL, NULL, napi_default, NULL },
+    { "compassGetReading", NULL, compass_get_reading, NULL, NULL, NULL, napi_default, NULL },
+    { "compassGetInterval", NULL, compass_get_interval, NULL, NULL, NULL, napi_default, NULL },
+    { "compassSetInterval", NULL, compass_set_interval, NULL, NULL, NULL, napi_default, NULL },
+    { "compassInject", NULL, compass_inject, NULL, NULL, NULL, napi_default, NULL },
+    { "compassSetTestBackend", NULL, compass_set_test_backend, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeIsSupported", NULL, gyroscope_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeCreate", NULL, gyroscope_create, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeDestroy", NULL, gyroscope_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeStart", NULL, gyroscope_start, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeStop", NULL, gyroscope_stop, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeDispose", NULL, gyroscope_dispose, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeGetState", NULL, gyroscope_get_state, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeIsDataValid", NULL, gyroscope_is_data_valid, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeGetReading", NULL, gyroscope_get_reading, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeGetInterval", NULL, gyroscope_get_interval, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeSetInterval", NULL, gyroscope_set_interval, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeInject", NULL, gyroscope_inject, NULL, NULL, NULL, napi_default, NULL },
+    { "gyroscopeSetSupported", NULL, gyroscope_set_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "motionIsSupported", NULL, motion_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "motionCreate", NULL, motion_create, NULL, NULL, NULL, napi_default, NULL },
+    { "motionDestroy", NULL, motion_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "motionStart", NULL, motion_start, NULL, NULL, NULL, napi_default, NULL },
+    { "motionStop", NULL, motion_stop, NULL, NULL, NULL, napi_default, NULL },
+    { "motionDispose", NULL, motion_dispose, NULL, NULL, NULL, napi_default, NULL },
+    { "motionGetState", NULL, motion_get_state, NULL, NULL, NULL, napi_default, NULL },
+    { "motionIsDataValid", NULL, motion_is_data_valid, NULL, NULL, NULL, napi_default, NULL },
+    { "motionIsNorthReferenced", NULL, motion_is_north_referenced, NULL, NULL, NULL, napi_default, NULL },
+    { "motionGetReading", NULL, motion_get_reading, NULL, NULL, NULL, napi_default, NULL },
+    { "motionGetInterval", NULL, motion_get_interval, NULL, NULL, NULL, napi_default, NULL },
+    { "motionSetInterval", NULL, motion_set_interval, NULL, NULL, NULL, napi_default, NULL },
+    { "motionInject", NULL, motion_inject, NULL, NULL, NULL, napi_default, NULL },
+    { "motionSetTestBackend", NULL, motion_set_test_backend, NULL, NULL, NULL, napi_default, NULL },
     { "getAccelerometerReading", NULL, get_accelerometer_reading, NULL, NULL, NULL, napi_default, NULL },
     { "openStorageFile", NULL, open_storage_file, NULL, NULL, NULL, napi_default, NULL },
   };

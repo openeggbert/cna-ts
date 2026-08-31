@@ -13,12 +13,12 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 52,
+    "VERIFIED_NATIVE": 53,
     "VERIFIED_WEBASSEMBLY": 12,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 1,
     "FIXTURE_PENDING": 3,
-    "HARDWARE_PENDING": 5,
+    "HARDWARE_PENDING": 6,
     "PLATFORM_PENDING": 3,
     "UNIMPLEMENTED_CNA_TS": 5,
     "LANGUAGE_MAPPING_LIMITATION": 3,
@@ -105,6 +105,13 @@
       "evidence": "NULL audio verifies state/lifetime only"
     },
     {
+      "operation": "The gyroscope's reading path, and physical compass/motion hardware",
+      "category": "HARDWARE_PENDING",
+      "owner": "cna-ts/extensions/sensors",
+      "evidence": "The gyroscope is projected and its absence contract is verified, but its *reading* path cannot be exercised here: CNA gives the compass and the motion sensor a synthetic test backend and gives the gyroscope only a support override, so Start still needs a real platform sensor service and this host has none. Recorded as upstream finding 6 rather than worked around. The compass and motion data paths are proved by injection, which is not a measurement of physical hardware either; no reading in this package has come off a real sensor",
+      "proof": []
+    },
+    {
       "operation": "Arbitrary custom generic vertex value transfer",
       "category": "LANGUAGE_MAPPING_LIMITATION",
       "owner": "TypeScript language projection",
@@ -147,12 +154,11 @@
       "evidence": "no qualified artifact/job on either OS"
     },
     {
-      "operation": "CNA compass, gyroscope and motion readings, and camera frame capture",
+      "operation": "Camera frame capture",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the extended device layer, the accelerometer, the joystick, haptic, text-input and cursor families are projected and verified above; the compass, gyroscope and motion sensors report support but have no reading projection, and camera frame acquisition is measured and unprojected",
+      "evidence": "the extended device layer, the accelerometer, the compass, the gyroscope, the motion sensor and the joystick, haptic, text-input and cursor families are projected and verified above. Camera enumeration is projected; frame acquisition is measured and unprojected",
       "proof": [
-        "absentRoute:cna_compass_create",
         "absentRoute:cna_camera_create"
       ]
     },
@@ -544,6 +550,21 @@
         "route:cna_cnb_texture_data_get_info",
         "route:cna_cnb_encode_texture2d",
         "test:test/cnb-content.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Compass and motion sensors: absence, and a real reading through CNA's own injection",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/sensors",
+      "evidence": "Absence first, and it is the point of the family: a heading of zero and a rotation rate of zero are both perfectly plausible measurements, so all three sensors report NotSupported with no valid data and refuse CurrentValue rather than returning them. Then the data path, through cna_compass_set_test_backend_ext and cna_motion_set_test_backend_ext -- CNA's own synthetic backends -- which is **injection evidence, not hardware evidence**: no physical compass or motion sensor exists on this host. Every component carries a value no other component has, so a transposed or substituted field is visible: two compass headings that differ by the local declination, a magnetometer vector, a 16-value attitude matrix asserted by first row and diagonal, a quaternion, and three motion vectors with disjoint value sets. Timestamps cross as bigints and are asserted to the tick, which a double would lose. The north-reference flag is installed both ways and read back both ways, so it is proved read rather than defaulted. A backend cannot be swapped underneath a running acquisition. Three planted defects each fail the test: two headings read from one field, a transposed attitude matrix, and gravity read from the device acceleration",
+      "proof": [
+        "route:cna_compass_get_current_value",
+        "route:cna_compass_set_test_backend_ext",
+        "route:cna_compass_inject_synthetic_update_ext",
+        "route:cna_motion_get_current_value",
+        "route:cna_motion_set_test_backend_ext",
+        "route:cna_motion_get_is_attitude_north_referenced_ext",
+        "test:test/native-cna.integration.mjs"
       ]
     },
     {

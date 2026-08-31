@@ -57,11 +57,13 @@ import type {
   CnbSpriteFontInfoSnapshot,
   CnbTextureInfoSnapshot,
   CnbVideoInfoSnapshot,
+  CompassReadingSnapshot,
   ContentLostResourceKind,
   CueSnapshot,
   DepthStencilStateSnapshot,
   GameWindowBoundsSnapshot,
   GraphicsManagerConfiguration,
+  GyroscopeReadingSnapshot,
   HapticCapabilitiesSnapshot,
   HostDeviceSnapshot,
   JoystickCapabilitiesSnapshot,
@@ -70,6 +72,7 @@ import type {
   MediaSongPlaybackSnapshot,
   MediaSourceSnapshot,
   MicrophoneSnapshot,
+  MotionReadingSnapshot,
   NativeEffectPassSnapshot,
   NativeEffectReflectionSnapshot,
   NativeEffectTechniqueSnapshot,
@@ -1628,6 +1631,91 @@ export abstract class CnaSensorBackendBase implements CnaSensorBackend {
   public getAccelerometerReading(
     _sensor: NativeHandle,
   ): AccelerometerReadingSnapshot { return this.unsupported("getAccelerometerReading"); }
+  public createCompass(): NativeHandle { return this.unsupported("createCompass"); }
+  public destroyCompass(_sensor: NativeHandle): void { return this.unsupported("destroyCompass"); }
+  public startCompass(_sensor: NativeHandle): void { return this.unsupported("startCompass"); }
+  public stopCompass(_sensor: NativeHandle): void { return this.unsupported("stopCompass"); }
+  public disposeCompass(_sensor: NativeHandle): void { return this.unsupported("disposeCompass"); }
+  public getCompassState(_sensor: NativeHandle): number { return this.unsupported("getCompassState"); }
+  public getCompassIsDataValid(
+    _sensor: NativeHandle,
+  ): boolean { return this.unsupported("getCompassIsDataValid"); }
+  public getCompassReading(
+    _sensor: NativeHandle,
+  ): CompassReadingSnapshot { return this.unsupported("getCompassReading"); }
+  public getCompassInterval(_sensor: NativeHandle): bigint { return this.unsupported("getCompassInterval"); }
+  public setCompassInterval(
+    _sensor: NativeHandle,
+    _ticks: bigint,
+  ): void { return this.unsupported("setCompassInterval"); }
+  public injectCompassReading(
+    _sensor: NativeHandle,
+    _reading: CompassReadingSnapshot,
+  ): void { return this.unsupported("injectCompassReading"); }
+  public setCompassTestBackend(
+    _sensor: NativeHandle,
+    _installed: boolean,
+    _supported: boolean,
+  ): void { return this.unsupported("setCompassTestBackend"); }
+  public createGyroscope(): NativeHandle { return this.unsupported("createGyroscope"); }
+  public destroyGyroscope(_sensor: NativeHandle): void { return this.unsupported("destroyGyroscope"); }
+  public startGyroscope(_sensor: NativeHandle): void { return this.unsupported("startGyroscope"); }
+  public stopGyroscope(_sensor: NativeHandle): void { return this.unsupported("stopGyroscope"); }
+  public disposeGyroscope(_sensor: NativeHandle): void { return this.unsupported("disposeGyroscope"); }
+  public getGyroscopeState(_sensor: NativeHandle): number { return this.unsupported("getGyroscopeState"); }
+  public getGyroscopeIsDataValid(
+    _sensor: NativeHandle,
+  ): boolean { return this.unsupported("getGyroscopeIsDataValid"); }
+  public getGyroscopeReading(
+    _sensor: NativeHandle,
+  ): GyroscopeReadingSnapshot { return this.unsupported("getGyroscopeReading"); }
+  public getGyroscopeInterval(
+    _sensor: NativeHandle,
+  ): bigint { return this.unsupported("getGyroscopeInterval"); }
+  public setGyroscopeInterval(
+    _sensor: NativeHandle,
+    _ticks: bigint,
+  ): void { return this.unsupported("setGyroscopeInterval"); }
+  public injectGyroscopeReading(
+    _sensor: NativeHandle,
+    _x: number,
+    _y: number,
+    _z: number,
+  ): void { return this.unsupported("injectGyroscopeReading"); }
+  public setGyroscopeSupported(
+    _sensor: NativeHandle,
+    _supported: boolean,
+  ): void { return this.unsupported("setGyroscopeSupported"); }
+  public createMotion(): NativeHandle { return this.unsupported("createMotion"); }
+  public destroyMotion(_sensor: NativeHandle): void { return this.unsupported("destroyMotion"); }
+  public startMotion(_sensor: NativeHandle): void { return this.unsupported("startMotion"); }
+  public stopMotion(_sensor: NativeHandle): void { return this.unsupported("stopMotion"); }
+  public disposeMotion(_sensor: NativeHandle): void { return this.unsupported("disposeMotion"); }
+  public getMotionState(_sensor: NativeHandle): number { return this.unsupported("getMotionState"); }
+  public getMotionIsDataValid(
+    _sensor: NativeHandle,
+  ): boolean { return this.unsupported("getMotionIsDataValid"); }
+  public getMotionIsNorthReferenced(
+    _sensor: NativeHandle,
+  ): boolean { return this.unsupported("getMotionIsNorthReferenced"); }
+  public getMotionReading(
+    _sensor: NativeHandle,
+  ): MotionReadingSnapshot { return this.unsupported("getMotionReading"); }
+  public getMotionInterval(_sensor: NativeHandle): bigint { return this.unsupported("getMotionInterval"); }
+  public setMotionInterval(
+    _sensor: NativeHandle,
+    _ticks: bigint,
+  ): void { return this.unsupported("setMotionInterval"); }
+  public injectMotionReading(
+    _sensor: NativeHandle,
+    _reading: MotionReadingSnapshot,
+  ): void { return this.unsupported("injectMotionReading"); }
+  public setMotionTestBackend(
+    _sensor: NativeHandle,
+    _installed: boolean,
+    _supported: boolean,
+    _northReferenced: boolean,
+  ): void { return this.unsupported("setMotionTestBackend"); }
 }
 
 /** Refusing base for {@link CnaBackend}. */

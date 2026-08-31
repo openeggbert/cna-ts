@@ -29,6 +29,9 @@ import type {
   CnbMaterialSnapshot,
   CnbModelInfoSnapshot,
   CnbCurveSnapshot,
+  CompassReadingSnapshot,
+  GyroscopeReadingSnapshot,
+  MotionReadingSnapshot,
   CnbKeyframeSnapshot,
   CnbSoundEffectInfoSnapshot,
   CnbVideoInfoSnapshot,
@@ -618,6 +621,45 @@ interface NativeBridge {
   getAccelerometerState(sensor: bigint): SensorStateSnapshot;
   setAccelerometerInterval(sensor: bigint, ticks: bigint): void;
   getAccelerometerReading(sensor: bigint): AccelerometerReadingSnapshot;
+  compassCreate(game: bigint): bigint;
+  compassDestroy(sensor: bigint): void;
+  compassStart(sensor: bigint): void;
+  compassStop(sensor: bigint): void;
+  compassDispose(sensor: bigint): void;
+  compassGetState(sensor: bigint): number;
+  compassIsDataValid(sensor: bigint): boolean;
+  compassGetReading(sensor: bigint): CompassReadingSnapshot;
+  compassGetInterval(sensor: bigint): bigint;
+  compassSetInterval(sensor: bigint, ticks: bigint): void;
+  compassInject(sensor: bigint, reading: CompassReadingSnapshot): void;
+  compassSetTestBackend(sensor: bigint, installed: boolean, supported: boolean): void;
+  gyroscopeCreate(game: bigint): bigint;
+  gyroscopeDestroy(sensor: bigint): void;
+  gyroscopeStart(sensor: bigint): void;
+  gyroscopeStop(sensor: bigint): void;
+  gyroscopeDispose(sensor: bigint): void;
+  gyroscopeGetState(sensor: bigint): number;
+  gyroscopeIsDataValid(sensor: bigint): boolean;
+  gyroscopeGetReading(sensor: bigint): GyroscopeReadingSnapshot;
+  gyroscopeGetInterval(sensor: bigint): bigint;
+  gyroscopeSetInterval(sensor: bigint, ticks: bigint): void;
+  gyroscopeInject(sensor: bigint, x: number, y: number, z: number): void;
+  gyroscopeSetSupported(sensor: bigint, supported: boolean): void;
+  motionCreate(game: bigint): bigint;
+  motionDestroy(sensor: bigint): void;
+  motionStart(sensor: bigint): void;
+  motionStop(sensor: bigint): void;
+  motionDispose(sensor: bigint): void;
+  motionGetState(sensor: bigint): number;
+  motionIsDataValid(sensor: bigint): boolean;
+  motionIsNorthReferenced(sensor: bigint): boolean;
+  motionGetReading(sensor: bigint): MotionReadingSnapshot;
+  motionGetInterval(sensor: bigint): bigint;
+  motionSetInterval(sensor: bigint, ticks: bigint): void;
+  motionInject(sensor: bigint, reading: MotionReadingSnapshot): void;
+  motionSetTestBackend(
+    sensor: bigint, installed: boolean, supported: boolean, northReferenced: boolean,
+  ): void;
   isDeviceExtensionLayerAvailable(): boolean;
   getHostDeviceInfo(game: bigint): HostDeviceSnapshot;
   getPreferredLocales(game: bigint): PreferredLocaleSnapshot[];
@@ -1934,6 +1976,96 @@ export class NodeNativeBackend
   }
   public setAccelerometerInterval(sensor: NativeHandle, ticks: bigint): void {
     this.#bridge.setAccelerometerInterval(sensor, ticks);
+  }
+
+  // ---- the compass, the gyroscope and the motion sensor ----------------------------------------
+  // Each takes the game handle to create and its own handle thereafter, exactly as the
+  // accelerometer does. The injection routes are CNA's own `_ext` test hooks and are passed
+  // through unchanged; what they are for is stated in the public extension rather than here.
+  public createCompass(): NativeHandle { return this.#bridge.compassCreate(this.#game()); }
+  public destroyCompass(sensor: NativeHandle): void { this.#bridge.compassDestroy(sensor); }
+  public startCompass(sensor: NativeHandle): void { this.#bridge.compassStart(sensor); }
+  public stopCompass(sensor: NativeHandle): void { this.#bridge.compassStop(sensor); }
+  public disposeCompass(sensor: NativeHandle): void { this.#bridge.compassDispose(sensor); }
+  public getCompassState(sensor: NativeHandle): number {
+    return this.#bridge.compassGetState(sensor);
+  }
+  public getCompassIsDataValid(sensor: NativeHandle): boolean {
+    return this.#bridge.compassIsDataValid(sensor);
+  }
+  public getCompassReading(sensor: NativeHandle): CompassReadingSnapshot {
+    return this.#bridge.compassGetReading(sensor);
+  }
+  public getCompassInterval(sensor: NativeHandle): bigint {
+    return this.#bridge.compassGetInterval(sensor);
+  }
+  public setCompassInterval(sensor: NativeHandle, ticks: bigint): void {
+    this.#bridge.compassSetInterval(sensor, ticks);
+  }
+  public injectCompassReading(sensor: NativeHandle, reading: CompassReadingSnapshot): void {
+    this.#bridge.compassInject(sensor, reading);
+  }
+  public setCompassTestBackend(
+    sensor: NativeHandle, installed: boolean, supported: boolean,
+  ): void {
+    this.#bridge.compassSetTestBackend(sensor, installed, supported);
+  }
+  public createGyroscope(): NativeHandle { return this.#bridge.gyroscopeCreate(this.#game()); }
+  public destroyGyroscope(sensor: NativeHandle): void { this.#bridge.gyroscopeDestroy(sensor); }
+  public startGyroscope(sensor: NativeHandle): void { this.#bridge.gyroscopeStart(sensor); }
+  public stopGyroscope(sensor: NativeHandle): void { this.#bridge.gyroscopeStop(sensor); }
+  public disposeGyroscope(sensor: NativeHandle): void { this.#bridge.gyroscopeDispose(sensor); }
+  public getGyroscopeState(sensor: NativeHandle): number {
+    return this.#bridge.gyroscopeGetState(sensor);
+  }
+  public getGyroscopeIsDataValid(sensor: NativeHandle): boolean {
+    return this.#bridge.gyroscopeIsDataValid(sensor);
+  }
+  public getGyroscopeReading(sensor: NativeHandle): GyroscopeReadingSnapshot {
+    return this.#bridge.gyroscopeGetReading(sensor);
+  }
+  public getGyroscopeInterval(sensor: NativeHandle): bigint {
+    return this.#bridge.gyroscopeGetInterval(sensor);
+  }
+  public setGyroscopeInterval(sensor: NativeHandle, ticks: bigint): void {
+    this.#bridge.gyroscopeSetInterval(sensor, ticks);
+  }
+  public injectGyroscopeReading(
+    sensor: NativeHandle, x: number, y: number, z: number,
+  ): void {
+    this.#bridge.gyroscopeInject(sensor, x, y, z);
+  }
+  public setGyroscopeSupported(sensor: NativeHandle, supported: boolean): void {
+    this.#bridge.gyroscopeSetSupported(sensor, supported);
+  }
+  public createMotion(): NativeHandle { return this.#bridge.motionCreate(this.#game()); }
+  public destroyMotion(sensor: NativeHandle): void { this.#bridge.motionDestroy(sensor); }
+  public startMotion(sensor: NativeHandle): void { this.#bridge.motionStart(sensor); }
+  public stopMotion(sensor: NativeHandle): void { this.#bridge.motionStop(sensor); }
+  public disposeMotion(sensor: NativeHandle): void { this.#bridge.motionDispose(sensor); }
+  public getMotionState(sensor: NativeHandle): number { return this.#bridge.motionGetState(sensor); }
+  public getMotionIsDataValid(sensor: NativeHandle): boolean {
+    return this.#bridge.motionIsDataValid(sensor);
+  }
+  public getMotionIsNorthReferenced(sensor: NativeHandle): boolean {
+    return this.#bridge.motionIsNorthReferenced(sensor);
+  }
+  public getMotionReading(sensor: NativeHandle): MotionReadingSnapshot {
+    return this.#bridge.motionGetReading(sensor);
+  }
+  public getMotionInterval(sensor: NativeHandle): bigint {
+    return this.#bridge.motionGetInterval(sensor);
+  }
+  public setMotionInterval(sensor: NativeHandle, ticks: bigint): void {
+    this.#bridge.motionSetInterval(sensor, ticks);
+  }
+  public injectMotionReading(sensor: NativeHandle, reading: MotionReadingSnapshot): void {
+    this.#bridge.motionInject(sensor, reading);
+  }
+  public setMotionTestBackend(
+    sensor: NativeHandle, installed: boolean, supported: boolean, northReferenced: boolean,
+  ): void {
+    this.#bridge.motionSetTestBackend(sensor, installed, supported, northReferenced);
   }
   public getAccelerometerReading(sensor: NativeHandle): AccelerometerReadingSnapshot {
     return this.#bridge.getAccelerometerReading(sensor);

@@ -10,7 +10,8 @@ silently outgrowing its workaround.
 build configuration rather than runtime behaviour. **Both of those are now fixed upstream and
 verified here** — see items 3 and 4 below.
 
-Re-checked against `cnanext` 599d14e5 (CNA C ABI 0.21.0) on 2026-08-31.
+Re-checked against `cnanext` 599d14e5 (CNA C ABI 0.21.0) on 2026-08-31. Items 5 and 6 are new,
+found while projecting the sensor families.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -125,3 +126,73 @@ run lost frames to `TypeError: Cannot convert undefined to a BigInt`.
 artifact it consumes and reports `WASM_ARTIFACT_LINK_CONTRACT`, failing the run on either
 regression. `test/wasm-artifact-link-contract.test.mjs` plants each defect in a copy of the real
 artifact and proves the audit rejects it, so the gate is known to be able to fail.
+
+## 5. A motion sensor's `IsDataValid` and `get_current_value` disagree after its backend is withdrawn
+
+**Measured:** CNA ABI 0.21.0, `cnanext` 599d14e5, HEADLESS platform, through
+`cna_motion_set_test_backend_ext`.
+
+Install a synthetic motion backend, start it, inject a reading, stop it, then withdraw the backend:
+
+```text
+cna_motion_set_test_backend_ext(installed=1, supported=1)  -> SUCCESS
+cna_motion_start                                           -> SUCCESS
+cna_motion_inject_synthetic_update_ext                     -> SUCCESS
+cna_motion_stop                                            -> SUCCESS
+cna_motion_get_state                                       -> 5   (Disabled)
+cna_motion_get_is_data_valid                               -> CNA_TRUE
+cna_motion_set_test_backend_ext(installed=0, supported=0)  -> SUCCESS
+cna_motion_get_state                                       -> 5   (Disabled)
+cna_motion_get_is_data_valid                               -> CNA_TRUE      <-- still yes
+cna_motion_get_current_value                               -> CNA_RESULT_NOT_SUPPORTED
+                                        "The sensor is not supported on this device."
+```
+
+`IsDataValid` is the question a caller asks *before* reading a value — it exists precisely so that
+reading one never has to be guarded by a try. After the backend is withdrawn it keeps answering
+yes while the read refuses, so a caller that trusted it is told there is a reading and then denied
+it. Note the state stays `Disabled` rather than returning to `NotSupported`, which is the other
+half of the same thing: nothing in the sensor's reported state reflects that its source is gone.
+
+**Proposed fix:** clear the retained reading when a backend is withdrawn, so `IsDataValid` answers
+false, and return the state to `NotSupported` when support itself is withdrawn.
+
+**Consequence here:** `test/native-cna.integration.mjs` asserts all three values as measured, so a
+repaired upstream fails that assertion, which is what it is for. `Motion.CurrentValue` checks
+`IsDataValid` first — as XNA's contract expects — so on this path a consumer gets CNA's own
+`NOT_SUPPORTED` message rather than the managed `InvalidOperationException`. That is the honest
+outcome and it is not worked around here.
+
+## 6. The gyroscope has no synthetic test backend, while the compass and motion sensor do
+
+**Measured:** CNA ABI 0.21.0, `cnanext` 599d14e5, HEADLESS platform.
+
+`sensors.h` gives the compass `cna_compass_set_test_backend_ext(sensor, installed, supported)` and
+the motion sensor `cna_motion_set_test_backend_ext(sensor, installed, supported, north_referenced)`.
+Both install a synthetic source, so `Start` succeeds and an injected reading becomes readable —
+which is what makes those two families' data paths testable on a machine with no hardware.
+
+The gyroscope has only `cna_gyroscope_set_supported_for_tests_ext(sensor, supported)`, which flips
+the support answer without installing anything behind it:
+
+```text
+cna_gyroscope_set_supported_for_tests_ext(1)     -> SUCCESS
+cna_gyroscope_get_state                          -> 0   (NotSupported, unchanged)
+cna_gyroscope_start                              -> CNA_RESULT_INVALID_STATE
+              "Failed to start gyroscope data acquisition: selected platform has no sensor service"
+cna_gyroscope_inject_synthetic_update_ext        -> SUCCESS   (accepted, but nothing reads it)
+cna_gyroscope_get_is_data_valid                  -> CNA_FALSE
+```
+
+So the gyroscope's reading path cannot be exercised on any platform without a real sensor service,
+while its two siblings can. That is an asymmetry in the test-hook surface rather than a runtime
+defect, but it is the difference between one family being provable on a build machine and another
+not.
+
+**Proposed change:** give the gyroscope a `cna_gyroscope_set_test_backend_ext` matching the compass's
+shape, so all three families are testable the same way.
+
+**Consequence here:** the compass and motion data paths are verified end to end with real values;
+the gyroscope's is not, and `test/native-cna.integration.mjs` asserts exactly that -- the support
+override alone leaves the state `NotSupported`, `Start` is refused, the injection is accepted and
+no valid reading appears. If CNA adds the backend, those assertions fail and the coverage can grow.

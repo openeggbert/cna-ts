@@ -1398,6 +1398,41 @@ export interface SensorStateSnapshot {
 }
 
 /** One accelerometer reading, in g per axis, with the timestamp that identifies it. */
+/** One compass reading: two headings, their accuracy and the raw magnetometer vector. */
+export interface CompassReadingSnapshot {
+  readonly HeadingAccuracy: number;
+  readonly MagneticHeading: number;
+  readonly TrueHeading: number;
+  readonly MagnetometerReading: { readonly X: number; readonly Y: number; readonly Z: number };
+  readonly TimestampTicks: bigint;
+  readonly TimestampOffsetTicks: bigint;
+}
+
+/** One gyroscope reading: the device's rotation rate about each axis. */
+export interface GyroscopeReadingSnapshot {
+  readonly RotationRate: { readonly X: number; readonly Y: number; readonly Z: number };
+  readonly TimestampTicks: bigint;
+  readonly TimestampOffsetTicks: bigint;
+}
+
+/** One motion reading: a fused attitude plus the three vectors it was fused from. */
+export interface MotionReadingSnapshot {
+  readonly Attitude: {
+    readonly Pitch: number;
+    readonly Roll: number;
+    readonly Yaw: number;
+    readonly Quaternion: readonly number[];
+    readonly RotationMatrix: readonly number[];
+    readonly TimestampTicks: bigint;
+    readonly TimestampOffsetTicks: bigint;
+  };
+  readonly DeviceAcceleration: { readonly X: number; readonly Y: number; readonly Z: number };
+  readonly DeviceRotationRate: { readonly X: number; readonly Y: number; readonly Z: number };
+  readonly Gravity: { readonly X: number; readonly Y: number; readonly Z: number };
+  readonly TimestampTicks: bigint;
+  readonly TimestampOffsetTicks: bigint;
+}
+
 export interface AccelerometerReadingSnapshot {
   readonly X: number;
   readonly Y: number;
@@ -1422,6 +1457,45 @@ export interface CnaSensorBackend {
   getAccelerometerState(sensor: NativeHandle): SensorStateSnapshot;
   setAccelerometerInterval(sensor: NativeHandle, ticks: bigint): void;
   getAccelerometerReading(sensor: NativeHandle): AccelerometerReadingSnapshot;
+  createCompass(): NativeHandle;
+  destroyCompass(sensor: NativeHandle): void;
+  startCompass(sensor: NativeHandle): void;
+  stopCompass(sensor: NativeHandle): void;
+  disposeCompass(sensor: NativeHandle): void;
+  getCompassState(sensor: NativeHandle): number;
+  getCompassIsDataValid(sensor: NativeHandle): boolean;
+  getCompassReading(sensor: NativeHandle): CompassReadingSnapshot;
+  getCompassInterval(sensor: NativeHandle): bigint;
+  setCompassInterval(sensor: NativeHandle, ticks: bigint): void;
+  injectCompassReading(sensor: NativeHandle, reading: CompassReadingSnapshot): void;
+  setCompassTestBackend(sensor: NativeHandle, installed: boolean, supported: boolean): void;
+  createGyroscope(): NativeHandle;
+  destroyGyroscope(sensor: NativeHandle): void;
+  startGyroscope(sensor: NativeHandle): void;
+  stopGyroscope(sensor: NativeHandle): void;
+  disposeGyroscope(sensor: NativeHandle): void;
+  getGyroscopeState(sensor: NativeHandle): number;
+  getGyroscopeIsDataValid(sensor: NativeHandle): boolean;
+  getGyroscopeReading(sensor: NativeHandle): GyroscopeReadingSnapshot;
+  getGyroscopeInterval(sensor: NativeHandle): bigint;
+  setGyroscopeInterval(sensor: NativeHandle, ticks: bigint): void;
+  injectGyroscopeReading(sensor: NativeHandle, x: number, y: number, z: number): void;
+  setGyroscopeSupported(sensor: NativeHandle, supported: boolean): void;
+  createMotion(): NativeHandle;
+  destroyMotion(sensor: NativeHandle): void;
+  startMotion(sensor: NativeHandle): void;
+  stopMotion(sensor: NativeHandle): void;
+  disposeMotion(sensor: NativeHandle): void;
+  getMotionState(sensor: NativeHandle): number;
+  getMotionIsDataValid(sensor: NativeHandle): boolean;
+  getMotionIsNorthReferenced(sensor: NativeHandle): boolean;
+  getMotionReading(sensor: NativeHandle): MotionReadingSnapshot;
+  getMotionInterval(sensor: NativeHandle): bigint;
+  setMotionInterval(sensor: NativeHandle, ticks: bigint): void;
+  injectMotionReading(sensor: NativeHandle, reading: MotionReadingSnapshot): void;
+  setMotionTestBackend(
+    sensor: NativeHandle, installed: boolean, supported: boolean, northReferenced: boolean,
+  ): void;
 }
 
 export interface CnaBackend {

@@ -361,7 +361,13 @@ Electron, or mobile support.
   character arrives as its surrogate pair and a caller's accumulator rebuilds it exactly. Driven
   through CNA's own `_ext` injection hooks, which is injection evidence rather than hardware
   evidence and is labelled as such.
-- [ ] Compass, gyroscope and motion readings and camera frame capture are measured and unprojected.
+- [x] `cna-ts/extensions/sensors` projects the **compass, the gyroscope and the motion sensor**
+  beside the accelerometer, with the same rule: a missing sensor is not a sensor reading zero, and
+  a heading of zero is a perfectly plausible heading. The compass and motion **data paths** are
+  proved through CNA's own synthetic-backend hooks — injection evidence, labelled as such, not a
+  measurement of physical hardware. The gyroscope's reading path is not reachable here and
+  `docs/upstream-cna-findings.md` records why.
+- [ ] Camera frame capture is measured and unprojected.
 
 ## Runtime capability inventory
 
