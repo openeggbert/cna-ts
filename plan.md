@@ -30,9 +30,10 @@ phase is complete. API completeness can only be claimed from a reproducible stri
 - [x] A windowed Linux qualification exists beside it, now across **three renderers** — OPENGLES3,
   SDL_RENDERER and SOFTWARE, all under Xvfb. Each reports its own identity and capability flags,
   applies a stock `BasicEffect` for real, runs 60 and 600 frames, fills a real `GraphicsAdapter`,
-  and exercises `GameWindow` state HEADLESS cannot reach. SDL_RENDERER and SOFTWARE read back all
-  sixteen `RenderTarget2D` texels exactly; OPENGLES3 no longer does, and that regression is
-  asserted as measured rather than skipped — `docs/upstream-cna-findings.md` item 7. Opt-in through
+  and exercises `GameWindow` state HEADLESS cannot reach. All three read back all sixteen
+  `RenderTarget2D` texels exactly. OPENGLES3 briefly did not: that regression was asserted as
+  measured rather than skipped (`docs/upstream-cna-findings.md` item 7), CNA fixed it in
+  `48ab0de7f`, and the assertion failing is how this package found out. Opt-in through
   `CNA_WINDOWED_LIBRARY`; skips with a reason where no windowed library or display exists.
 - [x] A WebAssembly backend runs the same public XNA API for 60 and 600 real frames in headless
   Chromium on a WebGL2 context.
