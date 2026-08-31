@@ -523,6 +523,24 @@ Electron, or mobile support.
   outer and the inner angle, and a directional light is an arrow starting a length back along its
   direction. Seven planted defects fail and none survives. `cna_debug_draw_add_cluster_slice_gizmo`
   is left unbound: it needs a clustered light *grid*, which is not projected yet.
+- [x] **The HDR display chain, automatic exposure and spatial upscaling.** CNA publishes the whole
+  display transfer chain as pure routes, so each part is checked against the standard it implements:
+  the PQ curve against SMPTE ST 2084's own five constants, clamped at both ends and an exact inverse
+  of its decode; the primaries against the BT.2087 matrix, where white stays white because the rows
+  sum to one and a Rec.709 red becomes a less saturated mixture in the wider gamut. The roll-off
+  turned out to be **Reinhard against the peak rather than a knee** — a hundred nits against a
+  thousand-nit peak comes back as ninety-one — and the binding's own comment was corrected to say
+  so. The composition is the claim worth making and it is *bit-identical*: brightness and the
+  roll-off happen first, in the source primaries, and only then is the gamut converted and the curve
+  applied; rolling off after the conversion gives a different answer, which the test also asserts so
+  the ordering claim is not vacuous. That an sRGB display gets the scene value unchanged is proved
+  twice — from the pure route, and as a byte-exact drawn frame. The auto exposure needs compute
+  shaders, so HEADLESS refuses it honestly and it is qualified windowed: the measurement is exactly
+  the average channel value, and every step of the adaptation is predicted by
+  `target + (current − target)·exp(−speed·seconds)`, with the speed chosen by which way the *scene*
+  moved. Eight planted defects fail; two survive and are recorded as **equivalent** rather than as
+  gaps, because a Reinhard roll-off and an "are these sizes equal" predicate are both symmetric in
+  the arguments the mutation swaps.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -617,7 +635,7 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 154 operation families: 21 verified managed, 92 verified native, 13
+- [x] Current baseline is 157 operation families: 21 verified managed, 95 verified native, 13
   verified WebAssembly, five explicitly unavailable on the qualified backend, five upstream-CNA
   blocked, three fixture pending, six hardware pending, three platform pending, two unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.

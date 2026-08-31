@@ -7684,3 +7684,299 @@ function packedColor(color: Color, what: string): number {
   if (color == null) throw new TypeError(`${what} is required`);
   return color.PackedValue;
 }
+
+/* ================================================================================================
+ * HDR display output, automatic exposure and spatial upscaling
+ * ==============================================================================================*/
+
+/** What a display expects at its input. */
+export enum DisplayColorSpace {
+  /** Ordinary 8-bit sRGB, which is what a non-HDR display wants. */
+  Srgb = 0,
+  /** Linear values above one, scaled so that one is the paper white the OS was told about. */
+  ScRgb = 1,
+  /** Rec.2020 primaries with the PQ transfer curve: the HDR10 signal. */
+  Hdr10 = 2,
+}
+
+/**
+ * The last step before the display: takes a linear scene and encodes it for the panel.
+ *
+ * The whole transfer chain is published as pure routes — {@link EncodePq} and {@link DecodePq} for
+ * the PQ curve both ways, {@link Rec709ToRec2020} for the primaries, {@link RollOff} for the
+ * highlights, and {@link Encode} for the composition of all three — so what a frame will look like
+ * can be checked without a display that can show it.
+ */
+export class HdrDisplayOutput implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#handle = extensions().createHdrDisplayOutput(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice));
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the HDR display output is disposed");
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Harmless twice. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroyHdrDisplayOutput(handle);
+  }
+
+  /** Whether this device can present an HDR signal at all. */
+  public get IsSupported(): boolean {
+    return extensions().isHdrDisplayOutputSupported(this.#active());
+  }
+
+  /** Which signal to encode for. */
+  public get ColorSpace(): DisplayColorSpace {
+    return extensions().getHdrDisplayColorSpace(this.#active()) as DisplayColorSpace;
+  }
+  public set ColorSpace(value: DisplayColorSpace) {
+    extensions().setHdrDisplayColorSpace(this.#active(), wholeNumber(value, "ColorSpace"));
+  }
+
+  /** How bright the display should show a scene value of one, in nits. */
+  public get PaperWhiteNits(): number {
+    return extensions().getHdrDisplayPaperWhiteNits(this.#active());
+  }
+  public set PaperWhiteNits(value: number) {
+    extensions().setHdrDisplayPaperWhiteNits(this.#active(), finite(value, "PaperWhiteNits"));
+  }
+
+  /** The brightest the display can go, which is where the highlights roll off. */
+  public get PeakNits(): number {
+    return extensions().getHdrDisplayPeakNits(this.#active());
+  }
+  public set PeakNits(value: number) {
+    extensions().setHdrDisplayPeakNits(this.#active(), finite(value, "PeakNits"));
+  }
+
+  /** Encodes a linear scene into the destination, or into the back buffer when that is `null`. */
+  public Draw(
+    source: Texture2D, destination: RenderTarget2D | null, width: number, height: number,
+  ): void {
+    if (source == null) throw new TypeError("source is required");
+    assertPositiveCounts({ width, height });
+    extensions().drawHdrDisplayOutput(
+      this.#active(), resolveTexture2DHandleForInternalUse(source),
+      destination == null ? 0n : resolveTexture2DHandleForInternalUse(destination),
+      width, height,
+    );
+  }
+
+  /**
+   * The SMPTE ST 2084 curve: brightness in nits to a signal in [0, 1].
+   *
+   * Perceptual quantiser, so it spends its bits where the eye can tell them apart: most of the
+   * range is below a hundred nits, and ten thousand is the top.
+   */
+  public static EncodePq(nits: number): number {
+    return extensions().hdrEncodePq(finite(nits, "nits"));
+  }
+
+  /** And back again; the two are inverses. */
+  public static DecodePq(encoded: number): number {
+    return extensions().hdrDecodePq(finite(encoded, "encoded"));
+  }
+
+  /** The primaries an HDR10 signal uses, from the ones a scene is usually authored in. */
+  public static Rec709ToRec2020(color: Vector3): Vector3 {
+    return toVector3(extensions().hdrRec709ToRec2020(vectorSnapshot(color, "color")));
+  }
+
+  /**
+   * Bends brightness down so a highlight brighter than the display fades rather than clipping.
+   *
+   * A Reinhard curve against the peak — `nits * peak / (nits + peak)` — so it is **not** a knee: it
+   * pulls everything down a little and the brightest things a lot, approaching the peak without
+   * ever reaching it. A hundred nits against a thousand-nit peak comes back as ninety-one.
+   */
+  public static RollOff(nits: number, peakNits: number): number {
+    return extensions().hdrRollOff(finite(nits, "nits"), finite(peakNits, "peakNits"));
+  }
+
+  /**
+   * The whole chain for one colour, in the order it really happens.
+   *
+   * Brightness and the roll-off come **first**, in the source primaries, and only then is the gamut
+   * converted and the transfer curve applied — measured, because rolling off after the conversion
+   * gives a different answer. An sRGB display gets the scene value unchanged, since its framebuffer
+   * does the encoding; scRGB gets it scaled so that one means the paper white, against the 80-nit
+   * reference white that scale is defined by.
+   */
+  public static Encode(
+    space: DisplayColorSpace, sceneLinear: Vector3, paperWhiteNits: number, peakNits: number,
+  ): Vector3 {
+    return toVector3(extensions().hdrEncode(
+      wholeNumber(space, "space"), vectorSnapshot(sceneLinear, "sceneLinear"),
+      finite(paperWhiteNits, "paperWhiteNits"), finite(peakNits, "peakNits"),
+    ));
+  }
+}
+
+/**
+ * The eye adjusting: measures how bright the scene is and moves the exposure towards it.
+ *
+ * The movement is deliberately asymmetric — {@link BrighteningSpeed} and {@link DarkeningSpeed} are
+ * separate, because an eye adapts to darkness far more slowly than to light.
+ */
+export class AutoExposure implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#handle = extensions().createAutoExposure(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice));
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the auto exposure is disposed");
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Harmless twice. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroyAutoExposure(handle);
+  }
+
+  /** The exposure it is holding now. */
+  public get Exposure(): number {
+    return extensions().getAutoExposureExposure(this.#active());
+  }
+  public set Exposure(value: number) {
+    extensions().setAutoExposureExposure(this.#active(), finite(value, "Exposure"));
+  }
+
+  /** How bright the middle of the range should end up: the key the measurement is aimed at. */
+  public get KeyValue(): number {
+    return extensions().getAutoExposureKeyValue(this.#active());
+  }
+  public set KeyValue(value: number) {
+    extensions().setAutoExposureKeyValue(this.#active(), finite(value, "KeyValue"));
+  }
+
+  /** How fast it opens up when the scene goes dark. */
+  public get BrighteningSpeed(): number {
+    return extensions().getAutoExposureBrighteningSpeed(this.#active());
+  }
+
+  /** And how fast it closes down when the scene goes bright. */
+  public get DarkeningSpeed(): number {
+    return extensions().getAutoExposureDarkeningSpeed(this.#active());
+  }
+
+  /** Sets both, since they are one decision. */
+  public SetAdaptationSpeeds(brighteningPerSecond: number, darkeningPerSecond: number): void {
+    extensions().setAutoExposureAdaptationSpeeds(
+      this.#active(), finite(brighteningPerSecond, "brighteningPerSecond"),
+      finite(darkeningPerSecond, "darkeningPerSecond"));
+  }
+
+  /** Clamps how far the exposure may travel in either direction. */
+  public SetExposureRange(minimum: number, maximum: number): void {
+    extensions().setAutoExposureRange(
+      this.#active(), finite(minimum, "minimum"), finite(maximum, "maximum"));
+  }
+
+  /** How bright a scene is, on average, without changing anything. */
+  public MeasureAverageLuminance(scene: Texture2D): number {
+    if (scene == null) throw new TypeError("scene is required");
+    return extensions().measureAutoExposureLuminance(
+      this.#active(), resolveTexture2DHandleForInternalUse(scene));
+  }
+
+  /** Measures, moves the exposure towards what it measured, and answers where it got to. */
+  public Update(scene: Texture2D, deltaSeconds: number): number {
+    if (scene == null) throw new TypeError("scene is required");
+    return extensions().updateAutoExposure(
+      this.#active(), resolveTexture2DHandleForInternalUse(scene),
+      finite(deltaSeconds, "deltaSeconds"));
+  }
+}
+
+/**
+ * Draws a smaller frame at a larger size, sharpening as it goes.
+ *
+ * {@link IsIdentityScale} is the question worth asking first: at the same size there is nothing to
+ * upscale, and the pass says so as a pure function of the four sizes rather than by drawing.
+ */
+export class SpatialUpscalePass implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#handle = extensions().createSpatialUpscalePass(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice));
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the spatial upscale pass is disposed");
+    }
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Harmless twice. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroySpatialUpscalePass(handle);
+  }
+
+  /** How hard it sharpens. */
+  public get Sharpness(): number {
+    return extensions().getSpatialUpscaleSharpness(this.#active());
+  }
+  public set Sharpness(value: number) {
+    extensions().setSpatialUpscaleSharpness(this.#active(), finite(value, "Sharpness"));
+  }
+
+  /** Whether the sharpening follows edges rather than treating every texel alike. */
+  public get EdgeAdaptive(): boolean {
+    return extensions().isSpatialUpscaleEdgeAdaptive(this.#active());
+  }
+  public set EdgeAdaptive(value: boolean) {
+    extensions().setSpatialUpscaleEdgeAdaptive(this.#active(), Boolean(value));
+  }
+
+  /** Draws the source at the target size, over whatever target is bound. */
+  public Draw(
+    source: Texture2D, sourceWidth: number, sourceHeight: number,
+    targetWidth: number, targetHeight: number,
+  ): void {
+    if (source == null) throw new TypeError("source is required");
+    assertPositiveCounts({ sourceWidth, sourceHeight, targetWidth, targetHeight });
+    extensions().drawSpatialUpscalePass(
+      this.#active(), resolveTexture2DHandleForInternalUse(source),
+      sourceWidth, sourceHeight, targetWidth, targetHeight);
+  }
+
+  /** Whether those two sizes are the same size, so there is nothing to upscale. */
+  public static IsIdentityScale(
+    sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number,
+  ): boolean {
+    return extensions().isSpatialUpscaleIdentityScale(
+      wholeNumber(sourceWidth, "sourceWidth"), wholeNumber(sourceHeight, "sourceHeight"),
+      wholeNumber(targetWidth, "targetWidth"), wholeNumber(targetHeight, "targetHeight"));
+  }
+}

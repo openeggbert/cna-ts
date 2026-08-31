@@ -954,6 +954,19 @@ typedef CNA_Result (*DebugDrawDirectionalGizmoFn)(CNA_Handle, const CNA_Directio
 typedef CNA_Result (*DebugDrawVolumeGizmoFn)(CNA_Handle, CNA_Handle, CNA_Color, float);
 typedef CNA_Result (*DebugDrawCascadeGizmoFn)(CNA_Handle, CNA_Handle, CNA_Color);
 
+typedef CNA_Result (*HdrFloatFn)(float, float*);
+typedef CNA_Result (*HdrRollOffFn)(float, float, float*);
+typedef CNA_Result (*HdrMatrixFn)(const CNA_Vector3*, CNA_Vector3*);
+typedef CNA_Result (*HdrEncodeFn)(CNA_DisplayColorSpace, const CNA_Vector3*, float, float, CNA_Vector3*);
+typedef CNA_Result (*HdrDrawFn)(CNA_Handle, CNA_Handle, CNA_Handle, int32_t, int32_t);
+typedef CNA_Result (*HdrColorSpaceOutFn)(CNA_Handle, CNA_DisplayColorSpace*);
+typedef CNA_Result (*HdrColorSpaceInFn)(CNA_Handle, CNA_DisplayColorSpace);
+typedef CNA_Result (*UpscaleIdentityFn)(int32_t, int32_t, int32_t, int32_t, CNA_Bool*);
+typedef CNA_Result (*UpscaleDrawFn)(CNA_Handle, CNA_Handle, int32_t, int32_t, int32_t, int32_t);
+typedef CNA_Result (*AutoExposureMeasureFn)(CNA_Handle, CNA_Handle, float*);
+typedef CNA_Result (*AutoExposureUpdateFn)(CNA_Handle, CNA_Handle, float, float*);
+typedef CNA_Result (*HandleTwoFloatFn)(CNA_Handle, float, float);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2460,6 +2473,41 @@ typedef struct Api {
   DebugDrawDirectionalGizmoFn debug_draw_add_directional_light_gizmo;
   DebugDrawVolumeGizmoFn debug_draw_add_probe_volume_gizmo;
   DebugDrawCascadeGizmoFn debug_draw_add_cascade_gizmo;
+  PostProcessPassCreateFn spatial_upscale_pass_create;
+  GameHandleFn spatial_upscale_pass_destroy;
+  HandleFloatOutFn spatial_upscale_pass_get_sharpness;
+  HandleFloatFn spatial_upscale_pass_set_sharpness;
+  BoolGetFn spatial_upscale_pass_get_edge_adaptive;
+  HandleBoolFn spatial_upscale_pass_set_edge_adaptive;
+  UpscaleDrawFn spatial_upscale_pass_draw;
+  UpscaleIdentityFn spatial_upscale_pass_is_identity_scale;
+  PostProcessPassCreateFn hdr_display_output_create;
+  GameHandleFn hdr_display_output_destroy;
+  BoolGetFn hdr_display_output_is_supported;
+  HdrColorSpaceOutFn hdr_display_output_get_color_space;
+  HdrColorSpaceInFn hdr_display_output_set_color_space;
+  HandleFloatOutFn hdr_display_output_get_paper_white_nits;
+  HandleFloatFn hdr_display_output_set_paper_white_nits;
+  HandleFloatOutFn hdr_display_output_get_peak_nits;
+  HandleFloatFn hdr_display_output_set_peak_nits;
+  HdrDrawFn hdr_display_output_draw;
+  HdrFloatFn hdr_display_output_encode_pq;
+  HdrFloatFn hdr_display_output_decode_pq;
+  HdrMatrixFn hdr_display_output_rec709_to_rec2020;
+  HdrRollOffFn hdr_display_output_roll_off;
+  HdrEncodeFn hdr_display_output_encode;
+  PostProcessPassCreateFn auto_exposure_ext_create;
+  GameHandleFn auto_exposure_ext_destroy;
+  AutoExposureMeasureFn auto_exposure_ext_measure_average_luminance;
+  AutoExposureUpdateFn auto_exposure_ext_update;
+  HandleFloatOutFn auto_exposure_ext_get_exposure;
+  HandleFloatFn auto_exposure_ext_set_exposure;
+  HandleFloatOutFn auto_exposure_ext_get_key_value;
+  HandleFloatFn auto_exposure_ext_set_key_value;
+  HandleFloatOutFn auto_exposure_ext_get_brightening_speed;
+  HandleFloatOutFn auto_exposure_ext_get_darkening_speed;
+  HandleTwoFloatFn auto_exposure_ext_set_adaptation_speeds;
+  HandleTwoFloatFn auto_exposure_ext_set_exposure_range;
 } Api;
 
 typedef struct GameContext {
@@ -4253,6 +4301,41 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(debug_draw_add_directional_light_gizmo, DebugDrawDirectionalGizmoFn, "cna_debug_draw_add_directional_light_gizmo");
   LOAD_REQUIRED(debug_draw_add_probe_volume_gizmo, DebugDrawVolumeGizmoFn, "cna_debug_draw_add_probe_volume_gizmo");
   LOAD_REQUIRED(debug_draw_add_cascade_gizmo, DebugDrawCascadeGizmoFn, "cna_debug_draw_add_cascade_gizmo");
+  LOAD_REQUIRED(spatial_upscale_pass_create, PostProcessPassCreateFn, "cna_spatial_upscale_pass_create");
+  LOAD_REQUIRED(spatial_upscale_pass_destroy, GameHandleFn, "cna_spatial_upscale_pass_destroy");
+  LOAD_REQUIRED(spatial_upscale_pass_get_sharpness, HandleFloatOutFn, "cna_spatial_upscale_pass_get_sharpness");
+  LOAD_REQUIRED(spatial_upscale_pass_set_sharpness, HandleFloatFn, "cna_spatial_upscale_pass_set_sharpness");
+  LOAD_REQUIRED(spatial_upscale_pass_get_edge_adaptive, BoolGetFn, "cna_spatial_upscale_pass_get_edge_adaptive");
+  LOAD_REQUIRED(spatial_upscale_pass_set_edge_adaptive, HandleBoolFn, "cna_spatial_upscale_pass_set_edge_adaptive");
+  LOAD_REQUIRED(spatial_upscale_pass_draw, UpscaleDrawFn, "cna_spatial_upscale_pass_draw");
+  LOAD_REQUIRED(spatial_upscale_pass_is_identity_scale, UpscaleIdentityFn, "cna_spatial_upscale_pass_is_identity_scale");
+  LOAD_REQUIRED(hdr_display_output_create, PostProcessPassCreateFn, "cna_hdr_display_output_create");
+  LOAD_REQUIRED(hdr_display_output_destroy, GameHandleFn, "cna_hdr_display_output_destroy");
+  LOAD_REQUIRED(hdr_display_output_is_supported, BoolGetFn, "cna_hdr_display_output_is_supported");
+  LOAD_REQUIRED(hdr_display_output_get_color_space, HdrColorSpaceOutFn, "cna_hdr_display_output_get_color_space");
+  LOAD_REQUIRED(hdr_display_output_set_color_space, HdrColorSpaceInFn, "cna_hdr_display_output_set_color_space");
+  LOAD_REQUIRED(hdr_display_output_get_paper_white_nits, HandleFloatOutFn, "cna_hdr_display_output_get_paper_white_nits");
+  LOAD_REQUIRED(hdr_display_output_set_paper_white_nits, HandleFloatFn, "cna_hdr_display_output_set_paper_white_nits");
+  LOAD_REQUIRED(hdr_display_output_get_peak_nits, HandleFloatOutFn, "cna_hdr_display_output_get_peak_nits");
+  LOAD_REQUIRED(hdr_display_output_set_peak_nits, HandleFloatFn, "cna_hdr_display_output_set_peak_nits");
+  LOAD_REQUIRED(hdr_display_output_draw, HdrDrawFn, "cna_hdr_display_output_draw");
+  LOAD_REQUIRED(hdr_display_output_encode_pq, HdrFloatFn, "cna_hdr_display_output_encode_pq");
+  LOAD_REQUIRED(hdr_display_output_decode_pq, HdrFloatFn, "cna_hdr_display_output_decode_pq");
+  LOAD_REQUIRED(hdr_display_output_rec709_to_rec2020, HdrMatrixFn, "cna_hdr_display_output_rec709_to_rec2020");
+  LOAD_REQUIRED(hdr_display_output_roll_off, HdrRollOffFn, "cna_hdr_display_output_roll_off");
+  LOAD_REQUIRED(hdr_display_output_encode, HdrEncodeFn, "cna_hdr_display_output_encode");
+  LOAD_REQUIRED(auto_exposure_ext_create, PostProcessPassCreateFn, "cna_auto_exposure_ext_create");
+  LOAD_REQUIRED(auto_exposure_ext_destroy, GameHandleFn, "cna_auto_exposure_ext_destroy");
+  LOAD_REQUIRED(auto_exposure_ext_measure_average_luminance, AutoExposureMeasureFn, "cna_auto_exposure_ext_measure_average_luminance");
+  LOAD_REQUIRED(auto_exposure_ext_update, AutoExposureUpdateFn, "cna_auto_exposure_ext_update");
+  LOAD_REQUIRED(auto_exposure_ext_get_exposure, HandleFloatOutFn, "cna_auto_exposure_ext_get_exposure");
+  LOAD_REQUIRED(auto_exposure_ext_set_exposure, HandleFloatFn, "cna_auto_exposure_ext_set_exposure");
+  LOAD_REQUIRED(auto_exposure_ext_get_key_value, HandleFloatOutFn, "cna_auto_exposure_ext_get_key_value");
+  LOAD_REQUIRED(auto_exposure_ext_set_key_value, HandleFloatFn, "cna_auto_exposure_ext_set_key_value");
+  LOAD_REQUIRED(auto_exposure_ext_get_brightening_speed, HandleFloatOutFn, "cna_auto_exposure_ext_get_brightening_speed");
+  LOAD_REQUIRED(auto_exposure_ext_get_darkening_speed, HandleFloatOutFn, "cna_auto_exposure_ext_get_darkening_speed");
+  LOAD_REQUIRED(auto_exposure_ext_set_adaptation_speeds, HandleTwoFloatFn, "cna_auto_exposure_ext_set_adaptation_speeds");
+  LOAD_REQUIRED(auto_exposure_ext_set_exposure_range, HandleTwoFloatFn, "cna_auto_exposure_ext_set_exposure_range");
   LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
   LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
   LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
@@ -24632,10 +24715,371 @@ static napi_value bridge_debug_draw_get_line_count(napi_env env, napi_callback_i
   return pp_get_i32(env, info, g_api.debug_draw_get_line_count, "cna_debug_draw_get_line_count");
 }
 
+/* ---- HDR display output, automatic exposure and spatial upscaling ------------------------------
+   The display family publishes its whole transfer chain as pure routes -- the PQ curve both ways,
+   the Rec.709 to Rec.2020 matrix, the highlight roll-off and the composition of all three -- so a
+   caller can check what a frame will look like without a display that can show it. */
+
+static napi_value hdr_float_to_float(
+  napi_env env, napi_callback_info info, HdrFloatFn route, const char* name
+) {
+  napi_value args[1], output;
+  double value = 0;
+  float answer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_double(env, args[0], &value) != napi_ok) {
+    return throw_message(env, "expected a number");
+  }
+  const CNA_Result result = route((float) value, &answer);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) answer, &output), name);
+  return output;
+}
+
+static napi_value bridge_hdr_display_output_encode_pq(napi_env env, napi_callback_info info) {
+  return hdr_float_to_float(
+    env, info, g_api.hdr_display_output_encode_pq, "cna_hdr_display_output_encode_pq");
+}
+
+static napi_value bridge_hdr_display_output_decode_pq(napi_env env, napi_callback_info info) {
+  return hdr_float_to_float(
+    env, info, g_api.hdr_display_output_decode_pq, "cna_hdr_display_output_decode_pq");
+}
+
+static napi_value bridge_hdr_display_output_roll_off(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  double nits = 0, peak = 0;
+  float answer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      napi_get_value_double(env, args[0], &nits) != napi_ok ||
+      napi_get_value_double(env, args[1], &peak) != napi_ok) {
+    return throw_message(env, "expected a brightness and a peak");
+  }
+  const CNA_Result result =
+    g_api.hdr_display_output_roll_off((float) nits, (float) peak, &answer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_hdr_display_output_roll_off", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) answer, &output), "cna_hdr_display_output_roll_off");
+  return output;
+}
+
+static napi_value bridge_hdr_display_output_rec709_to_rec2020(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1], output;
+  CNA_Vector3 colour = {0, 0, 0}, answer = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_vector3_fields(env, args[0], &colour)) return NULL;
+  const CNA_Result result = g_api.hdr_display_output_rec709_to_rec2020(&colour, &answer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_hdr_display_output_rec709_to_rec2020", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_object(env, &output), "cna_hdr_display_output_rec709_to_rec2020");
+  if (!set_vector3_fields(env, output, &answer)) {
+    return throw_napi(env, "cna_hdr_display_output_rec709_to_rec2020");
+  }
+  return output;
+}
+
+static napi_value bridge_hdr_display_output_encode(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  uint32_t space = 0;
+  CNA_Vector3 linear = {0, 0, 0}, answer = {0, 0, 0};
+  double paper_white = 0, peak = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      napi_get_value_uint32(env, args[0], &space) != napi_ok ||
+      !read_vector3_fields(env, args[1], &linear) ||
+      napi_get_value_double(env, args[2], &paper_white) != napi_ok ||
+      napi_get_value_double(env, args[3], &peak) != napi_ok) {
+    return throw_message(env, "expected a colour space, a linear colour and two brightnesses");
+  }
+  const CNA_Result result = g_api.hdr_display_output_encode(
+    (CNA_DisplayColorSpace) space, &linear, (float) paper_white, (float) peak, &answer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_hdr_display_output_encode", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "cna_hdr_display_output_encode");
+  if (!set_vector3_fields(env, output, &answer)) {
+    return throw_napi(env, "cna_hdr_display_output_encode");
+  }
+  return output;
+}
+
+static napi_value bridge_hdr_display_output_draw(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle output = 0, source = 0, destination = 0;
+  int32_t width = 0, height = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &output) || !read_handle(env, args[1], &source) ||
+      !read_handle_allow_zero(env, args[2], &destination) ||
+      napi_get_value_int32(env, args[3], &width) != napi_ok ||
+      napi_get_value_int32(env, args[4], &height) != napi_ok) {
+    return throw_message(env, "expected an output, a source, a destination and a size");
+  }
+  const CNA_Result result =
+    g_api.hdr_display_output_draw(output, source, destination, width, height);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_hdr_display_output_draw", result);
+  }
+  return undefined_result(env, "cna_hdr_display_output_draw");
+}
+
+static napi_value bridge_spatial_upscale_pass_is_identity_scale(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[4], output;
+  int32_t sizes[4] = {0, 0, 0, 0};
+  CNA_Bool identity = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 4, args)) return NULL;
+  for (int index = 0; index < 4; index += 1) {
+    if (napi_get_value_int32(env, args[index], &sizes[index]) != napi_ok) {
+      return throw_message(env, "expected four sizes");
+    }
+  }
+  const CNA_Result result = g_api.spatial_upscale_pass_is_identity_scale(
+    sizes[0], sizes[1], sizes[2], sizes[3], &identity);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_spatial_upscale_pass_is_identity_scale", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_get_boolean(env, identity != CNA_FALSE, &output),
+    "cna_spatial_upscale_pass_is_identity_scale");
+  return output;
+}
+
+static napi_value bridge_spatial_upscale_pass_draw(napi_env env, napi_callback_info info) {
+  napi_value args[6];
+  CNA_Handle pass = 0, source = 0;
+  int32_t sizes[4] = {0, 0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 6, args) ||
+      !read_handle(env, args[0], &pass) || !read_handle(env, args[1], &source)) return NULL;
+  for (int index = 0; index < 4; index += 1) {
+    if (napi_get_value_int32(env, args[index + 2], &sizes[index]) != napi_ok) {
+      return throw_message(env, "expected a source size and a target size");
+    }
+  }
+  const CNA_Result result = g_api.spatial_upscale_pass_draw(
+    pass, source, sizes[0], sizes[1], sizes[2], sizes[3]);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_spatial_upscale_pass_draw", result);
+  }
+  return undefined_result(env, "cna_spatial_upscale_pass_draw");
+}
+
+static napi_value bridge_auto_exposure_ext_measure_average_luminance(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  CNA_Handle exposure = 0, scene = 0;
+  float luminance = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &exposure) || !read_handle(env, args[1], &scene)) return NULL;
+  const CNA_Result result =
+    g_api.auto_exposure_ext_measure_average_luminance(exposure, scene, &luminance);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_auto_exposure_ext_measure_average_luminance", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) luminance, &output),
+    "cna_auto_exposure_ext_measure_average_luminance");
+  return output;
+}
+
+static napi_value bridge_auto_exposure_ext_update(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  CNA_Handle exposure = 0, scene = 0;
+  double delta = 0;
+  float answer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &exposure) || !read_handle(env, args[1], &scene) ||
+      napi_get_value_double(env, args[2], &delta) != napi_ok) {
+    return throw_message(env, "expected an auto exposure, a scene and an elapsed time");
+  }
+  const CNA_Result result =
+    g_api.auto_exposure_ext_update(exposure, scene, (float) delta, &answer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_auto_exposure_ext_update", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) answer, &output), "cna_auto_exposure_ext_update");
+  return output;
+}
+
+static napi_value two_float_setter(
+  napi_env env, napi_callback_info info, HandleTwoFloatFn route, const char* name
+) {
+  napi_value args[3];
+  CNA_Handle handle = 0;
+  double first = 0, second = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &handle) ||
+      napi_get_value_double(env, args[1], &first) != napi_ok ||
+      napi_get_value_double(env, args[2], &second) != napi_ok) {
+    return throw_message(env, "expected a handle and two numbers");
+  }
+  const CNA_Result result = route(handle, (float) first, (float) second);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value bridge_auto_exposure_ext_set_adaptation_speeds(
+  napi_env env, napi_callback_info info
+) {
+  return two_float_setter(
+    env, info, g_api.auto_exposure_ext_set_adaptation_speeds,
+    "cna_auto_exposure_ext_set_adaptation_speeds");
+}
+
+static napi_value bridge_auto_exposure_ext_set_exposure_range(
+  napi_env env, napi_callback_info info
+) {
+  return two_float_setter(
+    env, info, g_api.auto_exposure_ext_set_exposure_range,
+    "cna_auto_exposure_ext_set_exposure_range");
+}
+
+static napi_value bridge_spatial_upscale_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.spatial_upscale_pass_create, "cna_spatial_upscale_pass_create");
+}
+
+static napi_value bridge_spatial_upscale_pass_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.spatial_upscale_pass_destroy, "cna_spatial_upscale_pass_destroy");
+}
+
+static napi_value bridge_spatial_upscale_pass_get_sharpness(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.spatial_upscale_pass_get_sharpness, "cna_spatial_upscale_pass_get_sharpness");
+}
+
+static napi_value bridge_spatial_upscale_pass_set_sharpness(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.spatial_upscale_pass_set_sharpness, "cna_spatial_upscale_pass_set_sharpness");
+}
+
+static napi_value bridge_spatial_upscale_pass_get_edge_adaptive(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.spatial_upscale_pass_get_edge_adaptive, "cna_spatial_upscale_pass_get_edge_adaptive");
+}
+
+static napi_value bridge_spatial_upscale_pass_set_edge_adaptive(napi_env env, napi_callback_info info) {
+  return pp_set_bool(env, info, g_api.spatial_upscale_pass_set_edge_adaptive, "cna_spatial_upscale_pass_set_edge_adaptive");
+}
+
+static napi_value bridge_hdr_display_output_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.hdr_display_output_create, "cna_hdr_display_output_create");
+}
+
+static napi_value bridge_hdr_display_output_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.hdr_display_output_destroy, "cna_hdr_display_output_destroy");
+}
+
+static napi_value bridge_hdr_display_output_is_supported(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.hdr_display_output_is_supported, "cna_hdr_display_output_is_supported");
+}
+
+static napi_value bridge_hdr_display_output_get_paper_white_nits(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.hdr_display_output_get_paper_white_nits, "cna_hdr_display_output_get_paper_white_nits");
+}
+
+static napi_value bridge_hdr_display_output_set_paper_white_nits(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.hdr_display_output_set_paper_white_nits, "cna_hdr_display_output_set_paper_white_nits");
+}
+
+static napi_value bridge_hdr_display_output_get_peak_nits(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.hdr_display_output_get_peak_nits, "cna_hdr_display_output_get_peak_nits");
+}
+
+static napi_value bridge_hdr_display_output_set_peak_nits(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.hdr_display_output_set_peak_nits, "cna_hdr_display_output_set_peak_nits");
+}
+
+static napi_value bridge_auto_exposure_ext_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.auto_exposure_ext_create, "cna_auto_exposure_ext_create");
+}
+
+static napi_value bridge_auto_exposure_ext_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.auto_exposure_ext_destroy, "cna_auto_exposure_ext_destroy");
+}
+
+static napi_value bridge_auto_exposure_ext_get_exposure(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.auto_exposure_ext_get_exposure, "cna_auto_exposure_ext_get_exposure");
+}
+
+static napi_value bridge_auto_exposure_ext_set_exposure(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.auto_exposure_ext_set_exposure, "cna_auto_exposure_ext_set_exposure");
+}
+
+static napi_value bridge_auto_exposure_ext_get_key_value(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.auto_exposure_ext_get_key_value, "cna_auto_exposure_ext_get_key_value");
+}
+
+static napi_value bridge_auto_exposure_ext_set_key_value(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.auto_exposure_ext_set_key_value, "cna_auto_exposure_ext_set_key_value");
+}
+
+static napi_value bridge_auto_exposure_ext_get_brightening_speed(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.auto_exposure_ext_get_brightening_speed, "cna_auto_exposure_ext_get_brightening_speed");
+}
+
+static napi_value bridge_auto_exposure_ext_get_darkening_speed(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.auto_exposure_ext_get_darkening_speed, "cna_auto_exposure_ext_get_darkening_speed");
+}
+
+static napi_value bridge_hdr_display_output_get_color_space(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(
+    env, info, (HandleI32OutFn) (void*) g_api.hdr_display_output_get_color_space,
+    "cna_hdr_display_output_get_color_space");
+}
+
+static napi_value bridge_hdr_display_output_set_color_space(
+  napi_env env, napi_callback_info info
+) {
+  return pp_set_i32(
+    env, info, (HandleI32Fn) (void*) g_api.hdr_display_output_set_color_space,
+    "cna_hdr_display_output_set_color_space");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "createSpatialUpscalePass", NULL, bridge_spatial_upscale_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroySpatialUpscalePass", NULL, bridge_spatial_upscale_pass_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "getSpatialUpscaleSharpness", NULL, bridge_spatial_upscale_pass_get_sharpness, NULL, NULL, NULL, napi_default, NULL },
+    { "setSpatialUpscaleSharpness", NULL, bridge_spatial_upscale_pass_set_sharpness, NULL, NULL, NULL, napi_default, NULL },
+    { "isSpatialUpscaleEdgeAdaptive", NULL, bridge_spatial_upscale_pass_get_edge_adaptive, NULL, NULL, NULL, napi_default, NULL },
+    { "setSpatialUpscaleEdgeAdaptive", NULL, bridge_spatial_upscale_pass_set_edge_adaptive, NULL, NULL, NULL, napi_default, NULL },
+    { "drawSpatialUpscalePass", NULL, bridge_spatial_upscale_pass_draw, NULL, NULL, NULL, napi_default, NULL },
+    { "isSpatialUpscaleIdentityScale", NULL, bridge_spatial_upscale_pass_is_identity_scale, NULL, NULL, NULL, napi_default, NULL },
+    { "createHdrDisplayOutput", NULL, bridge_hdr_display_output_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyHdrDisplayOutput", NULL, bridge_hdr_display_output_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "isHdrDisplayOutputSupported", NULL, bridge_hdr_display_output_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "getHdrDisplayColorSpace", NULL, bridge_hdr_display_output_get_color_space, NULL, NULL, NULL, napi_default, NULL },
+    { "setHdrDisplayColorSpace", NULL, bridge_hdr_display_output_set_color_space, NULL, NULL, NULL, napi_default, NULL },
+    { "getHdrDisplayPaperWhiteNits", NULL, bridge_hdr_display_output_get_paper_white_nits, NULL, NULL, NULL, napi_default, NULL },
+    { "setHdrDisplayPaperWhiteNits", NULL, bridge_hdr_display_output_set_paper_white_nits, NULL, NULL, NULL, napi_default, NULL },
+    { "getHdrDisplayPeakNits", NULL, bridge_hdr_display_output_get_peak_nits, NULL, NULL, NULL, napi_default, NULL },
+    { "setHdrDisplayPeakNits", NULL, bridge_hdr_display_output_set_peak_nits, NULL, NULL, NULL, napi_default, NULL },
+    { "drawHdrDisplayOutput", NULL, bridge_hdr_display_output_draw, NULL, NULL, NULL, napi_default, NULL },
+    { "hdrEncodePq", NULL, bridge_hdr_display_output_encode_pq, NULL, NULL, NULL, napi_default, NULL },
+    { "hdrDecodePq", NULL, bridge_hdr_display_output_decode_pq, NULL, NULL, NULL, napi_default, NULL },
+    { "hdrRec709ToRec2020", NULL, bridge_hdr_display_output_rec709_to_rec2020, NULL, NULL, NULL, napi_default, NULL },
+    { "hdrRollOff", NULL, bridge_hdr_display_output_roll_off, NULL, NULL, NULL, napi_default, NULL },
+    { "hdrEncode", NULL, bridge_hdr_display_output_encode, NULL, NULL, NULL, napi_default, NULL },
+    { "createAutoExposure", NULL, bridge_auto_exposure_ext_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyAutoExposure", NULL, bridge_auto_exposure_ext_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "measureAutoExposureLuminance", NULL, bridge_auto_exposure_ext_measure_average_luminance, NULL, NULL, NULL, napi_default, NULL },
+    { "updateAutoExposure", NULL, bridge_auto_exposure_ext_update, NULL, NULL, NULL, napi_default, NULL },
+    { "getAutoExposureExposure", NULL, bridge_auto_exposure_ext_get_exposure, NULL, NULL, NULL, napi_default, NULL },
+    { "setAutoExposureExposure", NULL, bridge_auto_exposure_ext_set_exposure, NULL, NULL, NULL, napi_default, NULL },
+    { "getAutoExposureKeyValue", NULL, bridge_auto_exposure_ext_get_key_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setAutoExposureKeyValue", NULL, bridge_auto_exposure_ext_set_key_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getAutoExposureBrighteningSpeed", NULL, bridge_auto_exposure_ext_get_brightening_speed, NULL, NULL, NULL, napi_default, NULL },
+    { "getAutoExposureDarkeningSpeed", NULL, bridge_auto_exposure_ext_get_darkening_speed, NULL, NULL, NULL, napi_default, NULL },
+    { "setAutoExposureAdaptationSpeeds", NULL, bridge_auto_exposure_ext_set_adaptation_speeds, NULL, NULL, NULL, napi_default, NULL },
+    { "setAutoExposureRange", NULL, bridge_auto_exposure_ext_set_exposure_range, NULL, NULL, NULL, napi_default, NULL },
     { "createDebugDraw", NULL, bridge_debug_draw_create, NULL, NULL, NULL, napi_default, NULL },
     { "destroyDebugDraw", NULL, bridge_debug_draw_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "beginDebugDraw", NULL, bridge_debug_draw_begin, NULL, NULL, NULL, napi_default, NULL },

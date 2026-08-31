@@ -2825,6 +2825,176 @@ class WindowedProbeGame extends Game {
       return result;
     });
 
+    // --- automatic exposure, the display output object and spatial upscaling ------------------------
+    //
+    // The display's transfer chain is qualified headless against the published standards. What
+    // needs a renderer is the auto exposure, which measures a scene with a compute shader and so
+    // answers NOT_SUPPORTED on HEADLESS, and the two objects that draw.
+    record("exposure", () => {
+      const { AutoExposure, DisplayColorSpace, HdrDisplayOutput, IsGraphicsExtensionLayerAvailable,
+        SpatialUpscalePass } = computeModule;
+      const owned = [];
+      try {
+        const result = {};
+        // The display output object first, because it constructs everywhere.
+        let output;
+        try {
+          output = new HdrDisplayOutput(device);
+        } catch (error) {
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(output);
+        result.display = {
+          supported: output.IsSupported,
+          defaults: [output.ColorSpace, output.PaperWhiteNits, output.PeakNits],
+        };
+        output.ColorSpace = DisplayColorSpace.Hdr10;
+        output.PaperWhiteNits = 250;
+        output.PeakNits = 1500;
+        result.display.written = [output.ColorSpace, output.PaperWhiteNits, output.PeakNits];
+
+        const N = 4;
+        const scene = new Graphics.Texture2D(device, N, N);
+        owned.push(scene);
+        scene.SetData(new Array(N * N).fill(0).map(() => new Color(200, 100, 40, 255)));
+        const destination = new Graphics.RenderTarget2D(device, N, N);
+        owned.push(destination);
+        const read = () => {
+          const pixels = new Array(N * N);
+          destination.GetData(pixels);
+          return pixels.map((color) => [color.R, color.G, color.B]);
+        };
+        const sourcePixels = (() => {
+          const pixels = new Array(N * N);
+          scene.GetData(pixels);
+          return pixels.map((color) => [color.R, color.G, color.B]);
+        })();
+        result.display.srgbIsACopy = (() => {
+          output.ColorSpace = DisplayColorSpace.Srgb;
+          try {
+            output.Draw(scene, destination, N, N);
+          } catch (error) {
+            return `result ${error.cnaResult}`;
+          }
+          const drawn = read();
+          return drawn.every((texel, index) =>
+            texel.every((value, channel) => value === sourcePixels[index][channel]));
+        })();
+        result.display.hdr10Differs = (() => {
+          output.ColorSpace = DisplayColorSpace.Hdr10;
+          try {
+            output.Draw(scene, destination, N, N);
+          } catch (error) {
+            return `result ${error.cnaResult}`;
+          }
+          const drawn = read();
+          return !drawn.every((texel, index) =>
+            texel.every((value, channel) => value === sourcePixels[index][channel]));
+        })();
+
+        // Spatial upscaling: at the same size the pass has nothing to do, and it says so.
+        const upscale = new SpatialUpscalePass(device);
+        owned.push(upscale);
+        result.upscale = {
+          defaults: [upscale.Sharpness, upscale.EdgeAdaptive],
+        };
+        upscale.Sharpness = 0.625;
+        upscale.EdgeAdaptive = false;
+        result.upscale.written = [upscale.Sharpness, upscale.EdgeAdaptive];
+        // A hard vertical edge rather than a flat colour: an upscale of a flat field is that field
+        // whatever the sizes are, so a flat source cannot tell a 4x4-to-8x8 draw from an
+        // 8x8-to-4x4 one. An edge can, and it also says where the edge landed.
+        const edged = new Graphics.Texture2D(device, N, N);
+        owned.push(edged);
+        edged.SetData(new Array(N * N).fill(0).map(
+          (_, index) => (index % N) < N / 2
+            ? new Color(0, 0, 0, 255) : new Color(255, 255, 255, 255)));
+        const bigger = new Graphics.RenderTarget2D(device, N * 2, N * 2);
+        owned.push(bigger);
+        result.upscale.drew = (() => {
+          device.SetRenderTarget(bigger);
+          try {
+            // A clear colour that is neither side of the edge, so anything the pass fails to
+            // write shows up as itself.
+            device.Clear(new Color(20, 20, 20, 255));
+            upscale.Draw(edged, N, N, N * 2, N * 2);
+          } catch (error) {
+            return `result ${error.cnaResult}`;
+          } finally {
+            device.SetRenderTarget(null);
+          }
+          const pixels = new Array(N * 2 * N * 2);
+          bigger.GetData(pixels);
+          return pixels.map((color) => color.R);
+        })();
+
+        // The auto exposure, which needs compute shaders.
+        let exposure;
+        try {
+          exposure = new AutoExposure(device);
+        } catch (error) {
+          result.exposure = { unsupported: `result ${error.cnaResult}` };
+          return result;
+        }
+        owned.push(exposure);
+        const dark = new Graphics.Texture2D(device, N, N);
+        owned.push(dark);
+        dark.SetData(new Array(N * N).fill(0).map(() => new Color(8, 8, 8, 255)));
+        const bright = new Graphics.Texture2D(device, N, N);
+        owned.push(bright);
+        bright.SetData(new Array(N * N).fill(0).map(() => new Color(255, 255, 255, 255)));
+        const state = {
+          defaults: [
+            exposure.Exposure, exposure.KeyValue,
+            exposure.BrighteningSpeed, exposure.DarkeningSpeed,
+          ],
+          measuredBright: exposure.MeasureAverageLuminance(bright),
+          measuredDark: exposure.MeasureAverageLuminance(dark),
+        };
+        exposure.SetAdaptationSpeeds(2, 0.5);
+        state.speeds = [exposure.BrighteningSpeed, exposure.DarkeningSpeed];
+        exposure.KeyValue = 0.25;
+        state.key = exposure.KeyValue;
+        // Adapting to a bright scene closes the exposure down, step by step, never past its target.
+        exposure.Exposure = 1;
+        state.towardsBright = [];
+        for (let step = 0; step < 5; step += 1) {
+          state.towardsBright.push(exposure.Update(bright, 0.5));
+        }
+        exposure.Exposure = 1;
+        state.towardsDark = [];
+        for (let step = 0; step < 5; step += 1) {
+          state.towardsDark.push(exposure.Update(dark, 0.5));
+        }
+        // A longer step moves further than a shorter one towards the same target.
+        exposure.Exposure = 1;
+        state.oneShortStep = exposure.Update(bright, 0.1);
+        exposure.Exposure = 1;
+        state.oneLongStep = exposure.Update(bright, 2);
+        // And the range clamps it however long it runs.
+        exposure.Exposure = 1;
+        exposure.SetExposureRange(0.9, 1.1);
+        state.clamped = [];
+        for (let step = 0; step < 6; step += 1) state.clamped.push(exposure.Update(bright, 5));
+        result.exposure = state;
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch (error) {
+            (this.evidence.exposureCleanup ??= []).push(
+              `${error.constructor.name}: ${(error.message ?? "").slice(0, 90)}`,
+            );
+          }
+        }
+      }
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -5489,5 +5659,173 @@ test("a windowed CNA renderer's GPU instance culler runs and keeps everything", 
   console.log(
     `CNA_TS_WINDOWED_GPU_CULL=FINDING_20 ROWS=` +
     gpu.rows.map((row) => `${row.name}:${row.cpuVisible}/${row.gpuVisible}of${row.offered}`).join(" "),
+  );
+});
+
+test("a windowed CNA renderer adapts its exposure the way its own model says", { skip }, async () => {
+  const game = new WindowedProbeGame(6);
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const block = evidence.exposure;
+  assert.equal(typeof block, "object", `the exposure block did not run: ${block}`);
+  if (block.layerAbsent) {
+    assert.equal(block.extensionLayer, false);
+    console.log(`CNA_TS_WINDOWED_EXPOSURE=SKIPPED_NO_LAYER RESULT=${block.cnaResult}`);
+    return;
+  }
+  assert.equal(evidence.exposureCleanup, undefined, `cleanup failed: ${evidence.exposureCleanup}`);
+
+  const { DisplayColorSpace } = computeModule;
+
+  // --- the display output object ---------------------------------------------------------------
+  assert.deepEqual(
+    block.display.defaults, [DisplayColorSpace.Srgb, 200, 1000],
+    "a display starts as an ordinary sRGB one at two hundred nits with a thousand-nit peak",
+  );
+  assert.deepEqual(block.display.written, [DisplayColorSpace.Hdr10, 250, 1500]);
+  // The headless suite proves from the pure routes that an sRGB encode passes the scene value
+  // through unchanged. This is that claim as pixels: the drawn frame is byte-identical.
+  assert.equal(
+    block.display.srgbIsACopy, true,
+    "an sRGB display output draws the scene exactly as it was, which is what its encode says",
+  );
+  assert.equal(
+    block.display.hdr10Differs, true,
+    "and an HDR10 one does not, or the colour space would be doing nothing",
+  );
+
+  // --- spatial upscaling ---------------------------------------------------------------------------
+  assert.ok(block.upscale.defaults[0] > 0, "an upscaler sharpens by default");
+  assert.equal(block.upscale.defaults[1], true, "and follows edges by default");
+  assert.deepEqual(block.upscale.written, [0.625, false]);
+  // The upscaled edge: a 4x4 source whose left half is black and right half white, drawn at 8x8.
+  const upscaled = block.upscale.drew;
+  assert.ok(Array.isArray(upscaled), `the upscale did not draw: ${upscaled}`);
+  assert.equal(upscaled.length, 64);
+  for (const value of upscaled) {
+    assert.notEqual(
+      value, 20,
+      "the pass must cover the whole target: a texel still at the clear colour was never written",
+    );
+  }
+  const rows = [];
+  for (let row = 0; row < 8; row += 1) rows.push(upscaled.slice(row * 8, row * 8 + 8));
+  for (const row of rows) {
+    assert.deepEqual(row, rows[0], "a vertical edge upscales to the same row everywhere");
+    for (let index = 1; index < row.length; index += 1) {
+      assert.ok(row[index] >= row[index - 1], `the edge is not monotone across the row: ${row}`);
+    }
+    assert.ok(row[0] < 32, "the black side stays black");
+    assert.ok(row[7] > 223, "and the white side stays white");
+  }
+  // The source's edge is halfway across it, so the drawn edge is halfway across the target.
+  const crossing = rows[0].findIndex((value) => value > 127);
+  assert.ok(
+    crossing === 4 || crossing === 3,
+    `the edge landed at column ${crossing} of eight, not halfway: ${rows[0]}`,
+  );
+
+  // --- automatic exposure ----------------------------------------------------------------------------
+  if (block.exposure.unsupported) {
+    assert.match(
+      block.exposure.unsupported, /^result \d+$/,
+      "a renderer without compute shaders refuses the auto exposure rather than faking it",
+    );
+    console.log(`CNA_TS_WINDOWED_EXPOSURE=NO_COMPUTE ${block.exposure.unsupported}`);
+    return;
+  }
+  const exposure = block.exposure;
+  assert.equal(exposure.defaults[0], 1, "an auto exposure starts at one");
+  assert.ok(
+    Math.abs(exposure.defaults[1] - 0.18) < 1e-5,
+    "and aims at eighteen per cent grey, which is what a light meter is calibrated to",
+  );
+  assert.ok(
+    exposure.defaults[2] > exposure.defaults[3],
+    "adapting to light is faster than adapting to dark, as an eye is",
+  );
+  assert.deepEqual(exposure.speeds, [2, 0.5], "and both speeds are the caller's to set");
+  assert.equal(exposure.key, 0.25);
+
+  // The measurement is the average channel value, exactly.
+  assert.equal(exposure.measuredBright, 1, "a white scene measures one");
+  assert.ok(
+    Math.abs(exposure.measuredDark - 8 / 255) < 1e-6,
+    `a scene of eight-out-of-255 measures exactly that: ${exposure.measuredDark}`,
+  );
+
+  // The adaptation is exponential towards key / luminance, at the speed that matches the
+  // direction the *scene* moved: brightening when the scene got brighter, darkening when darker.
+  const KEY = 0.25;
+  const BRIGHTENING = 2;
+  const DARKENING = 0.5;
+  const step = (current, target, seconds) => {
+    const speed = target < current ? BRIGHTENING : DARKENING;
+    return target + (current - target) * Math.exp(-speed * seconds);
+  };
+  const brightTarget = KEY / exposure.measuredBright;
+  let predicted = 1;
+  for (const [index, measured] of exposure.towardsBright.entries()) {
+    predicted = step(predicted, brightTarget, 0.5);
+    assert.ok(
+      Math.abs(measured - predicted) < 1e-4,
+      `adapting to a bright scene, step ${index}: ${measured} vs ${predicted}`,
+    );
+  }
+  const darkTarget = KEY / exposure.measuredDark;
+  predicted = 1;
+  for (const [index, measured] of exposure.towardsDark.entries()) {
+    predicted = step(predicted, darkTarget, 0.5);
+    assert.ok(
+      Math.abs(measured - predicted) < 1e-3,
+      `adapting to a dark scene, step ${index}: ${measured} vs ${predicted}`,
+    );
+  }
+  // The two directions really are different, which is what the two speeds are for.
+  assert.ok(
+    exposure.towardsBright[0] < 1 && exposure.towardsDark[0] > 1,
+    "a bright scene closes the exposure down and a dark one opens it up",
+  );
+  // Each approaches its target and never passes it.
+  for (let index = 1; index < exposure.towardsBright.length; index += 1) {
+    assert.ok(
+      exposure.towardsBright[index] < exposure.towardsBright[index - 1],
+      "adapting to light only ever closes down",
+    );
+    assert.ok(exposure.towardsBright[index] > brightTarget, "and never overshoots its target");
+    assert.ok(
+      exposure.towardsDark[index] > exposure.towardsDark[index - 1],
+      "adapting to dark only ever opens up",
+    );
+    assert.ok(exposure.towardsDark[index] < darkTarget, "and never overshoots either");
+  }
+  // A longer step travels further, which is what makes it a rate rather than a step size.
+  assert.ok(
+    Math.abs(exposure.oneShortStep - step(1, brightTarget, 0.1)) < 1e-4,
+    `a tenth of a second: ${exposure.oneShortStep} vs ${step(1, brightTarget, 0.1)}`,
+  );
+  assert.ok(
+    Math.abs(exposure.oneLongStep - step(1, brightTarget, 2)) < 1e-4,
+    `two seconds: ${exposure.oneLongStep} vs ${step(1, brightTarget, 2)}`,
+  );
+  assert.ok(
+    exposure.oneLongStep < exposure.oneShortStep,
+    "and two seconds travels further towards the target than a tenth of one",
+  );
+  // The range clamps it however long it runs, and it settles rather than oscillating.
+  for (const value of exposure.clamped) {
+    assert.ok(value >= 0.9 - 1e-4, `the exposure went below its floor: ${value}`);
+    assert.ok(value <= 1.1 + 1e-4, `or above its ceiling: ${value}`);
+  }
+  assert.ok(
+    Math.abs(exposure.clamped[exposure.clamped.length - 1] - 0.9) < 1e-4,
+    "and settles on the floor, because the scene wants an exposure below it",
+  );
+
+  console.log(
+    `CNA_TS_WINDOWED_EXPOSURE=PASS MEASURE=AVERAGE_CHANNEL ADAPT=EXPONENTIAL_TWO_SPEEDS ` +
+    `TARGET=${brightTarget}/${darkTarget.toFixed(2)} SRGB_DRAW=EXACT_COPY UPSCALE=FLAT_PRESERVED`,
   );
 });

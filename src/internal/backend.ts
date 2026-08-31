@@ -1232,6 +1232,56 @@ export interface CnaGraphicsExtensionBackend {
     debug: NativeHandle, volume: NativeHandle, color: number, crossSize: number,
   ): void;
   addDebugDrawCascadeGizmo(debug: NativeHandle, cascades: NativeHandle, color: number): void;
+  // --- HDR display output, automatic exposure and spatial upscaling ------------------------------
+  createSpatialUpscalePass(graphicsDevice: NativeHandle): NativeHandle;
+  destroySpatialUpscalePass(pass: NativeHandle): void;
+  getSpatialUpscaleSharpness(pass: NativeHandle): number;
+  setSpatialUpscaleSharpness(pass: NativeHandle, value: number): void;
+  isSpatialUpscaleEdgeAdaptive(pass: NativeHandle): boolean;
+  setSpatialUpscaleEdgeAdaptive(pass: NativeHandle, value: boolean): void;
+  drawSpatialUpscalePass(
+    pass: NativeHandle, source: NativeHandle, sourceWidth: number, sourceHeight: number,
+    targetWidth: number, targetHeight: number,
+  ): void;
+  isSpatialUpscaleIdentityScale(
+    sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number,
+  ): boolean;
+  createHdrDisplayOutput(graphicsDevice: NativeHandle): NativeHandle;
+  destroyHdrDisplayOutput(output: NativeHandle): void;
+  isHdrDisplayOutputSupported(output: NativeHandle): boolean;
+  getHdrDisplayColorSpace(output: NativeHandle): number;
+  setHdrDisplayColorSpace(output: NativeHandle, value: number): void;
+  getHdrDisplayPaperWhiteNits(output: NativeHandle): number;
+  setHdrDisplayPaperWhiteNits(output: NativeHandle, value: number): void;
+  getHdrDisplayPeakNits(output: NativeHandle): number;
+  setHdrDisplayPeakNits(output: NativeHandle, value: number): void;
+  drawHdrDisplayOutput(
+    output: NativeHandle, source: NativeHandle, destination: NativeHandle,
+    width: number, height: number,
+  ): void;
+  hdrEncodePq(nits: number): number;
+  hdrDecodePq(encoded: number): number;
+  hdrRec709ToRec2020(color: Vector3Snapshot): Vector3Snapshot;
+  hdrRollOff(nits: number, peakNits: number): number;
+  hdrEncode(
+    space: number, sceneLinear: Vector3Snapshot, paperWhiteNits: number, peakNits: number,
+  ): Vector3Snapshot;
+  createAutoExposure(graphicsDevice: NativeHandle): NativeHandle;
+  destroyAutoExposure(autoExposure: NativeHandle): void;
+  measureAutoExposureLuminance(autoExposure: NativeHandle, scene: NativeHandle): number;
+  updateAutoExposure(
+    autoExposure: NativeHandle, scene: NativeHandle, deltaSeconds: number,
+  ): number;
+  getAutoExposureExposure(autoExposure: NativeHandle): number;
+  setAutoExposureExposure(autoExposure: NativeHandle, value: number): void;
+  getAutoExposureKeyValue(autoExposure: NativeHandle): number;
+  setAutoExposureKeyValue(autoExposure: NativeHandle, value: number): void;
+  getAutoExposureBrighteningSpeed(autoExposure: NativeHandle): number;
+  getAutoExposureDarkeningSpeed(autoExposure: NativeHandle): number;
+  setAutoExposureAdaptationSpeeds(
+    autoExposure: NativeHandle, brighteningPerSecond: number, darkeningPerSecond: number,
+  ): void;
+  setAutoExposureRange(autoExposure: NativeHandle, minimum: number, maximum: number): void;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;

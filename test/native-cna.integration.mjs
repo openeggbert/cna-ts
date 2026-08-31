@@ -8634,3 +8634,230 @@ test("every debug gizmo is a line list that can be read rather than looked at", 
     `FRUSTUM=BoundingFrustum_CORNERS POINT=${point.lines} SPOT=CONE DIRECTIONAL=ARROW`,
   );
 });
+
+test("the HDR display transfer chain is the published one, in every part and in composition", async () => {
+  const { DisplayColorSpace, HdrDisplayOutput, SpatialUpscalePass } = computeExtensions;
+
+  // --- SMPTE ST 2084, the perceptual quantiser -------------------------------------------------
+  // Written out from the standard's own constants rather than taken from a run.
+  const M1 = 2610 / 16384;
+  const M2 = (2523 / 4096) * 128;
+  const C1 = 3424 / 4096;
+  const C2 = (2413 / 4096) * 32;
+  const C3 = (2392 / 4096) * 32;
+  const encodePq = (nits) => {
+    const y = Math.min(Math.max(nits, 0), 10000) / 10000;
+    const ym = y ** M1;
+    return ((C1 + C2 * ym) / (1 + C3 * ym)) ** M2;
+  };
+  for (const nits of [0, 0.1, 1, 10, 100, 203, 1000, 4000, 10000]) {
+    const measured = HdrDisplayOutput.EncodePq(nits);
+    const predicted = encodePq(nits);
+    assert.ok(
+      Math.abs(measured - predicted) < 1e-5,
+      `PQ at ${nits} nits: ${measured} vs ${predicted}`,
+    );
+  }
+  assert.equal(HdrDisplayOutput.EncodePq(10000), 1, "ten thousand nits is the top of the curve");
+  assert.equal(
+    HdrDisplayOutput.EncodePq(20000), 1, "and anything brighter is clamped rather than extrapolated",
+  );
+  assert.equal(
+    HdrDisplayOutput.EncodePq(-5), HdrDisplayOutput.EncodePq(0),
+    "a negative brightness is clamped to zero rather than negated",
+  );
+  assert.equal(HdrDisplayOutput.DecodePq(0), 0, "and no signal is no light");
+  assert.equal(HdrDisplayOutput.DecodePq(1), 10000, "while a full signal is the whole range");
+  // The two are inverses across the range, which is what makes either of them useful.
+  for (const nits of [1, 10, 100, 203, 1000, 4000, 10000]) {
+    const round = HdrDisplayOutput.DecodePq(HdrDisplayOutput.EncodePq(nits));
+    assert.ok(
+      Math.abs(round - nits) < Math.max(nits * 1e-4, 1e-4),
+      `PQ does not round-trip at ${nits} nits: ${round}`,
+    );
+  }
+  // The curve spends its range where the eye can tell values apart: most of the signal is below a
+  // hundred nits, which is the whole point of a perceptual quantiser.
+  assert.ok(
+    HdrDisplayOutput.EncodePq(100) > 0.5,
+    `half the signal should be spent below a hundred nits, not ${HdrDisplayOutput.EncodePq(100)}`,
+  );
+  let previous = -1;
+  for (let nits = 0; nits <= 10000; nits += 250) {
+    const encoded = HdrDisplayOutput.EncodePq(nits);
+    assert.ok(encoded >= previous, `the PQ curve fell at ${nits} nits`);
+    previous = encoded;
+  }
+
+  // --- Rec.709 to Rec.2020 -----------------------------------------------------------------------
+  // The BT.2087 matrix, written out here. Its rows sum to one, which is why white stays white.
+  const MATRIX = [
+    [0.6274039, 0.3292830, 0.0433131],
+    [0.0690973, 0.9195404, 0.0113623],
+    [0.0163914, 0.0880133, 0.8955953],
+  ];
+  for (const [name, input] of [
+    ["red", new Vector3(1, 0, 0)], ["green", new Vector3(0, 1, 0)], ["blue", new Vector3(0, 0, 1)],
+    ["white", new Vector3(1, 1, 1)], ["black", Vector3.Zero],
+    ["a mixture", new Vector3(0.5, 0.25, 0.75)],
+  ]) {
+    const measured = HdrDisplayOutput.Rec709ToRec2020(input);
+    const source = [input.X, input.Y, input.Z];
+    const predicted = MATRIX.map(
+      (row) => row.reduce((total, value, index) => total + value * source[index], 0));
+    for (const [index, channel] of [measured.X, measured.Y, measured.Z].entries()) {
+      assert.ok(
+        Math.abs(channel - predicted[index]) < 1e-4,
+        `Rec.2020 ${name} channel ${index}: ${channel} vs ${predicted[index]}`,
+      );
+    }
+  }
+  const white = HdrDisplayOutput.Rec709ToRec2020(new Vector3(1, 1, 1));
+  for (const channel of [white.X, white.Y, white.Z]) {
+    assert.ok(Math.abs(channel - 1) < 1e-4, "white must stay white, or the primaries are wrong");
+  }
+  const black = HdrDisplayOutput.Rec709ToRec2020(Vector3.Zero);
+  assert.deepEqual([black.X, black.Y, black.Z], [0, 0, 0], "and black must stay black");
+  // Rec.2020's gamut is wider, so a Rec.709 primary becomes a mixture in it rather than staying
+  // pure -- which is the whole reason the conversion exists.
+  const red = HdrDisplayOutput.Rec709ToRec2020(new Vector3(1, 0, 0));
+  assert.ok(red.Y > 0 && red.Z > 0, "a Rec.709 red is not a Rec.2020 red");
+  assert.ok(red.X < 1, "and is less saturated in the wider gamut");
+  // It is linear: half of a colour maps to half of its answer.
+  const full = HdrDisplayOutput.Rec709ToRec2020(new Vector3(0.6, 0.4, 0.2));
+  const half = HdrDisplayOutput.Rec709ToRec2020(new Vector3(0.3, 0.2, 0.1));
+  for (const axis of ["X", "Y", "Z"]) {
+    assert.ok(
+      Math.abs(half[axis] * 2 - full[axis]) < 1e-5,
+      `the primaries conversion is not linear in ${axis}`,
+    );
+  }
+
+  // --- the highlight roll-off ---------------------------------------------------------------------
+  // Reinhard against the peak, which is not a knee: it pulls everything down a little and the
+  // brightest things a lot, approaching the peak without ever reaching it.
+  const rollOff = (nits, peak) => (nits * peak) / (nits + peak);
+  for (const [nits, peak] of [
+    [10, 1000], [100, 1000], [200, 1000], [800, 1000], [1000, 1000], [2000, 1000], [10000, 1000],
+    [50, 400], [4000, 4000],
+  ]) {
+    const measured = HdrDisplayOutput.RollOff(nits, peak);
+    const predicted = rollOff(nits, peak);
+    assert.ok(
+      Math.abs(measured - predicted) < Math.max(predicted * 1e-4, 1e-4),
+      `roll-off of ${nits} against ${peak}: ${measured} vs ${predicted}`,
+    );
+  }
+  assert.equal(HdrDisplayOutput.RollOff(0, 1000), 0, "nothing rolls off to nothing");
+  assert.ok(
+    HdrDisplayOutput.RollOff(1e9, 1000) < 1000,
+    "and no brightness ever reaches the peak, however large",
+  );
+  assert.ok(
+    HdrDisplayOutput.RollOff(1e9, 1000) > 999,
+    "though it gets arbitrarily close",
+  );
+  previous = -1;
+  for (let nits = 0; nits <= 5000; nits += 100) {
+    const rolled = HdrDisplayOutput.RollOff(nits, 1000);
+    assert.ok(rolled > previous, `the roll-off is not strictly rising at ${nits}`);
+    previous = rolled;
+  }
+
+  // --- and the composition of all three ----------------------------------------------------------
+  // This is the claim worth making: the whole encode is exactly its three published parts applied
+  // in order, so a caller who understands the parts understands the frame.
+  const PAPER = 203;
+  const PEAK = 1000;
+  for (const colour of [
+    new Vector3(0.5, 0.25, 0.75), new Vector3(1, 1, 1), Vector3.Zero,
+    new Vector3(0.1, 0.9, 0.4), new Vector3(4, 2, 1),
+  ]) {
+    const srgb = HdrDisplayOutput.Encode(DisplayColorSpace.Srgb, colour, PAPER, PEAK);
+    assert.ok(
+      Math.abs(srgb.X - colour.X) < 1e-5 && Math.abs(srgb.Y - colour.Y) < 1e-5 &&
+      Math.abs(srgb.Z - colour.Z) < 1e-5,
+      "an sRGB display takes the scene value as it is; the framebuffer does the encoding",
+    );
+    // scRGB is linear with one meaning the paper white the OS was told about, and the reference
+    // for that scale is the 80-nit sRGB white.
+    const scrgb = HdrDisplayOutput.Encode(DisplayColorSpace.ScRgb, colour, PAPER, PEAK);
+    for (const [index, axis] of ["X", "Y", "Z"].entries()) {
+      assert.ok(
+        Math.abs(scrgb[axis] - colour[axis] * (PAPER / 80)) < 1e-4,
+        `scRGB channel ${index}: ${scrgb[axis]} vs ${colour[axis] * (PAPER / 80)}`,
+      );
+    }
+    // HDR10 is the three parts, and the ORDER is the finding worth pinning: brightness and the
+    // roll-off happen first, in the source primaries, and only then is the gamut converted and the
+    // PQ curve applied. Rolling off after the conversion gives a visibly different answer, which is
+    // why the composition below is bit-identical rather than merely close.
+    const hdr10 = HdrDisplayOutput.Encode(DisplayColorSpace.Hdr10, colour, PAPER, PEAK);
+    const rolled = HdrDisplayOutput.Rec709ToRec2020(new Vector3(
+      HdrDisplayOutput.RollOff(colour.X * PAPER, PEAK),
+      HdrDisplayOutput.RollOff(colour.Y * PAPER, PEAK),
+      HdrDisplayOutput.RollOff(colour.Z * PAPER, PEAK),
+    ));
+    for (const axis of ["X", "Y", "Z"]) {
+      const predicted = HdrDisplayOutput.EncodePq(rolled[axis]);
+      assert.equal(
+        hdr10[axis], predicted,
+        `HDR10 ${axis} for ${colour.X},${colour.Y},${colour.Z}: the encode is not exactly ` +
+        `roll-off, then primaries, then PQ`,
+      );
+    }
+    // And the other order really is different, so the assertion above says something.
+    const wide = HdrDisplayOutput.Rec709ToRec2020(colour);
+    if (colour.X !== colour.Y || colour.Y !== colour.Z) {
+      assert.notEqual(
+        hdr10.X,
+        HdrDisplayOutput.EncodePq(HdrDisplayOutput.RollOff(wide.X * PAPER, PEAK)),
+        "converting the gamut before the roll-off must not give the same answer",
+      );
+    }
+  }
+  // Paper white really is the brightness of a scene value of one.
+  const encodedWhite = HdrDisplayOutput.Encode(
+    DisplayColorSpace.Hdr10, new Vector3(1, 1, 1), PAPER, PEAK);
+  assert.ok(
+    Math.abs(HdrDisplayOutput.DecodePq(encodedWhite.X) - rollOff(PAPER, PEAK)) < 0.5,
+    "a scene value of one lands at the paper white the caller asked for, after the roll-off",
+  );
+  assert.ok(
+    rollOff(PAPER, PEAK) < PAPER,
+    "and the roll-off has already taken something off it, because it is not a knee",
+  );
+  // Raising paper white raises what a given scene value comes out at.
+  const dim = HdrDisplayOutput.Encode(DisplayColorSpace.Hdr10, new Vector3(0.5, 0.5, 0.5), 100, PEAK);
+  const bright = HdrDisplayOutput.Encode(DisplayColorSpace.Hdr10, new Vector3(0.5, 0.5, 0.5), 400, PEAK);
+  assert.ok(bright.X > dim.X, "a brighter paper white puts more light on the screen");
+
+  assert.throws(() => HdrDisplayOutput.EncodePq(Number.NaN), TypeError);
+  assert.throws(() => HdrDisplayOutput.Rec709ToRec2020(null), TypeError);
+  assert.throws(
+    () => HdrDisplayOutput.Encode(1.5, new Vector3(1, 1, 1), PAPER, PEAK), TypeError,
+    "a colour space is one of the three, not a number between them",
+  );
+
+  // --- what is worth upscaling ---------------------------------------------------------------------
+  assert.equal(
+    SpatialUpscalePass.IsIdentityScale(100, 100, 100, 100), true,
+    "the same size is nothing to upscale",
+  );
+  assert.equal(SpatialUpscalePass.IsIdentityScale(100, 100, 200, 200), false);
+  assert.equal(
+    SpatialUpscalePass.IsIdentityScale(100, 100, 100, 200), false,
+    "and one axis differing is enough",
+  );
+  assert.equal(SpatialUpscalePass.IsIdentityScale(100, 100, 200, 100), false);
+  assert.equal(
+    SpatialUpscalePass.IsIdentityScale(100, 100, 50, 50), false,
+    "downscaling is not an identity either",
+  );
+  assert.throws(() => SpatialUpscalePass.IsIdentityScale(1.5, 1, 1, 1), TypeError);
+
+  console.log(
+    `CNA_TS_NATIVE_HDR_DISPLAY=PASS PQ=ST2084 PRIMARIES=BT2087 ROLL_OFF=REINHARD ` +
+    `ENCODE=COMPOSES_ITS_PARTS`,
+  );
+});

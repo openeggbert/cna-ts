@@ -953,6 +953,15 @@
         "Specular": "SPECULAR_EXT",
         "SpecularColor": "SPECULAR_COLOR_EXT"
       }
+    },
+    {
+      "typeScriptEnum": "DisplayColorSpace",
+      "cnaPrefix": "CNA_DISPLAY_COLOR_SPACE",
+      "suffixOverrides": {
+        "Srgb": "SRGB",
+        "ScRgb": "SCRGB",
+        "Hdr10": "HDR10"
+      }
     }
   ]
 }

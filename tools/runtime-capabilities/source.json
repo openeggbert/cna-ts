@@ -1880,6 +1880,59 @@
         "route:cna_debug_draw_add_cascade_gizmo",
         "test:test/native-cna.integration.mjs"
       ]
+    },
+    {
+      "operation": "The HDR display transfer chain: PQ, the wide-gamut primaries, the highlight roll-off, and their composition",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "CNA publishes the whole chain as pure routes, so what a frame will look like is checked without a display that can show it -- and each part is checked against the standard it implements rather than against a run. The PQ curve is SMPTE ST 2084 written out from the standard's own five constants at nine brightnesses, clamped at ten thousand nits and at zero rather than extrapolated or negated, monotone across its range, and an exact inverse of its decode. Half the signal is spent below a hundred nits, which is what a perceptual quantiser is for. The primaries are the BT.2087 matrix, checked on the three Rec.709 primaries, white, black and a mixture: white stays white because the rows sum to one, black stays black, a Rec.709 red becomes a less saturated mixture in the wider gamut, and the conversion is linear. The roll-off turned out to be Reinhard against the peak rather than a knee -- a hundred nits against a thousand-nit peak comes back as ninety-one -- so it pulls everything down a little, approaches the peak without reaching it however large the input, and is strictly rising throughout; the binding's own comment was corrected to say so. The composition is the claim worth making, and it is bit-identical rather than close: brightness and the roll-off happen FIRST, in the source primaries, and only then is the gamut converted and the curve applied. Rolling off after the conversion gives a different answer, which the test also asserts so the ordering claim is not vacuous. An sRGB display gets the scene value unchanged -- proved twice, once from the pure route and once as a byte-exact drawn frame on a windowed renderer -- and scRGB gets it scaled against the eighty-nit reference white",
+      "proof": [
+        "route:cna_hdr_display_output_create",
+        "route:cna_hdr_display_output_encode_pq",
+        "route:cna_hdr_display_output_decode_pq",
+        "route:cna_hdr_display_output_rec709_to_rec2020",
+        "route:cna_hdr_display_output_roll_off",
+        "route:cna_hdr_display_output_encode",
+        "route:cna_hdr_display_output_draw",
+        "route:cna_hdr_display_output_set_color_space",
+        "route:cna_hdr_display_output_set_paper_white_nits",
+        "route:cna_hdr_display_output_set_peak_nits",
+        "route:cna_hdr_display_output_is_supported",
+        "test:test/native-cna.integration.mjs",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Automatic exposure: measuring a scene and adapting to it",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "it measures with a compute shader, so HEADLESS refuses it honestly and the qualification is windowed. Both halves are exact. The measurement is the average channel value: a white scene measures one and a scene of eight-out-of-255 measures exactly that. The adaptation is an exponential approach to key over luminance, and the test predicts every step of it: the exposure after a step is target + (current - target) * exp(-speed * seconds), where the speed is the brightening one when the scene got brighter and the darkening one when it got darker -- five steps towards a bright scene and five towards a dark one, each matching to a ten-thousandth. Around that: the two directions genuinely differ, each approach is monotone and never overshoots, a two-second step travels further than a tenth-of-a-second one and by exactly the amount the rate implies, and an exposure range clamps the result however long it runs and settles on the bound rather than oscillating. CNA's own defaults are a light meter's: an exposure of one, a key of eighteen per cent grey, and adapting to light faster than to dark",
+      "proof": [
+        "route:cna_auto_exposure_ext_create",
+        "route:cna_auto_exposure_ext_measure_average_luminance",
+        "route:cna_auto_exposure_ext_update",
+        "route:cna_auto_exposure_ext_set_key_value",
+        "route:cna_auto_exposure_ext_set_adaptation_speeds",
+        "route:cna_auto_exposure_ext_set_exposure_range",
+        "route:cna_auto_exposure_ext_get_brightening_speed",
+        "route:cna_auto_exposure_ext_get_darkening_speed",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Spatial upscaling",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "a four-by-four source whose left half is black and right half white, drawn at eight by eight over a clear colour that is neither -- so anything the pass fails to write shows up as itself, and the edge says where it landed. Every texel of the target is written, every row is the same because the edge is vertical, each row is monotone from black to white, the black side stays black and the white side stays white, and the edge lands halfway across because it was halfway across the source. A flat source would prove none of that: an upscale of a flat field is that field whatever the sizes are. IsIdentityScale is checked as a pure function -- the same size is nothing to upscale, one axis differing is enough, and downscaling is not an identity either. Two mutations in this family survive and are recorded rather than hidden, and both are equivalent rather than gaps: the roll-off is Reinhard, which is symmetric in its two arguments, and IsIdentityScale asks whether two sizes are equal, which is symmetric by nature. Swapping the draw's own sizes, which is not symmetric, is killed",
+      "proof": [
+        "route:cna_spatial_upscale_pass_create",
+        "route:cna_spatial_upscale_pass_draw",
+        "route:cna_spatial_upscale_pass_is_identity_scale",
+        "route:cna_spatial_upscale_pass_set_sharpness",
+        "route:cna_spatial_upscale_pass_set_edge_adaptive",
+        "test:test/native-cna.integration.mjs",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
     }
   ]
 }

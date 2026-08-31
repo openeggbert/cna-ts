@@ -1819,6 +1819,134 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
     _cascades: NativeHandle,
     _color: number,
   ): void { return this.unsupported("addDebugDrawCascadeGizmo"); }
+  public createSpatialUpscalePass(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createSpatialUpscalePass"); }
+  public destroySpatialUpscalePass(
+    _pass: NativeHandle,
+  ): void { return this.unsupported("destroySpatialUpscalePass"); }
+  public getSpatialUpscaleSharpness(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getSpatialUpscaleSharpness"); }
+  public setSpatialUpscaleSharpness(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setSpatialUpscaleSharpness"); }
+  public isSpatialUpscaleEdgeAdaptive(
+    _pass: NativeHandle,
+  ): boolean { return this.unsupported("isSpatialUpscaleEdgeAdaptive"); }
+  public setSpatialUpscaleEdgeAdaptive(
+    _pass: NativeHandle,
+    _value: boolean,
+  ): void { return this.unsupported("setSpatialUpscaleEdgeAdaptive"); }
+  public drawSpatialUpscalePass(
+    _pass: NativeHandle,
+    _source: NativeHandle,
+    _sourceWidth: number,
+    _sourceHeight: number,
+    _targetWidth: number,
+    _targetHeight: number,
+  ): void { return this.unsupported("drawSpatialUpscalePass"); }
+  public isSpatialUpscaleIdentityScale(
+    _sourceWidth: number,
+    _sourceHeight: number,
+    _targetWidth: number,
+    _targetHeight: number,
+  ): boolean { return this.unsupported("isSpatialUpscaleIdentityScale"); }
+  public createHdrDisplayOutput(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createHdrDisplayOutput"); }
+  public destroyHdrDisplayOutput(
+    _output: NativeHandle,
+  ): void { return this.unsupported("destroyHdrDisplayOutput"); }
+  public isHdrDisplayOutputSupported(
+    _output: NativeHandle,
+  ): boolean { return this.unsupported("isHdrDisplayOutputSupported"); }
+  public getHdrDisplayColorSpace(
+    _output: NativeHandle,
+  ): number { return this.unsupported("getHdrDisplayColorSpace"); }
+  public setHdrDisplayColorSpace(
+    _output: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setHdrDisplayColorSpace"); }
+  public getHdrDisplayPaperWhiteNits(
+    _output: NativeHandle,
+  ): number { return this.unsupported("getHdrDisplayPaperWhiteNits"); }
+  public setHdrDisplayPaperWhiteNits(
+    _output: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setHdrDisplayPaperWhiteNits"); }
+  public getHdrDisplayPeakNits(
+    _output: NativeHandle,
+  ): number { return this.unsupported("getHdrDisplayPeakNits"); }
+  public setHdrDisplayPeakNits(
+    _output: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setHdrDisplayPeakNits"); }
+  public drawHdrDisplayOutput(
+    _output: NativeHandle,
+    _source: NativeHandle,
+    _destination: NativeHandle,
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("drawHdrDisplayOutput"); }
+  public hdrEncodePq(_nits: number): number { return this.unsupported("hdrEncodePq"); }
+  public hdrDecodePq(_encoded: number): number { return this.unsupported("hdrDecodePq"); }
+  public hdrRec709ToRec2020(
+    _color: Vector3Snapshot,
+  ): Vector3Snapshot { return this.unsupported("hdrRec709ToRec2020"); }
+  public hdrRollOff(_nits: number, _peakNits: number): number { return this.unsupported("hdrRollOff"); }
+  public hdrEncode(
+    _space: number,
+    _sceneLinear: Vector3Snapshot,
+    _paperWhiteNits: number,
+    _peakNits: number,
+  ): Vector3Snapshot { return this.unsupported("hdrEncode"); }
+  public createAutoExposure(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createAutoExposure"); }
+  public destroyAutoExposure(
+    _autoExposure: NativeHandle,
+  ): void { return this.unsupported("destroyAutoExposure"); }
+  public measureAutoExposureLuminance(
+    _autoExposure: NativeHandle,
+    _scene: NativeHandle,
+  ): number { return this.unsupported("measureAutoExposureLuminance"); }
+  public updateAutoExposure(
+    _autoExposure: NativeHandle,
+    _scene: NativeHandle,
+    _deltaSeconds: number,
+  ): number { return this.unsupported("updateAutoExposure"); }
+  public getAutoExposureExposure(
+    _autoExposure: NativeHandle,
+  ): number { return this.unsupported("getAutoExposureExposure"); }
+  public setAutoExposureExposure(
+    _autoExposure: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setAutoExposureExposure"); }
+  public getAutoExposureKeyValue(
+    _autoExposure: NativeHandle,
+  ): number { return this.unsupported("getAutoExposureKeyValue"); }
+  public setAutoExposureKeyValue(
+    _autoExposure: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setAutoExposureKeyValue"); }
+  public getAutoExposureBrighteningSpeed(
+    _autoExposure: NativeHandle,
+  ): number { return this.unsupported("getAutoExposureBrighteningSpeed"); }
+  public getAutoExposureDarkeningSpeed(
+    _autoExposure: NativeHandle,
+  ): number { return this.unsupported("getAutoExposureDarkeningSpeed"); }
+  public setAutoExposureAdaptationSpeeds(
+    _autoExposure: NativeHandle,
+    _brighteningPerSecond: number,
+    _darkeningPerSecond: number,
+  ): void { return this.unsupported("setAutoExposureAdaptationSpeeds"); }
+  public setAutoExposureRange(
+    _autoExposure: NativeHandle,
+    _minimum: number,
+    _maximum: number,
+  ): void { return this.unsupported("setAutoExposureRange"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,

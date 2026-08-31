@@ -1163,6 +1163,41 @@ interface NativeBridge {
   addDebugDrawDirectionalLightGizmo(debug: bigint, light: DirectionalLightSnapshot, at: Vector3Snapshot, length: number, color: number): void;
   addDebugDrawProbeVolumeGizmo(debug: bigint, volume: bigint, color: number, crossSize: number): void;
   addDebugDrawCascadeGizmo(debug: bigint, cascades: bigint, color: number): void;
+  createSpatialUpscalePass(graphicsDevice: bigint): bigint;
+  destroySpatialUpscalePass(pass: bigint): void;
+  getSpatialUpscaleSharpness(pass: bigint): number;
+  setSpatialUpscaleSharpness(pass: bigint, value: number): void;
+  isSpatialUpscaleEdgeAdaptive(pass: bigint): boolean;
+  setSpatialUpscaleEdgeAdaptive(pass: bigint, value: boolean): void;
+  drawSpatialUpscalePass(pass: bigint, source: bigint, sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number): void;
+  isSpatialUpscaleIdentityScale(sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number): boolean;
+  createHdrDisplayOutput(graphicsDevice: bigint): bigint;
+  destroyHdrDisplayOutput(output: bigint): void;
+  isHdrDisplayOutputSupported(output: bigint): boolean;
+  getHdrDisplayColorSpace(output: bigint): number;
+  setHdrDisplayColorSpace(output: bigint, value: number): void;
+  getHdrDisplayPaperWhiteNits(output: bigint): number;
+  setHdrDisplayPaperWhiteNits(output: bigint, value: number): void;
+  getHdrDisplayPeakNits(output: bigint): number;
+  setHdrDisplayPeakNits(output: bigint, value: number): void;
+  drawHdrDisplayOutput(output: bigint, source: bigint, destination: bigint, width: number, height: number): void;
+  hdrEncodePq(nits: number): number;
+  hdrDecodePq(encoded: number): number;
+  hdrRec709ToRec2020(color: Vector3Snapshot): Vector3Snapshot;
+  hdrRollOff(nits: number, peakNits: number): number;
+  hdrEncode(space: number, sceneLinear: Vector3Snapshot, paperWhiteNits: number, peakNits: number): Vector3Snapshot;
+  createAutoExposure(graphicsDevice: bigint): bigint;
+  destroyAutoExposure(autoExposure: bigint): void;
+  measureAutoExposureLuminance(autoExposure: bigint, scene: bigint): number;
+  updateAutoExposure(autoExposure: bigint, scene: bigint, deltaSeconds: number): number;
+  getAutoExposureExposure(autoExposure: bigint): number;
+  setAutoExposureExposure(autoExposure: bigint, value: number): void;
+  getAutoExposureKeyValue(autoExposure: bigint): number;
+  setAutoExposureKeyValue(autoExposure: bigint, value: number): void;
+  getAutoExposureBrighteningSpeed(autoExposure: bigint): number;
+  getAutoExposureDarkeningSpeed(autoExposure: bigint): number;
+  setAutoExposureAdaptationSpeeds(autoExposure: bigint, brighteningPerSecond: number, darkeningPerSecond: number): void;
+  setAutoExposureRange(autoExposure: bigint, minimum: number, maximum: number): void;
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: bigint): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -3591,6 +3626,43 @@ export class NodeNativeBackend
   public addDebugDrawDirectionalLightGizmo(debug: NativeHandle, light: DirectionalLightSnapshot, at: Vector3Snapshot, length: number, color: number): void { this.#bridge.addDebugDrawDirectionalLightGizmo(debug, light, at, length, color); }
   public addDebugDrawProbeVolumeGizmo(debug: NativeHandle, volume: NativeHandle, color: number, crossSize: number): void { this.#bridge.addDebugDrawProbeVolumeGizmo(debug, volume, color, crossSize); }
   public addDebugDrawCascadeGizmo(debug: NativeHandle, cascades: NativeHandle, color: number): void { this.#bridge.addDebugDrawCascadeGizmo(debug, cascades, color); }
+
+  // HDR display output, automatic exposure and spatial upscaling.
+  public createSpatialUpscalePass(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createSpatialUpscalePass(graphicsDevice); }
+  public destroySpatialUpscalePass(pass: NativeHandle): void { this.#bridge.destroySpatialUpscalePass(pass); }
+  public getSpatialUpscaleSharpness(pass: NativeHandle): number { return this.#bridge.getSpatialUpscaleSharpness(pass); }
+  public setSpatialUpscaleSharpness(pass: NativeHandle, value: number): void { this.#bridge.setSpatialUpscaleSharpness(pass, value); }
+  public isSpatialUpscaleEdgeAdaptive(pass: NativeHandle): boolean { return this.#bridge.isSpatialUpscaleEdgeAdaptive(pass); }
+  public setSpatialUpscaleEdgeAdaptive(pass: NativeHandle, value: boolean): void { this.#bridge.setSpatialUpscaleEdgeAdaptive(pass, value); }
+  public drawSpatialUpscalePass(pass: NativeHandle, source: NativeHandle, sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number): void { this.#bridge.drawSpatialUpscalePass(pass, source, sourceWidth, sourceHeight, targetWidth, targetHeight); }
+  public isSpatialUpscaleIdentityScale(sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number): boolean { return this.#bridge.isSpatialUpscaleIdentityScale(sourceWidth, sourceHeight, targetWidth, targetHeight); }
+  public createHdrDisplayOutput(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createHdrDisplayOutput(graphicsDevice); }
+  public destroyHdrDisplayOutput(output: NativeHandle): void { this.#bridge.destroyHdrDisplayOutput(output); }
+  public isHdrDisplayOutputSupported(output: NativeHandle): boolean { return this.#bridge.isHdrDisplayOutputSupported(output); }
+  public getHdrDisplayColorSpace(output: NativeHandle): number { return this.#bridge.getHdrDisplayColorSpace(output); }
+  public setHdrDisplayColorSpace(output: NativeHandle, value: number): void { this.#bridge.setHdrDisplayColorSpace(output, value); }
+  public getHdrDisplayPaperWhiteNits(output: NativeHandle): number { return this.#bridge.getHdrDisplayPaperWhiteNits(output); }
+  public setHdrDisplayPaperWhiteNits(output: NativeHandle, value: number): void { this.#bridge.setHdrDisplayPaperWhiteNits(output, value); }
+  public getHdrDisplayPeakNits(output: NativeHandle): number { return this.#bridge.getHdrDisplayPeakNits(output); }
+  public setHdrDisplayPeakNits(output: NativeHandle, value: number): void { this.#bridge.setHdrDisplayPeakNits(output, value); }
+  public drawHdrDisplayOutput(output: NativeHandle, source: NativeHandle, destination: NativeHandle, width: number, height: number): void { this.#bridge.drawHdrDisplayOutput(output, source, destination, width, height); }
+  public hdrEncodePq(nits: number): number { return this.#bridge.hdrEncodePq(nits); }
+  public hdrDecodePq(encoded: number): number { return this.#bridge.hdrDecodePq(encoded); }
+  public hdrRec709ToRec2020(color: Vector3Snapshot): Vector3Snapshot { return this.#bridge.hdrRec709ToRec2020(color); }
+  public hdrRollOff(nits: number, peakNits: number): number { return this.#bridge.hdrRollOff(nits, peakNits); }
+  public hdrEncode(space: number, sceneLinear: Vector3Snapshot, paperWhiteNits: number, peakNits: number): Vector3Snapshot { return this.#bridge.hdrEncode(space, sceneLinear, paperWhiteNits, peakNits); }
+  public createAutoExposure(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createAutoExposure(graphicsDevice); }
+  public destroyAutoExposure(autoExposure: NativeHandle): void { this.#bridge.destroyAutoExposure(autoExposure); }
+  public measureAutoExposureLuminance(autoExposure: NativeHandle, scene: NativeHandle): number { return this.#bridge.measureAutoExposureLuminance(autoExposure, scene); }
+  public updateAutoExposure(autoExposure: NativeHandle, scene: NativeHandle, deltaSeconds: number): number { return this.#bridge.updateAutoExposure(autoExposure, scene, deltaSeconds); }
+  public getAutoExposureExposure(autoExposure: NativeHandle): number { return this.#bridge.getAutoExposureExposure(autoExposure); }
+  public setAutoExposureExposure(autoExposure: NativeHandle, value: number): void { this.#bridge.setAutoExposureExposure(autoExposure, value); }
+  public getAutoExposureKeyValue(autoExposure: NativeHandle): number { return this.#bridge.getAutoExposureKeyValue(autoExposure); }
+  public setAutoExposureKeyValue(autoExposure: NativeHandle, value: number): void { this.#bridge.setAutoExposureKeyValue(autoExposure, value); }
+  public getAutoExposureBrighteningSpeed(autoExposure: NativeHandle): number { return this.#bridge.getAutoExposureBrighteningSpeed(autoExposure); }
+  public getAutoExposureDarkeningSpeed(autoExposure: NativeHandle): number { return this.#bridge.getAutoExposureDarkeningSpeed(autoExposure); }
+  public setAutoExposureAdaptationSpeeds(autoExposure: NativeHandle, brighteningPerSecond: number, darkeningPerSecond: number): void { this.#bridge.setAutoExposureAdaptationSpeeds(autoExposure, brighteningPerSecond, darkeningPerSecond); }
+  public setAutoExposureRange(autoExposure: NativeHandle, minimum: number, maximum: number): void { this.#bridge.setAutoExposureRange(autoExposure, minimum, maximum); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }
   public extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot { return this.#bridge.extractPbrEffectMaterial(effect); }
   public applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applySkinnedPbrEffectMaterial(effect, material); }
