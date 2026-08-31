@@ -21,7 +21,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | --- | ---: |
 | VERIFIED_MANAGED | 20 |
 | VERIFIED_NATIVE | 47 |
-| VERIFIED_WEBASSEMBLY | 9 |
+| VERIFIED_WEBASSEMBLY | 10 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 5 |
 | UPSTREAM_CNA_BLOCKED | 1 |
 | FIXTURE_PENDING | 3 |
@@ -119,6 +119,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Browser TouchPanel: the touch collection and XNA's press/move/release states | CNA-TS | test/wasm-browser-input.mjs dispatches real Chromium touch events and reads TouchPanel.GetState from inside Update. Before the first finger there is no touch device at all, which is distinct from a device with nothing on it. A press arrives as TouchLocationState.Pressed with no previous location, the next frame is Moved at the same point, a move keeps the identifier and reports the press position as its previous one, a second finger is Pressed while the first stays Moved, and lifting reports Released exactly once before the collection empties. The XNA enumerator visits the same identifiers in the same order as the indexer |
 | Browser/Wasm CNA runtime | CNA-TS | 60 and 600 real frames of the public XNA Game/GraphicsDeviceManager/Texture2D/SpriteBatch path in headless Chromium on a WebGL2 context, ABI 0.21.0, no uncaught page error |
 | CNB in a browser: the same compiled-content API, on the WebAssembly backend | cna-ts/extensions/content | a page encodes a texture with CNA's own writer, parses the container back and uploads it with CreateTexture2DFromCnb, and the four readback texels are exactly the RGBA the encoder was given -- the same assertion the Node suite makes, through the same public API, against a different backend. The container primitives agree across backends too: the CRC-32C check value and the magic are the same C routines either side |
+| CNB model in a browser: the same schema, on the WebAssembly backend | cna-ts/extensions/content | a page builds a model with CnbModelData, encodes it with CNA's own writer and decodes it back, asserting the same values the Node suite asserts: both bone parents and both transforms, the part's stride and its exact vertex and index payloads through wasm32 memory, two named texture slots beside a third left empty, the mesh's parent bone and part list, all three skeleton matrix sets kept apart by their own diagonals, and the baked light. The structure layouts are measured by the same Emscripten probe as the rest, never hand-written. A planted defect that ignored the skeleton matrix-set identity fails this test; a second, which returned zero for every bone parent, passed until the test was strengthened to sample the root bone as well as the child -- so the gate is known to be able to fail for both |
 | Modern CNA runtime services over WebAssembly | cna-ts/extensions/runtime | the browser harness reads platform, renderer selection and available renderers, and round-trips two by-value CNA_StringView routes |
 | WebAssembly game lifecycle, device creation, Clear, Texture2D transfer, SpriteBatch and input snapshots | CNA-TS | test/wasm-browser.mjs drives the first vertical slice through the same public XNA classes the Node backend serves |
 

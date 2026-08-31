@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=178
+WASM_BACKEND_ROUTES=209
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 178 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 209 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started.
 
@@ -45,12 +45,27 @@ In the slice: ABI query, initialization, game create/run-one-frame/exit/destroy,
 graphics-device-manager configuration and device creation, renderer identity, `Clear`, `Texture2D`
 create/upload/read/destroy, `SpriteBatch` begin/submit/end/destroy, keyboard and mouse snapshots,
 **`GamePad`**, **`TouchPanel`**, the modern runtime-services family, **title storage**,
-**render targets**, **sound effects**, and **CNB**, CNA's own compiled content format.
+**render targets**, **sound effects**, and **CNB**, CNA's own compiled content format — including
+its **model schema**, the largest one it carries.
 
 CNB crossing to the browser needed no new public API at all, which is the point of having designed
-it backend-neutrally: a page gets the same `CnbDocument`, `CnbTextureData` and
-`CreateTexture2DFromCnb` a desktop consumer gets, and the browser test makes the same exact-texel
-assertion the Node suite makes.
+it backend-neutrally: a page gets the same `CnbDocument`, `CnbTextureData`, `CnbModelData` and
+`CreateTexture2DFromCnb` a desktop consumer gets, and the browser tests make the same exact-texel
+and exact-model assertions the Node suite makes.
+
+The model is the strongest form of that claim, because it is the largest schema and the one with
+the most places to go wrong. A page builds a rig with `CnbModelData`, encodes it with CNA's writer
+and decodes it back, and the test asserts both bone parents and both transforms, the part's exact
+vertex and index payloads read through wasm32 memory, two named texture slots beside a third left
+empty, the mesh's parent bone and part list, and all three skeleton matrix sets kept apart by their
+own diagonals. Every structure layout involved is measured by the Emscripten probe rather than
+written by hand — `CNA_CnbMaterialInfo` alone has fourteen fields whose native offsets are not the
+wasm32 ones.
+
+One of the planted defects there is worth recording, because it did **not** fail at first. A reader
+that returned zero for every bone parent passed, since the test sampled only the child bone, whose
+parent is zero. The test now samples the root as well, and the same defect fails it. A gate is only
+evidence once it has been seen to fail for the reason it exists.
 
 ## Controllers and fingers
 

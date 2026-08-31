@@ -315,6 +315,60 @@ test("a browser game can build and drive a sound effect", { skip }, async () => 
   assert.deepEqual(consoleErrors, []);
 });
 
+test("a browser reads CNA's compiled model schema through the same API Node uses", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const model = result.cnbModel;
+  assert.ok(model, "no CNB model evidence was produced");
+
+  // CNB's largest schema, encoded by CNA's writer inside the page and decoded back there. Every
+  // assertion is a value the Node suite asserts too, which is the point: the API is backend-neutral
+  // and this proves it rather than assuming it.
+  assert.equal(model.assetType, 5, "CnbAssetType.Model");
+  assert.equal(model.contentName, "Browser/Rig");
+  assert.deepEqual(
+    [model.boneCount, model.partCount, model.meshCount, model.lightCount], [2, 1, 1, 1],
+  );
+  assert.equal(model.hasSkeleton, true);
+
+  // The hierarchy: a reader that returned zero for every parent would pass a "is a number" check
+  // and fail this.
+  assert.equal(model.rootName, "root");
+  assert.equal(model.childName, "child");
+  // Both parents. The child's is zero, so asserting it alone would pass against a reader that
+  // returned zero for every bone -- which is exactly what a planted defect proved.
+  assert.equal(model.rootParent, -1, "the root has no parent");
+  assert.equal(model.childParent, 0, "the child hangs from the root");
+  assert.deepEqual(model.rootScale, [1, 1, 1]);
+  assert.deepEqual(model.childScale, [2, 2, 2], "the child bone's transform, not the root's");
+
+  // The part and its payloads, byte for byte through wasm32 memory.
+  assert.equal(model.partName, "triangle");
+  assert.equal(model.partStride, 12);
+  assert.equal(model.partVertexCount, 3);
+  assert.equal(model.partEffectKind, 3, "CnbEffectKind.Pbr");
+  assert.deepEqual(model.vertexBytes, [0, 0, 0, 1, 0, 0, 0, 1, 0]);
+  assert.deepEqual(model.indexBytes, [0, 1, 2]);
+
+  // Two named texture slots set and a third left empty, so a slot answered through its neighbour's
+  // route is caught in a page as it is on Node.
+  assert.equal(model.baseColorTexture, "albedo");
+  assert.equal(model.normalTexture, "bumps");
+  assert.equal(model.emissiveTexture, "", "an unnamed slot is empty, not the previous slot's name");
+
+  assert.equal(model.meshName, "body");
+  assert.equal(model.meshParentBone, 1);
+  assert.deepEqual(model.meshParts, [0]);
+
+  // The skeleton's three matrix sets, each with its own diagonal: reading one through another
+  // set's identity is the exact defect this arrangement detects.
+  assert.deepEqual(model.skeletonHierarchy, [-1, 0]);
+  assert.deepEqual(model.skeletonDiagonals, [[1, 2], [3, 4], [5, 6]]);
+  assert.deepEqual(model.light, [0, -1, 0, 1, 0.5, 0.25]);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(consoleErrors, []);
+});
+
 test("the WebAssembly backend runs 600 real browser frames without drift", { skip }, async () => {
   const { result, consoleErrors } = await runFrames(600);
   assert.equal(result.status, "ok", result.error ?? "");

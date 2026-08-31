@@ -22,7 +22,7 @@ window.addEventListener("unhandledrejection", (event) => result.errors.push(
 try {
   const {
     Audio, Color, Content, Game, GraphicsDeviceManager, Graphics, GetRuntimeStatus, LoadWasmBackend,
-    TitleContainer, TimeSpan, Vector2,
+    Matrix, TitleContainer, TimeSpan, Vector2, Vector3,
   } = await import("/cna-ts/index.js");
   const createCnaCApi = (await import("/wasm/cna_c_api.mjs")).default;
   const canvas = document.getElementById("canvas");
@@ -231,6 +231,98 @@ try {
         };
       } finally {
         document.Dispose();
+      }
+
+
+      // The CNB model schema, in a browser. Built with the public API, encoded by CNA's own writer
+      // and decoded back inside the page, so what is asserted below is CNA's round trip rather
+      // than this page agreeing with itself. Same classes as the Node suite; different backend.
+      const rig = cnb.CnbModelData.Create();
+      let rigImage;
+      try {
+        rig.SetFlags(true, true);
+        rig.AddBone("root", -1, Matrix.Identity);
+        rig.AddBone("child", 0, Matrix.CreateScale(2));
+        rig.AddPart({
+          VertexStride: 12, VertexCount: 3, IndexCount: 3, IndexElementSize: 2,
+          PrimitiveTopology: 4, PrimitiveCount: 1, EffectKind: cnb.CnbEffectKind.Pbr,
+          VertexColorEnabled: true, Unlit: false,
+        }, "triangle", "");
+        rig.SetPartVertexBytes(0, new Uint8Array(
+          new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]).buffer,
+        ));
+        rig.SetPartIndexBytes(0, new Uint8Array(Uint16Array.from([0, 1, 2]).buffer));
+        rig.SetMaterialTexture(0, cnb.CnbMaterialTextureSlot.BaseColor, "albedo");
+        rig.SetMaterialTexture(0, cnb.CnbMaterialTextureSlot.Normal, "bumps");
+        rig.AddMesh("body", 1, [0]);
+        rig.SetSkeleton(
+          [-1, 0],
+          [Matrix.CreateScale(1), Matrix.CreateScale(2)],
+          [Matrix.CreateScale(3), Matrix.CreateScale(4)],
+          [Matrix.CreateScale(5), Matrix.CreateScale(6)],
+        );
+        rig.AddLight(new Vector3(0, -1, 0), new Vector3(1, 0.5, 0.25));
+        rigImage = rig.Encode("Browser/Rig");
+      } finally {
+        rig.Dispose();
+      }
+      const rigDocument = cnb.CnbDocument.Parse(rigImage, "Browser/Rig.cnb");
+      try {
+        const decoded = cnb.CnbModelData.Decode(rigDocument);
+        try {
+          const shape = decoded.Shape;
+          const root = decoded.GetBone(0);
+          const child = decoded.GetBone(1);
+          const part = decoded.GetPart(0);
+          const mesh = decoded.GetMesh(0);
+          const vertices = decoded.ReadPartVertexBytes(0);
+          result.cnbModel = {
+            assetType: rigDocument.AssetType,
+            contentName: rigDocument.Metadata.ContentName,
+            boneCount: shape.BoneCount,
+            partCount: shape.PartCount,
+            meshCount: shape.MeshCount,
+            lightCount: shape.LightCount,
+            hasSkeleton: shape.HasSkeleton,
+            rootName: root.Name,
+            // Both parents, not just the child's: the child's happens to be zero, so a reader that
+            // returned zero for everything would pass on the child alone.
+            rootParent: root.Parent,
+            rootScale: [root.Transform.M11, root.Transform.M22, root.Transform.M33],
+            childName: child.Name,
+            childParent: child.Parent,
+            childScale: [child.Transform.M11, child.Transform.M22, child.Transform.M33],
+            partName: part.Name,
+            partStride: part.VertexStride,
+            partVertexCount: part.VertexCount,
+            partEffectKind: part.EffectKind,
+            vertexBytes: [...new Float32Array(vertices.buffer, vertices.byteOffset, 9)],
+            indexBytes: [...new Uint16Array(decoded.ReadPartIndexBytes(0).buffer)],
+            baseColorTexture: decoded.GetMaterialTexture(0, cnb.CnbMaterialTextureSlot.BaseColor),
+            normalTexture: decoded.GetMaterialTexture(0, cnb.CnbMaterialTextureSlot.Normal),
+            emissiveTexture: decoded.GetMaterialTexture(0, cnb.CnbMaterialTextureSlot.Emissive),
+            meshName: mesh.Name,
+            meshParentBone: mesh.ParentBone,
+            meshParts: [...mesh.PartIndices],
+            skeletonHierarchy: [...decoded.GetSkeleton().Hierarchy],
+            skeletonDiagonals: [
+              cnb.CnbSkeletonMatrixSet.BindPose,
+              cnb.CnbSkeletonMatrixSet.InverseBindPose,
+              cnb.CnbSkeletonMatrixSet.RootPrefix,
+            ].map((set) => decoded.GetSkeletonMatrices(set).map((matrix) => matrix.M11)),
+            light: (() => {
+              const light = decoded.GetLight(0);
+              return [
+                light.Direction.X, light.Direction.Y, light.Direction.Z,
+                light.DiffuseColor.X, light.DiffuseColor.Y, light.DiffuseColor.Z,
+              ];
+            })(),
+          };
+        } finally {
+          decoded.Dispose();
+        }
+      } finally {
+        rigDocument.Dispose();
       }
 
       super.LoadContent();

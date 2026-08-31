@@ -806,6 +806,20 @@
       ]
     },
     {
+      "operation": "CNB model in a browser: the same schema, on the WebAssembly backend",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "cna-ts/extensions/content",
+      "evidence": "a page builds a model with CnbModelData, encodes it with CNA's own writer and decodes it back, asserting the same values the Node suite asserts: both bone parents and both transforms, the part's stride and its exact vertex and index payloads through wasm32 memory, two named texture slots beside a third left empty, the mesh's parent bone and part list, all three skeleton matrix sets kept apart by their own diagonals, and the baked light. The structure layouts are measured by the same Emscripten probe as the rest, never hand-written. A planted defect that ignored the skeleton matrix-set identity fails this test; a second, which returned zero for every bone parent, passed until the test was strengthened to sample the root bone as well as the child -- so the gate is known to be able to fail for both",
+      "proof": [
+        "wasmRoute:cna_cnb_decode_model",
+        "wasmRoute:cna_cnb_encode_model",
+        "wasmRoute:cna_cnb_model_get_bone",
+        "wasmRoute:cna_cnb_model_copy_part_vertex_bytes",
+        "wasmRoute:cna_cnb_model_copy_skeleton_matrices",
+        "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
       "operation": "Extended graphics layer availability probe",
       "category": "VERIFIED_NATIVE",
       "owner": "cna-ts/extensions/runtime",

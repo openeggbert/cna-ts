@@ -154,6 +154,38 @@ export class WasmStruct {
   }
 
   /**
+   * A fixed-size `float` array field, read whole. The count is the field's measured byte length
+   * rather than a constant repeated here, so a shortened array is a shorter result rather than a
+   * read past the structure.
+   */
+  public getF32Array(field: string): number[] {
+    const entry = this.#layout.fields[field];
+    if (!entry) throw new Error(`the measured layout has no field ${field}`);
+    const view = this.#view();
+    const base = this.#pointer + entry.offset;
+    const values: number[] = [];
+    for (let offset = 0; offset + 4 <= entry.size; offset += 4) {
+      values.push(view.getFloat32(base + offset, true));
+    }
+    return values;
+  }
+
+  /** Writes a fixed-size `float` array field. The value must fill it exactly. */
+  public setF32Array(field: string, values: readonly number[]): this {
+    const entry = this.#layout.fields[field];
+    if (!entry) throw new Error(`the measured layout has no field ${field}`);
+    if (values.length * 4 !== entry.size) {
+      throw new RangeError(`${field} holds ${entry.size / 4} floats, not ${values.length}`);
+    }
+    const view = this.#view();
+    const base = this.#pointer + entry.offset;
+    for (let index = 0; index < values.length; index += 1) {
+      view.setFloat32(base + index * 4, values[index], true);
+    }
+    return this;
+  }
+
+  /**
    * One element of a fixed-size array of structures, striding by the element's own measured
    * wasm32 size. The bound is the field's measured byte length rather than a constant copied out
    * of a header, so a shortened array reports a range error instead of reading past its end.

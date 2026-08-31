@@ -298,9 +298,12 @@ Electron, or mobile support.
   screen-space reflections — with CNA's own quality tiers, its per-pass support answer, its GPU
   timings, and both of its ownership rules kept distinct. `AddOwned` is bound and documented as
   upstream-blocked: CNA consumes the handle without its owned-resource accounting.
-- [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument` and
-  `CreateTexture2DFromCnb` a Node consumer gets, and the browser test makes the same exact-texel
-  assertion.
+- [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
+  `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
+  same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
+  page builds a rig, encodes it with CNA's writer and decodes it back, asserting both bone parents
+  and transforms, the exact vertex and index payloads through wasm32 memory, the named texture
+  slots, the mesh graph and all three skeleton matrix sets.
 - [x] `cna-ts/extensions/content` projects CNB, CNA's own compiled content format: the validated
   container with its table of contents, metadata, external references and chunk bytes; the texture
   schema, ending in a real `Texture2D`; and the sprite-font schema with its embedded atlas, ending
@@ -376,10 +379,10 @@ Electron, or mobile support.
   probe; nothing at that boundary is hand-written.
 - [x] Handles cross the boundary as `bigint` under `WASM_BIGINT` and are never converted through
   `Number`.
-- [x] The browser slice reaches 178 routes: the game loop, the graphics device, `Clear`,
+- [x] The browser slice reaches 209 routes: the game loop, the graphics device, `Clear`,
   `Texture2D`, `SpriteBatch`, keyboard and mouse, **`GamePad` and `TouchPanel`**, the modern runtime
   services, **title storage and the whole managed content stack**, **render targets with asserted
-  pixel readback**, **sound effects**, and **CNB**.
+  pixel readback**, **sound effects**, and **CNB including its model schema**.
 - [x] Browser `GamePad` and `TouchPanel` answer the same public XNA API a Node consumer uses, a
   frame at a time, with real Chromium touch events and a Gamepad API device emulated at the browser
   boundary SDL3 actually reads. Absence is reported as absence: with no controller attached all four

@@ -22,12 +22,17 @@ import type {
   CnbDocumentSnapshot,
   CnbExternalReferenceSnapshot,
   CnbGlyphSnapshot,
+  CnbMaterialSnapshot,
+  CnbModelInfoSnapshot,
+  CnbModelPartSnapshot,
   CnbSpriteFontInfoSnapshot,
   CnbTextureInfoSnapshot,
 } from "../backend.js";
 import { CnaResult } from "../cna-results.js";
 import type { NativeHandle } from "../ownership.js";
-import { allocateStruct, readUtf8, WasmCnaError, type WasmRouteTable } from "./module.js";
+import {
+  allocateStruct, readUtf8, WasmCnaError, type WasmRouteTable, type WasmStruct,
+} from "./module.js";
 
 export class WasmContentBackend extends CnaContentBackendBase {
   readonly #routes: WasmRouteTable;
@@ -622,5 +627,473 @@ export class WasmContentBackend extends CnaContentBackendBase {
     } finally {
       scope.dispose();
     }
+  }
+
+  // ---- the CNB model schema --------------------------------------------------------------------
+  // The same routes the Node adapter imports, over the same structures, measured for wasm32 by the
+  // same Emscripten probe. Nothing above this file distinguishes them: `CnbModelData.Decode` in a
+  // page and on a desktop are the same call.
+
+  /** A `uint32_t` array copied out of module memory: mesh part lists and skeleton hierarchies. */
+  #countAndCopyNumbers(
+    route: string, lead: readonly (number | bigint)[], element: 4, signed: boolean,
+  ): number[] {
+    const scope = this.#routes.scope();
+    try {
+      const countPointer = scope.allocate(8);
+      const probe = this.#routes.call(route, ...lead, 0, 0n, countPointer);
+      if (probe !== CnaResult.Success && probe !== CnaResult.BufferTooSmall) {
+        throw new WasmCnaError(route, probe, this.#routes.lastError());
+      }
+      const count = Number(this.#routes.view().getBigUint64(countPointer, true));
+      if (count === 0) return [];
+      const destination = scope.allocate(count * element);
+      this.#routes.invoke(route, ...lead, destination, BigInt(count), countPointer);
+      const written = Number(this.#routes.view().getBigUint64(countPointer, true));
+      // The view is taken after the call rather than before it: an allocation can grow the heap
+      // and detach an earlier DataView's buffer.
+      const view = this.#routes.view();
+      const values: number[] = [];
+      for (let index = 0; index < written; index += 1) {
+        const at = destination + index * element;
+        values.push(signed ? view.getInt32(at, true) : view.getUint32(at, true));
+      }
+      return values;
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /** A `float` array copied out of module memory: the skeleton's matrix sets. */
+  #countAndCopyFloats(route: string, lead: readonly (number | bigint)[]): number[] {
+    const scope = this.#routes.scope();
+    try {
+      const countPointer = scope.allocate(8);
+      const probe = this.#routes.call(route, ...lead, 0, 0n, countPointer);
+      if (probe !== CnaResult.Success && probe !== CnaResult.BufferTooSmall) {
+        throw new WasmCnaError(route, probe, this.#routes.lastError());
+      }
+      const count = Number(this.#routes.view().getBigUint64(countPointer, true));
+      if (count === 0) return [];
+      const destination = scope.allocate(count * 4);
+      this.#routes.invoke(route, ...lead, destination, BigInt(count), countPointer);
+      const written = Number(this.#routes.view().getBigUint64(countPointer, true));
+      const view = this.#routes.view();
+      const values: number[] = [];
+      for (let index = 0; index < written; index += 1) {
+        values.push(view.getFloat32(destination + index * 4, true));
+      }
+      return values;
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelCreate(): NativeHandle {
+    return this.#routes.outHandle("cna_cnb_model_create");
+  }
+
+  public override cnbModelDestroy(model: NativeHandle): void {
+    this.#routes.invoke("cna_cnb_model_destroy", model);
+  }
+
+  public override cnbModelSetFlags(
+    model: NativeHandle, appliesGltfLightingPolicy: boolean, hasBoneHierarchy: boolean,
+  ): void {
+    this.#routes.invoke(
+      "cna_cnb_model_set_flags", model,
+      appliesGltfLightingPolicy ? 1 : 0, hasBoneHierarchy ? 1 : 0,
+    );
+  }
+
+  public override cnbModelGetInfo(model: NativeHandle): CnbModelInfoSnapshot {
+    const scope = this.#routes.scope();
+    try {
+      const info = allocateStruct(this.#routes.module, scope, "CNA_CnbModelInfo");
+      this.#routes.invoke("cna_cnb_model_get_info", model, info.pointer);
+      return Object.freeze({
+        BoneCount: Number(info.getU64("bone_count")),
+        PartCount: Number(info.getU64("part_count")),
+        MeshCount: Number(info.getU64("mesh_count")),
+        AnimationCount: Number(info.getU64("animation_count")),
+        LightCount: Number(info.getU64("light_count")),
+        HasSkeleton: info.getU8("has_skeleton") !== 0,
+        AppliesGltfLightingPolicy: info.getU8("applies_gltf_lighting_policy") !== 0,
+        HasBoneHierarchy: info.getU8("has_bone_hierarchy") !== 0,
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelAddBone(
+    model: NativeHandle, name: string, parent: number, transform: readonly number[],
+  ): number {
+    const scope = this.#routes.scope();
+    try {
+      const view = this.#stringView(scope, name);
+      const values = scope.allocate(64);
+      const memory = this.#routes.view();
+      for (let index = 0; index < 16; index += 1) {
+        memory.setFloat32(values + index * 4, transform[index], true);
+      }
+      const out = scope.allocate(8);
+      this.#routes.invoke("cna_cnb_model_add_bone", model, view, parent, values, out);
+      return Number(this.#routes.view().getBigUint64(out, true));
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelGetBone(
+    model: NativeHandle, index: number,
+  ): { readonly Parent: number; readonly Transform: readonly number[] } {
+    const scope = this.#routes.scope();
+    try {
+      const bone = allocateStruct(this.#routes.module, scope, "CNA_CnbModelBone");
+      this.#routes.invoke("cna_cnb_model_get_bone", model, BigInt(index), bone.pointer);
+      return Object.freeze({
+        Parent: bone.getI32("parent"),
+        Transform: Object.freeze(bone.getF32Array("transform")),
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelGetBoneName(model: NativeHandle, index: number): string {
+    return this.#countAndCopy(
+      "cna_cnb_model_copy_bone_name", [model, BigInt(index)], "text",
+    );
+  }
+
+  public override cnbModelAddPart(
+    model: NativeHandle, info: CnbModelPartSnapshot, name: string, externalEffect: string,
+  ): number {
+    const scope = this.#routes.scope();
+    try {
+      const part = allocateStruct(this.#routes.module, scope, "CNA_CnbModelPartInfo");
+      this.#writePartInfo(part, info);
+      const nameView = this.#stringView(scope, name);
+      const effectView = this.#stringView(scope, externalEffect);
+      const out = scope.allocate(8);
+      this.#routes.invoke(
+        "cna_cnb_model_add_part", model, part.pointer, nameView, effectView, out,
+      );
+      return Number(this.#routes.view().getBigUint64(out, true));
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  #writePartInfo(part: WasmStruct, info: CnbModelPartSnapshot): void {
+    part
+      .setU32("vertex_stride", info.VertexStride)
+      .setU32("vertex_count", info.VertexCount)
+      .setU32("index_count", info.IndexCount)
+      .setU32("index_element_size", info.IndexElementSize)
+      .setU32("primitive_topology", info.PrimitiveTopology)
+      .setU32("primitive_count", info.PrimitiveCount)
+      .setU32("effect_kind", info.EffectKind)
+      .setU8("vertex_color_enabled", info.VertexColorEnabled ? 1 : 0)
+      .setU8("unlit", info.Unlit ? 1 : 0);
+  }
+
+  public override cnbModelGetPart(model: NativeHandle, index: number): CnbModelPartSnapshot {
+    const scope = this.#routes.scope();
+    try {
+      const part = allocateStruct(this.#routes.module, scope, "CNA_CnbModelPartInfo");
+      this.#routes.invoke("cna_cnb_model_get_part", model, BigInt(index), part.pointer);
+      return Object.freeze({
+        VertexStride: part.getU32("vertex_stride"),
+        VertexCount: part.getU32("vertex_count"),
+        IndexCount: part.getU32("index_count"),
+        IndexElementSize: part.getU32("index_element_size"),
+        PrimitiveTopology: part.getU32("primitive_topology"),
+        PrimitiveCount: part.getU32("primitive_count"),
+        EffectKind: part.getU32("effect_kind"),
+        VertexColorEnabled: part.getU8("vertex_color_enabled") !== 0,
+        Unlit: part.getU8("unlit") !== 0,
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelGetPartName(model: NativeHandle, index: number): string {
+    return this.#countAndCopy("cna_cnb_model_copy_part_name", [model, BigInt(index)], "text");
+  }
+
+  public override cnbModelGetPartExternalEffect(model: NativeHandle, index: number): string {
+    return this.#countAndCopy(
+      "cna_cnb_model_copy_part_external_effect", [model, BigInt(index)], "text",
+    );
+  }
+
+  public override cnbModelSetPartVertexBytes(
+    model: NativeHandle, index: number, bytes: Uint8Array,
+  ): void {
+    const scope = this.#routes.scope();
+    try {
+      const pointer = scope.allocateBytes(bytes);
+      this.#routes.invoke(
+        "cna_cnb_model_set_part_vertex_bytes", model, BigInt(index), pointer,
+        BigInt(bytes.byteLength),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelCopyPartVertexBytes(model: NativeHandle, index: number): Uint8Array {
+    return this.#countAndCopy(
+      "cna_cnb_model_copy_part_vertex_bytes", [model, BigInt(index)], "bytes",
+    );
+  }
+
+  public override cnbModelSetPartIndexBytes(
+    model: NativeHandle, index: number, bytes: Uint8Array,
+  ): void {
+    const scope = this.#routes.scope();
+    try {
+      const pointer = scope.allocateBytes(bytes);
+      this.#routes.invoke(
+        "cna_cnb_model_set_part_index_bytes", model, BigInt(index), pointer,
+        BigInt(bytes.byteLength),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelCopyPartIndexBytes(model: NativeHandle, index: number): Uint8Array {
+    return this.#countAndCopy(
+      "cna_cnb_model_copy_part_index_bytes", [model, BigInt(index)], "bytes",
+    );
+  }
+
+  public override cnbModelGetMaterial(model: NativeHandle, part: number): CnbMaterialSnapshot {
+    const scope = this.#routes.scope();
+    try {
+      const material = allocateStruct(this.#routes.module, scope, "CNA_CnbMaterialInfo");
+      this.#routes.invoke("cna_cnb_model_get_material", model, BigInt(part), material.pointer);
+      return Object.freeze({
+        BaseColorFactor: Object.freeze(material.getF32Array("base_color_factor")),
+        EmissiveFactor: Object.freeze(material.getF32Array("emissive_factor")),
+        SpecularColorFactor: Object.freeze(material.getF32Array("specular_color_factor")),
+        MetallicFactor: material.getF32("metallic_factor"),
+        RoughnessFactor: material.getF32("roughness_factor"),
+        Ior: material.getF32("ior"),
+        SpecularFactor: material.getF32("specular_factor"),
+        NormalScale: material.getF32("normal_scale"),
+        OcclusionStrength: material.getF32("occlusion_strength"),
+        AlphaCutoff: material.getF32("alpha_cutoff"),
+        AlphaMode: material.getU32("alpha_mode"),
+        DoubleSided: material.getU8("double_sided") !== 0,
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelSetMaterial(
+    model: NativeHandle, part: number, value: CnbMaterialSnapshot,
+  ): void {
+    const scope = this.#routes.scope();
+    try {
+      const material = allocateStruct(this.#routes.module, scope, "CNA_CnbMaterialInfo");
+      material
+        .setF32Array("base_color_factor", value.BaseColorFactor)
+        .setF32Array("emissive_factor", value.EmissiveFactor)
+        .setF32Array("specular_color_factor", value.SpecularColorFactor)
+        .setF32("metallic_factor", value.MetallicFactor)
+        .setF32("roughness_factor", value.RoughnessFactor)
+        .setF32("ior", value.Ior)
+        .setF32("specular_factor", value.SpecularFactor)
+        .setF32("normal_scale", value.NormalScale)
+        .setF32("occlusion_strength", value.OcclusionStrength)
+        .setF32("alpha_cutoff", value.AlphaCutoff)
+        .setU32("alpha_mode", value.AlphaMode)
+        .setU8("double_sided", value.DoubleSided ? 1 : 0);
+      this.#routes.invoke("cna_cnb_model_set_material", model, BigInt(part), material.pointer);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelGetMaterialTexture(
+    model: NativeHandle, part: number, slot: number,
+  ): string {
+    return this.#countAndCopy(
+      "cna_cnb_model_copy_material_texture", [model, BigInt(part), slot], "text",
+    );
+  }
+
+  public override cnbModelSetMaterialTexture(
+    model: NativeHandle, part: number, slot: number, assetName: string,
+  ): void {
+    const scope = this.#routes.scope();
+    try {
+      const view = this.#stringView(scope, assetName);
+      this.#routes.invoke(
+        "cna_cnb_model_set_material_texture", model, BigInt(part), slot, view,
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelAddMesh(
+    model: NativeHandle, name: string, parentBone: number, partIndices: readonly number[],
+  ): number {
+    const scope = this.#routes.scope();
+    try {
+      const view = this.#stringView(scope, name);
+      const parts = scope.allocate(Math.max(partIndices.length * 4, 1));
+      const memory = this.#routes.view();
+      for (let index = 0; index < partIndices.length; index += 1) {
+        memory.setUint32(parts + index * 4, partIndices[index] >>> 0, true);
+      }
+      const out = scope.allocate(8);
+      this.#routes.invoke(
+        "cna_cnb_model_add_mesh", model, view, parentBone, parts,
+        BigInt(partIndices.length), out,
+      );
+      return Number(this.#routes.view().getBigUint64(out, true));
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelGetMesh(
+    model: NativeHandle, index: number,
+  ): { readonly ParentBone: number; readonly PartIndexCount: number } {
+    const scope = this.#routes.scope();
+    try {
+      const mesh = allocateStruct(this.#routes.module, scope, "CNA_CnbMeshInfo");
+      this.#routes.invoke("cna_cnb_model_get_mesh", model, BigInt(index), mesh.pointer);
+      return Object.freeze({
+        ParentBone: mesh.getI32("parent_bone"),
+        PartIndexCount: Number(mesh.getU64("part_index_count")),
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelGetMeshName(model: NativeHandle, index: number): string {
+    return this.#countAndCopy("cna_cnb_model_copy_mesh_name", [model, BigInt(index)], "text");
+  }
+
+  public override cnbModelCopyMeshPartIndices(
+    model: NativeHandle, index: number,
+  ): readonly number[] {
+    return this.#countAndCopyNumbers(
+      "cna_cnb_model_copy_mesh_part_indices", [model, BigInt(index)], 4, false,
+    );
+  }
+
+  public override cnbModelSetSkeleton(
+    model: NativeHandle,
+    hierarchy: readonly number[],
+    bindPose: readonly number[],
+    inverseBindPose: readonly number[],
+    rootPrefix: readonly number[],
+  ): void {
+    const scope = this.#routes.scope();
+    try {
+      const parents = scope.allocate(Math.max(hierarchy.length * 4, 1));
+      const sets = [bindPose, inverseBindPose, rootPrefix].map(
+        (values) => scope.allocate(Math.max(values.length * 4, 1)),
+      );
+      const memory = this.#routes.view();
+      for (let index = 0; index < hierarchy.length; index += 1) {
+        memory.setInt32(parents + index * 4, hierarchy[index] | 0, true);
+      }
+      for (const [set, values] of [bindPose, inverseBindPose, rootPrefix].entries()) {
+        for (let index = 0; index < values.length; index += 1) {
+          memory.setFloat32(sets[set] + index * 4, values[index], true);
+        }
+      }
+      this.#routes.invoke(
+        "cna_cnb_model_set_skeleton", model, parents, BigInt(hierarchy.length),
+        sets[0], sets[1], sets[2],
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelGetSkeleton(
+    model: NativeHandle,
+  ): { readonly JointCount: number; readonly HasRootPrefix: boolean } {
+    const scope = this.#routes.scope();
+    try {
+      const skeleton = allocateStruct(this.#routes.module, scope, "CNA_CnbSkeletonInfo");
+      this.#routes.invoke("cna_cnb_model_get_skeleton", model, skeleton.pointer);
+      return Object.freeze({
+        JointCount: Number(skeleton.getU64("joint_count")),
+        HasRootPrefix: skeleton.getU8("has_root_prefix") !== 0,
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelCopySkeletonHierarchy(model: NativeHandle): readonly number[] {
+    return this.#countAndCopyNumbers(
+      "cna_cnb_model_copy_skeleton_hierarchy", [model], 4, true,
+    );
+  }
+
+  public override cnbModelCopySkeletonMatrices(
+    model: NativeHandle, set: number,
+  ): readonly number[] {
+    return this.#countAndCopyFloats("cna_cnb_model_copy_skeleton_matrices", [model, set]);
+  }
+
+  public override cnbModelAddLight(
+    model: NativeHandle, direction: readonly number[], diffuseColor: readonly number[],
+  ): number {
+    const scope = this.#routes.scope();
+    try {
+      const light = allocateStruct(this.#routes.module, scope, "CNA_CnbModelLight", false);
+      light.setF32Array("direction", direction).setF32Array("diffuse_color", diffuseColor);
+      const out = scope.allocate(8);
+      this.#routes.invoke("cna_cnb_model_add_light", model, light.pointer, out);
+      return Number(this.#routes.view().getBigUint64(out, true));
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbModelGetLight(
+    model: NativeHandle, index: number,
+  ): { readonly Direction: readonly number[]; readonly DiffuseColor: readonly number[] } {
+    const scope = this.#routes.scope();
+    try {
+      const light = allocateStruct(this.#routes.module, scope, "CNA_CnbModelLight", false);
+      this.#routes.invoke("cna_cnb_model_get_light", model, BigInt(index), light.pointer);
+      return Object.freeze({
+        Direction: Object.freeze(light.getF32Array("direction")),
+        DiffuseColor: Object.freeze(light.getF32Array("diffuse_color")),
+      });
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbEncodeModel(model: NativeHandle, contentName: string): Uint8Array {
+    const scope = this.#routes.scope();
+    try {
+      const name = this.#stringView(scope, contentName);
+      return this.#countAndCopy("cna_cnb_encode_model", [model, name], "bytes");
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override cnbDecodeModel(document: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_cnb_decode_model", document);
   }
 }

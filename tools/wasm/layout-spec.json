@@ -317,6 +317,69 @@
       "default_character",
       "has_default_character"
     ],
+    "CNA_CnbModelInfo": [
+      "struct_size",
+      "struct_version",
+      "bone_count",
+      "part_count",
+      "mesh_count",
+      "animation_count",
+      "light_count",
+      "has_skeleton",
+      "applies_gltf_lighting_policy",
+      "has_bone_hierarchy"
+    ],
+    "CNA_CnbModelBone": [
+      "struct_size",
+      "struct_version",
+      "parent",
+      "transform"
+    ],
+    "CNA_CnbModelPartInfo": [
+      "struct_size",
+      "struct_version",
+      "vertex_stride",
+      "vertex_count",
+      "index_count",
+      "index_element_size",
+      "primitive_topology",
+      "primitive_count",
+      "effect_kind",
+      "vertex_color_enabled",
+      "unlit"
+    ],
+    "CNA_CnbMaterialInfo": [
+      "struct_size",
+      "struct_version",
+      "base_color_factor",
+      "emissive_factor",
+      "specular_color_factor",
+      "metallic_factor",
+      "roughness_factor",
+      "ior",
+      "specular_factor",
+      "normal_scale",
+      "occlusion_strength",
+      "alpha_cutoff",
+      "alpha_mode",
+      "double_sided"
+    ],
+    "CNA_CnbMeshInfo": [
+      "struct_size",
+      "struct_version",
+      "parent_bone",
+      "part_index_count"
+    ],
+    "CNA_CnbSkeletonInfo": [
+      "struct_size",
+      "struct_version",
+      "joint_count",
+      "has_root_prefix"
+    ],
+    "CNA_CnbModelLight": [
+      "direction",
+      "diffuse_color"
+    ],
     "CNA_SpriteFontGlyph": [
       "struct_size",
       "struct_version",
