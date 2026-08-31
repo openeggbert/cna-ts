@@ -44,6 +44,7 @@ import type {
   CnaGraphicsAdapterBackend,
   CnaGraphicsBackend,
   CnaGraphicsExtensionBackend,
+  CnaLodBackend,
   CnaMediaBackend,
   CnaRuntimeServicesBackend,
   CnaSensorBackend,
@@ -1154,6 +1155,45 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public getPostProcessChainPassTimings(
     _chain: NativeHandle,
   ): readonly PassTimingSnapshot[] { return this.unsupported("getPostProcessChainPassTimings"); }
+}
+
+/** Refusing base for {@link CnaLodBackend}. */
+export abstract class CnaLodBackendBase implements CnaLodBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createLodGroup(): NativeHandle { return this.unsupported("createLodGroup"); }
+  public destroyLodGroup(_group: NativeHandle): void { return this.unsupported("destroyLodGroup"); }
+  public addLodLevel(
+    _group: NativeHandle,
+    _maxDistance: number,
+  ): void { return this.unsupported("addLodLevel"); }
+  public clearLodGroup(_group: NativeHandle): void { return this.unsupported("clearLodGroup"); }
+  public copyLodLevels(_group: NativeHandle): readonly number[] { return this.unsupported("copyLodLevels"); }
+  public selectLodIndex(
+    _group: NativeHandle,
+    _distance: number,
+  ): number { return this.unsupported("selectLodIndex"); }
+  public getLodHysteresis(_group: NativeHandle): number { return this.unsupported("getLodHysteresis"); }
+  public setLodHysteresis(
+    _group: NativeHandle,
+    _margin: number,
+  ): void { return this.unsupported("setLodHysteresis"); }
+  public resetLodHysteresis(_group: NativeHandle): void { return this.unsupported("resetLodHysteresis"); }
+  public getLodSelectionMode(_group: NativeHandle): number { return this.unsupported("getLodSelectionMode"); }
+  public setLodSelectionMode(
+    _group: NativeHandle,
+    _mode: number,
+  ): void { return this.unsupported("setLodSelectionMode"); }
+  public setLodScreenSpaceParameters(
+    _group: NativeHandle,
+    _radius: number,
+    _verticalFov: number,
+    _viewportHeight: number,
+  ): void { return this.unsupported("setLodScreenSpaceParameters"); }
+  public getLodProjectedRadiusPixels(
+    _group: NativeHandle,
+    _distance: number,
+  ): number { return this.unsupported("getLodProjectedRadiusPixels"); }
 }
 
 /** Refusing base for {@link CnaClusteredLightingBackend}. */

@@ -16,6 +16,7 @@ import type {
   SpotLightSnapshot,
   CnaClusteredLightingBackend,
   CnaComputeBackend,
+  CnaLodBackend,
   StandaloneDeviceParameters,
   CnaGraphicsExtensionBackend,
   Vector3Snapshot,
@@ -539,6 +540,19 @@ interface NativeBridge {
   cnbEncodeModel(model: bigint, contentName: string): Uint8Array;
   cnbDecodeModel(document: bigint): bigint;
   isClusteredLightUsable(light: ClusteredLightSnapshot): boolean;
+  createLodGroup(): bigint;
+  destroyLodGroup(group: bigint): void;
+  addLodLevel(group: bigint, maxDistance: number): void;
+  clearLodGroup(group: bigint): void;
+  copyLodLevels(group: bigint): readonly number[];
+  selectLodIndex(group: bigint, distance: number): number;
+  getLodHysteresis(group: bigint): number;
+  setLodHysteresis(group: bigint, margin: number): void;
+  resetLodHysteresis(group: bigint): void;
+  getLodSelectionMode(group: bigint): number;
+  setLodSelectionMode(group: bigint, mode: number): void;
+  setLodScreenSpaceParameters(group: bigint, radius: number, verticalFov: number, viewportHeight: number): void;
+  getLodProjectedRadiusPixels(group: bigint, distance: number): number;
   createClusteredLightSet(device: bigint): bigint;
   addClusteredLight(set: bigint, light: ClusteredLightSnapshot): number;
   addClusteredPointLight(set: bigint, light: PointLightSnapshot): number;
@@ -1017,6 +1031,7 @@ export class NodeNativeBackend
   public readonly GraphicsExtensions: CnaGraphicsExtensionBackend = this;
   public readonly Compute: CnaComputeBackend = this;
   public readonly ClusteredLighting: CnaClusteredLightingBackend = this;
+  public readonly Lod: CnaLodBackend = this;
   public readonly Content: CnaContentBackend = this;
   public readonly Devices: CnaDeviceBackend = this;
   public readonly GamerServices: CnaGamerServicesBackend = this;
@@ -1950,6 +1965,45 @@ export class NodeNativeBackend
     return this.#bridge.cnbDecodeModel(document);
   }
 
+  public createLodGroup(): NativeHandle {
+    return this.#bridge.createLodGroup();
+  }
+  public destroyLodGroup(group: NativeHandle): void {
+    this.#bridge.destroyLodGroup(group);
+  }
+  public addLodLevel(group: NativeHandle, maxDistance: number): void {
+    this.#bridge.addLodLevel(group, maxDistance);
+  }
+  public clearLodGroup(group: NativeHandle): void {
+    this.#bridge.clearLodGroup(group);
+  }
+  public copyLodLevels(group: NativeHandle): readonly number[] {
+    return this.#bridge.copyLodLevels(group);
+  }
+  public selectLodIndex(group: NativeHandle, distance: number): number {
+    return this.#bridge.selectLodIndex(group, distance);
+  }
+  public getLodHysteresis(group: NativeHandle): number {
+    return this.#bridge.getLodHysteresis(group);
+  }
+  public setLodHysteresis(group: NativeHandle, margin: number): void {
+    this.#bridge.setLodHysteresis(group, margin);
+  }
+  public resetLodHysteresis(group: NativeHandle): void {
+    this.#bridge.resetLodHysteresis(group);
+  }
+  public getLodSelectionMode(group: NativeHandle): number {
+    return this.#bridge.getLodSelectionMode(group);
+  }
+  public setLodSelectionMode(group: NativeHandle, mode: number): void {
+    this.#bridge.setLodSelectionMode(group, mode);
+  }
+  public setLodScreenSpaceParameters(group: NativeHandle, radius: number, verticalFov: number, viewportHeight: number): void {
+    this.#bridge.setLodScreenSpaceParameters(group, radius, verticalFov, viewportHeight);
+  }
+  public getLodProjectedRadiusPixels(group: NativeHandle, distance: number): number {
+    return this.#bridge.getLodProjectedRadiusPixels(group, distance);
+  }
   public isClusteredLightUsable(light: ClusteredLightSnapshot): boolean {
     return this.#bridge.isClusteredLightUsable(light);
   }

@@ -1275,6 +1275,28 @@ export interface ClusterBoundsSnapshot {
  * compute on a graphics device handle but hold no GPU state, so they answer identically on a
  * headless renderer and a windowed one.
  */
+/**
+ * CNA's level-of-detail groups: which detail level to draw at a distance, and the hysteresis that
+ * stops one flickering as a camera hovers on a boundary. A pure value object -- no device, no game.
+ */
+export interface CnaLodBackend {
+  createLodGroup(): NativeHandle;
+  destroyLodGroup(group: NativeHandle): void;
+  addLodLevel(group: NativeHandle, maxDistance: number): void;
+  clearLodGroup(group: NativeHandle): void;
+  copyLodLevels(group: NativeHandle): readonly number[];
+  selectLodIndex(group: NativeHandle, distance: number): number;
+  getLodHysteresis(group: NativeHandle): number;
+  setLodHysteresis(group: NativeHandle, margin: number): void;
+  resetLodHysteresis(group: NativeHandle): void;
+  getLodSelectionMode(group: NativeHandle): number;
+  setLodSelectionMode(group: NativeHandle, mode: number): void;
+  setLodScreenSpaceParameters(
+    group: NativeHandle, radius: number, verticalFov: number, viewportHeight: number,
+  ): void;
+  getLodProjectedRadiusPixels(group: NativeHandle, distance: number): number;
+}
+
 export interface CnaClusteredLightingBackend {
   isClusteredLightUsable(light: ClusteredLightSnapshot): boolean;
   createClusteredLightSet(device: NativeHandle): NativeHandle;
@@ -1844,6 +1866,7 @@ export interface CnaBackend {
   readonly GraphicsExtensions?: CnaGraphicsExtensionBackend;
   readonly Compute?: CnaComputeBackend;
   readonly ClusteredLighting?: CnaClusteredLightingBackend;
+  readonly Lod?: CnaLodBackend;
   readonly Content?: CnaContentBackend;
   readonly Devices?: CnaDeviceBackend;
   readonly GamerServices?: CnaGamerServicesBackend;

@@ -11,6 +11,8 @@ import {
   ClusteredLightSetMaximum,
   ClusteredLightType,
   ClusteredShadowPolicy,
+  LodGroup,
+  LodSelectionMode,
   ComputeShader,
   GpuTimer,
   GraphicsCapability,
@@ -235,5 +237,31 @@ test("an assignment refuses a grid that is not one, and a policy a set that is n
       policy, {}, Matrix.Identity, Matrix.Identity, Vector3.Zero,
     ),
     TypeError,
+  );
+});
+
+test("level-of-detail groups stay outside Microsoft.Xna.Framework", async () => {
+  const xna = await import("../dist/xna.js");
+  for (const name of ["LodGroup", "LodSelectionMode"]) {
+    assert.equal(name in xna, false, `${name} must not leak into the strict XNA surface`);
+  }
+  assert.equal("LodGroup" in xna.Microsoft.Xna.Framework.Graphics, false);
+  assert.equal(LodSelectionMode.Distance, 0);
+  assert.equal(LodSelectionMode.ScreenSpaceError, 1);
+});
+
+test("a LOD group refuses truthfully with no backend, and validates first", () => {
+  assert.throws(() => new LodGroup(), NativeUnavailableError);
+  // The argument checks live on the instance, so they need one; with no backend the constructor
+  // is the refusal, which is itself the assertion above. What is checked here is that the enum
+  // bound is a bound: a mode past the last one is a RangeError rather than reaching CNA.
+  const detached = Object.create(LodGroup.prototype);
+  assert.throws(
+    () => Object.getOwnPropertyDescriptor(LodGroup.prototype, "SelectionMode").set.call(detached, 2),
+    RangeError,
+  );
+  assert.throws(
+    () => Object.getOwnPropertyDescriptor(LodGroup.prototype, "SelectionMode").set.call(detached, -1),
+    RangeError,
   );
 });

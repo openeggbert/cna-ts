@@ -16,6 +16,7 @@
 import { getBackend } from "../../internal/backend.js";
 import type {
   BoundingSphereSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
+  CnaLodBackend,
   CnaGraphicsExtensionBackend,
 } from "../../internal/backend.js";
 import { BoundingBox } from "../../Microsoft/Xna/Framework/BoundingBox.js";
@@ -1787,5 +1788,167 @@ export class ClusteredShadowPolicy implements IDisposable {
     if (handle == null) return;
     this.#handle = null;
     this.#backend.destroyClusteredShadowPolicy(handle);
+  }
+}
+
+
+/* --- level of detail ----------------------------------------------------------------------------
+ *
+ * Which detail level to draw at a distance, and the hysteresis that stops one flickering as a
+ * camera hovers on a boundary. A pure value object: no device, no game, no GPU.
+ *
+ * CNA associates each level with a `ModelMeshPart` and can hand that part back. This projection
+ * does not: `ModelMeshPart` here is a managed object built from XNB readers, with managed vertex
+ * and index buffers and no native handle to give, so binding CNA's part-returning `select` would
+ * project a route that could only ever answer nothing. What is projected is the selection
+ * arithmetic — the whole value of a LOD group — and a consumer indexes their own array of parts
+ * with {@link LodGroup.SelectIndex}.
+ */
+
+/** How a {@link LodGroup} decides which level a distance falls in. */
+export enum LodSelectionMode {
+  /** By view distance directly. Each level's threshold is a distance. */
+  Distance = 0,
+  /** By how many pixels the object's radius projects to. Each level's threshold is in pixels. */
+  ScreenSpaceError = 1,
+}
+
+function lod(): CnaLodBackend {
+  const backend = getBackend();
+  if (!backend.IsAvailable || backend.Lod == null) {
+    throw new NativeUnavailableError(
+      `CNA's level-of-detail groups require a loaded backend that has them: ${backend.Detail}`,
+    );
+  }
+  return backend.Lod;
+}
+
+/**
+ * An ordered set of detail levels, and the rule for picking one.
+ *
+ * Levels are kept sorted by their threshold however they are added, so
+ * {@link LodGroup.SelectIndex} answers an index into {@link LodGroup.Thresholds} rather than into
+ * the order they arrived in.
+ *
+ * {@link LodGroup.Hysteresis} is an absolute margin in the selection mode's own unit — view
+ * distance, or pixels in {@link LodSelectionMode.ScreenSpaceError}. Within that margin of the
+ * boundary the group holds the level it last returned, so a camera hovering on a threshold does
+ * not flicker. It is deliberately *not* applied to a jump of more than one level: a distance that
+ * has moved several levels is a real change rather than a wobble, and damping it would be worse
+ * than the flicker it prevents.
+ */
+export class LodGroup implements IDisposable {
+  readonly #backend: CnaLodBackend;
+  #handle: NativeHandle | null;
+
+  public constructor() {
+    this.#backend = lod();
+    this.#handle = this.#backend.createLodGroup();
+  }
+
+  /** Whether the group has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the LOD group is disposed");
+    return this.#handle;
+  }
+
+  /** Adds a level. The group re-sorts, so the order levels are added in does not matter. */
+  public AddLevel(maxDistance: number): this {
+    if (typeof maxDistance !== "number" || !Number.isFinite(maxDistance)) {
+      throw new TypeError("maxDistance must be a finite number");
+    }
+    this.#backend.addLodLevel(this.#active(), maxDistance);
+    return this;
+  }
+
+  /** Every level's threshold, in the group's own sorted order. */
+  public get Thresholds(): readonly number[] {
+    return Object.freeze([...this.#backend.copyLodLevels(this.#active())]);
+  }
+
+  /** How many levels the group holds. */
+  public get Count(): number { return this.#backend.copyLodLevels(this.#active()).length; }
+
+  /** Removes every level, and forgets the last selection. */
+  public Clear(): this {
+    this.#backend.clearLodGroup(this.#active());
+    return this;
+  }
+
+  /**
+   * The level a distance falls in, or `-1` when it is past the last one — which is CNA saying
+   * "draw nothing at this range" rather than clamping to the coarsest level.
+   */
+  public SelectIndex(distance: number): number {
+    if (typeof distance !== "number" || !Number.isFinite(distance)) {
+      throw new TypeError("distance must be a finite number");
+    }
+    return this.#backend.selectLodIndex(this.#active(), distance);
+  }
+
+  /** The sticky margin around a boundary, in the selection mode's own unit. */
+  public get Hysteresis(): number {
+    return this.#backend.getLodHysteresis(this.#active());
+  }
+  public set Hysteresis(value: number) {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new TypeError("Hysteresis must be a finite number");
+    }
+    this.#backend.setLodHysteresis(this.#active(), value);
+  }
+
+  /** Forgets the last selection, so the next one is not damped by hysteresis. */
+  public ResetHysteresis(): this {
+    this.#backend.resetLodHysteresis(this.#active());
+    return this;
+  }
+
+  /** How the group picks a level. Changing it re-sorts and forgets the last selection. */
+  public get SelectionMode(): LodSelectionMode {
+    return this.#backend.getLodSelectionMode(this.#active()) as LodSelectionMode;
+  }
+  public set SelectionMode(value: LodSelectionMode) {
+    if (value !== LodSelectionMode.Distance && value !== LodSelectionMode.ScreenSpaceError) {
+      throw new RangeError("SelectionMode must be a LodSelectionMode");
+    }
+    this.#backend.setLodSelectionMode(this.#active(), value);
+  }
+
+  /**
+   * The three numbers {@link LodSelectionMode.ScreenSpaceError} needs: the object's world radius,
+   * the camera's vertical field of view in radians, and the viewport height in pixels.
+   */
+  public SetScreenSpaceParameters(
+    radius: number, verticalFov: number, viewportHeight: number,
+  ): this {
+    for (const [name, value] of [
+      ["radius", radius], ["verticalFov", verticalFov], ["viewportHeight", viewportHeight],
+    ] as const) {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        throw new TypeError(`${name} must be a finite number`);
+      }
+    }
+    this.#backend.setLodScreenSpaceParameters(
+      this.#active(), radius, verticalFov, viewportHeight,
+    );
+    return this;
+  }
+
+  /** How many pixels the object's radius projects to at a distance. */
+  public ProjectedRadiusPixels(distance: number): number {
+    if (typeof distance !== "number" || !Number.isFinite(distance)) {
+      throw new TypeError("distance must be a finite number");
+    }
+    return this.#backend.getLodProjectedRadiusPixels(this.#active(), distance);
+  }
+
+  /** Releases the group. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyLodGroup(handle);
   }
 }

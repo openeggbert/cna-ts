@@ -552,6 +552,17 @@ typedef CNA_Result (*ClusteredSelectFn)(
   CNA_Handle, CNA_ClusteredLightSetHandle, const CNA_Matrix*, const CNA_Matrix*,
   const CNA_Vector3*);
 
+/* --- the engine layer's level-of-detail groups ------------------------------------------------ */
+typedef CNA_Result (*LodCreateFn)(CNA_LodGroupEXTHandle*);
+typedef CNA_Result (*LodAddLevelFn)(CNA_LodGroupEXTHandle, float, CNA_ModelMeshPartHandle);
+typedef CNA_Result (*LodCopyLevelsFn)(
+  CNA_LodGroupEXTHandle, CNA_LodLevelEXT*, uint64_t, uint64_t*);
+typedef CNA_Result (*LodSelectIndexFn)(CNA_LodGroupEXTHandle, float, int32_t*);
+typedef CNA_Result (*LodModeOutFn)(CNA_LodGroupEXTHandle, CNA_LodSelectionMode*);
+typedef CNA_Result (*LodModeInFn)(CNA_LodGroupEXTHandle, CNA_LodSelectionMode);
+typedef CNA_Result (*LodScreenSpaceFn)(CNA_LodGroupEXTHandle, float, float, float);
+typedef CNA_Result (*LodProjectedRadiusFn)(CNA_LodGroupEXTHandle, float, float*);
+
 /* --- the engine layer's compute path ---------------------------------------------------------- */
 /*
  * Storage buffers, compute shaders and GPU timers. The handle typedefs in `engine_layer.h` are all
@@ -1414,6 +1425,19 @@ typedef struct Api {
   HandleI32OutFn clustered_shadow_policy_get_refused_count;
   GameHandleFn clustered_shadow_policy_reset;
   ClusteredSelectFn clustered_shadow_policy_select;
+  LodCreateFn lod_group_ext_create;
+  GameHandleFn lod_group_ext_destroy;
+  LodAddLevelFn lod_group_ext_add_level;
+  GameHandleFn lod_group_ext_clear;
+  LodCopyLevelsFn lod_group_ext_copy_levels;
+  LodSelectIndexFn lod_group_ext_select_index;
+  HandleFloatOutFn lod_group_ext_get_hysteresis;
+  HandleFloatFn lod_group_ext_set_hysteresis;
+  GameHandleFn lod_group_ext_reset_hysteresis;
+  LodModeOutFn lod_group_ext_get_selection_mode;
+  LodModeInFn lod_group_ext_set_selection_mode;
+  LodScreenSpaceFn lod_group_ext_set_screen_space_parameters;
+  LodProjectedRadiusFn lod_group_ext_projected_radius_pixels;
   GameHandleFn clustered_shadow_policy_destroy;
 
   /* the engine layer's compute path */
@@ -2683,6 +2707,19 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(clustered_shadow_policy_get_refused_count, HandleI32OutFn, "cna_clustered_shadow_policy_get_refused_count");
   LOAD_REQUIRED(clustered_shadow_policy_reset, GameHandleFn, "cna_clustered_shadow_policy_reset");
   LOAD_REQUIRED(clustered_shadow_policy_select, ClusteredSelectFn, "cna_clustered_shadow_policy_select");
+  LOAD_REQUIRED(lod_group_ext_create, LodCreateFn, "cna_lod_group_ext_create");
+  LOAD_REQUIRED(lod_group_ext_destroy, GameHandleFn, "cna_lod_group_ext_destroy");
+  LOAD_REQUIRED(lod_group_ext_add_level, LodAddLevelFn, "cna_lod_group_ext_add_level");
+  LOAD_REQUIRED(lod_group_ext_clear, GameHandleFn, "cna_lod_group_ext_clear");
+  LOAD_REQUIRED(lod_group_ext_copy_levels, LodCopyLevelsFn, "cna_lod_group_ext_copy_levels");
+  LOAD_REQUIRED(lod_group_ext_select_index, LodSelectIndexFn, "cna_lod_group_ext_select_index");
+  LOAD_REQUIRED(lod_group_ext_get_hysteresis, HandleFloatOutFn, "cna_lod_group_ext_get_hysteresis");
+  LOAD_REQUIRED(lod_group_ext_set_hysteresis, HandleFloatFn, "cna_lod_group_ext_set_hysteresis");
+  LOAD_REQUIRED(lod_group_ext_reset_hysteresis, GameHandleFn, "cna_lod_group_ext_reset_hysteresis");
+  LOAD_REQUIRED(lod_group_ext_get_selection_mode, LodModeOutFn, "cna_lod_group_ext_get_selection_mode");
+  LOAD_REQUIRED(lod_group_ext_set_selection_mode, LodModeInFn, "cna_lod_group_ext_set_selection_mode");
+  LOAD_REQUIRED(lod_group_ext_set_screen_space_parameters, LodScreenSpaceFn, "cna_lod_group_ext_set_screen_space_parameters");
+  LOAD_REQUIRED(lod_group_ext_projected_radius_pixels, LodProjectedRadiusFn, "cna_lod_group_ext_projected_radius_pixels");
   LOAD_REQUIRED(clustered_shadow_policy_destroy, GameHandleFn, "cna_clustered_shadow_policy_destroy");
 
   LOAD_REQUIRED(presentation_parameters_init, PresentationParametersInitFn, "cna_presentation_parameters_init");
@@ -14445,6 +14482,178 @@ static napi_value clustered_shadow_policy_get_score(napi_env env, napi_callback_
   return output;
 }
 
+/* --- the engine layer's level-of-detail groups ------------------------------------------------ */
+/*
+ * Which detail level to draw at a distance, with the hysteresis that stops a level flickering as a
+ * camera hovers on a boundary.
+ *
+ * `cna_lod_group_ext_add_level` associates each level with a `CNA_ModelMeshPartHandle`, and
+ * `cna_lod_group_ext_select` hands that handle back. Neither is projected: this package's
+ * `ModelMeshPart` is a managed projection built from XNB readers, with managed vertex and index
+ * buffers and no native handle to give -- so binding `select` would project a route that could
+ * only ever answer zero. What is bound is the selection *arithmetic*, which is the whole value of
+ * a LOD group, and a consumer indexes their own array of parts with the answer.
+ */
+
+static napi_value lod_group_create(napi_env env, napi_callback_info info) {
+  CNA_LodGroupEXTHandle group = 0;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.lod_group_ext_create(&group);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_lod_group_ext_create", result);
+  return make_handle(env, group);
+}
+
+static napi_value lod_group_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.lod_group_ext_destroy, "cna_lod_group_ext_destroy");
+}
+static napi_value lod_group_clear(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.lod_group_ext_clear, "cna_lod_group_ext_clear");
+}
+static napi_value lod_group_reset_hysteresis(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.lod_group_ext_reset_hysteresis,
+    "cna_lod_group_ext_reset_hysteresis");
+}
+static napi_value lod_group_get_hysteresis(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.lod_group_ext_get_hysteresis,
+    "cna_lod_group_ext_get_hysteresis");
+}
+static napi_value lod_group_set_hysteresis(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.lod_group_ext_set_hysteresis,
+    "cna_lod_group_ext_set_hysteresis");
+}
+
+static napi_value lod_group_add_level(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle group = 0;
+  double distance = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &group) ||
+      napi_get_value_double(env, args[1], &distance) != napi_ok) return NULL;
+  /* No mesh part: see the note above. CNA_INVALID_HANDLE is how this ABI spells "absent". */
+  const CNA_Result result = g_api.lod_group_ext_add_level(group, (float) distance, 0);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_lod_group_ext_add_level", result);
+  }
+  return undefined_result(env, "cna_lod_group_ext_add_level");
+}
+
+static napi_value lod_group_copy_levels(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle group = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &group)) return NULL;
+  uint64_t required = 0;
+  CNA_Result result = g_api.lod_group_ext_copy_levels(group, NULL, 0, &required);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, "cna_lod_group_ext_copy_levels", result);
+  }
+  if (required > SIZE_MAX / sizeof(CNA_LodLevelEXT)) {
+    return throw_message(env, "the level list exceeds the host address space");
+  }
+  CNA_LodLevelEXT* levels = required == 0
+    ? NULL : (CNA_LodLevelEXT*) calloc((size_t) required, sizeof(CNA_LodLevelEXT));
+  if (required != 0 && !levels) return throw_message(env, "level-list allocation failed");
+  uint64_t produced = 0;
+  result = g_api.lod_group_ext_copy_levels(group, levels, required, &produced);
+  if (result != CNA_RESULT_SUCCESS || produced != required) {
+    free(levels);
+    return throw_result(env, "cna_lod_group_ext_copy_levels", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) required, &output) != napi_ok) {
+    free(levels);
+    return throw_napi(env, "LOD level list");
+  }
+  for (uint64_t index = 0; index < required; index += 1) {
+    napi_value number;
+    if (napi_create_double(env, (double) levels[index].max_distance, &number) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, number) != napi_ok) {
+      free(levels);
+      return throw_napi(env, "LOD level list");
+    }
+  }
+  free(levels);
+  return output;
+}
+
+static napi_value lod_group_select_index(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle group = 0;
+  double distance = 0;
+  int32_t index = -1;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &group) ||
+      napi_get_value_double(env, args[1], &distance) != napi_ok) return NULL;
+  const CNA_Result result = g_api.lod_group_ext_select_index(group, (float) distance, &index);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_lod_group_ext_select_index", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, index, &output), "LOD level index");
+  return output;
+}
+
+static napi_value lod_group_get_selection_mode(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle group = 0;
+  CNA_LodSelectionMode mode = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &group)) return NULL;
+  const CNA_Result result = g_api.lod_group_ext_get_selection_mode(group, &mode);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_lod_group_ext_get_selection_mode", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_uint32(env, mode, &output), "LOD selection mode");
+  return output;
+}
+
+static napi_value lod_group_set_selection_mode(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle group = 0;
+  uint32_t mode = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &group) ||
+      napi_get_value_uint32(env, args[1], &mode) != napi_ok) return NULL;
+  const CNA_Result result = g_api.lod_group_ext_set_selection_mode(group, mode);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_lod_group_ext_set_selection_mode", result);
+  }
+  return undefined_result(env, "cna_lod_group_ext_set_selection_mode");
+}
+
+static napi_value lod_group_set_screen_space_parameters(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle group = 0;
+  double radius = 0, verticalFov = 0, viewportHeight = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &group) ||
+      napi_get_value_double(env, args[1], &radius) != napi_ok ||
+      napi_get_value_double(env, args[2], &verticalFov) != napi_ok ||
+      napi_get_value_double(env, args[3], &viewportHeight) != napi_ok) return NULL;
+  const CNA_Result result = g_api.lod_group_ext_set_screen_space_parameters(
+    group, (float) radius, (float) verticalFov, (float) viewportHeight);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_lod_group_ext_set_screen_space_parameters", result);
+  }
+  return undefined_result(env, "cna_lod_group_ext_set_screen_space_parameters");
+}
+
+static napi_value lod_group_projected_radius_pixels(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle group = 0;
+  double distance = 0;
+  float pixels = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &group) ||
+      napi_get_value_double(env, args[1], &distance) != napi_ok) return NULL;
+  const CNA_Result result =
+    g_api.lod_group_ext_projected_radius_pixels(group, (float) distance, &pixels);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_lod_group_ext_projected_radius_pixels", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) pixels, &output), "projected radius");
+  return output;
+}
+
 static napi_value clustered_shadow_policy_select(napi_env env, napi_callback_info info) {
   napi_value args[5];
   CNA_Handle policy = 0, lights = 0;
@@ -16954,6 +17163,19 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getShadowPolicyRefusedCount", NULL, clustered_shadow_policy_get_refused_count, NULL, NULL, NULL, napi_default, NULL },
     { "resetShadowPolicy", NULL, clustered_shadow_policy_reset, NULL, NULL, NULL, napi_default, NULL },
     { "selectShadowCasters", NULL, clustered_shadow_policy_select, NULL, NULL, NULL, napi_default, NULL },
+    { "createLodGroup", NULL, lod_group_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyLodGroup", NULL, lod_group_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "addLodLevel", NULL, lod_group_add_level, NULL, NULL, NULL, napi_default, NULL },
+    { "clearLodGroup", NULL, lod_group_clear, NULL, NULL, NULL, napi_default, NULL },
+    { "copyLodLevels", NULL, lod_group_copy_levels, NULL, NULL, NULL, napi_default, NULL },
+    { "selectLodIndex", NULL, lod_group_select_index, NULL, NULL, NULL, napi_default, NULL },
+    { "getLodHysteresis", NULL, lod_group_get_hysteresis, NULL, NULL, NULL, napi_default, NULL },
+    { "setLodHysteresis", NULL, lod_group_set_hysteresis, NULL, NULL, NULL, napi_default, NULL },
+    { "resetLodHysteresis", NULL, lod_group_reset_hysteresis, NULL, NULL, NULL, napi_default, NULL },
+    { "getLodSelectionMode", NULL, lod_group_get_selection_mode, NULL, NULL, NULL, napi_default, NULL },
+    { "setLodSelectionMode", NULL, lod_group_set_selection_mode, NULL, NULL, NULL, napi_default, NULL },
+    { "setLodScreenSpaceParameters", NULL, lod_group_set_screen_space_parameters, NULL, NULL, NULL, napi_default, NULL },
+    { "getLodProjectedRadiusPixels", NULL, lod_group_projected_radius_pixels, NULL, NULL, NULL, napi_default, NULL },
     { "destroyClusteredShadowPolicy", NULL, clustered_shadow_policy_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "supportsGraphicsCapability", NULL, graphics_device_supports_capability, NULL, NULL, NULL, napi_default, NULL },
     { "createStandaloneGraphicsDevice", NULL, create_standalone_graphics_device, NULL, NULL, NULL, napi_default, NULL },

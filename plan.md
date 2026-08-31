@@ -315,8 +315,13 @@ Electron, or mobile support.
 - [x] And CNA's clustered lighting: a light set, the cluster grid, the assignment a GPU would read
   and the shadow-budget policy. None of it touches the GPU, so all sixty-four clusters of a 4x2x8
   grid and the logarithmic depth axis are checked with exact numbers on the default backend.
-- [ ] The rest of the engine layer — cascaded, spot and cube shadow maps, particles, decals, LOD
-  groups, light probes and atmospheric rendering — is measured and unprojected.
+- [x] And level-of-detail groups, whose hysteresis is the interesting part: with a margin of 3
+  around a boundary at 25, climbing holds the near level until 28 and descending holds the far one
+  until 22, while a jump of more than one level is deliberately undamped. CNA's part-returning
+  `select` is not projected — this package's `ModelMeshPart` is managed and has no native handle
+  to give it.
+- [ ] The rest of the engine layer — cascaded, spot and cube shadow maps, particles, decals, light
+  probes and atmospheric rendering — is measured and unprojected.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a

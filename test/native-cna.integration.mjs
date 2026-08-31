@@ -24,6 +24,7 @@ import {
   TimeSpan,
   TitleContainer,
   Matrix,
+  NativeUnavailableError,
   Point,
   Quaternion,
   Vector2,
@@ -3744,5 +3745,109 @@ test("opening the platform camera after a test camera is an upstream use-after-f
   console.log(
     `CNA_TS_NATIVE_CAMERA_UPSTREAM_CRASH=REPRODUCED SIGNAL=${child.signal} ` +
     "SEQUENCE=test-backend-create,destroy,platform-create",
+  );
+});
+
+test("a LOD group picks a level, and damps the boundary it last crossed", async () => {
+  const { LodGroup, LodSelectionMode } = computeExtensions;
+  // No device and no game: a LOD group is a value object, so this needs neither.
+  const group = new LodGroup();
+  try {
+    // Added out of order on purpose. The group sorts, so the index it answers is an index into
+    // its own order rather than the order these arrived in.
+    group.AddLevel(50).AddLevel(10).AddLevel(200).AddLevel(25);
+    assert.deepEqual(group.Thresholds, [10, 25, 50, 200], "levels are kept sorted by threshold");
+    assert.equal(group.Count, 4);
+    assert.equal(group.SelectionMode, LodSelectionMode.Distance, "distance is the default mode");
+    assert.equal(group.Hysteresis, 0, "and nothing is sticky until a margin is set");
+
+    // Each band, and both sides of every boundary. A threshold is the *end* of its level.
+    assert.deepEqual(
+      [0, 9.9, 10, 24.9, 25, 49.9, 50, 199.9, 200, 1000].map((d) => group.SelectIndex(d)),
+      [0, 0, 1, 1, 2, 2, 3, 3, -1, -1],
+      "each threshold ends its level, and past the last one the answer is -1 rather than a clamp",
+    );
+
+    // Hysteresis: an absolute margin around the boundary the group last crossed. With 3 either
+    // side of 25, going up switches at 28 and coming back down switches at 22 -- and that
+    // asymmetry is the whole point, so both directions are walked.
+    group.Hysteresis = 3;
+    assert.equal(group.Hysteresis, 3, "the margin reads back");
+    group.ResetHysteresis();
+    const up = [];
+    for (let distance = 20; distance <= 32; distance += 1) up.push(group.SelectIndex(distance));
+    const down = [];
+    for (let distance = 32; distance >= 20; distance -= 1) down.push(group.SelectIndex(distance));
+    assert.deepEqual(
+      up, [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2],
+      "climbing, the group holds level 1 until 28 -- three past the boundary at 25",
+    );
+    assert.deepEqual(
+      down, [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1],
+      "and descending it holds level 2 until 22 -- three below it",
+    );
+    assert.notDeepEqual([...down].reverse(), up, "which is what makes it hysteresis, not rounding");
+
+    // Reset forgets, so the very next answer is the undamped one.
+    group.ResetHysteresis();
+    assert.equal(group.SelectIndex(26), 2, "a fresh group answers 26 as level 2");
+
+    // A jump of more than one level is not damped: that is a real change, not a wobble.
+    group.ResetHysteresis();
+    assert.equal(group.SelectIndex(5), 0);
+    assert.equal(
+      group.SelectIndex(26), 2,
+      "two levels in one step is not held back, even though 26 is inside the sticky band",
+    );
+
+    // Screen-space selection: the thresholds become pixel counts, and the projection is exact.
+    // radius * (viewportHeight / 2) / (distance * tan(fov / 2)).
+    group.SelectionMode = LodSelectionMode.ScreenSpaceError;
+    assert.equal(group.SelectionMode, LodSelectionMode.ScreenSpaceError);
+    group.SetScreenSpaceParameters(2, Math.PI / 3, 1080);
+    for (const distance of [1, 4, 16, 64]) {
+      const expected = 2 * (1080 / 2) / (distance * Math.tan(Math.PI / 6));
+      const actual = group.ProjectedRadiusPixels(distance);
+      assert.ok(
+        Math.abs(actual - expected) < expected * 1e-5,
+        `at ${distance}: ${actual} is not the projected ${expected}`,
+      );
+    }
+    // Twice the distance is half the radius, which no constant could satisfy.
+    assert.ok(
+      Math.abs(group.ProjectedRadiusPixels(2) - group.ProjectedRadiusPixels(4) * 2) < 1e-3,
+      "the projection is inverse in distance",
+    );
+
+    // An empty group answers -1 rather than refusing, and reports no levels.
+    group.Clear();
+    assert.deepEqual(group.Thresholds, []);
+    assert.equal(group.SelectIndex(5), -1, "with no levels there is nothing to draw");
+
+    // Arguments this package refuses before CNA sees them, and one CNA refuses itself.
+    for (const call of [
+      () => group.AddLevel(Number.NaN),
+      () => group.SelectIndex(Number.POSITIVE_INFINITY),
+      () => { group.Hysteresis = Number.NaN; },
+      () => group.SetScreenSpaceParameters(1, Number.NaN, 1080),
+      () => group.ProjectedRadiusPixels("x"),
+    ]) {
+      assert.throws(call, TypeError, call.toString());
+    }
+    assert.throws(() => { group.SelectionMode = 9; }, RangeError);
+    assert.throws(() => group.AddLevel(-1), (error) => error.cnaResult === 1);
+  } finally {
+    group.Dispose();
+  }
+
+  const gone = new LodGroup();
+  gone.Dispose();
+  gone.Dispose();
+  assert.equal(gone.IsDisposed, true);
+  assert.throws(() => gone.SelectIndex(1), NativeUnavailableError);
+
+  console.log(
+    "CNA_TS_NATIVE_LOD=PASS LEVELS=SORTED BANDS=EXACT HYSTERESIS=DIRECTIONAL " +
+    "MULTI_LEVEL_JUMP=UNDAMPED SCREEN_SPACE=EXACT",
   );
 });
