@@ -1,10 +1,10 @@
 {
   "contract": "tools/cna-abi/contract.json",
-  "typeScriptEnums": 99,
-  "verifiedFamilies": 98,
+  "typeScriptEnums": 101,
+  "verifiedFamilies": 100,
   "managedEnums": 1,
-  "claims": 887,
-  "identicalClaims": 884,
+  "claims": 908,
+  "identicalClaims": 905,
   "translatedClaims": 3,
   "scalarAssertions": 6,
   "resultCodeAssertions": 15,
@@ -337,11 +337,15 @@
       "constant": "CNA_SURFACE_FORMAT_USHORT_EXT"
     },
     {
+      "family": "TextInputType",
+      "constant": "CNA_TEXT_INPUT_TYPE_MAXIMUM"
+    },
+    {
       "family": "VideoSoundtrackType",
       "constant": "CNA_VIDEO_SOUNDTRACK_TYPE_MAXIMUM"
     }
   ],
-  "declaredCnaOnlyConstants": 81,
+  "declaredCnaOnlyConstants": 82,
   "diagnostics": [],
   "translations": [
     {

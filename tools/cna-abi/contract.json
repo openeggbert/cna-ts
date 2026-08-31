@@ -150,6 +150,7 @@
       "CNA_SURFACE_FORMAT_COLOR_SRGB_EXT",
       "CNA_SURFACE_FORMAT_DXT5_SRGB_EXT",
       "CNA_SURFACE_FORMAT_USHORT_EXT",
+      "CNA_TEXT_INPUT_TYPE_MAXIMUM",
       "CNA_VIDEO_SOUNDTRACK_TYPE_MAXIMUM"
     ]
   },
@@ -675,6 +676,28 @@
     {
       "typeScriptEnum": "HapticFeature",
       "cnaPrefix": "CNA_HAPTIC_FEATURE"
+    },
+    {
+      "typeScriptEnum": "TextInputType",
+      "cnaPrefix": "CNA_TEXT_INPUT_TYPE",
+      "suffixOverrides": {
+        "Name": "TEXT_NAME",
+        "Email": "TEXT_EMAIL",
+        "Username": "TEXT_USERNAME",
+        "PasswordHidden": "TEXT_PASSWORD_HIDDEN",
+        "PasswordVisible": "TEXT_PASSWORD_VISIBLE"
+      }
+    },
+    {
+      "typeScriptEnum": "MouseCursorStock",
+      "cnaPrefix": "CNA_MOUSE_CURSOR_STOCK",
+      "suffixOverrides": {
+        "IBeam": "IBEAM",
+        "SizeNesw": "SIZE_NESW",
+        "SizeNs": "SIZE_NS",
+        "SizeNwse": "SIZE_NWSE",
+        "SizeWe": "SIZE_WE"
+      }
     }
   ]
 }

@@ -107,7 +107,8 @@ try {
       `import { CnbAssetType, CnbDocument, CnbFormat } from "cna-ts/extensions/content";\n` +
       `import { CnaDevices, PowerState } from "cna-ts/extensions/devices";\n` +
       `import { Accelerometer, CnaSensors, SensorState } from "cna-ts/extensions/sensors";\n` +
-      `import { HapticFeature, Haptics, Joysticks, JoystickType } from "cna-ts/extensions/input";\n` +
+      `import { CnaTextInput, HapticFeature, Haptics, Joysticks, JoystickType,\n` +
+      `  MouseCursor, MouseCursorStock, TextInputType } from "cna-ts/extensions/input";\n` +
       `import { NativeUnavailableError } from "cna-ts/runtime";\n` +
       `assert.equal(Vector2.Add(new Vector2(1, 2), new Vector2(3, 4)).X, 4);\n` +
       `assert.equal(new Vector3(1).Z, 1);\n` +
@@ -133,6 +134,10 @@ try {
       `assert.equal(HapticFeature.LeftRight, 0x800);\n` +
       `assert.throws(() => Joysticks.Enumerate(), NativeUnavailableError);\n` +
       `assert.throws(() => Haptics.Enumerate(), NativeUnavailableError);\n` +
+      `assert.equal(TextInputType.PasswordHidden, 4);\n` +
+      `assert.equal(MouseCursorStock.WaitArrow, 11);\n` +
+      `assert.throws(() => CnaTextInput.Start(), NativeUnavailableError);\n` +
+      `assert.throws(() => MouseCursor.GetStock(MouseCursorStock.Hand), NativeUnavailableError);\n` +
       `await assert.rejects(import("cna-ts/internal/backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n` +
       `await assert.rejects(import("cna-ts/internal/wasm/wasm-backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n`,
   );
@@ -167,7 +172,7 @@ try {
       `import type { CnbChunk, CnbMetadata } from "cna-ts/extensions/content";\n` +
       `import type { CameraInventory, HostInfo } from "cna-ts/extensions/devices";\n` +
       `import type { AccelerometerReading, SensorSupport } from "cna-ts/extensions/sensors";\n` +
-      `import type { HapticCapabilities, JoystickState } from "cna-ts/extensions/input";\n` +
+      `import type { HapticCapabilities, JoystickState, TextEditingEvent } from "cna-ts/extensions/input";\n` +
       `import type { RuntimeStatus } from "cna-ts/runtime";\n` +
       `const vector: Vector2 = Vector2.Transform(Vector2.One, Matrix.Identity);\n` +
       `const color: Color = Microsoft.Xna.Framework.Color.White;\n` +
@@ -186,8 +191,9 @@ try {
       `const support: SensorSupport | undefined = undefined;\n` +
       `const joystick: JoystickState | undefined = undefined;\n` +
       `const haptics: HapticCapabilities | undefined = undefined;\n` +
+      `const editing: TextEditingEvent | undefined = undefined;\n` +
       `void [vector, color, vector3, status, renderer, platform, identity, material, pipeline,\n` +
-      `  chunk, metadata, host, cameras, reading, support, joystick, haptics];\n`,
+      `  chunk, metadata, host, cameras, reading, support, joystick, haptics, editing];\n`,
   );
   installTarball(typescript, tarball);
   run(

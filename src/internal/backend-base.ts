@@ -94,6 +94,8 @@ import type {
   SpriteBatchCommand,
   StockEffectSnapshot,
   StorageDeviceSnapshot,
+  TextEditingCandidatesSnapshot,
+  TextEditingSnapshot,
   Texture2DInfo,
   Texture2DTransfer,
   Texture3DInfo,
@@ -1125,6 +1127,50 @@ export abstract class CnaExtendedInputBackendBase implements CnaExtendedInputBac
   ): boolean { return this.unsupported("setHapticGain"); }
   public disposeHapticDevice(_device: NativeHandle): void { return this.unsupported("disposeHapticDevice"); }
   public destroyHapticDevice(_device: NativeHandle): void { return this.unsupported("destroyHapticDevice"); }
+  public subscribeTextInput(
+    _handler: (character: string) => void,
+  ): NativeHandle { return this.unsupported("subscribeTextInput"); }
+  public subscribeTextEditing(
+    _handler: (editing: TextEditingSnapshot) => void,
+  ): NativeHandle { return this.unsupported("subscribeTextEditing"); }
+  public subscribeTextEditingCandidates(
+    _handler: (candidates: TextEditingCandidatesSnapshot) => void,
+  ): NativeHandle { return this.unsupported("subscribeTextEditingCandidates"); }
+  public unsubscribeTextInput(
+    _registration: NativeHandle,
+  ): void { return this.unsupported("unsubscribeTextInput"); }
+  public raiseTextInput(_codeUnit: number): void { return this.unsupported("raiseTextInput"); }
+  public raiseTextEditing(
+    _text: string,
+    _start: number,
+    _length: number,
+  ): void { return this.unsupported("raiseTextEditing"); }
+  public raiseTextEditingCandidates(
+    _candidates: readonly string[],
+    _selected: number,
+    _horizontal: boolean,
+  ): void { return this.unsupported("raiseTextEditingCandidates"); }
+  public startTextInput(): void { return this.unsupported("startTextInput"); }
+  public startTextInputWithType(_type: number): void { return this.unsupported("startTextInputWithType"); }
+  public stopTextInput(): void { return this.unsupported("stopTextInput"); }
+  public isTextInputActive(): boolean { return this.unsupported("isTextInputActive"); }
+  public isScreenKeyboardShown(): boolean { return this.unsupported("isScreenKeyboardShown"); }
+  public setTextInputRectangle(
+    _x: number,
+    _y: number,
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("setTextInputRectangle"); }
+  public resetTextInputForTests(): void { return this.unsupported("resetTextInputForTests"); }
+  public getStockCursor(_stock: number): NativeHandle { return this.unsupported("getStockCursor"); }
+  public createCursorFromTexture2D(
+    _texture: NativeHandle,
+    _originX: number,
+    _originY: number,
+  ): NativeHandle { return this.unsupported("createCursorFromTexture2D"); }
+  public disposeCursor(_cursor: NativeHandle): void { return this.unsupported("disposeCursor"); }
+  public destroyCursor(_cursor: NativeHandle): void { return this.unsupported("destroyCursor"); }
+  public setMouseCursor(_cursor: NativeHandle): void { return this.unsupported("setMouseCursor"); }
 }
 
 /** Refusing base for {@link CnaContentBackend}. */

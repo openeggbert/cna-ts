@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=710
+REACHABLE_NODE=729
 REACHABLE_WASM=247
-REACHABLE_BY_ANY_BACKEND=710
+REACHABLE_BY_ANY_BACKEND=729
 REACHABLE_BY_EVERY_BACKEND=247
-REACHABLE_NODE_ONLY=463
+REACHABLE_NODE_ONLY=482
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -35,10 +35,10 @@ What each backend reaches, by what the routes are for:
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
 | `XNA_BACKING` | 1152 | 370 | 73 |
-| `CNA_EXTENSION_BACKING` | 1737 | 326 | 160 |
+| `CNA_EXTENSION_BACKING` | 1737 | 344 | 160 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 457 | 13 | 13 |
-| `TOOLING_ONLY` | 31 | 0 | 0 |
+| `TOOLING_ONLY` | 31 | 1 | 0 |
 | `INTENTIONALLY_DEFERRED` | 676 | 0 | 0 |
 
 ## By header
@@ -66,14 +66,14 @@ What each backend reaches, by what the routes are for:
 | `graphics_state.h` | 6 | 0 | 14 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `graphics.h` | 11 | 11 | 21 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `index_resources.h` | 8 | 0 | 10 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `input_cursor.h` | 0 | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `input_cursor.h` | 5 | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_devices.h` | 0 | 0 | 0 | 9 | 0 | 0 | 1 | 27 | 0 | 0 |
 | `input_gamepad.h` | 2 | 2 | 40 | 23 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_haptics.h` | 18 | 0 | 0 | 36 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_joystick.h` | 21 | 0 | 0 | 29 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `input_keyboard.h` | 0 | 0 | 0 | 8 | 0 | 0 | 0 | 9 | 0 | 0 |
 | `input_mouse.h` | 3 | 0 | 10 | 9 | 0 | 0 | 1 | 0 | 0 | 0 |
-| `input_text.h` | 0 | 0 | 0 | 16 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `input_text.h` | 14 | 0 | 0 | 16 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `input_touch.h` | 4 | 4 | 33 | 13 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `input.h` | 5 | 5 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `math.h` | 0 | 0 | 0 | 0 | 0 | 52 | 0 | 0 | 0 | 0 |

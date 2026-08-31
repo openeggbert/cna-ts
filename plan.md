@@ -354,8 +354,14 @@ Electron, or mobile support.
   whole and releases; an opened haptic device owns a real lifetime and is an explicit `Dispose`.
   The absence contract is CNA's and is measured rather than assumed: an unknown identifier is
   answered *absent* rather than refused, and an absent haptic device declines every operation.
-- [ ] The cursor and text/composition families, plus compass, gyroscope and motion readings and
-  camera frame capture, are measured and unprojected.
+- [x] The same subpath projects **typed text, IME composition and the mouse cursor**. Text input is
+  the one input family CNA pushes rather than letting a game poll, because composition is: an IME
+  sends editing updates and candidate lists between the keystroke and the committed character.
+  Nothing assumes ASCII — a committed character arrives as one UTF-16 code unit, so a non-BMP
+  character arrives as its surrogate pair and a caller's accumulator rebuilds it exactly. Driven
+  through CNA's own `_ext` injection hooks, which is injection evidence rather than hardware
+  evidence and is labelled as such.
+- [ ] Compass, gyroscope and motion readings and camera frame capture are measured and unprojected.
 
 ## Runtime capability inventory
 

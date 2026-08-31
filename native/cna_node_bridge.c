@@ -321,6 +321,27 @@ typedef CNA_Result (*CnbEncodeSpriteFontFn)(CNA_CnbSpriteFontDataHandle, CNA_Str
  * widened by the caller and read narrow by the callee is exactly the silent ABI defect that check
  * exists for.
  */
+typedef void (*TextInputCallbackFn)(uint16_t, void*);
+typedef void (*TextEditingCallbackFn)(const CNA_TextEditingEventInfo*, void*);
+typedef void (*TextCandidatesCallbackFn)(const CNA_TextEditingCandidatesEventInfo*, void*);
+typedef CNA_Result (*TextInputSubscribeInputFn)(
+  CNA_TextInputCallback, void*, CNA_TextInputRegistrationHandle*);
+typedef CNA_Result (*TextInputSubscribeEditingFn)(
+  CNA_TextEditingCallback, void*, CNA_TextInputRegistrationHandle*);
+typedef CNA_Result (*TextInputSubscribeCandidatesFn)(
+  CNA_TextEditingCandidatesCallback, void*, CNA_TextInputRegistrationHandle*);
+typedef CNA_Result (*TextInputUnsubscribeFn)(CNA_TextInputRegistrationHandle);
+typedef CNA_Result (*TextInputRaiseInputFn)(CNA_Handle, uint16_t);
+typedef CNA_Result (*TextInputRaiseEditingFn)(CNA_Handle, CNA_StringView, int32_t, int32_t);
+typedef CNA_Result (*TextInputRaiseCandidatesFn)(
+  CNA_Handle, const CNA_StringView*, int32_t, int32_t, CNA_Bool);
+typedef CNA_Result (*TextInputStartWithTypeFn)(CNA_Handle, CNA_TextInputType);
+typedef CNA_Result (*TextInputSetRectangleFn)(CNA_Handle, CNA_Rectangle);
+typedef CNA_Result (*MouseCursorStockFn)(CNA_Handle, CNA_MouseCursorStock, CNA_MouseCursorHandle*);
+typedef CNA_Result (*MouseCursorFromTextureFn)(
+  CNA_Handle, CNA_Handle, int32_t, int32_t, CNA_MouseCursorHandle*);
+typedef CNA_Result (*MouseCursorHandleFn)(CNA_MouseCursorHandle);
+typedef CNA_Result (*MouseSetCursorFn)(CNA_Handle, CNA_MouseCursorHandle);
 typedef CNA_Result (*GameU32IndexSizeFn)(CNA_Handle, uint32_t, uint64_t*);
 typedef CNA_Result (*GameU32IndexCopyTextFn)(CNA_Handle, uint32_t, char*, uint64_t, uint64_t*);
 typedef CNA_Result (*GameU32IndexU32OutFn)(CNA_Handle, uint32_t, uint32_t*);
@@ -961,6 +982,25 @@ typedef struct Api {
   CnbSpriteFontSetAtlasFn cnb_sprite_font_data_set_atlas;
   CnbSpriteFontCopyAtlasFn cnb_sprite_font_data_copy_atlas;
   CnbEncodeSpriteFontFn cnb_encode_sprite_font;
+  TextInputSubscribeInputFn text_input_subscribe_input;
+  TextInputSubscribeEditingFn text_input_subscribe_editing;
+  TextInputSubscribeCandidatesFn text_input_subscribe_candidates;
+  TextInputUnsubscribeFn text_input_unsubscribe;
+  TextInputRaiseInputFn text_input_raise_input;
+  TextInputRaiseEditingFn text_input_raise_editing;
+  TextInputRaiseCandidatesFn text_input_raise_candidates;
+  GameHandleFn text_input_start;
+  TextInputStartWithTypeFn text_input_start_with_type;
+  GameHandleFn text_input_stop;
+  BoolGetFn text_input_is_active;
+  BoolGetFn text_input_is_screen_keyboard_shown;
+  TextInputSetRectangleFn text_input_set_rectangle;
+  GameHandleFn text_input_reset_for_tests;
+  MouseCursorStockFn mouse_cursor_get_stock;
+  MouseCursorFromTextureFn mouse_cursor_create_from_texture;
+  MouseCursorHandleFn mouse_cursor_dispose;
+  MouseCursorHandleFn mouse_cursor_destroy;
+  MouseSetCursorFn mouse_set_cursor;
   JoystickInfoInitFn joystick_info_init;
   JoystickCapabilitiesInitFn joystick_capabilities_init;
   HapticCapabilitiesInitFn haptic_capabilities_init;
@@ -1209,6 +1249,15 @@ typedef struct GameContext {
  * device, so a registration now has a producer behind it rather than only preserving the shape of
  * the public contract.
  */
+/* A retained JavaScript handler for one of the three text-input events. */
+typedef struct TextInputContext {
+  napi_env env;
+  napi_ref callback;
+  CNA_Handle registration;
+  uint32_t kind;
+  struct TextInputContext* next;
+} TextInputContext;
+
 typedef struct ContentLostContext {
   napi_env env;
   napi_ref callback;
@@ -1231,6 +1280,7 @@ static uint32_t g_imported_symbols;
 static GameContext* g_games;
 static WindowEventContext* g_window_events;
 static ContentLostContext* g_content_lost_events;
+static TextInputContext* g_text_input_events;
 
 static napi_value undefined_result(napi_env env, const char* operation);
 static int get_named_handle(napi_env env, napi_value object, const char* name, CNA_Handle* out);
@@ -1986,6 +2036,25 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(cnb_sprite_font_data_set_atlas, CnbSpriteFontSetAtlasFn, "cna_cnb_sprite_font_data_set_atlas");
   LOAD_REQUIRED(cnb_sprite_font_data_copy_atlas, CnbSpriteFontCopyAtlasFn, "cna_cnb_sprite_font_data_copy_atlas");
   LOAD_REQUIRED(cnb_encode_sprite_font, CnbEncodeSpriteFontFn, "cna_cnb_encode_sprite_font");
+  LOAD_REQUIRED(text_input_subscribe_input, TextInputSubscribeInputFn, "cna_text_input_subscribe_text_input_ext");
+  LOAD_REQUIRED(text_input_subscribe_editing, TextInputSubscribeEditingFn, "cna_text_input_subscribe_text_editing_ext");
+  LOAD_REQUIRED(text_input_subscribe_candidates, TextInputSubscribeCandidatesFn, "cna_text_input_subscribe_text_editing_candidates_ext");
+  LOAD_REQUIRED(text_input_unsubscribe, TextInputUnsubscribeFn, "cna_text_input_unsubscribe_ext");
+  LOAD_REQUIRED(text_input_raise_input, TextInputRaiseInputFn, "cna_text_input_raise_text_input_ext");
+  LOAD_REQUIRED(text_input_raise_editing, TextInputRaiseEditingFn, "cna_text_input_raise_text_editing_ext");
+  LOAD_REQUIRED(text_input_raise_candidates, TextInputRaiseCandidatesFn, "cna_text_input_raise_text_editing_candidates_ext");
+  LOAD_REQUIRED(text_input_start, GameHandleFn, "cna_text_input_start_ext");
+  LOAD_REQUIRED(text_input_start_with_type, TextInputStartWithTypeFn, "cna_text_input_start_with_type_ext");
+  LOAD_REQUIRED(text_input_stop, GameHandleFn, "cna_text_input_stop_ext");
+  LOAD_REQUIRED(text_input_is_active, BoolGetFn, "cna_text_input_is_active_ext");
+  LOAD_REQUIRED(text_input_is_screen_keyboard_shown, BoolGetFn, "cna_text_input_is_screen_keyboard_shown_ext");
+  LOAD_REQUIRED(text_input_set_rectangle, TextInputSetRectangleFn, "cna_text_input_set_input_rectangle_ext");
+  LOAD_REQUIRED(text_input_reset_for_tests, GameHandleFn, "cna_text_input_reset_for_tests_ext");
+  LOAD_REQUIRED(mouse_cursor_get_stock, MouseCursorStockFn, "cna_mouse_cursor_get_stock_ext");
+  LOAD_REQUIRED(mouse_cursor_create_from_texture, MouseCursorFromTextureFn, "cna_mouse_cursor_create_from_texture2d");
+  LOAD_REQUIRED(mouse_cursor_dispose, MouseCursorHandleFn, "cna_mouse_cursor_dispose");
+  LOAD_REQUIRED(mouse_cursor_destroy, MouseCursorHandleFn, "cna_mouse_cursor_destroy");
+  LOAD_REQUIRED(mouse_set_cursor, MouseSetCursorFn, "cna_mouse_set_cursor_ext");
   LOAD_REQUIRED(joystick_info_init, JoystickInfoInitFn, "cna_joystick_info_init");
   LOAD_REQUIRED(joystick_capabilities_init, JoystickCapabilitiesInitFn, "cna_joystick_capabilities_init");
   LOAD_REQUIRED(haptic_capabilities_init, HapticCapabilitiesInitFn, "cna_haptic_capabilities_init");
@@ -8709,6 +8778,453 @@ static napi_value cnb_encode_sprite_font(napi_env env, napi_callback_info info) 
   return output;
 }
 
+/* --- CNA's text-input and cursor families ------------------------------------------------------ */
+/*
+ * Text input is the one input family that is *pushed* rather than polled, because composition is:
+ * an IME sends editing updates and candidate lists between the keystroke and the committed
+ * character, and none of that fits a per-frame snapshot. So this is three subscriptions, dispatched
+ * the way the ContentLost ones are -- CNA raises them on the thread that called into it, so an
+ * ordinary napi_call_function is correct and no threadsafe function is needed.
+ *
+ * The text itself is UTF-8 on CNA's side and UTF-16 code units on the committed-character route.
+ * Nothing here assumes ASCII: a code unit is handed to JavaScript as a one-unit string, so a
+ * surrogate pair arrives as two calls and rejoins as one character in the caller's accumulator,
+ * exactly as a real IME delivers it.
+ */
+
+#define TEXT_EVENT_INPUT 0u
+#define TEXT_EVENT_EDITING 1u
+#define TEXT_EVENT_CANDIDATES 2u
+
+static TextInputContext* find_text_input(CNA_Handle registration) {
+  for (TextInputContext* value = g_text_input_events; value; value = value->next) {
+    if (value->registration == registration) return value;
+  }
+  return NULL;
+}
+
+static void unlink_text_input(TextInputContext* target) {
+  TextInputContext** link = &g_text_input_events;
+  while (*link) {
+    if (*link == target) { *link = target->next; return; }
+    link = &(*link)->next;
+  }
+}
+
+/* Calls the retained JavaScript function, discarding any exception rather than unwinding into C. */
+static void dispatch_text_event(
+  TextInputContext* context, const size_t argument_count, napi_value* arguments
+) {
+  if (!context) return;
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(context->env, &scope) != napi_ok) return;
+  napi_value callback, receiver, result;
+  napi_status status = napi_get_reference_value(context->env, context->callback, &callback);
+  if (status == napi_ok) status = napi_get_undefined(context->env, &receiver);
+  if (status == napi_ok) {
+    status = napi_call_function(
+      context->env, receiver, callback, argument_count, arguments, &result);
+  }
+  if (status == napi_pending_exception) {
+    napi_value exception;
+    napi_get_and_clear_last_exception(context->env, &exception);
+  }
+  napi_close_handle_scope(context->env, scope);
+}
+
+static void on_text_input(const uint16_t code_unit, void* raw) {
+  TextInputContext* context = (TextInputContext*) raw;
+  if (!context) return;
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(context->env, &scope) != napi_ok) return;
+  /* One UTF-16 code unit as a one-unit JavaScript string. A surrogate arrives on its own and the
+     caller's accumulator rejoins the pair, which is how a real IME delivers a non-BMP character. */
+  napi_value argument;
+  if (napi_create_string_utf16(context->env, &code_unit, 1, &argument) == napi_ok) {
+    dispatch_text_event(context, 1, &argument);
+  }
+  napi_close_handle_scope(context->env, scope);
+}
+
+static void on_text_editing(const CNA_TextEditingEventInfo* info, void* raw) {
+  TextInputContext* context = (TextInputContext*) raw;
+  if (!context || !info) return;
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(context->env, &scope) != napi_ok) return;
+  napi_value argument, text;
+  if (napi_create_object(context->env, &argument) == napi_ok &&
+      napi_create_string_utf8(
+        context->env, info->text.data ? info->text.data : "",
+        (size_t) info->text.byte_length, &text) == napi_ok &&
+      napi_set_named_property(context->env, argument, "Text", text) == napi_ok &&
+      set_i32(context->env, argument, "Start", info->start) &&
+      set_i32(context->env, argument, "Length", info->length)) {
+    dispatch_text_event(context, 1, &argument);
+  }
+  napi_close_handle_scope(context->env, scope);
+}
+
+static void on_text_editing_candidates(
+  const CNA_TextEditingCandidatesEventInfo* info, void* raw
+) {
+  TextInputContext* context = (TextInputContext*) raw;
+  if (!context || !info) return;
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(context->env, &scope) != napi_ok) return;
+  napi_value argument, list;
+  const int32_t count = info->candidate_count < 0 ? 0 : info->candidate_count;
+  if (napi_create_object(context->env, &argument) == napi_ok &&
+      napi_create_array_with_length(context->env, (size_t) count, &list) == napi_ok) {
+    int ok = 1;
+    for (int32_t index = 0; index < count && ok; index += 1) {
+      const CNA_StringView view = info->candidates[index];
+      napi_value entry;
+      if (napi_create_string_utf8(
+            context->env, view.data ? view.data : "", (size_t) view.byte_length, &entry) != napi_ok ||
+          napi_set_element(context->env, list, (uint32_t) index, entry) != napi_ok) {
+        ok = 0;
+      }
+    }
+    if (ok &&
+        napi_set_named_property(context->env, argument, "Candidates", list) == napi_ok &&
+        set_i32(context->env, argument, "Selected", info->selected) &&
+        set_bool(context->env, argument, "IsHorizontal", info->horizontal != CNA_FALSE)) {
+      dispatch_text_event(context, 1, &argument);
+    }
+  }
+  napi_close_handle_scope(context->env, scope);
+}
+
+static napi_value text_input_subscribe(napi_env env, napi_callback_info info, uint32_t kind) {
+  napi_value args[1];
+  napi_valuetype type;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_typeof(env, args[0], &type) != napi_ok || type != napi_function) {
+    return throw_message(env, "a text-input handler must be a function");
+  }
+  TextInputContext* context = (TextInputContext*) calloc(1, sizeof(*context));
+  if (!context) return throw_message(env, "text-input context allocation failed");
+  context->env = env;
+  context->kind = kind;
+  if (napi_create_reference(env, args[0], 1, &context->callback) != napi_ok) {
+    free(context);
+    return throw_napi(env, "text-input handler retention");
+  }
+  CNA_Result result;
+  const char* operation;
+  if (kind == TEXT_EVENT_INPUT) {
+    operation = "cna_text_input_subscribe_text_input_ext";
+    result = g_api.text_input_subscribe_input(on_text_input, context, &context->registration);
+  } else if (kind == TEXT_EVENT_EDITING) {
+    operation = "cna_text_input_subscribe_text_editing_ext";
+    result = g_api.text_input_subscribe_editing(on_text_editing, context, &context->registration);
+  } else {
+    operation = "cna_text_input_subscribe_text_editing_candidates_ext";
+    result = g_api.text_input_subscribe_candidates(
+      on_text_editing_candidates, context, &context->registration);
+  }
+  if (result != CNA_RESULT_SUCCESS) {
+    napi_delete_reference(env, context->callback);
+    free(context);
+    return throw_result(env, operation, result);
+  }
+  context->next = g_text_input_events;
+  g_text_input_events = context;
+  return make_handle(env, context->registration);
+}
+
+static napi_value text_input_subscribe_input(napi_env env, napi_callback_info info) {
+  return text_input_subscribe(env, info, TEXT_EVENT_INPUT);
+}
+
+static napi_value text_input_subscribe_editing(napi_env env, napi_callback_info info) {
+  return text_input_subscribe(env, info, TEXT_EVENT_EDITING);
+}
+
+static napi_value text_input_subscribe_candidates(napi_env env, napi_callback_info info) {
+  return text_input_subscribe(env, info, TEXT_EVENT_CANDIDATES);
+}
+
+static napi_value text_input_unsubscribe(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle registration = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &registration)) return NULL;
+  TextInputContext* context = find_text_input(registration);
+  if (!context) return throw_message(env, "no text-input registration has that handle");
+  const CNA_Result result = g_api.text_input_unsubscribe(registration);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_text_input_unsubscribe_ext", result);
+  }
+  unlink_text_input(context);
+  napi_delete_reference(env, context->callback);
+  free(context);
+  return undefined_result(env, "text-input unsubscribe result");
+}
+
+static napi_value text_input_raise_input(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle game = 0;
+  uint32_t code_unit = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &code_unit) != napi_ok || code_unit > 0xFFFF) {
+    return throw_message(env, "expected a game and a UTF-16 code unit");
+  }
+  const CNA_Result result = g_api.text_input_raise_input(game, (uint16_t) code_unit);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_text_input_raise_text_input_ext", result);
+  }
+  return undefined_result(env, "text-input injection");
+}
+
+static napi_value text_input_raise_editing(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle game = 0;
+  char* text = NULL;
+  size_t length = 0;
+  int32_t start = 0, span = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &game) ||
+      !read_utf8(env, args[1], &text, &length)) return NULL;
+  if (napi_get_value_int32(env, args[2], &start) != napi_ok ||
+      napi_get_value_int32(env, args[3], &span) != napi_ok) {
+    free(text);
+    return throw_message(env, "expected a start and a length");
+  }
+  const CNA_StringView view = {text, length};
+  const CNA_Result result = g_api.text_input_raise_editing(game, view, start, span);
+  free(text);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_text_input_raise_text_editing_ext", result);
+  }
+  return undefined_result(env, "text-editing injection");
+}
+
+static napi_value text_input_raise_candidates(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle game = 0;
+  uint32_t count = 0;
+  int32_t selected = 0;
+  bool horizontal = false, is_array = false;
+  char** texts = NULL;
+  CNA_StringView* views = NULL;
+  napi_value output = NULL;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_is_array(env, args[1], &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, args[1], &count) != napi_ok ||
+      napi_get_value_int32(env, args[2], &selected) != napi_ok ||
+      napi_get_value_bool(env, args[3], &horizontal) != napi_ok) {
+    return throw_message(env, "expected a game, a candidate array, a selection and an orientation");
+  }
+  if (count > UINT32_C(4096)) {
+    return throw_message(env, "a candidate list carries at most 4096 entries");
+  }
+  texts = (char**) calloc(count == 0 ? 1 : count, sizeof(char*));
+  views = (CNA_StringView*) calloc(count == 0 ? 1 : count, sizeof(CNA_StringView));
+  if (!texts || !views) {
+    free(texts);
+    free(views);
+    return throw_message(env, "candidate allocation failed");
+  }
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value entry;
+    size_t length = 0;
+    if (napi_get_element(env, args[1], index, &entry) != napi_ok ||
+        !read_utf8(env, entry, &texts[index], &length)) {
+      output = NULL;
+      goto release;
+    }
+    views[index].data = texts[index];
+    views[index].byte_length = length;
+  }
+  {
+    const CNA_Result result = g_api.text_input_raise_candidates(
+      game, views, (int32_t) count, selected, horizontal ? CNA_TRUE : CNA_FALSE);
+    if (result != CNA_RESULT_SUCCESS) {
+      for (uint32_t index = 0; index < count; index += 1) free(texts[index]);
+      free(texts);
+      free(views);
+      return throw_result(env, "cna_text_input_raise_text_editing_candidates_ext", result);
+    }
+    output = undefined_result(env, "candidate injection");
+  }
+release:
+  for (uint32_t index = 0; index < count; index += 1) free(texts[index]);
+  free(texts);
+  free(views);
+  return output;
+}
+
+static napi_value text_input_start(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle game = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.text_input_start(game);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_text_input_start_ext", result);
+  return undefined_result(env, "text input start");
+}
+
+static napi_value text_input_start_with_type(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle game = 0;
+  uint32_t type = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &type) != napi_ok) {
+    return throw_message(env, "expected a game and a text-input type");
+  }
+  const CNA_Result result = g_api.text_input_start_with_type(game, type);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_text_input_start_with_type_ext", result);
+  }
+  return undefined_result(env, "text input start");
+}
+
+static napi_value text_input_stop(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle game = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.text_input_stop(game);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_text_input_stop_ext", result);
+  return undefined_result(env, "text input stop");
+}
+
+static napi_value text_input_is_active(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  CNA_Bool active = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.text_input_is_active(game, &active);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_text_input_is_active_ext", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, active != CNA_FALSE, &output), "text input state");
+  return output;
+}
+
+static napi_value text_input_is_screen_keyboard_shown(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  CNA_Bool shown = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.text_input_is_screen_keyboard_shown(game, &shown);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_text_input_is_screen_keyboard_shown_ext", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, shown != CNA_FALSE, &output), "screen keyboard state");
+  return output;
+}
+
+static napi_value text_input_set_rectangle(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle game = 0;
+  CNA_Rectangle rectangle;
+  memset(&rectangle, 0, sizeof(rectangle));
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_int32(env, args[1], &rectangle.x) != napi_ok ||
+      napi_get_value_int32(env, args[2], &rectangle.y) != napi_ok ||
+      napi_get_value_int32(env, args[3], &rectangle.width) != napi_ok ||
+      napi_get_value_int32(env, args[4], &rectangle.height) != napi_ok) {
+    return throw_message(env, "expected a game and a rectangle");
+  }
+  const CNA_Result result = g_api.text_input_set_rectangle(game, rectangle);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_text_input_set_input_rectangle_ext", result);
+  }
+  return undefined_result(env, "input rectangle");
+}
+
+static napi_value text_input_reset_for_tests(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle game = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.text_input_reset_for_tests(game);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_text_input_reset_for_tests_ext", result);
+  }
+  return undefined_result(env, "text input reset");
+}
+
+/* ---- the mouse cursor ------------------------------------------------------------------------ */
+/*
+ * Two ways to make one and one way to use it. A stock cursor and a texture-built cursor are both
+ * **owned handles**: CNA distinguishes closing a cursor from releasing its handle, exactly as it
+ * does for a haptic device, so disposal does both.
+ */
+
+static napi_value mouse_cursor_get_stock(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle game = 0;
+  uint32_t stock = 0;
+  CNA_MouseCursorHandle cursor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &stock) != napi_ok) {
+    return throw_message(env, "expected a game and a stock cursor identity");
+  }
+  const CNA_Result result = g_api.mouse_cursor_get_stock(game, stock, &cursor);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_mouse_cursor_get_stock_ext", result);
+  }
+  return make_handle(env, cursor);
+}
+
+static napi_value mouse_cursor_create_from_texture(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle game = 0, texture = 0;
+  int32_t x = 0, y = 0;
+  CNA_MouseCursorHandle cursor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &game) || !read_handle(env, args[1], &texture) ||
+      napi_get_value_int32(env, args[2], &x) != napi_ok ||
+      napi_get_value_int32(env, args[3], &y) != napi_ok) {
+    return throw_message(env, "expected a game, a texture and an origin");
+  }
+  const CNA_Result result = g_api.mouse_cursor_create_from_texture(game, texture, x, y, &cursor);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_mouse_cursor_create_from_texture2d", result);
+  }
+  return make_handle(env, cursor);
+}
+
+static napi_value mouse_cursor_dispose(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle cursor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &cursor)) return NULL;
+  const CNA_Result result = g_api.mouse_cursor_dispose(cursor);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_mouse_cursor_dispose", result);
+  return undefined_result(env, "cursor close");
+}
+
+static napi_value mouse_cursor_destroy(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle cursor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &cursor)) return NULL;
+  const CNA_Result result = g_api.mouse_cursor_destroy(cursor);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_mouse_cursor_destroy", result);
+  return undefined_result(env, "cursor release");
+}
+
+static napi_value mouse_set_cursor(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle game = 0, cursor = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) || !read_handle(env, args[1], &cursor)) return NULL;
+  const CNA_Result result = g_api.mouse_set_cursor(game, cursor);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_mouse_set_cursor_ext", result);
+  return undefined_result(env, "cursor selection");
+}
+
 /* --- CNA's extended input families: joysticks and haptics ------------------------------------- */
 /*
  * Two families XNA never had, and two different ownership answers.
@@ -12613,6 +13129,25 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "cnbSpriteFontDataSetAtlas", NULL, cnb_sprite_font_data_set_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbSpriteFontDataCopyAtlas", NULL, cnb_sprite_font_data_copy_atlas, NULL, NULL, NULL, napi_default, NULL },
     { "cnbEncodeSpriteFont", NULL, cnb_encode_sprite_font, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputSubscribeInput", NULL, text_input_subscribe_input, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputSubscribeEditing", NULL, text_input_subscribe_editing, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputSubscribeCandidates", NULL, text_input_subscribe_candidates, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputUnsubscribe", NULL, text_input_unsubscribe, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputRaiseInput", NULL, text_input_raise_input, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputRaiseEditing", NULL, text_input_raise_editing, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputRaiseCandidates", NULL, text_input_raise_candidates, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputStart", NULL, text_input_start, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputStartWithType", NULL, text_input_start_with_type, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputStop", NULL, text_input_stop, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputIsActive", NULL, text_input_is_active, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputIsScreenKeyboardShown", NULL, text_input_is_screen_keyboard_shown, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputSetRectangle", NULL, text_input_set_rectangle, NULL, NULL, NULL, napi_default, NULL },
+    { "textInputResetForTests", NULL, text_input_reset_for_tests, NULL, NULL, NULL, napi_default, NULL },
+    { "mouseCursorGetStock", NULL, mouse_cursor_get_stock, NULL, NULL, NULL, napi_default, NULL },
+    { "mouseCursorCreateFromTexture", NULL, mouse_cursor_create_from_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "mouseCursorDispose", NULL, mouse_cursor_dispose, NULL, NULL, NULL, napi_default, NULL },
+    { "mouseCursorDestroy", NULL, mouse_cursor_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "mouseSetCursor", NULL, mouse_set_cursor, NULL, NULL, NULL, napi_default, NULL },
     { "joysticksGetCount", NULL, joysticks_get_count, NULL, NULL, NULL, napi_default, NULL },
     { "joysticksGetInfoAt", NULL, joysticks_get_info_at, NULL, NULL, NULL, napi_default, NULL },
     { "joysticksGetNameAt", NULL, joysticks_get_name_at, NULL, NULL, NULL, napi_default, NULL },

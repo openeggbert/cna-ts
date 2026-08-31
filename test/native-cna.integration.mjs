@@ -1776,3 +1776,209 @@ test("the extended input families refuse outside a game rather than answering", 
     assert.throws(body, /requires an active native Game|active native Game/, `${name} answered outside a game`);
   }
 });
+
+class TextInputProbeGame extends Game {
+  constructor() {
+    super();
+    this.manager = new GraphicsDeviceManager(this);
+    this.evidence = Object.create(null);
+  }
+
+  LoadContent() {
+    const { CnaTextInput, MouseCursor, MouseCursorStock, TextInputType } = inputModule;
+    // CNA publishes this so one test cannot leak registrations into the next.
+    CnaTextInput.ForTests.Reset();
+
+    this.evidence.activeBefore = CnaTextInput.IsActive;
+    const record = (name, body) => {
+      try {
+        body();
+        this.evidence[name] = "SUCCESS";
+      } catch (error) {
+        this.evidence[name] = `result ${error.cnaResult ?? error.constructor.name}`;
+      }
+    };
+    record("start", () => CnaTextInput.Start());
+    this.evidence.activeAfterStart = CnaTextInput.IsActive;
+    record("stop", () => CnaTextInput.Stop());
+    this.evidence.activeAfterStop = CnaTextInput.IsActive;
+    record("typedStart", () => CnaTextInput.Start(TextInputType.Email));
+    this.evidence.activeAfterTypedStart = CnaTextInput.IsActive;
+    this.evidence.screenKeyboard = CnaTextInput.IsScreenKeyboardShown;
+    record("rectangle", () => CnaTextInput.SetInputRectangle(new Rectangle(4, 8, 120, 24)));
+
+    // Committed characters. Deliberately not ASCII: a Latin letter with a diacritic, a CJK
+    // ideograph, and a non-BMP emoji delivered as the surrogate pair the platform actually sends.
+    // A binding that treated a code unit as a byte, or that reassembled the pair itself, fails.
+    const typed = [];
+    const characters = CnaTextInput.OnCharacter((character) => typed.push(character));
+    try {
+      for (const unit of [...("aé漢字")].flatMap((c) => [...c].map((u) => u.charCodeAt(0)))) {
+        CnaTextInput.ForTests.RaiseCharacter(unit);
+      }
+      // U+1F600 GRINNING FACE, as its high and low surrogates.
+      CnaTextInput.ForTests.RaiseCharacter(0xd83d);
+      CnaTextInput.ForTests.RaiseCharacter(0xde00);
+    } finally {
+      characters.Dispose();
+    }
+    this.evidence.typedUnits = [...typed];
+    this.evidence.typedJoined = typed.join("");
+    this.evidence.charactersDisposed = characters.IsDisposed;
+
+    // A disposed subscription must stop receiving. Raising again after disposal and finding the
+    // list unchanged is what proves the unsubscribe reached CNA rather than only this package.
+    const before = typed.length;
+    CnaTextInput.ForTests.RaiseCharacter(0x0041);
+    this.evidence.afterUnsubscribe = typed.length - before;
+
+    // Composition. The text is UTF-8 on CNA's side and its selection is two independent numbers.
+    const editing = [];
+    const editingSubscription = CnaTextInput.OnEditing((value) => editing.push(value));
+    try {
+      CnaTextInput.ForTests.RaiseEditing("にほんご", 2, 1);
+      CnaTextInput.ForTests.RaiseEditing("", 0, 0);
+    } finally {
+      editingSubscription.Dispose();
+    }
+    this.evidence.editing = editing.map((value) => ({
+      text: value.Text, start: value.Start, length: value.Length,
+    }));
+
+    // Candidate lists, which is the part of an IME a game has to draw itself.
+    const candidates = [];
+    const candidateSubscription = CnaTextInput.OnCandidates((value) => candidates.push(value));
+    try {
+      CnaTextInput.ForTests.RaiseCandidates(["日本語", "にほんご", "ニホンゴ"], 1, true);
+      CnaTextInput.ForTests.RaiseCandidates([], -1, false);
+    } finally {
+      candidateSubscription.Dispose();
+    }
+    this.evidence.candidates = candidates.map((value) => ({
+      list: [...value.Candidates], selected: value.Selected, horizontal: value.IsHorizontal,
+    }));
+
+    // An exception out of a handler must not unwind into compiled C. The raise must return and the
+    // next one must still be delivered.
+    const survived = [];
+    const throwing = CnaTextInput.OnCharacter(() => { throw new Error("handler failure"); });
+    const following = CnaTextInput.OnCharacter((character) => survived.push(character));
+    try {
+      CnaTextInput.ForTests.RaiseCharacter(0x0042);
+      this.evidence.raiseAfterThrow = "returned";
+    } catch (error) {
+      this.evidence.raiseAfterThrow = error.constructor.name;
+    } finally {
+      throwing.Dispose();
+      following.Dispose();
+    }
+    this.evidence.survivedHandler = [...survived];
+
+    CnaTextInput.Stop();
+    CnaTextInput.ForTests.Reset();
+
+    // The cursor family. A stock cursor is an owned handle; applying it and disposing it twice are
+    // both real operations on this platform even where no window shows one.
+    const cursor = MouseCursor.GetStock(MouseCursorStock.Hand);
+    try {
+      cursor.Apply();
+      this.evidence.cursorApplied = "SUCCESS";
+    } catch (error) {
+      this.evidence.cursorApplied = `result ${error.cnaResult ?? error.constructor.name}`;
+    }
+    cursor.Dispose();
+    cursor.Dispose();
+    this.evidence.cursorDisposed = cursor.IsDisposed;
+    try {
+      cursor.Apply();
+      this.evidence.cursorAfterDispose = "accepted";
+    } catch (error) {
+      this.evidence.cursorAfterDispose = error.constructor.name;
+    }
+
+    // A cursor built from a texture copies the image, so the texture can go first.
+    const texture = new Graphics.Texture2D(this.GraphicsDevice, 2, 2);
+    texture.SetData([Color.Red, Color.Green, Color.Blue, Color.White]);
+    try {
+      const built = inputModule.MouseCursor.FromTexture2D(texture, 1, 1);
+      built.Dispose();
+      this.evidence.textureCursor = "SUCCESS";
+    } catch (error) {
+      this.evidence.textureCursor = `result ${error.cnaResult ?? error.constructor.name}`;
+    } finally {
+      texture.Dispose();
+    }
+    super.LoadContent();
+  }
+
+  Draw(gameTime) {
+    this.GraphicsDevice.Clear(Color.CornflowerBlue);
+    this.Exit();
+    super.Draw(gameTime);
+  }
+}
+
+test("typed text and IME composition reach the extension, non-ASCII included", async () => {
+  const game = new TextInputProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  // Start, Stop, the typed start and the input rectangle all succeed. Whether text input becomes
+  // *active* is a different question and this platform answers it honestly: HEADLESS has no window
+  // to start input on, so IsActive stays false throughout. That is measured rather than assumed --
+  // the first version of this test expected true and was wrong -- and it is reported as the
+  // platform's answer rather than papered over, exactly as the GameWindow families are.
+  for (const name of ["start", "stop", "typedStart", "rectangle"]) {
+    assert.equal(evidence[name], "SUCCESS", `${name} was refused`);
+  }
+  assert.equal(evidence.activeBefore, false);
+  assert.equal(evidence.activeAfterStart, false, "no window on HEADLESS: input cannot become active");
+  assert.equal(evidence.activeAfterStop, false);
+  assert.equal(evidence.activeAfterTypedStart, false);
+  assert.equal(evidence.screenKeyboard, false, "no window, so no software keyboard");
+
+  // Every committed character arrives as exactly one UTF-16 code unit -- which for the emoji means
+  // two calls, a high surrogate and a low one. That is what the platform sends, and the caller's
+  // accumulator is what rejoins them; this package does not reassemble on the caller's behalf.
+  assert.deepEqual(
+    evidence.typedUnits, ["a", "é", "漢", "字", "\ud83d", "\ude00"],
+    "one code unit per event, surrogates delivered separately",
+  );
+  assert.equal(evidence.typedJoined, "aé漢字😀", "appending the units rebuilds the text exactly");
+  // The Latin letter with a diacritic is one code unit and the emoji is two, which is the whole
+  // reason this is asserted in units rather than in characters.
+  assert.equal(evidence.typedUnits.length, 6);
+  assert.equal([...evidence.typedJoined].length, 5, "five characters from six code units");
+
+  assert.equal(evidence.charactersDisposed, true);
+  assert.equal(evidence.afterUnsubscribe, 0, "a disposed subscription receives nothing further");
+
+  // Composition text is UTF-8 across the boundary and its selection is two independent numbers.
+  assert.deepEqual(evidence.editing, [
+    { text: "にほんご", start: 2, length: 1 },
+    { text: "", start: 0, length: 0 },
+  ]);
+
+  // Candidate lists, in order, with the selection and the orientation kept apart from them.
+  assert.deepEqual(evidence.candidates, [
+    { list: ["日本語", "にほんご", "ニホンゴ"], selected: 1, horizontal: true },
+    { list: [], selected: -1, horizontal: false },
+  ]);
+
+  // A throwing handler must not unwind into compiled C, and must not stop the next subscriber.
+  assert.equal(evidence.raiseAfterThrow, "returned", "a handler exception is contained at the boundary");
+  assert.deepEqual(evidence.survivedHandler, ["B"], "a later handler still runs");
+
+  // The cursor family. Whether this platform shows one is its business; the ownership is not.
+  assert.ok(
+    evidence.cursorApplied === "SUCCESS" || /^result /.test(evidence.cursorApplied),
+    `unexpected cursor evidence ${evidence.cursorApplied}`,
+  );
+  assert.equal(evidence.cursorDisposed, true);
+  assert.equal(evidence.cursorAfterDispose, "ObjectDisposedException");
+  assert.ok(
+    evidence.textureCursor === "SUCCESS" || /^result /.test(evidence.textureCursor),
+    `unexpected texture-cursor evidence ${evidence.textureCursor}`,
+  );
+});

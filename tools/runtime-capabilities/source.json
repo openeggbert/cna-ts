@@ -903,15 +903,13 @@
       ]
     },
     {
-      "operation": "CNA compass, gyroscope and motion readings, camera capture, and the cursor/text input families",
+      "operation": "CNA compass, gyroscope and motion readings, and camera frame capture",
       "category": "UNIMPLEMENTED_CNA_TS",
       "owner": "CNA-TS",
-      "evidence": "the extended device layer, the accelerometer, and now the joystick and haptics families are projected and verified above; the compass, gyroscope and motion sensors report support but have no reading projection, and input_cursor.h, input_text.h and camera frame acquisition are measured and unprojected",
+      "evidence": "the extended device layer, the accelerometer, the joystick, haptic, text-input and cursor families are projected and verified above; the compass, gyroscope and motion sensors report support but have no reading projection, and camera frame acquisition is measured and unprojected",
       "proof": [
         "absentRoute:cna_compass_create",
-        "absentRoute:cna_camera_create",
-        "absentRoute:cna_mouse_cursor_get_stock_ext",
-        "absentRoute:cna_text_input_start_ext"
+        "absentRoute:cna_camera_create"
       ]
     },
     {
@@ -1139,6 +1137,21 @@
         "route:cna_joysticks_capture_state",
         "route:cna_haptics_get_count",
         "route:cna_haptic_device_play_rumble",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "Typed text, IME composition and the mouse cursor",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/input",
+      "evidence": "The one input family CNA pushes rather than letting a game poll, because composition is: an IME sends editing updates and candidate lists between the keystroke and the committed character, none of which fits a per-frame snapshot. XNA had no concept of any of it -- Keyboard.GetState reports physical keys, a different question from what the user typed the moment the layout is not US English. Driven through CNA's own _ext injection hooks, which is injection evidence rather than hardware evidence and says so. Nothing assumes ASCII: 'a', 'e-acute', two CJK ideographs and U+1F600 are delivered as six UTF-16 code units -- the emoji as the surrogate pair the platform actually sends -- and appending them rebuilds the text exactly; five characters from six code units. Composition text round-trips as UTF-8 with its selection start and length kept apart, and candidate lists keep their order, selection and orientation. A disposed subscription receives nothing further, and an exception thrown out of a handler is contained at the boundary rather than unwound into compiled C, with a later subscriber still running. Start, Stop, the typed start and the input rectangle all succeed while IsActive stays false, because HEADLESS has no window to start input on -- measured, not assumed. A cursor is an owned handle that closes and releases in that order and refuses after disposal. Three planted defects each fail the test: a code unit truncated to a byte, a composition Length reported as its Start, and an unsubscribe that never reaches CNA",
+      "proof": [
+        "route:cna_text_input_subscribe_text_input_ext",
+        "route:cna_text_input_subscribe_text_editing_ext",
+        "route:cna_text_input_subscribe_text_editing_candidates_ext",
+        "route:cna_text_input_start_with_type_ext",
+        "route:cna_mouse_cursor_get_stock_ext",
+        "route:cna_mouse_cursor_create_from_texture2d",
         "test:test/native-cna.integration.mjs"
       ]
     },

@@ -1096,6 +1096,20 @@ export interface HapticCapabilitiesSnapshot {
  * it may have hats and balls a `GamePadState` has no room for -- so folding one into the XNA type
  * would either lose data or invent a mapping. These stay outside `Microsoft.Xna.Framework.Input`.
  */
+/** One composition update: the in-progress text and the cursor selection inside it. */
+export interface TextEditingSnapshot {
+  readonly Text: string;
+  readonly Start: number;
+  readonly Length: number;
+}
+
+/** One candidate list an IME is offering. */
+export interface TextEditingCandidatesSnapshot {
+  readonly Candidates: readonly string[];
+  readonly Selected: number;
+  readonly IsHorizontal: boolean;
+}
+
 export interface CnaExtendedInputBackend {
   getJoystickCount(): number;
   getJoystickInfoAt(index: number): JoystickInfoSnapshot;
@@ -1119,6 +1133,29 @@ export interface CnaExtendedInputBackend {
   setHapticGain(device: NativeHandle, gain: number): boolean;
   disposeHapticDevice(device: NativeHandle): void;
   destroyHapticDevice(device: NativeHandle): void;
+  subscribeTextInput(handler: (character: string) => void): NativeHandle;
+  subscribeTextEditing(handler: (editing: TextEditingSnapshot) => void): NativeHandle;
+  subscribeTextEditingCandidates(
+    handler: (candidates: TextEditingCandidatesSnapshot) => void,
+  ): NativeHandle;
+  unsubscribeTextInput(registration: NativeHandle): void;
+  raiseTextInput(codeUnit: number): void;
+  raiseTextEditing(text: string, start: number, length: number): void;
+  raiseTextEditingCandidates(
+    candidates: readonly string[], selected: number, horizontal: boolean,
+  ): void;
+  startTextInput(): void;
+  startTextInputWithType(type: number): void;
+  stopTextInput(): void;
+  isTextInputActive(): boolean;
+  isScreenKeyboardShown(): boolean;
+  setTextInputRectangle(x: number, y: number, width: number, height: number): void;
+  resetTextInputForTests(): void;
+  getStockCursor(stock: number): NativeHandle;
+  createCursorFromTexture2D(texture: NativeHandle, originX: number, originY: number): NativeHandle;
+  disposeCursor(cursor: NativeHandle): void;
+  destroyCursor(cursor: NativeHandle): void;
+  setMouseCursor(cursor: NativeHandle): void;
 }
 
 export interface CnaContentBackend {

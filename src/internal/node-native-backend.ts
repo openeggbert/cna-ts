@@ -37,6 +37,8 @@ import type {
   JoystickCapabilitiesSnapshot,
   JoystickInfoSnapshot,
   JoystickStateSnapshot,
+  TextEditingCandidatesSnapshot,
+  TextEditingSnapshot,
   CnbModelPartSnapshot,
   CnbSpriteFontInfoSnapshot,
   CnbTextureInfoSnapshot,
@@ -565,6 +567,27 @@ interface NativeBridge {
   setGuideIsScreenSaverEnabled(value: boolean): void;
   getGuideNotificationPosition(): number;
   setGuideNotificationPosition(position: number): void;
+  textInputSubscribeInput(handler: (character: string) => void): bigint;
+  textInputSubscribeEditing(handler: (editing: TextEditingSnapshot) => void): bigint;
+  textInputSubscribeCandidates(handler: (value: TextEditingCandidatesSnapshot) => void): bigint;
+  textInputUnsubscribe(registration: bigint): void;
+  textInputRaiseInput(game: bigint, codeUnit: number): void;
+  textInputRaiseEditing(game: bigint, text: string, start: number, length: number): void;
+  textInputRaiseCandidates(
+    game: bigint, candidates: readonly string[], selected: number, horizontal: boolean,
+  ): void;
+  textInputStart(game: bigint): void;
+  textInputStartWithType(game: bigint, type: number): void;
+  textInputStop(game: bigint): void;
+  textInputIsActive(game: bigint): boolean;
+  textInputIsScreenKeyboardShown(game: bigint): boolean;
+  textInputSetRectangle(game: bigint, x: number, y: number, width: number, height: number): void;
+  textInputResetForTests(game: bigint): void;
+  mouseCursorGetStock(game: bigint, stock: number): bigint;
+  mouseCursorCreateFromTexture(game: bigint, texture: bigint, x: number, y: number): bigint;
+  mouseCursorDispose(cursor: bigint): void;
+  mouseCursorDestroy(cursor: bigint): void;
+  mouseSetCursor(game: bigint, cursor: bigint): void;
   joysticksGetCount(game: bigint): number;
   joysticksGetInfoAt(game: bigint, index: number): JoystickInfoSnapshot;
   joysticksGetNameAt(game: bigint, index: number): string;
@@ -1774,6 +1797,63 @@ export class NodeNativeBackend
   // Sensors. Support is a game-scoped question and the sensor itself is a game child, so both
   // reach CNA through the running game handle.
 
+
+  // ---- text input and the mouse cursor ---------------------------------------------------------
+  // Text input is the one input family that is pushed rather than polled, because composition is:
+  // an IME sends editing updates and candidate lists between the keystroke and the committed
+  // character, and none of that fits a per-frame snapshot. The three subscriptions carry the JS
+  // handler straight through; the bridge retains it and dispatches synchronously.
+  public subscribeTextInput(handler: (character: string) => void): NativeHandle {
+    return this.#bridge.textInputSubscribeInput(handler);
+  }
+  public subscribeTextEditing(handler: (editing: TextEditingSnapshot) => void): NativeHandle {
+    return this.#bridge.textInputSubscribeEditing(handler);
+  }
+  public subscribeTextEditingCandidates(
+    handler: (value: TextEditingCandidatesSnapshot) => void,
+  ): NativeHandle {
+    return this.#bridge.textInputSubscribeCandidates(handler);
+  }
+  public unsubscribeTextInput(registration: NativeHandle): void {
+    this.#bridge.textInputUnsubscribe(registration);
+  }
+  public raiseTextInput(codeUnit: number): void {
+    this.#bridge.textInputRaiseInput(this.#game(), codeUnit);
+  }
+  public raiseTextEditing(text: string, start: number, length: number): void {
+    this.#bridge.textInputRaiseEditing(this.#game(), text, start, length);
+  }
+  public raiseTextEditingCandidates(
+    candidates: readonly string[], selected: number, horizontal: boolean,
+  ): void {
+    this.#bridge.textInputRaiseCandidates(this.#game(), candidates, selected, horizontal);
+  }
+  public startTextInput(): void { this.#bridge.textInputStart(this.#game()); }
+  public startTextInputWithType(type: number): void {
+    this.#bridge.textInputStartWithType(this.#game(), type);
+  }
+  public stopTextInput(): void { this.#bridge.textInputStop(this.#game()); }
+  public isTextInputActive(): boolean { return this.#bridge.textInputIsActive(this.#game()); }
+  public isScreenKeyboardShown(): boolean {
+    return this.#bridge.textInputIsScreenKeyboardShown(this.#game());
+  }
+  public setTextInputRectangle(x: number, y: number, width: number, height: number): void {
+    this.#bridge.textInputSetRectangle(this.#game(), x, y, width, height);
+  }
+  public resetTextInputForTests(): void { this.#bridge.textInputResetForTests(this.#game()); }
+  public getStockCursor(stock: number): NativeHandle {
+    return this.#bridge.mouseCursorGetStock(this.#game(), stock);
+  }
+  public createCursorFromTexture2D(
+    texture: NativeHandle, originX: number, originY: number,
+  ): NativeHandle {
+    return this.#bridge.mouseCursorCreateFromTexture(this.#game(), texture, originX, originY);
+  }
+  public disposeCursor(cursor: NativeHandle): void { this.#bridge.mouseCursorDispose(cursor); }
+  public destroyCursor(cursor: NativeHandle): void { this.#bridge.mouseCursorDestroy(cursor); }
+  public setMouseCursor(cursor: NativeHandle): void {
+    this.#bridge.mouseSetCursor(this.#game(), cursor);
+  }
   // ---- CNA's extended input layer: raw joysticks and force feedback ----------------------------
   // Both need an active game, because both are properties of a platform a game opened. A captured
   // joystick state is a snapshot the bridge reads whole and releases, so nothing here owns a

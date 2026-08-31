@@ -47,6 +47,11 @@ import { ArgumentException, ObjectDisposedException } from "../../internal/excep
 import type { IDisposable } from "../../Microsoft/Xna/Framework/Contracts.js";
 import type { NativeHandle } from "../../internal/ownership.js";
 import { Point } from "../../Microsoft/Xna/Framework/Point.js";
+import type { Rectangle } from "../../Microsoft/Xna/Framework/Rectangle.js";
+import {
+  resolveTexture2DHandleForInternalUse,
+  type Texture2D,
+} from "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
 
 /**
  * What kind of device a joystick reports itself to be.
@@ -388,3 +393,286 @@ export const Haptics = {
     );
   },
 } as const;
+
+/**
+ * What an on-screen or software keyboard should be tuned for.
+ *
+ * Wire values proved against `input_text.h`. The platform uses this to choose a layout — a numeric
+ * pad for {@link Number}, no autocorrect and no suggestion strip for the password kinds — so a game
+ * asking for a password field gets one rather than a text field it has to police itself.
+ */
+export enum TextInputType {
+  Text = 0,
+  Name = 1,
+  Email = 2,
+  Username = 3,
+  PasswordHidden = 4,
+  PasswordVisible = 5,
+  Number = 6,
+  NumberPasswordHidden = 7,
+  NumberPasswordVisible = 8,
+}
+
+/** The stock cursors every platform provides. */
+export enum MouseCursorStock {
+  Arrow = 0,
+  Crosshair = 1,
+  Hand = 2,
+  IBeam = 3,
+  No = 4,
+  SizeAll = 5,
+  SizeNesw = 6,
+  SizeNs = 7,
+  SizeNwse = 8,
+  SizeWe = 9,
+  Wait = 10,
+  WaitArrow = 11,
+}
+
+/** One composition update: the in-progress text and the selection inside it. */
+export interface TextEditingEvent {
+  /** The text being composed, which is **not** committed and may change or vanish. */
+  readonly Text: string;
+  /** Where the cursor sits inside {@link Text}. */
+  readonly Start: number;
+  /** How much of {@link Text} is selected. */
+  readonly Length: number;
+}
+
+/** One candidate list an IME is offering for the text being composed. */
+export interface TextEditingCandidatesEvent {
+  readonly Candidates: readonly string[];
+  /** Which candidate is highlighted, or a negative value where none is. */
+  readonly Selected: number;
+  /** Whether the platform wants the list drawn horizontally. */
+  readonly IsHorizontal: boolean;
+}
+
+/** A live event subscription, released by disposing it. */
+export interface TextInputSubscription extends IDisposable {
+  readonly IsDisposed: boolean;
+}
+
+function subscription(handle: NativeHandle): TextInputSubscription {
+  let live = true;
+  return {
+    get IsDisposed(): boolean { return !live; },
+    Dispose(): void {
+      if (!live) return;
+      live = false;
+      input("TextInputSubscription.Dispose").unsubscribeTextInput(handle);
+    },
+  };
+}
+
+/**
+ * Typed text and IME composition.
+ *
+ * This is the one input family CNA **pushes** rather than letting a game poll, and composition is
+ * why. Between a keystroke and a committed character an IME sends editing updates and candidate
+ * lists, all of which change several times and none of which fits a per-frame snapshot. XNA had no
+ * concept of any of it — `Keyboard.GetState` reports physical keys, which is a different question
+ * from "what did the user type" the moment the layout is not US English.
+ *
+ * ```ts
+ * import { CnaTextInput, TextInputType } from "cna-ts/extensions/input";
+ *
+ * let typed = "";
+ * using entry = CnaTextInput.OnCharacter((character) => { typed += character; });
+ * CnaTextInput.Start(TextInputType.Email);
+ * ```
+ *
+ * ## Encoding
+ *
+ * A committed character arrives as **one UTF-16 code unit**, because that is what the platform
+ * delivers. A character outside the Basic Multilingual Plane therefore arrives as two calls, a high
+ * surrogate then a low one, and a caller that appends them in order rebuilds the character exactly
+ * — which is what JavaScript strings already do. Nothing here assumes ASCII, and the composition
+ * text is UTF-8 on CNA's side and a JavaScript string here.
+ *
+ * ## Lifetime
+ *
+ * A subscription is live until it is disposed, and the handler is retained natively for that whole
+ * time. An exception thrown out of a handler is discarded at the boundary rather than unwound into
+ * compiled C, because CNA's callback contract has no way to carry one — so a handler that must not
+ * lose errors should catch its own.
+ */
+export const CnaTextInput = {
+  /** Subscribes to committed characters, one UTF-16 code unit at a time. */
+  OnCharacter(handler: (character: string) => void): TextInputSubscription {
+    if (typeof handler !== "function") throw new ArgumentException("handler must be a function");
+    return subscription(input("CnaTextInput.OnCharacter").subscribeTextInput(handler));
+  },
+
+  /** Subscribes to composition updates: text that is being typed but is not committed. */
+  OnEditing(handler: (editing: TextEditingEvent) => void): TextInputSubscription {
+    if (typeof handler !== "function") throw new ArgumentException("handler must be a function");
+    return subscription(input("CnaTextInput.OnEditing").subscribeTextEditing(
+      (editing) => handler(Object.freeze({
+        Text: editing.Text, Start: editing.Start, Length: editing.Length,
+      })),
+    ));
+  },
+
+  /** Subscribes to the candidate lists an IME offers while composing. */
+  OnCandidates(handler: (candidates: TextEditingCandidatesEvent) => void): TextInputSubscription {
+    if (typeof handler !== "function") throw new ArgumentException("handler must be a function");
+    return subscription(
+      input("CnaTextInput.OnCandidates").subscribeTextEditingCandidates(
+        (value) => handler(Object.freeze({
+          Candidates: Object.freeze([...value.Candidates]),
+          Selected: value.Selected,
+          IsHorizontal: value.IsHorizontal,
+        })),
+      ),
+    );
+  },
+
+  /** Starts text input, optionally telling the platform what kind of field this is. */
+  Start(type?: TextInputType): void {
+    const backend = input("CnaTextInput.Start");
+    if (type === undefined) {
+      backend.startTextInput();
+      return;
+    }
+    if (!Number.isInteger(type) || type < 0) {
+      throw new ArgumentException("type must be a TextInputType");
+    }
+    backend.startTextInputWithType(type);
+  },
+
+  /** Stops text input. */
+  Stop(): void { input("CnaTextInput.Stop").stopTextInput(); },
+
+  /**
+   * Whether text input is currently started.
+   *
+   * A platform with no window cannot start it, and says so: this stays false on a windowless
+   * build rather than reporting what it was asked for.
+   */
+  get IsActive(): boolean { return input("CnaTextInput.IsActive").isTextInputActive(); },
+
+  /** Whether the platform is showing a software keyboard. */
+  get IsScreenKeyboardShown(): boolean {
+    return input("CnaTextInput.IsScreenKeyboardShown").isScreenKeyboardShown();
+  },
+
+  /**
+   * Tells the platform where the text being edited is on screen, so an IME can put its candidate
+   * window somewhere that does not cover it.
+   */
+  SetInputRectangle(rectangle: Rectangle): void {
+    if (rectangle == null) throw new ArgumentException("rectangle must be a Rectangle");
+    input("CnaTextInput.SetInputRectangle").setTextInputRectangle(
+      rectangle.X, rectangle.Y, rectangle.Width, rectangle.Height,
+    );
+  },
+
+  /**
+   * CNA's own deterministic injection hooks, for tests.
+   *
+   * These are `_ext` routes CNA publishes so a test can drive the text path without a keyboard or
+   * an IME. They are exposed here because a game with a text field has no other way to test it on
+   * a build machine — but what they produce is **injection evidence, not hardware evidence**, and
+   * anything asserting on them should say so.
+   */
+  ForTests: {
+    /** Raises one committed UTF-16 code unit, as the platform would. */
+    RaiseCharacter(codeUnit: number): void {
+      if (!Number.isInteger(codeUnit) || codeUnit < 0 || codeUnit > 0xffff) {
+        throw new ArgumentException("codeUnit must be a UTF-16 code unit");
+      }
+      input("CnaTextInput.ForTests.RaiseCharacter").raiseTextInput(codeUnit);
+    },
+
+    /** Raises one composition update. */
+    RaiseEditing(text: string, start: number, length: number): void {
+      if (typeof text !== "string") throw new ArgumentException("text must be a string");
+      input("CnaTextInput.ForTests.RaiseEditing")
+        .raiseTextEditing(text, Math.trunc(start) | 0, Math.trunc(length) | 0);
+    },
+
+    /** Raises one candidate list. */
+    RaiseCandidates(candidates: readonly string[], selected: number, horizontal: boolean): void {
+      if (!Array.isArray(candidates)) {
+        throw new ArgumentException("candidates must be an array of strings");
+      }
+      input("CnaTextInput.ForTests.RaiseCandidates").raiseTextEditingCandidates(
+        candidates, Math.trunc(selected) | 0, Boolean(horizontal),
+      );
+    },
+
+    /** Clears every registration CNA holds, so one test cannot leak into the next. */
+    Reset(): void { input("CnaTextInput.ForTests.Reset").resetTextInputForTests(); },
+  },
+} as const;
+
+const cursorHandles = new WeakMap<MouseCursor, NativeHandle>();
+
+function cursorHandle(cursor: MouseCursor, operation: string): NativeHandle {
+  const handle = cursorHandles.get(cursor);
+  if (handle == null) throw new ObjectDisposedException(`MouseCursor.${operation}`);
+  return handle;
+}
+
+/**
+ * A mouse cursor, either one of the platform's stock shapes or one built from a texture.
+ *
+ * An owned native object, so `Dispose` is explicit — and, as with a haptic device, CNA distinguishes
+ * closing a cursor from releasing its handle, so disposal does both in that order.
+ *
+ * A cursor built from a `Texture2D` copies the image during creation, so the texture may be
+ * disposed immediately afterwards; the cursor does not borrow it.
+ */
+export class MouseCursor implements IDisposable {
+  private constructor(handle: NativeHandle) { cursorHandles.set(this, handle); }
+
+  /** One of the platform's stock cursors. */
+  public static GetStock(stock: MouseCursorStock): MouseCursor {
+    if (!Number.isInteger(stock) || stock < 0) {
+      throw new ArgumentException("stock must be a MouseCursorStock");
+    }
+    const Constructor = MouseCursor as unknown as { new (value: NativeHandle): MouseCursor };
+    return new Constructor(input("MouseCursor.GetStock").getStockCursor(stock));
+  }
+
+  /**
+   * Builds a cursor from a texture, with the click point at `originX`, `originY` inside it.
+   *
+   * @param texture Any `Texture2D`. Its pixels are copied here, so it may be disposed afterwards.
+   */
+  public static FromTexture2D(texture: Texture2D, originX: number, originY: number): MouseCursor {
+    if (texture == null) throw new ArgumentException("texture must be a Texture2D");
+    if (!Number.isInteger(originX) || !Number.isInteger(originY)) {
+      throw new ArgumentException("the cursor origin must be whole pixels");
+    }
+    // The texture's own native handle, resolved through the internal accessor rather than
+    // reconstructed: a disposed texture refuses here rather than handing CNA a stale handle.
+    const handle = resolveTexture2DHandleForInternalUse(texture);
+    const Constructor = MouseCursor as unknown as { new (value: NativeHandle): MouseCursor };
+    return new Constructor(
+      input("MouseCursor.FromTexture2D").createCursorFromTexture2D(handle, originX, originY),
+    );
+  }
+
+  /** Makes this the cursor the window shows. */
+  public Apply(): void {
+    input("MouseCursor.Apply").setMouseCursor(cursorHandle(this, "Apply"));
+  }
+
+  /** Whether this cursor has been released. */
+  public get IsDisposed(): boolean { return !cursorHandles.has(this); }
+
+  /** Closes and releases the cursor. Idempotent. */
+  public Dispose(): void {
+    const handle = cursorHandles.get(this);
+    if (handle == null) return;
+    cursorHandles.delete(this);
+    const backend = input("MouseCursor.Dispose");
+    try {
+      backend.disposeCursor(handle);
+    } finally {
+      backend.destroyCursor(handle);
+    }
+  }
+}

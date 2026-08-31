@@ -16,13 +16,13 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 710,
+    "NODE": 729,
     "WASM": 247
   },
-  "reachableByAny": 710,
+  "reachableByAny": 729,
   "reachableByAll": 247,
   "reachableExclusively": {
-    "NODE": 463,
+    "NODE": 482,
     "WASM": 0
   },
   "reachabilityByCategory": {
@@ -31,7 +31,7 @@
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 326,
+      "NODE": 344,
       "WASM": 160
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -43,7 +43,7 @@
       "WASM": 13
     },
     "TOOLING_ONLY": {
-      "NODE": 0,
+      "NODE": 1,
       "WASM": 0
     },
     "INTENTIONALLY_DEFERRED": {
@@ -156,7 +156,8 @@
       "REACHABLE_NODE": 8
     },
     "input_cursor.h": {
-      "CNA_EXTENSION_BACKING": 6
+      "CNA_EXTENSION_BACKING": 6,
+      "REACHABLE_NODE": 5
     },
     "input_devices.h": {
       "INTENTIONALLY_DEFERRED": 27,
@@ -190,6 +191,7 @@
     },
     "input_text.h": {
       "CNA_EXTENSION_BACKING": 16,
+      "REACHABLE_NODE": 14,
       "TOOLING_ONLY": 1
     },
     "input_touch.h": {
@@ -19861,28 +19863,36 @@
       "header": "input_cursor.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_mouse_cursor_destroy",
       "header": "input_cursor.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_mouse_cursor_dispose",
       "header": "input_cursor.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_mouse_cursor_get_stock_ext",
       "header": "input_cursor.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_mouse_get_global_position_ext",
@@ -19943,7 +19953,9 @@
       "header": "input_cursor.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_mouse_set_is_relative_mouse_mode_ext",
@@ -27378,14 +27390,18 @@
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_is_screen_keyboard_shown_ext",
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_is_screen_keyboard_shown_for_window_ext",
@@ -27399,35 +27415,45 @@
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_raise_text_editing_ext",
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_raise_text_input_ext",
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_reset_for_tests_ext",
       "header": "input_text.h",
       "category": "TOOLING_ONLY",
       "reason": "an explicitly test-only extension hook",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_set_input_rectangle_ext",
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_set_window_handle_ext",
@@ -27441,49 +27467,63 @@
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_start_with_type_ext",
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_stop_ext",
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_subscribe_text_editing_candidates_ext",
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_subscribe_text_editing_ext",
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_subscribe_text_input_ext",
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_text_input_unsubscribe_ext",
       "header": "input_text.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_texture_get_block_size_squared",
