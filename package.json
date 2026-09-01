@@ -85,6 +85,8 @@
     "test:windowed": "npm run build && node --test test/windowed-renderer.integration.mjs",
     "test:windowed:required": "npm run build && CNA_REQUIRE_WINDOWED_TESTS=1 node --test test/windowed-renderer.integration.mjs",
     "test:wasm-browser": "npm run build && node --test test/wasm-browser.mjs",
+    "test:wasm-browser:strong": "npm run build && node --test test/wasm-browser-strong.mjs",
+    "test:wasm-browser:strong:required": "npm run build && CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
     "test:wasm-browser-input": "npm run build && node --test test/wasm-browser-input.mjs",
     "audit:cna-abi": "node tools/audit-cna-abi.mjs",
     "report:cna-abi": "node tools/audit-cna-abi.mjs --portable --format json --output docs/cna-abi-report.json && node tools/cna-abi/verify-contract.mjs --portable --format json --output docs/cna-abi-contract-report.json && node tools/api-compat/verify-runtime.mjs --format json --output docs/runtime-symbol-report.json && node tools/api-compat/verify.mjs --leak-only --format json --output docs/internal-leak-report.json",

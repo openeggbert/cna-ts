@@ -102,11 +102,13 @@ jobs:
           CNA_LIBRARY_PATH: ${{ vars.CNA_LIBRARY_PATH }}
           CNA_SOURCE_PATH: ${{ vars.CNA_SOURCE_PATH }}
           CNA_WASM_ARTIFACT_DIR: ${{ vars.CNA_WASM_ARTIFACT_DIR }}
+          CNA_STRONG_WASM_ARTIFACT_DIR: ${{ vars.CNA_STRONG_WASM_ARTIFACT_DIR }}
           CNA_WINDOWED_LIBRARY_PATH: ${{ vars.CNA_WINDOWED_LIBRARY_PATH }}
         run: |
           test -n "$XNA_REFERENCE_PATH" && echo STRICT_API_ARTIFACT=CONFIGURED || echo STRICT_API_ARTIFACT=NOT_CONFIGURED
           test -n "$CNA_LIBRARY_PATH" && test -n "$CNA_SOURCE_PATH" && echo NATIVE_ARTIFACT=CONFIGURED || echo NATIVE_ARTIFACT=NOT_CONFIGURED
           test -n "$CNA_WASM_ARTIFACT_DIR" && echo BROWSER_ARTIFACT=CONFIGURED || echo BROWSER_ARTIFACT=NOT_CONFIGURED
+          test -n "$CNA_STRONG_WASM_ARTIFACT_DIR" && echo STRONG_BROWSER_ARTIFACT=CONFIGURED || echo STRONG_BROWSER_ARTIFACT=NOT_CONFIGURED
           test -n "$CNA_WINDOWED_LIBRARY_PATH" && echo WINDOWED_ARTIFACT=CONFIGURED || echo WINDOWED_ARTIFACT=NOT_CONFIGURED
       - uses: actions/upload-artifact@v4
         with:
@@ -212,3 +214,17 @@ jobs:
           CNA_WASM_ARTIFACT_DIR: ${{ vars.CNA_WASM_ARTIFACT_DIR }}
           CNA_PLAYWRIGHT_MODULE: ${{ vars.CNA_PLAYWRIGHT_MODULE }}
         run: npm run test:wasm-browser-input
+
+      # A separate variable from CNA_WASM_ARTIFACT_DIR, and deliberately so: the artifact above is
+      # the one a consumer gets by default, and it carries neither optional CNA runtime. The
+      # compiled-effect and CNAEXT claims need an artifact built with
+      # -DCNA_EASYGL_COMPILED_EFFECTS=ON -DCNA_CNAEXT=ON, and the required form below fails rather
+      # than skipping if the one it is pointed at turns out not to be -- so a runner that has only
+      # the default artifact configured does not report a green compiled-effect qualification.
+      - name: Compiled effects and CNAEXT, on an artifact built with both
+        if: ${{ vars.CNA_STRONG_WASM_ARTIFACT_DIR != '' }}
+        env:
+          CNA_WASM_ARTIFACT_DIR: ${{ vars.CNA_STRONG_WASM_ARTIFACT_DIR }}
+          CNA_SOURCE_PATH: ${{ vars.CNA_SOURCE_PATH }}
+          CNA_PLAYWRIGHT_MODULE: ${{ vars.CNA_PLAYWRIGHT_MODULE }}
+        run: npm run test:wasm-browser:strong:required
