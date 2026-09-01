@@ -54,6 +54,38 @@ function resolveNode() {
   return process.execPath;
 }
 
+/**
+ * Every member of a C structure, read from CNA's own headers.
+ *
+ * The spec used to carry a hand-maintained field list per structure, and a field left off it was
+ * simply never measured -- so `WasmStruct` threw "the measured layout has no field X" the first
+ * time anything read it, which for three structures was long after they were written. Deriving the
+ * list removes the possibility: what the backend can read is what CNA declares.
+ *
+ * A bad parse cannot pass silently. Every name found here becomes an `offsetof` in the probe, and
+ * the probe is compiled `-Werror`, so a member this misreads fails the build with the C compiler's
+ * own message rather than producing a wrong offset.
+ */
+function declaredFields(headerText, name) {
+  const match = new RegExp(
+    `typedef struct ${name}\\s*\\{([\\s\\S]*?)\\}\\s*${name}\\s*;`,
+  ).exec(headerText);
+  if (match === null) return null;
+  const fields = [];
+  for (const member of match[1].split(";")) {
+    const text = member.trim();
+    if (text === "") continue;
+    // A function-pointer member names itself inside the parentheses; everything else names itself
+    // last, optionally followed by an array bound.
+    const pointer = /\(\s*\*\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)/.exec(text);
+    if (pointer !== null) { fields.push(pointer[1]); continue; }
+    if (text.includes(":")) continue;                       // a bitfield has no offsetof
+    const plain = /([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[[^\]]*\]\s*)*$/.exec(text);
+    if (plain !== null) fields.push(plain[1]);
+  }
+  return fields;
+}
+
 function main() {
   const check = process.argv.includes("--check");
   const cnaRoot = path.resolve(process.env.CNA_SOURCE_PATH ?? path.join(ROOT, "../../cnanext"));
@@ -66,6 +98,35 @@ function main() {
     throw new Error("emcc not found: set EMSDK or put the Emscripten SDK's emcc on PATH");
   }
   const spec = JSON.parse(fs.readFileSync(SPEC, "utf8"));
+  // The headers, comments stripped, as one string to search for declarations.
+  let headerText = "";
+  for (const entry of fs.readdirSync(path.join(includeRoot, "CNA/C"))) {
+    if (entry.endsWith(".h")) {
+      headerText += fs.readFileSync(path.join(includeRoot, "CNA/C", entry), "utf8");
+    }
+  }
+  headerText = headerText.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+
+  // The spec names the structures to measure; CNA names their fields. A spec entry keeps any field
+  // it lists that the parse did not find, so a structure the regex cannot read still measures what
+  // it always did, and `undeclared` reports the ones that are no longer in the headers at all.
+  const undeclared = [];
+  const measured = new Map();
+  for (const [name, fields] of Object.entries(spec.structs)) {
+    const declared = declaredFields(headerText, name);
+    if (declared === null) {
+      measured.set(name, fields);
+      undeclared.push(name);
+      continue;
+    }
+    const union = [...declared];
+    for (const field of fields) if (!union.includes(field)) union.push(field);
+    measured.set(name, union);
+  }
+  if (undeclared.length > 0) {
+    console.warn(`no declaration found for: ${undeclared.join(", ")} (spec field list kept)`);
+  }
+
   const lines = [
     "#include <CNA/C/cna.h>",
     "#include <stddef.h>",
@@ -73,7 +134,7 @@ function main() {
     "int main(void) {",
     '  printf("POINTER %zu\\n", sizeof(void*));',
   ];
-  for (const [name, fields] of Object.entries(spec.structs)) {
+  for (const [name, fields] of measured) {
     lines.push(`  printf("STRUCT ${name} %zu %zu\\n", sizeof(${name}), _Alignof(${name}));`);
     for (const field of fields) {
       lines.push(

@@ -18,7 +18,9 @@ import {
   assertParticleEvidence, assertParticleSimulationOracle,
 } from "./support/particle-oracle.mjs";
 import { assertEngineArithmeticEvidence } from "./support/engine-arithmetic-oracle.mjs";
-import { assertEngineCensus } from "./support/engine-census-oracle.mjs";
+import {
+  assertEngineCensus, assertNestedStructures, assertStructureFields,
+} from "./support/engine-census-oracle.mjs";
 import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
 import { assertShadowVariantEvidence } from "./support/shadow-variant-oracle.mjs";
 import {
@@ -602,6 +604,43 @@ test("every public engine class constructs, or CNA refuses it by name", { skip }
     `CNA_TS_WASM_ENGINE_CENSUS=CLASSES=${totals.classes} CONSTRUCTED=` +
     `${totals.classes - totals.refused} REFUSED_BY_CNA=${totals.refused} READ=${totals.read}`,
   );
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("nested structures survive whole, or CNA says the layer is absent", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const fields = result.structureFields;
+  const nested = result.nestedStructures;
+  assert.ok(fields, "no structure-field evidence was produced");
+  assert.ok(nested, "no nested-structure evidence was produced");
+
+  // Which artifact this is decides which of the two answers is the truthful one, and the page
+  // records both. On an artifact with the extended layer the structures must survive; on one
+  // without it every route here is refused, and what this suite requires is that the refusal is
+  // CNA's own -- by name and by result code -- rather than the binding declining to try.
+  if (fields.evidenceError == null && nested.gltfError == null) {
+    const fieldTotals = assertStructureFields(fields);
+    const nestedTotals = assertNestedStructures(nested);
+    console.log(
+      `CNA_TS_WASM_STRUCTURE_FIELDS=PRESENT FIELDS_ASKED=${fieldTotals.fields} ` +
+      `BOUNDS_CULLED=${nestedTotals.boundsTested} SLOT_READS=${nestedTotals.slotsTested}`,
+    );
+  } else {
+    for (const [name, message] of [
+      ["structure fields", fields.evidenceError],
+      ["glTF source", nested.gltfError],
+      ["frustum culler", nested.cullerError],
+      ["texture slots", nested.slotError],
+    ]) {
+      if (message == null) continue;
+      assert.match(
+        message, /extended graphics layer|not supported/i,
+        `${name} must be refused in CNA's own words, not the binding's: ${message}`,
+      );
+    }
+    console.log("CNA_TS_WASM_STRUCTURE_FIELDS=ABSENT REFUSED_BY=CNA");
+  }
   assert.deepEqual(consoleErrors, []);
 });
 

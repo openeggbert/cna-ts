@@ -745,6 +745,10 @@ try {
       // --- shadow maps: what this device says, and the maths that is the same everywhere -------
       result.shadows = this.#shadowEvidence();
 
+      // --- every field of the largest structure, asked of CNA one at a time ---------------------
+      result.structureFields = this.#structureFieldEvidence();
+      result.nestedStructures = this.#nestedStructureEvidence();
+
       // --- every public engine class, constructed and exercised ---------------------------------
       result.engineCensus = this.#engineCensus();
 
@@ -2920,6 +2924,196 @@ try {
         for (const item of owned.reverse()) { try { item.Dispose?.(); } catch { /* reported */ } }
       }
       return { rows };
+    }
+
+    /**
+     * Every field of the biggest structures that cross this boundary, one at a time.
+     *
+     * The census beside this proves that classes construct and accessors marshal. It cannot see a
+     * *field* dropped inside a structure, because a material with no alpha still round-trips
+     * through a getter that never reads the alpha either.
+     *
+     * CNA can. `PbrMaterialExtOperations.Equals` and `GetHashCode` are CNA's own comparison of two
+     * materials, so the test is: take CNA's defaults, change **one field**, and ask CNA whether the
+     * two are still equal. If the answer is yes, that field never reached CNA -- whatever the
+     * getter says. Twenty-five fields, twenty-five questions, and a marshaller that drops any one
+     * of them fails on that one.
+     *
+     * `ToText` is asked too, because it is a third route over the same bytes: two materials CNA
+     * calls unequal must describe themselves differently.
+     */
+    /**
+     * A `CNA_BoundingBox` crossing the boundary as a whole box, asked of CNA's own frustum test.
+     *
+     * A box is six floats in two vectors, and a marshaller that writes only the first vector leaves
+     * the maximum at whatever the allocation held -- zero, which reads as a box stretching from its
+     * true minimum back to the origin. That is invisible to every accessor, because nothing reads a
+     * box back; the only thing that can see it is something that uses both corners.
+     *
+     * `FrustumCuller.IsVisible` does. The far box sits nine hundred units off the origin and is
+     * outside the frustum, so CNA answers false -- but with its maximum collapsed to zero it spans
+     * the origin, where the camera is, and CNA would answer true. The near box is the control that
+     * says the culler is answering at all rather than refusing everything.
+     *
+     * The glTF base colour beside it is the other half of the same question, in the other
+     * direction: a `CNA_Vector4` *read* out of a structure, whose fourth component is the one a
+     * three-component read drops. glTF's own default base colour is opaque white, so a W of one is
+     * CNA's answer and a W of zero is the binding's.
+     */
+    #nestedStructureEvidence() {
+      const { GltfMaterialBridge, FrustumCuller, PbrEffect, PbrTextureSlot } = PostProcess;
+      const out = {};
+      try {
+        const source = GltfMaterialBridge.CreateSource();
+        out.gltfBaseColor = [
+          source.BaseColorFactor.X, source.BaseColorFactor.Y,
+          source.BaseColorFactor.Z, source.BaseColorFactor.W,
+        ];
+        out.gltfCoordinateSets = [...source.TextureCoordinateSets];
+        out.gltfTransformCount = source.TextureTransforms.length;
+      } catch (error) { out.gltfError = `${error?.constructor?.name}: ${error?.message}`; }
+
+      let culler = null;
+      try {
+        culler = new FrustumCuller();
+        culler.SetCamera(
+          Matrix.CreateLookAt(Vector3.Zero, new Vector3(0, 0, -1), Vector3.Up),
+          Matrix.CreatePerspectiveFieldOfView(Math.PI / 4, 1, 0.1, 100),
+        );
+        // In front of the camera, well inside the frustum.
+        out.nearVisible = culler.IsVisible(
+          new BoundingBox(new Vector3(-1, -1, -6), new Vector3(1, 1, -4)));
+        // Far off to one side. Outside the frustum with both corners; spanning the camera with
+        // only its minimum.
+        out.farVisible = culler.IsVisible(
+          new BoundingBox(new Vector3(900, 900, 900), new Vector3(901, 901, 901)));
+        // The same box mirrored, so the answer cannot come from a sign test on one corner.
+        out.farNegativeVisible = culler.IsVisible(
+          new BoundingBox(new Vector3(-901, -901, -901), new Vector3(-900, -900, -900)));
+      } catch (error) {
+        out.cullerError = `${error?.constructor?.name}: ${error?.message}`;
+      } finally { culler?.Dispose(); }
+
+      // A `CNA_Handle[7]` read out of a structure, whose stride is eight bytes and not the four a
+      // wasm32 pointer takes. At the wrong stride the same fifty-six bytes yield thirteen slots.
+      try {
+        out.gltfSlotCount = GltfMaterialBridge.CreateTextures().Slots.length;
+      } catch (error) { out.gltfSlotError = `${error?.constructor?.name}: ${error?.message}`; }
+
+      // A texture slot that holds nothing, read through a route with two outputs. The handle
+      // output is poisoned before the call, so a reader that skips the presence flag answers with
+      // the poison rather than with a zero indistinguishable from a correct absence. One slot is
+      // then filled and read back, so "always empty" cannot pass either.
+      let effect = null;
+      let texture = null;
+      try {
+        effect = PbrEffect.Create(this.GraphicsDevice);
+        texture = new Graphics.Texture2D(this.GraphicsDevice, 2, 2);
+        out.emptySlot = String(PbrEffect.GetTexture(effect, PbrTextureSlot.BaseColor));
+        PbrEffect.SetTexture(effect, PbrTextureSlot.BaseColor, texture);
+        const filled = PbrEffect.GetTexture(effect, PbrTextureSlot.BaseColor);
+        out.filledSlotIsZero = filled === 0n;
+        out.filledSlotIsPoison = filled === 0xDEADBEEFDEADBEEFn;
+        PbrEffect.SetTexture(effect, PbrTextureSlot.BaseColor, null);
+        out.clearedSlot = String(PbrEffect.GetTexture(effect, PbrTextureSlot.BaseColor));
+      } catch (error) {
+        out.slotError = `${error?.constructor?.name}: ${error?.message}`;
+      } finally { texture?.Dispose(); effect?.Dispose(); }
+
+      // The GPU instance culler writes the same structure nested inside an instance, and this
+      // renderer refuses it. Recorded rather than required: it is CNA's refusal, not the binding's.
+      try {
+        const gpuCuller = new PostProcess.GpuInstanceCuller(this.GraphicsDevice);
+        out.gpuCullerSupported = gpuCuller.IsSupported;
+        out.gpuCullerReason = gpuCuller.UnsupportedReason;
+        gpuCuller.Dispose();
+      } catch (error) {
+        out.gpuCullerError = `${error?.constructor?.name}: ${error?.message}`;
+      }
+      return out;
+    }
+
+    #structureFieldEvidence() {
+      const { CreatePbrMaterialExt, CreateTextureTransform, PbrMaterialExtOperations } =
+        PostProcess;
+      const result = {};
+      try {
+        const base = CreatePbrMaterialExt();
+        result.defaults = {
+          alphaCutoff: base.AlphaCutoff,
+          metallic: base.MetallicFactor,
+          roughness: base.RoughnessFactor,
+          coordinateSets: [...base.TextureCoordinateSets],
+          transforms: base.TextureTransforms.length,
+        };
+        // A material equals itself, and equals a separate copy of the same values. Both are the
+        // control the changes below are read against.
+        result.equalsItself = PbrMaterialExtOperations.Equals(base, base);
+        result.equalsFreshCopy = PbrMaterialExtOperations.Equals(base, CreatePbrMaterialExt());
+        result.hashOfCopiesAgree =
+          PbrMaterialExtOperations.GetHashCode(base)
+            === PbrMaterialExtOperations.GetHashCode(CreatePbrMaterialExt());
+
+        // One field at a time. Each entry names a member and a value CNA's defaults do not hold,
+        // so "unchanged" and "changed" are always different materials.
+        const changes = [
+          ["AlbedoColor", (m) => { m.AlbedoColor = new Color(1, 2, 3, 4); }],
+          ["EmissiveFactor", (m) => { m.EmissiveFactor = new Vector3(0.25, 0.5, 0.75); }],
+          ["SpecularColorFactor", (m) => { m.SpecularColorFactor = new Vector3(0.125, 0.375, 0.625); }],
+          ["MetallicFactor", (m) => { m.MetallicFactor = 0.28125; }],
+          ["RoughnessFactor", (m) => { m.RoughnessFactor = 0.34375; }],
+          ["NormalScale", (m) => { m.NormalScale = 0.40625; }],
+          ["OcclusionStrength", (m) => { m.OcclusionStrength = 0.46875; }],
+          ["Ior", (m) => { m.Ior = 1.78125; }],
+          ["SpecularFactor", (m) => { m.SpecularFactor = 0.53125; }],
+          ["AlphaCutoff", (m) => { m.AlphaCutoff = 0.59375; }],
+          ["AlphaMode", (m) => { m.AlphaMode = PostProcess.AlphaMode.Blend; }],
+          ["DoubleSided", (m) => { m.DoubleSided = !m.DoubleSided; }],
+          ["BaseColorTextureSrgb", (m) => { m.BaseColorTextureSrgb = !m.BaseColorTextureSrgb; }],
+          ["EmissiveTextureSrgb", (m) => { m.EmissiveTextureSrgb = !m.EmissiveTextureSrgb; }],
+          ["SpecularColorTextureSrgb",
+            (m) => { m.SpecularColorTextureSrgb = !m.SpecularColorTextureSrgb; }],
+          ["OutputEncodedToSrgb", (m) => { m.OutputEncodedToSrgb = !m.OutputEncodedToSrgb; }],
+          // The two array fields, changed at their *last* entry: a marshaller that writes only the
+          // first, or walks them at the wrong stride, leaves the last one where it was.
+          ["TextureCoordinateSets[last]", (m) => {
+            const sets = [...m.TextureCoordinateSets];
+            sets[sets.length - 1] = 3;
+            m.TextureCoordinateSets = sets;
+          }],
+          ["TextureTransforms[last].Offset", (m) => {
+            const transforms = m.TextureTransforms.map((t) => ({ ...t }));
+            transforms[transforms.length - 1] = {
+              ...CreateTextureTransform(), Offset: new Vector2(0.3125, 0.4375),
+            };
+            m.TextureTransforms = transforms;
+          }],
+          ["TextureTransforms[last].Rotation", (m) => {
+            const transforms = m.TextureTransforms.map((t) => ({ ...t }));
+            transforms[transforms.length - 1] = { ...CreateTextureTransform(), Rotation: 0.5625 };
+            m.TextureTransforms = transforms;
+          }],
+        ];
+        result.fields = changes.map(([name, apply]) => {
+          const changed = CreatePbrMaterialExt();
+          try {
+            apply(changed);
+          } catch (error) {
+            return [name, "threw", `${error?.constructor?.name}: ${error?.message}`];
+          }
+          return [
+            name,
+            PbrMaterialExtOperations.Equals(base, changed),
+            PbrMaterialExtOperations.GetHashCode(base)
+              === PbrMaterialExtOperations.GetHashCode(changed),
+            PbrMaterialExtOperations.ToText(base) === PbrMaterialExtOperations.ToText(changed),
+          ];
+        });
+      } catch (error) {
+        result.evidenceError = `${error?.constructor?.name}: ${error?.message}`;
+        result.evidenceStack = String(error?.stack ?? "");
+      }
+      return result;
     }
 
     #colourGradeEvidence() {

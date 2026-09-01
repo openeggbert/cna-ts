@@ -1,0 +1,103 @@
+{
+  "name": "the generated engine layer: structure marshalling, route calls, and the census that watches them",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
+  "environment": "CNA_WASM_ARTIFACT_DIR must point at a CNA wasm artifact built with -DCNA_EASYGL_COMPILED_EFFECTS=ON -DCNA_CNAEXT=ON, and CNA_SOURCE_PATH at a cnanext checkout. Most of this layer is generated, so the defects worth planting are the ones a generator makes: an accessor of the wrong width, a growable structure whose size is never written, a nested array walked at the wrong stride, an initialiser skipped, a 64-bit argument passed as a number. Each is invisible to the type checker and each is what the census and tools/wasm/verify-route-calls.mjs exist to catch.",
+  "mutants": [
+    {
+      "id": "growable-structures-never-sized",
+      "why": "`struct_size` left at zero on every structure this backend allocates, so CNA reads a structure of no size and every field a caller wrote is invisible. The single likeliest generated-code defect in the whole layer",
+      "file": "src/internal/wasm/module.ts",
+      "find": "    structure.setU32(\"struct_size\", layout.size);\n    structure.setU32(\"struct_version\", 1);",
+      "replace": "    structure.setU32(\"struct_size\", 0);\n    structure.setU32(\"struct_version\", 1);"
+    },
+    {
+      "id": "structure-version-zeroed",
+      "why": "the other half of the same header: a version of zero, where CNA expects one. Included to find out whether the version is load-bearing here or only the size is",
+      "file": "src/internal/wasm/module.ts",
+      "find": "    structure.setU32(\"struct_size\", layout.size);\n    structure.setU32(\"struct_version\", 1);",
+      "replace": "    structure.setU32(\"struct_size\", layout.size);\n    structure.setU32(\"struct_version\", 0);"
+    },
+    {
+      "id": "enumeration-read-signed",
+      "why": "a `uint32_t` identity read as an `int32_t`. Equivalent on this surface and known to be: the backend makes thirteen `u32` reads, every one of them a CNA enumeration whose largest enumerator is far below `INT32_MAX`, so the two readers cannot disagree. Kept because the day a route answers a packed colour or a flag word through `u32`, this stops being equivalent -- and a survivor that is documented is cheaper than a mutant nobody thought to plant",
+      "file": "src/internal/wasm/graphics-ext-core.ts",
+      "find": "  public u32(route: string, ...args: readonly (number | bigint)[]): number {\n    return this.#scalar(route, args, 4, (view, out) => view.getUint32(out, true));\n  }",
+      "replace": "  public u32(route: string, ...args: readonly (number | bigint)[]): number {\n    return this.#scalar(route, args, 4, (view, out) => view.getInt32(out, true));\n  }",
+      "expect": "survives"
+    },
+    {
+      "id": "float-output-read-as-double",
+      "why": "a `float*` output read eight bytes wide, which takes four bytes of the value and four of whatever follows it. Every float in the layer moves, and none of them throws",
+      "file": "src/internal/wasm/graphics-ext-core.ts",
+      "find": "  public float(route: string, ...args: readonly (number | bigint)[]): number {\n    return this.#scalar(route, args, 4, (view, out) => view.getFloat32(out, true));\n  }",
+      "replace": "  public float(route: string, ...args: readonly (number | bigint)[]): number {\n    return this.#scalar(route, args, 8, (view, out) => view.getFloat64(out, true));\n  }"
+    },
+    {
+      "id": "nested-float-array-reads-one-element",
+      "why": "a fixed-size array field inside a structure read as a single element, so every vector nested in a material, a light or a settings block loses everything after its first component",
+      "file": "src/internal/wasm/module.ts",
+      "find": "    for (let offset = 0; offset + 4 <= entry.size; offset += 4) {\n      values.push(view.getFloat32(base + offset, true));\n    }",
+      "replace": "    for (let offset = 0; offset + 4 <= Math.min(entry.size, 4); offset += 4) {\n      values.push(view.getFloat32(base + offset, true));\n    }"
+    },
+    {
+      "id": "nested-int-array-written-at-a-float-stride",
+      "why": "a fixed-size `int32_t` array written eight bytes apart rather than four, so half of a material's texture-coordinate sets land in the next field",
+      "file": "src/internal/wasm/module.ts",
+      "find": "    for (let index = 0; index * 4 + 4 <= entry.size; index += 1) {\n      view.setInt32(base + index * 4, Math.trunc(values[index] ?? 0), true);\n    }",
+      "replace": "    for (let index = 0; index * 8 + 8 <= entry.size; index += 1) {\n      view.setInt32(base + index * 8, Math.trunc(values[index] ?? 0), true);\n    }"
+    },
+    {
+      "id": "handle-array-read-at-a-pointer-stride",
+      "why": "a `CNA_Handle` array walked four bytes at a time, which is the wasm32 pointer size and not the handle size. The seven glTF texture slots become thirteen",
+      "file": "src/internal/wasm/module.ts",
+      "find": "    for (let offset = 0; offset + 8 <= entry.size; offset += 8) {\n      values.push(view.getBigUint64(base + offset, true));\n    }",
+      "replace": "    for (let offset = 0; offset + 8 <= entry.size; offset += 4) {\n      values.push(view.getBigUint64(base + offset, true));\n    }"
+    },
+    {
+      "id": "bounds-written-as-one-vector",
+      "why": "a `CNA_BoundingBox` written with only its minimum, leaving the maximum as whatever the allocation held -- which stretches every box back to the origin. Nothing reads a box back, so only something that uses both corners can see it: CNA's own frustum test",
+      "file": "src/internal/wasm/graphics-ext-core.ts",
+      "find": "    for (const [field, value] of [[\"min\", bounds.Min], [\"max\", bounds.Max]] as const) {",
+      "replace": "    for (const [field, value] of [[\"min\", bounds.Min]] as const) {"
+    },
+    {
+      "id": "bounds-nested-in-an-instance-written-as-one-vector",
+      "why": "the same defect one level down, in the box nested inside a `CNA_GpuCullableInstance`. Expected to survive: the only route that writes one is the GPU instance culler, and this renderer has no compute stage, so CNA refuses it before the bytes are ever read. Kept in the plan because it is the honest record of where the browser's reach ends -- the windowed suite is where this one can be killed",
+      "expect": "survives",
+      "file": "src/internal/wasm/engine-structures.ts",
+      "find": "  structure.setF32Array(field, [\n    value.Min.X, value.Min.Y, value.Min.Z, value.Max.X, value.Max.Y, value.Max.Z,\n  ]);",
+      "replace": "  structure.setF32Array(field, [value.Min.X, value.Min.Y, value.Min.Z]);"
+    },
+    {
+      "id": "vector4-nested-read-drops-its-w",
+      "why": "a `CNA_Vector4` inside a structure read as three components, so every colour in a material loses its alpha. Read back through glTF's own default base colour, which is opaque white",
+      "file": "src/internal/wasm/engine-structures.ts",
+      "find": "function readVector4(structure: WasmStruct, field: string): Vector4Snapshot {\n  const [X, Y, Z, W] = structure.getF32Array(field) as [number, number, number, number];\n  return { X, Y, Z, W };\n}",
+      "replace": "function readVector4(structure: WasmStruct, field: string): Vector4Snapshot {\n  const [X, Y, Z] = structure.getF32Array(field) as [number, number, number];\n  return { X, Y, Z, W: 0 };\n}"
+    },
+    {
+      "id": "storage-buffer-size-passed-as-a-number",
+      "why": "the defect the browser census actually found: a `uint64_t` given a `Number` under WASM_BIGINT, which type-checks and throws from inside the export. Planted so the census and the route-call verifier both stay honest about it",
+      "file": "src/internal/wasm/compute.ts",
+      "find": "      \"cna_storage_buffer_create\", device, BigInt(Math.trunc(byteSize)));",
+      "replace": "      \"cna_storage_buffer_create\", device, Math.trunc(byteSize));"
+    },
+    {
+      "id": "optional-handle-ignores-its-presence-flag",
+      "why": "a two-output route read as one: the handle taken whether or not CNA said there was one. Equivalent, and this mutant is what proved it -- the binding poisons the handle output with a value CNA cannot issue, and reading it without the presence flag still answers zero for an empty slot, so CNA writes `CNA_INVALID_HANDLE` into the output itself. The check is kept because the header promises the flag and not the zero; the mutant is kept because it is the only thing that would notice if CNA stopped",
+      "file": "src/internal/wasm/engine-state.ts",
+      "find": "      if (this.routes.view().getUint8(present) === 0) return 0n;\n      return this.routes.view().getBigUint64(handle, true);",
+      "replace": "      void present;\n      return this.routes.view().getBigUint64(handle, true);",
+      "expect": "survives"
+    },
+    {
+      "id": "census-swallows-a-failing-accessor",
+      "why": "the census recording a getter that threw as a success. Not a defect in the binding -- a defect in the thing that watches it, and the one mutation that says whether the census is doing any work at all",
+      "file": "test/support/engine-census-oracle.mjs",
+      "find": "    assert.deepEqual(\n      row.failures, [],\n      `${row.name} has members that do not marshal: ${row.failures.join(\"; \")}`,\n    );",
+      "replace": "    void row.failures;"
+    }
+  ]
+}

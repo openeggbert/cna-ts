@@ -18,6 +18,16 @@ import type { Vector2Snapshot, Vector3Snapshot } from "../backend.js";
 import type { NativeHandle } from "../ownership.js";
 import { WasmEngineStructures } from "./engine-structures.js";
 
+/**
+ * A handle value CNA cannot issue, written into a handle output before the call that fills it.
+ *
+ * A route that answers "there is no texture here" leaves its handle output untouched, so what a
+ * caller reads out of it is whatever the scope allocation last held. Poisoning makes that
+ * observable: a binding that takes the handle without asking whether there is one answers with a
+ * value no CNA object has, instead of with a zero that looks exactly like a correct absence.
+ */
+const POISONED_HANDLE = 0xDEADBEEFDEADBEEFn;
+
 export abstract class WasmEngineState extends WasmEngineStructures {
   public override createRenderPipeline(device: NativeHandle): NativeHandle {
     return this.routes.outHandle("cna_render_pipeline_create", device);
@@ -947,12 +957,20 @@ export abstract class WasmEngineState extends WasmEngineStructures {
    * A slot need not hold a texture, and CNA says so with a separate `CNA_Bool` rather than with an
    * invalid handle. Reading only the handle would turn "no texture" into whatever the allocation
    * held; an empty slot is `CNA_INVALID_HANDLE` here, which is what the public API reads as none.
+   *
+   * Both outputs are poisoned first. A scope allocation is not guaranteed to be zero, and a reader
+   * that ignored the presence flag would otherwise answer "no texture" correctly whenever the
+   * memory it reused happened to hold zero -- which is most of the time, and never when it
+   * matters. `POISONED_HANDLE` is not a handle CNA can issue, so an empty slot that answers with it
+   * is the binding having skipped the flag rather than CNA having answered.
    */
   public override getPbrEffectTexture(effect: NativeHandle, slot: number): NativeHandle {
     const scope = this.routes.scope();
     try {
       const present = scope.allocate(4);
       const handle = scope.allocate(8);
+      this.routes.view().setUint32(present, 0xBAADF00D, true);
+      this.routes.view().setBigUint64(handle, POISONED_HANDLE, true);
       this.routes.invoke("cna_pbr_effect_get_texture", effect, slot, present, handle);
       if (this.routes.view().getUint8(present) === 0) return 0n;
       return this.routes.view().getBigUint64(handle, true);

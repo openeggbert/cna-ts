@@ -747,6 +747,41 @@ It earns its place: the census found four real defects on its first run, three o
 route-call verifier then found too. The fourth — a `StorageBuffer` size reaching CNA as a `Number` —
 is why that verifier exists.
 
+**What a census cannot see, and what does.** A census reads accessors, and a field dropped *inside*
+a structure round-trips perfectly through a getter that never reads it either — both halves of the
+round trip are the binding's, so both are wrong in the same direction and agree. The question has to
+be put to something that is not the binding, and CNA is right there: it compares two materials
+itself. So `PbrMaterialExtOperations.Equals` is asked nineteen times, once per field, each time
+about CNA's defaults and a copy with exactly one field changed. A material CNA still calls equal
+after a field changed is a field that never reached CNA, whichever getter says otherwise.
+
+Four more shapes cross the boundary nested inside something else and are proved the same way — by
+what CNA does with them rather than by reading them back:
+
+| Shape | The defect | What sees it |
+| --- | --- | --- |
+| `CNA_BoundingBox` written | only the minimum written, stretching every box back to the origin | `FrustumCuller.IsVisible` on a box 900 units out, which is outside the frustum with both corners and spans the camera with one |
+| `CNA_Vector4` read | the fourth component dropped | glTF's default base colour, which is opaque white, so `W` is 1 |
+| `CNA_Handle[7]` read | walked at the wasm32 pointer's four bytes rather than the handle's eight | the seven glTF texture slots, which become thirteen |
+| a two-output texture slot | the handle taken without asking whether there is one | the handle output **poisoned** before the call, so an empty slot answering with a value CNA cannot issue is the binding and not CNA |
+
+That last one is also how a documented equivalence was earned rather than assumed. Poisoning proved
+that CNA writes `CNA_INVALID_HANDLE` into the handle output whether or not a texture is present, so
+ignoring the presence flag genuinely cannot be observed. The check stays, because the header
+promises the flag and not the zero; the mutant stays, because it is the only thing that would notice
+if CNA stopped.
+
+**A defect this found in the layout itself.** `GltfMaterialBridge.CreateSource()` threw "the
+measured layout has no field `texture_coordinate_sets_ext`" the first time anything called it. The
+structure spec carried a hand-maintained field list per structure, and a field left off it was never
+measured — so three structures shipped with fields the backend reads and the probe never measured
+(`CNA_GltfMaterialSourceEXT`, `CNA_GltfMaterialTexturesEXT`, `CNA_ShadowCascadeStateEXT`), each of
+them throwing on first use. `tools/wasm/generate-layout.mjs` now **derives** the field list from
+CNA's own headers, and the spec names only which structures to measure, which removes the
+possibility rather than fixing three instances of it: 90 fields that were never measured now are. A
+misparse cannot pass silently either, because every name found becomes an `offsetof` in a probe
+compiled `-Werror`.
+
 The census also records what CNA refuses and why. On the strong artifact **exactly three** classes
 are refused, all with CNA's own `NOT_SUPPORTED`: `AutoExposure`, `StorageBuffer` and its typed form,
 all of which need a compute stage WebGL 2.0 does not have. On the default artifact eighteen are

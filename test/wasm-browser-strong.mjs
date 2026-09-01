@@ -41,7 +41,9 @@ import {
   assertParticleEvidence, assertParticleSimulationOracle,
 } from "./support/particle-oracle.mjs";
 import { assertEngineArithmeticEvidence } from "./support/engine-arithmetic-oracle.mjs";
-import { assertEngineCensus } from "./support/engine-census-oracle.mjs";
+import {
+  assertEngineCensus, assertNestedStructures, assertStructureFields,
+} from "./support/engine-census-oracle.mjs";
 import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
 import {
   assertDecalState, assertPrepassMaths, assertPrepassState, multipleRenderTargetsDraw,
@@ -290,6 +292,22 @@ test("every public engine class constructs, reads and round-trips in a browser",
     `STRONG_WASM_ENGINE_CENSUS=OK CLASSES=${totals.classes} ACCESSORS_READ=${totals.read} ` +
     `SETTERS=${totals.wrote} ROUND_TRIPPED=${totals.roundTripped} ` +
     `REFUSED_BY_CNA=${totals.refused}/compute-dependent`,
+  );
+});
+
+test("every field of a material reaches CNA, and the nested structures survive whole", () => {
+  const fields = evidence.result.structureFields;
+  const nested = evidence.result.nestedStructures;
+  assert.ok(fields, "no structure-field evidence was produced");
+  assert.ok(nested, "no nested-structure evidence was produced");
+  // The census proves accessors marshal; this proves the *contents* do. A field dropped inside a
+  // structure round-trips perfectly through a getter that never reads it either, so the question
+  // has to be put to CNA -- which compares two materials itself, and culls a box itself.
+  const fieldTotals = assertStructureFields(fields);
+  const nestedTotals = assertNestedStructures(nested);
+  console.log(
+    `STRONG_WASM_STRUCTURE_FIELDS=OK FIELDS_ASKED=${fieldTotals.fields} ` +
+    `BOUNDS_CULLED=${nestedTotals.boundsTested} SLOT_READS=${nestedTotals.slotsTested}`,
   );
 });
 
