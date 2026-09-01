@@ -1993,6 +1993,31 @@
         "route:cna_debug_draw_add_cluster_slice_gizmo",
         "test:test/native-cna.integration.mjs"
       ]
+    },
+    {
+      "operation": "Area lights: the shading maths, the linearly-transformed-cosine table, and attaching one to a clustered effect",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "four of the shading routes are pure functions, so what a lit rectangle does to a surface is checked without one being drawn. Where the maths is closed it is checked exactly: the lobe width is the GGX alpha floored at 0.02, checked at nine roughnesses including the two ends of the clamp and the exact point where the floor takes over; a rectangle's quad is its own four corners at plus and minus each half-extent; a disc's is the rectangle scaled by sqrt(pi)/2, which is the equal-area scale, on both axes and in the light's own plane. A tube is a billboard, and that is asserted as one -- its quad turns with the surface it is seen from, lies in the plane facing that surface, and keeps the cylinder's axis as its long side either way. Where the maths is not closed it is checked as relationships that only the real model satisfies: coverage falls as the lobe widens and a mirror's lobe is almost entirely inside a quad, a lobe pointing away from the quad sees none of it and two-sidedness does not change that -- because two-sidedness is about the QUAD's facing, which is shown separately by winding the same quad the other way and watching only the two-sided light still reach it. Intensity is an exact multiplier, a wider light puts more on the surface, out of range is exactly zero, and a light switched off contributes nothing while remaining a valid light. Metallic and roughness are asserted to reach different places. The table reports the size and sample count the caller chose, its texture is exactly that size, and CNA's own default is larger and better sampled; the four stored terms behave as the model says -- magnitude falls as a surface roughens, the average lobe direction is the normal head-on and leans along the tangent towards grazing, and Fresnel rises towards grazing. Six planted binding defects fail and none survives",
+      "proof": [
+        "route:cna_area_light_ext_init",
+        "route:cna_area_light_ext_is_valid",
+        "route:cna_area_light_shading_lobe_scale_for",
+        "route:cna_area_light_shading_quad_of",
+        "route:cna_area_light_shading_coverage",
+        "route:cna_area_light_shading_contribution",
+        "route:cna_area_light_shading_copy_shading_glsl",
+        "route:cna_area_light_brdf_table_create",
+        "route:cna_area_light_brdf_table_create_with_size",
+        "route:cna_area_light_brdf_table_get_texture",
+        "route:cna_area_light_brdf_table_get_size",
+        "route:cna_area_light_brdf_table_get_sample_count",
+        "route:cna_area_light_brdf_table_evaluate",
+        "route:cna_area_light_brdf_table_copy_lookup_glsl",
+        "route:cna_clustered_forward_effect_set_area_light",
+        "route:cna_clustered_forward_effect_has_area_light",
+        "test:test/native-cna.integration.mjs"
+      ]
     }
   ]
 }

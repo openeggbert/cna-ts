@@ -568,6 +568,18 @@ Electron, or mobile support.
   **is** projected (as `ClusterGrid`), so `cna_debug_draw_add_cluster_slice_gizmo` is bound after
   all; and `Dispose` on the forward effect used to clear its handle *before* the destroy, so CNA's
   refusal while it lends its shader stranded the effect and made the game undestroyable.
+- [x] **Area lights**, where four of the shading routes are pure functions and the split between
+  what is *closed* and what is not is made explicit. Closed and checked exactly: the lobe width is
+  the GGX alpha floored at 0.02, checked at both ends of the clamp and at the exact point the floor
+  takes over; a rectangle's quad is its own corners; a disc's is the rectangle scaled by
+  `sqrt(π)/2`, the equal-area scale. A tube is a *billboard* and is asserted as one — its quad turns
+  with the surface it is seen from and keeps the cylinder's axis as its long side either way. Not
+  closed, so checked as relationships only the real model satisfies: coverage falls as the lobe
+  widens, a lobe pointing away sees nothing and two-sidedness does not change that — because
+  two-sidedness is about the *quad's* facing, shown separately by winding the same quad the other
+  way and watching only the two-sided light still reach it. The table reports the size and sample
+  count the caller chose and its texture is exactly that size. Six planted defects fail and none
+  survives.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -662,7 +674,7 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 160 operation families: 21 verified managed, 98 verified native, 13
+- [x] Current baseline is 161 operation families: 21 verified managed, 99 verified native, 13
   verified WebAssembly, five explicitly unavailable on the qualified backend, five upstream-CNA
   blocked, three fixture pending, six hardware pending, three platform pending, two unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.

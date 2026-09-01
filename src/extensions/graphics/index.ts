@@ -21,7 +21,7 @@ import type {
   BoundingSphereSnapshot,
   RasterizerStateSnapshot,
   PbrMaterialExtSnapshot,
-  TextureTransformSnapshot, ClusteredContributionSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
+  TextureTransformSnapshot, AreaLightSnapshot, ClusteredContributionSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
   CnaDecalBackend,
   CnaDepthNormalPrepassBackend,
   CnaAtmosphereBackend,
@@ -8442,6 +8442,27 @@ export class ClusteredForwardEffect implements IDisposable {
     extensions().setClusteredForwardAmbient(this.#active(), vectorSnapshot(value, "Ambient"));
   }
 
+  /** Whether an area light is attached. */
+  public get HasAreaLight(): boolean {
+    return extensions().hasClusteredForwardAreaLight(this.#active());
+  }
+
+  /** Detaches it. */
+  public ClearAreaLight(): void {
+    extensions().clearClusteredForwardAreaLight(this.#active());
+  }
+
+  /**
+   * Attaches one, with the table its specular term is looked up in.
+   *
+   * Both are borrowed: the caller keeps the table and must outlive this effect.
+   */
+  public SetAreaLight(light: AreaLight, table: AreaLightBrdfTable): void {
+    if (table == null) throw new TypeError("table is required");
+    extensions().setClusteredForwardAreaLight(
+      this.#active(), areaLightSnapshot(light), handleOfAreaLightBrdfTable(table));
+  }
+
   /** Whether a light probe or a probe volume is attached. */
   public get HasLightProbe(): boolean {
     return extensions().hasClusteredForwardLightProbe(this.#active());
@@ -8556,5 +8577,235 @@ export class ClusteredForwardEffect implements IDisposable {
     return toVector3(extensions().clusteredVolumeAttenuation(
       vectorSnapshot(attenuationColor, "attenuationColor"),
       finite(attenuationDistance, "attenuationDistance"), finite(thickness, "thickness")));
+  }
+}
+
+/* ================================================================================================
+ * Area lights: a lit shape rather than a lit point
+ * ==============================================================================================*/
+
+/** What shape an area light is. */
+export enum AreaLightShape {
+  /** A flat rectangle spanned by its two axes. */
+  Rectangle = 0,
+  /** An ellipse inscribed in that rectangle. */
+  Disc = 1,
+  /** A cylinder along the right axis, as thick as the up axis is long. */
+  Tube = 2,
+}
+
+/** A light with a size: the two axes span it, and the shape says what fills them. */
+export interface AreaLight {
+  Shape: AreaLightShape;
+  /** Whether it emits from its back as well as its front. */
+  TwoSided: boolean;
+  /** Its centre. */
+  Position: Vector3;
+  /** Half its width, as a vector, so its length is the half-extent and its direction the axis. */
+  RightAxis: Vector3;
+  /** Half its height, on the same terms. */
+  UpAxis: Vector3;
+  /** Linear RGB. */
+  Color: Vector3;
+  Intensity: number;
+  /** How far it reaches. */
+  Range: number;
+}
+
+/** The four terms a linearly-transformed-cosine table stores per roughness and angle. */
+export interface AreaLightBrdfTerms {
+  readonly Magnitude: number;
+  readonly Fresnel: number;
+  readonly AverageTangent: number;
+  readonly AverageNormal: number;
+}
+
+function areaLightSnapshot(light: AreaLight, what = "light"): AreaLightSnapshot {
+  if (light == null) throw new TypeError(`${what} is required`);
+  return {
+    Shape: wholeNumber(light.Shape, `${what}.Shape`),
+    TwoSided: Boolean(light.TwoSided),
+    Position: vectorSnapshot(light.Position, `${what}.Position`),
+    RightAxis: vectorSnapshot(light.RightAxis, `${what}.RightAxis`),
+    UpAxis: vectorSnapshot(light.UpAxis, `${what}.UpAxis`),
+    Color: vectorSnapshot(light.Color, `${what}.Color`),
+    Intensity: finite(light.Intensity, `${what}.Intensity`),
+    Range: finite(light.Range, `${what}.Range`),
+  };
+}
+
+/** An area light seeded with CNA's own defaults. */
+export function CreateAreaLight(): AreaLight {
+  const snapshot = extensions().getDefaultAreaLight();
+  return {
+    Shape: snapshot.Shape as AreaLightShape,
+    TwoSided: snapshot.TwoSided,
+    Position: toVector3(snapshot.Position),
+    RightAxis: toVector3(snapshot.RightAxis),
+    UpAxis: toVector3(snapshot.UpAxis),
+    Color: toVector3(snapshot.Color),
+    Intensity: snapshot.Intensity,
+    Range: snapshot.Range,
+  };
+}
+
+/**
+ * The shading an area light does, as pure functions of their arguments.
+ *
+ * All four need no light object and no device, which is what lets a caller — or a test — check what
+ * an area light will do to a surface without drawing anything.
+ */
+export const AreaLightShading = {
+  /**
+   * Whether a light is one CNA will shade with.
+   *
+   * A shape with no area, no intensity or no range is not a light, and saying so here is cheaper
+   * than finding out that a frame came back black.
+   */
+  IsValid(light: AreaLight): boolean {
+    return extensions().isAreaLightValid(areaLightSnapshot(light));
+  },
+
+  /**
+   * The four corners CNA integrates over, in world space.
+   *
+   * A rectangle is its own corners. A disc is the rectangle scaled to the ellipse's equivalent
+   * area. A tube is **billboarded**: a cylinder looks like a rectangle from wherever it is seen, so
+   * the quad is turned to face the surface, which is why this takes one.
+   */
+  QuadOf(light: AreaLight, surface: Vector3): Vector3[] {
+    return extensions().getAreaLightQuad(
+      areaLightSnapshot(light), vectorSnapshot(surface, "surface"),
+    ).map((corner) => toVector3(corner));
+  },
+
+  /**
+   * How much of a specular lobe the quad covers, from zero to one.
+   *
+   * `lobeScale` is the lobe's width — {@link LobeScaleFor} turns a roughness into one — and
+   * `twoSided` decides whether the quad still lights a surface it is facing away from.
+   */
+  Coverage(
+    quad: readonly Vector3[], surface: Vector3, lobeAxis: Vector3,
+    lobeScale: number, twoSided: boolean,
+  ): number {
+    if (!Array.isArray(quad) || quad.length !== 4) {
+      throw new TypeError("a quad is exactly four corners");
+    }
+    return extensions().getAreaLightCoverage(
+      quad.map((corner, index) => vectorSnapshot(corner, `quad[${index}]`)),
+      vectorSnapshot(surface, "surface"), vectorSnapshot(lobeAxis, "lobeAxis"),
+      finite(lobeScale, "lobeScale"), Boolean(twoSided),
+    );
+  },
+
+  /** What the light adds to a surface, the whole way through. */
+  Contribution(
+    light: AreaLight, surface: Vector3, normal: Vector3, cameraPosition: Vector3,
+    baseColor: Vector3, metallic: number, roughness: number,
+  ): Vector3 {
+    return toVector3(extensions().getAreaLightContribution(
+      areaLightSnapshot(light), vectorSnapshot(surface, "surface"),
+      vectorSnapshot(normal, "normal"), vectorSnapshot(cameraPosition, "cameraPosition"),
+      vectorSnapshot(baseColor, "baseColor"), finite(metallic, "metallic"),
+      finite(roughness, "roughness"),
+    ));
+  },
+
+  /**
+   * The specular lobe's width for a roughness: the GGX alpha, floored.
+   *
+   * `max(roughness², 0.02)` — squared because that is what alpha is, and floored so that a mirror
+   * still has a lobe with a width rather than a line the integrator would miss.
+   */
+  LobeScaleFor(roughness: number): number {
+    return extensions().getAreaLightLobeScale(finite(roughness, "roughness"));
+  },
+
+  /** CNA's own GLSL for the same model, for a shader that wants to do it itself. */
+  get Glsl(): string { return extensions().getAreaLightShadingGlsl(); },
+} as const;
+
+/**
+ * The precomputed table an area light's specular term is looked up in.
+ *
+ * Linearly-transformed cosines: for each roughness and viewing angle it stores the four numbers
+ * that turn a clamped cosine lobe into the GGX one, which is what makes a lit rectangle affordable.
+ * {@link Evaluate} computes one entry without a table at all.
+ */
+let handleOfAreaLightBrdfTable!: (table: AreaLightBrdfTable) => NativeHandle;
+
+export class AreaLightBrdfTable implements IDisposable {
+  #handle: NativeHandle | null;
+  readonly #device: GraphicsDevice;
+
+  public constructor(graphicsDevice: GraphicsDevice);
+  public constructor(graphicsDevice: GraphicsDevice, size: number, sampleCount: number);
+  public constructor(graphicsDevice: GraphicsDevice, size?: number, sampleCount?: number) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#device = graphicsDevice;
+    const device = resolveGraphicsDeviceHandleForInternalUse(graphicsDevice);
+    this.#handle = size == null
+      ? extensions().createAreaLightBrdfTable(device)
+      : extensions().createAreaLightBrdfTableWithSize(
+        device, wholeNumber(size, "size"), wholeNumber(sampleCount ?? 0, "sampleCount"));
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the area light BRDF table is disposed");
+    }
+    return this.#handle;
+  }
+
+  static {
+    handleOfAreaLightBrdfTable = (table: AreaLightBrdfTable) => table.#active();
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Harmless twice. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    extensions().destroyAreaLightBrdfTable(handle);
+    this.#handle = null;
+  }
+
+  /** How many entries it has along each axis. */
+  public get Size(): number {
+    return extensions().getAreaLightBrdfTableSize(this.#active());
+  }
+
+  /** How many samples each entry was integrated over. */
+  public get SampleCount(): number {
+    return extensions().getAreaLightBrdfTableSampleCount(this.#active());
+  }
+
+  /** How long building it took, which is what a caller trades against its size. */
+  public get GenerationMilliseconds(): number {
+    return extensions().getAreaLightBrdfTableGenerationMilliseconds(this.#active());
+  }
+
+  /** The table as a texture a shader samples. A borrow: it is released with the wrapper. */
+  public GetTexture(): Texture2D {
+    return adoptNativeTexture2DForInternalUse(
+      this.#device, extensions().getAreaLightBrdfTableTexture(this.#active()),
+      "an area light BRDF table's texture");
+  }
+
+  /** One entry, computed rather than looked up: the same four terms a table stores. */
+  public static Evaluate(
+    roughness: number, cosTheta: number, sampleCount: number,
+  ): AreaLightBrdfTerms {
+    return extensions().evaluateAreaLightBrdf(
+      finite(roughness, "roughness"), finite(cosTheta, "cosTheta"),
+      wholeNumber(sampleCount, "sampleCount"));
+  }
+
+  /** CNA's own GLSL for looking one up. */
+  public static get LookupGlsl(): string {
+    return extensions().getAreaLightBrdfLookupGlsl();
   }
 }

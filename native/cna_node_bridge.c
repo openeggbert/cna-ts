@@ -991,6 +991,17 @@ typedef CNA_Result (*ClusteredVolumeAttenuationFn)(const CNA_Vector3*, float, fl
 typedef CNA_Result (*ClusteredContributionFn)(const CNA_ClusteredLightEXT*, const CNA_Vector3*, const CNA_Vector3*, const CNA_Vector3*, const CNA_Vector3*, float, float, float, float, const CNA_Vector3*, float, float, float, float, const CNA_Vector3*, float, CNA_Vector3*);
 typedef CNA_Result (*ClusteredContributionExtFn)(const CNA_ClusteredLightEXT*, const CNA_Vector3*, const CNA_Vector3*, const CNA_Vector3*, const CNA_Vector3*, float, float, CNA_Handle, CNA_Vector3*);
 
+typedef CNA_Result (*AreaLightInitFn)(CNA_AreaLightEXT*);
+typedef CNA_Result (*AreaLightValidFn)(const CNA_AreaLightEXT*, CNA_Bool*);
+typedef CNA_Result (*AreaTableSizedFn)(CNA_Handle, int32_t, int32_t, CNA_Handle*);
+typedef CNA_Result (*AreaTableMillisecondsFn)(CNA_Handle, double*);
+typedef CNA_Result (*AreaTableEvaluateFn)(float, float, int32_t, CNA_AreaLightBrdfTerms*);
+typedef CNA_Result (*AreaQuadOfFn)(const CNA_AreaLightEXT*, const CNA_Vector3*, CNA_Vector3*);
+typedef CNA_Result (*AreaCoverageFn)(const CNA_Vector3*, const CNA_Vector3*, const CNA_Vector3*, float, CNA_Bool, float*);
+typedef CNA_Result (*AreaContributionFn)(const CNA_AreaLightEXT*, const CNA_Vector3*, const CNA_Vector3*, const CNA_Vector3*, const CNA_Vector3*, float, float, CNA_Vector3*);
+typedef CNA_Result (*AreaLobeScaleFn)(float, float*);
+typedef CNA_Result (*ClusteredSetAreaLightFn)(CNA_Handle, const CNA_AreaLightEXT*, CNA_Handle);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2603,6 +2614,25 @@ typedef struct Api {
   ClusteredContributionFn clustered_forward_effect_contribution;
   ClusteredContributionExtFn clustered_forward_effect_contribution_with_extensions;
   DebugDrawClusterGizmoFn debug_draw_add_cluster_slice_gizmo;
+  AreaLightInitFn area_light_ext_init;
+  AreaLightValidFn area_light_ext_is_valid;
+  PostProcessPassCreateFn area_light_brdf_table_create;
+  AreaTableSizedFn area_light_brdf_table_create_with_size;
+  GameHandleFn area_light_brdf_table_destroy;
+  HandleHandleOutFn area_light_brdf_table_get_texture;
+  HandleI32OutFn area_light_brdf_table_get_size;
+  HandleI32OutFn area_light_brdf_table_get_sample_count;
+  AreaTableMillisecondsFn area_light_brdf_table_get_generation_milliseconds;
+  AreaTableEvaluateFn area_light_brdf_table_evaluate;
+  GpuCullGlslFn area_light_brdf_table_copy_lookup_glsl;
+  AreaQuadOfFn area_light_shading_quad_of;
+  AreaCoverageFn area_light_shading_coverage;
+  AreaContributionFn area_light_shading_contribution;
+  AreaLobeScaleFn area_light_shading_lobe_scale_for;
+  GpuCullGlslFn area_light_shading_copy_shading_glsl;
+  ClusteredSetAreaLightFn clustered_forward_effect_set_area_light;
+  BoolGetFn clustered_forward_effect_has_area_light;
+  GameHandleFn clustered_forward_effect_clear_area_light;
 } Api;
 
 typedef struct GameContext {
@@ -4502,6 +4532,25 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(clustered_forward_effect_contribution, ClusteredContributionFn, "cna_clustered_forward_effect_contribution");
   LOAD_REQUIRED(clustered_forward_effect_contribution_with_extensions, ClusteredContributionExtFn, "cna_clustered_forward_effect_contribution_with_extensions");
   LOAD_REQUIRED(debug_draw_add_cluster_slice_gizmo, DebugDrawClusterGizmoFn, "cna_debug_draw_add_cluster_slice_gizmo");
+  LOAD_REQUIRED(area_light_ext_init, AreaLightInitFn, "cna_area_light_ext_init");
+  LOAD_REQUIRED(area_light_ext_is_valid, AreaLightValidFn, "cna_area_light_ext_is_valid");
+  LOAD_REQUIRED(area_light_brdf_table_create, PostProcessPassCreateFn, "cna_area_light_brdf_table_create");
+  LOAD_REQUIRED(area_light_brdf_table_create_with_size, AreaTableSizedFn, "cna_area_light_brdf_table_create_with_size");
+  LOAD_REQUIRED(area_light_brdf_table_destroy, GameHandleFn, "cna_area_light_brdf_table_destroy");
+  LOAD_REQUIRED(area_light_brdf_table_get_texture, HandleHandleOutFn, "cna_area_light_brdf_table_get_texture");
+  LOAD_REQUIRED(area_light_brdf_table_get_size, HandleI32OutFn, "cna_area_light_brdf_table_get_size");
+  LOAD_REQUIRED(area_light_brdf_table_get_sample_count, HandleI32OutFn, "cna_area_light_brdf_table_get_sample_count");
+  LOAD_REQUIRED(area_light_brdf_table_get_generation_milliseconds, AreaTableMillisecondsFn, "cna_area_light_brdf_table_get_generation_milliseconds");
+  LOAD_REQUIRED(area_light_brdf_table_evaluate, AreaTableEvaluateFn, "cna_area_light_brdf_table_evaluate");
+  LOAD_REQUIRED(area_light_brdf_table_copy_lookup_glsl, GpuCullGlslFn, "cna_area_light_brdf_table_copy_lookup_glsl");
+  LOAD_REQUIRED(area_light_shading_quad_of, AreaQuadOfFn, "cna_area_light_shading_quad_of");
+  LOAD_REQUIRED(area_light_shading_coverage, AreaCoverageFn, "cna_area_light_shading_coverage");
+  LOAD_REQUIRED(area_light_shading_contribution, AreaContributionFn, "cna_area_light_shading_contribution");
+  LOAD_REQUIRED(area_light_shading_lobe_scale_for, AreaLobeScaleFn, "cna_area_light_shading_lobe_scale_for");
+  LOAD_REQUIRED(area_light_shading_copy_shading_glsl, GpuCullGlslFn, "cna_area_light_shading_copy_shading_glsl");
+  LOAD_REQUIRED(clustered_forward_effect_set_area_light, ClusteredSetAreaLightFn, "cna_clustered_forward_effect_set_area_light");
+  LOAD_REQUIRED(clustered_forward_effect_has_area_light, BoolGetFn, "cna_clustered_forward_effect_has_area_light");
+  LOAD_REQUIRED(clustered_forward_effect_clear_area_light, GameHandleFn, "cna_clustered_forward_effect_clear_area_light");
   LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
   LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
   LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
@@ -26120,10 +26169,317 @@ static napi_value bridge_debug_draw_add_cluster_slice_gizmo(
   return undefined_result(env, "cna_debug_draw_add_cluster_slice_gizmo");
 }
 
+/* ---- area lights: the BRDF table, the shading maths, and the punctual light struct -------------
+   Four of the shading routes are pure functions of their arguments, so what an area light does to
+   a surface can be checked without one being drawn. */
+
+static int read_area_light(napi_env env, napi_value value, CNA_AreaLightEXT* light) {
+  uint32_t shape = 0;
+  double intensity = 0, range = 0;
+  memset(light, 0, sizeof(*light));
+  light->struct_size = sizeof(*light);
+  light->struct_version = 1;
+  if (!get_named_u32(env, value, "Shape", &shape) ||
+      !get_named_bool(env, value, "TwoSided", &light->two_sided) ||
+      !get_named_vector3(env, value, "Position", &light->position) ||
+      !get_named_vector3(env, value, "RightAxis", &light->right_axis) ||
+      !get_named_vector3(env, value, "UpAxis", &light->up_axis) ||
+      !get_named_vector3(env, value, "Color", &light->color) ||
+      !get_named_double(env, value, "Intensity", &intensity) ||
+      !get_named_double(env, value, "Range", &range)) return 0;
+  light->shape = (CNA_AreaLightShapeEXT) shape;
+  light->intensity = (float) intensity;
+  light->range = (float) range;
+  return 1;
+}
+
+static napi_value bridge_area_light_ext_init(napi_env env, napi_callback_info info) {
+  (void) info;
+  CNA_AreaLightEXT light;
+  napi_value output;
+  if (!require_loaded(env)) return NULL;
+  memset(&light, 0, sizeof(light));
+  light.struct_size = sizeof(light);
+  light.struct_version = 1;
+  const CNA_Result result = g_api.area_light_ext_init(&light);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_area_light_ext_init", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "an area light");
+  if (!set_u32_property(env, output, "Shape", light.shape) ||
+      !set_bool_property(env, output, "TwoSided", light.two_sided) ||
+      !set_vector3_property(env, output, "Position", light.position) ||
+      !set_vector3_property(env, output, "RightAxis", light.right_axis) ||
+      !set_vector3_property(env, output, "UpAxis", light.up_axis) ||
+      !set_vector3_property(env, output, "Color", light.color) ||
+      !set_f32_property(env, output, "Intensity", light.intensity) ||
+      !set_f32_property(env, output, "Range", light.range)) {
+    return throw_napi(env, "an area light");
+  }
+  return output;
+}
+
+static napi_value bridge_area_light_ext_is_valid(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_AreaLightEXT light;
+  CNA_Bool valid = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_area_light(env, args[0], &light)) return NULL;
+  const CNA_Result result = g_api.area_light_ext_is_valid(&light, &valid);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_area_light_ext_is_valid", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_get_boolean(env, valid != CNA_FALSE, &output), "cna_area_light_ext_is_valid");
+  return output;
+}
+
+static napi_value bridge_area_light_brdf_table_create_with_size(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle device = 0, table = 0;
+  int32_t size = 0, samples = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &size) != napi_ok ||
+      napi_get_value_int32(env, args[2], &samples) != napi_ok) {
+    return throw_message(env, "expected a device, a size and a sample count");
+  }
+  const CNA_Result result =
+    g_api.area_light_brdf_table_create_with_size(device, size, samples, &table);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_area_light_brdf_table_create_with_size", result);
+  }
+  return make_handle(env, table);
+}
+
+static napi_value bridge_area_light_brdf_table_get_generation_milliseconds(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1], output;
+  CNA_Handle table = 0;
+  double milliseconds = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &table)) return NULL;
+  const CNA_Result result =
+    g_api.area_light_brdf_table_get_generation_milliseconds(table, &milliseconds);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_area_light_brdf_table_get_generation_milliseconds", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, milliseconds, &output),
+    "cna_area_light_brdf_table_get_generation_milliseconds");
+  return output;
+}
+
+static napi_value bridge_area_light_brdf_table_evaluate(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  double roughness = 0, cosTheta = 0;
+  int32_t samples = 0;
+  CNA_AreaLightBrdfTerms terms;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      napi_get_value_double(env, args[0], &roughness) != napi_ok ||
+      napi_get_value_double(env, args[1], &cosTheta) != napi_ok ||
+      napi_get_value_int32(env, args[2], &samples) != napi_ok) {
+    return throw_message(env, "expected a roughness, a cosine and a sample count");
+  }
+  memset(&terms, 0, sizeof(terms));
+  terms.struct_size = sizeof(terms);
+  terms.struct_version = 1;
+  const CNA_Result result = g_api.area_light_brdf_table_evaluate(
+    (float) roughness, (float) cosTheta, samples, &terms);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_area_light_brdf_table_evaluate", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "the BRDF terms");
+  if (!set_f32_property(env, output, "Magnitude", terms.magnitude) ||
+      !set_f32_property(env, output, "Fresnel", terms.fresnel) ||
+      !set_f32_property(env, output, "AverageTangent", terms.average_tangent) ||
+      !set_f32_property(env, output, "AverageNormal", terms.average_normal)) {
+    return throw_napi(env, "the BRDF terms");
+  }
+  return output;
+}
+
+static napi_value bridge_area_light_shading_quad_of(napi_env env, napi_callback_info info) {
+  napi_value args[2], output, entry;
+  CNA_AreaLightEXT light;
+  CNA_Vector3 surface = {0, 0, 0};
+  CNA_Vector3 quad[4];
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_area_light(env, args[0], &light) ||
+      !read_vector3_fields(env, args[1], &surface)) return NULL;
+  memset(quad, 0, sizeof(quad));
+  const CNA_Result result = g_api.area_light_shading_quad_of(&light, &surface, quad);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_area_light_shading_quad_of", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, 4, &output), "an area light quad");
+  for (uint32_t index = 0; index < 4; index += 1) {
+    if (napi_create_object(env, &entry) != napi_ok ||
+        !set_vector3_fields(env, entry, &quad[index]) ||
+        napi_set_element(env, output, index, entry) != napi_ok) {
+      return throw_napi(env, "an area light quad");
+    }
+  }
+  return output;
+}
+
+static napi_value bridge_area_light_shading_coverage(napi_env env, napi_callback_info info) {
+  napi_value args[5], output, entry;
+  CNA_Vector3 quad[4], surface = {0, 0, 0}, axis = {0, 0, 0};
+  double scale = 0;
+  bool twoSided = false;
+  float coverage = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args)) return NULL;
+  for (uint32_t index = 0; index < 4; index += 1) {
+    if (napi_get_element(env, args[0], index, &entry) != napi_ok ||
+        !read_vector3_fields(env, entry, &quad[index])) {
+      return throw_message(env, "a quad is four corners");
+    }
+  }
+  if (!read_vector3_fields(env, args[1], &surface) ||
+      !read_vector3_fields(env, args[2], &axis) ||
+      napi_get_value_double(env, args[3], &scale) != napi_ok ||
+      napi_get_value_bool(env, args[4], &twoSided) != napi_ok) {
+    return throw_message(env, "expected a quad, a surface, a lobe axis, a scale and a flag");
+  }
+  const CNA_Result result = g_api.area_light_shading_coverage(
+    quad, &surface, &axis, (float) scale, twoSided ? CNA_TRUE : CNA_FALSE, &coverage);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_area_light_shading_coverage", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) coverage, &output),
+    "cna_area_light_shading_coverage");
+  return output;
+}
+
+static napi_value bridge_area_light_shading_contribution(napi_env env, napi_callback_info info) {
+  napi_value args[7], output;
+  CNA_AreaLightEXT light;
+  CNA_Vector3 surface, normal, camera, base, answer = {0, 0, 0};
+  double metallic = 0, roughness = 0;
+  if (!require_loaded(env) || !get_args(env, info, 7, args) ||
+      !read_area_light(env, args[0], &light) ||
+      !read_vector3_fields(env, args[1], &surface) ||
+      !read_vector3_fields(env, args[2], &normal) ||
+      !read_vector3_fields(env, args[3], &camera) ||
+      !read_vector3_fields(env, args[4], &base) ||
+      napi_get_value_double(env, args[5], &metallic) != napi_ok ||
+      napi_get_value_double(env, args[6], &roughness) != napi_ok) {
+    return throw_message(env, "expected a light, four vectors and two scalars");
+  }
+  const CNA_Result result = g_api.area_light_shading_contribution(
+    &light, &surface, &normal, &camera, &base, (float) metallic, (float) roughness, &answer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_area_light_shading_contribution", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "an area light contribution");
+  if (!set_vector3_fields(env, output, &answer)) {
+    return throw_napi(env, "an area light contribution");
+  }
+  return output;
+}
+
+static napi_value bridge_area_light_shading_lobe_scale_for(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  double roughness = 0;
+  float scale = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      napi_get_value_double(env, args[0], &roughness) != napi_ok) {
+    return throw_message(env, "expected a roughness");
+  }
+  const CNA_Result result = g_api.area_light_shading_lobe_scale_for((float) roughness, &scale);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_area_light_shading_lobe_scale_for", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) scale, &output),
+    "cna_area_light_shading_lobe_scale_for");
+  return output;
+}
+
+static napi_value bridge_clustered_forward_effect_set_area_light(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle effect = 0, table = 0;
+  CNA_AreaLightEXT light;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_area_light(env, args[1], &light) ||
+      !read_handle_allow_zero(env, args[2], &table)) return NULL;
+  const CNA_Result result =
+    g_api.clustered_forward_effect_set_area_light(effect, &light, table);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_forward_effect_set_area_light", result);
+  }
+  return undefined_result(env, "cna_clustered_forward_effect_set_area_light");
+}
+
+static napi_value bridge_area_light_brdf_table_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.area_light_brdf_table_create, "cna_area_light_brdf_table_create");
+}
+
+static napi_value bridge_area_light_brdf_table_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.area_light_brdf_table_destroy, "cna_area_light_brdf_table_destroy");
+}
+
+static napi_value bridge_area_light_brdf_table_get_texture(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.area_light_brdf_table_get_texture, "cna_area_light_brdf_table_get_texture");
+}
+
+static napi_value bridge_area_light_brdf_table_get_size(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.area_light_brdf_table_get_size, "cna_area_light_brdf_table_get_size");
+}
+
+static napi_value bridge_area_light_brdf_table_get_sample_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.area_light_brdf_table_get_sample_count, "cna_area_light_brdf_table_get_sample_count");
+}
+
+static napi_value bridge_clustered_forward_effect_has_area_light(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.clustered_forward_effect_has_area_light, "cna_clustered_forward_effect_has_area_light");
+}
+
+static napi_value bridge_clustered_forward_effect_clear_area_light(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_forward_effect_clear_area_light, "cna_clustered_forward_effect_clear_area_light");
+}
+
+static napi_value bridge_area_light_brdf_table_copy_lookup_glsl(napi_env env, napi_callback_info info) {
+  (void) info;
+  return copy_static_text(env, g_api.area_light_brdf_table_copy_lookup_glsl, "cna_area_light_brdf_table_copy_lookup_glsl");
+}
+
+static napi_value bridge_area_light_shading_copy_shading_glsl(napi_env env, napi_callback_info info) {
+  (void) info;
+  return copy_static_text(env, g_api.area_light_shading_copy_shading_glsl, "cna_area_light_shading_copy_shading_glsl");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "getDefaultAreaLight", NULL, bridge_area_light_ext_init, NULL, NULL, NULL, napi_default, NULL },
+    { "isAreaLightValid", NULL, bridge_area_light_ext_is_valid, NULL, NULL, NULL, napi_default, NULL },
+    { "createAreaLightBrdfTable", NULL, bridge_area_light_brdf_table_create, NULL, NULL, NULL, napi_default, NULL },
+    { "createAreaLightBrdfTableWithSize", NULL, bridge_area_light_brdf_table_create_with_size, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyAreaLightBrdfTable", NULL, bridge_area_light_brdf_table_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "getAreaLightBrdfTableTexture", NULL, bridge_area_light_brdf_table_get_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "getAreaLightBrdfTableSize", NULL, bridge_area_light_brdf_table_get_size, NULL, NULL, NULL, napi_default, NULL },
+    { "getAreaLightBrdfTableSampleCount", NULL, bridge_area_light_brdf_table_get_sample_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getAreaLightBrdfTableGenerationMilliseconds", NULL, bridge_area_light_brdf_table_get_generation_milliseconds, NULL, NULL, NULL, napi_default, NULL },
+    { "evaluateAreaLightBrdf", NULL, bridge_area_light_brdf_table_evaluate, NULL, NULL, NULL, napi_default, NULL },
+    { "getAreaLightBrdfLookupGlsl", NULL, bridge_area_light_brdf_table_copy_lookup_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "getAreaLightQuad", NULL, bridge_area_light_shading_quad_of, NULL, NULL, NULL, napi_default, NULL },
+    { "getAreaLightCoverage", NULL, bridge_area_light_shading_coverage, NULL, NULL, NULL, napi_default, NULL },
+    { "getAreaLightContribution", NULL, bridge_area_light_shading_contribution, NULL, NULL, NULL, napi_default, NULL },
+    { "getAreaLightLobeScale", NULL, bridge_area_light_shading_lobe_scale_for, NULL, NULL, NULL, napi_default, NULL },
+    { "getAreaLightShadingGlsl", NULL, bridge_area_light_shading_copy_shading_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "setClusteredForwardAreaLight", NULL, bridge_clustered_forward_effect_set_area_light, NULL, NULL, NULL, napi_default, NULL },
+    { "hasClusteredForwardAreaLight", NULL, bridge_clustered_forward_effect_has_area_light, NULL, NULL, NULL, napi_default, NULL },
+    { "clearClusteredForwardAreaLight", NULL, bridge_clustered_forward_effect_clear_area_light, NULL, NULL, NULL, napi_default, NULL },
     { "createClusteredLightBuffer", NULL, bridge_clustered_light_buffer_create, NULL, NULL, NULL, napi_default, NULL },
     { "destroyClusteredLightBuffer", NULL, bridge_clustered_light_buffer_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "uploadClusteredLightBuffer", NULL, bridge_clustered_light_buffer_upload, NULL, NULL, NULL, napi_default, NULL },

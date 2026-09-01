@@ -9617,3 +9617,319 @@ test("the clustered light buffer, the compute assignment and the forward effect 
     `BORROW=${borrow.unsupported ? "SKIPPED" : "COUNTED"}`,
   );
 });
+
+test("an area light's shading maths is exact where it is closed and monotone where it is not", async () => {
+  const graphics = computeExtensions;
+  const { AreaLightShading, AreaLightShape, CreateAreaLight } = graphics;
+  // The table is the one thing here that needs a device -- and a device may only be borrowed
+  // inside a lifecycle callback -- so its evidence is gathered in a probe game and asserted below.
+  class AreaProbeGame extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+
+    LoadContent() {
+      try {
+        const sized = new graphics.AreaLightBrdfTable(this.GraphicsDevice, 8, 16);
+        try {
+          const texture = sized.GetTexture();
+          try {
+            this.evidence.sized = {
+              size: sized.Size, samples: sized.SampleCount,
+              milliseconds: sized.GenerationMilliseconds,
+              texture: [texture.Width, texture.Height],
+            };
+          } finally {
+            texture.Dispose();
+          }
+        } finally {
+          sized.Dispose();
+        }
+        const standard = new graphics.AreaLightBrdfTable(this.GraphicsDevice);
+        try {
+          this.evidence.standard = { size: standard.Size, samples: standard.SampleCount };
+        } finally {
+          standard.Dispose();
+        }
+      } catch (error) {
+        this.evidence.table = `${error.constructor.name}(${error.cnaResult ?? "-"}): ` +
+          `${(error.message ?? "").slice(0, 130)}`;
+      }
+      this.Exit();
+      super.LoadContent();
+    }
+
+    Update(gameTime) {
+      this.Exit();
+      super.Update(gameTime);
+    }
+  }
+  const probeGame = new AreaProbeGame();
+  await probeGame.Run();
+  const tables = probeGame.evidence;
+
+  // --- CNA's own default light --------------------------------------------------------------------
+  const defaults = CreateAreaLight();
+  assert.equal(defaults.Shape, AreaLightShape.Rectangle, "a light starts as a rectangle");
+  assert.equal(defaults.TwoSided, false, "emitting from one side");
+  assert.deepEqual(
+    [defaults.RightAxis.X, defaults.UpAxis.Y], [0.5, 0.5],
+    "the axes are HALF-extents, so a default light is one unit square",
+  );
+  assert.deepEqual([defaults.Color.X, defaults.Color.Y, defaults.Color.Z], [1, 1, 1]);
+  assert.equal(defaults.Intensity, 1);
+  assert.ok(defaults.Range > 0);
+  assert.equal(AreaLightShading.IsValid(defaults), true, "and it is a light CNA will shade with");
+
+  // What stops being one. A light that is off is still a light; a light with no size is not.
+  assert.equal(
+    AreaLightShading.IsValid({ ...defaults, Intensity: 0 }), true,
+    "an intensity of zero is a light that is switched off, not an invalid one",
+  );
+  for (const [name, over] of [
+    ["no range", { Range: 0 }], ["a negative range", { Range: -1 }],
+    ["no width", { RightAxis: Vector3.Zero }], ["no height", { UpAxis: Vector3.Zero }],
+  ]) {
+    assert.equal(
+      AreaLightShading.IsValid({ ...defaults, ...over }), false,
+      `a light with ${name} must not be shaded with`,
+    );
+  }
+
+  // --- the lobe's width -----------------------------------------------------------------------------
+  // The GGX alpha, floored so a mirror still has a lobe with a width rather than a line.
+  const lobeScale = (roughness) => Math.max(Math.min(Math.max(roughness, 0), 1) ** 2, 0.02);
+  for (const roughness of [0, 0.05, 0.1414, 0.2, 0.5, 0.75, 1, 2, -1]) {
+    const measured = AreaLightShading.LobeScaleFor(roughness);
+    assert.ok(
+      Math.abs(measured - lobeScale(roughness)) < 1e-6,
+      `lobe scale at roughness ${roughness}: ${measured} vs ${lobeScale(roughness)}`,
+    );
+  }
+  assert.equal(AreaLightShading.LobeScaleFor(0), AreaLightShading.LobeScaleFor(0.1),
+    "below the floor every roughness gives the same width, which is what a floor means");
+  assert.equal(AreaLightShading.LobeScaleFor(1), 1, "and a fully rough surface gives the widest");
+  assert.equal(AreaLightShading.LobeScaleFor(2), AreaLightShading.LobeScaleFor(1),
+    "a roughness above one is clamped rather than squared past it");
+
+  // --- the quad each shape integrates over ------------------------------------------------------------
+  const rect = {
+    ...defaults, Shape: AreaLightShape.Rectangle, Position: new Vector3(0, 2, 0),
+    RightAxis: new Vector3(1, 0, 0), UpAxis: new Vector3(0, 0, 1),
+  };
+  const below = Vector3.Zero;
+  const corners = AreaLightShading.QuadOf(rect, below).map((c) => [c.X, c.Y, c.Z]);
+  assert.deepEqual(
+    corners, [[-1, 2, -1], [1, 2, -1], [1, 2, 1], [-1, 2, 1]],
+    "a rectangle's quad is its own four corners, at plus and minus each half-extent",
+  );
+  // A disc is the rectangle scaled so the quad has the ellipse's area: sqrt(pi) / 2 per axis.
+  const disc = AreaLightShading.QuadOf({ ...rect, Shape: AreaLightShape.Disc }, below)
+    .map((c) => [c.X, c.Y, c.Z]);
+  const discScale = Math.sqrt(Math.PI) / 2;
+  for (const [index, corner] of disc.entries()) {
+    for (const axis of [0, 2]) {
+      assert.ok(
+        Math.abs(Math.abs(corner[axis]) - discScale) < 1e-5,
+        `a disc's corner ${index} axis ${axis} is not the equal-area scale: ` +
+        `${corner[axis]} vs ${discScale}`,
+      );
+    }
+    assert.equal(corner[1], 2, "and it stays in the light's own plane");
+  }
+  assert.ok(
+    discScale < 1 && discScale > 0.88,
+    "an inscribed ellipse has less area than its rectangle, so the quad shrinks",
+  );
+  // A tube billboards: a cylinder looks like a rectangle from wherever it is seen, so the quad
+  // turns to face the surface. Seen from directly below it happens to coincide with the rectangle;
+  // seen from the side it does not, which is the whole point.
+  const tubeBelow = AreaLightShading.QuadOf({ ...rect, Shape: AreaLightShape.Tube }, below)
+    .map((c) => [c.X, c.Y, c.Z]);
+  const tubeSide = AreaLightShading
+    .QuadOf({ ...rect, Shape: AreaLightShape.Tube }, new Vector3(5, 2, 0))
+    .map((c) => [c.X, c.Y, c.Z]);
+  assert.notDeepEqual(
+    tubeSide, tubeBelow,
+    "a tube's quad must turn with the surface it is seen from, or it is not a billboard",
+  );
+  for (const corner of tubeSide) {
+    assert.ok(
+      Math.abs(corner[2]) < 1e-5,
+      `seen from along +X the tube's quad must lie in the XY plane, not at z=${corner[2]}`,
+    );
+  }
+  // Its long axis is the right axis whichever way it is seen, because that is the cylinder's axis.
+  for (const quad of [tubeBelow, tubeSide]) {
+    const width = Math.abs(quad[1][0] - quad[0][0]);
+    assert.ok(Math.abs(width - 2) < 1e-5, `a tube stays as long as its axis: ${width}`);
+  }
+
+  // --- how much of the lobe the quad covers -------------------------------------------------------------
+  const quad = [
+    new Vector3(-1, 2, -1), new Vector3(1, 2, -1), new Vector3(1, 2, 1), new Vector3(-1, 2, 1),
+  ];
+  const up = new Vector3(0, 1, 0);
+  const facing = AreaLightShading.Coverage(quad, Vector3.Zero, up, 0.25, false);
+  assert.ok(facing > 0 && facing <= 1, `coverage is a fraction, not ${facing}`);
+  assert.equal(
+    AreaLightShading.Coverage(quad, Vector3.Zero, new Vector3(0, -1, 0), 0.25, false), 0,
+    "a lobe pointing away from the quad sees none of it",
+  );
+  assert.equal(
+    AreaLightShading.Coverage(quad, Vector3.Zero, new Vector3(0, -1, 0), 0.25, true), 0,
+    "and two-sidedness does not change that: it is about the QUAD's facing, not the lobe's",
+  );
+  // What two-sidedness IS about: the same quad wound the other way faces away from the surface,
+  // and only a two-sided light still reaches it.
+  const flipped = [...quad].reverse();
+  assert.equal(
+    AreaLightShading.Coverage(flipped, Vector3.Zero, up, 0.25, false), 0,
+    "a one-sided light facing away from the surface lights none of it",
+  );
+  assert.ok(
+    Math.abs(AreaLightShading.Coverage(flipped, Vector3.Zero, up, 0.25, true) - facing) < 1e-5,
+    "while a two-sided one lights it exactly as much as if it were facing the right way",
+  );
+  // A narrower lobe is more completely filled by the same quad, and a wider one less.
+  const narrow = AreaLightShading.Coverage(quad, Vector3.Zero, up, 0.02, false);
+  const wide = AreaLightShading.Coverage(quad, Vector3.Zero, up, 1, false);
+  assert.ok(
+    narrow > facing && facing > wide,
+    `coverage must fall as the lobe widens: ${narrow} then ${facing} then ${wide}`,
+  );
+  assert.ok(narrow > 0.99, "a mirror's lobe is almost entirely inside a quad this size");
+  assert.throws(
+    () => AreaLightShading.Coverage([quad[0], quad[1]], Vector3.Zero, up, 0.25, false), TypeError,
+    "a quad is exactly four corners",
+  );
+
+  // --- what the light contributes ---------------------------------------------------------------------------
+  const lit = {
+    ...defaults, Position: new Vector3(0, 2, 0), RightAxis: new Vector3(1, 0, 0),
+    UpAxis: new Vector3(0, 0, 1), Color: new Vector3(1, 1, 1), Intensity: 1, Range: 10,
+  };
+  const shade = (over, metallic = 0, roughness = 0.5) => {
+    const value = AreaLightShading.Contribution(
+      { ...lit, ...over }, Vector3.Zero, new Vector3(0, 1, 0), new Vector3(0, 1, 3),
+      new Vector3(0.8, 0.6, 0.4), metallic, roughness);
+    return [value.X, value.Y, value.Z];
+  };
+  const plain = shade({});
+  assert.ok(plain.every((channel) => channel > 0), "a surface under a lit rectangle is lit");
+  const twice = shade({ Intensity: 2 });
+  for (const [index, channel] of twice.entries()) {
+    assert.ok(
+      Math.abs(channel - plain[index] * 2) < 1e-6,
+      `intensity must be an exact multiplier on channel ${index}`,
+    );
+  }
+  assert.deepEqual(
+    shade({ Range: 1 }), [0, 0, 0],
+    "a surface outside the light's range gets nothing",
+  );
+  assert.deepEqual(
+    shade({ Position: new Vector3(0, 50, 0) }), [0, 0, 0],
+    "and so does one further away than the range, wherever the light is",
+  );
+  const bigger = shade({ RightAxis: new Vector3(3, 0, 0) });
+  for (const [index, channel] of bigger.entries()) {
+    assert.ok(
+      channel > plain[index],
+      `a wider light must put more light on the surface, not ${channel} against ${plain[index]}`,
+    );
+  }
+  assert.deepEqual(
+    shade({ Intensity: 0 }), [0, 0, 0],
+    "a light that is switched off contributes nothing, though it is still a valid light",
+  );
+  // Metallic and roughness are different parameters and must reach different places: a rough metal
+  // and a smooth dielectric with the numbers exchanged are not the same surface.
+  const metalRough = shade({}, 1, 0.2);
+  const roughMetal = shade({}, 0.2, 1);
+  assert.notDeepEqual(
+    metalRough, roughMetal,
+    "swapping metallic for roughness must not give the same shading",
+  );
+  assert.ok(
+    metalRough[0] < plain[0] && roughMetal[0] < plain[0],
+    "and both differ from the dielectric at half roughness the rest of this block uses",
+  );
+
+  // --- the table the specular term is looked up in --------------------------------------------------------------
+  // Magnitude falls as a surface roughens, because a wider lobe spills off the light; the average
+  // normal is one head-on and leans over as the view goes grazing. Both are the table's whole point.
+  const headOn = [0.1, 0.5, 0.9].map(
+    (roughness) => graphics.AreaLightBrdfTable.Evaluate(roughness, 1, 64));
+  for (let index = 1; index < headOn.length; index += 1) {
+    assert.ok(
+      headOn[index].Magnitude < headOn[index - 1].Magnitude,
+      "a rougher surface reflects less of a lit rectangle",
+    );
+  }
+  assert.ok(
+    Math.abs(headOn[0].AverageNormal - 1) < 1e-3,
+    "seen head-on the average lobe direction is the normal itself",
+  );
+  assert.ok(
+    Math.abs(headOn[0].AverageTangent) < 1e-3,
+    "with nothing along the tangent",
+  );
+  const grazing = graphics.AreaLightBrdfTable.Evaluate(0.5, 0.2, 64);
+  const straight = graphics.AreaLightBrdfTable.Evaluate(0.5, 1, 64);
+  assert.ok(
+    grazing.AverageTangent > straight.AverageTangent,
+    "and it leans along the tangent as the view goes grazing",
+  );
+  assert.ok(
+    grazing.Fresnel > straight.Fresnel,
+    "while the Fresnel term rises towards grazing, which is what Fresnel means",
+  );
+  for (const terms of [...headOn, grazing, straight]) {
+    for (const [name, value] of Object.entries(terms)) {
+      assert.ok(Number.isFinite(value), `${name} must be a number`);
+      assert.ok(value >= 0, `${name} must not be negative: ${value}`);
+    }
+  }
+
+  // --- the table as an object ------------------------------------------------------------------------
+  // A caller trades size and sample count against how long the table takes to build, so both are
+  // theirs to choose and both are reported back.
+  assert.equal(tables.table, undefined, `the table block failed: ${tables.table}`);
+  assert.equal(tables.sized.size, 8, "the size a caller asked for is the size it has");
+  assert.equal(tables.sized.samples, 16, "and the sample count is the one they asked for");
+  assert.ok(tables.sized.milliseconds >= 0, "and it reports what building it cost");
+  assert.deepEqual(
+    tables.sized.texture, [8, 8],
+    "the texture is exactly as big as the table, not a size of its own",
+  );
+  assert.ok(tables.standard.size > 8, "CNA's own default table is larger than that");
+  assert.ok(tables.standard.samples > 16, "and integrated over more samples");
+
+  // --- the GLSL the layer hands out ------------------------------------------------------------------------------
+  for (const [name, source] of [
+    ["the lookup", graphics.AreaLightBrdfTable.LookupGlsl],
+    ["the shading", AreaLightShading.Glsl],
+  ]) {
+    assert.equal(typeof source, "string");
+    assert.ok(source.length > 200, `${name} source is too short to be GLSL: ${source.length}`);
+    assert.ok(/\bvec[234]\b/.test(source), `${name} source is not GLSL`);
+  }
+  assert.notEqual(
+    graphics.AreaLightBrdfTable.LookupGlsl, AreaLightShading.Glsl,
+    "the lookup and the shading are two different programs",
+  );
+
+  assert.throws(() => AreaLightShading.IsValid(null), TypeError);
+  assert.throws(() => AreaLightShading.LobeScaleFor(Number.NaN), TypeError);
+  assert.throws(() => graphics.AreaLightBrdfTable.Evaluate(0.5, 1, 1.5), TypeError);
+
+  probeGame.Dispose();
+
+  console.log(
+    `CNA_TS_NATIVE_AREA_LIGHT=PASS LOBE=GGX_ALPHA_FLOORED DISC=SQRT_PI_OVER_2 TUBE=BILLBOARDS ` +
+    `COVERAGE=${narrow.toFixed(3)}/${facing.toFixed(3)}/${wide.toFixed(3)} TABLE=MAGNITUDE_FALLS`,
+  );
+});

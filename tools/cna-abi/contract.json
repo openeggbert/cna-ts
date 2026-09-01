@@ -962,6 +962,15 @@
         "ScRgb": "SCRGB",
         "Hdr10": "HDR10"
       }
+    },
+    {
+      "typeScriptEnum": "AreaLightShape",
+      "cnaPrefix": "CNA_AREA_LIGHT_SHAPE",
+      "suffixOverrides": {
+        "Rectangle": "RECTANGLE_EXT",
+        "Disc": "DISC_EXT",
+        "Tube": "TUBE_EXT"
+      }
     }
   ]
 }

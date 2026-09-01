@@ -1387,6 +1387,41 @@ export interface CnaGraphicsExtensionBackend {
   addDebugDrawClusterSliceGizmo(
     debug: NativeHandle, grid: NativeHandle, inverseView: readonly number[], color: number,
   ): void;
+  // --- area lights: the BRDF table and the shading maths ----------------------------------------
+  getDefaultAreaLight(): AreaLightSnapshot;
+  isAreaLightValid(light: AreaLightSnapshot): boolean;
+  createAreaLightBrdfTable(graphicsDevice: NativeHandle): NativeHandle;
+  createAreaLightBrdfTableWithSize(
+    graphicsDevice: NativeHandle, size: number, sampleCount: number,
+  ): NativeHandle;
+  destroyAreaLightBrdfTable(table: NativeHandle): void;
+  getAreaLightBrdfTableTexture(table: NativeHandle): NativeHandle;
+  getAreaLightBrdfTableSize(table: NativeHandle): number;
+  getAreaLightBrdfTableSampleCount(table: NativeHandle): number;
+  getAreaLightBrdfTableGenerationMilliseconds(table: NativeHandle): number;
+  evaluateAreaLightBrdf(
+    roughness: number, cosTheta: number, sampleCount: number,
+  ): AreaLightBrdfTermsSnapshot;
+  getAreaLightBrdfLookupGlsl(): string;
+  getAreaLightQuad(
+    light: AreaLightSnapshot, surface: Vector3Snapshot,
+  ): readonly Vector3Snapshot[];
+  getAreaLightCoverage(
+    quad: readonly Vector3Snapshot[], surface: Vector3Snapshot, lobeAxis: Vector3Snapshot,
+    lobeScale: number, twoSided: boolean,
+  ): number;
+  getAreaLightContribution(
+    light: AreaLightSnapshot, surface: Vector3Snapshot, normal: Vector3Snapshot,
+    cameraPosition: Vector3Snapshot, baseColor: Vector3Snapshot, metallic: number,
+    roughness: number,
+  ): Vector3Snapshot;
+  getAreaLightLobeScale(roughness: number): number;
+  getAreaLightShadingGlsl(): string;
+  setClusteredForwardAreaLight(
+    effect: NativeHandle, light: AreaLightSnapshot, table: NativeHandle,
+  ): void;
+  hasClusteredForwardAreaLight(effect: NativeHandle): boolean;
+  clearClusteredForwardAreaLight(effect: NativeHandle): void;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
@@ -2033,6 +2068,26 @@ export interface ClusteredContributionSnapshot {
   readonly IridescenceThickness: number;
   readonly SubsurfaceColor: Vector3Snapshot;
   readonly SubsurfaceWrap: number;
+}
+
+/** An area light: a lit rectangle, disc or tube rather than a point. */
+export interface AreaLightSnapshot {
+  readonly Shape: number;
+  readonly TwoSided: boolean;
+  readonly Position: Vector3Snapshot;
+  readonly RightAxis: Vector3Snapshot;
+  readonly UpAxis: Vector3Snapshot;
+  readonly Color: Vector3Snapshot;
+  readonly Intensity: number;
+  readonly Range: number;
+}
+
+/** The four terms a linearly-transformed-cosine table stores per roughness and angle. */
+export interface AreaLightBrdfTermsSnapshot {
+  readonly Magnitude: number;
+  readonly Fresnel: number;
+  readonly AverageTangent: number;
+  readonly AverageNormal: number;
 }
 
 export interface Vector4Snapshot {

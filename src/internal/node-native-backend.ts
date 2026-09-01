@@ -111,6 +111,8 @@ import type {
   VideoPlayerSnapshot,
   VideoFrameSnapshot,
   StorageDeviceSnapshot,
+  AreaLightBrdfTermsSnapshot,
+  AreaLightSnapshot,
   BlendStateSnapshot,
   DepthStencilStateSnapshot,
   RasterizerStateSnapshot,
@@ -1269,6 +1271,25 @@ interface NativeBridge {
   clusteredLightContribution(inputs: ClusteredContributionSnapshot): Vector3Snapshot;
   clusteredLightContributionWithExtensions(inputs: ClusteredContributionSnapshot, extensions: bigint): Vector3Snapshot;
   addDebugDrawClusterSliceGizmo(debug: bigint, grid: bigint, inverseView: readonly number[], color: number): void;
+  getDefaultAreaLight(): AreaLightSnapshot;
+  isAreaLightValid(light: AreaLightSnapshot): boolean;
+  createAreaLightBrdfTable(graphicsDevice: bigint): bigint;
+  createAreaLightBrdfTableWithSize(graphicsDevice: bigint, size: number, sampleCount: number): bigint;
+  destroyAreaLightBrdfTable(table: bigint): void;
+  getAreaLightBrdfTableTexture(table: bigint): bigint;
+  getAreaLightBrdfTableSize(table: bigint): number;
+  getAreaLightBrdfTableSampleCount(table: bigint): number;
+  getAreaLightBrdfTableGenerationMilliseconds(table: bigint): number;
+  evaluateAreaLightBrdf(roughness: number, cosTheta: number, sampleCount: number): AreaLightBrdfTermsSnapshot;
+  getAreaLightBrdfLookupGlsl(): string;
+  getAreaLightQuad(light: AreaLightSnapshot, surface: Vector3Snapshot): Vector3Snapshot[];
+  getAreaLightCoverage(quad: readonly Vector3Snapshot[], surface: Vector3Snapshot, lobeAxis: Vector3Snapshot, lobeScale: number, twoSided: boolean): number;
+  getAreaLightContribution(light: AreaLightSnapshot, surface: Vector3Snapshot, normal: Vector3Snapshot, cameraPosition: Vector3Snapshot, baseColor: Vector3Snapshot, metallic: number, roughness: number): Vector3Snapshot;
+  getAreaLightLobeScale(roughness: number): number;
+  getAreaLightShadingGlsl(): string;
+  setClusteredForwardAreaLight(effect: bigint, light: AreaLightSnapshot, table: bigint): void;
+  hasClusteredForwardAreaLight(effect: bigint): boolean;
+  clearClusteredForwardAreaLight(effect: bigint): void;
   applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { Applied: number; Settings: PipelineSettingsSnapshot };
   getPipelinePassTiming(pipeline: bigint, index: number): { Milliseconds: number; SampleCount: number };
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -3809,6 +3830,27 @@ export class NodeNativeBackend
   public clusteredLightContribution(inputs: ClusteredContributionSnapshot): Vector3Snapshot { return this.#bridge.clusteredLightContribution(inputs); }
   public clusteredLightContributionWithExtensions(inputs: ClusteredContributionSnapshot, extensions: NativeHandle): Vector3Snapshot { return this.#bridge.clusteredLightContributionWithExtensions(inputs, extensions); }
   public addDebugDrawClusterSliceGizmo(debug: NativeHandle, grid: NativeHandle, inverseView: readonly number[], color: number): void { this.#bridge.addDebugDrawClusterSliceGizmo(debug, grid, inverseView, color); }
+
+  // Area lights.
+  public getDefaultAreaLight(): AreaLightSnapshot { return this.#bridge.getDefaultAreaLight(); }
+  public isAreaLightValid(light: AreaLightSnapshot): boolean { return this.#bridge.isAreaLightValid(light); }
+  public createAreaLightBrdfTable(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createAreaLightBrdfTable(graphicsDevice); }
+  public createAreaLightBrdfTableWithSize(graphicsDevice: NativeHandle, size: number, sampleCount: number): NativeHandle { return this.#bridge.createAreaLightBrdfTableWithSize(graphicsDevice, size, sampleCount); }
+  public destroyAreaLightBrdfTable(table: NativeHandle): void { this.#bridge.destroyAreaLightBrdfTable(table); }
+  public getAreaLightBrdfTableTexture(table: NativeHandle): NativeHandle { return this.#bridge.getAreaLightBrdfTableTexture(table); }
+  public getAreaLightBrdfTableSize(table: NativeHandle): number { return this.#bridge.getAreaLightBrdfTableSize(table); }
+  public getAreaLightBrdfTableSampleCount(table: NativeHandle): number { return this.#bridge.getAreaLightBrdfTableSampleCount(table); }
+  public getAreaLightBrdfTableGenerationMilliseconds(table: NativeHandle): number { return this.#bridge.getAreaLightBrdfTableGenerationMilliseconds(table); }
+  public evaluateAreaLightBrdf(roughness: number, cosTheta: number, sampleCount: number): AreaLightBrdfTermsSnapshot { return this.#bridge.evaluateAreaLightBrdf(roughness, cosTheta, sampleCount); }
+  public getAreaLightBrdfLookupGlsl(): string { return this.#bridge.getAreaLightBrdfLookupGlsl(); }
+  public getAreaLightQuad(light: AreaLightSnapshot, surface: Vector3Snapshot): readonly Vector3Snapshot[] { return this.#bridge.getAreaLightQuad(light, surface); }
+  public getAreaLightCoverage(quad: readonly Vector3Snapshot[], surface: Vector3Snapshot, lobeAxis: Vector3Snapshot, lobeScale: number, twoSided: boolean): number { return this.#bridge.getAreaLightCoverage(quad, surface, lobeAxis, lobeScale, twoSided); }
+  public getAreaLightContribution(light: AreaLightSnapshot, surface: Vector3Snapshot, normal: Vector3Snapshot, cameraPosition: Vector3Snapshot, baseColor: Vector3Snapshot, metallic: number, roughness: number): Vector3Snapshot { return this.#bridge.getAreaLightContribution(light, surface, normal, cameraPosition, baseColor, metallic, roughness); }
+  public getAreaLightLobeScale(roughness: number): number { return this.#bridge.getAreaLightLobeScale(roughness); }
+  public getAreaLightShadingGlsl(): string { return this.#bridge.getAreaLightShadingGlsl(); }
+  public setClusteredForwardAreaLight(effect: NativeHandle, light: AreaLightSnapshot, table: NativeHandle): void { this.#bridge.setClusteredForwardAreaLight(effect, light, table); }
+  public hasClusteredForwardAreaLight(effect: NativeHandle): boolean { return this.#bridge.hasClusteredForwardAreaLight(effect); }
+  public clearClusteredForwardAreaLight(effect: NativeHandle): void { this.#bridge.clearClusteredForwardAreaLight(effect); }
   public applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { readonly Applied: number; readonly Settings: PipelineSettingsSnapshot } { return this.#bridge.applyPipelineSettingsFromString(settings, text); }
   public getPipelinePassTiming(pipeline: NativeHandle, index: number): { readonly Milliseconds: number; readonly SampleCount: number } { return this.#bridge.getPipelinePassTiming(pipeline, index); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }

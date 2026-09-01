@@ -18,6 +18,8 @@ import type { DisplayOrientation } from "../Microsoft/Xna/Framework/DisplayOrien
 import type { DepthFormat, GraphicsProfile, SurfaceFormat, } from "../Microsoft/Xna/Framework/Graphics/DeviceEnums.js";
 import type {
   AccelerometerReadingSnapshot,
+  AreaLightBrdfTermsSnapshot,
+  AreaLightSnapshot,
   AudioEmitterSnapshot,
   AudioListenerSnapshot,
   AudioVectorSnapshot,
@@ -2214,6 +2216,72 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
     _inverseView: readonly number[],
     _color: number,
   ): void { return this.unsupported("addDebugDrawClusterSliceGizmo"); }
+  public getDefaultAreaLight(): AreaLightSnapshot { return this.unsupported("getDefaultAreaLight"); }
+  public isAreaLightValid(_light: AreaLightSnapshot): boolean { return this.unsupported("isAreaLightValid"); }
+  public createAreaLightBrdfTable(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createAreaLightBrdfTable"); }
+  public createAreaLightBrdfTableWithSize(
+    _graphicsDevice: NativeHandle,
+    _size: number,
+    _sampleCount: number,
+  ): NativeHandle { return this.unsupported("createAreaLightBrdfTableWithSize"); }
+  public destroyAreaLightBrdfTable(
+    _table: NativeHandle,
+  ): void { return this.unsupported("destroyAreaLightBrdfTable"); }
+  public getAreaLightBrdfTableTexture(
+    _table: NativeHandle,
+  ): NativeHandle { return this.unsupported("getAreaLightBrdfTableTexture"); }
+  public getAreaLightBrdfTableSize(
+    _table: NativeHandle,
+  ): number { return this.unsupported("getAreaLightBrdfTableSize"); }
+  public getAreaLightBrdfTableSampleCount(
+    _table: NativeHandle,
+  ): number { return this.unsupported("getAreaLightBrdfTableSampleCount"); }
+  public getAreaLightBrdfTableGenerationMilliseconds(
+    _table: NativeHandle,
+  ): number { return this.unsupported("getAreaLightBrdfTableGenerationMilliseconds"); }
+  public evaluateAreaLightBrdf(
+    _roughness: number,
+    _cosTheta: number,
+    _sampleCount: number,
+  ): AreaLightBrdfTermsSnapshot { return this.unsupported("evaluateAreaLightBrdf"); }
+  public getAreaLightBrdfLookupGlsl(): string { return this.unsupported("getAreaLightBrdfLookupGlsl"); }
+  public getAreaLightQuad(
+    _light: AreaLightSnapshot,
+    _surface: Vector3Snapshot,
+  ): readonly Vector3Snapshot[] { return this.unsupported("getAreaLightQuad"); }
+  public getAreaLightCoverage(
+    _quad: readonly Vector3Snapshot[],
+    _surface: Vector3Snapshot,
+    _lobeAxis: Vector3Snapshot,
+    _lobeScale: number,
+    _twoSided: boolean,
+  ): number { return this.unsupported("getAreaLightCoverage"); }
+  public getAreaLightContribution(
+    _light: AreaLightSnapshot,
+    _surface: Vector3Snapshot,
+    _normal: Vector3Snapshot,
+    _cameraPosition: Vector3Snapshot,
+    _baseColor: Vector3Snapshot,
+    _metallic: number,
+    _roughness: number,
+  ): Vector3Snapshot { return this.unsupported("getAreaLightContribution"); }
+  public getAreaLightLobeScale(
+    _roughness: number,
+  ): number { return this.unsupported("getAreaLightLobeScale"); }
+  public getAreaLightShadingGlsl(): string { return this.unsupported("getAreaLightShadingGlsl"); }
+  public setClusteredForwardAreaLight(
+    _effect: NativeHandle,
+    _light: AreaLightSnapshot,
+    _table: NativeHandle,
+  ): void { return this.unsupported("setClusteredForwardAreaLight"); }
+  public hasClusteredForwardAreaLight(
+    _effect: NativeHandle,
+  ): boolean { return this.unsupported("hasClusteredForwardAreaLight"); }
+  public clearClusteredForwardAreaLight(
+    _effect: NativeHandle,
+  ): void { return this.unsupported("clearClusteredForwardAreaLight"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,
