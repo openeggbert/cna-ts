@@ -1045,6 +1045,17 @@ asserts every row, including the blank first draw. When this is repaired the "no
 fails, which is the point. The weighted-blended accumulation test beside it applies its effect once
 before the bracket opens and says why.
 
+**It does not reach the compiled-effect route, and that was measured rather than assumed.**
+`test/effect-reflection.integration.mjs` constructs a compiled `Effect` from
+`CnaConformanceEffect.fxb`, selects a technique, applies a pass and draws once -- the first draw that
+effect has ever performed, with nothing priming it -- and the texels are already the ones the shader's
+own arithmetic predicts. The second half does not reach it either: a multiple-render-target bind
+issued straight after a compiled-effect draw succeeds, where the same bind after a `ShaderEffect`
+draw refuses on the pending `InvalidOperation(0x502)` above. So both halves of this finding belong to
+`ShaderEffect`, not to "custom shaders" generally, and a fix should not assume the compiled path
+needs the same repair. Both are asserted in that file, so a compiled effect acquiring either defect
+fails there.
+
 ## 23. Three `_init` routes document identity transforms and write zero matrices
 
 **Severity:** documentation, and the implementation is the half that is right.

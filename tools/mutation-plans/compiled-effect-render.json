@@ -1,0 +1,64 @@
+{
+  "name": "compiled-effect reflection, write-through and render",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "xvfb-run -a node --test test/effect-reflection.integration.mjs",
+  "mutants": [
+    {
+      "id": "skip-scalar-write-through",
+      "why": "a scalar parameter is stored managed and never sent, so the shader keeps the fixture's value",
+      "file": "src/Microsoft/Xna/Framework/Graphics/Effect.ts",
+      "find": "  backend.setEffectParameterValue(handle, described.Type, described.Components);",
+      "replace": "  void backend; void handle; void described;"
+    },
+    {
+      "id": "skip-array-write-through",
+      "why": "an array parameter (Weights) is stored managed and never sent",
+      "file": "src/Microsoft/Xna/Framework/Graphics/Effect.ts",
+      "find": "    backend.setEffectParameterValues(handle, first.Type, components);",
+      "replace": "    void backend; void handle; void first; void components;"
+    },
+    {
+      "id": "skip-texture-write-through",
+      "why": "the sampler is never bound, so MainPixelShader samples whatever was there before",
+      "file": "src/Microsoft/Xna/Framework/Graphics/Effect.ts",
+      "find": "    backend.setEffectParameterTexture(\n      handle, effectTextureType(value), resolveTextureHandleForInternalUse(value));",
+      "replace": "    void backend; void handle; void value;"
+    },
+    {
+      "id": "drop-last-array-element",
+      "why": "every array parameter arrives one element short, so Weights[1] keeps its declared value",
+      "file": "src/Microsoft/Xna/Framework/Graphics/Effect.ts",
+      "find": "    backend.setEffectParameterValues(handle, first.Type, components);",
+      "replace": "    backend.setEffectParameterValues(handle, first.Type, components.slice(0, -1));"
+    },
+    {
+      "id": "skip-pass-apply",
+      "why": "EffectPass.Apply does nothing, so the draw runs with whatever program was last current",
+      "file": "src/Microsoft/Xna/Framework/Graphics/Effect.ts",
+      "find": "      native.Backend.applyEffectPass(state.NativeLifetime.Handle);",
+      "replace": "      void native.Backend;"
+    },
+    {
+      "id": "ignore-current-technique",
+      "why": "CurrentTechnique is stored managed and never selected natively, so one program always runs",
+      "file": "src/Microsoft/Xna/Framework/Graphics/Effect.ts",
+      "find": "      state.Native.Backend.setEffectCurrentTechnique(\n        state.Native.Lifetime.Handle, technique.Handle,\n      );",
+      "replace": "      void state.Native.Backend; void technique;"
+    },
+    {
+      "id": "transpose-sends-the-original",
+      "why": "SetValueTranspose stores the transpose and sends the untransposed matrix",
+      "file": "src/Microsoft/Xna/Framework/Graphics/Effect.ts",
+      "find": "    writeParameterThrough(state, transposed);",
+      "replace": "    writeParameterThrough(state, value as Matrix);"
+    },
+    {
+      "id": "vector4-loses-w",
+      "why": "a Vector4 parameter arrives with its W component zeroed, so Tint's alpha is wrong",
+      "file": "src/Microsoft/Xna/Framework/Graphics/Effect.ts",
+      "find": "  backend.setEffectParameterValue(handle, described.Type, described.Components);",
+      "replace": "  backend.setEffectParameterValue(handle, described.Type,\n    described.Components.length === 4 ? [...described.Components.slice(0, 3), 0] : described.Components);"
+    }
+  ]
+}

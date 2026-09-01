@@ -21,8 +21,10 @@ import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-import { Game, Graphics, GraphicsDeviceManager, LoadNodeNativeBackend, Matrix, Vector3, Vector4 }
-  from "../dist/index.js";
+import {
+  Color, Game, Graphics, GraphicsDeviceManager, LoadNodeNativeBackend, Matrix, Vector2, Vector3,
+  Vector4,
+} from "../dist/index.js";
 import { readNativeParameterValueForInternalUse, readNativeParameterValuesForInternalUse }
   from "../dist/Microsoft/Xna/Framework/Graphics/Effect.js";
 
@@ -52,6 +54,62 @@ function matrixRow(matrix) {
     matrix.M41, matrix.M42, matrix.M43, matrix.M44,
   ];
 }
+
+/*
+ * The two pixel shaders of `CnaConformanceEffect.fx`, transcribed from CNA's own source so the
+ * expected pixel is computed from the *shader* and the values this file sets -- never from
+ * `GetValue*`, which answers from managed state and would agree with its own setter whether or not
+ * anything reached the GPU.
+ *
+ *     float4 FlatPixelShader(VertexOut input) : COLOR0
+ *     {
+ *         return Tint * Weights[1];
+ *     }
+ *
+ *     float4 MainPixelShader(VertexOut input) : COLOR0
+ *     {
+ *         float4 sampled = tex2D(FxSampler, input.TexCoord);
+ *         float lighting = saturate(Lighting.Intensity + Lighting.Thresholds[0]);
+ *         return sampled * Tint * Gain * lighting;
+ *     }
+ */
+
+/** `Tint * Weights[1]`, on four channels. */
+const flatShader = (tint, weights) => tint.map((component) => component * weights[1]);
+
+/** `sampled * Tint * Gain * saturate(Lighting.Intensity + Lighting.Thresholds[0])`. */
+const mainShader = (sampled, tint, gain, intensity, thresholds) => {
+  const lighting = Math.min(Math.max(intensity + thresholds[0], 0), 1);
+  return tint.map((component, index) => sampled[index] * component * gain * lighting);
+};
+
+/** A shader's float output as the byte an eight-bit render target stores. */
+const asColor = (channels) =>
+  channels.map((value) => Math.round(Math.min(Math.max(value, 0), 1) * 255));
+
+/**
+ * The values `CnaConformanceEffect.fx` *declares*, used only where the test draws without setting
+ * anything -- the one case where the fixture rather than this file owns the expectation.
+ *
+ * `Lighting`'s declared `Thresholds = { 0.9f, 1.0f }` is deliberately not among them: the committed
+ * `.fxb` behaves as though `Thresholds[0]` were zero, which is what CNA's own golden-pixel test
+ * (`EasyGLCompiledEffectDrawTest.RendersTheAppliedPassesExpectedPixelsIntoARenderTarget`) also
+ * expects. That is the effect compiler's output for a struct array member, baked into a binary
+ * neither project builds here, so every `MainPixelShader` expectation below sets `Lighting` itself.
+ */
+const DECLARED_TINT = [0.1, 0.2, 0.3, 0.4];
+const DECLARED_WEIGHTS = [0.2, 0.8];
+
+/** A full-screen quad already in clip space: `Transform` is the identity, so the vertex shader
+ * passes `Position` through unchanged and these must already be NDC. */
+const QUAD = [
+  [-1, 1, 0, 0], [-1, -1, 0, 1], [1, -1, 1, 1],
+  [-1, 1, 0, 0], [1, -1, 1, 1], [1, 1, 1, 0],
+].map(([x, y, u, v]) =>
+  new Graphics.VertexPositionTexture(new Vector3(x, y, 0), new Vector2(u, v)));
+
+/** A colour no expectation below is close to, so a lost draw reads as the clear and not as a pass. */
+const RENDER_CLEAR = new Color(50, 50, 50, 255);
 
 /** CNA's tagged value identities, repeated here so the test does not import the implementation. */
 const VALUE_INT32 = 1;
@@ -166,6 +224,112 @@ class EffectProbeGame extends Game {
         return { Count: effect.Parameters.Count, Names: names };
       } finally {
         effect.Dispose();
+      }
+    });
+
+    // The execution half. Reflection and write-through are proved above by asking CNA what it
+    // holds; none of that says the value reaches the *shader*. This draws with the compiled
+    // program and reads the texels back, which is the only evidence that closes the chain
+    // reflection -> lookup -> native SetValue -> technique -> pass Apply -> draw -> pixels.
+    record("render", () => {
+      const bytes = fs.readFileSync(effectPath("CnaConformanceEffect.fxb"));
+      const effect = new Graphics.Effect(device, [...bytes]);
+      const target = new Graphics.RenderTarget2D(device, 8, 8);
+      const white = new Graphics.Texture2D(device, 1, 1);
+      // Neither P0 nor P1 sets a CullMode of its own -- only StatePass does -- so the winding is
+      // decided by the device's own rasterizer state, exactly as it is for CNA's own draw test.
+      device.RasterizerState = Graphics.RasterizerState.CullNone;
+
+      /** Draws the quad through one technique/pass and returns the centre texel as four bytes. */
+      const drawCentre = (techniqueIndex, passIndex) => {
+        device.SetRenderTarget(target);
+        try {
+          device.Clear(RENDER_CLEAR);
+          effect.CurrentTechnique = effect.Techniques.Get(techniqueIndex);
+          effect.CurrentTechnique.Passes.Get(passIndex).Apply();
+          device.DrawUserPrimitives(Graphics.PrimitiveType.TriangleList, QUAD, 0, 2);
+        } finally {
+          // Unbound even when the draw refuses, so a failure surfaces here and not later as a
+          // frame that cannot be presented.
+          device.SetRenderTarget(null);
+        }
+        const texels = new Array(64);
+        target.GetData(texels);
+        const centre = texels[8 * 4 + 4];
+        return [centre.R, centre.G, centre.B, centre.A];
+      };
+
+      try {
+        white.SetData([new Color(255, 255, 255, 255)]);
+
+        // 1. The first draw of a freshly constructed effect, before anything is set. Finding 22
+        //    says a `ShaderEffect`'s first `SpriteBatch` draw is lost; whether that extends to a
+        //    compiled effect is a question this has to *measure*, so it draws once and no more.
+        const firstDraw = drawCentre(1, 0);
+
+        // 2. Three states through SecondTechnique/P1 (FlatPixelShader), which samples nothing:
+        //    its output is arithmetic on two parameters and nothing else. A -> B moves only Tint,
+        //    B -> C moves only Weights, so each says which parameter reached the shader.
+        const tint = effect.Parameters.Get("Tint");
+        const weights = effect.Parameters.Get("Weights");
+        const states = [
+          { label: "A", tint: [0.8, 0.6, 0.4, 1.0], weights: [0.125, 0.5] },
+          { label: "B", tint: [0.2, 1.0, 0.8, 0.6], weights: [0.125, 0.5] },
+          { label: "C", tint: [0.2, 1.0, 0.8, 0.6], weights: [0.125, 0.25] },
+        ].map((state) => {
+          tint.SetValue(new Vector4(...state.tint));
+          weights.SetValue([...state.weights]);
+          return { ...state, actual: drawCentre(1, 0) };
+        });
+
+        // 3. The same parameters, the other technique. FirstTechnique/P0 is MainPixelShader, which
+        //    samples the texture and scales by Gain and the Lighting struct -- a different program
+        //    over identical parameter state, so the answer says which technique actually ran.
+        effect.Parameters.Get("FxTexture").SetValue(white);
+        effect.Parameters.Get("Gain").SetValue(0.5);
+        const lighting = effect.Parameters.Get("Lighting");
+        const intensity = 0.25;
+        const thresholds = [0.125, 0.0];
+        lighting.StructureMembers.Get("Intensity").SetValue(intensity);
+        lighting.StructureMembers.Get("Thresholds").SetValue([...thresholds]);
+        const mainTint = [1.0, 0.75, 0.5, 1.0];
+        tint.SetValue(new Vector4(...mainTint));
+        const mainDraw = drawCentre(0, 0);
+
+        // 4. Gain alone, halved. Nothing else moves, so the whole image has to halve with it.
+        effect.Parameters.Get("Gain").SetValue(0.25);
+        const halvedGain = drawCentre(0, 0);
+
+        // 5. Finding 22's other half: a `ShaderEffect` draw leaves a GL error pending and the next
+        //    multiple-render-target bind refuses on it. Whether a *compiled* effect does the same
+        //    is again a measurement, not an assumption.
+        const extra = [
+          new Graphics.RenderTarget2D(device, 8, 8), new Graphics.RenderTarget2D(device, 8, 8),
+        ];
+        let mrtAfterDraw;
+        try {
+          device.SetRenderTargets(extra.map((item) => new Graphics.RenderTargetBinding(item)));
+          device.SetRenderTarget(null);
+          mrtAfterDraw = "SUCCESS";
+        } catch (error) {
+          mrtAfterDraw = `${error?.constructor?.name}: ${error?.message}`;
+        } finally {
+          for (const item of extra) item.Dispose();
+        }
+
+        return {
+          firstDraw,
+          states,
+          main: { actual: mainDraw, tint: mainTint, gain: 0.5, intensity, thresholds },
+          halvedGain: { actual: halvedGain, gain: 0.25 },
+          mrtAfterDraw,
+        };
+      } finally {
+        // The effect retains the texture it was given for `FxTexture`, so it is released first:
+        // disposing the texture while the effect still holds it is refused by name.
+        effect.Dispose();
+        white.Dispose();
+        target.Dispose();
       }
     });
 
@@ -291,5 +455,124 @@ test("a stock effect stays managed-authoritative", { skip }, () => {
     evidence.stock, { Count: 0 },
     "CNA's stock effects carry no native parameter collection, so this package's own stock state " +
     "remains the only authority for BasicEffect and its siblings",
+  );
+});
+
+// ---------------------------------------------------------------------------------------------
+// Execution. Everything above proves the parameter reached CNA; these prove it reached the shader.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Eight-bit render targets quantise, so an expectation computed in floats is compared to within one
+ * byte. Every pair of states below differs by far more than that, which is what makes a wrong
+ * parameter, a wrong technique or a skipped `Apply` fail here rather than round into agreement.
+ */
+function assertTexel(actual, expected, what) {
+  assert.ok(Array.isArray(actual), `${what}: the probe failed: ${actual}`);
+  const names = ["R", "G", "B", "A"];
+  for (let index = 0; index < 4; index += 1) {
+    assert.ok(
+      Math.abs(actual[index] - expected[index]) <= 1,
+      `${what}: ${names[index]} is ${actual[index]}, expected ${expected[index]} ` +
+      `(actual ${actual}, expected ${expected})`,
+    );
+  }
+}
+
+test("a compiled effect's pass draws, and does not lose its first draw", { skip }, () => {
+  const render = evidence.render;
+  assert.equal(typeof render, "object", `the probe failed: ${render}`);
+
+  // The fixture's own declared values, since this draw sets nothing. CNA's own golden-pixel test
+  // expects the same four bytes through its internal renderer API, which is a second implementation
+  // of this expectation reached by a different route.
+  const expected = asColor(flatShader(DECLARED_TINT, DECLARED_WEIGHTS));
+  assert.deepEqual(expected, [20, 41, 61, 82], "0.1,0.2,0.3,0.4 times 0.8, quantised");
+  assertTexel(render.firstDraw, expected, "a fresh compiled effect's first draw");
+
+  // Said explicitly because the opposite is true one API over: finding 22 records that a
+  // `ShaderEffect`'s first `SpriteBatch` draw produces nothing at all and needs a priming `Apply`.
+  // This draw is the first one this effect ever performed and it is already correct, so that
+  // defect does not reach the compiled-effect route and nothing here primes anything. If a
+  // compiled effect ever starts losing its first draw too, this is the test that says so.
+  assert.notDeepEqual(
+    render.firstDraw, [RENDER_CLEAR.R, RENDER_CLEAR.G, RENDER_CLEAR.B, RENDER_CLEAR.A],
+    "the first draw is not the clear colour, so a pass really ran",
+  );
+});
+
+test("moving a reflected parameter moves the pixels it feeds", { skip }, () => {
+  const { states } = evidence.render;
+  assert.equal(states.length, 3);
+  for (const state of states) {
+    assertTexel(
+      state.actual, asColor(flatShader(state.tint, state.weights)),
+      `SecondTechnique/P1 with state ${state.label}`,
+    );
+  }
+
+  // A and B differ only in Tint; B and C only in Weights. Asserting the images differ is what
+  // makes the three expectations above evidence rather than three agreeing constants: a binding
+  // that ignored SetValue entirely would draw the fixture's declared colour all three times.
+  const [a, b, c] = states.map((state) => state.actual);
+  assert.notDeepEqual(a, b, "changing only Tint changes the image");
+  assert.notDeepEqual(b, c, "changing only Weights[1] changes the image");
+});
+
+test("the selected technique decides which program runs", { skip }, () => {
+  const { main, halvedGain, states } = evidence.render;
+
+  // FirstTechnique/P0 samples a white texel and scales by Gain and the Lighting struct.
+  const expected = asColor(
+    mainShader([1, 1, 1, 1], main.tint, main.gain, main.intensity, main.thresholds));
+  assertTexel(main.actual, expected, "FirstTechnique/P0 (MainPixelShader)");
+
+  // The same parameter state through the other technique is a different program and a different
+  // answer -- so `CurrentTechnique` selected the pass that drew, rather than the draw always
+  // running whichever program was compiled first.
+  const flat = asColor(flatShader(main.tint, states[2].weights));
+  assert.notDeepEqual(
+    main.actual, flat,
+    "MainPixelShader and FlatPixelShader over identical parameters must not agree, or the " +
+    "technique selection above proves nothing",
+  );
+
+  // Gain is a scalar the second technique's program does not read at all, so halving it has to
+  // halve this image and would have left the previous one alone.
+  assertTexel(
+    halvedGain.actual,
+    asColor(mainShader([1, 1, 1, 1], main.tint, halvedGain.gain, main.intensity, main.thresholds)),
+    "FirstTechnique/P0 with Gain halved",
+  );
+});
+
+test("a struct member and a struct array element reach the shader", { skip }, () => {
+  const { main } = evidence.render;
+
+  // `Lighting.Intensity` and `Lighting.Thresholds[0]` are only ever read through `saturate()` in
+  // MainPixelShader, so the image above already depends on both. This states the consequence the
+  // way a defect would break it: had either write-through been dropped, the shader would have used
+  // the fixture's own values and produced a different, and here much brighter, image.
+  const withDroppedMembers = asColor(mainShader([1, 1, 1, 1], main.tint, main.gain, 0.5, [0]));
+  assert.notDeepEqual(
+    asColor(mainShader([1, 1, 1, 1], main.tint, main.gain, main.intensity, main.thresholds)),
+    withDroppedMembers,
+    "the fixture's own Lighting and this test's differ, so the assertion above is not vacuous",
+  );
+  assertTexel(
+    main.actual,
+    asColor(mainShader([1, 1, 1, 1], main.tint, main.gain, main.intensity, main.thresholds)),
+    "Lighting.Intensity and Lighting.Thresholds[0] both reached MainPixelShader",
+  );
+});
+
+test("a compiled-effect draw leaves no pending GL error behind it", { skip }, () => {
+  // Finding 22's second half: after a `ShaderEffect` draw, the next multiple-render-target bind
+  // fails with a GL error some earlier call left pending. Measured here for the compiled route,
+  // which is a different code path and, on this renderer, does not do it. This is a detector: if
+  // the compiled route ever acquires the same defect, it fails here with the message.
+  assert.equal(
+    evidence.render.mrtAfterDraw, "SUCCESS",
+    "a multiple-render-target bind straight after a compiled-effect draw",
   );
 });
