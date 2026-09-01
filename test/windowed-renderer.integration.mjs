@@ -60,6 +60,9 @@ function matrixRow(matrix) {
 import * as extensionsModule from "../dist/extensions/index.js";
 import { CnaResult } from "../dist/internal/cna-results.js";
 import * as computeModule from "../dist/extensions/graphics/index.js";
+import {
+  assertPackedDepthPrecision, assertPrepassOrderingCodes,
+} from "./support/prepass-decal-oracle.mjs";
 
 const library = process.env.CNA_WINDOWED_LIBRARY;
 const display = process.env.DISPLAY;
@@ -4490,38 +4493,22 @@ test("a windowed CNA renderer projects a decal onto what its prepass drew", { sk
    * instead of 255 and the exact accuracy comes straight back, because 256 is the base the shifts
    * and masks are written in while an eight-bit UNORM target stores n/255.
    */
-  const sweep = (quantise) => {
-    let worst = 0;
-    for (let step = 0; step <= 2000; step += 1) {
-      const depth = (step / 2000) * 0.999;
-      const packed = DepthNormalPrepassMath.PackDepth(depth);
-      const decoded = DepthNormalPrepassMath.UnpackDepth(
-        quantise(packed.R), quantise(packed.G), quantise(packed.B), quantise(packed.A),
-      );
-      worst = Math.max(worst, Math.abs(decoded - depth));
-    }
-    return worst;
-  };
-  const asWritten = sweep((value) => value);
-  const asStored = sweep((value) => Math.round(value * 255) / 255);
-  const atBase256 = sweep((value) => Math.min(255, Math.round(value * 256)) / 256);
-  assert.ok(
-    asWritten <= Math.pow(2, -24),
-    `the encoder's own arithmetic is good to a part in 2^24 (${asWritten})`,
-  );
-  assert.ok(
-    asStored > 100 * asWritten,
-    "UPSTREAM FINDING 13 REPAIRED: the packing now survives an eight-bit target. " +
-    "Update docs/upstream-cna-findings.md and tighten the depth assertions below",
-  );
-  assert.ok(
-    Math.abs(asStored - 0.5 / 255) < 1e-5,
-    `through eight bits the error is a half channel step, no better (${asStored})`,
-  );
-  assert.ok(
-    Math.abs(atBase256 - asWritten) < 1e-9,
-    `and 256 levels restores it exactly, which is where the loss comes from (${atBase256})`,
-  );
+  const sweepRows = [];
+  for (let step = 0; step <= 2000; step += 1) {
+    const depth = (step / 2000) * 0.999;
+    const packed = DepthNormalPrepassMath.PackDepth(depth);
+    const channels = [packed.R, packed.G, packed.B, packed.A];
+    sweepRows.push([
+      depth,
+      DepthNormalPrepassMath.UnpackDepth(...channels),
+      DepthNormalPrepassMath.UnpackDepth(...channels.map((v) => Math.round(v * 255) / 255)),
+      DepthNormalPrepassMath.UnpackDepth(
+        ...channels.map((v) => Math.min(255, Math.round(v * 256)) / 256)),
+    ]);
+  }
+  // Shared with the browser suite: one claim about one piece of CNA, asserted in one place, so the
+  // two suites cannot come to disagree about whether finding 13 has been repaired.
+  const { asStored } = assertPackedDepthPrecision(sweepRows);
   // The GLSL a game includes rather than reimplements. The packed form carries the unpacker; both
   // carry the reconstruction, so the encoding and its inverse cannot drift apart.
   assert.ok(maths.packedGlsl.includes("cnaUnpackDepth"), "the packed dialect carries its unpacker");
@@ -4909,17 +4896,13 @@ test("a windowed CNA renderer projects a decal onto what its prepass drew", { sk
    * pipeline, in the same source file, catches exactly that and answers `INVALID_STATE`. Asserted
    * as it behaves, so a repair fails here and says so.
    */
-  assert.deepEqual(
-    [
-      evidence.refusals.openTwice, evidence.refusals.endWithoutBegin,
-      evidence.refusals.invertedPlanes, evidence.refusals.resizeInsidePass,
-    ],
-    [
-      CnaResult.Internal, CnaResult.Internal, CnaResult.InvalidArgument, CnaResult.Internal,
-    ],
-    "UPSTREAM FINDING 14 REPAIRED: the three ordering refusals now answer INVALID_STATE. " +
-    "Update docs/upstream-cna-findings.md and assert the documented codes",
-  );
+  // Shared with the browser suite for the same reason the sweep above is.
+  assertPrepassOrderingCodes({
+    beginTwice: evidence.refusals.openTwice,
+    endClosed: evidence.refusals.endWithoutBegin,
+    resizeInside: evidence.refusals.resizeInsidePass,
+    swappedPlanes: evidence.refusals.invertedPlanes,
+  });
 
   console.log(
     `CNA_TS_WINDOWED_DECALS=OK SURFACE=${surfaceCount}px@${evidence.prepassOccupied.minX},` +

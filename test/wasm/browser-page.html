@@ -45,6 +45,14 @@ try {
   ].map(([x, y, u, v]) =>
     new Graphics.VertexPositionTexture(new Vector3(x, y, 0), new Vector2(u, v)));
 
+  /** A Matrix in the row order the engine layer's C structures use, for evidence and comparison. */
+  const matrixRow = (matrix) => [
+    matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+    matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+    matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+    matrix.M41, matrix.M42, matrix.M43, matrix.M44,
+  ];
+
   /** A colour no expectation is near, so a lost draw reads as the clear and not as a pass. */
   const RENDER_CLEAR = new Color(50, 50, 50, 255);
   const canvas = document.getElementById("canvas");
@@ -718,6 +726,9 @@ try {
       // tripped, CNA's own scalars sampled, and the one pass whose pixels are exactly predictable
       // without a depth buffer asserted texel by texel.
       result.postProcess = this.#postProcessEvidence();
+
+      // --- the depth/normal prepass, and the decal projector that reads it -----------------------
+      result.prepass = this.#prepassEvidence();
 
       // --- what this device can be asked ------------------------------------------------------
       //
@@ -1470,6 +1481,414 @@ try {
       effect.QuantizeMode = PostProcess.AsciiQuantizeMode.BlackWhite;
       evidence.blackWhiteMode = effect.QuantizeMode;
       evidence.blackWhite = draw(4, 4);
+      return evidence;
+    }
+
+    /**
+     * The depth/normal prepass and the decal projector that reads it, in one scenario.
+     *
+     * Deliberately the same scenario `test/windowed-renderer.integration.mjs` runs against the
+     * windowed OPENGLES3 build -- same 80x48 target, same camera, same rectangle, same decal boxes
+     * -- and asserted through the same `support/prepass-decal-oracle.mjs` both suites call. Two
+     * backends compared on one question rather than on two that resemble each other.
+     *
+     * They are measured together because they are one pipeline: the prepass rasterises linear
+     * depth and normals, and the projector unprojects that depth and paints where the result lands
+     * inside a box. The rectangle's position on screen is settled three ways -- by a stock
+     * `BasicEffect`, which shares no code with either object, by the prepass, and by the decal --
+     * so a disagreement says which stage moved it.
+     *
+     * Finding 13 lives here too, and the sweep is run on this backend rather than assumed to carry
+     * over from the other one: `packLinearDepth` and `unpackLinearDepth` are the same arithmetic
+     * everywhere, but whether *this* binding reaches them correctly is what is being measured.
+     */
+    #prepassEvidence() {
+      const device = this.GraphicsDevice;
+      const { DecalPass, DepthEncoding, DepthNormalPrepass, DepthNormalPrepassMath } = PostProcess;
+      // Not square and not a power of two on either axis: width and height are separate arguments
+      // to the decal draw, and a pass that swapped them lands on the same texels in a square.
+      const WIDTH = 80, HEIGHT = 48, NEAR = 1, FAR = 100, EYE = 10;
+      const CLEARED = new Color(12, 34, 56, 255);
+      // Asymmetric on both screen axes and off-centre on both, so a mirror or a swap moves it.
+      const RECT = { X0: -6, X1: 10, Y0: -6, Y1: -1, Z: 0 };
+      const owned = [];
+      const release = () => {
+        for (const item of owned.reverse()) { try { item.Dispose(); } catch { /* reported */ } }
+      };
+      let prepass;
+      try {
+        prepass = new DepthNormalPrepass(device, WIDTH, HEIGHT, DepthEncoding.Automatic);
+      } catch (error) {
+        return {
+          layerAbsent: true,
+          cnaResult: error?.cnaResult ?? null,
+          error: `${error?.constructor?.name}: ${error?.message}`,
+        };
+      }
+      owned.push(prepass);
+      const evidence = { layerAbsent: false, width: WIDTH, height: HEIGHT, eye: EYE, far: FAR, rect: RECT };
+      try {
+        // --- can this renderer receive a draw into more than one bound target at all? -----------
+        //
+        // Asked first, before anything else in this page has drawn, and with a stock BasicEffect
+        // so no custom shader is involved. The prepass reports IsUsingMultipleRenderTargets on
+        // this context and does its whole job inside one such bind, so if a draw cannot reach two
+        // bound targets here then nothing the prepass does can be attributed to the prepass.
+        // --- the arithmetic, which is the same on every renderer and is where finding 13 is ----
+        evidence.maths = {
+          devicePacked: DepthNormalPrepassMath.UsesPackedDepth(device),
+          packHalf: (() => { const p = DepthNormalPrepassMath.PackDepth(0.5); return [p.R, p.G, p.B, p.A]; })(),
+          packOne: (() => { const p = DepthNormalPrepassMath.PackDepth(1); return [p.R, p.G, p.B, p.A]; })(),
+          unpackHalf: DepthNormalPrepassMath.UnpackDepth(0, 0, 0, 0.5),
+          roundTrip: (() => {
+            const packed = DepthNormalPrepassMath.PackDepth(0.375);
+            return DepthNormalPrepassMath.UnpackDepth(packed.R, packed.G, packed.B, packed.A);
+          })(),
+          // The sweep the oracle turns into finding 13, run here rather than transcribed: 2001
+          // depths, each packed by CNA and decoded by CNA, with the channels left alone, put
+          // through 255 levels as an eight-bit target stores them, and through 256.
+          sweep: (() => {
+            const rows = [];
+            for (let step = 0; step <= 2000; step += 1) {
+              const depth = (step / 2000) * 0.999;
+              const packed = DepthNormalPrepassMath.PackDepth(depth);
+              rows.push([depth, [packed.R, packed.G, packed.B, packed.A]]);
+            }
+            return rows.map(([depth, channels]) => [
+              depth,
+              DepthNormalPrepassMath.UnpackDepth(...channels),
+              DepthNormalPrepassMath.UnpackDepth(...channels.map((v) => Math.round(v * 255) / 255)),
+              DepthNormalPrepassMath.UnpackDepth(
+                ...channels.map((v) => Math.min(255, Math.round(v * 256)) / 256)),
+            ]);
+          })(),
+          packedGlsl: DepthNormalPrepassMath.DepthDecodeGlsl(true),
+          plainGlsl: DepthNormalPrepassMath.DepthDecodeGlsl(false),
+          velocityGlsl: DepthNormalPrepassMath.VelocityDecodeGlsl(),
+          hasVelocity: DepthNormalPrepassMath.HasVelocity(new Color(200, 100, 0, 0)),
+          hasNoVelocity: DepthNormalPrepassMath.HasVelocity(new Color(200, 100, 0, 255)),
+          decodedVelocity: (() => {
+            const velocity = DepthNormalPrepassMath.DecodeVelocity(new Color(255, 0, 0, 0));
+            return [velocity.X, velocity.Y];
+          })(),
+          decodedNoVelocity: (() => {
+            const velocity = DepthNormalPrepassMath.DecodeVelocity(new Color(255, 0, 0, 255));
+            return [velocity.X, velocity.Y];
+          })(),
+          insideBox: [
+            [[0, 0, 0], true], [[0.5, 0.5, 0.5], true], [[-0.5, -0.5, -0.5], true],
+            [[0.50001, 0, 0], false], [[0, 0.6, 0], false], [[0, 0, -0.75], false],
+          ].map(([p, expected]) => [p, DecalPass.IsInsideDecalBox(new Vector3(...p)), expected]),
+        };
+
+        // --- what the prepass says about itself -------------------------------------------------
+        evidence.prepass = {
+          supported: prepass.IsSupported,
+          passCount: prepass.PassCount,
+          multipleRenderTargets: prepass.IsUsingMultipleRenderTargets,
+          depthPacked: prepass.IsDepthPacked,
+          velocityEnabled: prepass.IsVelocityEnabled,
+          roughness: prepass.Roughness,
+        };
+        prepass.Roughness = 0.25;
+        evidence.prepass.roughnessSet = prepass.Roughness;
+        prepass.Roughness = 5;
+        evidence.prepass.roughnessClamped = prepass.Roughness;
+        prepass.Roughness = -1;
+        evidence.prepass.roughnessFloored = prepass.Roughness;
+        prepass.Roughness = 0;
+        const depthTexture = prepass.DepthTexture;
+        evidence.prepass.textures = {
+          depth: [depthTexture.Width, depthTexture.Height],
+          depthCached: prepass.DepthTexture === depthTexture,
+          normal: [prepass.NormalTexture.Width, prepass.NormalTexture.Height],
+          velocity: prepass.VelocityTexture === null ? "null" : "present",
+        };
+        evidence.prepass.effects = [
+          prepass.PrepassEffect.CurrentTechnique.Name,
+          prepass.SkinnedPrepassEffect.CurrentTechnique.Name,
+        ];
+        // Finding 14: three ordering mistakes whose header documents INVALID_STATE (3) and which
+        // answer INTERNAL (12). Recorded as returned, never translated.
+        const codeOf = (body) => {
+          try { body(); return "no error"; } catch (error) { return error?.cnaResult ?? `${error?.constructor?.name}`; }
+        };
+        const view = Matrix.CreateLookAt(new Vector3(0, 0, EYE), Vector3.Zero, Vector3.Up);
+        const projection =
+          Matrix.CreatePerspectiveFieldOfView(Math.PI / 2, WIDTH / HEIGHT, NEAR, FAR);
+        evidence.prepass.ordering = (() => {
+          prepass.Begin(0, view, projection, NEAR, FAR);
+          const beginTwice = codeOf(() => prepass.Begin(0, view, projection, NEAR, FAR));
+          const resizeInside = codeOf(() => prepass.Resize(32, 32));
+          prepass.End();
+          const endClosed = codeOf(() => prepass.End());
+          const swappedPlanes =
+            codeOf(() => prepass.Begin(0, view, projection, FAR, NEAR));
+          if (swappedPlanes === "no error") prepass.End();
+          return { beginTwice, resizeInside, endClosed, swappedPlanes };
+        })();
+
+        // --- the scene, three times over ---------------------------------------------------------
+        evidence.view = matrixRow(view);
+        evidence.projection = matrixRow(projection);
+        const quad = (make) => [
+          make(RECT.X0, RECT.Y0), make(RECT.X1, RECT.Y0), make(RECT.X1, RECT.Y1),
+          make(RECT.X0, RECT.Y0), make(RECT.X1, RECT.Y1), make(RECT.X0, RECT.Y1),
+        ];
+        const survey = (pixels, painted) => {
+          let count = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          const colours = new Set();
+          for (let index = 0; index < pixels.length; index += 1) {
+            if (!painted(pixels[index], index)) continue;
+            count += 1;
+            colours.add(pixels[index].PackedValue);
+            const x = index % WIDTH, y = Math.floor(index / WIDTH);
+            if (x < minX) minX = x;
+            if (x > maxX) maxX = x;
+            if (y < minY) minY = y;
+            if (y > maxY) maxY = y;
+          }
+          return { count, minX, maxX, minY, maxY, colours: [...colours] };
+        };
+
+        // 1. The independent rasteriser: a stock BasicEffect, which shares no code with either.
+        const target = new Graphics.RenderTarget2D(device, WIDTH, HEIGHT);
+        owned.push(target);
+        const basic = new Graphics.BasicEffect(device);
+        owned.push(basic);
+        basic.VertexColorEnabled = true;
+        basic.World = Matrix.Identity;
+        basic.View = view;
+        basic.Projection = projection;
+        device.RasterizerState = Graphics.RasterizerState.CullNone;
+        const pixels = new Array(WIDTH * HEIGHT);
+        device.SetRenderTarget(target);
+        try {
+          device.Clear(CLEARED);
+          basic.CurrentTechnique.Passes.Get(0).Apply();
+          device.DrawUserPrimitives(
+            Graphics.PrimitiveType.TriangleList,
+            quad((x, y) => new Graphics.VertexPositionColor(
+              new Vector3(x, y, RECT.Z), new Color(0, 255, 0, 255))),
+            0, 2,
+          );
+        } finally {
+          device.SetRenderTarget(null);
+        }
+        target.GetData(pixels);
+        evidence.rasterised = survey(pixels, (texel) => texel.PackedValue !== CLEARED.PackedValue);
+
+        // 2. The prepass, filling its own buffers with the same rectangle.
+        //
+        // Run twice, and both occupancies recorded, because the prepass draws through a
+        // `ShaderEffect` and upstream finding 22 says a fresh one loses its first draw. That
+        // finding was measured through `SpriteBatch` on OPENGLES3; whether it reaches
+        // `DrawUserPrimitives` on WebGL2 is a different question and this is where it gets asked
+        // rather than assumed either way.
+        const depthPixels = new Array(WIDTH * HEIGHT);
+        const runPrepass = () => {
+          for (let index = 0; index < prepass.PassCount; index += 1) {
+            prepass.Begin(index, view, projection, NEAR, FAR);
+            try {
+              prepass.PrepassEffect.CurrentTechnique.Passes.Get(0).Apply();
+              device.DrawUserPrimitives(
+                Graphics.PrimitiveType.TriangleList,
+                quad((x, y) => new Graphics.VertexPositionNormalTexture(
+                  new Vector3(x, y, RECT.Z), new Vector3(0, 0, 1), Vector2.Zero)),
+                0, 2,
+              );
+            } finally {
+              prepass.End();
+            }
+          }
+          depthTexture.GetData(depthPixels);
+          let occupied = 0;
+          for (const texel of depthPixels) {
+            if (DepthNormalPrepassMath.UnpackDepth(
+              texel.R / 255, texel.G / 255, texel.B / 255, texel.A / 255) < 0.99) occupied += 1;
+          }
+          return occupied;
+        };
+        evidence.firstDrawOccupancy = runPrepass();
+        evidence.secondDrawOccupancy = runPrepass();
+        const normalPixels = new Array(WIDTH * HEIGHT);
+        prepass.NormalTexture.GetData(normalPixels);
+        const linearDepth = (texel) => DepthNormalPrepassMath.UnpackDepth(
+          texel.R / 255, texel.G / 255, texel.B / 255, texel.A / 255,
+        );
+        const depths = new Map();
+        for (const texel of depthPixels) {
+          const key = linearDepth(texel).toFixed(5);
+          depths.set(key, (depths.get(key) ?? 0) + 1);
+        }
+        evidence.depthHistogram = [...depths.entries()].sort((left, right) => right[1] - left[1]);
+        evidence.surfaceMask = depthPixels.map((texel) => linearDepth(texel) < 0.99);
+        evidence.prepassOccupied = survey(depthPixels, (texel) => linearDepth(texel) < 0.99);
+        evidence.normalsInside = [...new Set(depthPixels.map((texel, index) => {
+          if (linearDepth(texel) >= 0.99) return null;
+          const normal = normalPixels[index];
+          return `${normal.R},${normal.G},${normal.B},${normal.A}`;
+        }).filter((entry) => entry !== null))];
+
+        // 3. The decal projector, over exactly the buffers the prepass just wrote.
+        const pass = new DecalPass(device);
+        owned.push(pass);
+        evidence.decalDefaults = {
+          opacity: pass.Opacity,
+          maxSlopeAngle: pass.MaxSlopeAngle,
+          tint: (() => { const t = pass.Tint; return [t.X, t.Y, t.Z]; })(),
+        };
+        pass.Opacity = 0.5;
+        evidence.decalDefaults.opacitySet = pass.Opacity;
+        pass.Opacity = 2;
+        evidence.decalDefaults.opacityClamped = pass.Opacity;
+        pass.Opacity = -1;
+        evidence.decalDefaults.opacityFloored = pass.Opacity;
+        pass.Opacity = 1;
+        pass.Tint = new Vector3(0.25, 2, -1);
+        evidence.decalDefaults.tintSet = (() => { const t = pass.Tint; return [t.X, t.Y, t.Z]; })();
+        pass.Tint = new Vector3(1, 1, 1);
+        pass.MaxSlopeAngle = 10;
+        evidence.decalDefaults.slopeClamped = pass.MaxSlopeAngle;
+        pass.MaxSlopeAngle = -1;
+        evidence.decalDefaults.slopeFloored = pass.MaxSlopeAngle;
+        pass.MaxSlopeAngle = evidence.decalDefaults.maxSlopeAngle;
+
+        const decalTexture = new Graphics.Texture2D(device, 2, 2);
+        owned.push(decalTexture);
+        decalTexture.SetData([Color.Red, Color.Red, Color.Red, Color.Red]);
+        pass.SetCamera(view, projection, FAR);
+        pass.SetPrepassInputs(depthTexture, null);
+        const project = (world) => {
+          device.SetRenderTarget(target);
+          try {
+            device.Clear(CLEARED);
+            pass.Draw(decalTexture, world, WIDTH, HEIGHT);
+          } finally {
+            device.SetRenderTarget(null);
+          }
+          target.GetData(pixels);
+          return {
+            ...survey(pixels, (texel) => texel.PackedValue !== CLEARED.PackedValue),
+            world: matrixRow(world),
+          };
+        };
+        const box = (cx, cy, cz, sx, sy, sz, yaw = 0) => Matrix.Multiply(
+          Matrix.Multiply(Matrix.CreateScale(sx, sy, sz), Matrix.CreateRotationY(yaw)),
+          Matrix.CreateTranslation(cx, cy, cz),
+        );
+        const SPAN_X = RECT.X1 - RECT.X0, SPAN_Y = RECT.Y1 - RECT.Y0;
+        const MID_X = (RECT.X0 + RECT.X1) / 2, MID_Y = (RECT.Y0 + RECT.Y1) / 2;
+        const OVER_RECT = box(MID_X, MID_Y, RECT.Z, SPAN_X, SPAN_Y, 6);
+        evidence.overRect = project(OVER_RECT);
+        evidence.halfWide = project(box(MID_X, MID_Y, RECT.Z, SPAN_X / 2, SPAN_Y, 6));
+        evidence.upperRight = project(box(
+          MID_X + SPAN_X / 4, MID_Y + SPAN_Y / 4, RECT.Z, SPAN_X / 3, SPAN_Y / 3, 6));
+        evidence.lowerLeft = project(box(
+          MID_X - SPAN_X / 4, MID_Y - SPAN_Y / 4, RECT.Z, SPAN_X / 3, SPAN_Y / 3, 6));
+        evidence.rotated = project(Matrix.Multiply(
+          Matrix.Multiply(
+            Matrix.CreateScale(SPAN_X * 1.5, SPAN_Y / 4, 6), Matrix.CreateRotationZ(Math.PI / 6)),
+          Matrix.CreateTranslation(MID_X, MID_Y, RECT.Z)));
+        evidence.awayFromSurface = project(box(MID_X, MID_Y, RECT.Z + 3, SPAN_X, SPAN_Y, 1));
+        evidence.halfOpacity = (() => {
+          pass.Opacity = 0.5;
+          const painted = project(OVER_RECT);
+          pass.Opacity = 1;
+          return painted;
+        })();
+        evidence.greenTint = (() => {
+          pass.Tint = new Vector3(0, 1, 0);
+          const painted = project(OVER_RECT);
+          pass.Tint = new Vector3(1, 1, 1);
+          return painted;
+        })();
+        evidence.noDepth = (() => {
+          pass.SetPrepassInputs(null, null);
+          const painted = project(OVER_RECT);
+          pass.SetPrepassInputs(depthTexture, null);
+          return painted;
+        })();
+        // The slope test, which exists only when normals are supplied. Unrotated, the decal
+        // projects along +Z -- at the camera -- and so does the surface, so every texel is
+        // rejected; turned through half a turn it projects into the surface and every one is taken.
+        pass.SetPrepassInputs(depthTexture, prepass.NormalTexture);
+        evidence.axisTowardCamera = project(OVER_RECT);
+        evidence.axisIntoSurface = project(box(MID_X, MID_Y, RECT.Z, SPAN_X, SPAN_Y, 6, Math.PI));
+        pass.SetPrepassInputs(depthTexture, null);
+
+        // --- can a draw reach more than one bound target on this renderer? ---------------------
+        //
+        // Asked before the prepass runs, because the prepass reports `IsUsingMultipleRenderTargets`
+        // here and does all of its work inside one such bind. If a draw cannot reach two bound
+        // targets on this context then nothing the prepass fails to write is about the prepass,
+        // and a test that asserted prepass pixels without asking this would be blaming the wrong
+        // object.
+        //
+        // Two draws, identical but for the number of targets bound, with a stock `BasicEffect` so
+        // no custom shader is anywhere near it. The single-target case runs first: a draw into a
+        // two-target bind leaves `InvalidOperation(0x502)` pending on this renderer, and the next
+        // bind refuses on it, so the control has to be taken before the experiment.
+        evidence.multipleTargetProbe = (() => {
+          const probe = {};
+          const owned2 = [];
+          const painted = (texture) => {
+            const px = new Array(WIDTH * HEIGHT);
+            texture.GetData(px);
+            return px.filter((t) => t.PackedValue !== CLEARED.PackedValue).length;
+          };
+          try {
+            const one = new Graphics.RenderTarget2D(device, WIDTH, HEIGHT);
+            const two = new Graphics.RenderTarget2D(device, WIDTH, HEIGHT);
+            owned2.push(one, two);
+            const effect = new Graphics.BasicEffect(device);
+            owned2.push(effect);
+            effect.VertexColorEnabled = true;
+            effect.World = Matrix.Identity;
+            effect.View = Matrix.CreateLookAt(new Vector3(0, 0, EYE), Vector3.Zero, Vector3.Up);
+            effect.Projection =
+              Matrix.CreatePerspectiveFieldOfView(Math.PI / 2, WIDTH / HEIGHT, NEAR, FAR);
+            device.RasterizerState = Graphics.RasterizerState.CullNone;
+            const triangle = [
+              new Graphics.VertexPositionColor(new Vector3(-6, -6, 0), new Color(0, 255, 0, 255)),
+              new Graphics.VertexPositionColor(new Vector3(10, -6, 0), new Color(0, 255, 0, 255)),
+              new Graphics.VertexPositionColor(new Vector3(10, -1, 0), new Color(0, 255, 0, 255)),
+            ];
+            const attempt = (label, bindings) => {
+              try {
+                device.SetRenderTargets(bindings.map((t) => new Graphics.RenderTargetBinding(t)));
+                device.Clear(CLEARED);
+                effect.CurrentTechnique.Passes.Get(0).Apply();
+                device.DrawUserPrimitives(Graphics.PrimitiveType.TriangleList, triangle, 0, 1);
+                device.SetRenderTarget(null);
+                probe[label] = bindings.map(painted);
+                // Read separately from the draw: a bind that received the clear and not the draw
+                // is a different fact from a bind that received nothing at all.
+                probe[`${label}Cleared`] = (() => {
+                  const px = new Array(WIDTH * HEIGHT);
+                  bindings[0].GetData(px);
+                  return px.some((t) => t.PackedValue === CLEARED.PackedValue);
+                })();
+              } catch (error) {
+                try { device.SetRenderTarget(null); } catch { /* already unbound */ }
+                probe[label] = `${error?.constructor?.name}: ${error?.message}`;
+              }
+            };
+            attempt("oneTarget", [one]);
+            attempt("twoTargets", [one, two]);
+          } catch (error) {
+            probe.error = `${error?.constructor?.name}: ${error?.message}`;
+          } finally {
+            for (const item of owned2.reverse()) { try { item.Dispose(); } catch { /* ignore */ } }
+          }
+          return probe;
+        })();
+      } catch (error) {
+        evidence.evidenceError = `${error?.constructor?.name}: ${error?.message}`;
+        evidence.evidenceStack = String(error?.stack ?? "");
+      } finally {
+        release();
+      }
       return evidence;
     }
 

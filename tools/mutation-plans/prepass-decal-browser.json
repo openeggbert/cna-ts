@@ -1,0 +1,120 @@
+{
+  "name": "the depth/normal prepass and the decal projector in a browser",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
+  "environment": "CNA_WASM_ARTIFACT_DIR must point at a CNA wasm artifact built with -DCNA_EASYGL_COMPILED_EFFECTS=ON -DCNA_CNAEXT=ON, and CNA_SOURCE_PATH at a cnanext checkout. On this renderer the prepass writes nothing -- upstream finding 30 -- so the mutants target what remains reachable and is asserted: the arithmetic routes, the four-output pack, the by-pointer matrices, the by-value CNA_Color, the two-int reads, the clamps and the ordering codes. A mutant that could only be caught by a prepass pixel would be scored against a suite that has none, which is why there is not one here.",
+  "mutants": [
+    {
+      "id": "pack-depth-writes-three-channels",
+      "why": "the four float outputs read back as three plus whatever the fourth allocation held. The low channel is the one that carries the value itself, so the whole sweep and every decoded depth moves -- and with an unpoisoned buffer it would have read as a plausible zero",
+      "file": "src/internal/wasm/prepass.ts",
+      "find": "      this.#routes.invoke(\"cna_depth_normal_prepass_pack_depth\", value, ...outputs);",
+      "replace": "      this.#routes.invoke(\"cna_depth_normal_prepass_pack_depth\", value, ...outputs.slice(0, 3), outputs[3]);\n      this.#routes.view().setFloat32(outputs[3] as number, 0, true);"
+    },
+    {
+      "id": "unpack-depth-arguments-reversed",
+      "why": "the four channels handed to the decoder in the other order, which swaps the most and least significant. The round trip of 0.375 still lands near itself for some values, and the sweep does not",
+      "file": "src/internal/wasm/prepass.ts",
+      "find": "    return this.#mem.float(\"cna_depth_normal_prepass_unpack_depth\", r, g, b, a);",
+      "replace": "    return this.#mem.float(\"cna_depth_normal_prepass_unpack_depth\", a, b, g, r);"
+    },
+    {
+      "id": "colour-passed-by-value-as-an-integer",
+      "why": "CNA_Color lowered as a packed i32 rather than as a pointer to a caller copy, which is what a binding assumes when it reads 'passed by value' and does not measure the wasm32 convention",
+      "file": "src/internal/wasm/graphics-ext-core.ts",
+      "find": "      const bytes = this.routes.module.HEAPU8;\n      bytes[pointer] = texel.R & 0xff;\n      bytes[pointer + 1] = texel.G & 0xff;\n      bytes[pointer + 2] = texel.B & 0xff;\n      bytes[pointer + 3] = texel.A & 0xff;\n      return body(pointer);",
+      "replace": "      const bytes = this.routes.module.HEAPU8;\n      bytes[pointer] = texel.R & 0xff;\n      bytes[pointer + 1] = texel.G & 0xff;\n      bytes[pointer + 2] = texel.B & 0xff;\n      bytes[pointer + 3] = texel.A & 0xff;\n      return body(((texel.A & 0xff) << 24) | ((texel.B & 0xff) << 16) | ((texel.G & 0xff) << 8) | (texel.R & 0xff));"
+    },
+    {
+      "id": "velocity-decode-components-transposed",
+      "why": "the decoded UV delta read with its components exchanged. The test's texel is deliberately asymmetric -- red full and green empty, decoding to +1 and -1 -- because a symmetric one would pass this",
+      "file": "src/internal/wasm/prepass.ts",
+      "find": "    return this.#mem.withColor(texel, (pointer) =>\n      this.#mem.vector2(\"cna_depth_normal_prepass_decode_velocity_ext\", pointer));",
+      "replace": "    const decoded = this.#mem.withColor(texel, (pointer) =>\n      this.#mem.vector2(\"cna_depth_normal_prepass_decode_velocity_ext\", pointer));\n    return { X: decoded.Y, Y: decoded.X };"
+    },
+    {
+      "id": "depth-decode-glsl-ignores-its-dialect",
+      "why": "the packed flag dropped, so both dialects come back as the half-float one. Every 'is it non-empty' check passes; only asking which of the two carries cnaUnpackDepth catches it",
+      "file": "src/internal/wasm/prepass.ts",
+      "find": "    return this.#mem.probedString(\"cna_depth_normal_prepass_copy_depth_decode_glsl\", packed ? 1 : 0);",
+      "replace": "    return this.#mem.probedString(\"cna_depth_normal_prepass_copy_depth_decode_glsl\", 0);"
+    },
+    {
+      "id": "matrix-written-transposed",
+      "why": "a CNA_Matrix written column-major, which is the single likeliest mistake in this whole layer and which a symmetric test matrix would not catch. It reaches every camera in the engine layer and every stock effect's world transform -- and the second of those is the one a test can read back, which is why the engine layer and the effect backend share one writer rather than keeping a copy each",
+      "file": "src/internal/wasm/graphics-ext-core.ts",
+      "find": "    const pointer = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Matrix.size);\n    const view = this.routes.view();\n    for (let index = 0; index < 16; index += 1) {\n      view.setFloat32(pointer + index * 4, values[index] as number, true);\n    }\n    return pointer;",
+      "replace": "    const pointer = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Matrix.size);\n    const view = this.routes.view();\n    for (let index = 0; index < 16; index += 1) {\n      const row = index >> 2, column = index & 3;\n      view.setFloat32(pointer + (column * 4 + row) * 4, values[index] as number, true);\n    }\n    return pointer;"
+    },
+    {
+      "id": "matrix-length-not-checked",
+      "why": "a short matrix accepted and zero-filled, which leaves M44 at zero -- and several of these routes read that as 'no camera was supplied' and silently fall back rather than failing",
+      "file": "src/internal/wasm/graphics-ext-core.ts",
+      "find": "    if (values.length !== 16) {\n      throw new RangeError(`a CNA_Matrix is sixteen floats, not ${values.length}`);\n    }",
+      "replace": "    if (values.length > 16) {\n      throw new RangeError(`a CNA_Matrix is sixteen floats, not ${values.length}`);\n    }"
+    },
+    {
+      "id": "prepass-begin-loses-its-pass-index",
+      "why": "every pass of a two-pass prepass opened as pass zero. On a renderer with multiple render targets there is only one pass and this is invisible; the ordering probe, which opens pass zero twice, is what still sees it",
+      "file": "src/internal/wasm/prepass.ts",
+      "find": "        \"cna_depth_normal_prepass_begin\", prepass, Math.trunc(passIndex),",
+      "replace": "        \"cna_depth_normal_prepass_begin\", prepass, 0,"
+    },
+    {
+      "id": "prepass-planes-swapped",
+      "why": "the near and far planes exchanged on every Begin. The scenario's own call would then be the inverted one the ordering probe deliberately makes, so the probe's INVALID_ARGUMENT and the scenario's success trade places",
+      "file": "src/internal/wasm/prepass.ts",
+      "find": "        viewPointer, projectionPointer, nearPlane, farPlane,",
+      "replace": "        viewPointer, projectionPointer, farPlane, nearPlane,"
+    },
+    {
+      "id": "prepass-errors-translated-to-invalid-state",
+      "why": "the binding rewriting CNA's INTERNAL into the INVALID_STATE its header documents -- which is precisely the repair-in-the-binding that would hide upstream finding 14 behind correct-looking documentation",
+      "file": "src/internal/wasm/prepass.ts",
+      "find": "  public override endDepthNormalPrepass(prepass: NativeHandle): void {\n    this.#routes.invoke(\"cna_depth_normal_prepass_end\", prepass);\n  }",
+      "replace": "  public override endDepthNormalPrepass(prepass: NativeHandle): void {\n    try {\n      this.#routes.invoke(\"cna_depth_normal_prepass_end\", prepass);\n    } catch (error) {\n      if ((error as { cnaResult?: number }).cnaResult === 12) {\n        (error as { cnaResult?: number }).cnaResult = 3;\n      }\n      throw error;\n    }\n  }"
+    },
+    {
+      "id": "roughness-clamped-in-the-binding",
+      "why": "the binding clamping roughness before CNA sees it. The round-trip and both clamp probes still answer correctly, so this survives everything except the fact that the clamp is CNA's -- included to find out whether that distinction is actually tested",
+      "file": "src/internal/wasm/prepass.ts",
+      "find": "    this.#routes.invoke(\"cna_depth_normal_prepass_set_roughness\", prepass, roughness);",
+      "replace": "    this.#routes.invoke(\n      \"cna_depth_normal_prepass_set_roughness\", prepass, Math.min(1, Math.max(0, roughness)));"
+    },
+    {
+      "id": "decal-tint-read-from-the-opacity-route",
+      "why": "a getter wired to a neighbour, which for a Vector3 read out of a float route gives three components of whatever follows it in memory",
+      "file": "src/internal/wasm/decals.ts",
+      "find": "    return this.#mem.vector3(\"cna_decal_pass_get_tint\", pass);",
+      "replace": "    return this.#mem.vector3(\"cna_decal_pass_get_max_slope_angle\", pass);"
+    },
+    {
+      "id": "decal-box-test-drops-a-component",
+      "why": "the unit-box predicate asked about a point whose Z is always zero, so a box the surface does not reach still answers inside. Only the cases that leave the box along Z catch it",
+      "file": "src/internal/wasm/decals.ts",
+      "find": "    return this.#mem.withVector3(decalLocalPosition, (pointer) =>\n      this.#mem.bool(\"cna_decal_pass_is_inside_decal_box\", pointer));",
+      "replace": "    return this.#mem.withVector3({ ...decalLocalPosition, Z: 0 }, (pointer) =>\n      this.#mem.bool(\"cna_decal_pass_is_inside_decal_box\", pointer));"
+    },
+    {
+      "id": "prepass-texture-getters-swapped",
+      "why": "the depth and normal borrows exchanged. Both are the same size and both are real textures, so only something that reads their contents or their identity separates them",
+      "file": "src/internal/wasm/prepass.ts",
+      "find": "  public override getDepthNormalPrepassDepthTexture(prepass: NativeHandle): NativeHandle {\n    return this.#routes.outHandle(\"cna_depth_normal_prepass_get_depth_texture\", prepass);\n  }",
+      "replace": "  public override getDepthNormalPrepassDepthTexture(prepass: NativeHandle): NativeHandle {\n    return this.#routes.outHandle(\"cna_depth_normal_prepass_get_normal_texture\", prepass);\n  }"
+    },
+    {
+      "id": "velocity-texture-returned-for-a-disabled-prepass",
+      "why": "the absent velocity buffer reported as the normal buffer rather than as an invalid handle, so a caller who never enabled velocity is handed a texture full of normals",
+      "file": "src/internal/wasm/prepass.ts",
+      "find": "    return this.#routes.outHandle(\"cna_depth_normal_prepass_get_velocity_texture_ext\", prepass);",
+      "replace": "    return this.#routes.outHandle(\"cna_depth_normal_prepass_get_normal_texture\", prepass);"
+    }
+  ],
+  "expectedSurvivors": {
+    "matrix-length-not-checked": "UNOBSERVABLE -- the guard exists for internal misuse and no public caller can produce an array of other than sixteen. Weakening it changes nothing any test can reach.",
+    "prepass-begin-loses-its-pass-index": "FIXTURE_LIMITED -- this renderer reports MultipleRenderTargets, so PassCount is one and every Begin is pass zero already. A renderer without it would take the two-pass path and catch this.",
+    "roughness-clamped-in-the-binding": "EQUIVALENT -- CNA clamps roughness to the same unit range, so clamping before the call and after it are the same behaviour. There is nothing here for a test to catch.",
+    "prepass-texture-getters-swapped": "FIXTURE_LIMITED by upstream finding 30 -- with a two-target bind unable to receive a draw, the depth and normal buffers both hold nothing but their shared clear, so they are indistinguishable. This dies the moment the prepass can write."
+  }
+}

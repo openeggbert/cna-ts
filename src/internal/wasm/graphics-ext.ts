@@ -130,13 +130,13 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getPostProcessPassName(pass: NativeHandle): string {
-    return this.probedString("cna_post_process_pass_copy_name", pass);
+    return this.mem.probedString("cna_post_process_pass_copy_name", pass);
   }
 
   public override isPostProcessPassSupported(
     pass: NativeHandle, device: NativeHandle,
   ): boolean {
-    return this.bool("cna_post_process_pass_is_supported", pass, device);
+    return this.mem.bool("cna_post_process_pass_is_supported", pass, device);
   }
 
   public override destroyPostProcessPass(pass: NativeHandle): void {
@@ -188,7 +188,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getPostProcessChainGpuTimingEnabled(chain: NativeHandle): boolean {
-    return this.bool("cna_post_process_chain_is_gpu_timing_enabled", chain);
+    return this.mem.bool("cna_post_process_chain_is_gpu_timing_enabled", chain);
   }
 
   public override setPostProcessChainGpuTimingEnabled(
@@ -235,7 +235,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
         scope.dispose();
       }
       timings.push({
-        Name: this.probedString(
+        Name: this.mem.probedString(
           "cna_post_process_chain_copy_pass_timing_name", chain, BigInt(index)),
         SampleCount: sampleCount,
         Milliseconds: milliseconds,
@@ -257,7 +257,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getColorGradeInterpolation(pass: NativeHandle): number {
-    return this.u32("cna_color_grade_pass_get_interpolation", pass);
+    return this.mem.u32("cna_color_grade_pass_get_interpolation", pass);
   }
 
   public override setColorGradeInterpolation(pass: NativeHandle, interpolation: number): void {
@@ -281,7 +281,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getColorGradeStrength(pass: NativeHandle): number {
-    return this.float("cna_color_grade_pass_get_strength", pass);
+    return this.mem.float("cna_color_grade_pass_get_strength", pass);
   }
 
   public override setColorGradeStrength(pass: NativeHandle, strength: number): void {
@@ -305,7 +305,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   // --- the `.cube` table itself -----------------------------------------------------------------
 
   public override parseCubeLut(text: string): NativeHandle {
-    return this.withStringView(text, (view) => this.routes.outHandle("cna_cube_lut_parse", view));
+    return this.mem.withStringView(text, (view) => this.routes.outHandle("cna_cube_lut_parse", view));
   }
 
   public override destroyCubeLut(lut: NativeHandle): void {
@@ -326,25 +326,25 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   public override getCubeLutEntry(
     lut: NativeHandle, red: number, green: number, blue: number,
   ): Vector3Snapshot {
-    return this.vector3(
+    return this.mem.vector3(
       "cna_cube_lut_get_entry", lut, Math.trunc(red), Math.trunc(green), Math.trunc(blue),
     );
   }
 
   public override getCubeLutDomainMin(lut: NativeHandle): Vector3Snapshot {
-    return this.vector3("cna_cube_lut_get_domain_min", lut);
+    return this.mem.vector3("cna_cube_lut_get_domain_min", lut);
   }
 
   public override getCubeLutDomainMax(lut: NativeHandle): Vector3Snapshot {
-    return this.vector3("cna_cube_lut_get_domain_max", lut);
+    return this.mem.vector3("cna_cube_lut_get_domain_max", lut);
   }
 
   public override isCubeLutUnitDomain(lut: NativeHandle): boolean {
-    return this.bool("cna_cube_lut_is_unit_domain", lut);
+    return this.mem.bool("cna_cube_lut_is_unit_domain", lut);
   }
 
   public override getCubeLutTitle(lut: NativeHandle): string {
-    return this.probedString("cna_cube_lut_copy_title", lut);
+    return this.mem.probedString("cna_cube_lut_copy_title", lut);
   }
 
   public override createCubeLutStripTexture(
@@ -377,7 +377,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getTonemapMode(pass: NativeHandle): number {
-    return this.u32("cna_tonemap_pass_get_mode", pass);
+    return this.mem.u32("cna_tonemap_pass_get_mode", pass);
   }
 
   public override setTonemapMode(pass: NativeHandle, mode: number): void {
@@ -385,7 +385,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getTonemapExposure(pass: NativeHandle): number {
-    return this.float("cna_tonemap_pass_get_exposure", pass);
+    return this.mem.float("cna_tonemap_pass_get_exposure", pass);
   }
 
   public override setTonemapExposure(pass: NativeHandle, exposure: number): void {
@@ -393,7 +393,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getTonemapGamma(pass: NativeHandle): number {
-    return this.float("cna_tonemap_pass_get_gamma", pass);
+    return this.mem.float("cna_tonemap_pass_get_gamma", pass);
   }
 
   public override setTonemapGamma(pass: NativeHandle, gamma: number): void {
@@ -401,7 +401,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getTonemapDebandEnabled(pass: NativeHandle): boolean {
-    return this.bool("cna_tonemap_pass_is_deband_enabled", pass);
+    return this.mem.bool("cna_tonemap_pass_is_deband_enabled", pass);
   }
 
   public override setTonemapDebandEnabled(pass: NativeHandle, enabled: boolean): void {
@@ -409,7 +409,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getTonemapDebandStrength(pass: NativeHandle): number {
-    return this.float("cna_tonemap_pass_get_deband_strength", pass);
+    return this.mem.float("cna_tonemap_pass_get_deband_strength", pass);
   }
 
   public override setTonemapDebandStrength(pass: NativeHandle, strength: number): void {
@@ -426,7 +426,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   public override tonemapChannel(
     mode: number, value: number, exposure: number, gamma: number,
   ): number {
-    return this.float("cna_tonemap_pass_tonemap_channel", mode, value, exposure, gamma);
+    return this.mem.float("cna_tonemap_pass_tonemap_channel", mode, value, exposure, gamma);
   }
 
   public override createBloomPass(device: NativeHandle): NativeHandle {
@@ -434,7 +434,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getBloomThreshold(pass: NativeHandle): number {
-    return this.float("cna_bloom_pass_get_threshold", pass);
+    return this.mem.float("cna_bloom_pass_get_threshold", pass);
   }
 
   public override setBloomThreshold(pass: NativeHandle, threshold: number): void {
@@ -442,7 +442,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getBloomIntensity(pass: NativeHandle): number {
-    return this.float("cna_bloom_pass_get_intensity", pass);
+    return this.mem.float("cna_bloom_pass_get_intensity", pass);
   }
 
   public override setBloomIntensity(pass: NativeHandle, intensity: number): void {
@@ -450,7 +450,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getBloomIterations(pass: NativeHandle): number {
-    return this.int("cna_bloom_pass_get_iterations", pass);
+    return this.mem.int("cna_bloom_pass_get_iterations", pass);
   }
 
   public override setBloomIterations(pass: NativeHandle, iterations: number): void {
@@ -462,12 +462,12 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override bloomIterationsForQuality(quality: number): number {
-    return this.int("cna_bloom_pass_iterations_for_quality", quality);
+    return this.mem.int("cna_bloom_pass_iterations_for_quality", quality);
   }
 
   /** How much of one channel survives the bright-pass threshold; CNA's own scalar. */
   public override extractBloomChannel(value: number, threshold: number): number {
-    return this.float("cna_bloom_pass_extract_channel", value, threshold);
+    return this.mem.float("cna_bloom_pass_extract_channel", value, threshold);
   }
 
   public override createFxaaPass(device: NativeHandle): NativeHandle {
@@ -475,7 +475,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getFxaaEdgeThreshold(pass: NativeHandle): number {
-    return this.float("cna_fxaa_pass_get_edge_threshold", pass);
+    return this.mem.float("cna_fxaa_pass_get_edge_threshold", pass);
   }
 
   public override setFxaaEdgeThreshold(pass: NativeHandle, threshold: number): void {
@@ -483,12 +483,12 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override fxaaEdgeThresholdForQuality(quality: number): number {
-    return this.float("cna_fxaa_pass_edge_threshold_for_quality", quality);
+    return this.mem.float("cna_fxaa_pass_edge_threshold_for_quality", quality);
   }
 
   /** The pass's own fragment shader source: a string route that takes nothing before its buffer. */
   public override getFxaaFragmentGlsl(): string {
-    return this.probedString("cna_fxaa_pass_copy_fragment_glsl");
+    return this.mem.probedString("cna_fxaa_pass_copy_fragment_glsl");
   }
 
   public override createChromaticAberrationPass(device: NativeHandle): NativeHandle {
@@ -496,7 +496,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getChromaticAberrationStrength(pass: NativeHandle): number {
-    return this.float("cna_chromatic_aberration_pass_get_strength", pass);
+    return this.mem.float("cna_chromatic_aberration_pass_get_strength", pass);
   }
 
   public override setChromaticAberrationStrength(pass: NativeHandle, strength: number): void {
@@ -508,7 +508,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getFilmGrainIntensity(pass: NativeHandle): number {
-    return this.float("cna_film_grain_pass_get_intensity", pass);
+    return this.mem.float("cna_film_grain_pass_get_intensity", pass);
   }
 
   public override setFilmGrainIntensity(pass: NativeHandle, intensity: number): void {
@@ -532,7 +532,7 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getInstancedRendererInstanceStride(): number {
-    return this.int("cna_instanced_renderer_ext_get_instance_stride");
+    return this.mem.int("cna_instanced_renderer_ext_get_instance_stride");
   }
 
   public override getInstancedRendererTintElements(): readonly VertexElementSnapshot[] {
@@ -540,13 +540,13 @@ export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
   }
 
   public override getInstancedRendererTintStride(): number {
-    return this.int("cna_instanced_renderer_ext_get_tint_stride");
+    return this.mem.int("cna_instanced_renderer_ext_get_tint_stride");
   }
 
   /** A `CNA_VertexElement` array, counted first and then copied. */
   #vertexElements(route: string): VertexElementSnapshot[] {
     const layout = WASM_STRUCT_LAYOUTS.CNA_VertexElement;
-    return this.probedArray(route, [], layout.size, (base, written) => {
+    return this.mem.probedArray(route, [], layout.size, (base, written) => {
       const elements: VertexElementSnapshot[] = [];
       for (let index = 0; index < written; index += 1) {
         const element = new WasmStruct(

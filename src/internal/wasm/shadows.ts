@@ -24,15 +24,18 @@ import { CnaShadowBackendBase } from "../backend-base.js";
 import type { ClusterBoundsSnapshot, DirectionalLightSnapshot } from "../backend.js";
 import type { NativeHandle } from "../ownership.js";
 import { WASM_STRUCT_LAYOUTS } from "./layout.js";
+import { WasmEngineMemory } from "./graphics-ext-core.js";
 import { allocateStruct, WasmScope, WasmStruct, type WasmRouteTable } from "./module.js";
 
 export class WasmShadowBackend extends CnaShadowBackendBase {
-  readonly #routes: WasmRouteTable;
+  readonly #mem: WasmEngineMemory;
 
   public constructor(routes: WasmRouteTable) {
     super();
-    this.#routes = routes;
+    this.#mem = new WasmEngineMemory(routes);
   }
+
+  get #routes(): WasmRouteTable { return this.#mem.routes; }
 
   protected override unsupported(member: string): never {
     throw new Error(
@@ -45,7 +48,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
   // --- what the device says --------------------------------------------------------------------
 
   public override supportsShadowSampling(device: NativeHandle): boolean {
-    return this.#bool("cna_graphics_device_supports_shadow_sampling_ext", device);
+    return this.#mem.bool("cna_graphics_device_supports_shadow_sampling_ext", device);
   }
 
   // --- the object ------------------------------------------------------------------------------
@@ -66,19 +69,19 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
    * records both rather than letting either stand in for the other.
    */
   public override isShadowMapSupported(map: NativeHandle): boolean {
-    return this.#bool("cna_shadow_map_is_supported", map);
+    return this.#mem.bool("cna_shadow_map_is_supported", map);
   }
 
   public override getShadowMapSize(map: NativeHandle): number {
-    return this.#int("cna_shadow_map_get_size", map);
+    return this.#mem.int("cna_shadow_map_get_size", map);
   }
 
   public override getShadowMapQuality(map: NativeHandle): number {
-    return this.#routes.outU32("cna_shadow_map_get_quality", map);
+    return this.#mem.u32("cna_shadow_map_get_quality", map);
   }
 
   public override getShadowMapDepthBias(map: NativeHandle): number {
-    return this.#float("cna_shadow_map_get_depth_bias", map);
+    return this.#mem.float("cna_shadow_map_get_depth_bias", map);
   }
 
   public override setShadowMapDepthBias(map: NativeHandle, bias: number): void {
@@ -86,7 +89,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
   }
 
   public override getShadowMapFilterRadius(map: NativeHandle): number {
-    return this.#int("cna_shadow_map_get_filter_radius", map);
+    return this.#mem.int("cna_shadow_map_get_filter_radius", map);
   }
 
   // --- the pass -------------------------------------------------------------------------------
@@ -129,24 +132,17 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
   }
 
   public override getShadowMapLightViewProjection(map: NativeHandle): readonly number[] {
-    const scope = this.#routes.scope();
-    try {
-      const out = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Matrix.size);
-      this.#routes.invoke("cna_shadow_map_get_light_view_projection", map, out);
-      return this.#matrix(out);
-    } finally {
-      scope.dispose();
-    }
+    return this.#mem.matrix("cna_shadow_map_get_light_view_projection", map);
   }
 
   // --- the maths, which is the same arithmetic on every renderer -------------------------------
 
   public override shadowMapSizeForQuality(quality: number): number {
-    return this.#int("cna_shadow_map_size_for_quality", quality);
+    return this.#mem.int("cna_shadow_map_size_for_quality", quality);
   }
 
   public override shadowMapFilterRadiusForQuality(quality: number): number {
-    return this.#int("cna_shadow_map_filter_radius_for_quality", quality);
+    return this.#mem.int("cna_shadow_map_filter_radius_for_quality", quality);
   }
 
   public override computeShadowLightView(
@@ -227,36 +223,6 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
     return Array.from({ length: 16 }, (_, index) => view.getFloat32(pointer + index * 4, true));
   }
 
-  #bool(route: string, ...args: readonly (number | bigint)[]): boolean {
-    const scope = this.#routes.scope();
-    try {
-      const out = scope.allocate(4);
-      this.#routes.invoke(route, ...args, out);
-      return this.#routes.view().getUint8(out) !== 0;
-    } finally {
-      scope.dispose();
-    }
-  }
 
-  #int(route: string, ...args: readonly (number | bigint)[]): number {
-    const scope = this.#routes.scope();
-    try {
-      const out = scope.allocate(4);
-      this.#routes.invoke(route, ...args, out);
-      return this.#routes.view().getInt32(out, true);
-    } finally {
-      scope.dispose();
-    }
-  }
 
-  #float(route: string, ...args: readonly (number | bigint)[]): number {
-    const scope = this.#routes.scope();
-    try {
-      const out = scope.allocate(4);
-      this.#routes.invoke(route, ...args, out);
-      return this.#routes.view().getFloat32(out, true);
-    } finally {
-      scope.dispose();
-    }
-  }
 }

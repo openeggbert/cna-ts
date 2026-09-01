@@ -37,6 +37,11 @@ native 52, extensions 10, CNB 39, model-part 9, content-survey 8, input-devices 
 avatars 8, sprite-font-oracle 5, compiled effects 10, browser 13 -- all passing, which for a
 detector means the behaviour it pins has not changed.
 
+Item 30 is new, and is the first finding in this document measured on the **WEBGL2** renderer
+rather than on OPENGLES3 or HEADLESS. It was found by asking why a depth/normal prepass that
+reported itself supported, began, drew and ended without a single failure had written nothing at
+all, and the answer turned out to have nothing to do with the prepass.
+
 Item 28 is new, found by asking the two audio capability rows which backend they had been measured
 on -- both said HEADLESS, whose audio platform is `NULL`. Item 29 is new, and is a testability
 request rather than a defect. Items 5 and 6 are new,
@@ -1549,3 +1554,68 @@ and internal qualification only, with the evidence labelled `SYNTHETIC_LOCAL_VER
 right at every step -- so a test would only pin the absence of a route, which the coverage report
 already records. `tools/upstream-repro/net-signed-in-gamer.py` is the reproduction above, kept
 runnable so the sequence can be re-measured when the dependency moves.
+
+## 30. On WEBGL2, a draw into more than one bound render target reaches none of them
+
+**Severity:** a silent wrong picture, and it takes the whole depth/normal prepass with it.
+**Reproduced on:** WEBGL2 (EasyGL, WebGL 2.0 / OpenGL ES 3.0, headless Chromium with SwiftShader),
+CNA C ABI 0.21.0, 2026-09-01. **Does not reproduce on OPENGLES3.**
+
+`GraphicsDevice.Capabilities` reports `MultipleRenderTargets` on this context, and CNA's own startup
+log agrees — "MRT up to 4 targets (GL draw buffers=6, color attachments=6, CNA/FNA cap=4)". A draw
+into two bound targets nevertheless reaches neither, with no error at the time.
+
+**Measured** through the public API only, with a stock `BasicEffect` so that no custom shader is
+anywhere near it. One triangle, one 80×48 target pair, the two runs identical but for how many
+targets are bound:
+
+```text
+bound targets   Clear reached the target   texels the triangle painted
+one             yes                        233
+two             yes                        0 and 0
+```
+
+The `Clear` column is the point. The bind succeeds, the clear reaches the targets, and the draw that
+follows them reaches nothing.
+
+**It is not an engine-layer defect.** `tools/upstream-repro/webgl2-multiple-render-targets.mjs`
+reproduces the table above identically on an artifact built **without** `CNA_CNAEXT`, using only
+`GraphicsDevice.SetRenderTargets`, `Clear`, `BasicEffect` and `DrawUserPrimitives` -- four pieces of
+the XNA surface with no extended graphics anywhere near them. The prepass is where it was noticed
+and not where it lives. The single-target run is taken **first** because the two-target draw
+leaves `InvalidOperation(0x502)` pending: the next `SetRenderTargets` with more than one binding
+refuses with `CNA_RESULT_INTERNAL` and "EasyGL SetRenderTargets: native GL errors were pending
+before MRT setup", so a control taken after the experiment is measuring the pending error instead.
+
+**What it costs.** `DepthNormalPrepass` reports `IsUsingMultipleRenderTargets` here and therefore
+`PassCount` of one, and does all of its work inside a single such bind. So on WEBGL2 it writes no
+depth and no normals at all — `IsSupported` is true, `Begin` succeeds, the draw succeeds, `End`
+succeeds, and both buffers come back holding nothing but their clear. Everything downstream of that
+buffer is empty for the same reason: the decal projector paints nothing, and SSAO, screen-space
+reflections, depth of field, motion blur, contact shadows and aerial perspective have no depth to
+read. **No call in that sequence fails**, so a browser consumer gets an unlit, undecalled frame and
+no diagnostic of any kind.
+
+**It is that renderer's path and not the API.** The identical scenario — same 80×48 target, same
+camera, same rectangle, same prepass, same decal boxes — passes on the windowed OPENGLES3 build
+under Xvfb, where the prepass fills its buffers and the projector lands on the texels CNA's own box
+test predicts. That test is `test/windowed-renderer.integration.mjs`, and it is the control for this
+finding.
+
+**Proposed change.** Find why the draw is dropped under a multi-attachment framebuffer in the
+WEBGL2 path specifically — the pending `InvalidOperation` says the draw call itself is rejected, so
+the likely candidates are the `glDrawBuffers` configuration for the attachment set, a fragment
+output count the program does not declare for WebGL 2.0's stricter rules, or an attachment format
+combination that is complete under desktop GL and not under WebGL 2.0. Until then,
+`EasyGLRenderer`'s WEBGL2 capability report should not advertise `MultipleRenderTargets`, because
+`DepthNormalPrepass` reads exactly that capability to choose the one-pass path, and the two-pass
+path it would otherwise take works on this renderer.
+
+**Detector in cna-ts:** `test/wasm-browser-strong.mjs`, through
+`test/support/prepass-decal-oracle.mjs`. The two-draw probe above runs in the browser suite and its
+result decides what the prepass is held to: while a two-target bind receives nothing, the suite
+requires the prepass to write nothing and the decal to paint nothing, and it says so by name. The
+moment a two-target draw lands, `multipleRenderTargetsDraw` returns true and the suite requires the
+prepass pixels instead — so a repair fails here and asks for the geometric predictions the windowed
+suite already makes. `tools/upstream-repro/webgl2-multiple-render-targets.mjs` is the probe on its
+own, runnable against any artifact.

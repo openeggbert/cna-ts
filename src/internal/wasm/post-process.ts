@@ -47,11 +47,11 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   // --- screen-space ambient occlusion ----------------------------------------------------------
 
   public override createSsaoPass(device: NativeHandle): NativeHandle {
-    return this.create("cna_ssao_pass_create", device);
+    return this.mem.create("cna_ssao_pass_create", device);
   }
 
   public override getSsaoRadius(pass: NativeHandle): number {
-    return this.float("cna_ssao_pass_get_radius", pass);
+    return this.mem.float("cna_ssao_pass_get_radius", pass);
   }
 
   public override setSsaoRadius(pass: NativeHandle, value: number): void {
@@ -59,7 +59,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getSsaoIntensity(pass: NativeHandle): number {
-    return this.float("cna_ssao_pass_get_intensity", pass);
+    return this.mem.float("cna_ssao_pass_get_intensity", pass);
   }
 
   public override setSsaoIntensity(pass: NativeHandle, value: number): void {
@@ -67,7 +67,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getSsaoSampleCount(pass: NativeHandle): number {
-    return this.int("cna_ssao_pass_get_sample_count", pass);
+    return this.mem.int("cna_ssao_pass_get_sample_count", pass);
   }
 
   public override setSsaoSampleCount(pass: NativeHandle, value: number): void {
@@ -75,7 +75,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getSsaoHalfResolution(pass: NativeHandle): boolean {
-    return this.bool("cna_ssao_pass_get_half_resolution", pass);
+    return this.mem.bool("cna_ssao_pass_get_half_resolution", pass);
   }
 
   public override setSsaoHalfResolution(pass: NativeHandle, value: boolean): void {
@@ -84,7 +84,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
 
   /** CNA's own quality-to-sample-count table, which is what a caller is checked against. */
   public override ssaoSampleCountForQuality(quality: number): number {
-    return this.int("cna_ssao_pass_sample_count_for_quality", quality);
+    return this.mem.int("cna_ssao_pass_sample_count_for_quality", quality);
   }
 
   /**
@@ -96,7 +96,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
    */
   public override getSsaoKernel(pass: NativeHandle): readonly Vector3Snapshot[] {
     const stride = WASM_STRUCT_LAYOUTS.CNA_Vector3.size;
-    return this.probedArray("cna_ssao_pass_copy_kernel", [pass], stride, (base, written) => {
+    return this.mem.probedArray("cna_ssao_pass_copy_kernel", [pass], stride, (base, written) => {
       const view = this.routes.view();
       const kernel: Vector3Snapshot[] = [];
       for (let index = 0; index < written; index += 1) {
@@ -113,7 +113,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
 
   /** The pass's own occlusion GLSL, in its packed and unpacked forms. */
   public override getSsaoOcclusionGlsl(packed: boolean): string {
-    return this.probedString("cna_ssao_pass_copy_occlusion_glsl", packed ? 1 : 0);
+    return this.mem.probedString("cna_ssao_pass_copy_occlusion_glsl", packed ? 1 : 0);
   }
 
   public override resetSsaoTargets(pass: NativeHandle): void {
@@ -123,11 +123,11 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   // --- screen-space reflections ----------------------------------------------------------------
 
   public override createSsrPass(device: NativeHandle): NativeHandle {
-    return this.create("cna_ssr_pass_create", device);
+    return this.mem.create("cna_ssr_pass_create", device);
   }
 
   public override getSsrIntensity(pass: NativeHandle): number {
-    return this.float("cna_ssr_pass_get_intensity", pass);
+    return this.mem.float("cna_ssr_pass_get_intensity", pass);
   }
 
   public override setSsrIntensity(pass: NativeHandle, value: number): void {
@@ -135,7 +135,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getSsrMaxDistance(pass: NativeHandle): number {
-    return this.float("cna_ssr_pass_get_max_distance", pass);
+    return this.mem.float("cna_ssr_pass_get_max_distance", pass);
   }
 
   public override setSsrMaxDistance(pass: NativeHandle, value: number): void {
@@ -143,7 +143,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getSsrThickness(pass: NativeHandle): number {
-    return this.float("cna_ssr_pass_get_thickness", pass);
+    return this.mem.float("cna_ssr_pass_get_thickness", pass);
   }
 
   public override setSsrThickness(pass: NativeHandle, value: number): void {
@@ -151,7 +151,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getSsrDepthBias(pass: NativeHandle): number {
-    return this.float("cna_ssr_pass_get_depth_bias", pass);
+    return this.mem.float("cna_ssr_pass_get_depth_bias", pass);
   }
 
   public override setSsrDepthBias(pass: NativeHandle, value: number): void {
@@ -159,7 +159,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getSsrEdgeFade(pass: NativeHandle): number {
-    return this.float("cna_ssr_pass_get_edge_fade", pass);
+    return this.mem.float("cna_ssr_pass_get_edge_fade", pass);
   }
 
   public override setSsrEdgeFade(pass: NativeHandle, value: number): void {
@@ -167,7 +167,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getSsrRoughnessBlur(pass: NativeHandle): number {
-    return this.float("cna_ssr_pass_get_roughness_blur", pass);
+    return this.mem.float("cna_ssr_pass_get_roughness_blur", pass);
   }
 
   public override setSsrRoughnessBlur(pass: NativeHandle, value: number): void {
@@ -175,7 +175,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getSsrStepCount(pass: NativeHandle): number {
-    return this.int("cna_ssr_pass_get_step_count", pass);
+    return this.mem.int("cna_ssr_pass_get_step_count", pass);
   }
 
   public override setSsrStepCount(pass: NativeHandle, value: number): void {
@@ -185,11 +185,11 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   // --- depth of field --------------------------------------------------------------------------
 
   public override createDepthOfFieldPass(device: NativeHandle): NativeHandle {
-    return this.create("cna_depth_of_field_pass_create", device);
+    return this.mem.create("cna_depth_of_field_pass_create", device);
   }
 
   public override getDepthOfFieldFocusDistance(pass: NativeHandle): number {
-    return this.float("cna_depth_of_field_pass_get_focus_distance", pass);
+    return this.mem.float("cna_depth_of_field_pass_get_focus_distance", pass);
   }
 
   public override setDepthOfFieldFocusDistance(pass: NativeHandle, value: number): void {
@@ -197,7 +197,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getDepthOfFieldFocalLength(pass: NativeHandle): number {
-    return this.float("cna_depth_of_field_pass_get_focal_length", pass);
+    return this.mem.float("cna_depth_of_field_pass_get_focal_length", pass);
   }
 
   public override setDepthOfFieldFocalLength(pass: NativeHandle, value: number): void {
@@ -205,7 +205,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getDepthOfFieldFNumber(pass: NativeHandle): number {
-    return this.float("cna_depth_of_field_pass_get_f_number", pass);
+    return this.mem.float("cna_depth_of_field_pass_get_f_number", pass);
   }
 
   public override setDepthOfFieldFNumber(pass: NativeHandle, value: number): void {
@@ -213,7 +213,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getDepthOfFieldMaxRadius(pass: NativeHandle): number {
-    return this.float("cna_depth_of_field_pass_get_max_radius", pass);
+    return this.mem.float("cna_depth_of_field_pass_get_max_radius", pass);
   }
 
   public override setDepthOfFieldMaxRadius(pass: NativeHandle, value: number): void {
@@ -232,7 +232,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   public override circleOfConfusionMillimetres(
     depth: number, focusDistance: number, focalLength: number, fNumber: number,
   ): number {
-    return this.float(
+    return this.mem.float(
       "cna_depth_of_field_pass_circle_of_confusion_millimetres",
       depth, focusDistance, focalLength, fNumber,
     );
@@ -241,11 +241,11 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   // --- lens flare ------------------------------------------------------------------------------
 
   public override createLensFlarePass(device: NativeHandle): NativeHandle {
-    return this.create("cna_lens_flare_pass_create", device);
+    return this.mem.create("cna_lens_flare_pass_create", device);
   }
 
   public override getLensFlareThreshold(pass: NativeHandle): number {
-    return this.float("cna_lens_flare_pass_get_threshold", pass);
+    return this.mem.float("cna_lens_flare_pass_get_threshold", pass);
   }
 
   public override setLensFlareThreshold(pass: NativeHandle, value: number): void {
@@ -253,7 +253,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getLensFlareIntensity(pass: NativeHandle): number {
-    return this.float("cna_lens_flare_pass_get_intensity", pass);
+    return this.mem.float("cna_lens_flare_pass_get_intensity", pass);
   }
 
   public override setLensFlareIntensity(pass: NativeHandle, value: number): void {
@@ -261,7 +261,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getLensFlareDispersal(pass: NativeHandle): number {
-    return this.float("cna_lens_flare_pass_get_dispersal", pass);
+    return this.mem.float("cna_lens_flare_pass_get_dispersal", pass);
   }
 
   public override setLensFlareDispersal(pass: NativeHandle, value: number): void {
@@ -271,11 +271,11 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   // --- motion blur -----------------------------------------------------------------------------
 
   public override createMotionBlurPass(device: NativeHandle): NativeHandle {
-    return this.create("cna_motion_blur_pass_create", device);
+    return this.mem.create("cna_motion_blur_pass_create", device);
   }
 
   public override getMotionBlurStrength(pass: NativeHandle): number {
-    return this.float("cna_motion_blur_pass_get_strength", pass);
+    return this.mem.float("cna_motion_blur_pass_get_strength", pass);
   }
 
   public override setMotionBlurStrength(pass: NativeHandle, value: number): void {
@@ -283,7 +283,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getMotionBlurMaxDistance(pass: NativeHandle): number {
-    return this.float("cna_motion_blur_pass_get_max_distance", pass);
+    return this.mem.float("cna_motion_blur_pass_get_max_distance", pass);
   }
 
   public override setMotionBlurMaxDistance(pass: NativeHandle, value: number): void {
@@ -293,22 +293,22 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   // --- aerial perspective ----------------------------------------------------------------------
 
   public override createAerialPerspectivePass(device: NativeHandle): NativeHandle {
-    return this.create("cna_aerial_perspective_pass_create", device);
+    return this.mem.create("cna_aerial_perspective_pass_create", device);
   }
 
   public override getAerialPerspectiveSunDirection(pass: NativeHandle): Vector3Snapshot {
-    return this.vector3("cna_aerial_perspective_pass_get_sun_direction", pass);
+    return this.mem.vector3("cna_aerial_perspective_pass_get_sun_direction", pass);
   }
 
   public override setAerialPerspectiveSunDirection(
     pass: NativeHandle, value: Vector3Snapshot,
   ): void {
-    this.withVector3(value, (pointer) =>
+    this.mem.withVector3(value, (pointer) =>
       this.routes.invoke("cna_aerial_perspective_pass_set_sun_direction", pass, pointer));
   }
 
   public override getAerialPerspectiveTurbidity(pass: NativeHandle): number {
-    return this.float("cna_aerial_perspective_pass_get_turbidity", pass);
+    return this.mem.float("cna_aerial_perspective_pass_get_turbidity", pass);
   }
 
   public override setAerialPerspectiveTurbidity(pass: NativeHandle, value: number): void {
@@ -316,7 +316,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getAerialPerspectiveIntensity(pass: NativeHandle): number {
-    return this.float("cna_aerial_perspective_pass_get_intensity", pass);
+    return this.mem.float("cna_aerial_perspective_pass_get_intensity", pass);
   }
 
   public override setAerialPerspectiveIntensity(pass: NativeHandle, value: number): void {
@@ -324,7 +324,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getAerialPerspectiveScaleHeight(pass: NativeHandle): number {
-    return this.float("cna_aerial_perspective_pass_get_scale_height", pass);
+    return this.mem.float("cna_aerial_perspective_pass_get_scale_height", pass);
   }
 
   public override setAerialPerspectiveScaleHeight(pass: NativeHandle, value: number): void {
@@ -332,14 +332,14 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override aerialPerspectiveCopyFallbackReason(pass: NativeHandle): string {
-    return this.probedString("cna_aerial_perspective_pass_copy_fallback_reason", pass);
+    return this.mem.probedString("cna_aerial_perspective_pass_copy_fallback_reason", pass);
   }
 
   /** How much atmosphere a ray of this direction crosses; a pure function of the geometry. */
   public override aerialPerspectiveAirMassForDistance(
     viewDirection: Vector3Snapshot, distance: number, scaleHeight: number,
   ): number {
-    return this.withVector3(viewDirection, (pointer) => this.float(
+    return this.mem.withVector3(viewDirection, (pointer) => this.mem.float(
       "cna_aerial_perspective_pass_air_mass_for_distance", pointer, distance, scaleHeight));
   }
 
@@ -347,26 +347,26 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   public override aerialPerspectiveTransmittance(
     turbidity: number, airMass: number,
   ): Vector3Snapshot {
-    return this.vector3("cna_aerial_perspective_pass_transmittance", turbidity, airMass);
+    return this.mem.vector3("cna_aerial_perspective_pass_transmittance", turbidity, airMass);
   }
 
   // --- height fog ------------------------------------------------------------------------------
 
   public override createHeightFogPass(device: NativeHandle): NativeHandle {
-    return this.create("cna_height_fog_pass_create", device);
+    return this.mem.create("cna_height_fog_pass_create", device);
   }
 
   public override getHeightFogColor(pass: NativeHandle): Vector3Snapshot {
-    return this.vector3("cna_height_fog_pass_get_color", pass);
+    return this.mem.vector3("cna_height_fog_pass_get_color", pass);
   }
 
   public override setHeightFogColor(pass: NativeHandle, value: Vector3Snapshot): void {
-    this.withVector3(value, (pointer) =>
+    this.mem.withVector3(value, (pointer) =>
       this.routes.invoke("cna_height_fog_pass_set_color", pass, pointer));
   }
 
   public override getHeightFogDensity(pass: NativeHandle): number {
-    return this.float("cna_height_fog_pass_get_density", pass);
+    return this.mem.float("cna_height_fog_pass_get_density", pass);
   }
 
   public override setHeightFogDensity(pass: NativeHandle, value: number): void {
@@ -374,7 +374,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getHeightFogFalloff(pass: NativeHandle): number {
-    return this.float("cna_height_fog_pass_get_falloff", pass);
+    return this.mem.float("cna_height_fog_pass_get_falloff", pass);
   }
 
   public override setHeightFogFalloff(pass: NativeHandle, value: number): void {
@@ -382,7 +382,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getHeightFogBaseHeight(pass: NativeHandle): number {
-    return this.float("cna_height_fog_pass_get_base_height", pass);
+    return this.mem.float("cna_height_fog_pass_get_base_height", pass);
   }
 
   public override setHeightFogBaseHeight(pass: NativeHandle, value: number): void {
@@ -394,7 +394,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
     cameraHeight: number, rayHeightStep: number, distance: number,
     density: number, falloff: number, baseHeight: number,
   ): number {
-    return this.float(
+    return this.mem.float(
       "cna_height_fog_pass_optical_depth",
       cameraHeight, rayHeightStep, distance, density, falloff, baseHeight,
     );
@@ -403,22 +403,22 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   // --- light shafts ----------------------------------------------------------------------------
 
   public override createLightShaftPass(device: NativeHandle): NativeHandle {
-    return this.create("cna_light_shaft_pass_create", device);
+    return this.mem.create("cna_light_shaft_pass_create", device);
   }
 
   public override getLightShaftLightScreenPosition(pass: NativeHandle): Vector2Snapshot {
-    return this.vector2("cna_light_shaft_pass_get_light_screen_position", pass);
+    return this.mem.vector2("cna_light_shaft_pass_get_light_screen_position", pass);
   }
 
   public override setLightShaftLightScreenPosition(
     pass: NativeHandle, value: Vector2Snapshot,
   ): void {
-    this.withVector2(value, (pointer) =>
+    this.mem.withVector2(value, (pointer) =>
       this.routes.invoke("cna_light_shaft_pass_set_light_screen_position", pass, pointer));
   }
 
   public override getLightShaftThreshold(pass: NativeHandle): number {
-    return this.float("cna_light_shaft_pass_get_threshold", pass);
+    return this.mem.float("cna_light_shaft_pass_get_threshold", pass);
   }
 
   public override setLightShaftThreshold(pass: NativeHandle, value: number): void {
@@ -426,7 +426,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getLightShaftIntensity(pass: NativeHandle): number {
-    return this.float("cna_light_shaft_pass_get_intensity", pass);
+    return this.mem.float("cna_light_shaft_pass_get_intensity", pass);
   }
 
   public override setLightShaftIntensity(pass: NativeHandle, value: number): void {
@@ -434,7 +434,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getLightShaftDecay(pass: NativeHandle): number {
-    return this.float("cna_light_shaft_pass_get_decay", pass);
+    return this.mem.float("cna_light_shaft_pass_get_decay", pass);
   }
 
   public override setLightShaftDecay(pass: NativeHandle, value: number): void {
@@ -444,11 +444,11 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   // --- volumetric fog --------------------------------------------------------------------------
 
   public override createVolumetricFogPass(device: NativeHandle): NativeHandle {
-    return this.create("cna_volumetric_fog_pass_create", device);
+    return this.mem.create("cna_volumetric_fog_pass_create", device);
   }
 
   public override getVolumetricFogDensity(pass: NativeHandle): number {
-    return this.float("cna_volumetric_fog_pass_get_density", pass);
+    return this.mem.float("cna_volumetric_fog_pass_get_density", pass);
   }
 
   public override setVolumetricFogDensity(pass: NativeHandle, value: number): void {
@@ -456,7 +456,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getVolumetricFogAnisotropy(pass: NativeHandle): number {
-    return this.float("cna_volumetric_fog_pass_get_anisotropy", pass);
+    return this.mem.float("cna_volumetric_fog_pass_get_anisotropy", pass);
   }
 
   public override setVolumetricFogAnisotropy(pass: NativeHandle, value: number): void {
@@ -464,7 +464,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getVolumetricFogRange(pass: NativeHandle): number {
-    return this.float("cna_volumetric_fog_pass_get_range", pass);
+    return this.mem.float("cna_volumetric_fog_pass_get_range", pass);
   }
 
   public override setVolumetricFogRange(pass: NativeHandle, value: number): void {
@@ -481,30 +481,30 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
     pass: NativeHandle, shadowMap: NativeHandle, direction: Vector3Snapshot,
     color: Vector3Snapshot,
   ): void {
-    this.withVector3(direction, (directionPointer) =>
-      this.withVector3(color, (colorPointer) => this.routes.invoke(
+    this.mem.withVector3(direction, (directionPointer) =>
+      this.mem.withVector3(color, (colorPointer) => this.routes.invoke(
         "cna_volumetric_fog_pass_set_light", pass, shadowMap, directionPointer, colorPointer)));
   }
 
   // --- contact shadows -------------------------------------------------------------------------
 
   public override createContactShadowPass(device: NativeHandle): NativeHandle {
-    return this.create("cna_contact_shadow_pass_create", device);
+    return this.mem.create("cna_contact_shadow_pass_create", device);
   }
 
   public override getContactShadowLightDirection(pass: NativeHandle): Vector3Snapshot {
-    return this.vector3("cna_contact_shadow_pass_get_light_direction", pass);
+    return this.mem.vector3("cna_contact_shadow_pass_get_light_direction", pass);
   }
 
   public override setContactShadowLightDirection(
     pass: NativeHandle, value: Vector3Snapshot,
   ): void {
-    this.withVector3(value, (pointer) =>
+    this.mem.withVector3(value, (pointer) =>
       this.routes.invoke("cna_contact_shadow_pass_set_light_direction", pass, pointer));
   }
 
   public override getContactShadowMaxDistance(pass: NativeHandle): number {
-    return this.float("cna_contact_shadow_pass_get_max_distance", pass);
+    return this.mem.float("cna_contact_shadow_pass_get_max_distance", pass);
   }
 
   public override setContactShadowMaxDistance(pass: NativeHandle, value: number): void {
@@ -512,7 +512,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getContactShadowStepCount(pass: NativeHandle): number {
-    return this.int("cna_contact_shadow_pass_get_step_count", pass);
+    return this.mem.int("cna_contact_shadow_pass_get_step_count", pass);
   }
 
   public override setContactShadowStepCount(pass: NativeHandle, value: number): void {
@@ -520,7 +520,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getContactShadowThickness(pass: NativeHandle): number {
-    return this.float("cna_contact_shadow_pass_get_thickness", pass);
+    return this.mem.float("cna_contact_shadow_pass_get_thickness", pass);
   }
 
   public override setContactShadowThickness(pass: NativeHandle, value: number): void {
@@ -528,7 +528,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getContactShadowIntensity(pass: NativeHandle): number {
-    return this.float("cna_contact_shadow_pass_get_intensity", pass);
+    return this.mem.float("cna_contact_shadow_pass_get_intensity", pass);
   }
 
   public override setContactShadowIntensity(pass: NativeHandle, value: number): void {
@@ -536,7 +536,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getContactShadowBias(pass: NativeHandle): number {
-    return this.float("cna_contact_shadow_pass_get_bias", pass);
+    return this.mem.float("cna_contact_shadow_pass_get_bias", pass);
   }
 
   public override setContactShadowBias(pass: NativeHandle, value: number): void {
@@ -544,7 +544,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getContactShadowFallbackReason(pass: NativeHandle): string {
-    return this.probedString("cna_contact_shadow_pass_copy_fallback_reason", pass);
+    return this.mem.probedString("cna_contact_shadow_pass_copy_fallback_reason", pass);
   }
 
   /**
@@ -558,26 +558,26 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   public override isContactShadowOccluded(
     rayViewDepth: number, sceneViewDepth: number, bias: number, thickness: number,
   ): boolean {
-    return this.bool(
+    return this.mem.bool(
       "cna_contact_shadow_pass_is_occluded", rayViewDepth, sceneViewDepth, bias, thickness);
   }
 
   public override getContactShadowOcclusionGlsl(): string {
-    return this.probedString("cna_contact_shadow_pass_copy_occlusion_test_glsl");
+    return this.mem.probedString("cna_contact_shadow_pass_copy_occlusion_test_glsl");
   }
 
   /** How the shadow map's visibility and the contact term combine into one. */
   public override combineContactShadowVisibility(
     shadowMapVisibility: number, contactVisibility: number,
   ): number {
-    return this.float(
+    return this.mem.float(
       "cna_contact_shadow_pass_combine_visibility", shadowMapVisibility, contactVisibility);
   }
 
   // --- ASCII -----------------------------------------------------------------------------------
 
   public override createAsciiPass(device: NativeHandle): NativeHandle {
-    return this.create("cna_ascii_pass_create", device);
+    return this.mem.create("cna_ascii_pass_create", device);
   }
 
   /**
@@ -593,7 +593,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override createAsciiEffect(device: NativeHandle): NativeHandle {
-    return this.create("cna_ascii_post_process_effect_create", device);
+    return this.mem.create("cna_ascii_post_process_effect_create", device);
   }
 
   public override destroyAsciiEffect(effect: NativeHandle): void {
@@ -613,7 +613,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getAsciiQuantizeMode(effect: NativeHandle): number {
-    return this.u32("cna_ascii_post_process_effect_get_quantize_mode", effect);
+    return this.mem.u32("cna_ascii_post_process_effect_get_quantize_mode", effect);
   }
 
   public override setAsciiQuantizeMode(effect: NativeHandle, mode: number): void {
@@ -679,16 +679,16 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   public override createEffectPass(
     device: NativeHandle, effect: NativeHandle, name: string,
   ): NativeHandle {
-    return this.withStringView(name, (view) =>
-      this.create("cna_post_process_effect_pass_create", device, effect, view));
+    return this.mem.withStringView(name, (view) =>
+      this.mem.create("cna_post_process_effect_pass_create", device, effect, view));
   }
 
   /** The same pass, taking ownership of the effect rather than borrowing it. */
   public override createOwningEffectPass(
     device: NativeHandle, effect: NativeHandle, name: string,
   ): NativeHandle {
-    return this.withStringView(name, (view) =>
-      this.create("cna_post_process_effect_pass_create_owning", device, effect, view));
+    return this.mem.withStringView(name, (view) =>
+      this.mem.create("cna_post_process_effect_pass_create_owning", device, effect, view));
   }
 
   public override getEffectPassEffect(pass: NativeHandle): NativeHandle {
@@ -702,7 +702,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   // --- the spatial upscaler --------------------------------------------------------------------
 
   public override createSpatialUpscalePass(device: NativeHandle): NativeHandle {
-    return this.create("cna_spatial_upscale_pass_create", device);
+    return this.mem.create("cna_spatial_upscale_pass_create", device);
   }
 
   public override destroySpatialUpscalePass(pass: NativeHandle): void {
@@ -710,7 +710,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override getSpatialUpscaleSharpness(pass: NativeHandle): number {
-    return this.float("cna_spatial_upscale_pass_get_sharpness", pass);
+    return this.mem.float("cna_spatial_upscale_pass_get_sharpness", pass);
   }
 
   public override setSpatialUpscaleSharpness(pass: NativeHandle, value: number): void {
@@ -718,7 +718,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   }
 
   public override isSpatialUpscaleEdgeAdaptive(pass: NativeHandle): boolean {
-    return this.bool("cna_spatial_upscale_pass_get_edge_adaptive", pass);
+    return this.mem.bool("cna_spatial_upscale_pass_get_edge_adaptive", pass);
   }
 
   public override setSpatialUpscaleEdgeAdaptive(pass: NativeHandle, value: boolean): void {
@@ -747,7 +747,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
   public override isSpatialUpscaleIdentityScale(
     sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number,
   ): boolean {
-    return this.bool(
+    return this.mem.bool(
       "cna_spatial_upscale_pass_is_identity_scale",
       Math.trunc(sourceWidth), Math.trunc(sourceHeight),
       Math.trunc(targetWidth), Math.trunc(targetHeight),

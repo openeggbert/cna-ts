@@ -22,68 +22,58 @@ import { allocateStruct, WasmScope, type WasmRouteTable } from "./module.js";
 export const CNA_RESULT_BUFFER_TOO_SMALL = 14;
 
 /**
- * The base every WebAssembly extended-graphics family file extends.
+ * The output conventions, held rather than inherited.
  *
- * It implements no member of the interface itself. Everything it holds is the plumbing those
- * members are written in, so that a family file reads as the routes it binds and nothing else.
+ * CNA's engine layer is not one backend interface but nine -- extended graphics, shadows, the
+ * prepass, decals, particles, light probes, atmosphere, clustered lighting and the instanced
+ * renderer -- and each of their WebAssembly facades has to extend its own generated base. So the
+ * shared part cannot be a base class, and before this existed `shadows.ts` and `compute.ts` each
+ * carried their own private copy of `#bool`, `#int` and `#float`. Three copies of "a `CNA_Bool` is
+ * one byte in a four-byte allocation" is three chances to write it down differently.
+ *
+ * Every engine facade holds one of these instead.
  */
-export abstract class WasmGraphicsExtensionCore extends CnaGraphicsExtensionBackendBase {
-  protected readonly routes: WasmRouteTable;
+export class WasmEngineMemory {
+  public readonly routes: WasmRouteTable;
 
   public constructor(routes: WasmRouteTable) {
-    super();
     this.routes = routes;
   }
 
-  /**
-   * The one message a consumer gets for a member outside the slice.
-   *
-   * It names the member and says whose limitation it is, because the two things that leave an
-   * engine API unavailable in a browser -- this slice not reaching it, and the artifact being
-   * built without `CNA_CNAEXT` -- are answered by different people. A route inside the slice gets
-   * CNA's own `NOT_SUPPORTED` for the second case; only the first arrives here.
-   */
-  protected override unsupported(member: string): never {
-    throw new Error(
-      `${member} is not part of the CNA-TS WebAssembly backend's extended-graphics slice; ` +
-      "the Node-API backend implements it",
-    );
-  }
-
   /** A `CNA_Bool*` output, which is one byte rather than four. */
-  protected bool(route: string, ...args: readonly (number | bigint)[]): boolean {
+  public bool(route: string, ...args: readonly (number | bigint)[]): boolean {
     return this.#scalar(route, args, 4, (view, out) => view.getUint8(out) !== 0);
   }
 
   /** An `int32_t*` output. */
-  protected int(route: string, ...args: readonly (number | bigint)[]): number {
+  public int(route: string, ...args: readonly (number | bigint)[]): number {
     return this.#scalar(route, args, 4, (view, out) => view.getInt32(out, true));
   }
 
   /** A `uint32_t*` output, which is how this ABI answers an enumeration. */
-  protected u32(route: string, ...args: readonly (number | bigint)[]): number {
+  public u32(route: string, ...args: readonly (number | bigint)[]): number {
     return this.#scalar(route, args, 4, (view, out) => view.getUint32(out, true));
   }
 
   /** A `float*` output. */
-  protected float(route: string, ...args: readonly (number | bigint)[]): number {
+  public float(route: string, ...args: readonly (number | bigint)[]): number {
     return this.#scalar(route, args, 4, (view, out) => view.getFloat32(out, true));
   }
 
   /** A `uint64_t*` output read as a JavaScript number, for counts and sizes. */
-  protected u64AsNumber(route: string, ...args: readonly (number | bigint)[]): number {
+  public u64AsNumber(route: string, ...args: readonly (number | bigint)[]): number {
     return this.#scalar(route, args, 8, (view, out) => Number(view.getBigUint64(out, true)));
   }
 
   /** A `CNA_Vector2` written into caller memory. */
-  protected vector2(route: string, ...args: readonly (number | bigint)[]): Vector2Snapshot {
+  public vector2(route: string, ...args: readonly (number | bigint)[]): Vector2Snapshot {
     return this.#scalar(route, args, WASM_STRUCT_LAYOUTS.CNA_Vector2.size, (view, out) => ({
       X: view.getFloat32(out, true), Y: view.getFloat32(out + 4, true),
     }));
   }
 
   /** A `CNA_Vector3` written into caller memory. */
-  protected vector3(route: string, ...args: readonly (number | bigint)[]): Vector3Snapshot {
+  public vector3(route: string, ...args: readonly (number | bigint)[]): Vector3Snapshot {
     return this.#scalar(route, args, WASM_STRUCT_LAYOUTS.CNA_Vector3.size, (view, out) => ({
       X: view.getFloat32(out, true),
       Y: view.getFloat32(out + 4, true),
@@ -106,7 +96,7 @@ export abstract class WasmGraphicsExtensionCore extends CnaGraphicsExtensionBack
   }
 
   /** Passes a `CNA_Vector3` by pointer, which is how this layer takes one as an input. */
-  protected withVector3<T>(value: Vector3Snapshot, body: (pointer: number) => T): T {
+  public withVector3<T>(value: Vector3Snapshot, body: (pointer: number) => T): T {
     const scope = this.routes.scope();
     try {
       const pointer = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Vector3.size);
@@ -120,8 +110,92 @@ export abstract class WasmGraphicsExtensionCore extends CnaGraphicsExtensionBack
     }
   }
 
+  /**
+   * Passes a `CNA_Matrix` by pointer: sixteen floats in CNA's own order.
+   *
+   * The length is checked rather than trusted. A short array would otherwise leave the trailing
+   * rows as whatever the allocation held -- and the allocation is zeroed, so a fifteen-element
+   * matrix arrives with `M44 = 0`, which several of these routes read as "no camera was supplied"
+   * and silently fall back on.
+   */
+  public withMatrix<T>(values: readonly number[], body: (pointer: number) => T): T {
+    const scope = this.routes.scope();
+    try {
+      return body(this.writeMatrix(scope, values));
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /**
+   * The same, into a scope the caller already owns, for a route that takes several of them.
+   *
+   * The length is checked rather than trusted. A short array would otherwise leave the trailing
+   * rows as whatever the allocation held -- and the allocation is zeroed, so a fifteen-element
+   * matrix arrives with `M44 = 0`, which several routes in this layer read as "no camera was
+   * supplied" and silently fall back on.
+   */
+  public writeMatrix(scope: WasmScope, values: readonly number[]): number {
+    if (values.length !== 16) {
+      throw new RangeError(`a CNA_Matrix is sixteen floats, not ${values.length}`);
+    }
+    const pointer = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Matrix.size);
+    const view = this.routes.view();
+    for (let index = 0; index < 16; index += 1) {
+      view.setFloat32(pointer + index * 4, values[index] as number, true);
+    }
+    return pointer;
+  }
+
+  /** A `CNA_Vector3` into a caller-owned scope, for the same reason. */
+  public writeVector3(scope: WasmScope, values: readonly number[]): number {
+    const pointer = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Vector3.size);
+    const view = this.routes.view();
+    for (let index = 0; index < 3; index += 1) {
+      view.setFloat32(pointer + index * 4, values[index] ?? 0, true);
+    }
+    return pointer;
+  }
+
+  /** Reads one back, in the same order. */
+  public matrix(route: string, ...args: readonly (number | bigint)[]): number[] {
+    const scope = this.routes.scope();
+    try {
+      const out = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Matrix.size);
+      this.routes.invoke(route, ...args, out);
+      const view = this.routes.view();
+      return Array.from({ length: 16 }, (_, index) => view.getFloat32(out + index * 4, true));
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /**
+   * Passes a `CNA_Color` by pointer.
+   *
+   * A four-byte multi-field aggregate taken by value, which wasm32 lowers the same way it lowers
+   * `CNA_StringView`: as a pointer to a caller-owned copy.
+   */
+  public withColor<T>(
+    texel: { readonly R: number; readonly G: number; readonly B: number; readonly A: number },
+    body: (pointer: number) => T,
+  ): T {
+    const scope = this.routes.scope();
+    try {
+      const pointer = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Color.size);
+      const bytes = this.routes.module.HEAPU8;
+      bytes[pointer] = texel.R & 0xff;
+      bytes[pointer + 1] = texel.G & 0xff;
+      bytes[pointer + 2] = texel.B & 0xff;
+      bytes[pointer + 3] = texel.A & 0xff;
+      return body(pointer);
+    } finally {
+      scope.dispose();
+    }
+  }
+
   /** The same for a `CNA_Vector2`. */
-  protected withVector2<T>(value: Vector2Snapshot, body: (pointer: number) => T): T {
+  public withVector2<T>(value: Vector2Snapshot, body: (pointer: number) => T): T {
     const scope = this.routes.scope();
     try {
       const pointer = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Vector2.size);
@@ -151,7 +225,7 @@ export abstract class WasmGraphicsExtensionCore extends CnaGraphicsExtensionBack
    * `leading` is whatever the route takes before its destination: a handle, a handle and an index,
    * a flag, or nothing at all. All four shapes occur in this layer and all four are this function.
    */
-  protected probedString(route: string, ...leading: readonly (number | bigint)[]): string {
+  public probedString(route: string, ...leading: readonly (number | bigint)[]): string {
     const scope = this.routes.scope();
     try {
       const lengthOut = scope.allocate(8);
@@ -186,7 +260,7 @@ export abstract class WasmGraphicsExtensionCore extends CnaGraphicsExtensionBack
    * `read` is handed the base pointer and the number of elements CNA wrote, which is read back
    * from the count output rather than assumed equal to the capacity.
    */
-  protected probedArray<T>(
+  public probedArray<T>(
     route: string, leading: readonly (number | bigint)[], stride: number,
     read: (base: number, written: number) => T[],
   ): T[] {
@@ -211,7 +285,7 @@ export abstract class WasmGraphicsExtensionCore extends CnaGraphicsExtensionBack
    * A `CNA_StringView` passed by value, which wasm32 lowers as a pointer to a caller-owned copy --
    * the convention `docs/wasm-backend.md` records this backend measuring rather than assuming.
    */
-  protected withStringView<T>(value: string, body: (pointer: number) => T): T {
+  public withStringView<T>(value: string, body: (pointer: number) => T): T {
     const scope = new WasmScope(this.routes.module);
     try {
       const text = scope.allocateUtf8(value);
@@ -224,7 +298,40 @@ export abstract class WasmGraphicsExtensionCore extends CnaGraphicsExtensionBack
   }
 
   /** A handle output, which is the shape every `..._create` route in this layer takes. */
-  protected create(route: string, ...args: readonly (number | bigint)[]): NativeHandle {
+  public create(route: string, ...args: readonly (number | bigint)[]): NativeHandle {
     return this.routes.outHandle(route, ...args);
+  }
+}
+
+/**
+ * The base of the extended-graphics facade, which is assembled from several family files.
+ *
+ * That layer alone is 603 members of one interface, so its WebAssembly side is built as a chain of
+ * `abstract class`es each binding one family, with this at the bottom holding what they share.
+ */
+export abstract class WasmGraphicsExtensionCore extends CnaGraphicsExtensionBackendBase {
+  protected readonly mem: WasmEngineMemory;
+
+  public constructor(routes: WasmRouteTable) {
+    super();
+    this.mem = new WasmEngineMemory(routes);
+  }
+
+  /** Shorthand, because a family file names the route table on nearly every line. */
+  protected get routes(): WasmRouteTable { return this.mem.routes; }
+
+  /**
+   * The one message a consumer gets for a member outside the slice.
+   *
+   * It names the member and says whose limitation it is, because the two things that leave an
+   * engine API unavailable in a browser -- this slice not reaching it, and the artifact being
+   * built without `CNA_CNAEXT` -- are answered by different people. A route inside the slice gets
+   * CNA's own `NOT_SUPPORTED` for the second case; only the first arrives here.
+   */
+  protected override unsupported(member: string): never {
+    throw new Error(
+      `${member} is not part of the CNA-TS WebAssembly backend's extended-graphics slice; ` +
+      "the Node-API backend implements it",
+    );
   }
 }

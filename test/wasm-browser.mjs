@@ -15,6 +15,9 @@ import test from "node:test";
 import { browserBlocked, runFrames } from "./support/browser-harness.mjs";
 import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
 import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
+import {
+  assertDecalState, assertPrepassMaths, assertPrepassState, multipleRenderTargetsDraw,
+} from "./support/prepass-decal-oracle.mjs";
 import { assertLodEvidence } from "./support/lod-oracle.mjs";
 import { assertShadowPassEvidence } from "./support/shadow-oracle.mjs";
 import { assertCompiledEffectEvidence } from "./support/compiled-effect-oracle.mjs";
@@ -530,6 +533,31 @@ test("the rest of the post-process family answers, or says the layer is absent",
   console.log(
     `CNA_TS_WASM_POST_PROCESS=PRESENT PASSES=${Object.keys(postProcess.passes).length} ` +
     `SUPPORTED=${supported.length} ASCII_GRID=${postProcess.ascii.colour.grid.join("x")}`,
+  );
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("the depth/normal prepass answers, or says the layer is absent", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const prepass = result.prepass;
+  assert.ok(prepass, "no prepass evidence was produced");
+  assert.equal(typeof prepass.layerAbsent, "boolean");
+  if (prepass.layerAbsent) {
+    assert.equal(prepass.cnaResult, 6, `CNA's own NOT_SUPPORTED: ${prepass.error}`);
+    console.log("CNA_TS_WASM_PREPASS=ABSENT_FROM_ARTIFACT");
+    assert.deepEqual(consoleErrors, []);
+    return;
+  }
+  assert.equal(prepass.evidenceError ?? null, null, prepass.evidenceStack ?? "");
+  // The same oracle the strong suite applies to the same three things.
+  assertPrepassMaths(prepass.maths);
+  assertPrepassState(prepass.prepass, { width: prepass.width, height: prepass.height });
+  assertDecalState(prepass.decalDefaults);
+  const draws = multipleRenderTargetsDraw(prepass.multipleTargetProbe);
+  console.log(
+    `CNA_TS_WASM_PREPASS=PRESENT MULTIPLE_TARGET_DRAW=${draws ? "YES" : "NO_FINDING_30"} ` +
+    `RASTERISED=${prepass.rasterised.count} PREPASS_OCCUPIED=${prepass.prepassOccupied.count}`,
   );
   assert.deepEqual(consoleErrors, []);
 });

@@ -38,6 +38,9 @@ import { browserBlocked, runFrames, WASM_DIR } from "./support/browser-harness.m
 import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
 import { assertLodEvidence } from "./support/lod-oracle.mjs";
 import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
+import {
+  assertDecalState, assertPrepassMaths, assertPrepassState, multipleRenderTargetsDraw,
+} from "./support/prepass-decal-oracle.mjs";
 import { assertShadowPassEvidence } from "./support/shadow-oracle.mjs";
 import { assertCompiledEffectEvidence } from "./support/compiled-effect-oracle.mjs";
 import { requiredSuite } from "./support/required-suite.mjs";
@@ -156,6 +159,67 @@ test("the rest of the post-process family runs, and CNA's own arithmetic checks 
     `CLAMPS=${Object.keys(postProcess.clamps).length} ` +
     `ASCII_GRIDS=${postProcess.ascii.colour.grid.join("x")},` +
     `${postProcess.ascii.collapsed.grid.join("x")},${postProcess.ascii.oblong.grid.join("x")}`,
+  );
+});
+
+test("the depth/normal prepass answers, and its renderer says what it can draw into", () => {
+  const prepass = evidence.result.prepass;
+  assert.ok(prepass, "no prepass evidence was produced");
+  assert.equal(
+    prepass.layerAbsent, false,
+    `the artifact reports CNAEXT available and then refused a DepthNormalPrepass: ${prepass.error}`,
+  );
+  assert.equal(prepass.evidenceError ?? null, null, prepass.evidenceStack ?? "");
+
+  // The arithmetic and the state, neither of which touches a pixel. Both come from the same
+  // oracle the windowed suite applies, so the two backends are held to one expectation.
+  assertPrepassMaths(prepass.maths);
+  assertPrepassState(prepass.prepass, { width: prepass.width, height: prepass.height });
+  assertDecalState(prepass.decalDefaults);
+
+  // The stock rasteriser drew the rectangle, so the scene itself is sound and anything the prepass
+  // failed to write is the prepass's -- or its renderer's.
+  assert.ok(prepass.rasterised.count > 200, "the stock effect drew the rectangle");
+
+  const canDrawIntoManyTargets = multipleRenderTargetsDraw(prepass.multipleTargetProbe);
+  if (!canDrawIntoManyTargets) {
+    // Upstream finding 30. The prepass reports `IsUsingMultipleRenderTargets` here and does all of
+    // its work inside one such bind, so with a draw unable to reach two bound targets it writes
+    // nothing -- and the decal projector, whose only depth input is that buffer, paints nothing.
+    // Both are asserted rather than skipped, because "wrote nothing" is a claim that fails the
+    // moment the renderer starts working and this is the test that has to notice.
+    assert.equal(
+      prepass.prepass.multipleRenderTargets, true,
+      "the prepass takes the multiple-render-target path on this renderer",
+    );
+    assert.equal(
+      prepass.firstDrawOccupancy, 0,
+      "with a two-target bind unable to receive a draw, the prepass writes no surface at all",
+    );
+    assert.equal(prepass.secondDrawOccupancy, 0, "and a second run of it writes none either");
+    assert.equal(
+      prepass.overRect.count, 0,
+      "so the decal projector, whose only depth input is that buffer, paints nothing",
+    );
+    assert.equal(prepass.noDepth.count, 0, "as it also does with no depth input at all");
+    console.log(
+      "STRONG_WASM_PREPASS=STATE_AND_ARITHMETIC_ONLY " +
+      `RENDER=BLOCKED_UPSTREAM_FINDING_30 MRT_ONE=${prepass.multipleTargetProbe.oneTarget[0]} ` +
+      `MRT_TWO=${prepass.multipleTargetProbe.twoTargets.join(",")} ` +
+      `RASTERISED=${prepass.rasterised.count} SWEEP=${prepass.maths.sweep.length}`,
+    );
+    return;
+  }
+  // The renderer draws into many targets, so the pixels are required rather than excused.
+  assert.ok(
+    prepass.prepassOccupied.count > 0,
+    "UPSTREAM FINDING 30 REPAIRED: a two-target bind now receives a draw, so the prepass must " +
+    "put the rectangle where the renderer's own rasteriser put it. Extend this suite to the " +
+    "geometric predictions the windowed suite already makes, and update the finding",
+  );
+  console.log(
+    `STRONG_WASM_PREPASS=DRAWS OCCUPIED=${prepass.prepassOccupied.count} ` +
+    `DECAL=${prepass.overRect.count}`,
   );
 });
 

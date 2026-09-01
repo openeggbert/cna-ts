@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=624
+WASM_BACKEND_ROUTES=663
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 624 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 663 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
@@ -527,6 +527,58 @@ an array length taken from the requested capacity cannot differ while both bound
 exactly what was asked for. A third survivor was **not** equivalent -- forcing the height fog's base
 height to zero passed, because every optical-depth sample in the test used a zero base height. That
 was a gap in the test, and the fix was to vary all six of that function's arguments.
+
+### The depth/normal prepass, the decal projector, and the draw that vanishes
+
+Those eleven passes read a depth image, and until now a browser had no way to make one. The prepass
+and the decal projector that consumes it are bound together for that reason -- and because
+`DecalPass` cannot be handed an uploaded `Texture2D` as its depth input, so it becomes reachable in
+a browser at exactly the moment the prepass does.
+
+**The prepass reports itself supported here, and writes nothing.** `IsSupported` is true, `Begin`
+succeeds, the draw succeeds, `End` succeeds, and both buffers come back holding their clear. That
+is not the prepass: on WEBGL2 a draw into a multiple-render-target bind reaches none of its targets,
+and the prepass reports `IsUsingMultipleRenderTargets` here and does all of its work inside one such
+bind. Measured with a stock `BasicEffect` and no custom shader anywhere near it:
+
+| bound targets | the `Clear` reached them | texels the triangle painted |
+| --- | --- | --- |
+| one | yes | 233 |
+| two | yes | 0 and 0 |
+
+That is **upstream finding 30**, and it reproduces on the default artifact too, through nothing but
+`SetRenderTargets`, `Clear`, `BasicEffect` and `DrawUserPrimitives`. The same scenario passes on the
+windowed OPENGLES3 build. `tools/upstream-repro/webgl2-multiple-render-targets.mjs` is the probe on
+its own.
+
+So this family divides, and the browser suite says which half it is asserting:
+
+| reachable, and asserted | blocked by finding 30 |
+| --- | --- |
+| the packed-depth arithmetic, and finding 13's 2001-point sweep on this backend | the depth image |
+| both GLSL dialects, and which one carries the unpacker | the normal image |
+| the velocity encoding, its threshold and its centred channels | every screen-space pass's input |
+| the lifecycle, the pass count, the borrowed textures and both effects | the decal's painted footprint |
+| the roughness clamp, and finding 14's three `INTERNAL` codes | |
+| the decal's opacity clamp, its unclamped tint and its slope clamp | |
+| `IsInsideDecalBox`, on and off both sides of every face | |
+
+The suite does not skip the right-hand column. It **asserts** that the prepass writes nothing and
+the decal paints nothing, by name, so a repaired renderer fails here and is told to extend the
+suite to the geometric predictions the windowed one already makes.
+
+Finding 13 and finding 14 are now asserted through `test/support/prepass-decal-oracle.mjs` by
+**both** the windowed and browser suites. They are one claim about one piece of CNA, and two copies
+of a claim is how two suites come to disagree about whether it has been repaired.
+
+Fifteen more planted defects, eleven killed. Of the four survivors, one is equivalent -- CNA clamps
+roughness to the same unit range a binding-side clamp would -- one is unreachable through the public
+API, and two are limited by finding 30: with both buffers holding nothing but their shared clear, a
+depth getter that returns the normal buffer is indistinguishable from one that does not. A fifth
+survivor was a real gap and is now killed: a transposed `CNA_Matrix` write reached every camera in
+the engine layer and nothing could read one back, so the engine layer and the effect backend were
+made to share one writer -- and the browser suite's existing world-matrix round-trip through
+`cna_effect_matrices_get_world` catches it.
 
 **And the chain, which is what makes the family usable.** A game applies several passes in order,
 so `PostProcessChain` is the API a consumer actually reaches for, and its pass order is what a

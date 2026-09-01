@@ -20,14 +20,17 @@
 import { CnaComputeBackendBase } from "../backend-base.js";
 import type { NativeHandle } from "../ownership.js";
 import type { WasmRouteTable } from "./module.js";
+import { WasmEngineMemory } from "./graphics-ext-core.js";
 
 export class WasmComputeBackend extends CnaComputeBackendBase {
-  readonly #routes: WasmRouteTable;
+  readonly #mem: WasmEngineMemory;
 
   public constructor(routes: WasmRouteTable) {
     super();
-    this.#routes = routes;
+    this.#mem = new WasmEngineMemory(routes);
   }
+
+  get #routes(): WasmRouteTable { return this.#mem.routes; }
 
   protected override unsupported(member: string): never {
     throw new Error(
@@ -45,45 +48,25 @@ export class WasmComputeBackend extends CnaComputeBackendBase {
    * WEBGL2 renderer, which is exactly why a consumer has to ask rather than assume.
    */
   public override supportsGraphicsCapability(device: NativeHandle, capability: number): boolean {
-    return this.#bool("cna_graphics_device_supports_capability", device, capability);
+    return this.#mem.bool("cna_graphics_device_supports_capability", device, capability);
   }
 
   public override getMaxComputeWorkGroupCount(device: NativeHandle, axis: number): number {
-    return this.#int(
+    return this.#mem.int(
       "cna_graphics_device_get_max_compute_work_group_count_ext", device, Math.trunc(axis),
     );
   }
 
   public override getMaxComputeWorkGroupSize(device: NativeHandle, axis: number): number {
-    return this.#int(
+    return this.#mem.int(
       "cna_graphics_device_get_max_compute_work_group_size_ext", device, Math.trunc(axis),
     );
   }
 
   public override getMaxComputeWorkGroupInvocations(device: NativeHandle): number {
-    return this.#int("cna_graphics_device_get_max_compute_work_group_invocations_ext", device);
+    return this.#mem.int("cna_graphics_device_get_max_compute_work_group_invocations_ext", device);
   }
 
   /** A `CNA_Bool*` output, which is one byte rather than four. */
-  #bool(route: string, ...args: readonly (number | bigint)[]): boolean {
-    const scope = this.#routes.scope();
-    try {
-      const out = scope.allocate(4);
-      this.#routes.invoke(route, ...args, out);
-      return this.#routes.view().getUint8(out) !== 0;
-    } finally {
-      scope.dispose();
-    }
-  }
 
-  #int(route: string, ...args: readonly (number | bigint)[]): number {
-    const scope = this.#routes.scope();
-    try {
-      const out = scope.allocate(4);
-      this.#routes.invoke(route, ...args, out);
-      return this.#routes.view().getInt32(out, true);
-    } finally {
-      scope.dispose();
-    }
-  }
 }

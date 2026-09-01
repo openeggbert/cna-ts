@@ -19,6 +19,8 @@ import type {
   CnaContentBackend,
   CnaGraphicsBackend,
   CnaComputeBackend,
+  CnaDecalBackend,
+  CnaDepthNormalPrepassBackend,
   CnaLodBackend,
   CnaShadowBackend,
   CnaGraphicsExtensionBackend,
@@ -81,6 +83,8 @@ import { WasmEffectBackend } from "./effects.js";
 import { WasmComputeBackend } from "./compute.js";
 import { WasmGraphicsExtensionBackend } from "./graphics-ext.js";
 import { WasmLodBackend } from "./lod.js";
+import { WasmDecalBackend } from "./decals.js";
+import { WasmDepthNormalPrepassBackend } from "./prepass.js";
 import { WasmShadowBackend } from "./shadows.js";
 
 const CNA_RESULT_SUCCESS = CnaResult.Success;
@@ -717,6 +721,45 @@ const ROUTES = [
   "cna_volumetric_fog_pass_set_density",
   "cna_volumetric_fog_pass_set_light",
   "cna_volumetric_fog_pass_set_range",
+  "cna_decal_pass_create",
+  "cna_decal_pass_destroy",
+  "cna_decal_pass_draw",
+  "cna_decal_pass_get_max_slope_angle",
+  "cna_decal_pass_get_opacity",
+  "cna_decal_pass_get_tint",
+  "cna_decal_pass_is_inside_decal_box",
+  "cna_decal_pass_set_camera",
+  "cna_decal_pass_set_max_slope_angle",
+  "cna_decal_pass_set_opacity",
+  "cna_decal_pass_set_prepass_inputs",
+  "cna_decal_pass_set_tint",
+  "cna_depth_normal_prepass_begin",
+  "cna_depth_normal_prepass_copy_depth_decode_glsl",
+  "cna_depth_normal_prepass_copy_velocity_decode_glsl",
+  "cna_depth_normal_prepass_create",
+  "cna_depth_normal_prepass_decode_velocity_ext",
+  "cna_depth_normal_prepass_destroy",
+  "cna_depth_normal_prepass_end",
+  "cna_depth_normal_prepass_get_depth_texture",
+  "cna_depth_normal_prepass_get_normal_texture",
+  "cna_depth_normal_prepass_get_pass_count",
+  "cna_depth_normal_prepass_get_prepass_effect",
+  "cna_depth_normal_prepass_get_roughness",
+  "cna_depth_normal_prepass_get_skinned_prepass_effect",
+  "cna_depth_normal_prepass_get_velocity_texture_ext",
+  "cna_depth_normal_prepass_has_velocity_ext",
+  "cna_depth_normal_prepass_is_depth_packed",
+  "cna_depth_normal_prepass_is_supported",
+  "cna_depth_normal_prepass_is_using_multiple_render_targets",
+  "cna_depth_normal_prepass_is_velocity_enabled_ext",
+  "cna_depth_normal_prepass_pack_depth",
+  "cna_depth_normal_prepass_resize",
+  "cna_depth_normal_prepass_set_previous_camera_ext",
+  "cna_depth_normal_prepass_set_previous_world_ext",
+  "cna_depth_normal_prepass_set_roughness",
+  "cna_depth_normal_prepass_set_velocity_enabled_ext",
+  "cna_depth_normal_prepass_unpack_depth",
+  "cna_depth_normal_prepass_uses_packed_depth_ext",
 ] as const;
 
 type RouteName = (typeof ROUTES)[number];
@@ -770,6 +813,21 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
    */
   public readonly Shadows: CnaShadowBackend;
   /**
+   * The linear-depth and normal images the screen-space passes read.
+   *
+   * Bound with the eleven passes that consume it rather than after them: SSAO, reflections, depth
+   * of field, motion blur, contact shadows, aerial perspective and the decal projector all take a
+   * depth image, and a browser holding those passes with nothing to feed them is not a slice.
+   */
+  public readonly DepthNormalPrepass: CnaDepthNormalPrepassBackend;
+  /**
+   * The decal projector, which is the prepass's first drawing consumer.
+   *
+   * It cannot be given an uploaded `Texture2D` as its depth input -- measured, and recorded on the
+   * public API -- so it becomes reachable in a browser exactly when the prepass does.
+   */
+  public readonly Decals: CnaDecalBackend;
+  /**
    * Level-of-detail selection, which is the one engine family here that is implemented *whole*
    * rather than sliced: every route of it is arithmetic over thresholds and touches no device.
    */
@@ -798,6 +856,8 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
     this.GraphicsExtensions = new WasmGraphicsExtensionBackend(this.#routes);
     this.Compute = new WasmComputeBackend(this.#routes);
     this.Shadows = new WasmShadowBackend(this.#routes);
+    this.DepthNormalPrepass = new WasmDepthNormalPrepassBackend(this.#routes);
+    this.Decals = new WasmDecalBackend(this.#routes);
     this.Lod = new WasmLodBackend(this.#routes);
     this.Audio = new WasmAudioBackend(
       this.#routes, () => this.#requireGame(), () => this.#requireGameLifetime(),

@@ -29,6 +29,7 @@ import type {
 import type { NativeHandle } from "../ownership.js";
 import { WASM_STRUCT_LAYOUTS } from "./layout.js";
 import { allocateStruct, WasmScope, WasmStruct, type WasmRouteTable } from "./module.js";
+import { WasmEngineMemory } from "./graphics-ext-core.js";
 
 /** The `CNA_StockEffectKind` this slice implements. */
 const BASIC_EFFECT = 0;
@@ -112,12 +113,14 @@ function readTaggedValues(
 }
 
 export class WasmEffectBackend extends CnaEffectBackendBase {
-  readonly #routes: WasmRouteTable;
+  readonly #mem: WasmEngineMemory;
 
   public constructor(routes: WasmRouteTable) {
     super();
-    this.#routes = routes;
+    this.#mem = new WasmEngineMemory(routes);
   }
+
+  get #routes(): WasmRouteTable { return this.#mem.routes; }
 
   protected override unsupported(member: string): never {
     throw new Error(
@@ -178,26 +181,21 @@ export class WasmEffectBackend extends CnaEffectBackendBase {
   /**
    * A `CNA_Matrix` and a `CNA_Vector3` are taken **by value**, and under wasm32 a struct that is
    * not a single scalar is passed indirectly — the callee receives a pointer to a caller-owned
-   * copy. So these write the bytes and pass the pointer. The browser test asserts a world matrix
-   * round-trips through `cna_effect_matrices_get_world`, which is what turns that from a claim
-   * about the ABI into a measurement.
+   * copy. So these write the bytes and pass the pointer.
+   *
+   * Both come from `WasmEngineMemory`, which is the one place in this backend that knows what a
+   * `CNA_Matrix` looks like in wasm32 memory. Deliberately shared with the engine layer rather
+   * than copied here: this file's write is the only one a test can currently *read back* -- the
+   * browser suite round-trips a world matrix through `cna_effect_matrices_get_world` -- so a
+   * transposed write anywhere in the backend is caught here, and a private copy of the same eight
+   * lines would leave the engine layer's cameras unchecked.
    */
   #matrix(scope: WasmScope, values: readonly number[]): number {
-    const pointer = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Matrix.size);
-    const view = new DataView(this.#routes.module.HEAPU8.buffer as ArrayBuffer);
-    for (let index = 0; index < 16; index += 1) {
-      view.setFloat32(pointer + index * 4, values[index] ?? 0, true);
-    }
-    return pointer;
+    return this.#mem.writeMatrix(scope, values);
   }
 
   #vector3(scope: WasmScope, values: readonly number[]): number {
-    const pointer = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Vector3.size);
-    const view = new DataView(this.#routes.module.HEAPU8.buffer as ArrayBuffer);
-    for (let index = 0; index < 3; index += 1) {
-      view.setFloat32(pointer + index * 4, values[index] ?? 0, true);
-    }
-    return pointer;
+    return this.#mem.writeVector3(scope, values);
   }
 
   public override syncStockEffect(
