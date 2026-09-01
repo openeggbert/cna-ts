@@ -30,22 +30,17 @@ import { readNativeParameterValueForInternalUse, readNativeParameterValuesForInt
 
 const library = process.env.CNA_WINDOWED_LIBRARY;
 const display = process.env.DISPLAY;
-// Optional for a developer with no windowed CNA to hand; `CNA_REQUIRE_EFFECT_TESTS=1` makes the
-// missing environment a named failure and requires the suite to prove it executed.
-const { test, skip } = requiredSuite({
-  label: "compiled-effect",
-  envVar: "CNA_REQUIRE_EFFECT_TESTS",
-  counter: "EFFECT_REFLECTION_TESTS",
-  blocked: library
-    ? (display ? null : "no DISPLAY; run this under xvfb-run or on a session with a screen")
-    : "set CNA_WINDOWED_LIBRARY to a CNA library built with a windowed renderer",
-});
+// Whether the environment is present. Whether it is *sufficient* is a second question, answered
+// below by the renderer rather than by this file: "a windowed library" is not one thing.
+const environmentBlocked = library
+  ? (display ? null : "no DISPLAY; run this under xvfb-run or on a session with a screen")
+  : "set CNA_WINDOWED_LIBRARY to a CNA library built with a windowed renderer";
 
 const cnaSource = path.resolve(process.env.CNA_SOURCE_PATH ?? "../../cnanext");
 const effectPath = (name) =>
   path.join(cnaSource, "modules/renderers/fna3d/effects", name);
 
-if (!skip) {
+if (!environmentBlocked) {
   await LoadNodeNativeBackend({
     CnaLibrary: path.resolve(library),
     BridgeModule: path.resolve(process.env.CNA_NODE_BRIDGE ?? "build/cna_node_bridge.node"),
@@ -352,11 +347,39 @@ class EffectProbeGame extends Game {
   }
 }
 
-if (!skip) {
+if (!environmentBlocked) {
   const game = new EffectProbeGame();
   await game.Run();
   game.Dispose();
 }
+
+/**
+ * The second gate, and the renderer answers it rather than this file.
+ *
+ * "A windowed library" is not one thing. Measured on this host, three windowed CNA builds give
+ * three different answers to the same bytes: OPENGLES3 (EasyGL, built with
+ * `CNA_EASYGL_COMPILED_EFFECTS=ON`) creates the effect, while SDL_RENDERER and SOFTWARE both refuse
+ * with CNA result 6 naming `GraphicsCapability::CompiledEffects is false` -- as do HEADLESS and the
+ * WEBGL2 browser artifact. Pointing `CNA_WINDOWED_LIBRARY` at one of the refusing three used to
+ * fail this whole suite with a cascade of assertion errors about missing reflection; it now says
+ * which capability the renderer lacks, once.
+ *
+ * A required run still fails on it, and should: this gate exists to claim compiled effects were
+ * qualified, and against a renderer that has none they were not.
+ */
+const capabilityBlocked = environmentBlocked || typeof evidence.basic === "object"
+  ? null
+  : "this windowed renderer reports GraphicsCapability::CompiledEffects false, so it cannot run " +
+    `a compiled effect at all -- point CNA_WINDOWED_LIBRARY at a build that can (${evidence.basic})`;
+
+// Optional for a developer whose windowed CNA cannot run compiled effects, or who has none to hand;
+// `CNA_REQUIRE_EFFECT_TESTS=1` makes either a named failure and requires the suite to prove it ran.
+const { test, skip } = requiredSuite({
+  label: "compiled-effect",
+  envVar: "CNA_REQUIRE_EFFECT_TESTS",
+  counter: "EFFECT_REFLECTION_TESTS",
+  blocked: environmentBlocked ?? capabilityBlocked,
+});
 
 test("a compiled effect reflects its parameters", { skip }, () => {
   const basic = evidence.basic;
