@@ -1,0 +1,114 @@
+{
+  "name": "the rest of the post-process family in a browser: the passes that read depth, a sun, or a game's own effect",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
+  "environment": "CNA_WASM_ARTIFACT_DIR must point at a CNA wasm artifact built with -DCNA_EASYGL_COMPILED_EFFECTS=ON -DCNA_CNAEXT=ON, and CNA_SOURCE_PATH at a cnanext checkout. Every mutant is in src/internal/wasm/post-process.ts or the core it shares, because what is unproved for this family is the wasm32 half: which route each of eleven near-identical passes resolves, the two-int and probed-array output shapes, the by-pointer vector arguments, and the flag arguments that select between two answers. The defects chosen are the ones that leave a plausible-looking result: a pass that constructs and round-trips its parameters perfectly while being the wrong pass, a vector that loses a component, a boolean read four bytes wide, a kernel copied at the wrong stride, a cell size read as one number.",
+  "mutants": [
+    {
+      "id": "ssr-create-is-really-ssao",
+      "why": "createSsrPass resolves the SSAO pass's create route. Every SSR parameter would then be set on an SSAO pass and read back from it -- so every round-trip still passes -- and only the pass's own name disagrees",
+      "file": "src/internal/wasm/post-process.ts",
+      "find": "  public override createSsrPass(device: NativeHandle): NativeHandle {\n    return this.create(\"cna_ssr_pass_create\", device);\n  }",
+      "replace": "  public override createSsrPass(device: NativeHandle): NativeHandle {\n    return this.create(\"cna_ssao_pass_create\", device);\n  }"
+    },
+    {
+      "id": "light-shaft-and-motion-blur-swapped",
+      "why": "two creates exchanged, which is what a copy-paste through eleven near-identical passes produces; both objects still take every setter their public class calls",
+      "file": "src/internal/wasm/post-process.ts",
+      "find": "  public override createMotionBlurPass(device: NativeHandle): NativeHandle {\n    return this.create(\"cna_motion_blur_pass_create\", device);\n  }",
+      "replace": "  public override createMotionBlurPass(device: NativeHandle): NativeHandle {\n    return this.create(\"cna_light_shaft_pass_create\", device);\n  }"
+    },
+    {
+      "id": "ssao-radius-writes-intensity",
+      "why": "one setter wired to its neighbour's route. The value still lands in CNA and still reads back through its own getter, so only the fact that no two values in the table are equal catches it",
+      "file": "src/internal/wasm/post-process.ts",
+      "find": "  public override setSsaoRadius(pass: NativeHandle, value: number): void {\n    this.routes.invoke(\"cna_ssao_pass_set_radius\", pass, value);\n  }",
+      "replace": "  public override setSsaoRadius(pass: NativeHandle, value: number): void {\n    this.routes.invoke(\"cna_ssao_pass_set_intensity\", pass, value);\n  }"
+    },
+    {
+      "id": "vector3-loses-its-z",
+      "why": "a by-pointer Vector3 argument writes two components and leaves the third as whatever the allocation held -- the shape a sun direction or a fog colour silently loses its blue in",
+      "file": "src/internal/wasm/graphics-ext-core.ts",
+      "find": "      view.setFloat32(pointer, value.X, true);\n      view.setFloat32(pointer + 4, value.Y, true);\n      view.setFloat32(pointer + 8, value.Z, true);\n      return body(pointer);",
+      "replace": "      view.setFloat32(pointer, value.X, true);\n      view.setFloat32(pointer + 4, value.Y, true);\n      return body(pointer);"
+    },
+    {
+      "id": "vector2-components-transposed",
+      "why": "a CNA_Vector2 read back with X and Y exchanged, which every symmetric test value passes and the light shaft's asymmetric screen position does not",
+      "file": "src/internal/wasm/graphics-ext-core.ts",
+      "find": "      X: view.getFloat32(out, true), Y: view.getFloat32(out + 4, true),",
+      "replace": "      X: view.getFloat32(out + 4, true), Y: view.getFloat32(out, true),"
+    },
+    {
+      "id": "bool-read-four-bytes-wide",
+      "why": "CNA_Bool is one byte in a four-byte allocation. Read as a uint32 it is true whenever any of the three bytes after it is set, which for a zeroed allocation is the *right* answer for false and stays right until it is not",
+      "file": "src/internal/wasm/graphics-ext-core.ts",
+      "find": "    return this.#scalar(route, args, 4, (view, out) => view.getUint8(out) !== 0);",
+      "replace": "    return this.#scalar(route, args, 4, (view, out) => view.getUint32(out, true) !== 0);"
+    },
+    {
+      "id": "ssao-kernel-read-at-a-vector4-stride",
+      "why": "the kernel copied as if CNA_Vector3 were sixteen bytes, which reads every fourth sample's components out of the next sample -- and still produces 64 plausible unit-ish vectors",
+      "file": "src/internal/wasm/post-process.ts",
+      "find": "    const stride = WASM_STRUCT_LAYOUTS.CNA_Vector3.size;\n    return this.probedArray(\"cna_ssao_pass_copy_kernel\", [pass], stride, (base, written) => {",
+      "replace": "    const stride = 16;\n    return this.probedArray(\"cna_ssao_pass_copy_kernel\", [pass], stride, (base, written) => {"
+    },
+    {
+      "id": "packed-glsl-flag-ignored",
+      "why": "the packed/unpacked selector is dropped, so both forms of the occlusion GLSL come back as the unpacked one -- a defect no length check and no 'is it non-empty' check would see",
+      "file": "src/internal/wasm/post-process.ts",
+      "find": "    return this.probedString(\"cna_ssao_pass_copy_occlusion_glsl\", packed ? 1 : 0);",
+      "replace": "    return this.probedString(\"cna_ssao_pass_copy_occlusion_glsl\", 0);"
+    },
+    {
+      "id": "ascii-cell-size-height-follows-width",
+      "why": "setCellSize sends its width twice, so every cell is square. A square test cell passes; the 2x4 one is the reason there is a non-square case at all",
+      "file": "src/internal/wasm/post-process.ts",
+      "find": "      \"cna_ascii_post_process_effect_set_cell_size\", effect,\n      Math.trunc(width), Math.trunc(height),",
+      "replace": "      \"cna_ascii_post_process_effect_set_cell_size\", effect,\n      Math.trunc(width), Math.trunc(width),"
+    },
+    {
+      "id": "ascii-grid-dimensions-transposed",
+      "why": "the two int32 outputs read in the other order, so columns and rows are exchanged. The square grids agree with themselves and the 4x2 one does not",
+      "file": "src/internal/wasm/post-process.ts",
+      "find": "      return { Width: view.getInt32(width, true), Height: view.getInt32(height, true) };",
+      "replace": "      return { Width: view.getInt32(height, true), Height: view.getInt32(width, true) };"
+    },
+    {
+      "id": "ascii-quantize-mode-never-set",
+      "why": "the mode is accepted and never written, so BlackWhite keeps drawing in colour -- and the getter, which reads CNA rather than managed state, is the only thing that notices",
+      "file": "src/internal/wasm/post-process.ts",
+      "find": "  public override setAsciiQuantizeMode(effect: NativeHandle, mode: number): void {\n    this.routes.invoke(\"cna_ascii_post_process_effect_set_quantize_mode\", effect, mode);\n  }",
+      "replace": "  public override setAsciiQuantizeMode(effect: NativeHandle, mode: number): void {\n    void effect; void mode;\n  }"
+    },
+    {
+      "id": "identity-scale-arguments-in-source-target-pairs",
+      "why": "the four sizes passed as (sw, tw, sh, th) rather than (sw, sh, tw, th). Equal-sized and doubled cases still answer correctly; the transposed 64x32 -> 32x64 case is what separates them",
+      "file": "src/internal/wasm/post-process.ts",
+      "find": "      Math.trunc(sourceWidth), Math.trunc(sourceHeight),\n      Math.trunc(targetWidth), Math.trunc(targetHeight),\n    );\n  }\n}",
+      "replace": "      Math.trunc(sourceWidth), Math.trunc(targetWidth),\n      Math.trunc(sourceHeight), Math.trunc(targetHeight),\n    );\n  }\n}"
+    },
+    {
+      "id": "probed-array-trusts-the-capacity",
+      "why": "the array's length taken from the capacity that was asked for rather than from the count CNA wrote back. Identical whenever CNA fills the buffer, and silently wrong the moment it writes fewer",
+      "file": "src/internal/wasm/graphics-ext-core.ts",
+      "find": "      return read(buffer, Number(this.routes.view().getBigUint64(countOut, true)));",
+      "replace": "      return read(buffer, count);"
+    },
+    {
+      "id": "height-fog-optical-depth-loses-its-base-height",
+      "why": "a six-float pure function called with its base height replaced by zero, so the answer is right only where the fog's base really is at zero. It survived the first run of this plan because every optical-depth sample used a zero base height -- a gap the mutant found in the test rather than in the code",
+      "file": "src/internal/wasm/post-process.ts",
+      "find": "      \"cna_height_fog_pass_optical_depth\",\n      cameraHeight, rayHeightStep, distance, density, falloff, baseHeight,",
+      "replace": "      \"cna_height_fog_pass_optical_depth\",\n      cameraHeight, rayHeightStep, distance, density, falloff, 0,"
+    },
+    {
+      "id": "height-fog-ray-step-forced-level",
+      "why": "the ray's height step forced to zero, which takes the level-look branch every time and never divides by the climb. Every sample with a level ray still agrees, so only the climbing and descending ones catch it",
+      "file": "src/internal/wasm/post-process.ts",
+      "find": "      cameraHeight, rayHeightStep, distance, density, falloff, baseHeight,\n    );\n  }",
+      "replace": "      cameraHeight, 0, distance, density, falloff, baseHeight,\n    );\n  }"
+    }
+  ]
+}

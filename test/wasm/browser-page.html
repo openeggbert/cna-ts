@@ -24,7 +24,7 @@ try {
     Audio, BoundingBox, Color, Content, Game, GraphicsDeviceManager, Graphics, GetRuntimeStatus,
     LoadWasmBackend,
     Curve, CurveContinuity, CurveKey, CurveLoopType,
-    Matrix, Quaternion, TitleContainer, TimeSpan, Vector2, Vector3, Vector4,
+    Matrix, Quaternion, Rectangle, TitleContainer, TimeSpan, Vector2, Vector3, Vector4,
   } = await import("/cna-ts/index.js");
   // CNA's own read-back of what a parameter holds. Internal, and used for the same reason the Node
   // suite uses it: a test comparing only `GetValue*` would pass whether or not the value ever left
@@ -712,6 +712,13 @@ try {
       // and graded pixels where it was not.
       result.colourGrade = this.#colourGradeEvidence();
 
+      // --- the rest of the post-process family --------------------------------------------------
+      //
+      // Twelve more passes, each asked of the device rather than assumed, their parameters round
+      // tripped, CNA's own scalars sampled, and the one pass whose pixels are exactly predictable
+      // without a depth buffer asserted texel by texel.
+      result.postProcess = this.#postProcessEvidence();
+
       // --- what this device can be asked ------------------------------------------------------
       //
       // Nineteen capability identities and three compute work-group limits, through the public
@@ -1151,6 +1158,321 @@ try {
      * each channel, so trilinear interpolation of its eight corners reproduces it *exactly*. The
      * expected texels are that rotation applied in JavaScript -- not numbers read off a run.
      */
+    /**
+     * The rest of the post-process family: the twelve passes that read something other than the
+     * frame in front of them.
+     *
+     * The evidence has three parts, in increasing order of how much it proves.
+     *
+     * **Support**, asked of the running artifact per pass, because
+     * `cna_post_process_pass_is_supported` takes the device and is the only authority on whether a
+     * WebGL 2.0 context can run one. Nothing below is claimed for a pass that answers no.
+     *
+     * **CNA's own scalars.** Seven of these passes ship a pure function of the same arithmetic
+     * their shader does -- the thin-lens circle of confusion, the SSAO quality table and its
+     * kernel, the air-mass integral and its transmittance, the height-fog integral, the contact
+     * shadow acceptance test and its combine. Those are sampled here over inputs chosen so the
+     * *shape* of each answer is predictable independently, and the assertions live in the shared
+     * oracle rather than here.
+     *
+     * **Pixels**, for the one pass in this group whose output is exactly predictable without a
+     * depth buffer: the ASCII quantizer. Its whole specification is in `AsciiQuantizer.cpp` --
+     * ceil-divide into cells, average RGBA per cell, luminance `0.299R + 0.587G + 0.114B`, a glyph
+     * index rounded onto a ten-character ramp whose first character is a space, and in Color mode
+     * a background of exactly the average over four. So a source of uniform dark quadrants has an
+     * output this test can name every texel of, and one bright quadrant has an output whose two
+     * legal colours it can name.
+     */
+    #postProcessEvidence() {
+      const device = this.GraphicsDevice;
+      const owned = [];
+      const evidence = { layerAbsent: false };
+      const release = () => {
+        for (const item of owned.reverse()) { try { item.Dispose(); } catch { /* reported below */ } }
+      };
+      try {
+        // The cheapest member of the family, and the one whose refusal identifies the artifact.
+        const probe = new PostProcess.SsaoPass(device);
+        owned.push(probe);
+      } catch (error) {
+        release();
+        return {
+          layerAbsent: true,
+          cnaResult: error?.cnaResult ?? null,
+          error: `${error?.constructor?.name}: ${error?.message}`,
+        };
+      }
+      try {
+        // --- every pass: it exists, it names itself, and the device says whether it can run ----
+        const make = {
+          Ssao: () => new PostProcess.SsaoPass(device),
+          Ssr: () => new PostProcess.SsrPass(device),
+          DepthOfField: () => new PostProcess.DepthOfFieldPass(device),
+          LensFlare: () => new PostProcess.LensFlarePass(device),
+          MotionBlur: () => new PostProcess.MotionBlurPass(device),
+          Ascii: () => new PostProcess.AsciiPass(device),
+          AerialPerspective: () => new PostProcess.AerialPerspectivePass(device),
+          HeightFog: () => new PostProcess.HeightFogPass(device),
+          LightShaft: () => new PostProcess.LightShaftPass(device),
+          VolumetricFog: () => new PostProcess.VolumetricFogPass(device),
+          ContactShadow: () => new PostProcess.ContactShadowPass(device),
+        };
+        evidence.passes = {};
+        const live = {};
+        for (const [key, construct] of Object.entries(make)) {
+          const pass = construct();
+          owned.push(pass);
+          live[key] = pass;
+          evidence.passes[key] = { name: pass.Name, supported: pass.IsSupportedOn(device) };
+        }
+
+        // --- every parameter, written and read back --------------------------------------------
+        //
+        // Values are distinct across the whole table on purpose: a setter wired to its neighbour's
+        // route would still round-trip if two parameters shared a value, and several of these
+        // passes have four floats that differ only in name.
+        const roundTrip = (pass, entries) => {
+          const out = {};
+          for (const [property, value] of entries) {
+            pass[property] = value;
+            out[property] = [value, pass[property]];
+          }
+          return out;
+        };
+        evidence.roundTrip = {
+          Ssao: roundTrip(live.Ssao, [
+            ["Radius", 0.375], ["Intensity", 1.625], ["SampleCount", 24], ["HalfResolution", true],
+          ]),
+          Ssr: roundTrip(live.Ssr, [
+            ["Intensity", 0.8125], ["MaxDistance", 37.5], ["Thickness", 0.28125],
+            ["DepthBias", 0.046875], ["EdgeFade", 0.15625], ["RoughnessBlur", 0.1875],
+            ["StepCount", 41],
+          ]),
+          DepthOfField: roundTrip(live.DepthOfField, [
+            ["FocusDistance", 12.5], ["FocalLength", 0.0625], ["FNumber", 2.75],
+            ["MaxRadius", 0.21875],
+          ]),
+          LensFlare: roundTrip(live.LensFlare, [
+            ["Threshold", 0.71875], ["Intensity", 1.375], ["Dispersal", 0.34375],
+          ]),
+          MotionBlur: roundTrip(live.MotionBlur, [["Strength", 0.5625], ["MaxDistance", 0.09375]]),
+          AerialPerspective: roundTrip(live.AerialPerspective, [
+            ["Turbidity", 3.25], ["Intensity", 0.90625], ["ScaleHeight", 1250.5],
+          ]),
+          HeightFog: roundTrip(live.HeightFog, [
+            ["Density", 0.0234375], ["Falloff", 0.078125], ["BaseHeight", -13.5],
+          ]),
+          LightShaft: roundTrip(live.LightShaft, [
+            ["Threshold", 0.640625], ["Intensity", 1.1875], ["Decay", 0.953125],
+          ]),
+          VolumetricFog: roundTrip(live.VolumetricFog, [
+            ["Density", 0.0546875], ["Anisotropy", -0.375], ["Range", 96.5],
+          ]),
+          ContactShadow: roundTrip(live.ContactShadow, [
+            ["MaxDistance", 0.265625], ["StepCount", 19], ["Thickness", 0.109375],
+            ["Intensity", 0.84375], ["Bias", 0.00390625],
+          ]),
+        };
+        // --- the clamps, which are how a value proves it reached CNA -------------------------
+        //
+        // Nine of these properties refuse or clamp what they are given, in ranges written down in
+        // the pass sources. Writing outside each range and reading back is the strongest
+        // write-through evidence this family has: a binding that kept the value managed-side and
+        // never called CNA would hand back the number that was written, and every one of these
+        // would be the number that was written.
+        const clampProbe = (pass, property, attempt) => {
+          pass[property] = attempt;
+          return [attempt, pass[property]];
+        };
+        evidence.clamps = {
+          ssrRoughnessBlurHigh: clampProbe(live.Ssr, "RoughnessBlur", 9.5),
+          ssrRoughnessBlurLow: clampProbe(live.Ssr, "RoughnessBlur", -3),
+          ssrEdgeFadeHigh: clampProbe(live.Ssr, "EdgeFade", 4),
+          // Not a clamp but a refusal: a non-positive distance leaves the previous one standing.
+          ssrMaxDistanceRefused: clampProbe(live.Ssr, "MaxDistance", 0),
+          depthOfFieldMaxRadiusHigh: clampProbe(live.DepthOfField, "MaxRadius", 9.5),
+          depthOfFieldFocusRefused: clampProbe(live.DepthOfField, "FocusDistance", -1),
+          lensFlareDispersalHigh: clampProbe(live.LensFlare, "Dispersal", 3.5),
+          motionBlurStrengthHigh: clampProbe(live.MotionBlur, "Strength", 8),
+          motionBlurMaxDistanceHigh: clampProbe(live.MotionBlur, "MaxDistance", 8),
+          aerialTurbidityLow: clampProbe(live.AerialPerspective, "Turbidity", 0.25),
+          lightShaftDecayHigh: clampProbe(live.LightShaft, "Decay", 6),
+          volumetricAnisotropyHigh: clampProbe(live.VolumetricFog, "Anisotropy", 4),
+          volumetricAnisotropyLow: clampProbe(live.VolumetricFog, "Anisotropy", -4),
+        };
+
+        // The vectors, which are the routes a component-order defect lives in. Asymmetric in all
+        // three components so a rotated or truncated write is a different vector.
+        live.AerialPerspective.SunDirection = new Vector3(0.25, -0.5, 0.8125);
+        live.HeightFog.Color = new Vector3(0.125, 0.375, 0.9375);
+        live.ContactShadow.LightDirection = new Vector3(-0.75, 0.1875, 0.5);
+        live.LightShaft.LightScreenPosition = new Vector2(0.3125, 0.6875);
+        const v3 = (v) => [v.X, v.Y, v.Z];
+        evidence.vectors = {
+          sunDirection: v3(live.AerialPerspective.SunDirection),
+          fogColor: v3(live.HeightFog.Color),
+          contactLight: v3(live.ContactShadow.LightDirection),
+          lightShaft: [
+            live.LightShaft.LightScreenPosition.X, live.LightShaft.LightScreenPosition.Y,
+          ],
+        };
+
+        // --- CNA's own scalars, sampled ---------------------------------------------------------
+        const quality = PostProcess.RenderQuality;
+        evidence.scalars = {
+          // The thin-lens response, over depths straddling a 10 m focus at f/2.8 and 50 mm.
+          // Focal length is in millimetres here, which is what `cnaCircleOfConfusionMm` compares
+          // against a focus distance it converts from metres itself.
+          circleOfConfusion: [1, 2, 5, 9, 10, 11, 20, 50, 1000].map((depth) => [
+            depth,
+            PostProcess.DepthOfFieldPass.CircleOfConfusionMillimetres(depth, 10, 50, 2.8),
+          ]),
+          ssaoSampleCounts: Object.entries(quality)
+            .filter(([, value]) => typeof value === "number")
+            .map(([name, value]) => [name, value, PostProcess.SsaoPass.SampleCountForQuality(value)]),
+          // The kernel the shader really samples, so its hemisphere shape is checkable.
+          ssaoKernel: live.Ssao.Kernel.map(v3),
+          ssaoGlslPacked: PostProcess.SsaoPass.OcclusionGlsl(true),
+          ssaoGlslUnpacked: PostProcess.SsaoPass.OcclusionGlsl(false),
+          // Air mass grows with distance and shrinks with a taller atmosphere; transmittance is
+          // what survives it, so it must fall as air mass rises and never leave [0, 1].
+          airMass: [0, 100, 1000, 5000, 20000].map((distance) => [
+            distance,
+            PostProcess.AerialPerspectivePass.AirMassForDistance(
+              new Vector3(0, 1, 0), distance, 1200),
+          ]),
+          airMassLowerAtmosphere: PostProcess.AerialPerspectivePass.AirMassForDistance(
+            new Vector3(0, 1, 0), 1000, 600),
+          transmittance: [0, 0.5, 1, 2, 4].map((mass) => {
+            const t = PostProcess.AerialPerspectivePass.Transmittance(2.5, mass);
+            return [mass, [t.X, t.Y, t.Z]];
+          }),
+          // The height-fog integral: zero at zero distance, monotone in distance and in density.
+          // Six arguments, and every one of them varied against a common case, because a pure
+          // function called with one argument missing shifts the rest along and still answers.
+          // Both branches are covered: a level look does not divide by the climb, a climbing one
+          // does.
+          opticalDepth: [
+            ["zero distance", [10, 0, 0, 0.05, 0.1, 0]],
+            ["short", [10, 0, 10, 0.05, 0.1, 0]],
+            ["long", [10, 0, 100, 0.05, 0.1, 0]],
+            ["denser", [10, 0, 100, 0.1, 0.1, 0]],
+            ["higher camera", [60, 0, 100, 0.05, 0.1, 0]],
+            ["raised base", [10, 0, 100, 0.05, 0.1, 6.5]],
+            ["climbing ray", [10, 0.75, 100, 0.05, 0.1, 0]],
+            ["descending ray", [10, -0.5, 100, 0.05, 0.1, 0]],
+            ["steeper falloff", [10, 0, 100, 0.05, 0.25, 0]],
+          ].map(([label, args]) => [label, args, PostProcess.HeightFogPass.OpticalDepth(...args)]),
+          // The ray-march acceptance test at and around both of its boundaries.
+          contactOcclusion: [
+            ["in front of the surface", 4.0, 5.0, 0.05, 0.5],
+            ["just inside the bias", 5.04, 5.0, 0.05, 0.5],
+            ["past the bias", 5.2, 5.0, 0.05, 0.5],
+            ["inside the thickness", 5.4, 5.0, 0.05, 0.5],
+            ["past the thickness", 5.6, 5.0, 0.05, 0.5],
+          ].map(([label, ray, scene, bias, thickness]) => [
+            label,
+            PostProcess.ContactShadowPass.IsOccluded(ray, scene, bias, thickness),
+          ]),
+          combineVisibility: [[1, 1], [1, 0], [0, 1], [0.5, 0.5], [0.25, 0.8]].map(([a, b]) => [
+            a, b, PostProcess.ContactShadowPass.CombineVisibility(a, b),
+          ]),
+          contactGlsl: PostProcess.ContactShadowPass.OcclusionGlsl,
+          identityScale: [
+            [64, 64, 64, 64], [64, 64, 128, 128], [64, 32, 32, 64], [64, 64, 64, 65],
+          ].map((sizes) => [sizes, PostProcess.SpatialUpscalePass.IsIdentityScale(...sizes)]),
+        };
+
+        // --- the spatial upscaler, which is its own object rather than a pass -------------------
+        const upscale = new PostProcess.SpatialUpscalePass(device);
+        owned.push(upscale);
+        upscale.Sharpness = 0.4375;
+        upscale.EdgeAdaptive = false;
+        // A fog light with no shadow map, which is `0n` rather than a handle to an empty one.
+        live.VolumetricFog.SetLight(null, new Vector3(0, -1, 0), new Vector3(1, 0.875, 0.75));
+        evidence.fogLightAccepted = true;
+
+        evidence.upscale = {
+          sharpness: upscale.Sharpness,
+          edgeAdaptive: upscale.EdgeAdaptive,
+          edgeAdaptiveAfter: (() => { upscale.EdgeAdaptive = true; return upscale.EdgeAdaptive; })(),
+        };
+
+        // --- the ASCII quantizer, whose every texel is predictable ------------------------------
+        evidence.ascii = this.#asciiEvidence(device, owned);
+      } catch (error) {
+        evidence.evidenceError = `${error?.constructor?.name}: ${error?.message}`;
+        evidence.evidenceStack = String(error?.stack ?? "");
+      } finally {
+        release();
+      }
+      return evidence;
+    }
+
+    /**
+     * ASCII quantization, asserted texel by texel.
+     *
+     * The source is four uniform 4x4 quadrants. Three are dark enough that their glyph index
+     * rounds to zero -- the ramp `" .:-=+*#%@"` starts with a space, which has no lit pixels -- so
+     * those cells are their background colour and nothing else, and the background in Color mode
+     * is exactly the cell average divided by four. The fourth is white, so its cell is the only
+     * one containing two colours, and both of them are named.
+     *
+     * Then the cell size is doubled, which must collapse the grid to one cell whose average is the
+     * average of the four quadrants. A cell size read as a single number, or transposed, produces
+     * a different grid and fails on the dimensions before any texel is compared.
+     */
+    #asciiEvidence(device, owned) {
+      const N = 8;
+      const effect = new PostProcess.AsciiPostProcessEffect(device);
+      owned.push(effect);
+      const quadrant = [[40, 0, 0], [0, 20, 0], [0, 0, 80], [255, 255, 255]];
+      const texels = [];
+      for (let y = 0; y < N; y += 1) {
+        for (let x = 0; x < N; x += 1) {
+          const [r, g, b] = quadrant[(y < 4 ? 0 : 2) + (x < 4 ? 0 : 1)];
+          texels.push(new Color(r, g, b, 255));
+        }
+      }
+      const source = new Graphics.Texture2D(device, N, N);
+      owned.push(source);
+      source.SetData(texels);
+      const target = new Graphics.RenderTarget2D(device, N, N);
+      owned.push(target);
+
+      const draw = (cellWidth, cellHeight) => {
+        effect.SetCellSize(cellWidth, cellHeight);
+        device.SetRenderTarget(target);
+        try {
+          device.Clear(RENDER_CLEAR);
+          effect.Draw(source, new Rectangle(0, 0, N, N));
+        } finally {
+          device.SetRenderTarget(null);
+        }
+        const pixels = new Array(N * N);
+        target.GetData(pixels);
+        const grid = effect.LastGridDimensions;
+        return {
+          cellSize: [effect.CellSize.Width, effect.CellSize.Height],
+          grid: [grid.Columns, grid.Rows],
+          pixels: pixels.map((color) => [color.R, color.G, color.B, color.A]),
+        };
+      };
+
+      const evidence = {
+        source: quadrant,
+        mode: effect.QuantizeMode,
+        colour: draw(4, 4),
+        collapsed: draw(8, 8),
+        // A non-square cell, which is the shape that dies if width and height are swapped.
+        oblong: draw(2, 4),
+      };
+      effect.QuantizeMode = PostProcess.AsciiQuantizeMode.BlackWhite;
+      evidence.blackWhiteMode = effect.QuantizeMode;
+      evidence.blackWhite = draw(4, 4);
+      return evidence;
+    }
+
     #colourGradeEvidence() {
       const device = this.GraphicsDevice;
       const N = 4;

@@ -21,3 +21,7 @@
 Thumbs.db
 content/dist/
 content/node_modules/
+
+# Headers extracted at the CI-pinned CNA revision, so the checked-in reports can be regenerated
+# against the same revision CI compares them to rather than against local cnanext HEAD.
+.cna-headers-pin/

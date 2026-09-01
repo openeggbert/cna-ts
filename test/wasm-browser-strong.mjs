@@ -37,6 +37,7 @@ import { after } from "node:test";
 import { browserBlocked, runFrames, WASM_DIR } from "./support/browser-harness.mjs";
 import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
 import { assertLodEvidence } from "./support/lod-oracle.mjs";
+import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
 import { assertShadowPassEvidence } from "./support/shadow-oracle.mjs";
 import { assertCompiledEffectEvidence } from "./support/compiled-effect-oracle.mjs";
 import { requiredSuite } from "./support/required-suite.mjs";
@@ -134,6 +135,27 @@ test("the engine layer's colour grade runs, and its texels are the arithmetic", 
     "STRONG_WASM_ENGINE_SLICE=post-process PASSES=blit,grade,tonemap,bloom,fxaa,aberration,grain " +
     `CHAIN=${grade.chain.twoCount}-pass GPU_TIMING=${grade.chain.timingEnabled ? "ON" : "REFUSED"} ` +
     `TIMINGS=${grade.chain.timings.length}`,
+  );
+});
+
+test("the rest of the post-process family runs, and CNA's own arithmetic checks it", () => {
+  const postProcess = evidence.result.postProcess;
+  assert.ok(postProcess, "no post-process evidence was produced");
+  assert.equal(
+    postProcess.layerAbsent, false,
+    `the artifact reports CNAEXT available and then refused an SsaoPass: ${postProcess.error}`,
+  );
+  // Required rather than recorded: this suite exists to make the claim, so every pass in the group
+  // has to have answered `cna_post_process_pass_is_supported` with true on this context.
+  assertPostProcessEvidence(postProcess, { expectSupported: true });
+  console.log(
+    `STRONG_WASM_POST_PROCESS=ssao,ssr,dof,lensflare,motionblur,ascii,aerial,heightfog,` +
+    `lightshaft,volumetricfog,contactshadow,spatialupscale ` +
+    `SUPPORTED=${Object.values(postProcess.passes).filter((p) => p.supported).length}/11 ` +
+    `SSAO_KERNEL=${postProcess.scalars.ssaoKernel.length} ` +
+    `CLAMPS=${Object.keys(postProcess.clamps).length} ` +
+    `ASCII_GRIDS=${postProcess.ascii.colour.grid.join("x")},` +
+    `${postProcess.ascii.collapsed.grid.join("x")},${postProcess.ascii.oblong.grid.join("x")}`,
   );
 });
 

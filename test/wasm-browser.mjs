@@ -14,6 +14,7 @@ import test from "node:test";
 
 import { browserBlocked, runFrames } from "./support/browser-harness.mjs";
 import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
+import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
 import { assertLodEvidence } from "./support/lod-oracle.mjs";
 import { assertShadowPassEvidence } from "./support/shadow-oracle.mjs";
 import { assertCompiledEffectEvidence } from "./support/compiled-effect-oracle.mjs";
@@ -503,6 +504,33 @@ test("the browser artifact is asked whether it has CNA's engine layer, and answe
       `CNA_TS_WASM_ENGINE_LAYER=PRESENT COLOUR_GRADE=${grade.lut.title} SIZE=${grade.lut.size}`,
     );
   }
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("the rest of the post-process family answers, or says the layer is absent", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const postProcess = result.postProcess;
+  assert.ok(postProcess, "no post-process evidence was produced");
+  assert.equal(typeof postProcess.layerAbsent, "boolean");
+
+  if (postProcess.layerAbsent) {
+    assert.equal(postProcess.cnaResult, 6, `CNA's own NOT_SUPPORTED: ${postProcess.error}`);
+    console.log("CNA_TS_WASM_POST_PROCESS=ABSENT_FROM_ARTIFACT");
+    assert.deepEqual(consoleErrors, []);
+    return;
+  }
+  // The same oracle the strong suite applies, and deliberately so: a suite that asserted less here
+  // than there is the gap a planted LOD stride survived through last time. `expectSupported` is
+  // the one thing that differs, because whether a *particular* pass runs is the device's answer
+  // and the ordinary suite records it rather than requiring it.
+  assertPostProcessEvidence(postProcess, { expectSupported: false });
+  const supported = Object.entries(postProcess.passes)
+    .filter(([, pass]) => pass.supported).map(([name]) => name);
+  console.log(
+    `CNA_TS_WASM_POST_PROCESS=PRESENT PASSES=${Object.keys(postProcess.passes).length} ` +
+    `SUPPORTED=${supported.length} ASCII_GRID=${postProcess.ascii.colour.grid.join("x")}`,
+  );
   assert.deepEqual(consoleErrors, []);
 });
 

@@ -22,15 +22,24 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=504
+WASM_BACKEND_ROUTES=624
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 504 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 624 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
+
+The list is **derived rather than maintained**. `node tools/wasm/sync-routes.mjs --check` reads the
+`"cna_..."` literals out of every file in `src/internal/wasm` and requires the array to equal them
+exactly, in both directions. The reverse direction is the one that matters for honesty: a route
+left in the array after nothing calls it any more is still resolved, still exported, and still
+counted as bound. Introducing the check found six such routes and two duplicated entries -- five
+avatar-description routes for a sub-backend the WebAssembly build does not have, and a
+renderer-name-size route superseded by a struct field -- so the count before this was eight higher
+than the number of routes anything reached.
 
 `npm run test:wasm-browser` serves `dist/` and the artifact over HTTP, drives an ordinary XNA `Game`
 from `requestAnimationFrame`, and asserts the frame, update and draw counts, the texture the game
@@ -438,6 +447,86 @@ with the table read back out of CNA before a pixel is drawn -- title, size, unit
 entries in order, a 4x2 strip and a 2x2x2 volume -- and the pass state a pixel cannot reach: its
 name, whether it is supported here, which table it holds through strip, volume, both and neither
 again, its interpolation and its strength.
+
+### The rest of the post-process family
+
+The passes above take the frame that is already on screen and nothing else. The twelve that read
+something further -- depth, normals, velocity, a sun, a light's position on screen, or a game's own
+compiled effect -- were unbound, and the reason was never that a browser could not run them. It was
+that nobody had asked the artifact.
+
+Asked, per pass, through `cna_post_process_pass_is_supported` with the device: **SSAO, SSR, depth of
+field, lens flare, motion blur, ASCII, aerial perspective, height fog, light shafts, volumetric fog
+and contact shadows all answer true** on a WebGL 2.0 context, plus the spatial upscaler, which is
+its own object rather than a pass. On the default artifact every one of their `create` routes
+answers `NOT_SUPPORTED` (6) instead, which is the same distinction the rest of this layer draws.
+
+Three kinds of evidence, in increasing order of what they prove.
+
+**The pass is the pass it says it is.** Eleven near-identical families sit behind eleven
+near-identical `create` routes, and a `create` wired to a sibling's would still take every setter
+that pass's public class calls and round-trip every one of them. So each pass's own name is read
+back out of CNA, which is the only thing that disagrees.
+
+**The value reached CNA.** Nine of these properties clamp or refuse what they are given, in ranges
+that live in the pass sources rather than in any header -- `setRoughnessBlur` to `[0, 0.25]`,
+`setEdgeFade` to `[0, 0.5]`, `setAnisotropy` to `[-0.95, 0.95]`, `setTurbidity` to at least one, and
+so on, with several others leaving the previous value standing rather than accepting a non-positive
+one. Writing outside each range and reading back is this family's equivalent of the compiled
+effect's native read-back: **a binding that kept these values in JavaScript would hand every one of
+them back unchanged.** The first draft of the test did not know about the clamps and wrote `0.6875`
+to a `[0, 0.25]` property; CNA answering `0.25` is what put them here.
+
+**CNA's own arithmetic.** Seven of these passes ship a pure function of the same computation their
+shader does, so a browser can be held to CNA's answer rather than to a picture taken earlier:
+
+| route | what it settles |
+| --- | --- |
+| `cna_depth_of_field_pass_circle_of_confusion_millimetres` | the thin-lens diameter; exactly zero at the focus distance and monotone away from it on both sides |
+| `cna_ssao_pass_sample_count_for_quality` | 8, 16, 32, 64 |
+| `cna_ssao_pass_copy_kernel` | the 64 vectors the shader really samples |
+| `cna_aerial_perspective_pass_air_mass_for_distance` | linear in distance up to the Kasten-Young ceiling for that direction |
+| `cna_aerial_perspective_pass_transmittance` | Rayleigh extinction plus a turbidity Mie term, per channel |
+| `cna_height_fog_pass_optical_depth` | the fog integral, in both its branches |
+| `cna_contact_shadow_pass_is_occluded` | the ray-march acceptance test, whose bounds are **both strict** |
+| `cna_spatial_upscale_pass_is_identity_scale` | whether the upscaler is a no-op |
+
+The SSAO kernel is the sharpest of them. It is a deterministic Van der Corput sequence, so the
+oracle produces all 64 samples in JavaScript and compares them component by component to the ones
+CNA will sample -- the same sequence twice, in two languages, rather than "it looks like a
+hemisphere". (It is also asserted to *be* a hemisphere, separately, so a reimplementation that
+matched a wrong transcription still has to pass.)
+
+### Pixels without a depth buffer: the ASCII quantizer
+
+One pass in the group produces an image predictable to the texel with no prepass at all, and its
+whole specification is in `AsciiQuantizer.cpp` and `AsciiPostProcessEffect::draw`: ceil-divide the
+source into cells, average RGB per cell, take luminance `0.299R + 0.587G + 0.114B`, round onto the
+ten-character ramp `" .:-=+*#%@"`, and in Color mode paint a background of exactly the average over
+four before the glyph.
+
+The ramp's first character is a **space**, which lights no pixels. So a source whose quadrants are
+dark enough to quantize to index zero has an output whose every texel is named:
+
+| 4x4 source quadrant | luminance | glyph | every texel of its cell |
+| --- | --- | --- | --- |
+| `(40, 0, 0)` | 11.96 | `' '` | `(10, 0, 0, 255)` |
+| `(0, 20, 0)` | 11.74 | `' '` | `(0, 5, 0, 255)` |
+| `(0, 0, 80)` | 9.12 | `' '` | `(0, 0, 20, 255)` |
+| `(255, 255, 255)` | 255 | `'@'` | `(255,255,255,255)` or `(63,63,63,255)`, both present |
+
+measured and matching. The cell size is then doubled, which must collapse the grid to one cell whose
+average is the average of the four quadrants, and set to a **non-square** 2x4, which must give four
+columns and two rows -- the case that separates a transposed cell size from a correct one. Switching
+to `BlackWhite` must leave no hue in any texel, which is the assertion a mode stored managed-side
+and never sent fails.
+
+Fifteen planted defects, thirteen killed. The two survivors are equivalent rather than missed: a
+`CNA_Bool` read four bytes wide cannot differ while `WasmScope.allocate` zeroes its allocation, and
+an array length taken from the requested capacity cannot differ while both bound array routes fill
+exactly what was asked for. A third survivor was **not** equivalent -- forcing the height fog's base
+height to zero passed, because every optical-depth sample in the test used a zero base height. That
+was a gap in the test, and the fix was to vary all six of that function's arguments.
 
 **And the chain, which is what makes the family usable.** A game applies several passes in order,
 so `PostProcessChain` is the API a consumer actually reaches for, and its pass order is what a

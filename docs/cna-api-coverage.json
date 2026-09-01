@@ -17,22 +17,22 @@
   },
   "reachable": {
     "NODE": 1889,
-    "WASM": 502
+    "WASM": 624
   },
   "reachableByAny": 1889,
-  "reachableByAll": 502,
+  "reachableByAll": 624,
   "reachableExclusively": {
-    "NODE": 1387,
+    "NODE": 1265,
     "WASM": 0
   },
   "reachabilityByCategory": {
     "XNA_BACKING": {
       "NODE": 550,
-      "WASM": 182
+      "WASM": 176
     },
     "CNA_EXTENSION_BACKING": {
       "NODE": 1319,
-      "WASM": 306
+      "WASM": 434
     },
     "INTERNAL_RUNTIME_ONLY": {
       "NODE": 1,
@@ -124,12 +124,11 @@
     "engine_layer.h": {
       "CNA_EXTENSION_BACKING": 857,
       "REACHABLE_NODE": 857,
-      "REACHABLE_WASM": 113
+      "REACHABLE_WASM": 233
     },
     "gamer_services.h": {
       "XNA_BACKING": 249,
       "REACHABLE_NODE": 36,
-      "REACHABLE_WASM": 5,
       "CNA_EXTENSION_BACKING": 1
     },
     "geometry.h": {
@@ -144,7 +143,7 @@
     "graphics_ext.h": {
       "CNA_EXTENSION_BACKING": 28,
       "REACHABLE_NODE": 28,
-      "REACHABLE_WASM": 1
+      "REACHABLE_WASM": 9
     },
     "graphics_resource.h": {
       "XNA_BACKING": 12
@@ -158,7 +157,7 @@
       "XNA_BACKING": 21,
       "CNA_EXTENSION_BACKING": 7,
       "REACHABLE_NODE": 12,
-      "REACHABLE_WASM": 12
+      "REACHABLE_WASM": 11
     },
     "index_resources.h": {
       "XNA_BACKING": 10,
@@ -867,7 +866,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -876,7 +876,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -885,7 +886,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -894,7 +896,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -903,7 +906,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -912,7 +916,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -921,7 +926,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -930,7 +936,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -939,7 +946,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -948,7 +956,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -957,7 +966,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -966,7 +976,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -1634,7 +1645,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -1643,7 +1655,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -1652,7 +1665,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -1661,7 +1675,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -1670,7 +1685,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -1679,7 +1695,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -1688,7 +1705,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -1697,7 +1715,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -1706,7 +1725,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -1715,7 +1735,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -2546,8 +2567,7 @@
       "category": "XNA_BACKING",
       "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
       "backends": [
-        "NODE",
-        "WASM"
+        "NODE"
       ]
     },
     {
@@ -2556,8 +2576,7 @@
       "category": "XNA_BACKING",
       "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
       "backends": [
-        "NODE",
-        "WASM"
+        "NODE"
       ]
     },
     {
@@ -2566,8 +2585,7 @@
       "category": "XNA_BACKING",
       "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
       "backends": [
-        "NODE",
-        "WASM"
+        "NODE"
       ]
     },
     {
@@ -2583,8 +2601,7 @@
       "category": "XNA_BACKING",
       "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
       "backends": [
-        "NODE",
-        "WASM"
+        "NODE"
       ]
     },
     {
@@ -2600,8 +2617,7 @@
       "category": "XNA_BACKING",
       "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
       "backends": [
-        "NODE",
-        "WASM"
+        "NODE"
       ]
     },
     {
@@ -7828,7 +7844,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7837,7 +7854,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7846,7 +7864,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7855,7 +7874,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7864,7 +7884,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7873,7 +7894,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7882,7 +7904,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7891,7 +7914,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7900,7 +7924,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7909,7 +7934,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7918,7 +7944,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7927,7 +7954,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7936,7 +7964,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7945,7 +7974,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7954,7 +7984,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7963,7 +7994,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -7972,7 +8004,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -9900,7 +9933,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -9909,7 +9943,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -9918,7 +9953,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -9927,7 +9963,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -9936,7 +9973,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -9945,7 +9983,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -9954,7 +9993,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -9963,7 +10003,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -9972,7 +10013,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -9981,7 +10023,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -14748,8 +14791,7 @@
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
       "backends": [
-        "NODE",
-        "WASM"
+        "NODE"
       ]
     },
     {
@@ -16905,7 +16947,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -16914,7 +16957,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -16923,7 +16967,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -16932,7 +16977,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -16941,7 +16987,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -16950,7 +16997,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -16959,7 +17007,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -16968,7 +17017,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -16977,7 +17027,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -16986,7 +17037,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18071,7 +18123,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18080,7 +18133,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18089,7 +18143,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18098,7 +18153,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18107,7 +18163,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18116,7 +18173,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18125,7 +18183,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18548,7 +18607,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18557,7 +18617,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18566,7 +18627,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18575,7 +18637,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18584,7 +18647,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18593,7 +18657,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18602,7 +18667,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18611,7 +18677,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -18620,7 +18687,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -21412,7 +21480,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -21421,7 +21490,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -21430,7 +21500,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -21439,7 +21510,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -21448,7 +21520,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -25165,7 +25238,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -25174,7 +25248,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -25183,7 +25258,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -25192,7 +25268,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -28643,7 +28720,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -28652,7 +28730,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -28661,7 +28740,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -28670,7 +28750,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -28679,7 +28760,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -28688,7 +28770,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -28697,7 +28780,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -28706,7 +28790,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29049,7 +29134,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29058,7 +29144,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29067,7 +29154,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29076,7 +29164,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29085,7 +29174,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29094,7 +29184,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29103,7 +29194,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29112,7 +29204,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29121,7 +29214,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29130,7 +29224,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29139,7 +29234,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29148,7 +29244,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29157,7 +29254,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29166,7 +29264,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29175,7 +29274,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29184,7 +29284,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29193,7 +29294,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29202,7 +29304,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29211,7 +29314,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29220,7 +29324,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29229,7 +29334,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29238,7 +29344,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29247,7 +29354,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29256,7 +29364,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29265,7 +29374,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29274,7 +29384,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29283,7 +29394,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -29292,7 +29404,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -32730,7 +32843,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -32739,7 +32853,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -32748,7 +32863,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -32757,7 +32873,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -32766,7 +32883,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -32775,7 +32893,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -32784,7 +32903,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {
@@ -32793,7 +32913,8 @@
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {

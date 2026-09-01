@@ -26,40 +26,25 @@
 // `CnaGraphicsExtensionBackendBase`, so a consumer reaching past this slice is told which member
 // is missing rather than getting a silent wrong answer.
 
-import { CnaGraphicsExtensionBackendBase } from "../backend-base.js";
 import type {
   PassTimingSnapshot, PostProcessFrameSnapshot, Vector3Snapshot, VertexElementSnapshot,
 } from "../backend.js";
 import type { NativeHandle } from "../ownership.js";
+import { CNA_RESULT_BUFFER_TOO_SMALL } from "./graphics-ext-core.js";
 import { WASM_STRUCT_LAYOUTS } from "./layout.js";
-import { allocateStruct, WasmScope, WasmStruct, type WasmRouteTable } from "./module.js";
+import { allocateStruct, WasmStruct } from "./module.js";
+import { WasmPostProcessPasses } from "./post-process.js";
 
-/** `CNA_RESULT_BUFFER_TOO_SMALL`, which a capacity probe answers with rather than failing on. */
-const CNA_RESULT_BUFFER_TOO_SMALL = 14;
-
-export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBase {
-  readonly #routes: WasmRouteTable;
-
-  public constructor(routes: WasmRouteTable) {
-    super();
-    this.#routes = routes;
-  }
-
-  protected override unsupported(member: string): never {
-    throw new Error(
-      `${member} is not part of the CNA-TS WebAssembly backend's extended-graphics slice, which ` +
-      "covers the fullscreen blit and colour grading; the Node-API backend implements the rest",
-    );
-  }
+export class WasmGraphicsExtensionBackend extends WasmPostProcessPasses {
 
   // --- the fullscreen blit ---------------------------------------------------------------------
 
   public override createFullscreenPass(device: NativeHandle): NativeHandle {
-    return this.#routes.outHandle("cna_fullscreen_pass_create", device);
+    return this.routes.outHandle("cna_fullscreen_pass_create", device);
   }
 
   public override destroyFullscreenPass(pass: NativeHandle): void {
-    this.#routes.invoke("cna_fullscreen_pass_destroy", pass);
+    this.routes.invoke("cna_fullscreen_pass_destroy", pass);
   }
 
   /**
@@ -74,7 +59,7 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
     pass: NativeHandle, source: NativeHandle, destination: NativeHandle, effect: NativeHandle,
     width: number, height: number,
   ): void {
-    this.#routes.invoke(
+    this.routes.invoke(
       "cna_fullscreen_pass_draw", pass, source, destination, effect, width, height, 0,
     );
   }
@@ -83,7 +68,7 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
     pass: NativeHandle, source: NativeHandle, effect: NativeHandle,
     width: number, height: number,
   ): void {
-    this.#routes.invoke(
+    this.routes.invoke(
       "cna_fullscreen_pass_draw_over_current_target", pass, source, effect, width, height, 0,
     );
   }
@@ -103,19 +88,19 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
     pass: NativeHandle, frame: PostProcessFrameSnapshot,
   ): void {
     this.#withPostProcessContext(frame, (pointer) => {
-      this.#routes.invoke("cna_post_process_pass_apply", pass, pointer);
+      this.routes.invoke("cna_post_process_pass_apply", pass, pointer);
     });
   }
 
   /** The context one pass and a whole chain both take, built once so the two cannot disagree. */
   #withPostProcessContext<T>(frame: PostProcessFrameSnapshot, body: (pointer: number) => T): T {
-    const scope = this.#routes.scope();
+    const scope = this.routes.scope();
     try {
       const context = new WasmStruct(
-        this.#routes.module, "CNA_PostProcessContext",
+        this.routes.module, "CNA_PostProcessContext",
         scope.allocate(WASM_STRUCT_LAYOUTS.CNA_PostProcessContext.size),
       );
-      this.#routes.invoke("cna_post_process_context_init", context.pointer);
+      this.routes.invoke("cna_post_process_context_init", context.pointer);
       context.setU64("source", frame.Source)
         .setU64("source_depth", frame.SourceDepth)
         .setU64("source_normals", frame.SourceNormals)
@@ -145,27 +130,27 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
   }
 
   public override getPostProcessPassName(pass: NativeHandle): string {
-    return this.#probedString("cna_post_process_pass_copy_name", pass);
+    return this.probedString("cna_post_process_pass_copy_name", pass);
   }
 
   public override isPostProcessPassSupported(
     pass: NativeHandle, device: NativeHandle,
   ): boolean {
-    return this.#bool("cna_post_process_pass_is_supported", pass, device);
+    return this.bool("cna_post_process_pass_is_supported", pass, device);
   }
 
   public override destroyPostProcessPass(pass: NativeHandle): void {
-    this.#routes.invoke("cna_post_process_pass_destroy", pass);
+    this.routes.invoke("cna_post_process_pass_destroy", pass);
   }
 
   // --- the chain the passes run in ---------------------------------------------------------------
 
   public override createPostProcessChain(device: NativeHandle): NativeHandle {
-    return this.#routes.outHandle("cna_post_process_chain_create", device);
+    return this.routes.outHandle("cna_post_process_chain_create", device);
   }
 
   public override destroyPostProcessChain(chain: NativeHandle): void {
-    this.#routes.invoke("cna_post_process_chain_destroy", chain);
+    this.routes.invoke("cna_post_process_chain_destroy", chain);
   }
 
   /**
@@ -180,36 +165,36 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
    * repairs it, this becomes an ordinary two-line addition.
    */
   public override addPostProcessPass(chain: NativeHandle, pass: NativeHandle): void {
-    this.#routes.invoke("cna_post_process_chain_add_pass", chain, pass);
+    this.routes.invoke("cna_post_process_chain_add_pass", chain, pass);
   }
 
   public override clearPostProcessChain(chain: NativeHandle): void {
-    this.#routes.invoke("cna_post_process_chain_clear", chain);
+    this.routes.invoke("cna_post_process_chain_clear", chain);
   }
 
   public override resetPostProcessChainTargets(chain: NativeHandle): void {
-    this.#routes.invoke("cna_post_process_chain_reset_targets", chain);
+    this.routes.invoke("cna_post_process_chain_reset_targets", chain);
   }
 
   public override getPostProcessChainPassCount(chain: NativeHandle): number {
-    const scope = this.#routes.scope();
+    const scope = this.routes.scope();
     try {
       const out = scope.allocate(4);
-      this.#routes.invoke("cna_post_process_chain_get_pass_count", chain, out);
-      return this.#routes.view().getInt32(out, true);
+      this.routes.invoke("cna_post_process_chain_get_pass_count", chain, out);
+      return this.routes.view().getInt32(out, true);
     } finally {
       scope.dispose();
     }
   }
 
   public override getPostProcessChainGpuTimingEnabled(chain: NativeHandle): boolean {
-    return this.#bool("cna_post_process_chain_is_gpu_timing_enabled", chain);
+    return this.bool("cna_post_process_chain_is_gpu_timing_enabled", chain);
   }
 
   public override setPostProcessChainGpuTimingEnabled(
     chain: NativeHandle, value: boolean,
   ): void {
-    this.#routes.invoke("cna_post_process_chain_set_gpu_timing_enabled", chain, value ? 1 : 0);
+    this.routes.invoke("cna_post_process_chain_set_gpu_timing_enabled", chain, value ? 1 : 0);
   }
 
   /** The whole chain over one frame, through the same context one pass takes. */
@@ -217,7 +202,7 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
     chain: NativeHandle, frame: PostProcessFrameSnapshot,
   ): void {
     this.#withPostProcessContext(frame, (pointer) => {
-      this.#routes.invoke("cna_post_process_chain_apply", chain, pointer);
+      this.routes.invoke("cna_post_process_chain_apply", chain, pointer);
     });
   }
 
@@ -233,15 +218,15 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
     chain: NativeHandle,
   ): readonly PassTimingSnapshot[] {
     const count = Number(
-      this.#routes.outU64("cna_post_process_chain_get_pass_timing_count", chain),
+      this.routes.outU64("cna_post_process_chain_get_pass_timing_count", chain),
     );
     const timings: PassTimingSnapshot[] = [];
     for (let index = 0; index < count; index += 1) {
-      const scope = this.#routes.scope();
+      const scope = this.routes.scope();
       let sampleCount = 0, milliseconds = 0;
       try {
-        const timing = allocateStruct(this.#routes.module, scope, "CNA_PassTimingEXT");
-        this.#routes.invoke(
+        const timing = allocateStruct(this.routes.module, scope, "CNA_PassTimingEXT");
+        this.routes.invoke(
           "cna_post_process_chain_get_pass_timing", chain, BigInt(index), timing.pointer,
         );
         sampleCount = timing.getI32("sample_count");
@@ -250,8 +235,8 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
         scope.dispose();
       }
       timings.push({
-        Name: this.#indexedProbedString(
-          "cna_post_process_chain_copy_pass_timing_name", chain, index),
+        Name: this.probedString(
+          "cna_post_process_chain_copy_pass_timing_name", chain, BigInt(index)),
         SampleCount: sampleCount,
         Milliseconds: milliseconds,
       });
@@ -262,56 +247,56 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
   // --- colour grading --------------------------------------------------------------------------
 
   public override createColorGradePass(device: NativeHandle): NativeHandle {
-    return this.#routes.outHandle("cna_color_grade_pass_create", device);
+    return this.routes.outHandle("cna_color_grade_pass_create", device);
   }
 
   public override createIdentityLutTexture(device: NativeHandle, size: number): NativeHandle {
-    return this.#routes.outHandle(
+    return this.routes.outHandle(
       "cna_color_grade_pass_create_identity_lut", device, Math.trunc(size),
     );
   }
 
   public override getColorGradeInterpolation(pass: NativeHandle): number {
-    return this.#routes.outU32("cna_color_grade_pass_get_interpolation", pass);
+    return this.u32("cna_color_grade_pass_get_interpolation", pass);
   }
 
   public override setColorGradeInterpolation(pass: NativeHandle, interpolation: number): void {
-    this.#routes.invoke("cna_color_grade_pass_set_interpolation", pass, interpolation);
+    this.routes.invoke("cna_color_grade_pass_set_interpolation", pass, interpolation);
   }
 
   public override getColorGradeLut(pass: NativeHandle): NativeHandle {
-    return this.#routes.outHandle("cna_color_grade_pass_get_lut", pass);
+    return this.routes.outHandle("cna_color_grade_pass_get_lut", pass);
   }
 
   public override setColorGradeLut(pass: NativeHandle, lut: NativeHandle): void {
-    this.#routes.invoke("cna_color_grade_pass_set_lut", pass, lut);
+    this.routes.invoke("cna_color_grade_pass_set_lut", pass, lut);
   }
 
   public override getColorGradeVolumeLut(pass: NativeHandle): NativeHandle {
-    return this.#routes.outHandle("cna_color_grade_pass_get_volume_lut", pass);
+    return this.routes.outHandle("cna_color_grade_pass_get_volume_lut", pass);
   }
 
   public override setColorGradeVolumeLut(pass: NativeHandle, lut: NativeHandle): void {
-    this.#routes.invoke("cna_color_grade_pass_set_volume_lut", pass, lut);
+    this.routes.invoke("cna_color_grade_pass_set_volume_lut", pass, lut);
   }
 
   public override getColorGradeStrength(pass: NativeHandle): number {
-    return this.#float("cna_color_grade_pass_get_strength", pass);
+    return this.float("cna_color_grade_pass_get_strength", pass);
   }
 
   public override setColorGradeStrength(pass: NativeHandle, strength: number): void {
-    this.#routes.invoke("cna_color_grade_pass_set_strength", pass, strength);
+    this.routes.invoke("cna_color_grade_pass_set_strength", pass, strength);
   }
 
   /** Pure arithmetic on two integers: which cube size a strip of these dimensions describes. */
   public override lutSizeForStrip(width: number, height: number): number {
-    const scope = this.#routes.scope();
+    const scope = this.routes.scope();
     try {
       const out = scope.allocate(4);
-      this.#routes.invoke(
+      this.routes.invoke(
         "cna_color_grade_pass_lut_size_for_strip", Math.trunc(width), Math.trunc(height), out,
       );
-      return this.#routes.view().getInt32(out, true);
+      return this.routes.view().getInt32(out, true);
     } finally {
       scope.dispose();
     }
@@ -320,19 +305,19 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
   // --- the `.cube` table itself -----------------------------------------------------------------
 
   public override parseCubeLut(text: string): NativeHandle {
-    return this.#withStringView(text, (view) => this.#routes.outHandle("cna_cube_lut_parse", view));
+    return this.withStringView(text, (view) => this.routes.outHandle("cna_cube_lut_parse", view));
   }
 
   public override destroyCubeLut(lut: NativeHandle): void {
-    this.#routes.invoke("cna_cube_lut_destroy", lut);
+    this.routes.invoke("cna_cube_lut_destroy", lut);
   }
 
   public override getCubeLutSize(lut: NativeHandle): number {
-    const scope = this.#routes.scope();
+    const scope = this.routes.scope();
     try {
       const out = scope.allocate(4);
-      this.#routes.invoke("cna_cube_lut_get_size", lut, out);
-      return this.#routes.view().getInt32(out, true);
+      this.routes.invoke("cna_cube_lut_get_size", lut, out);
+      return this.routes.view().getInt32(out, true);
     } finally {
       scope.dispose();
     }
@@ -341,37 +326,37 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
   public override getCubeLutEntry(
     lut: NativeHandle, red: number, green: number, blue: number,
   ): Vector3Snapshot {
-    return this.#vector3(
+    return this.vector3(
       "cna_cube_lut_get_entry", lut, Math.trunc(red), Math.trunc(green), Math.trunc(blue),
     );
   }
 
   public override getCubeLutDomainMin(lut: NativeHandle): Vector3Snapshot {
-    return this.#vector3("cna_cube_lut_get_domain_min", lut);
+    return this.vector3("cna_cube_lut_get_domain_min", lut);
   }
 
   public override getCubeLutDomainMax(lut: NativeHandle): Vector3Snapshot {
-    return this.#vector3("cna_cube_lut_get_domain_max", lut);
+    return this.vector3("cna_cube_lut_get_domain_max", lut);
   }
 
   public override isCubeLutUnitDomain(lut: NativeHandle): boolean {
-    return this.#bool("cna_cube_lut_is_unit_domain", lut);
+    return this.bool("cna_cube_lut_is_unit_domain", lut);
   }
 
   public override getCubeLutTitle(lut: NativeHandle): string {
-    return this.#probedString("cna_cube_lut_copy_title", lut);
+    return this.probedString("cna_cube_lut_copy_title", lut);
   }
 
   public override createCubeLutStripTexture(
     lut: NativeHandle, device: NativeHandle,
   ): NativeHandle {
-    return this.#routes.outHandle("cna_cube_lut_create_strip_texture", lut, device);
+    return this.routes.outHandle("cna_cube_lut_create_strip_texture", lut, device);
   }
 
   public override createCubeLutVolumeTexture(
     lut: NativeHandle, device: NativeHandle,
   ): NativeHandle {
-    return this.#routes.outHandle("cna_cube_lut_create_volume_texture", lut, device);
+    return this.routes.outHandle("cna_cube_lut_create_volume_texture", lut, device);
   }
 
   // --- the rest of the post-process family -------------------------------------------------------
@@ -384,51 +369,51 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
   // against CNA's answer for that texel rather than against a number read off a previous run.
 
   public override createBlitPass(device: NativeHandle): NativeHandle {
-    return this.#routes.outHandle("cna_blit_pass_create", device);
+    return this.routes.outHandle("cna_blit_pass_create", device);
   }
 
   public override createTonemapPass(device: NativeHandle): NativeHandle {
-    return this.#routes.outHandle("cna_tonemap_pass_create", device);
+    return this.routes.outHandle("cna_tonemap_pass_create", device);
   }
 
   public override getTonemapMode(pass: NativeHandle): number {
-    return this.#routes.outU32("cna_tonemap_pass_get_mode", pass);
+    return this.u32("cna_tonemap_pass_get_mode", pass);
   }
 
   public override setTonemapMode(pass: NativeHandle, mode: number): void {
-    this.#routes.invoke("cna_tonemap_pass_set_mode", pass, mode);
+    this.routes.invoke("cna_tonemap_pass_set_mode", pass, mode);
   }
 
   public override getTonemapExposure(pass: NativeHandle): number {
-    return this.#float("cna_tonemap_pass_get_exposure", pass);
+    return this.float("cna_tonemap_pass_get_exposure", pass);
   }
 
   public override setTonemapExposure(pass: NativeHandle, exposure: number): void {
-    this.#routes.invoke("cna_tonemap_pass_set_exposure", pass, exposure);
+    this.routes.invoke("cna_tonemap_pass_set_exposure", pass, exposure);
   }
 
   public override getTonemapGamma(pass: NativeHandle): number {
-    return this.#float("cna_tonemap_pass_get_gamma", pass);
+    return this.float("cna_tonemap_pass_get_gamma", pass);
   }
 
   public override setTonemapGamma(pass: NativeHandle, gamma: number): void {
-    this.#routes.invoke("cna_tonemap_pass_set_gamma", pass, gamma);
+    this.routes.invoke("cna_tonemap_pass_set_gamma", pass, gamma);
   }
 
   public override getTonemapDebandEnabled(pass: NativeHandle): boolean {
-    return this.#bool("cna_tonemap_pass_is_deband_enabled", pass);
+    return this.bool("cna_tonemap_pass_is_deband_enabled", pass);
   }
 
   public override setTonemapDebandEnabled(pass: NativeHandle, enabled: boolean): void {
-    this.#routes.invoke("cna_tonemap_pass_set_deband_enabled", pass, enabled ? 1 : 0);
+    this.routes.invoke("cna_tonemap_pass_set_deband_enabled", pass, enabled ? 1 : 0);
   }
 
   public override getTonemapDebandStrength(pass: NativeHandle): number {
-    return this.#float("cna_tonemap_pass_get_deband_strength", pass);
+    return this.float("cna_tonemap_pass_get_deband_strength", pass);
   }
 
   public override setTonemapDebandStrength(pass: NativeHandle, strength: number): void {
-    this.#routes.invoke("cna_tonemap_pass_set_deband_strength", pass, strength);
+    this.routes.invoke("cna_tonemap_pass_set_deband_strength", pass, strength);
   }
 
   /**
@@ -441,111 +426,93 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
   public override tonemapChannel(
     mode: number, value: number, exposure: number, gamma: number,
   ): number {
-    return this.#float("cna_tonemap_pass_tonemap_channel", mode, value, exposure, gamma);
+    return this.float("cna_tonemap_pass_tonemap_channel", mode, value, exposure, gamma);
   }
 
   public override createBloomPass(device: NativeHandle): NativeHandle {
-    return this.#routes.outHandle("cna_bloom_pass_create", device);
+    return this.routes.outHandle("cna_bloom_pass_create", device);
   }
 
   public override getBloomThreshold(pass: NativeHandle): number {
-    return this.#float("cna_bloom_pass_get_threshold", pass);
+    return this.float("cna_bloom_pass_get_threshold", pass);
   }
 
   public override setBloomThreshold(pass: NativeHandle, threshold: number): void {
-    this.#routes.invoke("cna_bloom_pass_set_threshold", pass, threshold);
+    this.routes.invoke("cna_bloom_pass_set_threshold", pass, threshold);
   }
 
   public override getBloomIntensity(pass: NativeHandle): number {
-    return this.#float("cna_bloom_pass_get_intensity", pass);
+    return this.float("cna_bloom_pass_get_intensity", pass);
   }
 
   public override setBloomIntensity(pass: NativeHandle, intensity: number): void {
-    this.#routes.invoke("cna_bloom_pass_set_intensity", pass, intensity);
+    this.routes.invoke("cna_bloom_pass_set_intensity", pass, intensity);
   }
 
   public override getBloomIterations(pass: NativeHandle): number {
-    return this.#int("cna_bloom_pass_get_iterations", pass);
+    return this.int("cna_bloom_pass_get_iterations", pass);
   }
 
   public override setBloomIterations(pass: NativeHandle, iterations: number): void {
-    this.#routes.invoke("cna_bloom_pass_set_iterations", pass, Math.trunc(iterations));
+    this.routes.invoke("cna_bloom_pass_set_iterations", pass, Math.trunc(iterations));
   }
 
   public override resetBloomTargets(pass: NativeHandle): void {
-    this.#routes.invoke("cna_bloom_pass_reset_targets", pass);
+    this.routes.invoke("cna_bloom_pass_reset_targets", pass);
   }
 
   public override bloomIterationsForQuality(quality: number): number {
-    return this.#int("cna_bloom_pass_iterations_for_quality", quality);
+    return this.int("cna_bloom_pass_iterations_for_quality", quality);
   }
 
   /** How much of one channel survives the bright-pass threshold; CNA's own scalar. */
   public override extractBloomChannel(value: number, threshold: number): number {
-    return this.#float("cna_bloom_pass_extract_channel", value, threshold);
+    return this.float("cna_bloom_pass_extract_channel", value, threshold);
   }
 
   public override createFxaaPass(device: NativeHandle): NativeHandle {
-    return this.#routes.outHandle("cna_fxaa_pass_create", device);
+    return this.routes.outHandle("cna_fxaa_pass_create", device);
   }
 
   public override getFxaaEdgeThreshold(pass: NativeHandle): number {
-    return this.#float("cna_fxaa_pass_get_edge_threshold", pass);
+    return this.float("cna_fxaa_pass_get_edge_threshold", pass);
   }
 
   public override setFxaaEdgeThreshold(pass: NativeHandle, threshold: number): void {
-    this.#routes.invoke("cna_fxaa_pass_set_edge_threshold", pass, threshold);
+    this.routes.invoke("cna_fxaa_pass_set_edge_threshold", pass, threshold);
   }
 
   public override fxaaEdgeThresholdForQuality(quality: number): number {
-    return this.#float("cna_fxaa_pass_edge_threshold_for_quality", quality);
+    return this.float("cna_fxaa_pass_edge_threshold_for_quality", quality);
   }
 
-  /** The pass's own fragment shader source, which is a string with no separate count route. */
+  /** The pass's own fragment shader source: a string route that takes nothing before its buffer. */
   public override getFxaaFragmentGlsl(): string {
-    const scope = this.#routes.scope();
-    try {
-      const lengthOut = scope.allocate(8);
-      const probe = this.#routes.call("cna_fxaa_pass_copy_fragment_glsl", 0, 0n, lengthOut);
-      if (probe !== 0 && probe !== CNA_RESULT_BUFFER_TOO_SMALL) {
-        this.#routes.invoke("cna_fxaa_pass_copy_fragment_glsl", 0, 0n, lengthOut);
-      }
-      const byteLength = Number(this.#routes.view().getBigUint64(lengthOut, true));
-      if (byteLength === 0) return "";
-      const buffer = scope.allocate(byteLength + 1);
-      const writtenOut = scope.allocate(8);
-      this.#routes.invoke(
-        "cna_fxaa_pass_copy_fragment_glsl", buffer, BigInt(byteLength + 1), writtenOut);
-      const written = Number(this.#routes.view().getBigUint64(writtenOut, true));
-      return new TextDecoder().decode(
-        this.#routes.module.HEAPU8.subarray(buffer, buffer + written));
-    } finally {
-      scope.dispose();
-    }
+    return this.probedString("cna_fxaa_pass_copy_fragment_glsl");
   }
 
   public override createChromaticAberrationPass(device: NativeHandle): NativeHandle {
-    return this.#routes.outHandle("cna_chromatic_aberration_pass_create", device);
+    return this.routes.outHandle("cna_chromatic_aberration_pass_create", device);
   }
 
   public override getChromaticAberrationStrength(pass: NativeHandle): number {
-    return this.#float("cna_chromatic_aberration_pass_get_strength", pass);
+    return this.float("cna_chromatic_aberration_pass_get_strength", pass);
   }
 
   public override setChromaticAberrationStrength(pass: NativeHandle, strength: number): void {
-    this.#routes.invoke("cna_chromatic_aberration_pass_set_strength", pass, strength);
+    this.routes.invoke("cna_chromatic_aberration_pass_set_strength", pass, strength);
   }
 
   public override createFilmGrainPass(device: NativeHandle): NativeHandle {
-    return this.#routes.outHandle("cna_film_grain_pass_create", device);
+    return this.routes.outHandle("cna_film_grain_pass_create", device);
   }
 
   public override getFilmGrainIntensity(pass: NativeHandle): number {
-    return this.#float("cna_film_grain_pass_get_intensity", pass);
+    return this.float("cna_film_grain_pass_get_intensity", pass);
   }
 
   public override setFilmGrainIntensity(pass: NativeHandle, intensity: number): void {
-    this.#routes.invoke("cna_film_grain_pass_set_intensity", pass, intensity);
+    this.routes.invoke("cna_film_grain_pass_set_intensity", pass, intensity);
   }
 
   // --- the instancing stream's layout, which a caller has to match exactly ----------------------
@@ -565,7 +532,7 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
   }
 
   public override getInstancedRendererInstanceStride(): number {
-    return this.#int("cna_instanced_renderer_ext_get_instance_stride");
+    return this.int("cna_instanced_renderer_ext_get_instance_stride");
   }
 
   public override getInstancedRendererTintElements(): readonly VertexElementSnapshot[] {
@@ -573,27 +540,17 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
   }
 
   public override getInstancedRendererTintStride(): number {
-    return this.#int("cna_instanced_renderer_ext_get_tint_stride");
+    return this.int("cna_instanced_renderer_ext_get_tint_stride");
   }
 
   /** A `CNA_VertexElement` array, counted first and then copied. */
   #vertexElements(route: string): VertexElementSnapshot[] {
-    const scope = this.#routes.scope();
-    try {
-      const countOut = scope.allocate(8);
-      const probe = this.#routes.call(route, 0, 0n, countOut);
-      if (probe !== 0 && probe !== CNA_RESULT_BUFFER_TOO_SMALL) {
-        this.#routes.invoke(route, 0, 0n, countOut);
-      }
-      const count = Number(this.#routes.view().getBigUint64(countOut, true));
-      if (count === 0) return [];
-      const layout = WASM_STRUCT_LAYOUTS.CNA_VertexElement;
-      const buffer = scope.allocate(layout.size * count);
-      this.#routes.invoke(route, buffer, BigInt(count), countOut);
+    const layout = WASM_STRUCT_LAYOUTS.CNA_VertexElement;
+    return this.probedArray(route, [], layout.size, (base, written) => {
       const elements: VertexElementSnapshot[] = [];
-      for (let index = 0; index < count; index += 1) {
+      for (let index = 0; index < written; index += 1) {
         const element = new WasmStruct(
-          this.#routes.module, "CNA_VertexElement", buffer + layout.size * index,
+          this.routes.module, "CNA_VertexElement", base + layout.size * index,
         );
         elements.push({
           Offset: element.getI32("offset"),
@@ -603,133 +560,7 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
         });
       }
       return elements;
-    } finally {
-      scope.dispose();
-    }
+    });
   }
 
-  // --- the four output shapes this slice reads -------------------------------------------------
-
-  /**
-   * A string whose length is probed through the copy route itself.
-   *
-   * Most of this ABI answers a string through a `..._byte_count` route and a `..._copy_` route.
-   * The engine layer's two here have no count route: the copy route reports the required length
-   * when called with a null destination and zero capacity, which `WasmRouteTable.copyString`
-   * cannot express. Reading it with a fixed buffer instead would truncate a longer name silently.
-   *
-   * The probe's own result is **not** required to be success. Measured: with a null destination
-   * `cna_post_process_pass_copy_name` answers `SUCCESS` and `cna_cube_lut_copy_title` answers
-   * `BUFFER_TOO_SMALL` (14), both having written the required length. Treating the second as a
-   * failure -- which this did at first, and the browser suite caught -- loses a title CNA was
-   * perfectly willing to give. The Node-API backend accepts both for the same two routes.
-   */
-  #probedString(route: string, handle: NativeHandle): string {
-    const scope = this.#routes.scope();
-    try {
-      const lengthOut = scope.allocate(8);
-      const probe = this.#routes.call(route, handle, 0, 0n, lengthOut);
-      if (probe !== 0 && probe !== CNA_RESULT_BUFFER_TOO_SMALL) {
-        this.#routes.invoke(route, handle, 0, 0n, lengthOut);
-      }
-      const byteLength = Number(this.#routes.view().getBigUint64(lengthOut, true));
-      if (byteLength === 0) return "";
-      // One byte more than the length: `cna_cube_lut_copy_title` refuses a capacity equal to it,
-      // and capacity is an upper bound everywhere in this ABI, so the extra byte costs nothing.
-      const buffer = scope.allocate(byteLength + 1);
-      const writtenOut = scope.allocate(8);
-      this.#routes.invoke(route, handle, buffer, BigInt(byteLength + 1), writtenOut);
-      const written = Number(this.#routes.view().getBigUint64(writtenOut, true));
-      return new TextDecoder().decode(
-        this.#routes.module.HEAPU8.subarray(buffer, buffer + written));
-    } finally {
-      scope.dispose();
-    }
-  }
-
-  /** The same, for a route whose subject is an index into a collection rather than a handle. */
-  #indexedProbedString(route: string, handle: NativeHandle, index: number): string {
-    const scope = this.#routes.scope();
-    try {
-      const lengthOut = scope.allocate(8);
-      const probe = this.#routes.call(route, handle, BigInt(index), 0, 0n, lengthOut);
-      if (probe !== 0 && probe !== CNA_RESULT_BUFFER_TOO_SMALL) {
-        this.#routes.invoke(route, handle, BigInt(index), 0, 0n, lengthOut);
-      }
-      const byteLength = Number(this.#routes.view().getBigUint64(lengthOut, true));
-      if (byteLength === 0) return "";
-      const buffer = scope.allocate(byteLength + 1);
-      const writtenOut = scope.allocate(8);
-      this.#routes.invoke(
-        route, handle, BigInt(index), buffer, BigInt(byteLength + 1), writtenOut);
-      const written = Number(this.#routes.view().getBigUint64(writtenOut, true));
-      return new TextDecoder().decode(
-        this.#routes.module.HEAPU8.subarray(buffer, buffer + written));
-    } finally {
-      scope.dispose();
-    }
-  }
-
-  /** A `CNA_Bool*` output, which is one byte rather than four. */
-  #bool(route: string, ...args: readonly (number | bigint)[]): boolean {
-    const scope = this.#routes.scope();
-    try {
-      const out = scope.allocate(4);
-      this.#routes.invoke(route, ...args, out);
-      return this.#routes.view().getUint8(out) !== 0;
-    } finally {
-      scope.dispose();
-    }
-  }
-
-  /** An `int32_t*` output. */
-  #int(route: string, ...args: readonly (number | bigint)[]): number {
-    const scope = this.#routes.scope();
-    try {
-      const out = scope.allocate(4);
-      this.#routes.invoke(route, ...args, out);
-      return this.#routes.view().getInt32(out, true);
-    } finally {
-      scope.dispose();
-    }
-  }
-
-  #float(route: string, ...args: readonly (number | bigint)[]): number {
-    const scope = this.#routes.scope();
-    try {
-      const out = scope.allocate(4);
-      this.#routes.invoke(route, ...args, out);
-      return this.#routes.view().getFloat32(out, true);
-    } finally {
-      scope.dispose();
-    }
-  }
-
-  #vector3(route: string, ...args: readonly (number | bigint)[]): Vector3Snapshot {
-    const scope = this.#routes.scope();
-    try {
-      const out = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Vector3.size);
-      this.#routes.invoke(route, ...args, out);
-      const view = this.#routes.view();
-      return { X: view.getFloat32(out, true), Y: view.getFloat32(out + 4, true), Z: view.getFloat32(out + 8, true) };
-    } finally {
-      scope.dispose();
-    }
-  }
-
-  /**
-   * A `CNA_StringView` passed by value, which wasm32 lowers as a pointer to a caller-owned copy --
-   * the convention `docs/wasm-backend.md` records this backend measuring rather than assuming.
-   */
-  #withStringView<T>(value: string, body: (pointer: number) => T): T {
-    const scope = new WasmScope(this.#routes.module);
-    try {
-      const text = scope.allocateUtf8(value);
-      const view = allocateStruct(this.#routes.module, scope, "CNA_StringView", false);
-      view.setPointer("data", text.pointer).setU64("byte_length", BigInt(text.byteLength));
-      return body(view.pointer);
-    } finally {
-      scope.dispose();
-    }
-  }
 }
