@@ -1,5 +1,5 @@
 {
-  "name": "compiled-effect reflection, write-through and render, in a browser",
+  "name": "compiled effects and the engine layer's colour grade, in a browser",
   "artifact": "dist",
   "build": "npm run build",
   "command": "CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
@@ -67,6 +67,41 @@
       "file": "src/Microsoft/Xna/Framework/Graphics/Effect.ts",
       "find": "  backend.setEffectParameterValue(handle, described.Type, described.Components);",
       "replace": "  void backend; void handle; void described;"
+    },
+    {
+      "id": "zeroed-post-process-context",
+      "why": "the context is populated without CNA's own initializer, so struct_size and struct_version are zero and its four camera matrices are singular rather than the identity -- the shape a binding that treated a growable descriptor as a plain struct would have",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "      this.#routes.invoke(\"cna_post_process_context_init\", context.pointer);",
+      "replace": "      void context;"
+    },
+    {
+      "id": "colour-grade-ignores-strength",
+      "why": "Strength is stored managed and never sent, so the half-strength and zero-strength draws both come back fully graded -- a defect the full-strength assertion alone cannot see",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "    this.#routes.invoke(\"cna_color_grade_pass_set_strength\", pass, strength);",
+      "replace": "    void pass; void strength;"
+    },
+    {
+      "id": "colour-grade-ignores-lut",
+      "why": "the table is never bound, so every grade returns the source and the pass looks like a working blit",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "    this.#routes.invoke(\"cna_color_grade_pass_set_lut\", pass, lut);",
+      "replace": "    void pass; void lut;"
+    },
+    {
+      "id": "vector3-components-out-of-order",
+      "why": "a CNA_Vector3 read back as (Y,X,Z): the cube's entries come out permuted, which the read-back-before-any-pixel assertion catches and no pixel assertion would, because the table CNA holds is still right",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "      return { X: view.getFloat32(out, true), Y: view.getFloat32(out + 4, true), Z: view.getFloat32(out + 8, true) };",
+      "replace": "      return { X: view.getFloat32(out + 4, true), Y: view.getFloat32(out, true), Z: view.getFloat32(out + 8, true) };"
+    },
+    {
+      "id": "blit-draws-to-the-back-buffer",
+      "why": "the destination render target is dropped, so the blit draws to the back buffer and the target the test reads stays whatever it was -- a draw that succeeds and lands nowhere the caller asked",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "      \"cna_fullscreen_pass_draw\", pass, source, destination, effect, width, height, 0,",
+      "replace": "      \"cna_fullscreen_pass_draw\", pass, source, 0n, effect, width, height, 0,"
     }
   ]
 }
