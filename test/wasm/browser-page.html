@@ -23,9 +23,29 @@ try {
   const {
     Audio, Color, Content, Game, GraphicsDeviceManager, Graphics, GetRuntimeStatus, LoadWasmBackend,
     Curve, CurveContinuity, CurveKey, CurveLoopType,
-    Matrix, Quaternion, TitleContainer, TimeSpan, Vector2, Vector3,
+    Matrix, Quaternion, TitleContainer, TimeSpan, Vector2, Vector3, Vector4,
   } = await import("/cna-ts/index.js");
+  // CNA's own read-back of what a parameter holds. Internal, and used for the same reason the Node
+  // suite uses it: a test comparing only `GetValue*` would pass whether or not the value ever left
+  // managed state.
+  const { readNativeParameterValueForInternalUse: readNativeParameterValue,
+          readNativeParameterValuesForInternalUse: readNativeParameterValues } =
+    await import("/cna-ts/Microsoft/Xna/Framework/Graphics/Effect.js");
   const createCnaCApi = (await import("/wasm/cna_c_api.mjs")).default;
+
+  /** CNA's tagged value identities, repeated rather than imported from the implementation. */
+  const VALUE_SINGLE = 2;
+  const VALUE_VECTOR4 = 8;
+
+  /** A full-screen quad already in clip space: `Transform` is the identity, so these are NDC. */
+  const EFFECT_QUAD = [
+    [-1, 1, 0, 0], [-1, -1, 0, 1], [1, -1, 1, 1],
+    [-1, 1, 0, 0], [1, -1, 1, 1], [1, 1, 1, 0],
+  ].map(([x, y, u, v]) =>
+    new Graphics.VertexPositionTexture(new Vector3(x, y, 0), new Vector2(u, v)));
+
+  /** A colour no expectation is near, so a lost draw reads as the clear and not as a pass. */
+  const RENDER_CLEAR = new Color(50, 50, 50, 255);
   const canvas = document.getElementById("canvas");
 
   // The module is instantiated here rather than through LoadWasmBackend's Factory option because a
@@ -654,13 +674,14 @@ try {
       } else {
         try {
           const effect = new Graphics.Effect(this.GraphicsDevice, [...compiledEffectBytes]);
+          // The effect is handed over rather than disposed here: it retains the texture given to
+          // `FxTexture`, so releasing that texture while the effect still holds it is refused --
+          // the scenario owns both and releases them in the one order that works.
           result.compiledEffect = {
             fixture: "present",
             outcome: "created",
-            parameters: effect.Parameters.Count,
-            techniques: effect.Techniques.Count,
+            ...this.#compiledEffectEvidence(effect),
           };
-          effect.Dispose();
         } catch (error) {
           result.compiledEffect = {
             fixture: "present",
@@ -687,6 +708,151 @@ try {
       this.spriteBatch.End();
       this.draws += 1;
       super.Draw(gameTime);
+    }
+
+    /**
+     * The whole compiled-effect chain, in a browser: reflection, native write-through, technique
+     * and pass selection, a real draw and the texels it produced.
+     *
+     * This is deliberately the same scenario `test/effect-reflection.integration.mjs` runs against
+     * the windowed OPENGLES3 build -- same fixture, same parameter values, same techniques, same
+     * geometry, same 8x8 render target -- so the two backends are compared on one question rather
+     * than on two that merely resemble each other. The expectations live in the test file and are
+     * computed from CNA's own shipped HLSL, never from `GetValue*`, which answers from managed
+     * state and would agree with its own setter whether or not a uniform ever moved.
+     */
+    #compiledEffectEvidence(effect) {
+      const device = this.GraphicsDevice;
+      const evidence = {
+        parameters: effect.Parameters.Count,
+        techniques: effect.Techniques.Count,
+      };
+
+      // --- reflection ------------------------------------------------------------------------
+      const described = [];
+      for (let index = 0; index < effect.Parameters.Count; index += 1) {
+        const parameter = effect.Parameters.Get(index);
+        described.push({
+          Name: parameter.Name,
+          Semantic: parameter.Semantic,
+          ParameterClass: parameter.ParameterClass,
+          ParameterType: parameter.ParameterType,
+          RowCount: parameter.RowCount,
+          ColumnCount: parameter.ColumnCount,
+          Elements: parameter.Elements.Count,
+          StructureMembers: parameter.StructureMembers.Count,
+          Annotations: parameter.Annotations.Count,
+        });
+      }
+      evidence.reflection = described;
+      evidence.techniqueNames = [];
+      for (let index = 0; index < effect.Techniques.Count; index += 1) {
+        const technique = effect.Techniques.Get(index);
+        const passes = [];
+        for (let pass = 0; pass < technique.Passes.Count; pass += 1) {
+          passes.push(technique.Passes.Get(pass).Name);
+        }
+        evidence.techniqueNames.push({ Name: technique.Name, Passes: passes });
+      }
+
+      // --- the write-through ------------------------------------------------------------------
+      // `GetValue*` answers from managed state, so the proof a value reached CNA is CNA's own
+      // read-back through the internal reader the Node suite uses, not this package's getter.
+      const tint = effect.Parameters.Get("Tint");
+      tint.SetValue(new Vector4(0.25, 0.5, 0.75, 0.375));
+      evidence.nativeTint = readNativeParameterValue(tint, VALUE_VECTOR4);
+      const gain = effect.Parameters.Get("Gain");
+      gain.SetValue(12.5);
+      evidence.nativeGain = readNativeParameterValue(gain, VALUE_SINGLE);
+      const weights = effect.Parameters.Get("Weights");
+      const wantedWeights = [0.375, 0.625];
+      weights.SetValue([...wantedWeights]);
+      evidence.nativeWeights = {
+        native: readNativeParameterValues(weights, VALUE_SINGLE, weights.Elements.Count),
+        wanted: wantedWeights,
+      };
+
+      // --- execution --------------------------------------------------------------------------
+      const target = new Graphics.RenderTarget2D(device, 8, 8);
+      const white = new Graphics.Texture2D(device, 1, 1);
+      // Neither P0 nor P1 sets a CullMode of its own, so the winding is decided by the device's
+      // rasterizer state -- exactly as it is for the Node suite and for CNA's own draw test.
+      device.RasterizerState = Graphics.RasterizerState.CullNone;
+
+      const drawCentre = (techniqueIndex, passIndex) => {
+        device.SetRenderTarget(target);
+        try {
+          device.Clear(RENDER_CLEAR);
+          effect.CurrentTechnique = effect.Techniques.Get(techniqueIndex);
+          effect.CurrentTechnique.Passes.Get(passIndex).Apply();
+          device.DrawUserPrimitives(Graphics.PrimitiveType.TriangleList, EFFECT_QUAD, 0, 2);
+        } finally {
+          device.SetRenderTarget(null);
+        }
+        const texels = new Array(64);
+        target.GetData(texels);
+        const centre = texels[8 * 4 + 4];
+        return [centre.R, centre.G, centre.B, centre.A];
+      };
+
+      try {
+        white.SetData([new Color(255, 255, 255, 255)]);
+
+        // The three states through SecondTechnique/P1, whose program samples nothing: its output
+        // is arithmetic on two parameters and nothing else. A to B moves only Tint, B to C only
+        // Weights[1], so each says which parameter reached the shader.
+        evidence.states = [
+          { label: "A", tint: [0.8, 0.6, 0.4, 1.0], weights: [0.125, 0.5] },
+          { label: "B", tint: [0.2, 1.0, 0.8, 0.6], weights: [0.125, 0.5] },
+          { label: "C", tint: [0.2, 1.0, 0.8, 0.6], weights: [0.125, 0.25] },
+        ].map((state) => {
+          tint.SetValue(new Vector4(...state.tint));
+          weights.SetValue([...state.weights]);
+          return { ...state, actual: drawCentre(1, 0) };
+        });
+
+        // The same parameters through the other technique. FirstTechnique/P0 samples the texture
+        // and scales by Gain and the Lighting struct -- a different program over identical
+        // parameter state, so the answer says which technique actually ran.
+        effect.Parameters.Get("FxTexture").SetValue(white);
+        effect.Parameters.Get("Gain").SetValue(0.5);
+        const lighting = effect.Parameters.Get("Lighting");
+        const intensity = 0.25;
+        const thresholds = [0.125, 0.0];
+        lighting.StructureMembers.Get("Intensity").SetValue(intensity);
+        lighting.StructureMembers.Get("Thresholds").SetValue([...thresholds]);
+        const mainTint = [1.0, 0.75, 0.5, 1.0];
+        tint.SetValue(new Vector4(...mainTint));
+        evidence.main = {
+          actual: drawCentre(0, 0), tint: mainTint, gain: 0.5, intensity, thresholds,
+        };
+
+        // Gain alone, halved. Nothing else moves, so the whole image has to halve with it.
+        effect.Parameters.Get("Gain").SetValue(0.25);
+        evidence.halvedGain = { actual: drawCentre(0, 0), gain: 0.25 };
+
+        // Finding 22's second half, measured rather than assumed for this route on this renderer.
+        const extra = [
+          new Graphics.RenderTarget2D(device, 8, 8), new Graphics.RenderTarget2D(device, 8, 8),
+        ];
+        try {
+          device.SetRenderTargets(extra.map((item) => new Graphics.RenderTargetBinding(item)));
+          device.SetRenderTarget(null);
+          evidence.mrtAfterDraw = "SUCCESS";
+        } catch (error) {
+          evidence.mrtAfterDraw = `${error?.constructor?.name}: ${error?.message}`;
+        } finally {
+          for (const item of extra) item.Dispose();
+        }
+      } finally {
+        // The effect retains the texture given to `FxTexture`, so it is released first: disposing
+        // the texture while the effect still holds it is refused by name. Same order as the Node
+        // windowed suite, for the same reason.
+        effect.Dispose();
+        white.Dispose();
+        target.Dispose();
+      }
+      return evidence;
     }
 
     UnloadContent() {

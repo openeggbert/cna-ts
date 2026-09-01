@@ -20,6 +20,7 @@ import type {
   RenderTargetBindingSnapshot,
   RenderTargetInfo,
   VertexBufferBindingSnapshot,
+  VertexElementSnapshot,
 } from "../backend.js";
 import type { NativeHandle } from "../ownership.js";
 import { WASM_STRUCT_LAYOUTS } from "./layout.js";
@@ -84,6 +85,70 @@ export class WasmGraphicsBackend extends CnaGraphicsBackendBase {
     this.#routes.invoke(
       "cna_graphics_device_draw_indexed_primitives", device, primitiveType, baseVertex,
       minVertexIndex, numVertices, startIndex, primitiveCount,
+    );
+  }
+
+  /**
+   * `DrawUserPrimitives`: geometry handed to the device per call rather than held in a buffer.
+   *
+   * This is the draw a compiled effect is exercised through, because it is the one that needs no
+   * resource of its own -- the shader, the parameters and the pixels are the subject, and a vertex
+   * buffer between them is a second thing that could be wrong.
+   *
+   * `CNA_UserPrimitives` is where a hand-written wasm32 layout goes wrong in a way nothing
+   * reports: its `vertex_data` pointer is four bytes and its `vertex_declaration` handle is eight,
+   * so the native offsets place the handle where the padding is. The layout is measured, and the
+   * declaration -- when the caller supplied one rather than relying on the built-in source's own
+   * -- is created and destroyed around the single call that reads it.
+   */
+  public override drawUserPrimitives(
+    device: NativeHandle, primitiveType: number, vertexSource: number, bytes: Uint8Array,
+    vertexStride: number, vertexCapacity: number, vertexOffset: number, numVertices: number,
+    primitiveCount: number, declaration: readonly VertexElementSnapshot[] | null,
+  ): void {
+    const scope = this.#routes.scope();
+    let declarationHandle: NativeHandle = 0n;
+    try {
+      if (declaration != null) {
+        declarationHandle = this.#createVertexDeclaration(scope, vertexStride, declaration);
+      }
+      const primitives = allocateStruct(this.#routes.module, scope, "CNA_UserPrimitives");
+      primitives.setU32("primitive_type", primitiveType)
+        .setU32("vertex_source", vertexSource)
+        .setPointer("vertex_data", scope.allocateBytes(bytes))
+        .setU64("vertex_declaration", declarationHandle)
+        .setI32("vertex_offset", vertexOffset)
+        .setI32("num_vertices", numVertices)
+        .setI32("primitive_count", primitiveCount)
+        .setU32("reserved", 0);
+      void vertexCapacity;
+      this.#routes.invoke(
+        "cna_graphics_device_draw_user_primitives", device, primitives.pointer,
+      );
+    } finally {
+      if (declarationHandle !== 0n) {
+        this.#routes.invoke("cna_vertex_declaration_destroy", declarationHandle);
+      }
+      scope.dispose();
+    }
+  }
+
+  /** The caller's own vertex layout, as the array of `CNA_VertexElement` CNA copies. */
+  #createVertexDeclaration(
+    scope: ReturnType<WasmRouteTable["scope"]>, stride: number,
+    elements: readonly VertexElementSnapshot[],
+  ): NativeHandle {
+    const layout = WASM_STRUCT_LAYOUTS.CNA_VertexElement;
+    const pointer = scope.allocate(Math.max(layout.size * elements.length, 1));
+    elements.forEach((element, index) => {
+      new WasmStruct(this.#routes.module, "CNA_VertexElement", pointer + layout.size * index)
+        .setI32("offset", element.Offset)
+        .setU32("format", element.VertexElementFormat)
+        .setU32("usage", element.VertexElementUsage)
+        .setI32("usage_index", element.UsageIndex);
+    });
+    return this.#routes.outHandle(
+      "cna_vertex_declaration_create_with_stride", stride, pointer, BigInt(elements.length),
     );
   }
 

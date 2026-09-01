@@ -534,6 +534,34 @@
       "counter_clockwise_stencil_fail",
       "counter_clockwise_stencil_depth_buffer_fail",
       "counter_clockwise_stencil_pass"
+    ],
+    "CNA_EffectParameterInfo": [
+      "struct_size",
+      "struct_version",
+      "row_count",
+      "column_count",
+      "parameter_class",
+      "parameter_type"
+    ],
+    "CNA_EffectAnnotationInfo": [
+      "struct_size",
+      "struct_version",
+      "row_count",
+      "column_count",
+      "parameter_class",
+      "parameter_type"
+    ],
+    "CNA_UserPrimitives": [
+      "struct_size",
+      "struct_version",
+      "primitive_type",
+      "vertex_source",
+      "vertex_data",
+      "vertex_declaration",
+      "vertex_offset",
+      "num_vertices",
+      "primitive_count",
+      "reserved"
     ]
   },
   "callbacks": {
