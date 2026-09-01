@@ -24,12 +24,14 @@ import type {
   RendererIdentitySnapshot,
   RendererSelectionSnapshot,
   CnaGameCallbacks,
+  CnaEffectBackend,
   CnaGameConfiguration,
   CnaGameTimeSnapshot,
   GraphicsManagerConfiguration,
   SpriteBatchCommand,
   Texture2DInfo,
   Texture2DTransfer,
+  VertexElementSnapshot,
 } from "../backend.js";
 import { NativeUnavailableError } from "../native-error.js";
 import type { NativeHandle, NativeResourceLifetime } from "../ownership.js";
@@ -71,6 +73,7 @@ import {
 import { WasmAudioBackend } from "./audio.js";
 import { WasmContentBackend } from "./content.js";
 import { WasmGraphicsBackend } from "./graphics.js";
+import { WasmEffectBackend } from "./effects.js";
 
 const CNA_RESULT_SUCCESS = CnaResult.Success;
 const CNA_RESULT_INVALID_STATE = CnaResult.InvalidState;
@@ -83,6 +86,75 @@ const MOUSE_BUTTON_X2 = 1 << 4;
 /** The CNA routes this slice reaches. Every one is resolved when the backend is constructed. */
 const ROUTES = [
   "cna_get_abi_version",
+  // --- 3D geometry: what a browser game needs to draw something that is not a sprite -----------
+  "cna_vertex_declaration_create_with_stride",
+  "cna_vertex_declaration_destroy",
+  "cna_vertex_buffer_create",
+  "cna_vertex_buffer_set_data_raw",
+  "cna_vertex_buffer_set_data",
+  "cna_vertex_buffer_get_data_raw",
+  "cna_vertex_buffer_destroy",
+  "cna_index_buffer_create",
+  "cna_index_buffer_set_data",
+  "cna_index_buffer_set_data_at",
+  "cna_index_buffer_get_data",
+  "cna_index_buffer_destroy",
+  "cna_graphics_device_set_vertex_buffers",
+  "cna_graphics_device_set_index_buffer",
+  "cna_graphics_device_set_rasterizer_state",
+  "cna_graphics_device_set_depth_stencil_state",
+  "cna_graphics_device_draw_primitives",
+  "cna_graphics_device_draw_indexed_primitives",
+  "cna_basic_effect_create",
+  "cna_basic_effect_set_vertex_color_enabled",
+  "cna_effect_matrices_set_world",
+  "cna_effect_matrices_set_view",
+  "cna_effect_matrices_set_projection",
+  "cna_effect_apply",
+  "cna_effect_get_current_technique",
+  "cna_effect_get_techniques",
+  "cna_effect_technique_collection_get_count",
+  "cna_effect_technique_collection_get_at",
+  "cna_effect_technique_collection_destroy",
+  "cna_effect_technique_get_name_byte_count",
+  "cna_effect_technique_copy_name",
+  "cna_effect_technique_get_index_ext",
+  "cna_effect_technique_get_passes",
+  "cna_effect_technique_destroy",
+  "cna_effect_pass_collection_get_count",
+  "cna_effect_pass_collection_get_at",
+  "cna_effect_pass_collection_destroy",
+  "cna_effect_pass_get_name_byte_count",
+  "cna_effect_pass_copy_name",
+  "cna_effect_pass_destroy",
+  "cna_effect_pass_apply",
+  "cna_basic_effect_set_alpha",
+  "cna_basic_effect_set_diffuse_color",
+  "cna_basic_effect_set_emissive_color",
+  "cna_basic_effect_set_specular_color",
+  "cna_basic_effect_set_specular_power",
+  "cna_basic_effect_set_prefer_per_pixel_lighting",
+  "cna_basic_effect_set_texture",
+  "cna_basic_effect_set_texture_enabled",
+  "cna_effect_fog_set_color",
+  "cna_effect_fog_set_enabled",
+  "cna_effect_fog_set_start",
+  "cna_effect_fog_set_end",
+  "cna_effect_lights_set_ambient_color",
+  "cna_effect_lights_set_enabled",
+  "cna_effect_lights_get_directional_light",
+  "cna_directional_light_set_direction",
+  "cna_directional_light_set_diffuse_color",
+  "cna_directional_light_set_specular_color",
+  "cna_directional_light_set_enabled",
+  "cna_directional_light_destroy",
+  "cna_effect_destroy",
+  // --- avatar descriptions: pure computation, and it answers here ------------------------------
+  "cna_avatar_description_create",
+  "cna_avatar_description_create_random",
+  "cna_avatar_description_get_info",
+  "cna_avatar_description_copy_description",
+  "cna_avatar_description_destroy",
   "cna_error_get_last_message_size",
   "cna_error_copy_last_message",
   "cna_game_create",
@@ -384,6 +456,7 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
    * than through this class's message about a different boundary.
    */
   public readonly Graphics: CnaGraphicsBackend;
+  public readonly Effects: CnaEffectBackend;
   /** Sound effects, so a browser game can make a noise. */
   public readonly Audio: CnaAudioBackend;
   /**
@@ -404,6 +477,7 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
     this.#module = module;
     this.#routes = new WasmRouteTable(module, ROUTES);
     this.Graphics = new WasmGraphicsBackend(this.#routes);
+    this.Effects = new WasmEffectBackend(this.#routes);
     this.Audio = new WasmAudioBackend(
       this.#routes, () => this.#requireGame(), () => this.#requireGameLifetime(),
     );
@@ -851,6 +925,160 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
   public override destroySpriteBatch(spriteBatch: NativeHandle): void {
     this.#invoke("cna_sprite_batch_destroy", spriteBatch);
   }
+
+  /* ---- 3D geometry -----------------------------------------------------------------------------
+   *
+   * The browser slice could draw sprites and read pixels back, and nothing else: no vertex buffer,
+   * no index buffer, no effect, no indexed draw. So a browser consumer could not draw a triangle.
+   * These add exactly that, and no more -- the engine layer above it is not in the artifact at all
+   * (`CNA_CNAEXT` is off in the WebAssembly build, and every engine route answers NOT_SUPPORTED
+   * there; measured, and recorded in docs/wasm-backend.md).
+   */
+
+  #writeVertexElements(scope: WasmScope, elements: readonly VertexElementSnapshot[]): number {
+    const layout = WASM_STRUCT_LAYOUTS.CNA_VertexElement;
+    const pointer = scope.allocate(Math.max(layout.size * elements.length, 1));
+    elements.forEach((element, index) => {
+      const entry = new WasmStruct(this.#module, "CNA_VertexElement", pointer + layout.size * index);
+      entry.setI32("offset", element.Offset)
+        .setU32("format", element.VertexElementFormat)
+        .setU32("usage", element.VertexElementUsage)
+        .setI32("usage_index", element.UsageIndex);
+    });
+    return pointer;
+  }
+
+  public override createVertexBuffer(
+    device: NativeHandle, vertexStride: number, elements: readonly VertexElementSnapshot[],
+    vertexCount: number, usage: number, dynamic: boolean,
+  ): NativeHandle {
+    const scope = new WasmScope(this.#module);
+    try {
+      const declaration = this.#outHandle(
+        "cna_vertex_declaration_create_with_stride",
+        vertexStride, this.#writeVertexElements(scope, elements), BigInt(elements.length),
+      );
+      try {
+        const info = allocateStruct(this.#module, scope, "CNA_VertexBufferCreateInfo");
+        info.setU64("vertex_declaration", declaration)
+          .setI32("vertex_count", vertexCount)
+          .setU32("buffer_usage", usage)
+          .setU8("dynamic", dynamic ? 1 : 0);
+        return this.#outHandle("cna_vertex_buffer_create", device, info.pointer);
+      } finally {
+        // The buffer copies the declaration during creation, so the caller's is released here
+        // rather than leaked for the buffer's lifetime.
+        this.#invoke("cna_vertex_declaration_destroy", declaration);
+      }
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override setVertexBufferRaw(
+    buffer: NativeHandle, bytes: Uint8Array, vertexCount: number, vertexStride: number,
+  ): void {
+    const scope = new WasmScope(this.#module);
+    try {
+      this.#invoke(
+        "cna_vertex_buffer_set_data_raw", buffer, scope.allocateBytes(bytes),
+        BigInt(bytes.byteLength), BigInt(vertexCount), vertexStride,
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override getVertexBufferRaw(
+    buffer: NativeHandle, vertexCount: number, vertexStride: number,
+  ): Uint8Array {
+    const scope = new WasmScope(this.#module);
+    try {
+      const byteCount = vertexCount * vertexStride;
+      const destination = scope.allocate(Math.max(byteCount, 1));
+      this.#invoke(
+        "cna_vertex_buffer_get_data_raw", buffer, 0n, destination,
+        BigInt(byteCount), BigInt(vertexCount), vertexStride,
+      );
+      return this.#module.HEAPU8.slice(destination, destination + byteCount);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override destroyVertexBuffer(buffer: NativeHandle): void {
+    this.#invoke("cna_vertex_buffer_destroy", buffer);
+  }
+
+  public override createIndexBuffer(
+    device: NativeHandle, elementSize: number, indexCount: number, usage: number, dynamic: boolean,
+  ): NativeHandle {
+    const scope = new WasmScope(this.#module);
+    try {
+      const info = allocateStruct(this.#module, scope, "CNA_IndexBufferCreateInfo");
+      info.setI32("index_count", indexCount)
+        .setU32("index_element_size", elementSize)
+        .setU32("buffer_usage", usage)
+        .setU8("dynamic", dynamic ? 1 : 0);
+      return this.#outHandle("cna_index_buffer_create", device, info.pointer);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /*
+   * An index buffer has no `_raw` transfer the way a vertex buffer does -- the only setter is the
+   * typed one, which takes a CNA_IndexBufferTransfer describing the element width and the window.
+   * Assuming the symmetry and calling a `cna_index_buffer_set_data_raw` that does not exist is how
+   * this first failed, and the route table said so by name at load rather than mid-frame.
+   */
+  #indexTransfer(scope: WasmScope, elementSize: number, indexCount: number): number {
+    const transfer = allocateStruct(this.#module, scope, "CNA_IndexBufferTransfer");
+    transfer.setU32("index_element_size", elementSize)
+      .setU32("options", 0)
+      .setU64("start_index", 0n)
+      .setU64("element_count", BigInt(indexCount));
+    return transfer.pointer;
+  }
+
+  public override setIndexBufferRaw(
+    buffer: NativeHandle, elementSize: number, bytes: Uint8Array,
+  ): void {
+    const scope = new WasmScope(this.#module);
+    try {
+      const width = elementSize === 0 ? 2 : 4;
+      const indexCount = bytes.byteLength / width;
+      this.#invoke(
+        "cna_index_buffer_set_data", buffer, this.#indexTransfer(scope, elementSize, indexCount),
+        scope.allocateBytes(bytes), BigInt(indexCount),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override getIndexBufferRaw(
+    buffer: NativeHandle, elementSize: number, indexCount: number,
+  ): Uint8Array {
+    const scope = new WasmScope(this.#module);
+    try {
+      const width = elementSize === 0 ? 2 : 4;
+      const byteCount = indexCount * width;
+      const destination = scope.allocate(Math.max(byteCount, 1));
+      this.#invoke(
+        "cna_index_buffer_get_data", buffer, this.#indexTransfer(scope, elementSize, indexCount),
+        destination, BigInt(indexCount),
+      );
+      return this.#module.HEAPU8.slice(destination, destination + byteCount);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override destroyIndexBuffer(buffer: NativeHandle): void {
+    this.#invoke("cna_index_buffer_destroy", buffer);
+  }
+
 
   /**
    * The running game's lifetime, which every audio resource is a child of.

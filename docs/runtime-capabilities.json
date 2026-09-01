@@ -14,7 +14,7 @@
   "counts": {
     "VERIFIED_MANAGED": 22,
     "VERIFIED_NATIVE": 111,
-    "VERIFIED_WEBASSEMBLY": 13,
+    "VERIFIED_WEBASSEMBLY": 14,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 5,
     "FIXTURE_PENDING": 2,
@@ -2152,6 +2152,27 @@
         "route:cna_game_window_get_client_bounds",
         "route:cna_game_window_get_allow_user_resizing",
         "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "3D geometry in a browser: vertex and index buffers, BasicEffect and indexed draws",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "Until this slice existed a browser could draw sprites and read pixels back and nothing else -- no vertex buffer, no index buffer, no effect, no indexed draw -- so a browser consumer could not put a triangle on the screen through the public API. Asserted texel by texel on WebGL2 in headless Chromium: a triangle covering an 8x8 target leaves all sixty-four texels the vertex colour, the same triangle translated off the target leaves all sixty-four the clear colour, and a smaller translation leaves the vertex colour again -- so the middle row cannot be explained by the draw simply failing. That middle row is what proves a CNA_Matrix reached the shader: it is taken by value, and a matrix arriving as zeroes would collapse the triangle rather than move it. The by-value lowering was measured separately with an Emscripten probe before being relied on: a CNA_Vector3 and a CNA_Matrix are both passed as a pointer to a caller-owned copy, and a scalarised call is rejected outright. The engine layer is deliberately absent: the WebAssembly artifact is built CNA_CNAEXT=OFF, so every instanced renderer and LOD route answers NOT_SUPPORTED there -- measured -- and binding them would offer a capability that cannot work. The other four stock effects refuse by name rather than half-applying a shared subset. See docs/wasm-backend.md",
+      "proof": [
+        "wasmRoute:cna_vertex_buffer_create",
+        "wasmRoute:cna_vertex_buffer_set_data",
+        "wasmRoute:cna_index_buffer_create",
+        "wasmRoute:cna_index_buffer_set_data",
+        "wasmRoute:cna_vertex_declaration_create_with_stride",
+        "wasmRoute:cna_graphics_device_set_vertex_buffers",
+        "wasmRoute:cna_graphics_device_set_index_buffer",
+        "wasmRoute:cna_graphics_device_draw_indexed_primitives",
+        "wasmRoute:cna_graphics_device_set_rasterizer_state",
+        "wasmRoute:cna_basic_effect_create",
+        "wasmRoute:cna_effect_matrices_set_world",
+        "wasmRoute:cna_effect_apply",
+        "test:test/wasm-browser.mjs"
       ]
     },
     {

@@ -255,6 +255,44 @@ test("a browser renders to an off-screen target and reads its exact pixels back"
   assert.deepEqual(consoleErrors, []);
 });
 
+test("a browser draws 3D geometry, and the pixels say so", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const three = result.wasm3d;
+  assert.ok(three, "no 3D evidence was produced");
+  assert.equal(three.failed, undefined, `the 3D draw failed: ${three.failed}`);
+
+  // Until the vertex buffer, index buffer, BasicEffect and indexed-draw routes reached the
+  // WebAssembly backend, a browser could draw sprites and nothing else. This is a triangle drawn
+  // with vertex colours through the ordinary XNA API, read back texel by texel.
+  const clear = three.clear.join(",");
+  const red = "255,0,0,255";
+  const kinds = (texels) => [...new Set(texels.map((texel) => texel.join(",")))];
+
+  assert.deepEqual(
+    kinds(three.covered), [red],
+    "a triangle that covers the whole target leaves every texel the vertex colour -- not the " +
+    "clear colour, which is what a draw that silently did nothing would leave",
+  );
+  assert.equal(three.covered.length, 64);
+
+  // The strongest of the three, because it is the one that can only pass if the world matrix
+  // reached the shader: a CNA_Matrix is taken by value, and under wasm32 that means a pointer to
+  // a caller-owned copy. A matrix that arrived as zeroes would collapse the triangle rather than
+  // translate it, and one that arrived as noise would not clear the target this exactly.
+  assert.deepEqual(
+    kinds(three.movedAway), [clear],
+    "translating the triangle off the target leaves every texel the clear colour",
+  );
+  assert.deepEqual(
+    kinds(three.nudged), [red],
+    "and a translation small enough to stay on it leaves the vertex colour, so the two are not " +
+    "both explained by the draw failing",
+  );
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(consoleErrors, []);
+});
+
 test("a browser loads CNA's own compiled content through the same API Node uses", { skip }, async () => {
   const { result, consoleErrors } = await runFrames(60);
   assert.equal(result.status, "ok", result.error ?? "");

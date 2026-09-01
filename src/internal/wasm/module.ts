@@ -306,6 +306,30 @@ export class WasmRouteTable {
     }
   }
 
+  /** Calls a route whose last parameter is a `uint64_t*` output. */
+  public outU64(name: string, ...args: readonly (number | bigint)[]): bigint {
+    const scope = this.scope();
+    try {
+      const out = scope.allocate(8);
+      this.invoke(name, ...args, out);
+      return this.view().getBigUint64(out, true);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /** Calls a route whose last parameter is a `uint32_t*` output. */
+  public outU32(name: string, ...args: readonly (number | bigint)[]): number {
+    const scope = this.scope();
+    try {
+      const out = scope.allocate(4);
+      this.invoke(name, ...args, out);
+      return this.view().getUint32(out, true);
+    } finally {
+      scope.dispose();
+    }
+  }
+
   /** Reads a count/copy string pair, which is how this ABI returns every string. */
   public copyString(sizeRoute: string, copyRoute: string, ...args: readonly (number | bigint)[]): string {
     const scope = this.scope();

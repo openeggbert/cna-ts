@@ -447,6 +447,93 @@
       "max_string_bytes",
       "max_array_element_count",
       "max_chunk_alignment"
+    ],
+    "CNA_VertexElement": [
+      "offset",
+      "format",
+      "usage",
+      "usage_index"
+    ],
+    "CNA_VertexBufferCreateInfo": [
+      "struct_size",
+      "struct_version",
+      "vertex_declaration",
+      "vertex_count",
+      "buffer_usage",
+      "dynamic"
+    ],
+    "CNA_IndexBufferCreateInfo": [
+      "struct_size",
+      "struct_version",
+      "index_count",
+      "index_element_size",
+      "buffer_usage",
+      "dynamic"
+    ],
+    "CNA_VertexBufferBinding": [
+      "vertex_buffer",
+      "vertex_offset",
+      "instance_frequency"
+    ],
+    "CNA_Matrix": [
+      "m11",
+      "m22",
+      "m33",
+      "m44"
+    ],
+    "CNA_AvatarDescriptionInfo": [
+      "struct_size",
+      "struct_version",
+      "body_type",
+      "height",
+      "description_byte_count",
+      "is_valid"
+    ],
+    "CNA_IndexBufferTransfer": [
+      "struct_size",
+      "struct_version",
+      "index_element_size",
+      "options",
+      "start_index",
+      "element_count"
+    ],
+    "CNA_VertexBufferTransfer": [
+      "struct_size",
+      "struct_version",
+      "vertex_type",
+      "options",
+      "start_index",
+      "element_count"
+    ],
+    "CNA_RasterizerState": [
+      "struct_size",
+      "struct_version",
+      "cull_mode",
+      "fill_mode",
+      "depth_bias",
+      "slope_scale_depth_bias",
+      "multi_sample_anti_alias",
+      "scissor_test_enable"
+    ],
+    "CNA_DepthStencilState": [
+      "struct_size",
+      "struct_version",
+      "depth_buffer_enable",
+      "depth_buffer_write_enable",
+      "stencil_enable",
+      "two_sided_stencil_mode",
+      "depth_buffer_function",
+      "stencil_function",
+      "stencil_mask",
+      "stencil_write_mask",
+      "reference_stencil",
+      "stencil_fail",
+      "stencil_depth_buffer_fail",
+      "stencil_pass",
+      "counter_clockwise_stencil_function",
+      "counter_clockwise_stencil_fail",
+      "counter_clockwise_stencil_depth_buffer_fail",
+      "counter_clockwise_stencil_pass"
     ]
   },
   "callbacks": {

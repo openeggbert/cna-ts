@@ -557,6 +557,82 @@ try {
         clipDocument.Dispose();
       }
 
+      // --- 3D geometry, drawn into a render target and read back ------------------------------
+      //
+      // Until the buffer, effect and indexed-draw routes existed, a browser could draw sprites and
+      // nothing else. This draws a triangle covering the whole target with a BasicEffect and
+      // vertex colours, then reads the texels: a clear-coloured target would mean the draw did
+      // nothing, and the clear colour is deliberately none of the vertex colours.
+      try {
+        const device = this.GraphicsDevice;
+        const target = new Graphics.RenderTarget2D(device, 8, 8);
+        const vertices = [
+          new Graphics.VertexPositionColor(new Vector3(-3, -1, 0), Color.Red),
+          new Graphics.VertexPositionColor(new Vector3(3, -1, 0), Color.Red),
+          new Graphics.VertexPositionColor(new Vector3(0, 3, 0), Color.Red),
+        ];
+        const vertexBuffer = new Graphics.VertexBuffer(
+          device, Graphics.VertexPositionColor, 3, Graphics.BufferUsage.None,
+        );
+        vertexBuffer.SetData(vertices);
+        const indexBuffer = new Graphics.IndexBuffer(
+          device, Graphics.IndexElementSize.SixteenBits, 3, Graphics.BufferUsage.None,
+        );
+        indexBuffer.SetData([0, 1, 2]);
+        const effect = new Graphics.BasicEffect(device);
+        effect.VertexColorEnabled = true;
+        effect.World = Matrix.Identity;
+        effect.View = Matrix.Identity;
+        effect.Projection = Matrix.Identity;
+
+        // The by-value convention for CNA_Matrix and CNA_Vector3 under wasm32 is not asserted
+        // through a getter here: this page is a consumer of the public surface and imports no
+        // internal path. It is asserted by the *pixels*. A world matrix that moved the triangle
+        // off the target, or a diffuse colour that arrived as noise, both show up as texels that
+        // are not the ones below -- which is stronger evidence than a round-trip anyway.
+        const shifted = Matrix.CreateTranslation(new Vector3(0.5, 0, 0));
+
+        const drawInto = (world) => {
+          effect.World = world;
+          device.SetRenderTarget(target);
+          device.Clear(new Color(9, 11, 13, 255));
+          // XNA culls counter-clockwise by default and this triangle is wound that way, so
+          // without these the draw is culled and every texel stays the clear colour -- which is
+          // exactly what the first run of this test measured, on Node as well as here.
+          device.RasterizerState = Graphics.RasterizerState.CullNone;
+          device.DepthStencilState = Graphics.DepthStencilState.None;
+          device.SetVertexBuffer(vertexBuffer);
+          device.Indices = indexBuffer;
+          for (const pass of effect.CurrentTechnique.Passes) {
+            pass.Apply();
+            device.DrawIndexedPrimitives(Graphics.PrimitiveType.TriangleList, 0, 0, 3, 0, 1);
+          }
+          device.SetRenderTarget(null);
+          const texels = new Array(64);
+          target.GetData(texels);
+          return texels.map((color) => [color.R, color.G, color.B, color.A]);
+        };
+        result.wasm3d = {
+          // A triangle that covers the whole target: every texel must be the vertex colour.
+          covered: drawInto(Matrix.Identity),
+          // The same triangle translated far enough to leave the target entirely: every texel
+          // must be the clear colour. That is what proves the world matrix reached the shader --
+          // a matrix that arrived as zeroes or noise would not move it by exactly this much.
+          movedAway: drawInto(Matrix.CreateTranslation(new Vector3(8, 0, 0))),
+          nudged: drawInto(shifted),
+          clear: [9, 11, 13, 255],
+        };
+        effect.Dispose();
+        indexBuffer.Dispose();
+        vertexBuffer.Dispose();
+        target.Dispose();
+      } catch (error) {
+        result.wasm3d = { failed: `${error?.constructor?.name}: ${error?.message}` };
+        // A render target left bound stops the next present, which would turn one clear failure
+        // into a confusing second one.
+        try { this.GraphicsDevice.SetRenderTarget(null); } catch { /* already unbound */ }
+      }
+
       super.LoadContent();
     }
 

@@ -315,3 +315,72 @@ Both were found by running the same code on two backends, which is the point of 
 - **`cna_desktop_os_get_current` refuses off a desktop**, which is exactly what a browser is. Node
   reaches this route happily and would never have shown it; the browser run failed on the first
   call. `CnaPlatformInfo.DesktopOperatingSystem` is now `null` on a non-desktop platform.
+
+## Geometry: what a browser can now draw
+
+Until this slice existed a browser could draw sprites and read pixels back, and nothing else. There
+was no vertex buffer, no index buffer, no effect and no indexed draw, so a browser consumer could
+not put a triangle on the screen through the public API. Twenty-one routes changed that, and
+`test/wasm-browser.mjs` asserts the result texel by texel:
+
+| what | evidence |
+| --- | --- |
+| a triangle covering the target | all sixty-four texels are the vertex colour, not the clear colour |
+| the same triangle translated off it | all sixty-four are the clear colour |
+| translated a little | the vertex colour again, so the two above are not both "the draw failed" |
+
+The middle row is the one that earns its keep. A `CNA_Matrix` is taken **by value**, and a world
+matrix that arrived as zeroes would collapse the triangle rather than move it — so a target that
+goes exactly clear and then exactly red again is the by-value convention working.
+
+### The by-value convention, measured rather than assumed
+
+`CNA_Matrix` is sixty-four bytes and `CNA_Vector3` is twelve, and both are taken by value by routes
+this slice needs. An Emscripten probe settles how wasm32 lowers them:
+
+```c
+EMSCRIPTEN_KEEPALIVE float take_v3(V3 v) { return v.x * 100.0f + v.y * 10.0f + v.z; }
+EMSCRIPTEN_KEEPALIVE float take_m4(M4 m) { return m.m[0] * 100.0f + m.m[15]; }
+```
+
+```text
+take_v3(pointer) = 123          take_v3(1, 2, 3) → Aborted: called with 3 args but expects 1
+take_m4(pointer) = 709          take_handle_and_v3(5n, pointer) = 6
+```
+
+**Both are passed as a pointer to a caller-owned copy**, and a scalarised call is rejected outright
+rather than misread. This extends what the `CNA_StringView` finding above established from one
+struct to aggregates of both sizes, and to a `uint64_t` handle followed by one.
+
+### What is not here, and why
+
+**The engine layer is absent from the artifact**, not merely unbound. The WebAssembly build sets
+`CNA_CNAEXT=OFF`, which compiles out `engine_layer.h`'s implementation and leaves the exported
+symbols as `ExtensionUnavailable()` stubs. Measured in a browser on WebGL2:
+
+```text
+cna_instanced_renderer_ext_get_instance_stride → 6   (CNA_RESULT_NOT_SUPPORTED)
+cna_instanced_renderer_ext_create              → 6
+```
+
+against `0` and a stride of `64` on the Node artifact. So the instanced renderer, LOD selection and
+every post-process pass would answer `NOT_SUPPORTED` here however carefully they were bound — the
+routes exist, the layer behind them does not. Binding them would offer a browser consumer a
+capability that cannot work.
+
+The unblocker is external and specific: build `cna_c_api_wasm` with `-DCNA_CNAEXT=ON`. That is a
+change to the artifact a consumer builds, not to this package, which is why it is recorded here
+rather than worked around.
+
+**The other four stock effects** refuse by name. `BasicEffect` is what draws untextured and
+textured geometry, and each of the others needs its own dozen routes and its own evidence; a facade
+that accepted them and set only the fields they happen to share would draw the wrong thing rather
+than say it could not.
+
+### A defect this slice found in its own first test
+
+The first version drew nothing at all — every texel the clear colour, in the browser *and* on Node.
+The scene was wrong, not the backend: XNA culls counter-clockwise by default and the triangle was
+wound that way. Running the identical code on the Node backend, which is long proven, is what
+separated "my slice is broken" from "my triangle is inside out" in one step. It is the reason the
+test now sets `RasterizerState.CullNone` and says why in a comment.

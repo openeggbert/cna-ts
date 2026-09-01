@@ -22,10 +22,10 @@ UNEXPLAINED=0
 
 ```text
 REACHABLE_NODE=1852
-REACHABLE_WASM=276
+REACHABLE_WASM=343
 REACHABLE_BY_ANY_BACKEND=1852
-REACHABLE_BY_EVERY_BACKEND=276
-REACHABLE_NODE_ONLY=1576
+REACHABLE_BY_EVERY_BACKEND=343
+REACHABLE_NODE_ONLY=1509
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -34,8 +34,8 @@ What each backend reaches, by what the routes are for:
 
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
-| `XNA_BACKING` | 1591 | 513 | 73 |
-| `CNA_EXTENSION_BACKING` | 1871 | 1319 | 189 |
+| `XNA_BACKING` | 1591 | 513 | 139 |
+| `CNA_EXTENSION_BACKING` | 1871 | 1319 | 190 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 556 | 13 | 13 |
 | `TOOLING_ONLY` | 35 | 6 | 0 |
@@ -55,16 +55,16 @@ What each backend reaches, by what the routes are for:
 | `curve.h` | 13 | 13 | 0 | 0 | 0 | 45 | 0 | 0 | 0 | 0 |
 | `devices.h` | 29 | 0 | 0 | 61 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `display.h` | 14 | 0 | 0 | 22 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `effects.h` | 149 | 0 | 255 | 35 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `effects.h` | 149 | 44 | 255 | 35 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `engine_layer.h` | 857 | 0 | 0 | 857 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `gamer_services.h` | 36 | 0 | 249 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `gamer_services.h` | 36 | 5 | 249 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `geometry.h` | 0 | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 | 0 |
-| `graphics_device.h` | 27 | 2 | 73 | 14 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `graphics_device.h` | 27 | 6 | 73 | 14 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `graphics_ext.h` | 28 | 1 | 0 | 28 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `graphics_resource.h` | 0 | 0 | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `graphics_state.h` | 8 | 0 | 14 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `graphics_state.h` | 8 | 2 | 14 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `graphics.h` | 12 | 11 | 21 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `index_resources.h` | 8 | 0 | 10 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `index_resources.h` | 8 | 5 | 10 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_cursor.h` | 5 | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_devices.h` | 17 | 0 | 0 | 32 | 0 | 4 | 1 | 0 | 0 | 0 |
 | `input_gamepad.h` | 2 | 2 | 40 | 23 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -97,7 +97,7 @@ What each backend reaches, by what the routes are for:
 | `texture_volume.h` | 10 | 0 | 16 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `texture.h` | 5 | 3 | 21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `vectors.h` | 0 | 0 | 0 | 0 | 0 | 137 | 0 | 0 | 0 | 0 |
-| `vertex_resources.h` | 12 | 0 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `vertex_resources.h` | 12 | 7 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `vertex_values.h` | 0 | 0 | 0 | 0 | 0 | 13 | 0 | 0 | 0 | 0 |
 | `video.h` | 12 | 0 | 36 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `xact.h` | 46 | 0 | 58 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
