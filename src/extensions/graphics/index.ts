@@ -21,7 +21,7 @@ import type {
   BoundingSphereSnapshot,
   RasterizerStateSnapshot,
   PbrMaterialExtSnapshot,
-  TextureTransformSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
+  TextureTransformSnapshot, ClusteredContributionSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
   CnaDecalBackend,
   CnaDepthNormalPrepassBackend,
   CnaAtmosphereBackend,
@@ -1790,6 +1790,8 @@ export class ClusterGrid implements IDisposable {
  * shader finds a cluster's lights with two lookups and no search. Both are readable here, and
  * {@link LightsInCluster} is the same information one cluster at a time.
  */
+let handleOfClusteredAssignment!: (value: ClusteredLightAssignment) => NativeHandle;
+
 export class ClusteredLightAssignment implements IDisposable {
   readonly #backend: CnaClusteredLightingBackend;
   #handle: NativeHandle | null;
@@ -1808,6 +1810,29 @@ export class ClusteredLightAssignment implements IDisposable {
   #active(): NativeHandle {
     if (this.#handle == null) throw new NativeUnavailableError("the assignment is disposed");
     return this.#handle;
+  }
+
+  static {
+    handleOfClusteredAssignment = (value: ClusteredLightAssignment) => value.#active();
+  }
+
+  /**
+   * Takes a cluster assignment computed elsewhere, as the two arrays it really is.
+   *
+   * `offsets` has one entry per cluster plus a final one, so cluster `i` owns
+   * `indices[offsets[i] .. offsets[i + 1])` — the compressed-row layout the GPU buffer wants. This
+   * is how an assignment made by something other than {@link Assign} gets in.
+   */
+  public Adopt(
+    lightCount: number, offsets: readonly number[], indices: readonly number[],
+  ): void {
+    if (!Array.isArray(offsets)) throw new TypeError("offsets must be an array");
+    if (!Array.isArray(indices)) throw new TypeError("indices must be an array");
+    extensions().adoptClusteredLightAssignment(
+      this.#active(), wholeNumber(lightCount, "lightCount"),
+      offsets.map((value, index) => wholeNumber(value, `offsets[${index}]`)),
+      indices.map((value, index) => wholeNumber(value, `indices[${index}]`)),
+    );
   }
 
   /** Sorts a set of light bounds into a grid's clusters, in view space. */
@@ -8108,4 +8133,428 @@ function settingsSnapshot(settings: PipelineSettings): PipelineSettings {
     }
   }
   return settings;
+}
+
+
+/* ================================================================================================
+ * Clustered lighting: the buffer the shaders read, the compute assignment, and the forward effect
+ * ==============================================================================================*/
+
+/** Everything one light's contribution to one surface is computed from. */
+export interface ClusteredContribution {
+  /** The light doing the lighting. */
+  Light: ClusteredLight;
+  /** The point being lit, in world space. */
+  Surface: Vector3;
+  /** Its normal. */
+  Normal: Vector3;
+  /** Where the camera is, which is what makes the specular lobe a lobe. */
+  CameraPosition: Vector3;
+  /** The surface's base colour, linear. */
+  BaseColor: Vector3;
+  /** How metallic it is, from zero to one. */
+  Metallic: number;
+  /** How rough it is. */
+  Roughness: number;
+  /** How strong the clearcoat layer is; zero for none. */
+  Clearcoat?: number;
+  /** How rough that layer is. */
+  ClearcoatRoughness?: number;
+  /** The sheen lobe's colour; black for none. */
+  SheenColor?: Vector3;
+  /** How rough the sheen lobe is. */
+  SheenRoughness?: number;
+  /** How strong the thin-film term is. */
+  Iridescence?: number;
+  /** The film's index of refraction. */
+  IridescenceIor?: number;
+  /** Its thickness in nanometres. */
+  IridescenceThickness?: number;
+  /** The colour light becomes under the surface; black for none. */
+  SubsurfaceColor?: Vector3;
+  /** How far light wraps around the terminator. */
+  SubsurfaceWrap?: number;
+}
+
+function contributionSnapshot(inputs: ClusteredContribution): ClusteredContributionSnapshot {
+  if (inputs == null) throw new TypeError("the contribution inputs are required");
+  return {
+    Light: lightSnapshot(inputs.Light),
+    Surface: vectorSnapshot(inputs.Surface, "Surface"),
+    Normal: vectorSnapshot(inputs.Normal, "Normal"),
+    CameraPosition: vectorSnapshot(inputs.CameraPosition, "CameraPosition"),
+    BaseColor: vectorSnapshot(inputs.BaseColor, "BaseColor"),
+    Metallic: finite(inputs.Metallic, "Metallic"),
+    Roughness: finite(inputs.Roughness, "Roughness"),
+    Clearcoat: finite(inputs.Clearcoat ?? 0, "Clearcoat"),
+    ClearcoatRoughness: finite(inputs.ClearcoatRoughness ?? 0, "ClearcoatRoughness"),
+    SheenColor: inputs.SheenColor == null
+      ? { X: 0, Y: 0, Z: 0 } : vectorSnapshot(inputs.SheenColor, "SheenColor"),
+    SheenRoughness: finite(inputs.SheenRoughness ?? 0, "SheenRoughness"),
+    Iridescence: finite(inputs.Iridescence ?? 0, "Iridescence"),
+    IridescenceIor: finite(inputs.IridescenceIor ?? 1.3, "IridescenceIor"),
+    IridescenceThickness: finite(inputs.IridescenceThickness ?? 100, "IridescenceThickness"),
+    SubsurfaceColor: inputs.SubsurfaceColor == null
+      ? { X: 0, Y: 0, Z: 0 } : vectorSnapshot(inputs.SubsurfaceColor, "SubsurfaceColor"),
+    SubsurfaceWrap: finite(inputs.SubsurfaceWrap ?? 0, "SubsurfaceWrap"),
+  };
+}
+
+/**
+ * The GPU-side buffer a clustered forward shader reads: the lights, the grid, and which lights
+ * fall in which cluster.
+ *
+ * Nothing is on the GPU until {@link Upload}, and the three counts below are how a caller checks
+ * that what went up is what they assigned.
+ */
+let handleOfClusteredLightBuffer!: (value: ClusteredLightBuffer) => NativeHandle;
+
+export class ClusteredLightBuffer implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#handle = extensions().createClusteredLightBuffer(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice));
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the clustered light buffer is disposed");
+    }
+    return this.#handle;
+  }
+
+  static {
+    handleOfClusteredLightBuffer = (value: ClusteredLightBuffer) => value.#active();
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Harmless twice. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroyClusteredLightBuffer(handle);
+  }
+
+  /** Whether anything has been uploaded yet. */
+  public get IsUploaded(): boolean {
+    return extensions().isClusteredLightBufferUploaded(this.#active());
+  }
+
+  /** How many lights it holds. */
+  public get LightCount(): number {
+    return extensions().getClusteredLightBufferLightCount(this.#active());
+  }
+
+  /** How many clusters the grid it was uploaded with had. */
+  public get ClusterCount(): number {
+    return extensions().getClusteredLightBufferClusterCount(this.#active());
+  }
+
+  /** How many light-in-cluster references there are across all of them. */
+  public get ReferenceCount(): number {
+    return extensions().getClusteredLightBufferReferenceCount(this.#active());
+  }
+
+  /** Puts a set, a grid and an assignment on the GPU together, because they only mean anything together. */
+  public Upload(
+    lights: ClusteredLightSet, grid: ClusterGrid, assignment: ClusteredLightAssignment,
+  ): void {
+    extensions().uploadClusteredLightBuffer(
+      this.#active(), clusteredLightSetHandle(lights), clusterGridHandle(grid),
+      handleOfClusteredAssignment(assignment));
+  }
+
+  /** Binds it to an effect, taking texture units from `firstUnit` upwards. */
+  public Bind(effect: Effect, firstUnit: number): void {
+    extensions().bindClusteredLightBuffer(
+      this.#active(), resolveEffectHandleForInternalUse(effect),
+      wholeNumber(firstUnit, "firstUnit"));
+  }
+
+  /** The GLSL a shader includes to look a cluster's lights up in the buffer. */
+  public static get LightLookupGlsl(): string {
+    return extensions().getClusteredLightLookupGlsl();
+  }
+}
+
+/**
+ * The same cluster assignment done on the GPU.
+ *
+ * Needs compute shaders and says so through {@link IsSupported} and {@link UnsupportedReason}
+ * rather than refusing. {@link UsedCompute} is the honest half: the object may fall back to the CPU
+ * path, and this says which one actually ran.
+ */
+export class ClusteredLightCompute implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor(graphicsDevice: GraphicsDevice, stride: number) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#handle = extensions().createClusteredLightCompute(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), wholeNumber(stride, "stride"));
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the clustered light compute is disposed");
+    }
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Harmless twice. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    extensions().destroyClusteredLightCompute(handle);
+  }
+
+  /** Whether this device can run the assignment on the GPU. */
+  public get IsSupported(): boolean {
+    return extensions().isClusteredLightComputeSupported(this.#active());
+  }
+
+  /** Why not, in CNA's own words, or `""` when it can. */
+  public get UnsupportedReason(): string {
+    return extensions().getClusteredLightComputeUnsupportedReason(this.#active());
+  }
+
+  /** How many lights a cluster can hold before the rest overflow. */
+  public get Stride(): number {
+    return extensions().getClusteredLightComputeStride(this.#active());
+  }
+
+  /** Whether the last {@link Assign} really ran on the GPU rather than falling back. */
+  public get UsedCompute(): boolean {
+    return extensions().didClusteredLightComputeUseCompute(this.#active());
+  }
+
+  /** Whether any cluster held more lights than {@link Stride} and lost the rest. */
+  public get HasOverflowed(): boolean {
+    return extensions().hasClusteredLightComputeOverflowed(this.#active());
+  }
+
+  /** Sorts light bounds into the grid's clusters, filling the assignment. */
+  public Assign(
+    grid: ClusterGrid, view: Matrix, bounds: readonly BoundingSphere[],
+    assignment: ClusteredLightAssignment,
+  ): void {
+    if (!Array.isArray(bounds)) throw new TypeError("bounds must be an array");
+    extensions().assignClusteredLightCompute(
+      this.#active(), clusterGridHandle(grid), matrixValues(view, "view"),
+      bounds.map((sphere, index) => sphereSnapshot(sphere, `bounds[${index}]`)),
+      handleOfClusteredAssignment(assignment));
+  }
+}
+
+/**
+ * The forward shading effect a clustered pipeline draws with.
+ *
+ * The BRDF its shader runs is published as {@link Contribution}, so what one light adds to one
+ * surface can be checked against a reference rather than by looking at a frame — which is what the
+ * tests do.
+ */
+export class ClusteredForwardEffect implements IDisposable {
+  #handle: NativeHandle | null;
+  readonly #device: GraphicsDevice;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    this.#device = graphicsDevice;
+    this.#handle = extensions().createClusteredForwardEffect(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice));
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the clustered forward effect is disposed");
+    }
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /**
+   * Releases it. Harmless twice.
+   *
+   * CNA **refuses** while a shader borrow from {@link GetShader} is outstanding, so the handle is
+   * only given up once the destroy actually succeeded: a refusal leaves the effect alive and a
+   * second attempt, after the borrow has gone back, works. Clearing it first would strand the
+   * effect and make the game undestroyable.
+   */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    extensions().destroyClusteredForwardEffect(handle);
+    this.#handle = null;
+  }
+
+  /** Whether this device can run it. */
+  public get IsSupported(): boolean {
+    return extensions().isClusteredForwardEffectSupported(this.#active());
+  }
+
+  /** The surface's base colour, linear. */
+  public get BaseColor(): Vector3 {
+    return toVector3(extensions().getClusteredForwardBaseColor(this.#active()));
+  }
+  public set BaseColor(value: Vector3) {
+    extensions().setClusteredForwardBaseColor(this.#active(), vectorSnapshot(value, "BaseColor"));
+  }
+
+  /** How metallic it is. */
+  public get Metallic(): number {
+    return extensions().getClusteredForwardMetallic(this.#active());
+  }
+  public set Metallic(value: number) {
+    extensions().setClusteredForwardMetallic(this.#active(), finite(value, "Metallic"));
+  }
+
+  /** How rough it is. */
+  public get Roughness(): number {
+    return extensions().getClusteredForwardRoughness(this.#active());
+  }
+  public set Roughness(value: number) {
+    extensions().setClusteredForwardRoughness(this.#active(), finite(value, "Roughness"));
+  }
+
+  /** Its index of refraction. */
+  public get Ior(): number {
+    return extensions().getClusteredForwardIor(this.#active());
+  }
+  public set Ior(value: number) {
+    extensions().setClusteredForwardIor(this.#active(), finite(value, "Ior"));
+  }
+
+  /** The light that arrives from everywhere, which no cluster accounts for. */
+  public get Ambient(): Vector3 {
+    return toVector3(extensions().getClusteredForwardAmbient(this.#active()));
+  }
+  public set Ambient(value: Vector3) {
+    extensions().setClusteredForwardAmbient(this.#active(), vectorSnapshot(value, "Ambient"));
+  }
+
+  /** Whether a light probe or a probe volume is attached. */
+  public get HasLightProbe(): boolean {
+    return extensions().hasClusteredForwardLightProbe(this.#active());
+  }
+
+  /** Detaches whichever it was. */
+  public ClearLightProbe(): void {
+    extensions().clearClusteredForwardLightProbe(this.#active());
+  }
+
+  /** Attaches one probe's irradiance. */
+  public SetLightProbe(probe: LightProbe): void {
+    if (probe == null) throw new TypeError("probe is required");
+    extensions().setClusteredForwardLightProbe(this.#active(), handleOfLightProbe(probe));
+  }
+
+  /** Or a whole volume of them, sampled per surface. */
+  public SetLightProbeVolume(volume: LightProbeVolume): void {
+    if (volume == null) throw new TypeError("volume is required");
+    extensions().setClusteredForwardLightProbeVolume(
+      this.#active(), handleOfLightProbeVolume(volume));
+  }
+
+  /** Whether an opaque frame is attached for the transmission lobe to refract. */
+  public get HasOpaqueFrame(): boolean {
+    const handle = extensions().getClusteredForwardOpaqueFrame(this.#active());
+    if (handle === 0n) return false;
+    graphicsBackendFor(this.#device).destroyRenderTarget(handle);
+    return true;
+  }
+
+  /** Gives it one, or `null` to take it away. It is borrowed, never owned. */
+  public SetOpaqueFrame(frame: Texture2D | null): void {
+    extensions().setClusteredForwardOpaqueFrame(
+      this.#active(), frame == null ? 0n : resolveTexture2DHandleForInternalUse(frame));
+  }
+
+  /** Whether a material extension set is attached. */
+  public get HasMaterialExtensions(): boolean {
+    const handle = extensions().getClusteredForwardMaterialExtensions(this.#active());
+    if (handle === 0n) return false;
+    extensions().destroyPbrMaterialExtensions(handle);
+    return true;
+  }
+
+  /** Attaches one. It is borrowed: the caller keeps it and must outlive this effect. */
+  public SetMaterialExtensions(value: PbrMaterialExtensions): void {
+    if (value == null) throw new TypeError("value is required");
+    extensions().setClusteredForwardMaterialExtensions(
+      this.#active(), handleOfPbrExtensions(value));
+  }
+
+  /**
+   * Sets the transforms and the light buffer for a batch of draws.
+   *
+   * `lights` may be `null`, which shades with the ambient and probe terms alone.
+   */
+  public Begin(
+    world: Matrix, view: Matrix, projection: Matrix, cameraPosition: Vector3,
+    lights: ClusteredLightBuffer | null,
+  ): void {
+    extensions().beginClusteredForwardEffect(
+      this.#active(), matrixValues(world, "world"), matrixValues(view, "view"),
+      matrixValues(projection, "projection"), vectorSnapshot(cameraPosition, "cameraPosition"),
+      lights == null ? 0n : handleOfClusteredLightBuffer(lights));
+  }
+
+  /**
+   * The shader itself, as a real `Effect`.
+   *
+   * A **borrow**: CNA mints a fresh handle and refuses to destroy the forward effect while one is
+   * outstanding, so it is released with the `Effect` it comes back as. Dispose it before the
+   * effect that lent it.
+   */
+  public GetShader(): Effect {
+    return adoptNativeEffectForInternalUse(
+      this.#device, effectBackendFor(this.#device),
+      extensions().getClusteredForwardShader(this.#active()));
+  }
+
+  /**
+   * What one light adds to one surface: the BRDF the shader runs, on the CPU.
+   *
+   * Cook-Torrance with a GGX distribution, a Smith-Schlick geometry term and a Schlick Fresnel,
+   * plus the sheen, clearcoat, iridescence and subsurface layers when their own parameters ask for
+   * them. A light at or past its range, or behind the surface, adds exactly nothing.
+   */
+  public static Contribution(inputs: ClusteredContribution): Vector3 {
+    return toVector3(extensions().clusteredLightContribution(contributionSnapshot(inputs)));
+  }
+
+  /** The same, taking the four extension layers from a {@link PbrMaterialExtensions} instead. */
+  public static ContributionWithExtensions(
+    inputs: ClusteredContribution, extensionSet: PbrMaterialExtensions,
+  ): Vector3 {
+    if (extensionSet == null) throw new TypeError("extensionSet is required");
+    return toVector3(extensions().clusteredLightContributionWithExtensions(
+      contributionSnapshot(inputs), handleOfPbrExtensions(extensionSet)));
+  }
+
+  /**
+   * How much of each channel survives a volume of a given thickness: Beer-Lambert absorption.
+   *
+   * The attenuation colour is what a ray one attenuation-distance long comes out as, so at a
+   * thickness equal to that distance the answer *is* the colour, and the general answer is the
+   * colour raised to `thickness / distance`. A distance or thickness of zero is no volume at all
+   * and absorbs nothing.
+   */
+  public static VolumeAttenuation(
+    attenuationColor: Vector3, attenuationDistance: number, thickness: number,
+  ): Vector3 {
+    return toVector3(extensions().clusteredVolumeAttenuation(
+      vectorSnapshot(attenuationColor, "attenuationColor"),
+      finite(attenuationDistance, "attenuationDistance"), finite(thickness, "thickness")));
+  }
 }

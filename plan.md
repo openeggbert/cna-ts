@@ -552,6 +552,22 @@ Electron, or mobile support.
   text answers *how many fields it recognised*, which is how a caller tells a settings file that
   loaded from one that was mostly typos, and a loaded value goes through the same clamping a written
   one does. Four planted defects fail and none survives.
+- [x] **Clustered lighting**, where the shading model is published as a pure route and the
+  acceptance is therefore a *second implementation of it*: a Cook-Torrance BRDF with a GGX
+  distribution, a Smith-Schlick geometry term and a Schlick Fresnel, plus the sheen, clearcoat,
+  iridescence and subsurface layers, written out in the test and compared against CNA's at fifteen
+  parameter combinations — head-on, off to the side and grazing, each layer alone and all at once —
+  agreeing everywhere. The comparison is asserted not to be vacuous: fourteen of the fifteen results
+  are distinct and every optional layer is asserted to change the answer, so no branch of the
+  reference is dead. A *rough* sheen is used deliberately, because the lobe's width is
+  `1/max(roughness², 0.07)` and a smooth one is too narrow to reach a grazing geometry at all —
+  physics, not a defect. Volume absorption is Beer–Lambert, pinned by the fact that at a thickness
+  equal to the attenuation distance the answer *is* the attenuation colour. The buffer's three
+  counts are checked against the three objects it was uploaded from rather than against numbers. Six
+  planted defects fail and none survives. Two corrections came out of it: the clustered light grid
+  **is** projected (as `ClusterGrid`), so `cna_debug_draw_add_cluster_slice_gizmo` is bound after
+  all; and `Dispose` on the forward effect used to clear its handle *before* the destroy, so CNA's
+  refusal while it lends its shader stranded the effect and made the game undestroyable.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -646,7 +662,7 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 158 operation families: 21 verified managed, 96 verified native, 13
+- [x] Current baseline is 160 operation families: 21 verified managed, 98 verified native, 13
   verified WebAssembly, five explicitly unavailable on the qualified backend, five upstream-CNA
   blocked, three fixture pending, six hardware pending, three platform pending, two unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.

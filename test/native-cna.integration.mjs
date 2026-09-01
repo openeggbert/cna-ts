@@ -9004,3 +9004,616 @@ test("the render pipeline's settings are a value that clamps, presets and parses
     `PARSE=5_OF_5/1_OF_3`,
   );
 });
+
+test("the clustered forward BRDF is the one an independent reference computes", async () => {
+  const graphics = computeExtensions;
+  const { ClusteredForwardEffect, ClusteredLightType } = graphics;
+
+  // --- Beer-Lambert absorption ------------------------------------------------------------------
+  // The attenuation colour is what a ray one attenuation-distance long comes out as, so the general
+  // answer is that colour raised to thickness / distance. Written out here rather than recorded.
+  const attenuate = (colour, distance, thickness) => {
+    if (!(distance > 0) || !(thickness > 0)) return [1, 1, 1];
+    return colour.map((channel) => {
+      const clamped = Math.min(Math.max(channel, 1e-4), 1);
+      return Math.exp((Math.log(clamped) / distance) * thickness);
+    });
+  };
+  for (const [colour, distance, thickness] of [
+    [[0.5, 0.5, 0.5], 1, 1], [[0.5, 0.5, 0.5], 2, 1], [[0.5, 0.25, 0.125], 1, 1],
+    [[1, 1, 1], 1, 1], [[0, 0, 0], 1, 1], [[0.5, 0.5, 0.5], 1, 3], [[0.9, 0.4, 0.1], 3, 7],
+  ]) {
+    const measured = ClusteredForwardEffect.VolumeAttenuation(
+      new Vector3(colour[0], colour[1], colour[2]), distance, thickness);
+    const predicted = attenuate(colour, distance, thickness);
+    for (const [index, channel] of [measured.X, measured.Y, measured.Z].entries()) {
+      assert.ok(
+        Math.abs(channel - predicted[index]) < 1e-5,
+        `attenuation channel ${index} of ${colour} over ${thickness}/${distance}: ` +
+        `${channel} vs ${predicted[index]}`,
+      );
+    }
+  }
+  // The three facts that make it Beer-Lambert rather than a curve someone liked the look of.
+  const half = ClusteredForwardEffect.VolumeAttenuation(new Vector3(0.5, 0.25, 0.125), 1, 1);
+  assert.deepEqual(
+    [half.X, half.Y, half.Z], [0.5, 0.25, 0.125],
+    "at a thickness equal to the attenuation distance, the answer IS the attenuation colour",
+  );
+  const thrice = ClusteredForwardEffect.VolumeAttenuation(new Vector3(0.5, 0.5, 0.5), 1, 3);
+  assert.ok(Math.abs(thrice.X - 0.125) < 1e-6, "and three times as thick cubes it");
+  const clear = ClusteredForwardEffect.VolumeAttenuation(new Vector3(1, 1, 1), 1, 1);
+  assert.deepEqual([clear.X, clear.Y, clear.Z], [1, 1, 1], "a white volume absorbs nothing");
+  for (const [distance, thickness] of [[0, 1], [1, 0], [-1, 1], [1, -1]]) {
+    const none = ClusteredForwardEffect.VolumeAttenuation(
+      new Vector3(0.5, 0.5, 0.5), distance, thickness);
+    assert.deepEqual(
+      [none.X, none.Y, none.Z], [1, 1, 1],
+      `no volume at distance ${distance} thickness ${thickness} must absorb nothing`,
+    );
+  }
+  const black = ClusteredForwardEffect.VolumeAttenuation(Vector3.Zero, 1, 1);
+  assert.ok(
+    black.X > 0 && black.X < 1e-3,
+    "a black attenuation colour is clamped off zero rather than taking a logarithm of it",
+  );
+
+  // --- the BRDF itself ------------------------------------------------------------------------------
+  // Cook-Torrance with a GGX distribution, a Smith-Schlick geometry term and a Schlick Fresnel,
+  // plus four optional layers. Written out here from the model so the comparison is against a
+  // second implementation rather than against numbers recorded from a run.
+  const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+  const norm = (v) => {
+    const length = Math.sqrt(dot(v, v));
+    return length > 0 ? [v[0] / length, v[1] / length, v[2] / length] : v;
+  };
+  const clamp = (v, low, high) => Math.min(Math.max(v, low), high);
+  const PI = 3.14159265359;
+  const reference = (inputs) => {
+    const light = inputs.Light;
+    const lightPosition = [light.Position.X, light.Position.Y, light.Position.Z];
+    const surface = [inputs.Surface.X, inputs.Surface.Y, inputs.Surface.Z];
+    const normal = [inputs.Normal.X, inputs.Normal.Y, inputs.Normal.Z];
+    const camera = [inputs.CameraPosition.X, inputs.CameraPosition.Y, inputs.CameraPosition.Z];
+    const base = [inputs.BaseColor.X, inputs.BaseColor.Y, inputs.BaseColor.Z];
+    const sheenColor = inputs.SheenColor
+      ? [inputs.SheenColor.X, inputs.SheenColor.Y, inputs.SheenColor.Z] : [0, 0, 0];
+    const subsurfaceColor = inputs.SubsurfaceColor
+      ? [inputs.SubsurfaceColor.X, inputs.SubsurfaceColor.Y, inputs.SubsurfaceColor.Z] : [0, 0, 0];
+    const metallic = inputs.Metallic;
+    const roughness = inputs.Roughness;
+    const clearcoat = inputs.Clearcoat ?? 0;
+    const clearcoatRoughness = inputs.ClearcoatRoughness ?? 0;
+    const sheenRoughness = inputs.SheenRoughness ?? 0;
+    const subsurfaceWrap = inputs.SubsurfaceWrap ?? 0;
+
+    const toLight = sub(lightPosition, surface);
+    const distance = Math.sqrt(dot(toLight, toLight));
+    if (distance >= light.Range || distance <= 0) return [0, 0, 0];
+    const L = [toLight[0] / distance, toLight[1] / distance, toLight[2] / distance];
+
+    const ratio = distance / Math.max(light.Range, 1e-4);
+    const window = clamp(1 - ratio ** 4, 0, 1);
+    let attenuation = (window * window) / Math.max(distance * distance, 1e-4);
+    if (light.Type === ClusteredLightType.Spot) {
+      const direction = norm([light.Direction.X, light.Direction.Y, light.Direction.Z]);
+      const cosAngle = -dot(L, direction);
+      const cosOuter = Math.cos(light.OuterAngle);
+      const cosInner = Math.cos(light.InnerAngle);
+      attenuation *= clamp((cosAngle - cosOuter) / Math.max(cosInner - cosOuter, 1e-4), 0, 1);
+    }
+    if (attenuation <= 0) return [0, 0, 0];
+
+    const view = norm(sub(camera, surface));
+    const halfSum = add(L, view);
+    const H = dot(halfSum, halfSum) > 1e-8 ? norm(halfSum) : normal;
+    const rawNoL = dot(normal, L);
+    const NoL = Math.max(rawNoL, 0);
+    const subsurface = subsurfaceColor.some((channel) => channel > 0);
+    const wrappedNoL = subsurface
+      ? clamp((rawNoL + subsurfaceWrap) / ((1 + subsurfaceWrap) * (1 + subsurfaceWrap)), 0, 1)
+      : NoL;
+    const backScatter = subsurface ? clamp(-dot(view, L), 0, 1) ** 4 : 0;
+    const NoV = Math.max(dot(normal, view), 1e-4);
+    const NoH = Math.max(dot(normal, H), 0);
+    const VoH = Math.max(dot(view, H), 0);
+    if (NoL <= 0 && wrappedNoL <= 0 && backScatter <= 0) return [0, 0, 0];
+
+    const a = roughness * roughness;
+    const aa = a * a;
+    const d = NoH * NoH * (aa - 1) + 1;
+    const distributionTerm = aa / Math.max(PI * d * d, 1e-7);
+    const k = ((roughness + 1) * (roughness + 1)) / 8;
+    const geometryTerm = (NoV / Math.max(NoV * (1 - k) + k, 1e-7)) *
+      (NoL / Math.max(NoL * (1 - k) + k, 1e-7));
+    const schlick = clamp(1 - VoH, 0, 1) ** 5;
+
+    let sheenTerm = 0;
+    if (sheenColor.some((channel) => channel > 0)) {
+      const sheenAlpha = Math.max(sheenRoughness * sheenRoughness, 0.07);
+      const inverseAlpha = 1 / sheenAlpha;
+      const sinSquared = Math.max(1 - NoH * NoH, 0.0078125);
+      const distribution = ((2 + inverseAlpha) * sinSquared ** (inverseAlpha * 0.5)) /
+        6.28318530718;
+      const visibility = 1 / Math.max(4 * (NoL + NoV - NoL * NoV), 1e-7);
+      sheenTerm = distribution * visibility;
+    }
+
+    let clearcoatFresnel = 0;
+    let clearcoatSpecular = 0;
+    if (clearcoat > 0) {
+      const ccRoughness = Math.max(clearcoatRoughness, 0.04);
+      const ccA = ccRoughness * ccRoughness;
+      const ccAA = ccA * ccA;
+      const ccD = NoH * NoH * (ccAA - 1) + 1;
+      const ccDistribution = ccAA / Math.max(PI * ccD * ccD, 1e-7);
+      const ccK = ((ccRoughness + 1) * (ccRoughness + 1)) / 8;
+      const ccGeometry = (NoV / Math.max(NoV * (1 - ccK) + ccK, 1e-7)) *
+        (NoL / Math.max(NoL * (1 - ccK) + ccK, 1e-7));
+      clearcoatFresnel = 0.04 + 0.96 * schlick;
+      clearcoatSpecular = (clearcoatFresnel * ccDistribution * ccGeometry) /
+        Math.max(4 * NoV * NoL, 1e-7);
+    }
+
+    const baseFresnel0 = base.map((channel) => 0.04 + (channel - 0.04) * metallic);
+    let film = [0, 0, 0];
+    const iridescence = inputs.Iridescence ?? 0;
+    if (iridescence > 0) {
+      const evaluated = graphics.ThinFilmIridescence.Evaluate(
+        1, inputs.IridescenceIor ?? 1.3, NoV, inputs.IridescenceThickness ?? 100,
+        new Vector3(baseFresnel0[0], baseFresnel0[1], baseFresnel0[2]));
+      film = [evaluated.X, evaluated.Y, evaluated.Z];
+    }
+
+    const emitted = [light.Color.X, light.Color.Y, light.Color.Z];
+    return base.map((channel, index) => {
+      const f0 = baseFresnel0[index];
+      let fresnel = f0 + (1 - f0) * schlick;
+      if (iridescence > 0) fresnel += (film[index] - fresnel) * iridescence;
+      const specular = (fresnel * distributionTerm * geometryTerm) /
+        Math.max(4 * NoV * NoL, 1e-7);
+      const diffuse = ((1 - fresnel) * (1 - metallic) * channel) / PI;
+      let layered = specular + sheenColor[index] * sheenTerm;
+      if (clearcoat > 0) {
+        layered = layered * (1 - clearcoat * clearcoatFresnel) + clearcoat * clearcoatSpecular;
+      }
+      const diffuseTerm = diffuse * wrappedNoL + subsurfaceColor[index] * backScatter;
+      return (layered * NoL + diffuseTerm) * emitted[index] * light.Intensity * attenuation;
+    });
+  };
+
+  const point = {
+    Type: ClusteredLightType.Point, Position: new Vector3(0, 0, 3),
+    Direction: new Vector3(0, 0, -1), Color: new Vector3(1, 0.9, 0.8), Intensity: 1, Range: 10,
+    InnerAngle: 0.3, OuterAngle: 0.6, CastsShadows: false,
+  };
+  const base = {
+    Light: point, Surface: Vector3.Zero, Normal: new Vector3(0, 0, 1),
+    CameraPosition: new Vector3(0, 0, 5), BaseColor: new Vector3(0.8, 0.6, 0.4),
+    Metallic: 0, Roughness: 0.5,
+  };
+  // Head-on, off to the side and grazing, so the terms that only show at an angle actually show.
+  const grazing = {
+    ...base, Light: { ...point, Position: new Vector3(4, 0, 0.4) },
+    CameraPosition: new Vector3(-4, 0, 0.4),
+  };
+  const cases = [
+    ["plain", base],
+    ["metal", { ...base, Metallic: 1 }],
+    ["rough", { ...base, Roughness: 0.9 }],
+    ["smooth", { ...base, Roughness: 0.05 }],
+    ["twice as bright", { ...base, Light: { ...point, Intensity: 2 } }],
+    ["off to the side", { ...base, Light: { ...point, Position: new Vector3(2, 1, 2) } }],
+    ["grazing", grazing],
+    ["a spot pointing at it", { ...base, Light: { ...point, Type: ClusteredLightType.Spot } }],
+    ["a spot pointing away", {
+      ...base,
+      Light: { ...point, Type: ClusteredLightType.Spot, Direction: new Vector3(1, 0, 0) },
+    }],
+    ["clearcoated", { ...base, Clearcoat: 1, ClearcoatRoughness: 0.1 }],
+    ["clearcoated at a grazing angle", { ...grazing, Clearcoat: 0.7, ClearcoatRoughness: 0.2 }],
+    // A ROUGH sheen: the lobe's width is 1/max(roughness^2, 0.07), so a smooth one is too narrow
+    // to reach this geometry at all and changes nothing a float can hold.
+    ["sheened at a grazing angle", {
+      ...grazing, SheenColor: new Vector3(1, 0.8, 0.6), SheenRoughness: 0.9,
+    }],
+    ["iridescent", { ...base, Iridescence: 1, IridescenceIor: 1.4, IridescenceThickness: 400 }],
+    ["subsurface", { ...base, SubsurfaceColor: new Vector3(0.9, 0.2, 0.1), SubsurfaceWrap: 0.5 }],
+    ["everything at once", {
+      ...grazing, Metallic: 0.3, Roughness: 0.4, Clearcoat: 0.5, ClearcoatRoughness: 0.15,
+      SheenColor: new Vector3(0.3, 0.3, 0.4), SheenRoughness: 0.85,
+      Iridescence: 0.6, IridescenceIor: 1.35, IridescenceThickness: 250,
+      SubsurfaceColor: new Vector3(0.4, 0.1, 0.05), SubsurfaceWrap: 0.3,
+    }],
+  ];
+  const measured = new Map();
+  for (const [name, inputs] of cases) {
+    const value = ClusteredForwardEffect.Contribution(inputs);
+    const predicted = reference(inputs);
+    measured.set(name, [value.X, value.Y, value.Z]);
+    for (const [index, channel] of [value.X, value.Y, value.Z].entries()) {
+      assert.ok(
+        Math.abs(channel - predicted[index]) < Math.max(Math.abs(predicted[index]) * 2e-3, 1e-6),
+        `${name}, channel ${index}: ${channel} vs ${predicted[index]}`,
+      );
+    }
+  }
+  // The comparison is only worth anything if the cases differ from each other and from zero.
+  const distinct = new Set([...measured.values()].map((value) => value.map((v) => v.toFixed(6)).join()));
+  assert.ok(distinct.size >= cases.length - 2, `only ${distinct.size} distinct results out of ${cases.length}`);
+  assert.ok(measured.get("plain").every((channel) => channel > 0), "a lit surface is lit");
+
+  // The structural facts, each named so a regression to "always zero" or "ignores its light" fails.
+  for (const [name, inputs] of [
+    ["past its range", { ...base, Light: { ...point, Range: 2 } }],
+    ["facing away", { ...base, Normal: new Vector3(0, 0, -1) }],
+    ["exactly at the surface", { ...base, Light: { ...point, Position: Vector3.Zero } }],
+    ["a spot pointing away", {
+      ...base,
+      Light: { ...point, Type: ClusteredLightType.Spot, Direction: new Vector3(1, 0, 0) },
+    }],
+  ]) {
+    const value = ClusteredForwardEffect.Contribution(inputs);
+    assert.deepEqual(
+      [value.X, value.Y, value.Z], [0, 0, 0],
+      `a light ${name} must add exactly nothing`,
+    );
+  }
+  // Intensity is a plain multiplier, which is the one exactly-linear relationship in the model.
+  const once = measured.get("plain");
+  const twice = measured.get("twice as bright");
+  for (const [index, channel] of twice.entries()) {
+    assert.ok(
+      Math.abs(channel - once[index] * 2) < 1e-6,
+      `doubling the intensity must double channel ${index}: ${channel} vs ${once[index] * 2}`,
+    );
+  }
+  // Each optional layer must actually change the answer, or asserting it against the reference
+  // would be asserting the reference's own dead branch.
+  for (const name of [
+    "clearcoated", "clearcoated at a grazing angle", "sheened at a grazing angle",
+    "iridescent", "subsurface",
+  ]) {
+    // A narrow sheen lobe is a real physical nothing at this geometry, so the case above uses a
+    // rough one; this loop is what would catch it if the layer were being dropped entirely.
+    const reference0 = name.includes("grazing") ? measured.get("grazing") : measured.get("plain");
+    assert.notDeepEqual(
+      measured.get(name), reference0,
+      `${name} must differ from the same surface without that layer`,
+    );
+  }
+  // The light's own colour is a per-channel multiplier: a white light of the same intensity gives
+  // the answer divided by the colour.
+  const white = ClusteredForwardEffect.Contribution(
+    { ...base, Light: { ...point, Color: new Vector3(1, 1, 1) } });
+  const colour = [point.Color.X, point.Color.Y, point.Color.Z];
+  for (const [index, channel] of [white.X, white.Y, white.Z].entries()) {
+    assert.ok(
+      Math.abs(channel * colour[index] - once[index]) < 1e-6,
+      `the light's colour must scale channel ${index} and nothing else`,
+    );
+  }
+
+  // --- and the same BRDF driven from a material extension set ----------------------------------------
+  const extensionSet = new graphics.PbrMaterialExtensions();
+  try {
+    const neutral = ClusteredForwardEffect.ContributionWithExtensions(base, extensionSet);
+    assert.deepEqual(
+      [neutral.X, neutral.Y, neutral.Z], once,
+      "a neutral extension set must shade exactly as no extensions at all",
+    );
+    extensionSet.ClearcoatFactor = 1;
+    extensionSet.ClearcoatRoughness = 0.1;
+    const coated = ClusteredForwardEffect.ContributionWithExtensions(base, extensionSet);
+    assert.deepEqual(
+      [coated.X, coated.Y, coated.Z], measured.get("clearcoated"),
+      "and a clearcoat set through the extensions must shade exactly as one passed directly",
+    );
+  } finally {
+    extensionSet.Dispose();
+  }
+  assert.throws(
+    () => ClusteredForwardEffect.ContributionWithExtensions(base, null), TypeError,
+    "an extension set is required, because there is no neutral handle",
+  );
+  assert.throws(() => ClusteredForwardEffect.Contribution(null), TypeError);
+  assert.throws(
+    () => ClusteredForwardEffect.Contribution({ ...base, Roughness: Number.NaN }), TypeError);
+
+  console.log(
+    `CNA_TS_NATIVE_CLUSTERED_BRDF=PASS ATTENUATION=BEER_LAMBERT CASES=${cases.length} ` +
+    `DISTINCT=${distinct.size} EXTENSIONS=AGREE_WITH_DIRECT`,
+  );
+});
+
+test("the clustered light buffer, the compute assignment and the forward effect hold real state", async () => {
+  class ClusteredProbeGame extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+
+    LoadContent() {
+      const graphics = computeExtensions;
+      const device = this.GraphicsDevice;
+      const record = (name, body) => {
+        try {
+          this.evidence[name] = body();
+        } catch (error) {
+          this.evidence[name] = `${error.constructor.name}(${error.cnaResult ?? "-"}): ` +
+            `${(error.message ?? "").slice(0, 140)}`;
+        }
+      };
+
+      record("buffer", () => {
+        const buffer = new graphics.ClusteredLightBuffer(device);
+        const grid = new graphics.ClusterGrid(device, 4, 4, 4);
+        const set = new graphics.ClusteredLightSet(device);
+        const assignment = new graphics.ClusteredLightAssignment(device);
+        try {
+          const empty = {
+            uploaded: buffer.IsUploaded, lights: buffer.LightCount,
+            clusters: buffer.ClusterCount, references: buffer.ReferenceCount,
+          };
+          // Three lights the grid can see, sorted by the CPU assignment that is already qualified.
+          const view = Matrix.CreateLookAt(new Vector3(0, 0, 0), new Vector3(0, 0, -1), Vector3.Up);
+          const projection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 3, 1, 1, 100);
+          grid.SetProjection(projection, 1, 100);
+          for (const place of [
+            new Vector3(0, 0, -10), new Vector3(3, 0, -20), new Vector3(-3, 2, -30),
+          ]) {
+            set.Add({
+              Type: graphics.ClusteredLightType.Point, Position: place,
+              Direction: new Vector3(0, 0, -1), Color: new Vector3(1, 1, 1),
+              Intensity: 1, Range: 8, InnerAngle: 0.3, OuterAngle: 0.6, CastsShadows: false,
+            });
+          }
+          const bounds = [];
+          for (let index = 0; index < set.Count; index += 1) bounds.push(set.GetBoundsAt(index));
+          assignment.Assign(grid, view, bounds);
+          buffer.Upload(set, grid, assignment);
+          return {
+            empty,
+            uploaded: buffer.IsUploaded,
+            lights: buffer.LightCount,
+            clusters: buffer.ClusterCount,
+            references: buffer.ReferenceCount,
+            setCount: set.Count,
+            gridClusters: grid.ClusterCount,
+            assignmentTotal: assignment.TotalReferenceCount,
+            glslLength: graphics.ClusteredLightBuffer.LightLookupGlsl.length,
+          };
+        } finally {
+          assignment.Dispose();
+          set.Dispose();
+          grid.Dispose();
+          buffer.Dispose();
+        }
+      });
+
+      record("adopt", () => {
+        const assignment = new graphics.ClusteredLightAssignment(device);
+        try {
+          // An assignment built by hand rather than by assigning: two clusters, the first holding
+          // lights 0 and 2, the second holding light 1.
+          assignment.Adopt(3, [0, 2, 3], [0, 2, 1]);
+          return {
+            first: assignment.LightsInCluster(0).length,
+            second: assignment.LightsInCluster(1).length,
+            firstLights: [...assignment.LightsInCluster(0)],
+            secondLights: [...assignment.LightsInCluster(1)],
+            lightCount: assignment.LightCount,
+            indices: [...assignment.GetIndices()],
+          };
+        } finally {
+          assignment.Dispose();
+        }
+      });
+
+      record("compute", () => {
+        const compute = new graphics.ClusteredLightCompute(device, 8);
+        try {
+          return {
+            supported: compute.IsSupported,
+            reason: compute.UnsupportedReason,
+            stride: compute.Stride,
+            usedBefore: compute.UsedCompute,
+            overflowedBefore: compute.HasOverflowed,
+          };
+        } finally {
+          compute.Dispose();
+        }
+      });
+
+      record("forward", () => {
+        const effect = new graphics.ClusteredForwardEffect(device);
+        try {
+          const defaults = {
+            supported: effect.IsSupported,
+            base: [effect.BaseColor.X, effect.BaseColor.Y, effect.BaseColor.Z],
+            metallic: effect.Metallic, roughness: effect.Roughness, ior: effect.Ior,
+            ambient: [effect.Ambient.X, effect.Ambient.Y, effect.Ambient.Z],
+            probe: effect.HasLightProbe,
+            frame: effect.HasOpaqueFrame,
+            extensions: effect.HasMaterialExtensions,
+          };
+          effect.BaseColor = new Vector3(0.2, 0.4, 0.6);
+          effect.Metallic = 0.75;
+          effect.Roughness = 0.375;
+          effect.Ior = 1.8;
+          effect.Ambient = new Vector3(0.05, 0.06, 0.07);
+          const written = {
+            base: [effect.BaseColor.X, effect.BaseColor.Y, effect.BaseColor.Z],
+            metallic: effect.Metallic, roughness: effect.Roughness, ior: effect.Ior,
+            ambient: [effect.Ambient.X, effect.Ambient.Y, effect.Ambient.Z],
+          };
+          // A probe attaches and detaches; the flag is how a caller tells which.
+          const probe = new graphics.LightProbe(new Vector3(0, 1, 0));
+          const extensionSet = new graphics.PbrMaterialExtensions();
+          const texture = new Graphics.Texture2D(device, 2, 2);
+          try {
+            effect.SetLightProbe(probe);
+            const withProbe = effect.HasLightProbe;
+            effect.ClearLightProbe();
+            effect.SetMaterialExtensions(extensionSet);
+            const withExtensions = effect.HasMaterialExtensions;
+            effect.SetOpaqueFrame(texture);
+            const withFrame = effect.HasOpaqueFrame;
+            effect.SetOpaqueFrame(null);
+            return {
+              defaults, written, withProbe, afterClear: effect.HasLightProbe,
+              withExtensions, withFrame, afterClearFrame: effect.HasOpaqueFrame,
+            };
+          } finally {
+            texture.Dispose();
+            extensionSet.Dispose();
+            probe.Dispose();
+          }
+        } finally {
+          effect.Dispose();
+        }
+      });
+
+      record("shaderBorrow", () => {
+        const effect = new graphics.ClusteredForwardEffect(device);
+        let shader;
+        try {
+          shader = effect.GetShader();
+        } catch (error) {
+          effect.Dispose();
+          return { unsupported: `result ${error.cnaResult}` };
+        }
+        // CNA refuses to destroy the effect while the shader borrow is outstanding, which is the
+        // counted-borrow rule the rest of the layer follows.
+        let refused = "SUCCEEDED";
+        try {
+          effect.Dispose();
+        } catch (error) {
+          refused = `result ${error.cnaResult}`;
+        }
+        shader.Dispose();
+        let after = "SUCCEEDED";
+        try {
+          effect.Dispose();
+        } catch (error) {
+          after = `result ${error.cnaResult}`;
+        }
+        return { refused, after };
+      });
+
+      this.Exit();
+      super.LoadContent();
+    }
+
+    Update(gameTime) {
+      this.Exit();
+      super.Update(gameTime);
+    }
+  }
+
+  const game = new ClusteredProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  // The game must destroy cleanly: a shader borrow left outstanding would stop it.
+  game.Dispose();
+
+  // --- the buffer ---------------------------------------------------------------------------------
+  const buffer = evidence.buffer;
+  assert.equal(typeof buffer, "object", `the buffer block did not run: ${buffer}`);
+  assert.deepEqual(
+    [buffer.empty.uploaded, buffer.empty.lights, buffer.empty.clusters, buffer.empty.references],
+    [false, 0, 0, 0],
+    "a fresh buffer holds nothing and says so",
+  );
+  assert.equal(buffer.uploaded, true, "uploading makes it uploaded");
+  assert.equal(
+    buffer.lights, buffer.setCount,
+    "and it holds exactly the lights the set held, not a count of its own",
+  );
+  assert.equal(
+    buffer.clusters, buffer.gridClusters,
+    "and exactly the clusters the grid had",
+  );
+  assert.equal(
+    buffer.references, buffer.assignmentTotal,
+    "and exactly as many light-in-cluster references as the assignment made, summed over clusters",
+  );
+  assert.ok(buffer.references > 0, "the fixture must actually put lights in clusters");
+  assert.ok(buffer.glslLength > 100, "and the layer hands out the GLSL a shader looks them up with");
+
+  // --- an assignment built by hand ------------------------------------------------------------------
+  const adopt = evidence.adopt;
+  assert.equal(typeof adopt, "object", `adopt did not run: ${adopt}`);
+  assert.equal(adopt.first, 2, "the first cluster holds the two lights its offsets bracket");
+  assert.equal(adopt.second, 1, "and the second holds the one");
+  assert.deepEqual(adopt.firstLights, [0, 2], "in the order the indices were given");
+  assert.deepEqual(adopt.secondLights, [1]);
+  assert.equal(adopt.lightCount, 3, "and it knows how many lights the indices refer into");
+  assert.deepEqual(adopt.indices, [0, 2, 1], "the flat index list is the one that was adopted");
+
+  // --- the compute assignment -------------------------------------------------------------------------
+  const compute = evidence.compute;
+  assert.equal(compute.stride, 8, "the stride is the caller's");
+  assert.equal(compute.usedBefore, false, "nothing has run on the GPU before the first assign");
+  assert.equal(compute.overflowedBefore, false, "and nothing has overflowed");
+  if (compute.supported) {
+    assert.equal(compute.reason, "", "a supported compute names no reason");
+  } else {
+    assert.ok(
+      compute.reason.length > 0,
+      "an unsupported one says why rather than leaving a caller guessing",
+    );
+  }
+
+  // --- the forward effect ---------------------------------------------------------------------------
+  const forward = evidence.forward;
+  assert.equal(typeof forward, "object", `forward did not run: ${forward}`);
+  assert.equal(forward.defaults.metallic, 0, "a fresh surface is dielectric");
+  assert.ok(forward.defaults.roughness > 0 && forward.defaults.roughness <= 1);
+  assert.ok(Math.abs(forward.defaults.ior - 1.5) < 1e-5, "with glTF's own default IOR");
+  assert.equal(forward.defaults.probe, false, "with no probe attached");
+  assert.equal(forward.defaults.frame, false, "and no opaque frame");
+  assert.equal(
+    forward.defaults.extensions, true,
+    "but an extension set already there: the effect owns a neutral one from the start, so the " +
+    "four KHR layers are always addressable rather than needing one to be attached first",
+  );
+  // Written at float precision, so the dyadic values come back exactly and 1.8 comes back as the
+  // float nearest it -- which is what a round trip through a C float means.
+  for (const [index, expected] of [0.2, 0.4, 0.6].entries()) {
+    assert.equal(
+      forward.written.base[index], Math.fround(expected),
+      `base colour channel ${index} did not round-trip at float precision`,
+    );
+  }
+  assert.equal(forward.written.metallic, 0.75, "a dyadic value comes back exactly");
+  assert.equal(forward.written.roughness, 0.375);
+  assert.equal(forward.written.ior, Math.fround(1.8), "and 1.8 comes back as the nearest float");
+  assert.equal(forward.withProbe, true, "a probe attaches");
+  assert.equal(forward.afterClear, false, "and detaches");
+  assert.equal(forward.withExtensions, true, "an extension set attaches");
+  assert.equal(forward.withFrame, true, "an opaque frame attaches");
+  assert.equal(forward.afterClearFrame, false, "and null takes it away");
+
+  // --- the shader borrow ------------------------------------------------------------------------------
+  const borrow = evidence.shaderBorrow;
+  if (!borrow.unsupported) {
+    assert.match(
+      borrow.refused, /^result \d+$/,
+      "an effect must refuse to be destroyed while it is lending its shader",
+    );
+    assert.equal(
+      borrow.after, "SUCCEEDED",
+      "and must destroy cleanly once the borrow has been given back",
+    );
+  }
+
+  console.log(
+    `CNA_TS_NATIVE_CLUSTERED_OBJECTS=PASS BUFFER=${buffer.lights}/${buffer.clusters}/` +
+    `${buffer.references} ADOPT=2+1 COMPUTE=${compute.supported ? "GPU" : "REFUSED"} ` +
+    `BORROW=${borrow.unsupported ? "SKIPPED" : "COUNTED"}`,
+  );
+});

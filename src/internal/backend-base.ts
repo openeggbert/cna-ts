@@ -27,6 +27,7 @@ import type {
   BoundingSphereSnapshot,
   CameraInventorySnapshot,
   ClusterBoundsSnapshot,
+  ClusteredContributionSnapshot,
   ClusteredLightSnapshot,
   CnaAtmosphereBackend,
   CnaAudioBackend,
@@ -2047,6 +2048,172 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
     _pipeline: NativeHandle,
     _index: number,
   ): string { return this.unsupported("getPipelinePassTimingName"); }
+  public createClusteredLightBuffer(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createClusteredLightBuffer"); }
+  public destroyClusteredLightBuffer(
+    _buffer: NativeHandle,
+  ): void { return this.unsupported("destroyClusteredLightBuffer"); }
+  public uploadClusteredLightBuffer(
+    _buffer: NativeHandle,
+    _lights: NativeHandle,
+    _grid: NativeHandle,
+    _assignment: NativeHandle,
+  ): void { return this.unsupported("uploadClusteredLightBuffer"); }
+  public bindClusteredLightBuffer(
+    _buffer: NativeHandle,
+    _effect: NativeHandle,
+    _firstUnit: number,
+  ): void { return this.unsupported("bindClusteredLightBuffer"); }
+  public isClusteredLightBufferUploaded(
+    _buffer: NativeHandle,
+  ): boolean { return this.unsupported("isClusteredLightBufferUploaded"); }
+  public getClusteredLightBufferLightCount(
+    _buffer: NativeHandle,
+  ): number { return this.unsupported("getClusteredLightBufferLightCount"); }
+  public getClusteredLightBufferClusterCount(
+    _buffer: NativeHandle,
+  ): number { return this.unsupported("getClusteredLightBufferClusterCount"); }
+  public getClusteredLightBufferReferenceCount(
+    _buffer: NativeHandle,
+  ): number { return this.unsupported("getClusteredLightBufferReferenceCount"); }
+  public getClusteredLightLookupGlsl(): string { return this.unsupported("getClusteredLightLookupGlsl"); }
+  public adoptClusteredLightAssignment(
+    _assignment: NativeHandle,
+    _lightCount: number,
+    _offsets: readonly number[],
+    _indices: readonly number[],
+  ): void { return this.unsupported("adoptClusteredLightAssignment"); }
+  public createClusteredLightCompute(
+    _graphicsDevice: NativeHandle,
+    _stride: number,
+  ): NativeHandle { return this.unsupported("createClusteredLightCompute"); }
+  public destroyClusteredLightCompute(
+    _compute: NativeHandle,
+  ): void { return this.unsupported("destroyClusteredLightCompute"); }
+  public isClusteredLightComputeSupported(
+    _compute: NativeHandle,
+  ): boolean { return this.unsupported("isClusteredLightComputeSupported"); }
+  public getClusteredLightComputeUnsupportedReason(
+    _compute: NativeHandle,
+  ): string { return this.unsupported("getClusteredLightComputeUnsupportedReason"); }
+  public getClusteredLightComputeStride(
+    _compute: NativeHandle,
+  ): number { return this.unsupported("getClusteredLightComputeStride"); }
+  public assignClusteredLightCompute(
+    _compute: NativeHandle,
+    _grid: NativeHandle,
+    _view: readonly number[],
+    _bounds: readonly BoundingSphereSnapshot[],
+    _assignment: NativeHandle,
+  ): void { return this.unsupported("assignClusteredLightCompute"); }
+  public didClusteredLightComputeUseCompute(
+    _compute: NativeHandle,
+  ): boolean { return this.unsupported("didClusteredLightComputeUseCompute"); }
+  public hasClusteredLightComputeOverflowed(
+    _compute: NativeHandle,
+  ): boolean { return this.unsupported("hasClusteredLightComputeOverflowed"); }
+  public createClusteredForwardEffect(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createClusteredForwardEffect"); }
+  public destroyClusteredForwardEffect(
+    _effect: NativeHandle,
+  ): void { return this.unsupported("destroyClusteredForwardEffect"); }
+  public isClusteredForwardEffectSupported(
+    _effect: NativeHandle,
+  ): boolean { return this.unsupported("isClusteredForwardEffectSupported"); }
+  public beginClusteredForwardEffect(
+    _effect: NativeHandle,
+    _world: readonly number[],
+    _view: readonly number[],
+    _projection: readonly number[],
+    _cameraPosition: Vector3Snapshot,
+    _lights: NativeHandle,
+  ): void { return this.unsupported("beginClusteredForwardEffect"); }
+  public getClusteredForwardShader(
+    _effect: NativeHandle,
+  ): NativeHandle { return this.unsupported("getClusteredForwardShader"); }
+  public getClusteredForwardBaseColor(
+    _effect: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getClusteredForwardBaseColor"); }
+  public setClusteredForwardBaseColor(
+    _effect: NativeHandle,
+    _color: Vector3Snapshot,
+  ): void { return this.unsupported("setClusteredForwardBaseColor"); }
+  public getClusteredForwardMetallic(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getClusteredForwardMetallic"); }
+  public setClusteredForwardMetallic(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setClusteredForwardMetallic"); }
+  public getClusteredForwardRoughness(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getClusteredForwardRoughness"); }
+  public setClusteredForwardRoughness(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setClusteredForwardRoughness"); }
+  public getClusteredForwardIor(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getClusteredForwardIor"); }
+  public setClusteredForwardIor(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setClusteredForwardIor"); }
+  public getClusteredForwardAmbient(
+    _effect: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getClusteredForwardAmbient"); }
+  public setClusteredForwardAmbient(
+    _effect: NativeHandle,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setClusteredForwardAmbient"); }
+  public getClusteredForwardOpaqueFrame(
+    _effect: NativeHandle,
+  ): NativeHandle { return this.unsupported("getClusteredForwardOpaqueFrame"); }
+  public setClusteredForwardOpaqueFrame(
+    _effect: NativeHandle,
+    _frame: NativeHandle,
+  ): void { return this.unsupported("setClusteredForwardOpaqueFrame"); }
+  public getClusteredForwardMaterialExtensions(
+    _effect: NativeHandle,
+  ): NativeHandle { return this.unsupported("getClusteredForwardMaterialExtensions"); }
+  public setClusteredForwardMaterialExtensions(
+    _effect: NativeHandle,
+    _extensions: NativeHandle,
+  ): void { return this.unsupported("setClusteredForwardMaterialExtensions"); }
+  public hasClusteredForwardLightProbe(
+    _effect: NativeHandle,
+  ): boolean { return this.unsupported("hasClusteredForwardLightProbe"); }
+  public clearClusteredForwardLightProbe(
+    _effect: NativeHandle,
+  ): void { return this.unsupported("clearClusteredForwardLightProbe"); }
+  public setClusteredForwardLightProbe(
+    _effect: NativeHandle,
+    _probe: NativeHandle,
+  ): void { return this.unsupported("setClusteredForwardLightProbe"); }
+  public setClusteredForwardLightProbeVolume(
+    _effect: NativeHandle,
+    _volume: NativeHandle,
+  ): void { return this.unsupported("setClusteredForwardLightProbeVolume"); }
+  public clusteredVolumeAttenuation(
+    _attenuationColor: Vector3Snapshot,
+    _attenuationDistance: number,
+    _thickness: number,
+  ): Vector3Snapshot { return this.unsupported("clusteredVolumeAttenuation"); }
+  public clusteredLightContribution(
+    _inputs: ClusteredContributionSnapshot,
+  ): Vector3Snapshot { return this.unsupported("clusteredLightContribution"); }
+  public clusteredLightContributionWithExtensions(
+    _inputs: ClusteredContributionSnapshot,
+    _extensions: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("clusteredLightContributionWithExtensions"); }
+  public addDebugDrawClusterSliceGizmo(
+    _debug: NativeHandle,
+    _grid: NativeHandle,
+    _inverseView: readonly number[],
+    _color: number,
+  ): void { return this.unsupported("addDebugDrawClusterSliceGizmo"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,

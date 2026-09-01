@@ -1322,6 +1322,71 @@ export interface CnaGraphicsExtensionBackend {
     pipeline: NativeHandle, index: number,
   ): { readonly Milliseconds: number; readonly SampleCount: number };
   getPipelinePassTimingName(pipeline: NativeHandle, index: number): string;
+  // --- clustered lighting: the buffer, the compute assignment and the forward effect -------------
+  createClusteredLightBuffer(graphicsDevice: NativeHandle): NativeHandle;
+  destroyClusteredLightBuffer(buffer: NativeHandle): void;
+  uploadClusteredLightBuffer(
+    buffer: NativeHandle, lights: NativeHandle, grid: NativeHandle, assignment: NativeHandle,
+  ): void;
+  bindClusteredLightBuffer(
+    buffer: NativeHandle, effect: NativeHandle, firstUnit: number,
+  ): void;
+  isClusteredLightBufferUploaded(buffer: NativeHandle): boolean;
+  getClusteredLightBufferLightCount(buffer: NativeHandle): number;
+  getClusteredLightBufferClusterCount(buffer: NativeHandle): number;
+  getClusteredLightBufferReferenceCount(buffer: NativeHandle): number;
+  getClusteredLightLookupGlsl(): string;
+  adoptClusteredLightAssignment(
+    assignment: NativeHandle, lightCount: number, offsets: readonly number[],
+    indices: readonly number[],
+  ): void;
+  createClusteredLightCompute(graphicsDevice: NativeHandle, stride: number): NativeHandle;
+  destroyClusteredLightCompute(compute: NativeHandle): void;
+  isClusteredLightComputeSupported(compute: NativeHandle): boolean;
+  getClusteredLightComputeUnsupportedReason(compute: NativeHandle): string;
+  getClusteredLightComputeStride(compute: NativeHandle): number;
+  assignClusteredLightCompute(
+    compute: NativeHandle, grid: NativeHandle, view: readonly number[],
+    bounds: readonly BoundingSphereSnapshot[], assignment: NativeHandle,
+  ): void;
+  didClusteredLightComputeUseCompute(compute: NativeHandle): boolean;
+  hasClusteredLightComputeOverflowed(compute: NativeHandle): boolean;
+  createClusteredForwardEffect(graphicsDevice: NativeHandle): NativeHandle;
+  destroyClusteredForwardEffect(effect: NativeHandle): void;
+  isClusteredForwardEffectSupported(effect: NativeHandle): boolean;
+  beginClusteredForwardEffect(
+    effect: NativeHandle, world: readonly number[], view: readonly number[],
+    projection: readonly number[], cameraPosition: Vector3Snapshot, lights: NativeHandle,
+  ): void;
+  getClusteredForwardShader(effect: NativeHandle): NativeHandle;
+  getClusteredForwardBaseColor(effect: NativeHandle): Vector3Snapshot;
+  setClusteredForwardBaseColor(effect: NativeHandle, color: Vector3Snapshot): void;
+  getClusteredForwardMetallic(effect: NativeHandle): number;
+  setClusteredForwardMetallic(effect: NativeHandle, value: number): void;
+  getClusteredForwardRoughness(effect: NativeHandle): number;
+  setClusteredForwardRoughness(effect: NativeHandle, value: number): void;
+  getClusteredForwardIor(effect: NativeHandle): number;
+  setClusteredForwardIor(effect: NativeHandle, value: number): void;
+  getClusteredForwardAmbient(effect: NativeHandle): Vector3Snapshot;
+  setClusteredForwardAmbient(effect: NativeHandle, value: Vector3Snapshot): void;
+  getClusteredForwardOpaqueFrame(effect: NativeHandle): NativeHandle;
+  setClusteredForwardOpaqueFrame(effect: NativeHandle, frame: NativeHandle): void;
+  getClusteredForwardMaterialExtensions(effect: NativeHandle): NativeHandle;
+  setClusteredForwardMaterialExtensions(effect: NativeHandle, extensions: NativeHandle): void;
+  hasClusteredForwardLightProbe(effect: NativeHandle): boolean;
+  clearClusteredForwardLightProbe(effect: NativeHandle): void;
+  setClusteredForwardLightProbe(effect: NativeHandle, probe: NativeHandle): void;
+  setClusteredForwardLightProbeVolume(effect: NativeHandle, volume: NativeHandle): void;
+  clusteredVolumeAttenuation(
+    attenuationColor: Vector3Snapshot, attenuationDistance: number, thickness: number,
+  ): Vector3Snapshot;
+  clusteredLightContribution(inputs: ClusteredContributionSnapshot): Vector3Snapshot;
+  clusteredLightContributionWithExtensions(
+    inputs: ClusteredContributionSnapshot, extensions: NativeHandle,
+  ): Vector3Snapshot;
+  addDebugDrawClusterSliceGizmo(
+    debug: NativeHandle, grid: NativeHandle, inverseView: readonly number[], color: number,
+  ): void;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
@@ -1948,6 +2013,26 @@ export interface PipelineSettingsSnapshot {
   readonly RenderQuality: number;
   readonly ShadowQuality: number;
   readonly ShadowsEnabled: boolean;
+}
+
+/** Everything one light's contribution to one surface is computed from. */
+export interface ClusteredContributionSnapshot {
+  readonly Light: ClusteredLightSnapshot;
+  readonly Surface: Vector3Snapshot;
+  readonly Normal: Vector3Snapshot;
+  readonly CameraPosition: Vector3Snapshot;
+  readonly BaseColor: Vector3Snapshot;
+  readonly Metallic: number;
+  readonly Roughness: number;
+  readonly Clearcoat: number;
+  readonly ClearcoatRoughness: number;
+  readonly SheenColor: Vector3Snapshot;
+  readonly SheenRoughness: number;
+  readonly Iridescence: number;
+  readonly IridescenceIor: number;
+  readonly IridescenceThickness: number;
+  readonly SubsurfaceColor: Vector3Snapshot;
+  readonly SubsurfaceWrap: number;
 }
 
 export interface Vector4Snapshot {

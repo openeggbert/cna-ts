@@ -50,6 +50,7 @@ import type {
   GltfExtensionTexturesSnapshot,
   GltfMaterialSourceSnapshot,
   GltfMaterialTexturesSnapshot,
+  ClusteredContributionSnapshot,
   CullableInstanceSnapshot,
   DebugVertexSnapshot,
   PassTimingSnapshot,
@@ -1223,6 +1224,51 @@ interface NativeBridge {
   releasePipelineDeviceResources(pipeline: bigint): void;
   getPipelinePassTimingCount(pipeline: bigint): number;
   getPipelinePassTimingName(pipeline: bigint, index: number): string;
+  createClusteredLightBuffer(graphicsDevice: bigint): bigint;
+  destroyClusteredLightBuffer(buffer: bigint): void;
+  uploadClusteredLightBuffer(buffer: bigint, lights: bigint, grid: bigint, assignment: bigint): void;
+  bindClusteredLightBuffer(buffer: bigint, effect: bigint, firstUnit: number): void;
+  isClusteredLightBufferUploaded(buffer: bigint): boolean;
+  getClusteredLightBufferLightCount(buffer: bigint): number;
+  getClusteredLightBufferClusterCount(buffer: bigint): number;
+  getClusteredLightBufferReferenceCount(buffer: bigint): number;
+  getClusteredLightLookupGlsl(): string;
+  adoptClusteredLightAssignment(assignment: bigint, lightCount: number, offsets: readonly number[], indices: readonly number[]): void;
+  createClusteredLightCompute(graphicsDevice: bigint, stride: number): bigint;
+  destroyClusteredLightCompute(compute: bigint): void;
+  isClusteredLightComputeSupported(compute: bigint): boolean;
+  getClusteredLightComputeUnsupportedReason(compute: bigint): string;
+  getClusteredLightComputeStride(compute: bigint): number;
+  assignClusteredLightCompute(compute: bigint, grid: bigint, view: readonly number[], bounds: readonly BoundingSphereSnapshot[], assignment: bigint): void;
+  didClusteredLightComputeUseCompute(compute: bigint): boolean;
+  hasClusteredLightComputeOverflowed(compute: bigint): boolean;
+  createClusteredForwardEffect(graphicsDevice: bigint): bigint;
+  destroyClusteredForwardEffect(effect: bigint): void;
+  isClusteredForwardEffectSupported(effect: bigint): boolean;
+  beginClusteredForwardEffect(effect: bigint, world: readonly number[], view: readonly number[], projection: readonly number[], cameraPosition: Vector3Snapshot, lights: bigint): void;
+  getClusteredForwardShader(effect: bigint): bigint;
+  getClusteredForwardBaseColor(effect: bigint): Vector3Snapshot;
+  setClusteredForwardBaseColor(effect: bigint, color: Vector3Snapshot): void;
+  getClusteredForwardMetallic(effect: bigint): number;
+  setClusteredForwardMetallic(effect: bigint, value: number): void;
+  getClusteredForwardRoughness(effect: bigint): number;
+  setClusteredForwardRoughness(effect: bigint, value: number): void;
+  getClusteredForwardIor(effect: bigint): number;
+  setClusteredForwardIor(effect: bigint, value: number): void;
+  getClusteredForwardAmbient(effect: bigint): Vector3Snapshot;
+  setClusteredForwardAmbient(effect: bigint, value: Vector3Snapshot): void;
+  getClusteredForwardOpaqueFrame(effect: bigint): bigint;
+  setClusteredForwardOpaqueFrame(effect: bigint, frame: bigint): void;
+  getClusteredForwardMaterialExtensions(effect: bigint): bigint;
+  setClusteredForwardMaterialExtensions(effect: bigint, extensions: bigint): void;
+  hasClusteredForwardLightProbe(effect: bigint): boolean;
+  clearClusteredForwardLightProbe(effect: bigint): void;
+  setClusteredForwardLightProbe(effect: bigint, probe: bigint): void;
+  setClusteredForwardLightProbeVolume(effect: bigint, volume: bigint): void;
+  clusteredVolumeAttenuation(attenuationColor: Vector3Snapshot, attenuationDistance: number, thickness: number): Vector3Snapshot;
+  clusteredLightContribution(inputs: ClusteredContributionSnapshot): Vector3Snapshot;
+  clusteredLightContributionWithExtensions(inputs: ClusteredContributionSnapshot, extensions: bigint): Vector3Snapshot;
+  addDebugDrawClusterSliceGizmo(debug: bigint, grid: bigint, inverseView: readonly number[], color: number): void;
   applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { Applied: number; Settings: PipelineSettingsSnapshot };
   getPipelinePassTiming(pipeline: bigint, index: number): { Milliseconds: number; SampleCount: number };
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -3716,6 +3762,53 @@ export class NodeNativeBackend
   public releasePipelineDeviceResources(pipeline: NativeHandle): void { this.#bridge.releasePipelineDeviceResources(pipeline); }
   public getPipelinePassTimingCount(pipeline: NativeHandle): number { return this.#bridge.getPipelinePassTimingCount(pipeline); }
   public getPipelinePassTimingName(pipeline: NativeHandle, index: number): string { return this.#bridge.getPipelinePassTimingName(pipeline, index); }
+
+  // Clustered lighting.
+  public createClusteredLightBuffer(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createClusteredLightBuffer(graphicsDevice); }
+  public destroyClusteredLightBuffer(buffer: NativeHandle): void { this.#bridge.destroyClusteredLightBuffer(buffer); }
+  public uploadClusteredLightBuffer(buffer: NativeHandle, lights: NativeHandle, grid: NativeHandle, assignment: NativeHandle): void { this.#bridge.uploadClusteredLightBuffer(buffer, lights, grid, assignment); }
+  public bindClusteredLightBuffer(buffer: NativeHandle, effect: NativeHandle, firstUnit: number): void { this.#bridge.bindClusteredLightBuffer(buffer, effect, firstUnit); }
+  public isClusteredLightBufferUploaded(buffer: NativeHandle): boolean { return this.#bridge.isClusteredLightBufferUploaded(buffer); }
+  public getClusteredLightBufferLightCount(buffer: NativeHandle): number { return this.#bridge.getClusteredLightBufferLightCount(buffer); }
+  public getClusteredLightBufferClusterCount(buffer: NativeHandle): number { return this.#bridge.getClusteredLightBufferClusterCount(buffer); }
+  public getClusteredLightBufferReferenceCount(buffer: NativeHandle): number { return this.#bridge.getClusteredLightBufferReferenceCount(buffer); }
+  public getClusteredLightLookupGlsl(): string { return this.#bridge.getClusteredLightLookupGlsl(); }
+  public adoptClusteredLightAssignment(assignment: NativeHandle, lightCount: number, offsets: readonly number[], indices: readonly number[]): void { this.#bridge.adoptClusteredLightAssignment(assignment, lightCount, offsets, indices); }
+  public createClusteredLightCompute(graphicsDevice: NativeHandle, stride: number): NativeHandle { return this.#bridge.createClusteredLightCompute(graphicsDevice, stride); }
+  public destroyClusteredLightCompute(compute: NativeHandle): void { this.#bridge.destroyClusteredLightCompute(compute); }
+  public isClusteredLightComputeSupported(compute: NativeHandle): boolean { return this.#bridge.isClusteredLightComputeSupported(compute); }
+  public getClusteredLightComputeUnsupportedReason(compute: NativeHandle): string { return this.#bridge.getClusteredLightComputeUnsupportedReason(compute); }
+  public getClusteredLightComputeStride(compute: NativeHandle): number { return this.#bridge.getClusteredLightComputeStride(compute); }
+  public assignClusteredLightCompute(compute: NativeHandle, grid: NativeHandle, view: readonly number[], bounds: readonly BoundingSphereSnapshot[], assignment: NativeHandle): void { this.#bridge.assignClusteredLightCompute(compute, grid, view, bounds, assignment); }
+  public didClusteredLightComputeUseCompute(compute: NativeHandle): boolean { return this.#bridge.didClusteredLightComputeUseCompute(compute); }
+  public hasClusteredLightComputeOverflowed(compute: NativeHandle): boolean { return this.#bridge.hasClusteredLightComputeOverflowed(compute); }
+  public createClusteredForwardEffect(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createClusteredForwardEffect(graphicsDevice); }
+  public destroyClusteredForwardEffect(effect: NativeHandle): void { this.#bridge.destroyClusteredForwardEffect(effect); }
+  public isClusteredForwardEffectSupported(effect: NativeHandle): boolean { return this.#bridge.isClusteredForwardEffectSupported(effect); }
+  public beginClusteredForwardEffect(effect: NativeHandle, world: readonly number[], view: readonly number[], projection: readonly number[], cameraPosition: Vector3Snapshot, lights: NativeHandle): void { this.#bridge.beginClusteredForwardEffect(effect, world, view, projection, cameraPosition, lights); }
+  public getClusteredForwardShader(effect: NativeHandle): NativeHandle { return this.#bridge.getClusteredForwardShader(effect); }
+  public getClusteredForwardBaseColor(effect: NativeHandle): Vector3Snapshot { return this.#bridge.getClusteredForwardBaseColor(effect); }
+  public setClusteredForwardBaseColor(effect: NativeHandle, color: Vector3Snapshot): void { this.#bridge.setClusteredForwardBaseColor(effect, color); }
+  public getClusteredForwardMetallic(effect: NativeHandle): number { return this.#bridge.getClusteredForwardMetallic(effect); }
+  public setClusteredForwardMetallic(effect: NativeHandle, value: number): void { this.#bridge.setClusteredForwardMetallic(effect, value); }
+  public getClusteredForwardRoughness(effect: NativeHandle): number { return this.#bridge.getClusteredForwardRoughness(effect); }
+  public setClusteredForwardRoughness(effect: NativeHandle, value: number): void { this.#bridge.setClusteredForwardRoughness(effect, value); }
+  public getClusteredForwardIor(effect: NativeHandle): number { return this.#bridge.getClusteredForwardIor(effect); }
+  public setClusteredForwardIor(effect: NativeHandle, value: number): void { this.#bridge.setClusteredForwardIor(effect, value); }
+  public getClusteredForwardAmbient(effect: NativeHandle): Vector3Snapshot { return this.#bridge.getClusteredForwardAmbient(effect); }
+  public setClusteredForwardAmbient(effect: NativeHandle, value: Vector3Snapshot): void { this.#bridge.setClusteredForwardAmbient(effect, value); }
+  public getClusteredForwardOpaqueFrame(effect: NativeHandle): NativeHandle { return this.#bridge.getClusteredForwardOpaqueFrame(effect); }
+  public setClusteredForwardOpaqueFrame(effect: NativeHandle, frame: NativeHandle): void { this.#bridge.setClusteredForwardOpaqueFrame(effect, frame); }
+  public getClusteredForwardMaterialExtensions(effect: NativeHandle): NativeHandle { return this.#bridge.getClusteredForwardMaterialExtensions(effect); }
+  public setClusteredForwardMaterialExtensions(effect: NativeHandle, extensions: NativeHandle): void { this.#bridge.setClusteredForwardMaterialExtensions(effect, extensions); }
+  public hasClusteredForwardLightProbe(effect: NativeHandle): boolean { return this.#bridge.hasClusteredForwardLightProbe(effect); }
+  public clearClusteredForwardLightProbe(effect: NativeHandle): void { this.#bridge.clearClusteredForwardLightProbe(effect); }
+  public setClusteredForwardLightProbe(effect: NativeHandle, probe: NativeHandle): void { this.#bridge.setClusteredForwardLightProbe(effect, probe); }
+  public setClusteredForwardLightProbeVolume(effect: NativeHandle, volume: NativeHandle): void { this.#bridge.setClusteredForwardLightProbeVolume(effect, volume); }
+  public clusteredVolumeAttenuation(attenuationColor: Vector3Snapshot, attenuationDistance: number, thickness: number): Vector3Snapshot { return this.#bridge.clusteredVolumeAttenuation(attenuationColor, attenuationDistance, thickness); }
+  public clusteredLightContribution(inputs: ClusteredContributionSnapshot): Vector3Snapshot { return this.#bridge.clusteredLightContribution(inputs); }
+  public clusteredLightContributionWithExtensions(inputs: ClusteredContributionSnapshot, extensions: NativeHandle): Vector3Snapshot { return this.#bridge.clusteredLightContributionWithExtensions(inputs, extensions); }
+  public addDebugDrawClusterSliceGizmo(debug: NativeHandle, grid: NativeHandle, inverseView: readonly number[], color: number): void { this.#bridge.addDebugDrawClusterSliceGizmo(debug, grid, inverseView, color); }
   public applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { readonly Applied: number; readonly Settings: PipelineSettingsSnapshot } { return this.#bridge.applyPipelineSettingsFromString(settings, text); }
   public getPipelinePassTiming(pipeline: NativeHandle, index: number): { readonly Milliseconds: number; readonly SampleCount: number } { return this.#bridge.getPipelinePassTiming(pipeline, index); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }

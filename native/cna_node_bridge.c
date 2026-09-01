@@ -952,6 +952,7 @@ typedef CNA_Result (*DebugDrawPointGizmoFn)(CNA_Handle, const CNA_PointLightEXT*
 typedef CNA_Result (*DebugDrawSpotGizmoFn)(CNA_Handle, const CNA_SpotLightEXT*, CNA_Color, int32_t);
 typedef CNA_Result (*DebugDrawDirectionalGizmoFn)(CNA_Handle, const CNA_DirectionalLightEXT*, const CNA_Vector3*, float, CNA_Color);
 typedef CNA_Result (*DebugDrawVolumeGizmoFn)(CNA_Handle, CNA_Handle, CNA_Color, float);
+typedef CNA_Result (*DebugDrawClusterGizmoFn)(CNA_Handle, CNA_Handle, const CNA_Matrix*, CNA_Color);
 typedef CNA_Result (*DebugDrawCascadeGizmoFn)(CNA_Handle, CNA_Handle, CNA_Color);
 
 typedef CNA_Result (*HdrFloatFn)(float, float*);
@@ -979,6 +980,16 @@ typedef CNA_Result (*PipelineFormatOutFn)(CNA_Handle, CNA_SurfaceFormat*);
 typedef CNA_Result (*PipelineTimingCountFn)(CNA_Handle, uint64_t*);
 typedef CNA_Result (*PipelineTimingFn)(CNA_Handle, uint64_t, CNA_PassTimingEXT*);
 typedef CNA_Result (*PipelineTimingNameFn)(CNA_Handle, uint64_t, char*, uint64_t, uint64_t*);
+
+typedef CNA_Result (*ClusteredBufferUploadFn)(CNA_Handle, CNA_Handle, CNA_Handle, CNA_Handle);
+typedef CNA_Result (*ClusteredBufferBindFn)(CNA_Handle, CNA_Handle, int32_t);
+typedef CNA_Result (*ClusteredAssignmentAdoptFn)(CNA_Handle, int32_t, const int32_t*, uint64_t, const int32_t*, uint64_t);
+typedef CNA_Result (*ClusteredComputeCreateFn)(CNA_Handle, int32_t, CNA_Handle*);
+typedef CNA_Result (*ClusteredComputeAssignFn)(CNA_Handle, CNA_Handle, const CNA_Matrix*, const CNA_BoundingSphere*, uint64_t, CNA_Handle);
+typedef CNA_Result (*ClusteredForwardBeginFn)(CNA_Handle, const CNA_Matrix*, const CNA_Matrix*, const CNA_Matrix*, const CNA_Vector3*, CNA_Handle);
+typedef CNA_Result (*ClusteredVolumeAttenuationFn)(const CNA_Vector3*, float, float, CNA_Vector3*);
+typedef CNA_Result (*ClusteredContributionFn)(const CNA_ClusteredLightEXT*, const CNA_Vector3*, const CNA_Vector3*, const CNA_Vector3*, const CNA_Vector3*, float, float, float, float, const CNA_Vector3*, float, float, float, float, const CNA_Vector3*, float, CNA_Vector3*);
+typedef CNA_Result (*ClusteredContributionExtFn)(const CNA_ClusteredLightEXT*, const CNA_Vector3*, const CNA_Vector3*, const CNA_Vector3*, const CNA_Vector3*, float, float, CNA_Handle, CNA_Vector3*);
 
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
@@ -2547,6 +2558,51 @@ typedef struct Api {
   PipelineTimingCountFn render_pipeline_get_pass_timing_count_ext;
   PipelineTimingFn render_pipeline_get_pass_timing_ext;
   PipelineTimingNameFn render_pipeline_copy_pass_timing_name_ext;
+  PostProcessPassCreateFn clustered_light_buffer_create;
+  GameHandleFn clustered_light_buffer_destroy;
+  ClusteredBufferUploadFn clustered_light_buffer_upload;
+  ClusteredBufferBindFn clustered_light_buffer_bind;
+  BoolGetFn clustered_light_buffer_is_uploaded;
+  HandleI32OutFn clustered_light_buffer_get_light_count;
+  HandleI32OutFn clustered_light_buffer_get_cluster_count;
+  HandleI32OutFn clustered_light_buffer_get_reference_count;
+  GpuCullGlslFn clustered_light_buffer_copy_light_lookup_glsl;
+  ClusteredAssignmentAdoptFn clustered_light_assignment_adopt;
+  ClusteredComputeCreateFn clustered_light_compute_create;
+  GameHandleFn clustered_light_compute_destroy;
+  BoolGetFn clustered_light_compute_is_supported;
+  HandleCopyStringFn clustered_light_compute_copy_unsupported_reason;
+  HandleI32OutFn clustered_light_compute_get_stride;
+  ClusteredComputeAssignFn clustered_light_compute_assign;
+  BoolGetFn clustered_light_compute_used_compute;
+  BoolGetFn clustered_light_compute_has_overflowed;
+  PostProcessPassCreateFn clustered_forward_effect_create;
+  GameHandleFn clustered_forward_effect_destroy;
+  BoolGetFn clustered_forward_effect_is_supported;
+  ClusteredForwardBeginFn clustered_forward_effect_begin;
+  HandleHandleOutFn clustered_forward_effect_get_effect;
+  SkyVector3OutFn clustered_forward_effect_get_base_color;
+  SkyVector3InFn clustered_forward_effect_set_base_color;
+  HandleFloatOutFn clustered_forward_effect_get_metallic;
+  HandleFloatFn clustered_forward_effect_set_metallic;
+  HandleFloatOutFn clustered_forward_effect_get_roughness;
+  HandleFloatFn clustered_forward_effect_set_roughness;
+  HandleFloatOutFn clustered_forward_effect_get_ior;
+  HandleFloatFn clustered_forward_effect_set_ior;
+  SkyVector3OutFn clustered_forward_effect_get_ambient;
+  SkyVector3InFn clustered_forward_effect_set_ambient;
+  HandleHandleOutFn clustered_forward_effect_get_opaque_frame;
+  TwoHandleFn clustered_forward_effect_set_opaque_frame;
+  HandleHandleOutFn clustered_forward_effect_get_material_extensions;
+  TwoHandleFn clustered_forward_effect_set_material_extensions;
+  BoolGetFn clustered_forward_effect_has_light_probe;
+  GameHandleFn clustered_forward_effect_clear_light_probe;
+  TwoHandleFn clustered_forward_effect_set_light_probe;
+  TwoHandleFn clustered_forward_effect_set_light_probe_volume;
+  ClusteredVolumeAttenuationFn clustered_forward_effect_volume_attenuation;
+  ClusteredContributionFn clustered_forward_effect_contribution;
+  ClusteredContributionExtFn clustered_forward_effect_contribution_with_extensions;
+  DebugDrawClusterGizmoFn debug_draw_add_cluster_slice_gizmo;
 } Api;
 
 typedef struct GameContext {
@@ -4401,6 +4457,51 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(render_pipeline_get_pass_timing_count_ext, PipelineTimingCountFn, "cna_render_pipeline_get_pass_timing_count_ext");
   LOAD_REQUIRED(render_pipeline_get_pass_timing_ext, PipelineTimingFn, "cna_render_pipeline_get_pass_timing_ext");
   LOAD_REQUIRED(render_pipeline_copy_pass_timing_name_ext, PipelineTimingNameFn, "cna_render_pipeline_copy_pass_timing_name_ext");
+  LOAD_REQUIRED(clustered_light_buffer_create, PostProcessPassCreateFn, "cna_clustered_light_buffer_create");
+  LOAD_REQUIRED(clustered_light_buffer_destroy, GameHandleFn, "cna_clustered_light_buffer_destroy");
+  LOAD_REQUIRED(clustered_light_buffer_upload, ClusteredBufferUploadFn, "cna_clustered_light_buffer_upload");
+  LOAD_REQUIRED(clustered_light_buffer_bind, ClusteredBufferBindFn, "cna_clustered_light_buffer_bind");
+  LOAD_REQUIRED(clustered_light_buffer_is_uploaded, BoolGetFn, "cna_clustered_light_buffer_is_uploaded");
+  LOAD_REQUIRED(clustered_light_buffer_get_light_count, HandleI32OutFn, "cna_clustered_light_buffer_get_light_count");
+  LOAD_REQUIRED(clustered_light_buffer_get_cluster_count, HandleI32OutFn, "cna_clustered_light_buffer_get_cluster_count");
+  LOAD_REQUIRED(clustered_light_buffer_get_reference_count, HandleI32OutFn, "cna_clustered_light_buffer_get_reference_count");
+  LOAD_REQUIRED(clustered_light_buffer_copy_light_lookup_glsl, GpuCullGlslFn, "cna_clustered_light_buffer_copy_light_lookup_glsl");
+  LOAD_REQUIRED(clustered_light_assignment_adopt, ClusteredAssignmentAdoptFn, "cna_clustered_light_assignment_adopt");
+  LOAD_REQUIRED(clustered_light_compute_create, ClusteredComputeCreateFn, "cna_clustered_light_compute_create");
+  LOAD_REQUIRED(clustered_light_compute_destroy, GameHandleFn, "cna_clustered_light_compute_destroy");
+  LOAD_REQUIRED(clustered_light_compute_is_supported, BoolGetFn, "cna_clustered_light_compute_is_supported");
+  LOAD_REQUIRED(clustered_light_compute_copy_unsupported_reason, HandleCopyStringFn, "cna_clustered_light_compute_copy_unsupported_reason");
+  LOAD_REQUIRED(clustered_light_compute_get_stride, HandleI32OutFn, "cna_clustered_light_compute_get_stride");
+  LOAD_REQUIRED(clustered_light_compute_assign, ClusteredComputeAssignFn, "cna_clustered_light_compute_assign");
+  LOAD_REQUIRED(clustered_light_compute_used_compute, BoolGetFn, "cna_clustered_light_compute_used_compute");
+  LOAD_REQUIRED(clustered_light_compute_has_overflowed, BoolGetFn, "cna_clustered_light_compute_has_overflowed");
+  LOAD_REQUIRED(clustered_forward_effect_create, PostProcessPassCreateFn, "cna_clustered_forward_effect_create");
+  LOAD_REQUIRED(clustered_forward_effect_destroy, GameHandleFn, "cna_clustered_forward_effect_destroy");
+  LOAD_REQUIRED(clustered_forward_effect_is_supported, BoolGetFn, "cna_clustered_forward_effect_is_supported");
+  LOAD_REQUIRED(clustered_forward_effect_begin, ClusteredForwardBeginFn, "cna_clustered_forward_effect_begin");
+  LOAD_REQUIRED(clustered_forward_effect_get_effect, HandleHandleOutFn, "cna_clustered_forward_effect_get_effect");
+  LOAD_REQUIRED(clustered_forward_effect_get_base_color, SkyVector3OutFn, "cna_clustered_forward_effect_get_base_color");
+  LOAD_REQUIRED(clustered_forward_effect_set_base_color, SkyVector3InFn, "cna_clustered_forward_effect_set_base_color");
+  LOAD_REQUIRED(clustered_forward_effect_get_metallic, HandleFloatOutFn, "cna_clustered_forward_effect_get_metallic");
+  LOAD_REQUIRED(clustered_forward_effect_set_metallic, HandleFloatFn, "cna_clustered_forward_effect_set_metallic");
+  LOAD_REQUIRED(clustered_forward_effect_get_roughness, HandleFloatOutFn, "cna_clustered_forward_effect_get_roughness");
+  LOAD_REQUIRED(clustered_forward_effect_set_roughness, HandleFloatFn, "cna_clustered_forward_effect_set_roughness");
+  LOAD_REQUIRED(clustered_forward_effect_get_ior, HandleFloatOutFn, "cna_clustered_forward_effect_get_ior");
+  LOAD_REQUIRED(clustered_forward_effect_set_ior, HandleFloatFn, "cna_clustered_forward_effect_set_ior");
+  LOAD_REQUIRED(clustered_forward_effect_get_ambient, SkyVector3OutFn, "cna_clustered_forward_effect_get_ambient");
+  LOAD_REQUIRED(clustered_forward_effect_set_ambient, SkyVector3InFn, "cna_clustered_forward_effect_set_ambient");
+  LOAD_REQUIRED(clustered_forward_effect_get_opaque_frame, HandleHandleOutFn, "cna_clustered_forward_effect_get_opaque_frame");
+  LOAD_REQUIRED(clustered_forward_effect_set_opaque_frame, TwoHandleFn, "cna_clustered_forward_effect_set_opaque_frame");
+  LOAD_REQUIRED(clustered_forward_effect_get_material_extensions, HandleHandleOutFn, "cna_clustered_forward_effect_get_material_extensions");
+  LOAD_REQUIRED(clustered_forward_effect_set_material_extensions, TwoHandleFn, "cna_clustered_forward_effect_set_material_extensions");
+  LOAD_REQUIRED(clustered_forward_effect_has_light_probe, BoolGetFn, "cna_clustered_forward_effect_has_light_probe");
+  LOAD_REQUIRED(clustered_forward_effect_clear_light_probe, GameHandleFn, "cna_clustered_forward_effect_clear_light_probe");
+  LOAD_REQUIRED(clustered_forward_effect_set_light_probe, TwoHandleFn, "cna_clustered_forward_effect_set_light_probe");
+  LOAD_REQUIRED(clustered_forward_effect_set_light_probe_volume, TwoHandleFn, "cna_clustered_forward_effect_set_light_probe_volume");
+  LOAD_REQUIRED(clustered_forward_effect_volume_attenuation, ClusteredVolumeAttenuationFn, "cna_clustered_forward_effect_volume_attenuation");
+  LOAD_REQUIRED(clustered_forward_effect_contribution, ClusteredContributionFn, "cna_clustered_forward_effect_contribution");
+  LOAD_REQUIRED(clustered_forward_effect_contribution_with_extensions, ClusteredContributionExtFn, "cna_clustered_forward_effect_contribution_with_extensions");
+  LOAD_REQUIRED(debug_draw_add_cluster_slice_gizmo, DebugDrawClusterGizmoFn, "cna_debug_draw_add_cluster_slice_gizmo");
   LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
   LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
   LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
@@ -24736,12 +24837,6 @@ static napi_value bridge_debug_draw_add_probe_volume_gizmo(napi_env env, napi_ca
 }
 
 
-/*
- * `cna_debug_draw_add_cluster_slice_gizmo` is left unbound for now: it takes a
- * `CNA_ClusteredLightGridHandle`, and the clustered light *grid* is not projected here yet -- the
- * set, the assignment and the shadow policy are. Binding it would offer a route that could only
- * ever be handed zero, which is the same reason the LOD group's select route is unbound.
- */
 static napi_value bridge_debug_draw_add_cascade_gizmo(napi_env env, napi_callback_info info) {
   napi_value args[3];
   CNA_Handle debug = 0, cascades = 0;
@@ -25576,10 +25671,504 @@ static napi_value bridge_render_pipeline_release_device_resources_ext(napi_env e
   return pp_handle_only(env, info, g_api.render_pipeline_release_device_resources_ext, "cna_render_pipeline_release_device_resources_ext");
 }
 
+/* ---- clustered lighting: the light buffer, the compute assignment and the forward effect -------
+   The forward effect publishes the BRDF its shader runs as two pure routes, so what one light adds
+   to one surface can be checked against an independently written reference rather than by looking
+   at a frame. */
+
+
+/** A route that copies a fixed string and takes no object: the GLSL snippets the layer hands out. */
+static napi_value copy_static_text(napi_env env, GpuCullGlslFn route, const char* name) {
+  napi_value output;
+  uint64_t length = 0, copied = 0;
+  if (!require_loaded(env)) return NULL;
+  CNA_Result result = route(NULL, 0, &length);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, name, result);
+  }
+  if (length > SIZE_MAX) return throw_message(env, "native string exceeds host address space");
+  char* text = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !text) return throw_message(env, "native string allocation failed");
+  result = route(text, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(text);
+    return throw_result(env, name, result);
+  }
+  const napi_status status =
+    napi_create_string_utf8(env, text ? text : "", (size_t) length, &output);
+  free(text);
+  if (status != napi_ok) return throw_napi(env, name);
+  return output;
+}
+
+static napi_value bridge_clustered_light_buffer_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.clustered_light_buffer_create,
+    "cna_clustered_light_buffer_create");
+}
+
+static napi_value bridge_clustered_light_buffer_upload(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle buffer = 0, lights = 0, grid = 0, assignment = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &buffer) || !read_handle(env, args[1], &lights) ||
+      !read_handle(env, args[2], &grid) || !read_handle(env, args[3], &assignment)) return NULL;
+  const CNA_Result result =
+    g_api.clustered_light_buffer_upload(buffer, lights, grid, assignment);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_buffer_upload", result);
+  }
+  return undefined_result(env, "cna_clustered_light_buffer_upload");
+}
+
+static napi_value bridge_clustered_light_buffer_bind(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle buffer = 0, effect = 0;
+  int32_t unit = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &buffer) || !read_handle(env, args[1], &effect) ||
+      napi_get_value_int32(env, args[2], &unit) != napi_ok) {
+    return throw_message(env, "expected a buffer, an effect and a first texture unit");
+  }
+  const CNA_Result result = g_api.clustered_light_buffer_bind(buffer, effect, unit);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_buffer_bind", result);
+  }
+  return undefined_result(env, "cna_clustered_light_buffer_bind");
+}
+
+static napi_value bridge_clustered_light_buffer_copy_light_lookup_glsl(
+  napi_env env, napi_callback_info info
+) {
+  (void) info;
+  return copy_static_text(
+    env, g_api.clustered_light_buffer_copy_light_lookup_glsl,
+    "cna_clustered_light_buffer_copy_light_lookup_glsl");
+}
+
+static napi_value bridge_clustered_light_assignment_adopt(napi_env env, napi_callback_info info) {
+  napi_value args[4], entry;
+  CNA_Handle assignment = 0;
+  int32_t light_count = 0;
+  uint32_t offset_count = 0, index_count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &assignment) ||
+      napi_get_value_int32(env, args[1], &light_count) != napi_ok ||
+      napi_get_array_length(env, args[2], &offset_count) != napi_ok ||
+      napi_get_array_length(env, args[3], &index_count) != napi_ok) {
+    return throw_message(env, "expected an assignment, a light count, offsets and indices");
+  }
+  int32_t* offsets = offset_count == 0
+    ? NULL : (int32_t*) calloc(offset_count, sizeof(int32_t));
+  int32_t* indices = index_count == 0 ? NULL : (int32_t*) calloc(index_count, sizeof(int32_t));
+  if ((offset_count != 0 && !offsets) || (index_count != 0 && !indices)) {
+    free(offsets);
+    free(indices);
+    return throw_message(env, "assignment allocation failed");
+  }
+  for (uint32_t index = 0; index < offset_count; index += 1) {
+    if (napi_get_element(env, args[2], index, &entry) != napi_ok ||
+        napi_get_value_int32(env, entry, &offsets[index]) != napi_ok) {
+      free(offsets);
+      free(indices);
+      return throw_message(env, "an offset must be an integer");
+    }
+  }
+  for (uint32_t index = 0; index < index_count; index += 1) {
+    if (napi_get_element(env, args[3], index, &entry) != napi_ok ||
+        napi_get_value_int32(env, entry, &indices[index]) != napi_ok) {
+      free(offsets);
+      free(indices);
+      return throw_message(env, "a light index must be an integer");
+    }
+  }
+  const CNA_Result result = g_api.clustered_light_assignment_adopt(
+    assignment, light_count, offsets, offset_count, indices, index_count);
+  free(offsets);
+  free(indices);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_assignment_adopt", result);
+  }
+  return undefined_result(env, "cna_clustered_light_assignment_adopt");
+}
+
+static napi_value bridge_clustered_light_compute_create(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0, compute = 0;
+  int32_t stride = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &stride) != napi_ok) {
+    return throw_message(env, "expected a graphics device and a stride");
+  }
+  const CNA_Result result = g_api.clustered_light_compute_create(device, stride, &compute);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_compute_create", result);
+  }
+  return make_handle(env, compute);
+}
+
+static napi_value bridge_clustered_light_compute_assign(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle compute = 0, grid = 0, assignment = 0;
+  CNA_Matrix view;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &compute) || !read_handle(env, args[1], &grid) ||
+      !read_matrix16(env, args[2], &view, "a view")) return NULL;
+  CNA_BoundingSphere* bounds = (CNA_BoundingSphere*) read_struct_array(
+    env, args[3], sizeof(CNA_BoundingSphere), &count, read_sphere_element,
+    "the bounds must be an array of spheres");
+  if (count != 0 && !bounds) return NULL;
+  if (!read_handle(env, args[4], &assignment)) {
+    free(bounds);
+    return NULL;
+  }
+  const CNA_Result result =
+    g_api.clustered_light_compute_assign(compute, grid, &view, bounds, count, assignment);
+  free(bounds);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_light_compute_assign", result);
+  }
+  return undefined_result(env, "cna_clustered_light_compute_assign");
+}
+
+static napi_value bridge_clustered_forward_effect_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.clustered_forward_effect_create,
+    "cna_clustered_forward_effect_create");
+}
+
+static napi_value bridge_clustered_forward_effect_begin(napi_env env, napi_callback_info info) {
+  napi_value args[6];
+  CNA_Handle effect = 0, lights = 0;
+  CNA_Matrix world, view, projection;
+  CNA_Vector3 camera = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 6, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_matrix16(env, args[1], &world, "a world transform") ||
+      !read_matrix16(env, args[2], &view, "a view") ||
+      !read_matrix16(env, args[3], &projection, "a projection") ||
+      !read_vector3_fields(env, args[4], &camera) ||
+      !read_handle_allow_zero(env, args[5], &lights)) return NULL;
+  const CNA_Result result = g_api.clustered_forward_effect_begin(
+    effect, &world, &view, &projection, &camera, lights);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_forward_effect_begin", result);
+  }
+  return undefined_result(env, "cna_clustered_forward_effect_begin");
+}
+
+static napi_value bridge_clustered_forward_effect_set_opaque_frame(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2];
+  CNA_Handle effect = 0, frame = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_handle_allow_zero(env, args[1], &frame)) return NULL;
+  const CNA_Result result = g_api.clustered_forward_effect_set_opaque_frame(effect, frame);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_forward_effect_set_opaque_frame", result);
+  }
+  return undefined_result(env, "cna_clustered_forward_effect_set_opaque_frame");
+}
+
+static napi_value bridge_clustered_forward_effect_volume_attenuation(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3], output;
+  CNA_Vector3 colour = {0, 0, 0}, answer = {0, 0, 0};
+  double distance = 0, thickness = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_vector3_fields(env, args[0], &colour) ||
+      napi_get_value_double(env, args[1], &distance) != napi_ok ||
+      napi_get_value_double(env, args[2], &thickness) != napi_ok) {
+    return throw_message(env, "expected a colour, a distance and a thickness");
+  }
+  const CNA_Result result = g_api.clustered_forward_effect_volume_attenuation(
+    &colour, (float) distance, (float) thickness, &answer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_forward_effect_volume_attenuation", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_object(env, &output), "cna_clustered_forward_effect_volume_attenuation");
+  if (!set_vector3_fields(env, output, &answer)) {
+    return throw_napi(env, "cna_clustered_forward_effect_volume_attenuation");
+  }
+  return output;
+}
+
+/** The five vectors and the light every contribution route starts from. */
+static int read_contribution_inputs(
+  napi_env env, napi_value value, CNA_ClusteredLightEXT* light, CNA_Vector3* surface,
+  CNA_Vector3* normal, CNA_Vector3* camera, CNA_Vector3* base
+) {
+  napi_value entry;
+  return get_named_value(env, value, "Light", &entry) &&
+    read_clustered_light(env, entry, light) &&
+    get_named_value(env, value, "Surface", &entry) &&
+    read_vector3_fields(env, entry, surface) &&
+    get_named_value(env, value, "Normal", &entry) &&
+    read_vector3_fields(env, entry, normal) &&
+    get_named_value(env, value, "CameraPosition", &entry) &&
+    read_vector3_fields(env, entry, camera) &&
+    get_named_value(env, value, "BaseColor", &entry) &&
+    read_vector3_fields(env, entry, base);
+}
+
+static napi_value bridge_clustered_forward_effect_contribution(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1], output, entry;
+  CNA_ClusteredLightEXT light;
+  CNA_Vector3 surface, normal, camera, base, sheen = {0, 0, 0}, subsurface = {0, 0, 0};
+  CNA_Vector3 answer = {0, 0, 0};
+  double metallic = 0, roughness = 0, clearcoat = 0, clearcoatRoughness = 0;
+  double sheenRoughness = 0, iridescence = 0, iridescenceIor = 0, iridescenceThickness = 0;
+  double subsurfaceWrap = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_contribution_inputs(env, args[0], &light, &surface, &normal, &camera, &base) ||
+      !get_named_double(env, args[0], "Metallic", &metallic) ||
+      !get_named_double(env, args[0], "Roughness", &roughness) ||
+      !get_named_double(env, args[0], "Clearcoat", &clearcoat) ||
+      !get_named_double(env, args[0], "ClearcoatRoughness", &clearcoatRoughness) ||
+      !get_named_value(env, args[0], "SheenColor", &entry) ||
+      !read_vector3_fields(env, entry, &sheen) ||
+      !get_named_double(env, args[0], "SheenRoughness", &sheenRoughness) ||
+      !get_named_double(env, args[0], "Iridescence", &iridescence) ||
+      !get_named_double(env, args[0], "IridescenceIor", &iridescenceIor) ||
+      !get_named_double(env, args[0], "IridescenceThickness", &iridescenceThickness) ||
+      !get_named_value(env, args[0], "SubsurfaceColor", &entry) ||
+      !read_vector3_fields(env, entry, &subsurface) ||
+      !get_named_double(env, args[0], "SubsurfaceWrap", &subsurfaceWrap)) return NULL;
+  const CNA_Result result = g_api.clustered_forward_effect_contribution(
+    &light, &surface, &normal, &camera, &base, (float) metallic, (float) roughness,
+    (float) clearcoat, (float) clearcoatRoughness, &sheen, (float) sheenRoughness,
+    (float) iridescence, (float) iridescenceIor, (float) iridescenceThickness,
+    &subsurface, (float) subsurfaceWrap, &answer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_forward_effect_contribution", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "a light contribution");
+  if (!set_vector3_fields(env, output, &answer)) return throw_napi(env, "a light contribution");
+  return output;
+}
+
+static napi_value bridge_clustered_forward_effect_contribution_with_extensions(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  CNA_ClusteredLightEXT light;
+  CNA_Vector3 surface, normal, camera, base, answer = {0, 0, 0};
+  CNA_Handle extensions = 0;
+  double metallic = 0, roughness = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_contribution_inputs(env, args[0], &light, &surface, &normal, &camera, &base) ||
+      !get_named_double(env, args[0], "Metallic", &metallic) ||
+      !get_named_double(env, args[0], "Roughness", &roughness) ||
+      !read_handle_allow_zero(env, args[1], &extensions)) return NULL;
+  const CNA_Result result = g_api.clustered_forward_effect_contribution_with_extensions(
+    &light, &surface, &normal, &camera, &base, (float) metallic, (float) roughness,
+    extensions, &answer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clustered_forward_effect_contribution_with_extensions", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "a light contribution");
+  if (!set_vector3_fields(env, output, &answer)) return throw_napi(env, "a light contribution");
+  return output;
+}
+
+static napi_value bridge_clustered_light_buffer_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_light_buffer_destroy, "cna_clustered_light_buffer_destroy");
+}
+
+static napi_value bridge_clustered_light_buffer_is_uploaded(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.clustered_light_buffer_is_uploaded, "cna_clustered_light_buffer_is_uploaded");
+}
+
+static napi_value bridge_clustered_light_buffer_get_light_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.clustered_light_buffer_get_light_count, "cna_clustered_light_buffer_get_light_count");
+}
+
+static napi_value bridge_clustered_light_buffer_get_cluster_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.clustered_light_buffer_get_cluster_count, "cna_clustered_light_buffer_get_cluster_count");
+}
+
+static napi_value bridge_clustered_light_buffer_get_reference_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.clustered_light_buffer_get_reference_count, "cna_clustered_light_buffer_get_reference_count");
+}
+
+static napi_value bridge_clustered_light_compute_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_light_compute_destroy, "cna_clustered_light_compute_destroy");
+}
+
+static napi_value bridge_clustered_light_compute_is_supported(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.clustered_light_compute_is_supported, "cna_clustered_light_compute_is_supported");
+}
+
+static napi_value bridge_clustered_light_compute_copy_unsupported_reason(napi_env env, napi_callback_info info) {
+  return copy_sized_text(env, info, g_api.clustered_light_compute_copy_unsupported_reason, "cna_clustered_light_compute_copy_unsupported_reason");
+}
+
+static napi_value bridge_clustered_light_compute_get_stride(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.clustered_light_compute_get_stride, "cna_clustered_light_compute_get_stride");
+}
+
+static napi_value bridge_clustered_light_compute_used_compute(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.clustered_light_compute_used_compute, "cna_clustered_light_compute_used_compute");
+}
+
+static napi_value bridge_clustered_light_compute_has_overflowed(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.clustered_light_compute_has_overflowed, "cna_clustered_light_compute_has_overflowed");
+}
+
+static napi_value bridge_clustered_forward_effect_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_forward_effect_destroy, "cna_clustered_forward_effect_destroy");
+}
+
+static napi_value bridge_clustered_forward_effect_is_supported(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.clustered_forward_effect_is_supported, "cna_clustered_forward_effect_is_supported");
+}
+
+static napi_value bridge_clustered_forward_effect_get_effect(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.clustered_forward_effect_get_effect, "cna_clustered_forward_effect_get_effect");
+}
+
+static napi_value bridge_clustered_forward_effect_get_base_color(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.clustered_forward_effect_get_base_color, "cna_clustered_forward_effect_get_base_color");
+}
+
+static napi_value bridge_clustered_forward_effect_set_base_color(napi_env env, napi_callback_info info) {
+  return sky_set_vector3(env, info, g_api.clustered_forward_effect_set_base_color, "cna_clustered_forward_effect_set_base_color");
+}
+
+static napi_value bridge_clustered_forward_effect_get_metallic(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.clustered_forward_effect_get_metallic, "cna_clustered_forward_effect_get_metallic");
+}
+
+static napi_value bridge_clustered_forward_effect_set_metallic(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.clustered_forward_effect_set_metallic, "cna_clustered_forward_effect_set_metallic");
+}
+
+static napi_value bridge_clustered_forward_effect_get_roughness(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.clustered_forward_effect_get_roughness, "cna_clustered_forward_effect_get_roughness");
+}
+
+static napi_value bridge_clustered_forward_effect_set_roughness(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.clustered_forward_effect_set_roughness, "cna_clustered_forward_effect_set_roughness");
+}
+
+static napi_value bridge_clustered_forward_effect_get_ior(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.clustered_forward_effect_get_ior, "cna_clustered_forward_effect_get_ior");
+}
+
+static napi_value bridge_clustered_forward_effect_set_ior(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.clustered_forward_effect_set_ior, "cna_clustered_forward_effect_set_ior");
+}
+
+static napi_value bridge_clustered_forward_effect_get_ambient(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.clustered_forward_effect_get_ambient, "cna_clustered_forward_effect_get_ambient");
+}
+
+static napi_value bridge_clustered_forward_effect_set_ambient(napi_env env, napi_callback_info info) {
+  return sky_set_vector3(env, info, g_api.clustered_forward_effect_set_ambient, "cna_clustered_forward_effect_set_ambient");
+}
+
+static napi_value bridge_clustered_forward_effect_get_opaque_frame(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.clustered_forward_effect_get_opaque_frame, "cna_clustered_forward_effect_get_opaque_frame");
+}
+
+static napi_value bridge_clustered_forward_effect_get_material_extensions(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.clustered_forward_effect_get_material_extensions, "cna_clustered_forward_effect_get_material_extensions");
+}
+
+static napi_value bridge_clustered_forward_effect_set_material_extensions(napi_env env, napi_callback_info info) {
+  return post_process_chain_two_handles(env, info, g_api.clustered_forward_effect_set_material_extensions, "cna_clustered_forward_effect_set_material_extensions");
+}
+
+static napi_value bridge_clustered_forward_effect_has_light_probe(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.clustered_forward_effect_has_light_probe, "cna_clustered_forward_effect_has_light_probe");
+}
+
+static napi_value bridge_clustered_forward_effect_clear_light_probe(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.clustered_forward_effect_clear_light_probe, "cna_clustered_forward_effect_clear_light_probe");
+}
+
+static napi_value bridge_clustered_forward_effect_set_light_probe(napi_env env, napi_callback_info info) {
+  return post_process_chain_two_handles(env, info, g_api.clustered_forward_effect_set_light_probe, "cna_clustered_forward_effect_set_light_probe");
+}
+
+static napi_value bridge_clustered_forward_effect_set_light_probe_volume(napi_env env, napi_callback_info info) {
+  return post_process_chain_two_handles(env, info, g_api.clustered_forward_effect_set_light_probe_volume, "cna_clustered_forward_effect_set_light_probe_volume");
+}
+
+static napi_value bridge_debug_draw_add_cluster_slice_gizmo(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[4];
+  CNA_Handle debug = 0, grid = 0;
+  CNA_Matrix inverse_view;
+  CNA_Color colour;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &debug) || !read_handle(env, args[1], &grid) ||
+      !read_matrix16(env, args[2], &inverse_view, "an inverse view") ||
+      !read_packed_colour(env, args[3], &colour)) return NULL;
+  const CNA_Result result =
+    g_api.debug_draw_add_cluster_slice_gizmo(debug, grid, &inverse_view, colour);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_debug_draw_add_cluster_slice_gizmo", result);
+  }
+  return undefined_result(env, "cna_debug_draw_add_cluster_slice_gizmo");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "createClusteredLightBuffer", NULL, bridge_clustered_light_buffer_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyClusteredLightBuffer", NULL, bridge_clustered_light_buffer_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "uploadClusteredLightBuffer", NULL, bridge_clustered_light_buffer_upload, NULL, NULL, NULL, napi_default, NULL },
+    { "bindClusteredLightBuffer", NULL, bridge_clustered_light_buffer_bind, NULL, NULL, NULL, napi_default, NULL },
+    { "isClusteredLightBufferUploaded", NULL, bridge_clustered_light_buffer_is_uploaded, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredLightBufferLightCount", NULL, bridge_clustered_light_buffer_get_light_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredLightBufferClusterCount", NULL, bridge_clustered_light_buffer_get_cluster_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredLightBufferReferenceCount", NULL, bridge_clustered_light_buffer_get_reference_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredLightLookupGlsl", NULL, bridge_clustered_light_buffer_copy_light_lookup_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "adoptClusteredLightAssignment", NULL, bridge_clustered_light_assignment_adopt, NULL, NULL, NULL, napi_default, NULL },
+    { "createClusteredLightCompute", NULL, bridge_clustered_light_compute_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyClusteredLightCompute", NULL, bridge_clustered_light_compute_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "isClusteredLightComputeSupported", NULL, bridge_clustered_light_compute_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredLightComputeUnsupportedReason", NULL, bridge_clustered_light_compute_copy_unsupported_reason, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredLightComputeStride", NULL, bridge_clustered_light_compute_get_stride, NULL, NULL, NULL, napi_default, NULL },
+    { "assignClusteredLightCompute", NULL, bridge_clustered_light_compute_assign, NULL, NULL, NULL, napi_default, NULL },
+    { "didClusteredLightComputeUseCompute", NULL, bridge_clustered_light_compute_used_compute, NULL, NULL, NULL, napi_default, NULL },
+    { "hasClusteredLightComputeOverflowed", NULL, bridge_clustered_light_compute_has_overflowed, NULL, NULL, NULL, napi_default, NULL },
+    { "createClusteredForwardEffect", NULL, bridge_clustered_forward_effect_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyClusteredForwardEffect", NULL, bridge_clustered_forward_effect_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "isClusteredForwardEffectSupported", NULL, bridge_clustered_forward_effect_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "beginClusteredForwardEffect", NULL, bridge_clustered_forward_effect_begin, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredForwardShader", NULL, bridge_clustered_forward_effect_get_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredForwardBaseColor", NULL, bridge_clustered_forward_effect_get_base_color, NULL, NULL, NULL, napi_default, NULL },
+    { "setClusteredForwardBaseColor", NULL, bridge_clustered_forward_effect_set_base_color, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredForwardMetallic", NULL, bridge_clustered_forward_effect_get_metallic, NULL, NULL, NULL, napi_default, NULL },
+    { "setClusteredForwardMetallic", NULL, bridge_clustered_forward_effect_set_metallic, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredForwardRoughness", NULL, bridge_clustered_forward_effect_get_roughness, NULL, NULL, NULL, napi_default, NULL },
+    { "setClusteredForwardRoughness", NULL, bridge_clustered_forward_effect_set_roughness, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredForwardIor", NULL, bridge_clustered_forward_effect_get_ior, NULL, NULL, NULL, napi_default, NULL },
+    { "setClusteredForwardIor", NULL, bridge_clustered_forward_effect_set_ior, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredForwardAmbient", NULL, bridge_clustered_forward_effect_get_ambient, NULL, NULL, NULL, napi_default, NULL },
+    { "setClusteredForwardAmbient", NULL, bridge_clustered_forward_effect_set_ambient, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredForwardOpaqueFrame", NULL, bridge_clustered_forward_effect_get_opaque_frame, NULL, NULL, NULL, napi_default, NULL },
+    { "setClusteredForwardOpaqueFrame", NULL, bridge_clustered_forward_effect_set_opaque_frame, NULL, NULL, NULL, napi_default, NULL },
+    { "getClusteredForwardMaterialExtensions", NULL, bridge_clustered_forward_effect_get_material_extensions, NULL, NULL, NULL, napi_default, NULL },
+    { "setClusteredForwardMaterialExtensions", NULL, bridge_clustered_forward_effect_set_material_extensions, NULL, NULL, NULL, napi_default, NULL },
+    { "hasClusteredForwardLightProbe", NULL, bridge_clustered_forward_effect_has_light_probe, NULL, NULL, NULL, napi_default, NULL },
+    { "clearClusteredForwardLightProbe", NULL, bridge_clustered_forward_effect_clear_light_probe, NULL, NULL, NULL, napi_default, NULL },
+    { "setClusteredForwardLightProbe", NULL, bridge_clustered_forward_effect_set_light_probe, NULL, NULL, NULL, napi_default, NULL },
+    { "setClusteredForwardLightProbeVolume", NULL, bridge_clustered_forward_effect_set_light_probe_volume, NULL, NULL, NULL, napi_default, NULL },
+    { "clusteredVolumeAttenuation", NULL, bridge_clustered_forward_effect_volume_attenuation, NULL, NULL, NULL, napi_default, NULL },
+    { "clusteredLightContribution", NULL, bridge_clustered_forward_effect_contribution, NULL, NULL, NULL, napi_default, NULL },
+    { "clusteredLightContributionWithExtensions", NULL, bridge_clustered_forward_effect_contribution_with_extensions, NULL, NULL, NULL, napi_default, NULL },
+    { "addDebugDrawClusterSliceGizmo", NULL, bridge_debug_draw_add_cluster_slice_gizmo, NULL, NULL, NULL, napi_default, NULL },
     { "getDefaultPipelineSettings", NULL, settings_defaults, NULL, NULL, NULL, napi_default, NULL },
     { "normalizePipelineSettings", NULL, bridge_render_pipeline_settings_ext_normalize, NULL, NULL, NULL, napi_default, NULL },
     { "applyPipelineQualityPreset", NULL, bridge_render_pipeline_settings_ext_apply_render_quality_preset, NULL, NULL, NULL, napi_default, NULL },

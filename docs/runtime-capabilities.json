@@ -13,7 +13,7 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 96,
+    "VERIFIED_NATIVE": 98,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 5,
@@ -1443,6 +1443,47 @@
         "route:cna_cube_shadow_map_begin",
         "route:cna_cube_shadow_map_get_shadow_texture",
         "test:test/windowed-renderer.integration.mjs",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "The clustered forward BRDF and its volume absorption",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the shading model is published as a pure route, so the acceptance is a second implementation of it: a Cook-Torrance BRDF with a GGX distribution, a Smith-Schlick geometry term and a Schlick Fresnel, plus the sheen, clearcoat, iridescence and subsurface layers, written out in the test from the model and compared against CNA's at fifteen parameter combinations -- head-on, off to the side and grazing, each layer alone and all of them at once -- agreeing to two parts in a thousand everywhere. The comparison is asserted not to be vacuous: fourteen of the fifteen results are distinct, and each optional layer is asserted to change the answer, so no branch of the reference is dead. A rough sheen is used deliberately, because the lobe's width is one over max(roughness squared, 0.07) and a smooth one is too narrow to reach a grazing geometry at all -- physics, not a defect. Around the comparison: a light past its range, behind the surface, exactly at the surface, or a spot pointing away adds exactly zero; intensity is an exact multiplier; and the light's colour scales each channel and nothing else. The same BRDF driven from a PbrMaterialExtensions set is asserted to give byte-identical answers to the one driven directly, neutral and clearcoated. Volume absorption is Beer-Lambert: at a thickness equal to the attenuation distance the answer IS the attenuation colour, three times as thick cubes it, a white volume absorbs nothing, a zero distance or thickness absorbs nothing, and black is clamped off zero rather than having its logarithm taken. Six planted binding defects fail and none survives",
+      "proof": [
+        "route:cna_clustered_forward_effect_contribution",
+        "route:cna_clustered_forward_effect_contribution_with_extensions",
+        "route:cna_clustered_forward_effect_volume_attenuation",
+        "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "The clustered light buffer, the GPU assignment and the forward effect's state",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the buffer's three counts are checked against the three objects it was uploaded from rather than against numbers: its light count equals the set's, its cluster count equals the grid's, and its reference count equals the assignment's own total summed over clusters -- three lights, sixty-four clusters, eighty-eight references in the fixture, and the assignment behind it is the CPU path already qualified separately. An assignment can also be adopted from the compressed-row arrays it really is, and the two clusters it describes come back holding the lights its offsets bracket, in the order the indices gave. The GPU assignment says whether it is supported and why not, and reports whether the last run really used compute rather than falling back -- both false before anything has run, which is the honest answer. The forward effect's own state round-trips at float precision, a probe and an extension set and an opaque frame each attach and detach, and a fresh effect turns out to own a neutral extension set already so the four KHR layers are always addressable. The shader is a counted borrow: CNA refuses to destroy the effect while one is outstanding, and finding that is what fixed a real defect in this binding -- Dispose used to clear its handle before the destroy, so a refused destroy stranded the effect and made the game undestroyable. It now gives the handle up only once the destroy has succeeded, and a second attempt after the borrow goes back works",
+      "proof": [
+        "route:cna_clustered_light_buffer_create",
+        "route:cna_clustered_light_buffer_upload",
+        "route:cna_clustered_light_buffer_bind",
+        "route:cna_clustered_light_buffer_get_light_count",
+        "route:cna_clustered_light_buffer_get_cluster_count",
+        "route:cna_clustered_light_buffer_get_reference_count",
+        "route:cna_clustered_light_buffer_copy_light_lookup_glsl",
+        "route:cna_clustered_light_assignment_adopt",
+        "route:cna_clustered_light_compute_create",
+        "route:cna_clustered_light_compute_is_supported",
+        "route:cna_clustered_light_compute_copy_unsupported_reason",
+        "route:cna_clustered_light_compute_assign",
+        "route:cna_clustered_light_compute_used_compute",
+        "route:cna_clustered_forward_effect_create",
+        "route:cna_clustered_forward_effect_begin",
+        "route:cna_clustered_forward_effect_get_effect",
+        "route:cna_clustered_forward_effect_set_base_color",
+        "route:cna_clustered_forward_effect_set_light_probe",
+        "route:cna_clustered_forward_effect_set_material_extensions",
+        "route:cna_debug_draw_add_cluster_slice_gizmo",
         "test:test/native-cna.integration.mjs"
       ]
     },
