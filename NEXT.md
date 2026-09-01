@@ -2552,3 +2552,275 @@ The highest-value work is not more binding:
 
 Read `docs/upstream-cna-findings.md` finding 22 before writing anything that draws with a custom
 shader; it has not changed and still applies.
+
+## 2026-09-01: pixels from a compiled effect, gates that cannot be vacuous, and a window nobody meant to open
+
+### 1. Where this started
+
+`cna-ts` clean at `ecaf8ba`, nine commits unpushed. `cna-ts-template` clean at `8a806d8`.
+`cnanext` at `7712534d` and `sharp-runtimenext` at `bd282d10`, both read-only and both untouched.
+
+The handoff named one thing above all others: the parameters of a compiled effect demonstrably
+reached CNA, and nothing said they reached the *shader*.
+
+### 2. Dependency identity, and why it needed two rows rather than one
+
+`cnanext` had not moved in any way that mattered — one commit, `CABI-49`, touching `net_sessions`
+alone. The interesting part is that the **artifacts are not the source**, and their timestamps bound
+them differently:
+
+| artifact | built | carries at most | behind HEAD by |
+| --- | --- | --- | --- |
+| windowed OPENGLES3 `cmake-build-debug` | 15:55 | `c195fe8ce` | `7712534d` |
+| HEADLESS `cmake-build-tsnext` | 12:51 | `e5ae0820e` | `c195fe8ce`, `7712534d` |
+| WEBGL2 `cmake-build-tswasm` | 08-31 06:57 | — | — |
+
+Everything between is `modules/net`. No measurement here depends on the gap, which is why it is
+written down rather than smoothed over.
+
+### 3. The main result: a compiled effect draws, and the pixels were predicted first
+
+`CnaConformanceEffect.fxb` is the fixture because CNA ships **its HLSL source** beside it. That is
+what makes the expectation independent: it is computed from the shader's own arithmetic and the
+values the test sets, never from `GetValue*`, which answers from managed state and would agree with
+its own setter whether or not a uniform ever moved.
+
+`SecondTechnique/P1` is `return Tint * Weights[1];` and samples nothing:
+
+| state | Tint | Weights[1] | predicted | measured |
+| --- | --- | --- | --- | --- |
+| declared | 0.1, 0.2, 0.3, 0.4 | 0.8 | 20, 41, 61, 82 | 20, 41, 61, 82 |
+| A | 0.8, 0.6, 0.4, 1.0 | 0.5 | 102, 76.5, 51, 127.5 | 102, 76, 51, 128 |
+| B | 0.2, 1.0, 0.8, 0.6 | 0.5 | 25.5, 127.5, 102, 76.5 | 25, 128, 102, 76 |
+| C | 0.2, 1.0, 0.8, 0.6 | 0.25 | 12.75, 63.75, 51, 38.25 | 13, 64, 51, 38 |
+
+A to B moves only `Tint`; B to C only `Weights[1]`. `FirstTechnique/P0` is a different program over
+identical parameter state — it samples a white texel and scales by `Gain` and the `Lighting` struct
+— so its disagreement with P1 is what makes `CurrentTechnique` selection *evidence* rather than an
+assumption, and `Lighting.Intensity` with `Lighting.Thresholds[0]` are a struct member and a struct
+array element that only the pixels could prove. Halving `Gain` alone halves that image.
+
+The declared row is the same four bytes CNA's own
+`EasyGLCompiledEffectDrawTest.RendersTheAppliedPassesExpectedPixelsIntoARenderTarget` expects
+through its internal renderer API — a second implementation of the expectation, reached by a
+different route.
+
+### 4. Two things went the other way from what finding 22 predicted
+
+Finding 22 says a fresh `ShaderEffect`'s first `SpriteBatch` draw produces nothing, and that a
+custom-shader draw leaves a GL error that refuses the next multiple-render-target bind. Both were
+**measured** for the compiled route rather than assumed:
+
+- a freshly constructed compiled effect's *first* draw is already correct, with nothing priming it;
+- an MRT bind straight after a compiled-effect draw succeeds.
+
+So both halves of finding 22 belong to `ShaderEffect`, not to custom shaders generally. The finding
+now says so, and both are asserted, so a compiled effect acquiring either defect fails.
+
+### 5. The mutation harness is committed this time
+
+It lived in a previous session's scratchpad and was gone. `tools/mutation-harness.mjs` refuses a
+verdict it cannot justify: an anchor not matching exactly once, a build whose output is
+byte-identical to the baseline, or a run where `pass + fail == 0`. Source and artifact are proved
+back at the baseline hash.
+
+Compiled effect: **8 planted, 8 killed** — four dropped write-throughs, a truncated array, a no-op
+`Apply`, an ignored technique, a zeroed `Vector4` W. Audio: **5 planted, 4 killed**; the survivor is
+recorded as fixture-limited, because how many capture devices this host has is only knowable from
+the routine under test, and killing it would need a second call to the same C route dressed up as an
+oracle.
+
+### 6. Gates that could not be vacuous
+
+`test:windowed` and `test:effect-reflection` skipped cleanly without `CNA_WINDOWED_LIBRARY` or a
+display, and `node --test` reports a suite that ran nothing exactly like a suite that passed. CI was
+walking into it: the windowed step ran the optional suite with a variable that may be empty, and the
+content pipeline was not in the workflow at all.
+
+`test/support/required-suite.mjs` is now shared by all three suites. Four arms, all measured:
+
+```text
+required, no CNA_WINDOWED_LIBRARY             exit 1, names the variable
+required, no DISPLAY                          exit 1, names the display
+required, environment present, all tests skip exit 1, names the count
+optional, no environment                      exit 0, ten skips -- unchanged
+```
+
+### 7. The audit rule that keeps paying: which backend was this measured on?
+
+Two capability rows said microphones enumerate as none and that playback "verifies state and
+lifetime only". Both were true of HEADLESS, whose audio platform is `NULL`, and were written down as
+facts about CNA. The windowed build is `CNA_AUDIO_PLATFORM=SDL3`:
+
+| | HEADLESS (NULL) | windowed (SDL3) |
+| --- | --- | --- |
+| microphones | 0 | 3, named, 44100 Hz |
+| Play / Pause / Resume / Stop | Stopped, Stopped, Stopped, Stopped | Playing, Paused, Playing, Stopped |
+| `SoundEffect.Duration` of 4410 frames at 22050 Hz | 0 ms | 200 ms |
+
+Capture is deliberately never started: enumerating devices touches no audio, where opening a capture
+stream would record from this host's real microphone. Audible output stays UNVERIFIED and the suite
+prints it that way.
+
+Two more rows were stale the same way — "GPU custom-effect and rendering output" and "Windowed
+renderer behavior on Linux" both described HEADLESS — and one had a stale clause ("Electron: no
+windowed artifact"). PROVED went 158 → 163, `HARDWARE_PENDING` 6 → 3, `NOT_APPLICABLE` 1 → 0.
+
+### 8. Upstream finding 28, and a wrong reading caught on the way
+
+`Microphone.BufferDuration` reports 1000 ms and its own setter **refuses 1000 ms**, so
+`m.BufferDuration = m.BufferDuration` throws. It also accepts 1100, 1500 and 2500 ms, which XNA
+rejects. XNA's IL settles the contract — `blt 100.` and `bgt 1000.` on `get_TotalMilliseconds`, both
+strict — and CNA's `Microphone.cpp` reads `getMillisecondsProperty()`, the **sub-second component**.
+That one substitution produces every row: 1000 ms arrives as 0 and fails the lower bound. CNA's own
+source and its own test each note the `> 1000` branch is unreachable and treat it as harmless; it is
+the symptom.
+
+**A sweep first reported that 500 ms was refused, and that was wrong.** The throw came from the
+restore write of 1000 ms afterwards and I had attributed it to the statement before it. Isolating
+each value in its own process gave the table and a root cause that *predicts* every row — including
+the three where CNA is more permissive than XNA, which were predicted from the source and then
+measured, not the reverse.
+
+### 9. Upstream finding 29: net sessions, and the only honest way to reach them
+
+Reproduced against the live C ABI with every out-parameter poisoned first:
+
+```text
+cna_gamer_get_signed_in_gamer_count            SUCCESS, count 0
+cna_network_session_create(LOCAL, 1, 4, &out)  INVALID_ARGUMENT, out invalid
+cna_signed_in_gamer_create_ext("Player", ...)  SUCCESS
+cna_gamer_set_signed_in_gamers_ext(&gamer, 1)  SUCCESS, count 1
+cna_network_session_create(LOCAL, 2, 8, &out)  SUCCESS, session valid
+```
+
+Steps two and five are the same call. CNA's own `pure_c/NetSmoke.c` runs this and has to invent a
+gamer called `"Player"` to get past step two — which a binding must not do, because
+`cna_signed_in_gamer_create_ext` exists so a *platform layer* can publish the gamer that is really
+signed in. **No synthetic gamer test backend has been added**; the header and `docs/c-api/NET.md`
+were both re-read.
+
+The request has a shape CNA has designed five times already —
+`cna_compass_set_test_backend_ext` and four siblings — and the compass header's rationale is this
+finding with one noun changed. `tools/upstream-repro/net-signed-in-gamer.py` keeps the sequence
+runnable. The family stays `BLOCKED_UPSTREAM_TESTABILITY`.
+
+### 10. WebAssembly: the artifact was never asked
+
+`createEffectCompiled` was not in the WebAssembly effect slice, so the binding declined a compiled
+effect before CNA saw it — and a consumer whose artifact *did* carry the runtime would have been
+told the wrong thing about whose limitation it was. The route is registered now and the bytes go
+through, so the answer is CNA's:
+
+```text
+CNA result 6: ... (GraphicsCapability::CompiledEffects is false).
+```
+
+the same result and sentence the Node HEADLESS backend gives. The test asserts that and takes the
+other branch — six parameters, two techniques — if an artifact ever answers differently, so today's
+answer is a build option (`CNA_EASYGL_COMPILED_EFFECTS=OFF`) rather than permanent behaviour. No
+separate browser Effect API; this is the public XNA constructor reaching one more private route.
+`WASM_BACKEND_ROUTES` 343 → 344.
+
+### 11. Two gates that existed, were correct, and had been failing quietly
+
+- The workflow pins a CNA SHA and `cmp`s three reports against a fresh run from it. Measured by
+  extracting `modules/c-api/include` at each revision: the pin `17b5a90a0` declares **4051** routes,
+  the checked-in report said **4054**. The `cmp` could not have passed. Both now name `89024e0d4` —
+  the newest commit that exists on the CNA *remote*, because `cnanext` has ten local-only commits
+  and a SHA the workflow cannot fetch is not a pin.
+- `src/internal/backend-base.ts` was stale against its own generator, which the workflow also
+  checks. Regenerating reorders members; the member and class multisets are identical and the
+  generator is idempotent on its own output.
+
+Seven suites that pass locally were never invoked by CI at all and now are.
+
+### 12. The window nobody meant to open
+
+**A user asked what kept flashing blue windows onto their desktop. It was this project.**
+
+`xvfb-run` sets `DISPLAY` and leaves `WAYLAND_DISPLAY` alone; SDL3 prefers Wayland whenever that is
+set, so every windowed run since this host became a Wayland session had ignored Xvfb and opened real
+windows. Nothing failed — the renderer initialized, the pixels were correct, the suites were green.
+The only symptom was on a screen the run could not see.
+
+Both suites now pin SDL to `x11` before the backend loads, so `DISPLAY` is honoured. And it changed
+what was being measured:
+
+```text
+real desktop   AMD Radeon 780M (radeonsi)   MSAA up to 8x
+Xvfb           llvmpipe (LLVM 19.1.7)       MSAA up to 4x
+```
+
+Every windowed measurement in this project had been made on the GPU. Two tests had pinned that
+rasterizer's rounding as exact and fail on the other — `0.125 × 255 = 31.875` resolves to 32 on the
+AMD part and 31 on llvmpipe — and now assert the arithmetic to within a byte, naming both. The
+distinctions they exist to make are separated by tens, not by one.
+
+**The compiled-effect pixel tests needed no change.** They were written with a one-byte tolerance
+from the start and pass unaltered on both rasterizers, and all eight mutants still die on llvmpipe.
+That turns section 3 from a property of this GPU into a property of the shader.
+
+### 13. Gates at the end of the run
+
+```text
+api:verify / api:verify:live   TOTAL_DIFFERENCES=0  ALLOWLIST_SIZE=0
+verify:runtime                 RUNTIME_DIFFERENCES=0   TARGET_TYPES=348
+verify:leaks                   INTERNAL_LEAK=0
+verify:cna-contract            DIAGNOSTICS=0
+audit:cna-abi                  IMPORTED=1889  VERIFIED=1889  MISMATCHES=0  NEVER_LOADED=0
+                               WASM_BACKEND_ROUTES=344  MISSING_WASM_BACKEND_EXPORTS=0
+coverage:cna-abi               UNEXPLAINED=0  REACHABLE_BUT_DEFERRED=0  NODE=1889  WASM=344
+runtime:inventory              ENTRIES=175  CONSISTENCY_GATE=PASS  PROVED=163
+verify:package / build- / package-reproducibility   all PASS
+```
+
+```text
+test 332   differential 182   native 52   cnb 39   extensions 10
+content (required) 10, skipped 0        windowed (required) 25, skipped 0
+effect-reflection (required) 10, skipped 0
+model-part 9   content-survey 8   input-devices 3   media-library 6
+avatars 8   sprite-font-oracle 5   wasm-browser 13   wasm-browser-input 7
+```
+
+Template: build PASS, Node 60 and 600 PASS, Browser 60 and 600 PASS, extensions smoke PASS,
+generated TypeScript and JavaScript consumers PASS.
+
+### 14. What was measured wrong first, and caught
+
+| Wrong reading | Cause | Caught by |
+| --- | --- | --- |
+| "`BufferDuration` refuses 500 ms" | the throw came from the *restore* write of 1000 ms on the next line | isolating each value in its own process |
+| "the browser refuses compiled effects" | the *binding* refused before CNA was asked | reading the message instead of the outcome |
+| "the artifacts are at `cnanext` HEAD" | HEAD landed after both were built | comparing mtimes against commit timestamps |
+| "the CI pin matches the reports" | it declares 4051 routes and they say 4054 | running the workflow's own `cmp` locally |
+| "`xvfb-run` means Xvfb" | SDL3 prefers Wayland when `WAYLAND_DISPLAY` is set | a user asking what was on their screen |
+
+The last one is the one to carry forward: **it produced no failure of any kind.** Every suite was
+green, on a better GPU than intended, writing windows onto somebody's desktop. No gate in this
+project could have caught it, and none can — the check that found it was a person looking at a
+screen.
+
+### 15. Where the next session picks up
+
+`ACTIONABLE_LOCAL = 0`. Everything left is external:
+
+- `BLOCKED_UPSTREAM_TESTABILITY` — the synthetic signed-in gamer (finding 29, ~136 routes).
+- `BLOCKED_UPSTREAM` — findings 1, 2, 5, 6, 8, 10–28 as recorded; the gyroscope's reading path.
+- `BLOCKED_RENDERER` — `ContentLost` needs a renderer whose API can lose a device.
+- `BLOCKED_FIXTURE` — XACT (no legal XGS/XSB/XWB corpus), `VideoPlayer` decode.
+- `BLOCKED_HARDWARE` — physical joystick/haptics, physical keyboard/mouse/gamepad/touch (asked of
+  both backends this session; both answer nothing attached, which is a fact about a host with nobody
+  at it).
+- `BLOCKED_PLATFORM` — Android/iOS, Electron, Windows/macOS runtimes.
+- `DELIBERATE_NON_BINDING` — `graphics_resource.h`, `runtime_components.h`, `models.h`, CNA's XNB
+  reader stack, all for the architectural reasons the census records.
+
+Three things would change that from outside: a **gamer test backend** upstream; a Wasm artifact
+built with **`CNA_EASYGL_COMPILED_EFFECTS=ON`**, which would make section 10 take its other branch
+and put compiled-effect pixels in a browser; and **pushing `cnanext`**, which would let the CI pin
+move past `89024e0d4`.
+
+And one habit: when `cnanext` moves, ask every claim of unavailability *which backend* it was
+measured on. That question has now found six stale rows across two sessions, and it found two of
+this session's three upstream findings.
