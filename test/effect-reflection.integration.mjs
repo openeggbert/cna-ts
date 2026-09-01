@@ -20,6 +20,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { requiredSuite } from "./support/required-suite.mjs";
+import { preferTheDisplayWeWereGiven } from "./support/windowed-display.mjs";
 
 import {
   Color, Game, Graphics, GraphicsDeviceManager, LoadNodeNativeBackend, Matrix, Vector2, Vector3,
@@ -41,7 +42,10 @@ const effectPath = (name) =>
   path.join(cnaSource, "modules/renderers/fna3d/effects", name);
 
 if (!environmentBlocked) {
-  await LoadNodeNativeBackend({
+  // Before the library initializes its video subsystem: honour DISPLAY, so a run under
+  // xvfb-run reaches the virtual server instead of the user's desktop.
+  preferTheDisplayWeWereGiven();
+    await LoadNodeNativeBackend({
     CnaLibrary: path.resolve(library),
     BridgeModule: path.resolve(process.env.CNA_NODE_BRIDGE ?? "build/cna_node_bridge.node"),
   });

@@ -906,8 +906,14 @@ editing it, and both written up in `docs/wasm-backend.md`:
   arguments — under `WASM_BIGINT` an `i64` handle given `undefined` throws. Every route in this ABI
   takes a `CNA_Handle`, so no route survives an unwind.
 
-Separately, and not a blocker for this binding: compiled `Effect` execution returns not-supported
-on the HEADLESS renderer, which is a renderer property rather than a missing route. Two entries
+Separately, and not a blocker for this binding: compiled `Effect` execution is a **renderer
+property**, and five backends have now each been handed the same `.fxb` and asked. OPENGLES3, built
+with `CNA_EASYGL_COMPILED_EFFECTS=ON`, creates it, reflects it and **draws with it** -- the texels
+match the shader's own arithmetic across three parameter states and two techniques. SDL_RENDERER,
+SOFTWARE, HEADLESS and the WEBGL2 browser artifact all refuse with CNA result 6 naming
+`GraphicsCapability::CompiledEffects is false`. So this is one capability with five measured
+answers rather than a fact about HEADLESS, and every gate that depends on it now asks the renderer
+instead of reading its name. Two entries
 that used to sit here are gone. `GraphicsAdapter.DefaultAdapter` is qualified on four renderers
 now; and XNA's standalone `GraphicsDevice` constructor works — `cna_graphics_device_create` takes
 an adapter index and presentation parameters and no game at all, so the claim that no path could

@@ -12,7 +12,9 @@
  * It is opt-in and skips with a reason, because it needs three things the default qualification
  * does not: a CNA library built with a windowed renderer (`CNA_WINDOWED_LIBRARY`), a display for it
  * to open a window on, and a bridge built against the same ABI. Run it under `xvfb-run` on a host
- * with no screen.
+ * with no screen -- and note that `xvfb-run` alone is not enough on a Wayland session, which is why
+ * `preferTheDisplayWeWereGiven()` runs below before the backend loads. That module says what goes
+ * wrong without it, and it is not a test failure: it is windows on somebody's desktop.
  *
  * ```sh
  * CNA_WINDOWED_LIBRARY=/path/to/libcna_c_api.so CNA_NODE_BRIDGE=build/cna_node_bridge.node \
@@ -27,6 +29,7 @@ import path from "node:path";
 import { after } from "node:test";
 
 import { requiredSuite } from "./support/required-suite.mjs";
+import { preferTheDisplayWeWereGiven } from "./support/windowed-display.mjs";
 
 import {
   Audio,
@@ -76,7 +79,10 @@ after(() => fs.rmSync(storageHome, { recursive: true, force: true }));
 process.env.XDG_DATA_HOME = storageHome;
 
 if (!skip) {
-  await LoadNodeNativeBackend({
+  // Before the library initializes its video subsystem: honour DISPLAY, so a run under
+  // xvfb-run reaches the virtual server instead of the user's desktop.
+  preferTheDisplayWeWereGiven();
+    await LoadNodeNativeBackend({
     CnaLibrary: path.resolve(library),
     BridgeModule: path.resolve(process.env.CNA_NODE_BRIDGE ?? "build/cna_node_bridge.node"),
   });
@@ -5827,15 +5833,34 @@ test("a windowed CNA renderer runs every post-process pass to the exact pixels i
   // The LUT this test wrote rotates the channels, and that map is linear, so trilinear
   // interpolation reproduces it exactly. The prediction is the rotation applied in JavaScript --
   // nothing here was read off a run.
+  //
+  // Exactly in arithmetic, to within a byte on a GPU: the two rasterizers this host can run
+  // disagree by one on a sampled texel (the AMD Radeon 780M answers 136 where Mesa's llvmpipe
+  // answers 135), which is trilinear filtering and the float-to-unorm8 conversion rounding
+  // differently, not the grade doing something different. A tolerance of one keeps the prediction
+  // independent of which rasterizer happens to be behind the window -- and a rotation that failed
+  // to happen at all would be out by far more than a byte.
   assert.deepEqual(pp.lut.stripSize, [4, 2], "a size-2 cube is a 4x2 strip: two 2x2 slices");
   assert.deepEqual(pp.lut.volumeSize, [2, 2, 2], "and a 2x2x2 volume");
   const rotated = ([r, g, b, a]) => [b, r, g, a];
-  eachTexel(pp.grade.fullStrip, rotated, "the strip LUT at full strength");
-  eachTexel(pp.grade.fullVolume, rotated, "the volume LUT at full strength");
-  assert.deepEqual(
-    pp.grade.fullStrip, pp.grade.fullVolume,
-    "the same table as a strip and as a volume must grade to the same pixels",
-  );
+  eachTexel(pp.grade.fullStrip, rotated, "the strip LUT at full strength", 1);
+  eachTexel(pp.grade.fullVolume, rotated, "the volume LUT at full strength", 1);
+  // The same table by two different routes: a 4x2 strip sampled as a 2D texture with the slice
+  // blend done in the shader, and a 2x2x2 volume sampled with hardware trilinear filtering. They
+  // must agree, and on the AMD Radeon 780M they agree exactly; on Mesa's llvmpipe they land one
+  // byte apart on some texels, because those are two genuinely different filter implementations
+  // rounding a value that sits near a boundary. A byte is the tolerance for "the same table"; a
+  // strip whose slices were indexed wrongly would be out by tens.
+  for (let index = 0; index < pp.grade.fullStrip.length; index += 1) {
+    for (let channel = 0; channel < 4; channel += 1) {
+      assert.ok(
+        Math.abs(pp.grade.fullStrip[index][channel] - pp.grade.fullVolume[index][channel]) <= 1,
+        "the same table as a strip and as a volume must grade to the same pixels: texel " +
+        `${index} channel ${channel} is ${pp.grade.fullStrip[index][channel]} as a strip and ` +
+        `${pp.grade.fullVolume[index][channel]} as a volume`,
+      );
+    }
+  }
   // Strength is a lerp between the source and the graded result, so half is exactly the midpoint.
   eachTexel(
     pp.grade.half,
@@ -6732,21 +6757,34 @@ test("a windowed CNA renderer runs a custom shader, and loses its first draw", {
   // A fresh ShaderEffect's FIRST SpriteBatch draw produces nothing. Asserted as it is, not worked
   // around, so the day it is repaired this file says so. Every run below rebinds and clears the
   // same 4x4 target first, so nothing carries over from one to the next except the effect itself.
-  const drawn = [32, 0, 0, 255];   // 0.125 * 255 = 31.875, which lands on 32
+  // 0.125 * 255 = 31.875, and the two rasterizers this host can run disagree about it by one:
+  // the AMD Radeon 780M answers 32 and Mesa's llvmpipe answers 31. Both are a legal float-to-unorm8
+  // conversion of the same shader output, so the assertion is the shader's arithmetic to within a
+  // byte rather than one rasterizer's answer written down as the truth. What the test is actually
+  // about -- a draw that produced *nothing* versus a draw that produced the colour -- is separated
+  // by 31, not by 1, so nothing here is weakened.
+  const DRAWN = 0.125 * 255;
   const nothing = [0, 0, 0, 255];  // the opaque black the target was cleared to
+  const assertDrawn = (actual, what) => {
+    assert.ok(
+      Math.abs(actual[0] - DRAWN) <= 1,
+      `${what}: red is ${actual[0]}, expected ${DRAWN} within a byte (actual ${actual})`,
+    );
+    assert.deepEqual(actual.slice(1), [0, 0, 255], `${what}: the other channels are exact`);
+  };
   assert.deepEqual(
     fx.firstDraw, nothing,
     "a fresh ShaderEffect's first SpriteBatch draw produces nothing -- upstream finding 22; when " +
     "it is fixed this assertion is the one that fails",
   );
-  assert.deepEqual(fx.secondDraw, drawn, "and its second draw is correct");
-  assert.deepEqual(fx.thirdDraw, drawn, "as is every one after that");
+  assertDrawn(fx.secondDraw, "and its second draw is correct");
+  assertDrawn(fx.thirdDraw, "as is every one after that");
   assert.deepEqual(
     fx.freshEffectFirstDraw, nothing,
     "a second, separately created effect loses its own first draw too, so it is once per effect " +
     "rather than once per process",
   );
-  assert.deepEqual(fx.freshEffectSecondDraw, drawn);
+  assertDrawn(fx.freshEffectSecondDraw, "the second effect's second draw");
   assert.deepEqual(
     fx.plainFirstDraw, [40, 80, 120, 255],
     "while the same SpriteBatch with no custom effect draws correctly the first time, so it is " +
@@ -6760,8 +6798,8 @@ test("a windowed CNA renderer runs a custom shader, and loses its first draw", {
     "went to unit 0 instead leaves unit 1 unbound and the shader samples nothing",
   );
 
-  assert.deepEqual(
-    fx.preAppliedFirstDraw, drawn,
+  assertDrawn(
+    fx.preAppliedFirstDraw,
     "and one Apply outside any batch is enough to fix it -- which is the diagnosis as well as the " +
     "workaround: the first Apply does something the draw beside it needs and does it too late",
   );
@@ -7041,9 +7079,10 @@ test("a windowed CNA build enumerates the host's real capture devices", { skip }
   assert.ok(Array.isArray(microphones), `microphone enumeration failed: ${microphones}`);
   assert.ok(
     microphones.length > 0,
-    "an SDL3 audio build enumerates the host's capture devices; zero here means either this host " +
-    "genuinely has none attached or the enumeration route regressed, and the two are worth telling " +
-    "apart before this assertion is relaxed",
+    "an SDL3 audio build enumerates the host's capture devices. Zero here means one of three " +
+    "things, and they are worth telling apart before this assertion is relaxed: this windowed " +
+    "build has CNA_AUDIO_PLATFORM=NULL rather than SDL3 (all three on this host are SDL3), the " +
+    "host genuinely has no capture device attached, or the enumeration route regressed",
   );
   for (const microphone of microphones) {
     assert.equal(typeof microphone.Name, "string");
