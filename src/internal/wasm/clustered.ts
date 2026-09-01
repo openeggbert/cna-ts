@@ -435,6 +435,7 @@ export class WasmClusteredLightingBackend extends CnaClusteredLightingBackendBas
     return structure;
   }
 
+  /** Writes a `CNA_ClusteredLightEXT` into a caller-owned scope. */
   #light(scope: WasmScope, light: ClusteredLightSnapshot): number {
     const structure = this.#allocateLight(scope);
     structure
@@ -450,6 +451,7 @@ export class WasmClusteredLightingBackend extends CnaClusteredLightingBackendBas
     return structure.pointer;
   }
 
+  /** Reads a `CNA_ClusteredLightEXT` a route has written. */
   #readLight(structure: WasmStruct): ClusteredLightSnapshot {
     const vector = (field: string): Vector3Snapshot => {
       const [X, Y, Z] = structure.getF32Array(field) as [number, number, number];

@@ -72,6 +72,14 @@ jobs:
         run: |
           node tools/backend/generate-backend-base.mjs
           git diff --exit-code -- src/internal/backend-base.ts
+      - name: Every wasm route call and structure field checks out against the headers
+        # The route table matches the routes actually called, every call's arity and BigInt-ness
+        # matches its C declaration, and every structure field named exists in the measured layout.
+        # All three are static, so they catch what no scenario reaches: three structures once
+        # shipped with fields the probe never measured, each throwing on first use.
+        env:
+          CNA_SOURCE_PATH: cna-headers
+        run: npm run verify:wasm
       - name: Reproducible clean dist
         run: node tools/verify-build-reproducibility.mjs
       - name: npm pack

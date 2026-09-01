@@ -687,6 +687,7 @@ export class WasmContentBackend extends CnaContentBackendBase {
     }
   }
 
+  /** The writer's `CNA_CnbReadLimits`, as CNA holds them. */
   public override cnbWriterGetLimits(writer: NativeHandle): CnbLimitsSnapshot {
     const scope = this.#routes.scope();
     try {
@@ -706,6 +707,7 @@ export class WasmContentBackend extends CnaContentBackendBase {
     }
   }
 
+  /** The same `CNA_CnbReadLimits`, narrowed over CNA's own defaults. */
   public override cnbWriterSetLimits(writer: NativeHandle, limits: CnbLimitsSnapshot): void {
     const scope = this.#routes.scope();
     try {
@@ -1387,6 +1389,7 @@ export class WasmContentBackend extends CnaContentBackendBase {
     }
   }
 
+  /** Writes a `CNA_CnbModelPartInfo` a caller has allocated. */
   #writePartInfo(part: WasmStruct, info: CnbModelPartSnapshot): void {
     part
       .setU32("vertex_stride", info.VertexStride)

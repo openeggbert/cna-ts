@@ -782,6 +782,24 @@ possibility rather than fixing three instances of it: 90 fields that were never 
 misparse cannot pass silently either, because every name found becomes an `offsetof` in a probe
 compiled `-Werror`.
 
+**And the other direction, statically.** `tools/wasm/verify-struct-fields.mjs` checks that every
+field the backend *names* exists in the measured layout — 1056 accesses across 111 structures, with
+2 left unscoped and reported as such (both inside the generic allocator, which names the structure
+it was handed). It resolves the structure by scope: a method that allocates one names it, and a
+helper that takes a `WasmStruct` from its caller names it in its doc comment, which is a convention
+the file already followed and this makes load-bearing.
+
+It reads the *helpers* from their own signatures rather than guessing them, because the field name
+is an argument and not a method for exactly the accesses that matter — a `CNA_Vector4`, a
+`CNA_BoundingBox`, a nested array. A checker matching only `structure.getF32("field")` would have
+missed the glTF coordinate sets, which is the defect that prompted the file. Its own proof is three
+planted misspellings, one per shape, each caught with the right structure named.
+
+The three static wasm gates now run as one command, `npm run verify:wasm`, and CI runs it: the route
+table matching the routes actually called, every call's arity and BigInt-ness against its C
+declaration, and every structure field against the measured layout. None of them had been wired into
+anything before, which is its own answer to how three structures shipped broken.
+
 The census also records what CNA refuses and why. On the strong artifact **exactly three** classes
 are refused, all with CNA's own `NOT_SUPPORTED`: `AutoExposure`, `StorageBuffer` and its typed form,
 all of which need a compute stage WebGL 2.0 does not have. On the default artifact eighteen are

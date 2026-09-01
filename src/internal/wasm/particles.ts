@@ -252,6 +252,7 @@ export class WasmParticleBackend extends CnaParticleBackendBase {
       this.#routes.module, "CNA_Particle", scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Particle.size));
   }
 
+  /** Reads a `CNA_ParticleEmitterSettings` CNA's initialiser has filled. */
   #readSettings(settings: WasmStruct): ParticleEmitterSettingsSnapshot {
     return {
       Position: this.#vector3(settings, "position"),
@@ -272,6 +273,7 @@ export class WasmParticleBackend extends CnaParticleBackendBase {
   }
 
   /** Writes every member except `struct_size` and `struct_version`, which are CNA's to decide. */
+  /** Writes a `CNA_ParticleEmitterSettings` over CNA's own defaults. */
   #writeSettings(settings: WasmStruct, values: ParticleEmitterSettingsSnapshot): void {
     this.#setVector3(settings, "position", values.Position);
     this.#setVector3(settings, "direction", values.Direction);
@@ -289,6 +291,7 @@ export class WasmParticleBackend extends CnaParticleBackendBase {
       .setF32("end_size", values.EndSize);
   }
 
+  /** Reads a `CNA_Particle` CNA's initialiser has filled. */
   #readParticle(particle: WasmStruct): ParticleSnapshot {
     return {
       Position: this.#vector4(particle, "position"),
@@ -297,6 +300,7 @@ export class WasmParticleBackend extends CnaParticleBackendBase {
     };
   }
 
+  /** Writes a `CNA_Particle` over CNA's own defaults. */
   #writeParticle(particle: WasmStruct, values: ParticleSnapshot): void {
     this.#setVector4(particle, "position", values.Position);
     this.#setVector4(particle, "velocity", values.Velocity);
