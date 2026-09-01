@@ -10040,3 +10040,517 @@ test("a contact shadow's two decisions are a band and a clamped product", async 
     `GLSL=${glsl.length}`,
   );
 });
+
+test("a transparent draw list orders by distance to the box, and stably", async () => {
+  const { TransparentDrawList } = computeExtensions;
+
+  // --- the camera a view matrix implies ----------------------------------------------------------
+  // Predicted by this package's own Matrix.Invert, which is a different implementation reached
+  // through a different route: CNA's answer is the translation row of the inverse it computes in
+  // C++, and this one is the translation of the inverse this package computes in TypeScript.
+  const views = [
+    Matrix.Identity,
+    Matrix.CreateLookAt(new Vector3(3, 4, 5), Vector3.Zero, Vector3.Up),
+    Matrix.CreateLookAt(new Vector3(-12, 0.5, 7), new Vector3(1, 2, 3), Vector3.Up),
+    Matrix.CreateTranslation(new Vector3(2, -3, 4)),
+    // A view with a scale in it. This is the case that separates the full inverse from the
+    // "negate the translation and rotate it back" shortcut, which is only correct for a rigid
+    // matrix -- so a binding that took the shortcut is caught here and nowhere above.
+    Matrix.Multiply(
+      Matrix.CreateScale(2, 2, 2),
+      Matrix.CreateLookAt(new Vector3(3, 4, 5), Vector3.Zero, Vector3.Up),
+    ),
+    Matrix.Multiply(
+      Matrix.CreateScale(0.5, 2, 4),
+      Matrix.CreateLookAt(new Vector3(-1, 6, 2), new Vector3(0, 1, 0), Vector3.Up),
+    ),
+  ];
+  for (const [index, view] of views.entries()) {
+    const answered = TransparentDrawList.CameraPositionOf(view);
+    const predicted = Matrix.Invert(view).Translation;
+    for (const axis of ["X", "Y", "Z"]) {
+      assert.ok(
+        Math.abs(answered[axis] - predicted[axis]) <= 1e-4,
+        `view ${index}: camera ${axis} is ${answered[axis]}, the inverse's translation is ` +
+        `${predicted[axis]}`,
+      );
+    }
+  }
+  // The shortcut really would differ on the scaled views, so the two assertions above are two
+  // different assertions. Written out rather than asserted loosely: -(translation * rotationᵀ).
+  const shortcut = (view) => {
+    const m = [
+      view.M11, view.M12, view.M13, view.M21, view.M22, view.M23, view.M31, view.M32, view.M33,
+    ];
+    const t = [view.M41, view.M42, view.M43];
+    return [
+      -(t[0] * m[0] + t[1] * m[1] + t[2] * m[2]),
+      -(t[0] * m[3] + t[1] * m[4] + t[2] * m[5]),
+      -(t[0] * m[6] + t[1] * m[7] + t[2] * m[8]),
+    ];
+  };
+  const scaled = views[4];
+  const bySortcut = shortcut(scaled);
+  const byInverse = TransparentDrawList.CameraPositionOf(scaled);
+  assert.ok(
+    Math.abs(bySortcut[0] - byInverse.X) > 1,
+    "the rigid-view shortcut must disagree on a scaled view, or the scaled cases prove nothing",
+  );
+  // And it must agree on a rigid one, which is what makes the disagreement above about the scale.
+  const rigid = views[1];
+  const rigidShortcut = shortcut(rigid);
+  const rigidInverse = TransparentDrawList.CameraPositionOf(rigid);
+  assert.ok(
+    Math.abs(rigidShortcut[0] - rigidInverse.X) < 1e-3,
+    "on a rigid view the shortcut and the inverse are the same answer",
+  );
+
+  // --- the sort key ------------------------------------------------------------------------------
+  // The distance to the nearest point of the box, which is the camera clamped into it. In float,
+  // because CNA computes it in float.
+  const nearestDistance = (box, camera) => {
+    const f = Math.fround;
+    const axis = (value, min, max) => f(f(Math.min(Math.max(value, min), max)) - f(value));
+    const x = axis(camera.X, box.Min.X, box.Max.X);
+    const y = axis(camera.Y, box.Min.Y, box.Max.Y);
+    const z = axis(camera.Z, box.Min.Z, box.Max.Z);
+    return f(Math.sqrt(f(f(f(x * x) + f(y * y)) + f(z * z))));
+  };
+  const box = (min, max) => new BoundingBox(new Vector3(...min), new Vector3(...max));
+  const cases = [
+    [box([1, 0, 0], [2, 1, 1]), new Vector3(0, 0, 0)],
+    [box([-1, -1, -1], [1, 1, 1]), new Vector3(0.5, 0, 0)],
+    [box([3, 4, 0], [5, 6, 0]), new Vector3(0, 0, 0)],
+    [box([-5, -5, -5], [-4, -4, -4]), new Vector3(10, 10, 10)],
+    [box([0, 0, 0], [1, 1, 1]), new Vector3(0.5, 0.5, 2.5)],
+    [box([0, 0, 0], [0, 0, 0]), new Vector3(1, 2, 2)],
+    [box([-100, -100, -100], [100, 100, 100]), new Vector3(7, -3, 11)],
+  ];
+  for (const [bounds, camera] of cases) {
+    assert.ok(
+      Math.abs(TransparentDrawList.SortKey(bounds, camera) - nearestDistance(bounds, camera))
+        <= 1e-5,
+      `the sort key of ${JSON.stringify(bounds.Min)}..${JSON.stringify(bounds.Max)} from ` +
+      `${JSON.stringify(camera)}`,
+    );
+  }
+  // The three facts that distinguish "nearest point of the box" from the two things it is often
+  // mistaken for. Each is a different picture on screen.
+  assert.equal(
+    TransparentDrawList.SortKey(box([-1, -1, -1], [1, 1, 1]), new Vector3(0.5, 0, 0)), 0,
+    "a camera inside the box sorts at zero, not at its distance from the centre",
+  );
+  assert.equal(
+    TransparentDrawList.SortKey(box([3, 4, 0], [5, 6, 0]), Vector3.Zero), 5,
+    "a box off two axes is measured to its corner, not along one axis",
+  );
+  const wide = box([-100, -100, -100], [100, 100, 100]);
+  const centreDistance = Math.sqrt(7 * 7 + 3 * 3 + 11 * 11);
+  assert.equal(
+    TransparentDrawList.SortKey(wide, new Vector3(7, -3, 11)), 0,
+    "and a large shell around the camera sorts at zero rather than at its half-diagonal -- " +
+    "which is what puts a transparent skybox behind the scene instead of in the middle of it",
+  );
+  assert.ok(centreDistance > 13, "the centre distance is a genuinely different number");
+
+  // --- the order ---------------------------------------------------------------------------------
+  const list = new TransparentDrawList();
+  try {
+    assert.equal(list.Count, 0, "a new list is empty");
+    assert.deepEqual(list.GetSortedOrder(Matrix.Identity), [], "and orders nothing");
+
+    // Four boxes at four distances along +x, two of them exactly as far away. The camera is at the
+    // origin, so an identity view puts it there.
+    const places = [5, 1, 9, 5];
+    const drawn = [];
+    for (const [index, at] of places.entries()) {
+      list.Submit(box([at, 0, 0], [at + 0.5, 1, 1]), () => drawn.push(index));
+    }
+    assert.equal(list.Count, 4);
+
+    // Predicted here, from the sort key this test computes itself, with a stable descending sort
+    // written out rather than borrowed from Array.prototype.sort -- whose stability is guaranteed
+    // but whose comparator convention is the thing under test.
+    const eye = TransparentDrawList.CameraPositionOf(Matrix.Identity);
+    const keys = places.map((at) => nearestDistance(box([at, 0, 0], [at + 0.5, 1, 1]), eye));
+    const predicted = [...places.keys()];
+    for (let i = 1; i < predicted.length; i += 1) {
+      for (let j = i; j > 0 && keys[predicted[j - 1]] < keys[predicted[j]]; j -= 1) {
+        [predicted[j - 1], predicted[j]] = [predicted[j], predicted[j - 1]];
+      }
+    }
+    assert.deepEqual(predicted, [2, 0, 3, 1], "the prediction itself is the one this test means");
+    assert.deepEqual(
+      list.GetSortedOrder(Matrix.Identity), predicted,
+      "farthest first, and the two at the same distance keep submission order",
+    );
+    // The tie-break is the half that a comparator sorting on anything but the distance would get
+    // wrong, so it is named on its own: 0 was submitted before 3 and stays before it.
+    const order = list.GetSortedOrder(Matrix.Identity);
+    assert.ok(
+      order.indexOf(0) < order.indexOf(3),
+      "two draws exactly as far away keep the order they were submitted in",
+    );
+    // Every run, not just this one: an unstable sort is allowed to differ between calls.
+    for (let repeat = 0; repeat < 8; repeat += 1) {
+      assert.deepEqual(list.GetSortedOrder(Matrix.Identity), order, "the order is stable per call");
+    }
+    // A different camera is a different order, or the view never reached the sort.
+    const behind = Matrix.CreateTranslation(new Vector3(-20, 0, 0));
+    const fromFar = list.GetSortedOrder(behind);
+    assert.equal(
+      TransparentDrawList.CameraPositionOf(behind).X, 20,
+      "a translation of -20 puts the camera at +20",
+    );
+    assert.deepEqual(fromFar, [1, 0, 3, 2], "from +20 the near box at x=1 is now the farthest");
+    assert.notDeepEqual(fromFar, order, "so the two cameras must not give the same order");
+
+    // --- the dispatch ----------------------------------------------------------------------------
+    list.DrawSorted(Matrix.Identity);
+    assert.deepEqual(drawn, order, "DrawSorted runs the callbacks in exactly that order");
+    drawn.length = 0;
+    list.DrawSorted(behind);
+    assert.deepEqual(drawn, fromFar, "and follows the camera it is given");
+
+    list.Clear();
+    assert.equal(list.Count, 0, "Clear empties it");
+    assert.deepEqual(list.GetSortedOrder(Matrix.Identity), []);
+  } finally {
+    list.Dispose();
+  }
+
+  // A callback that throws stops the draw where it failed and the exception reaches this caller --
+  // rather than being swallowed into a result code, or unwinding through C++.
+  const failing = new TransparentDrawList();
+  try {
+    const ran = [];
+    const boom = new Error("the far draw failed");
+    failing.Submit(box([9, 0, 0], [10, 1, 1]), () => { ran.push("far"); throw boom; });
+    failing.Submit(box([1, 0, 0], [2, 1, 1]), () => ran.push("near"));
+    assert.throws(() => failing.DrawSorted(Matrix.Identity), (error) => error === boom,
+      "the callback's own exception object, not a wrapper");
+    assert.deepEqual(ran, ["far"], "the near draw must not run after the far one failed");
+    // And the list survives it: the entries are still there and a later draw runs them.
+    assert.equal(failing.Count, 2);
+    ran.length = 0;
+    assert.throws(() => failing.DrawSorted(Matrix.Identity));
+    assert.deepEqual(ran, ["far"], "a second attempt fails the same way rather than differently");
+  } finally {
+    failing.Dispose();
+  }
+
+  // Argument refusals, and a disposed list refusing by name rather than by handle error.
+  const disposed = new TransparentDrawList();
+  disposed.Dispose();
+  assert.throws(() => disposed.Count, /disposed/);
+  assert.throws(() => disposed.Submit(box([0, 0, 0], [1, 1, 1]), () => {}), /disposed/);
+  disposed.Dispose();
+  const live = new TransparentDrawList();
+  try {
+    assert.throws(() => live.Submit(null, () => {}), /bounds/);
+    assert.throws(() => live.Submit(box([0, 0, 0], [1, 1, 1]), null), /function/);
+    assert.equal(live.Count, 0, "a refused submit adds nothing");
+  } finally {
+    live.Dispose();
+  }
+
+  console.log(
+    `CNA_TS_NATIVE_TRANSPARENT_ORDER=PASS CAMERA=INVERSE_TRANSLATION KEY=NEAREST_POINT ` +
+    `SORT=STABLE_DESCENDING DISPATCH=EXACT_ORDER FAILURE=STOPS_AND_PROPAGATES`,
+  );
+});
+
+test("the weighted-blended weight is McGuire and Bavoil's, clamped where they clamped it", async () => {
+  const { WeightedBlendedTransparency } = computeExtensions;
+
+  // w(z, a) = a * clamp(0.03 / (1e-5 + z^4), 1e-2, 3e3), over z = clamp(depth / max(far, 1e-4), 0, 1).
+  // Written in float, in CNA's order, because the shader half of this computes it in float and the
+  // point of the CPU half is to predict what the shader will produce.
+  const f = Math.fround;
+  const weight = (viewDepth, alpha, farPlane) => {
+    const z = f(Math.min(1, Math.max(0, f(f(viewDepth) / Math.max(f(farPlane), f(1e-4))))));
+    const raw = f(f(0.03) / f(f(1e-5) + f(Math.pow(z, 4))));
+    return f(f(alpha) * f(Math.min(Math.max(raw, f(1e-2)), f(3e3))));
+  };
+  for (const [depth, alpha, far] of [
+    [0, 1, 100], [1, 1, 100], [10, 1, 100], [25, 1, 100], [50, 1, 100], [75, 1, 100],
+    [100, 1, 100], [200, 1, 100], [-5, 1, 100], [10, 0.5, 100], [10, 0.25, 100], [10, 0, 100],
+    [0.5, 1, 1], [0.5, 0.75, 1], [3, 1, 4], [1e-5, 1, 1e-5], [7, 1, 0],
+  ]) {
+    const answered = WeightedBlendedTransparency.Weight(depth, alpha, far);
+    const predicted = weight(depth, alpha, far);
+    assert.ok(
+      Math.abs(answered - predicted) <= Math.max(1e-4, Math.abs(predicted) * 1e-6),
+      `w(${depth}, ${alpha}, ${far}) is ${answered}, the published form gives ${predicted}`,
+    );
+  }
+
+  // The three shapes of the curve, named so a regression to a simpler function is unmistakable.
+  assert.equal(
+    WeightedBlendedTransparency.Weight(0, 1, 100), 3000,
+    "a surface at the eye takes the ceiling exactly",
+  );
+  assert.ok(
+    WeightedBlendedTransparency.Weight(1, 1, 100) < 3000,
+    "and one just behind it is already below the ceiling, so the ceiling is a clamp and not the value",
+  );
+  assert.equal(
+    WeightedBlendedTransparency.Weight(200, 1, 100),
+    WeightedBlendedTransparency.Weight(100, 1, 100),
+    "past the far plane the depth is clamped, so nothing beyond it is weighted differently",
+  );
+  // Alpha is a plain factor outside the clamp: half the alpha is half the weight, exactly.
+  for (const depth of [0, 5, 40, 100]) {
+    assert.ok(
+      Math.abs(
+        WeightedBlendedTransparency.Weight(depth, 0.5, 100) -
+        WeightedBlendedTransparency.Weight(depth, 1, 100) / 2,
+      ) <= 1e-3,
+      `alpha scales the weight linearly at depth ${depth}`,
+    );
+  }
+  assert.equal(
+    WeightedBlendedTransparency.Weight(10, 0, 100), 0,
+    "a fully transparent fragment contributes nothing at all",
+  );
+  // Strictly decreasing in depth across the whole range where it is not clamped: this is the
+  // property the whole technique rests on, and a weight that ignored depth would keep one value.
+  let previous = Infinity;
+  let distinct = 0;
+  for (let depth = 0; depth <= 100; depth += 0.5) {
+    const value = WeightedBlendedTransparency.Weight(depth, 1, 100);
+    assert.ok(value <= previous + 1e-6, `the weight must not rise going away from the camera at ${depth}`);
+    if (value < previous - 1e-9) distinct += 1;
+    previous = value;
+  }
+  assert.ok(distinct > 150, `the weight must actually vary with depth, saw ${distinct} decreases`);
+
+  // The lower clamp never binds, and that is worth pinning rather than assuming. Because z is
+  // clamped to 1 first, the quotient is at least 0.03 / (1 + 1e-5) ~= 0.03 -- three times the
+  // 1e-2 floor. The floor is the published formula's, kept as published; it can only be reached by
+  // a z above 1, which this function no longer allows. A test that assumed the floor was live
+  // would be asserting something the code cannot do.
+  const floor = f(1e-2);
+  let minimum = Infinity;
+  for (let depth = -50; depth <= 500; depth += 0.25) {
+    minimum = Math.min(minimum, WeightedBlendedTransparency.Weight(depth, 1, 100));
+  }
+  assert.ok(
+    minimum > floor * 2.9,
+    `the smallest weight over the whole domain is ${minimum}, which must stay well above the ` +
+    `${floor} floor -- the floor is unreachable once z is clamped to one`,
+  );
+  assert.ok(
+    Math.abs(minimum - f(f(0.03) / f(1 + f(1e-5)))) <= 1e-6,
+    "and it is exactly the value at the far plane",
+  );
+
+  // A far plane of zero does not divide by zero: CNA guards it with max(far, 1e-4), so a positive
+  // depth against it is deep past the far plane and takes the same weight as the far plane itself.
+  assert.equal(
+    WeightedBlendedTransparency.Weight(7, 1, 0),
+    WeightedBlendedTransparency.Weight(100, 1, 100),
+    "a zero far plane is guarded rather than dividing by zero",
+  );
+
+  // The GLSL the shader half uses states the same formula, in the same order. Checked as text
+  // because the shader itself cannot be run from here; the pixels it produces are qualified in the
+  // windowed suite.
+  const glsl = WeightedBlendedTransparency.AccumulationGlsl;
+  assert.ok(glsl.includes("float cnaOitWeight(float viewDepth, float alpha)"));
+  assert.ok(
+    glsl.includes("alpha * clamp(0.03 / (1e-5 + pow(z, 4.0)), 1e-2, 3e3)"),
+    "the GLSL weight must be the same expression this test predicted against",
+  );
+  assert.ok(
+    glsl.includes("clamp(viewDepth / max(uCnaOitFarPlane, 1e-4), 0.0, 1.0)"),
+    "including the same guard and the same clamp on z",
+  );
+  assert.ok(
+    glsl.includes("cnaOitAccumulation = vec4(colour * alpha * w, alpha * w)"),
+    "and the emit premultiplies by both the alpha and the weight",
+  );
+  assert.ok(
+    glsl.includes("log(max(1.0 - alpha, 1e-4))"),
+    "while the revealage target takes the log of the transmission, floored off zero",
+  );
+  assert.ok(
+    glsl.includes("layout(location = 0)") && glsl.includes("layout(location = 1)"),
+    "two targets, which is why this needs multiple render targets at all",
+  );
+
+  console.log(
+    `CNA_TS_NATIVE_OIT_WEIGHT=PASS FORM=MCGUIRE_BAVOIL CEILING=3000 FLOOR=UNREACHABLE ` +
+    `GLSL=${glsl.length}`,
+  );
+});
+
+test("the weighted-blended bracket opens on every renderer, including one that cannot resolve", async () => {
+  const graphics = computeExtensions;
+
+  class TransparencyProbeGame extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+
+    LoadContent() {
+      const device = this.GraphicsDevice;
+      const record = (name, body) => {
+        try {
+          this.evidence[name] = body();
+        } catch (error) {
+          this.evidence[name] = `${error.constructor.name}(${error.cnaResult ?? "-"}): ` +
+            `${(error.message ?? "").slice(0, 160)}`;
+        }
+      };
+      const outcome = (body) => {
+        try {
+          body();
+          return "ok";
+        } catch (error) {
+          return `${error.constructor.name}(${error.cnaResult ?? "-"})`;
+        }
+      };
+
+      record("bracket", () => {
+        const oit = new graphics.WeightedBlendedTransparency(device, 64, 48);
+        try {
+          const supported = oit.IsSupported;
+          const reason = oit.UnsupportedReason;
+          const before = oit.IsAccumulating;
+          const begin = outcome(() => oit.Begin(100));
+          const during = oit.IsAccumulating;
+          const end = outcome(() => oit.End());
+          const after = oit.IsAccumulating;
+          const accumulation = oit.AccumulationTexture;
+          const revealage = oit.RevealageTexture;
+          const targets = {
+            accumulation: accumulation == null
+              ? null : [accumulation.Width, accumulation.Height, accumulation.Format],
+            revealage: revealage == null
+              ? null : [revealage.Width, revealage.Height, revealage.Format],
+          };
+          if (accumulation) accumulation.Dispose();
+          if (revealage) revealage.Dispose();
+          return { supported, reason, before, begin, during, end, after, targets };
+        } finally {
+          oit.Dispose();
+        }
+      });
+
+      record("guards", () => {
+        const oit = new graphics.WeightedBlendedTransparency(device, 32, 32);
+        try {
+          const closed = {
+            beginAtZero: outcome(() => oit.Begin(0)),
+            beginNegative: outcome(() => oit.Begin(-1)),
+            resize: outcome(() => oit.Resize(48, 48)),
+            end: outcome(() => oit.End()),
+            resolve: outcome(() => oit.Resolve(32, 32)),
+          };
+          oit.Begin(50);
+          const open = {
+            begin: outcome(() => oit.Begin(50)),
+            resize: outcome(() => oit.Resize(64, 64)),
+            resolve: outcome(() => oit.Resolve(32, 32)),
+            end: outcome(() => oit.End()),
+          };
+          return { closed, open, closedAgain: oit.IsAccumulating };
+        } finally {
+          oit.Dispose();
+        }
+      });
+
+      record("badSize", () => outcome(
+        () => new graphics.WeightedBlendedTransparency(device, 0, 8).Dispose()));
+      record("disposed", () => {
+        const oit = new graphics.WeightedBlendedTransparency(device, 8, 8);
+        oit.Dispose();
+        oit.Dispose();
+        return outcome(() => oit.Begin(10));
+      });
+
+      this.Exit();
+    }
+  }
+
+  const game = new TransparencyProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  // The game must destroy cleanly: a borrowed target left live makes cna_game_destroy refuse.
+  game.Dispose();
+
+  const bracket = evidence.bracket;
+  assert.equal(typeof bracket, "object", `the bracket probe failed: ${bracket}`);
+  assert.equal(typeof bracket.supported, "boolean");
+  assert.equal(
+    bracket.supported, bracket.reason === "",
+    "a resolve that can run has nothing to explain, and one that cannot says why",
+  );
+  assert.equal(bracket.before, false, "a fresh resolve is not accumulating");
+
+  // The finding this test exists for. CNA's own header and its C shim both say that on a renderer
+  // which cannot run the resolve, begin() "opens nothing", is_accumulating stays false, and the
+  // matching end() refuses -- documented as canonical and pointed at CBIND-098. The C++ was then
+  // corrected the other way (MOD-1697, in WeightedBlendedTransparency::begin: "the bracket opens
+  // whether or not the resolve can run") and neither the header nor the shim comment followed. The
+  // corrected behaviour is the sane one, so what is asserted here is the code, and the drift is
+  // recorded as docs/upstream-cna-findings.md finding 21. The day the documentation is made true
+  // again, this assertion is what says so.
+  assert.equal(bracket.begin, "ok", "Begin succeeds on every renderer");
+  assert.equal(
+    bracket.during, true,
+    "and opens the bracket even where the resolve cannot run -- the header still says otherwise",
+  );
+  assert.equal(
+    bracket.end, "ok",
+    "so the matching End succeeds rather than refusing, which is what makes the pair usable",
+  );
+  assert.equal(bracket.after, false, "and closes it again");
+
+  if (bracket.supported) {
+    assert.notEqual(bracket.targets.accumulation, null, "a supported resolve allocates both targets");
+    assert.deepEqual(
+      bracket.targets.accumulation, bracket.targets.revealage,
+      "the two targets are the same size and format",
+    );
+    assert.deepEqual(
+      bracket.targets.accumulation.slice(0, 2), [64, 48],
+      "and the size the constructor was given",
+    );
+  } else {
+    // An honest boundary rather than a skip: this renderer says it cannot, and it allocates nothing.
+    assert.equal(
+      bracket.targets.accumulation, null,
+      "a renderer that cannot resolve allocates no accumulation target",
+    );
+    assert.equal(bracket.targets.revealage, null, "nor a revealage one");
+    assert.ok(bracket.reason.length > 8, `the reason must be CNA's own words, got "${bracket.reason}"`);
+  }
+
+  // The state machine, which is the same on both. Each refusal is a different mistake: a
+  // non-positive far plane or size is an argument, a bracket in the wrong state is a sequence.
+  const guards = evidence.guards;
+  assert.equal(typeof guards, "object", `the guard probe failed: ${guards}`);
+  assert.deepEqual(guards.closed.beginAtZero, "Error(1)", "a zero far plane is INVALID_ARGUMENT");
+  assert.deepEqual(guards.closed.beginNegative, "Error(1)", "and so is a negative one");
+  assert.equal(guards.closed.resize, "ok", "a closed resolve resizes");
+  assert.equal(guards.closed.end, "Error(3)", "and refuses an End with no Begin: INVALID_STATE");
+  assert.equal(guards.closed.resolve, "ok", "a closed resolve may resolve");
+  assert.equal(guards.open.begin, "Error(3)", "an open bracket refuses a second Begin");
+  assert.equal(guards.open.resize, "Error(3)", "and refuses to resize under itself");
+  assert.equal(guards.open.resolve, "Error(3)", "and refuses to resolve what is still accumulating");
+  assert.equal(guards.open.end, "ok", "while End closes it");
+  assert.equal(guards.closedAgain, false, "leaving it closed");
+
+  assert.equal(evidence.badSize, "Error(1)", "a non-positive target size is refused at construction");
+  assert.equal(evidence.disposed, "NativeUnavailableError(-)", "a disposed resolve refuses by name");
+
+  console.log(
+    `CNA_TS_NATIVE_OIT_BRACKET=PASS SUPPORTED=${bracket.supported} ` +
+    `OPENS_WHEN_UNSUPPORTED=${bracket.during} STATE_MACHINE=STRICT ` +
+    `REASON=${JSON.stringify(bracket.reason)}`,
+  );
+});

@@ -1444,6 +1444,29 @@ export interface CnaGraphicsExtensionBackend {
   combineContactShadowVisibility(
     shadowMapVisibility: number, contactVisibility: number,
   ): number;
+  // --- transparency: the sorted list and the weighted-blended resolve ---------------------------
+  createTransparentDrawList(): NativeHandle;
+  destroyTransparentDrawList(list: NativeHandle): void;
+  clearTransparentDrawList(list: NativeHandle): void;
+  submitTransparentDraw(list: NativeHandle, bounds: ClusterBoundsSnapshot, draw: () => void): void;
+  getTransparentDrawListCount(list: NativeHandle): number;
+  drawTransparentDrawListSorted(list: NativeHandle, view: readonly number[]): void;
+  getTransparentDrawListSortedOrder(list: NativeHandle, view: readonly number[]): readonly number[];
+  getTransparentDrawSortKey(bounds: ClusterBoundsSnapshot, cameraPosition: Vector3Snapshot): number;
+  getCameraPositionOfView(view: readonly number[]): Vector3Snapshot;
+  createWeightedBlendedTransparency(graphicsDevice: NativeHandle, width: number, height: number): NativeHandle;
+  destroyWeightedBlendedTransparency(transparency: NativeHandle): void;
+  isWeightedBlendedTransparencySupported(transparency: NativeHandle): boolean;
+  getWeightedBlendedTransparencyUnsupportedReason(transparency: NativeHandle): string;
+  resizeWeightedBlendedTransparency(transparency: NativeHandle, width: number, height: number): void;
+  beginWeightedBlendedTransparency(transparency: NativeHandle, farPlane: number): void;
+  endWeightedBlendedTransparency(transparency: NativeHandle): void;
+  resolveWeightedBlendedTransparency(transparency: NativeHandle, width: number, height: number): void;
+  isWeightedBlendedTransparencyAccumulating(transparency: NativeHandle): boolean;
+  getWeightedBlendedAccumulationTexture(transparency: NativeHandle): NativeHandle;
+  getWeightedBlendedRevealageTexture(transparency: NativeHandle): NativeHandle;
+  getWeightedBlendedAccumulationGlsl(): string;
+  getWeightedBlendedWeight(viewDepth: number, alpha: number, farPlane: number): number;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;

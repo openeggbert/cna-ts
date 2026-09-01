@@ -1307,6 +1307,28 @@ interface NativeBridge {
   isContactShadowOccluded(rayViewDepth: number, sceneViewDepth: number, bias: number, thickness: number): boolean;
   getContactShadowOcclusionGlsl(): string;
   combineContactShadowVisibility(shadowMapVisibility: number, contactVisibility: number): number;
+  createTransparentDrawList(): bigint;
+  destroyTransparentDrawList(list: bigint): void;
+  clearTransparentDrawList(list: bigint): void;
+  submitTransparentDraw(list: bigint, bounds: ClusterBoundsSnapshot, draw: () => void): void;
+  getTransparentDrawListCount(list: bigint): number;
+  drawTransparentDrawListSorted(list: bigint, view: readonly number[]): void;
+  getTransparentDrawListSortedOrder(list: bigint, view: readonly number[]): readonly number[];
+  getTransparentDrawSortKey(bounds: ClusterBoundsSnapshot, cameraPosition: Vector3Snapshot): number;
+  getCameraPositionOfView(view: readonly number[]): Vector3Snapshot;
+  createWeightedBlendedTransparency(graphicsDevice: bigint, width: number, height: number): bigint;
+  destroyWeightedBlendedTransparency(transparency: bigint): void;
+  isWeightedBlendedTransparencySupported(transparency: bigint): boolean;
+  getWeightedBlendedTransparencyUnsupportedReason(transparency: bigint): string;
+  resizeWeightedBlendedTransparency(transparency: bigint, width: number, height: number): void;
+  beginWeightedBlendedTransparency(transparency: bigint, farPlane: number): void;
+  endWeightedBlendedTransparency(transparency: bigint): void;
+  resolveWeightedBlendedTransparency(transparency: bigint, width: number, height: number): void;
+  isWeightedBlendedTransparencyAccumulating(transparency: bigint): boolean;
+  getWeightedBlendedAccumulationTexture(transparency: bigint): bigint;
+  getWeightedBlendedRevealageTexture(transparency: bigint): bigint;
+  getWeightedBlendedAccumulationGlsl(): string;
+  getWeightedBlendedWeight(viewDepth: number, alpha: number, farPlane: number): number;
   applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { Applied: number; Settings: PipelineSettingsSnapshot };
   getPipelinePassTiming(pipeline: bigint, index: number): { Milliseconds: number; SampleCount: number };
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -3887,6 +3909,28 @@ export class NodeNativeBackend
   public isContactShadowOccluded(rayViewDepth: number, sceneViewDepth: number, bias: number, thickness: number): boolean { return this.#bridge.isContactShadowOccluded(rayViewDepth, sceneViewDepth, bias, thickness); }
   public getContactShadowOcclusionGlsl(): string { return this.#bridge.getContactShadowOcclusionGlsl(); }
   public combineContactShadowVisibility(shadowMapVisibility: number, contactVisibility: number): number { return this.#bridge.combineContactShadowVisibility(shadowMapVisibility, contactVisibility); }
+  public createTransparentDrawList(): NativeHandle { return this.#bridge.createTransparentDrawList(); }
+  public destroyTransparentDrawList(list: NativeHandle): void { this.#bridge.destroyTransparentDrawList(list); }
+  public clearTransparentDrawList(list: NativeHandle): void { this.#bridge.clearTransparentDrawList(list); }
+  public submitTransparentDraw(list: NativeHandle, bounds: ClusterBoundsSnapshot, draw: () => void): void { this.#bridge.submitTransparentDraw(list, bounds, draw); }
+  public getTransparentDrawListCount(list: NativeHandle): number { return this.#bridge.getTransparentDrawListCount(list); }
+  public drawTransparentDrawListSorted(list: NativeHandle, view: readonly number[]): void { this.#bridge.drawTransparentDrawListSorted(list, view); }
+  public getTransparentDrawListSortedOrder(list: NativeHandle, view: readonly number[]): readonly number[] { return this.#bridge.getTransparentDrawListSortedOrder(list, view); }
+  public getTransparentDrawSortKey(bounds: ClusterBoundsSnapshot, cameraPosition: Vector3Snapshot): number { return this.#bridge.getTransparentDrawSortKey(bounds, cameraPosition); }
+  public getCameraPositionOfView(view: readonly number[]): Vector3Snapshot { return this.#bridge.getCameraPositionOfView(view); }
+  public createWeightedBlendedTransparency(graphicsDevice: NativeHandle, width: number, height: number): NativeHandle { return this.#bridge.createWeightedBlendedTransparency(graphicsDevice, width, height); }
+  public destroyWeightedBlendedTransparency(transparency: NativeHandle): void { this.#bridge.destroyWeightedBlendedTransparency(transparency); }
+  public isWeightedBlendedTransparencySupported(transparency: NativeHandle): boolean { return this.#bridge.isWeightedBlendedTransparencySupported(transparency); }
+  public getWeightedBlendedTransparencyUnsupportedReason(transparency: NativeHandle): string { return this.#bridge.getWeightedBlendedTransparencyUnsupportedReason(transparency); }
+  public resizeWeightedBlendedTransparency(transparency: NativeHandle, width: number, height: number): void { this.#bridge.resizeWeightedBlendedTransparency(transparency, width, height); }
+  public beginWeightedBlendedTransparency(transparency: NativeHandle, farPlane: number): void { this.#bridge.beginWeightedBlendedTransparency(transparency, farPlane); }
+  public endWeightedBlendedTransparency(transparency: NativeHandle): void { this.#bridge.endWeightedBlendedTransparency(transparency); }
+  public resolveWeightedBlendedTransparency(transparency: NativeHandle, width: number, height: number): void { this.#bridge.resolveWeightedBlendedTransparency(transparency, width, height); }
+  public isWeightedBlendedTransparencyAccumulating(transparency: NativeHandle): boolean { return this.#bridge.isWeightedBlendedTransparencyAccumulating(transparency); }
+  public getWeightedBlendedAccumulationTexture(transparency: NativeHandle): NativeHandle { return this.#bridge.getWeightedBlendedAccumulationTexture(transparency); }
+  public getWeightedBlendedRevealageTexture(transparency: NativeHandle): NativeHandle { return this.#bridge.getWeightedBlendedRevealageTexture(transparency); }
+  public getWeightedBlendedAccumulationGlsl(): string { return this.#bridge.getWeightedBlendedAccumulationGlsl(); }
+  public getWeightedBlendedWeight(viewDepth: number, alpha: number, farPlane: number): number { return this.#bridge.getWeightedBlendedWeight(viewDepth, alpha, farPlane); }
   public applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { readonly Applied: number; readonly Settings: PipelineSettingsSnapshot } { return this.#bridge.applyPipelineSettingsFromString(settings, text); }
   public getPipelinePassTiming(pipeline: NativeHandle, index: number): { readonly Milliseconds: number; readonly SampleCount: number } { return this.#bridge.getPipelinePassTiming(pipeline, index); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }

@@ -3107,6 +3107,107 @@ class WindowedProbeGame extends Game {
       }
     });
 
+    record("transparency", () => {
+      const { WeightedBlendedTransparency, IsGraphicsExtensionLayerAvailable } = computeModule;
+      const N = 4;
+      const owned = [];
+      try {
+        let oit;
+        try {
+          oit = new WeightedBlendedTransparency(device, N, N);
+        } catch (error) {
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(oit);
+        const result = { supported: oit.IsSupported, reason: oit.UnsupportedReason };
+        if (!result.supported) return result;
+
+        // A resize really reallocates: the next borrow is a different size.
+        oit.Resize(N * 2, N + 1);
+        const resized = oit.AccumulationTexture;
+        result.resized = [resized.Width, resized.Height];
+        resized.Dispose();
+        oit.Resize(N, N);
+
+        // Both lent targets, read for what CNA says they are and for what Begin left in them.
+        // Read AFTER the bracket rather than before it, so the zeros below are the clear Begin
+        // performed rather than whatever a fresh allocation happened to hold.
+        // A half-float target reads back as HalfVector4 rather than Color, because that is the
+        // element type its SurfaceFormat declares -- so this is the real contents of the buffer,
+        // not an 8-bit projection of it.
+        const describe = (texture) => {
+          const shape = [texture.Width, texture.Height, texture.Format, texture.LevelCount];
+          let texels;
+          try {
+            const pixels = new Array(texture.Width * texture.Height);
+            texture.GetData(pixels);
+            texels = pixels.map((value) => [value.constructor.name, value.PackedValue.toString()]);
+          } catch (error) {
+            texels = `${error.constructor.name}: ${(error.message ?? "").slice(0, 80)}`;
+          }
+          texture.Dispose();
+          return { shape, texels };
+        };
+
+        // --- the resolve, to the pixels ------------------------------------------------------------
+        // An empty accumulation: the bracket opens and closes with nothing drawn into it, so both
+        // targets hold the zeros Begin cleared them to. A zero sum of logs exponentiates to a
+        // revealage of exactly one, which is the resolve's "nothing covered this pixel" -- and it
+        // discards rather than blending a zero contribution. So the target must come back holding
+        // exactly what it was cleared to, texel for texel.
+        //
+        // The failure this distinguishes is not hypothetical: without the discard the same pixel
+        // would take accumulation.rgb / max(accumulation.a, 1e-5) = 0 with an alpha of 1 - 1 = 0,
+        // written with BlendState::Opaque -- that is, transparent black over the whole frame.
+        oit.Begin(100);
+        result.accumulatingInsideBracket = oit.IsAccumulating;
+        oit.End();
+        result.accumulation = describe(oit.AccumulationTexture);
+        result.revealage = describe(oit.RevealageTexture);
+
+        const target = new Graphics.RenderTarget2D(device, N, N);
+        owned.push(target);
+        const read = () => {
+          const pixels = new Array(N * N);
+          target.GetData(pixels);
+          return pixels.map((color) => [color.R, color.G, color.B, color.A]);
+        };
+        // Cleared and resolved inside ONE binding. Binding a render target discards what it held,
+        // so a clear in an earlier binding would be gone before the resolve ever ran -- and the
+        // black frame that produced looked exactly like a resolve that had overwritten it.
+        const clearedAndThen = (act) => {
+          device.SetRenderTarget(target);
+          device.Clear(CLEAR);
+          act();
+          device.SetRenderTarget(null);
+          return read();
+        };
+        result.beforeResolve = clearedAndThen(() => {});
+        result.afterEmptyResolve = clearedAndThen(() => oit.Resolve(N, N));
+        // Twice in one binding, to show the early-out is a property of the empty accumulation
+        // rather than of a resolve that has not run yet.
+        result.afterTwoResolves = clearedAndThen(() => {
+          oit.Resolve(N, N);
+          oit.Resolve(N, N);
+        });
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch (error) {
+            (this.evidence.transparencyCleanup ??= []).push(
+              `${error.constructor.name}: ${(error.message ?? "").slice(0, 90)}`,
+            );
+          }
+        }
+      }
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -6022,5 +6123,109 @@ test("a windowed CNA renderer's contact shadow pass says which input it was miss
     `CNA_TS_WINDOWED_CONTACT_SHADOW=PASS LADDER=3_STATES DEFAULTS=` +
     `${contact.defaults.maxDistance}/${contact.defaults.stepCount}/${contact.defaults.thickness} ` +
     `OFF=EXACT_COPY`,
+  );
+});
+
+test("a windowed CNA renderer resolves an empty weighted-blended pass to no change at all", { skip }, async () => {
+  const game = new WindowedProbeGame(6);
+  await game.Run();
+  const evidence = game.evidence;
+  // A borrowed target left live makes cna_game_destroy refuse, and finding 18 records that a
+  // process which exits in that state segfaults after its last line has run.
+  game.Dispose();
+
+  const oit = evidence.transparency;
+  assert.equal(typeof oit, "object", `the transparency block did not run: ${oit}`);
+  if (oit.layerAbsent) {
+    assert.equal(oit.extensionLayer, false, "a layer that is present must not refuse to make one");
+    console.log(`CNA_TS_WINDOWED_OIT=SKIPPED_NO_LAYER RESULT=${oit.cnaResult}`);
+    return;
+  }
+  assert.equal(
+    evidence.transparencyCleanup, undefined, `cleanup failed: ${evidence.transparencyCleanup}`);
+
+  if (!oit.supported) {
+    // An honest boundary. The three reasons CNA can give are all about the two targets it needs.
+    assert.ok(oit.reason.length > 8, "an unsupported resolve says why in CNA's own words");
+    console.log(
+      `CNA_TS_WINDOWED_OIT=NOT_SUPPORTED_RENDERER RENDERER=${evidence.renderer.name} ` +
+      `REASON=${JSON.stringify(oit.reason)}`,
+    );
+    return;
+  }
+  assert.equal(oit.reason, "", "a resolve that can run has nothing to explain");
+
+  // Two targets, the same size and format, and that format is a half-float one -- which is the
+  // capability the constructor tested for, so this is the requirement met rather than restated.
+  assert.deepEqual(
+    oit.accumulation.shape, oit.revealage.shape,
+    "the accumulation and revealage targets are the same shape",
+  );
+  assert.deepEqual(
+    oit.accumulation.shape.slice(0, 2), [4, 4], "and the size the constructor was given");
+  assert.equal(
+    oit.accumulation.shape[2], Graphics.SurfaceFormat.HdrBlendable,
+    "a half-float target, because the accumulation sums values far outside 0..1",
+  );
+  assert.equal(oit.accumulation.shape[3], 1, "with no mip chain to accumulate into");
+  assert.deepEqual(oit.resized, [8, 5], "a resize reallocates both targets at the new size");
+  assert.equal(oit.accumulatingInsideBracket, true, "the bracket really was open");
+
+  // What the two targets hold once the bracket has closed with nothing drawn into it. Both are
+  // zero, and that is the premise of the pixel assertions below rather than an arbitrary fact: an
+  // empty accumulation is a zero sum, and a zero sum of logs exponentiates to a revealage of one --
+  // "nothing covered this pixel", which is what the resolve early-outs on. Read back as
+  // HalfVector4, the element type the half-float format declares, so these are the buffer's own
+  // bits and not an 8-bit projection of them. (This renderer also hands back a zeroed fresh
+  // allocation, so what is pinned here is the state the resolve reads, not the clear that put it
+  // there.)
+  for (const [name, target] of [["accumulation", oit.accumulation], ["revealage", oit.revealage]]) {
+    assert.ok(Array.isArray(target.texels), `the ${name} target did not read back: ${target.texels}`);
+    assert.equal(target.texels.length, 16);
+    for (const [index, texel] of target.texels.entries()) {
+      assert.deepEqual(
+        texel, ["HalfVector4", "0"],
+        `the ${name} target's texel ${index} is not the zero the resolve expects`,
+      );
+    }
+  }
+
+  // The pixels. The target was cleared to CLEAR, the resolve ran over it with nothing accumulated,
+  // and every texel must be exactly CLEAR still -- not near it.
+  const cleared = [CLEAR.R, CLEAR.G, CLEAR.B, CLEAR.A];
+  assert.equal(oit.beforeResolve.length, 16);
+  for (const [index, texel] of oit.beforeResolve.entries()) {
+    assert.deepEqual(texel, cleared, `texel ${index} was not cleared to begin with`);
+  }
+  for (const [index, texel] of oit.afterEmptyResolve.entries()) {
+    assert.deepEqual(
+      texel, cleared,
+      `texel ${index} changed: an empty weighted-blended resolve must discard rather than blend ` +
+      `a zero contribution, which would have written transparent black over the whole frame`,
+    );
+  }
+  assert.deepEqual(
+    oit.afterTwoResolves, oit.afterEmptyResolve,
+    "and resolving twice changes nothing either time",
+  );
+  // The failure the discard avoids is a genuinely different picture, so the assertion above is not
+  // vacuous: transparent black is not CLEAR on any channel but the ones CLEAR happens to share.
+  assert.notDeepEqual(cleared, [0, 0, 0, 0], "CLEAR must differ from what a missing discard writes");
+
+  // Two planted defects survive this file and are recorded rather than hidden, because both have
+  // the same cause and neither can be closed from TypeScript today:
+  //
+  //   * the revealage getter wired to the accumulation route. Each borrow mints a fresh handle
+  //     (measured), so handle identity cannot tell the two apart, and with an empty accumulation
+  //     both targets hold the same zeros.
+  //   * Resolve(1, 1) instead of Resolve(4, 4). Every texel discards, so the viewport it was given
+  //     changes nothing.
+  //
+  // Both become observable the moment something can write distinguishable values into the two
+  // targets -- which needs a shader calling cnaOitEmit, and CNA's ShaderEffect is not bound by this
+  // package yet. Recorded in NEXT.md as the reason to bind it.
+  console.log(
+    `CNA_TS_WINDOWED_OIT=PASS RENDERER=${evidence.renderer.name} TARGETS=HDR_BLENDABLE_4x4 ` +
+    `RESIZE=8x5 EMPTY_RESOLVE=DISCARDS_EXACTLY SURVIVING_MUTANTS=2_PENDING_SHADER_EFFECT`,
   );
 });

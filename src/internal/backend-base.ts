@@ -2341,6 +2341,83 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
     _shadowMapVisibility: number,
     _contactVisibility: number,
   ): number { return this.unsupported("combineContactShadowVisibility"); }
+  public createTransparentDrawList(): NativeHandle { return this.unsupported("createTransparentDrawList"); }
+  public destroyTransparentDrawList(
+    _list: NativeHandle,
+  ): void { return this.unsupported("destroyTransparentDrawList"); }
+  public clearTransparentDrawList(
+    _list: NativeHandle,
+  ): void { return this.unsupported("clearTransparentDrawList"); }
+  public submitTransparentDraw(
+    _list: NativeHandle,
+    _bounds: ClusterBoundsSnapshot,
+    _draw: () => void,
+  ): void { return this.unsupported("submitTransparentDraw"); }
+  public getTransparentDrawListCount(
+    _list: NativeHandle,
+  ): number { return this.unsupported("getTransparentDrawListCount"); }
+  public drawTransparentDrawListSorted(
+    _list: NativeHandle,
+    _view: readonly number[],
+  ): void { return this.unsupported("drawTransparentDrawListSorted"); }
+  public getTransparentDrawListSortedOrder(
+    _list: NativeHandle,
+    _view: readonly number[],
+  ): readonly number[] { return this.unsupported("getTransparentDrawListSortedOrder"); }
+  public getTransparentDrawSortKey(
+    _bounds: ClusterBoundsSnapshot,
+    _cameraPosition: Vector3Snapshot,
+  ): number { return this.unsupported("getTransparentDrawSortKey"); }
+  public getCameraPositionOfView(
+    _view: readonly number[],
+  ): Vector3Snapshot { return this.unsupported("getCameraPositionOfView"); }
+  public createWeightedBlendedTransparency(
+    _graphicsDevice: NativeHandle,
+    _width: number,
+    _height: number,
+  ): NativeHandle { return this.unsupported("createWeightedBlendedTransparency"); }
+  public destroyWeightedBlendedTransparency(
+    _transparency: NativeHandle,
+  ): void { return this.unsupported("destroyWeightedBlendedTransparency"); }
+  public isWeightedBlendedTransparencySupported(
+    _transparency: NativeHandle,
+  ): boolean { return this.unsupported("isWeightedBlendedTransparencySupported"); }
+  public getWeightedBlendedTransparencyUnsupportedReason(
+    _transparency: NativeHandle,
+  ): string { return this.unsupported("getWeightedBlendedTransparencyUnsupportedReason"); }
+  public resizeWeightedBlendedTransparency(
+    _transparency: NativeHandle,
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("resizeWeightedBlendedTransparency"); }
+  public beginWeightedBlendedTransparency(
+    _transparency: NativeHandle,
+    _farPlane: number,
+  ): void { return this.unsupported("beginWeightedBlendedTransparency"); }
+  public endWeightedBlendedTransparency(
+    _transparency: NativeHandle,
+  ): void { return this.unsupported("endWeightedBlendedTransparency"); }
+  public resolveWeightedBlendedTransparency(
+    _transparency: NativeHandle,
+    _width: number,
+    _height: number,
+  ): void { return this.unsupported("resolveWeightedBlendedTransparency"); }
+  public isWeightedBlendedTransparencyAccumulating(
+    _transparency: NativeHandle,
+  ): boolean { return this.unsupported("isWeightedBlendedTransparencyAccumulating"); }
+  public getWeightedBlendedAccumulationTexture(
+    _transparency: NativeHandle,
+  ): NativeHandle { return this.unsupported("getWeightedBlendedAccumulationTexture"); }
+  public getWeightedBlendedRevealageTexture(
+    _transparency: NativeHandle,
+  ): NativeHandle { return this.unsupported("getWeightedBlendedRevealageTexture"); }
+  public getWeightedBlendedAccumulationGlsl(
+  ): string { return this.unsupported("getWeightedBlendedAccumulationGlsl"); }
+  public getWeightedBlendedWeight(
+    _viewDepth: number,
+    _alpha: number,
+    _farPlane: number,
+  ): number { return this.unsupported("getWeightedBlendedWeight"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,

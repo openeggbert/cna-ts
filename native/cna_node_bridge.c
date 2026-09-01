@@ -1005,6 +1005,18 @@ typedef CNA_Result (*ClusteredSetAreaLightFn)(CNA_Handle, const CNA_AreaLightEXT
 typedef CNA_Result (*ContactOccludedFn)(float, float, float, float, CNA_Bool*);
 typedef CNA_Result (*ContactCombineFn)(float, float, float*);
 
+typedef CNA_Result (*TransparentListCreateFn)(CNA_Handle*);
+typedef CNA_Result (*TransparentSubmitFn)(CNA_Handle, const CNA_BoundingBox*, CNA_TransparentDrawCallback, void*);
+typedef CNA_Result (*TransparentCountFn)(CNA_Handle, uint64_t*);
+typedef CNA_Result (*TransparentDrawSortedFn)(CNA_Handle, const CNA_Matrix*);
+typedef CNA_Result (*TransparentOrderFn)(CNA_Handle, const CNA_Matrix*, int32_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*TransparentSortKeyFn)(const CNA_BoundingBox*, const CNA_Vector3*, float*);
+typedef CNA_Result (*TransparentCameraFn)(const CNA_Matrix*, CNA_Vector3*);
+typedef CNA_Result (*WeightedCreateFn)(CNA_Handle, int32_t, int32_t, CNA_Handle*);
+typedef CNA_Result (*WeightedResizeFn)(CNA_Handle, int32_t, int32_t);
+typedef CNA_Result (*WeightedBeginFn)(CNA_Handle, float);
+typedef CNA_Result (*WeightedWeightFn)(float, float, float, float*);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2653,6 +2665,28 @@ typedef struct Api {
   ContactOccludedFn contact_shadow_pass_is_occluded;
   GpuCullGlslFn contact_shadow_pass_copy_occlusion_test_glsl;
   ContactCombineFn contact_shadow_pass_combine_visibility;
+  TransparentListCreateFn transparent_draw_list_create;
+  GameHandleFn transparent_draw_list_destroy;
+  GameHandleFn transparent_draw_list_clear;
+  TransparentSubmitFn transparent_draw_list_submit;
+  TransparentCountFn transparent_draw_list_get_count;
+  TransparentDrawSortedFn transparent_draw_list_draw_sorted;
+  TransparentOrderFn transparent_draw_list_copy_sorted_order_ext;
+  TransparentSortKeyFn transparent_draw_list_sort_key;
+  TransparentCameraFn transparent_draw_list_camera_position_of;
+  WeightedCreateFn weighted_blended_transparency_create;
+  GameHandleFn weighted_blended_transparency_destroy;
+  BoolGetFn weighted_blended_transparency_is_supported;
+  HandleCopyStringFn weighted_blended_transparency_copy_unsupported_reason;
+  WeightedResizeFn weighted_blended_transparency_resize;
+  WeightedBeginFn weighted_blended_transparency_begin;
+  GameHandleFn weighted_blended_transparency_end;
+  WeightedResizeFn weighted_blended_transparency_resolve;
+  BoolGetFn weighted_blended_transparency_is_accumulating;
+  HandleHandleOutFn weighted_blended_transparency_get_accumulation_texture_ext;
+  HandleHandleOutFn weighted_blended_transparency_get_revealage_texture_ext;
+  GpuCullGlslFn weighted_blended_transparency_copy_accumulation_glsl;
+  WeightedWeightFn weighted_blended_transparency_weight;
 } Api;
 
 typedef struct GameContext {
@@ -4588,6 +4622,28 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(contact_shadow_pass_is_occluded, ContactOccludedFn, "cna_contact_shadow_pass_is_occluded");
   LOAD_REQUIRED(contact_shadow_pass_copy_occlusion_test_glsl, GpuCullGlslFn, "cna_contact_shadow_pass_copy_occlusion_test_glsl");
   LOAD_REQUIRED(contact_shadow_pass_combine_visibility, ContactCombineFn, "cna_contact_shadow_pass_combine_visibility");
+  LOAD_REQUIRED(transparent_draw_list_create, TransparentListCreateFn, "cna_transparent_draw_list_create");
+  LOAD_REQUIRED(transparent_draw_list_destroy, GameHandleFn, "cna_transparent_draw_list_destroy");
+  LOAD_REQUIRED(transparent_draw_list_clear, GameHandleFn, "cna_transparent_draw_list_clear");
+  LOAD_REQUIRED(transparent_draw_list_submit, TransparentSubmitFn, "cna_transparent_draw_list_submit");
+  LOAD_REQUIRED(transparent_draw_list_get_count, TransparentCountFn, "cna_transparent_draw_list_get_count");
+  LOAD_REQUIRED(transparent_draw_list_draw_sorted, TransparentDrawSortedFn, "cna_transparent_draw_list_draw_sorted");
+  LOAD_REQUIRED(transparent_draw_list_copy_sorted_order_ext, TransparentOrderFn, "cna_transparent_draw_list_copy_sorted_order_ext");
+  LOAD_REQUIRED(transparent_draw_list_sort_key, TransparentSortKeyFn, "cna_transparent_draw_list_sort_key");
+  LOAD_REQUIRED(transparent_draw_list_camera_position_of, TransparentCameraFn, "cna_transparent_draw_list_camera_position_of");
+  LOAD_REQUIRED(weighted_blended_transparency_create, WeightedCreateFn, "cna_weighted_blended_transparency_create");
+  LOAD_REQUIRED(weighted_blended_transparency_destroy, GameHandleFn, "cna_weighted_blended_transparency_destroy");
+  LOAD_REQUIRED(weighted_blended_transparency_is_supported, BoolGetFn, "cna_weighted_blended_transparency_is_supported");
+  LOAD_REQUIRED(weighted_blended_transparency_copy_unsupported_reason, HandleCopyStringFn, "cna_weighted_blended_transparency_copy_unsupported_reason");
+  LOAD_REQUIRED(weighted_blended_transparency_resize, WeightedResizeFn, "cna_weighted_blended_transparency_resize");
+  LOAD_REQUIRED(weighted_blended_transparency_begin, WeightedBeginFn, "cna_weighted_blended_transparency_begin");
+  LOAD_REQUIRED(weighted_blended_transparency_end, GameHandleFn, "cna_weighted_blended_transparency_end");
+  LOAD_REQUIRED(weighted_blended_transparency_resolve, WeightedResizeFn, "cna_weighted_blended_transparency_resolve");
+  LOAD_REQUIRED(weighted_blended_transparency_is_accumulating, BoolGetFn, "cna_weighted_blended_transparency_is_accumulating");
+  LOAD_REQUIRED(weighted_blended_transparency_get_accumulation_texture_ext, HandleHandleOutFn, "cna_weighted_blended_transparency_get_accumulation_texture_ext");
+  LOAD_REQUIRED(weighted_blended_transparency_get_revealage_texture_ext, HandleHandleOutFn, "cna_weighted_blended_transparency_get_revealage_texture_ext");
+  LOAD_REQUIRED(weighted_blended_transparency_copy_accumulation_glsl, GpuCullGlslFn, "cna_weighted_blended_transparency_copy_accumulation_glsl");
+  LOAD_REQUIRED(weighted_blended_transparency_weight, WeightedWeightFn, "cna_weighted_blended_transparency_weight");
   LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
   LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
   LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
@@ -26606,10 +26662,407 @@ static napi_value bridge_contact_shadow_pass_copy_occlusion_test_glsl(
     "cna_contact_shadow_pass_copy_occlusion_test_glsl");
 }
 
+/* ---- transparency: the sorted draw list and weighted-blended order-independent blending --------
+   Three of the routes are pure functions -- the camera a view matrix implies, a draw's sort key,
+   and the weight a fragment gets -- so the ordering and the blending are both checkable without a
+   frame being drawn. */
+
+/**
+ * One submitted entry's JavaScript callback, kept alive until the list forgets it.
+ *
+ * The callback outlives the `submit` call that registered it -- CNA runs it later, from
+ * `draw_sorted` -- so neither the `napi_value` nor a stack context would still exist by then. Each
+ * entry therefore owns a strong reference, and the list's `clear` and `destroy` are the two places
+ * that release them. Entries are chained by handle rather than held per list, because the bridge
+ * has no per-object storage and a draw list is a small, short-lived thing.
+ */
+typedef struct TransparentEntry {
+  CNA_Handle list;
+  napi_ref callback;
+  struct TransparentEntry* next;
+} TransparentEntry;
+
+static TransparentEntry* g_transparent_entries = NULL;
+
+/** Set only for the duration of one `draw_sorted`, which is the only route that calls back. */
+static napi_env g_transparent_env = NULL;
+
+/** The first exception a draw threw, rethrown once the route has unwound. */
+static napi_ref g_transparent_exception = NULL;
+
+static CNA_Result on_transparent_draw(void* raw) {
+  TransparentEntry* entry = (TransparentEntry*) raw;
+  napi_env env = g_transparent_env;
+  if (!entry || !env) return CNA_RESULT_CALLBACK;
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(env, &scope) != napi_ok) return CNA_RESULT_CALLBACK;
+  napi_value callback, receiver, result;
+  CNA_Result outcome = CNA_RESULT_SUCCESS;
+  if (napi_get_reference_value(env, entry->callback, &callback) != napi_ok ||
+      napi_get_undefined(env, &receiver) != napi_ok ||
+      napi_call_function(env, receiver, callback, 0, NULL, &result) != napi_ok) {
+    napi_value pending;
+    /* Reported as a failed callback so CNA stops the draw where it failed, rather than running the
+       remaining entries against a state the failed one may have left half-changed. */
+    outcome = CNA_RESULT_CALLBACK;
+    if (!g_transparent_exception &&
+        napi_get_and_clear_last_exception(env, &pending) == napi_ok) {
+      napi_create_reference(env, pending, 1, &g_transparent_exception);
+    }
+  }
+  napi_close_handle_scope(env, scope);
+  return outcome;
+}
+
+static void transparent_forget(napi_env env, CNA_Handle list) {
+  TransparentEntry** link = &g_transparent_entries;
+  while (*link) {
+    TransparentEntry* entry = *link;
+    if (entry->list == list) {
+      *link = entry->next;
+      napi_delete_reference(env, entry->callback);
+      free(entry);
+    } else {
+      link = &entry->next;
+    }
+  }
+}
+
+static napi_value bridge_transparent_draw_list_create(napi_env env, napi_callback_info info) {
+  (void) info;
+  CNA_Handle list = 0;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.transparent_draw_list_create(&list);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_transparent_draw_list_create", result);
+  }
+  return make_handle(env, list);
+}
+
+static napi_value bridge_transparent_draw_list_submit(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle list = 0;
+  CNA_BoundingBox bounds;
+  napi_valuetype type = napi_undefined;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &list) ||
+      !read_bounding_box(env, args[1], &bounds)) return NULL;
+  if (napi_typeof(env, args[2], &type) != napi_ok || type != napi_function) {
+    return throw_message(env, "the draw must be a function");
+  }
+  TransparentEntry* entry = (TransparentEntry*) calloc(1, sizeof(TransparentEntry));
+  if (!entry) return throw_message(env, "a transparent draw entry allocation failed");
+  entry->list = list;
+  if (napi_create_reference(env, args[2], 1, &entry->callback) != napi_ok) {
+    free(entry);
+    return throw_napi(env, "cna_transparent_draw_list_submit");
+  }
+  const CNA_Result result =
+    g_api.transparent_draw_list_submit(list, &bounds, on_transparent_draw, entry);
+  if (result != CNA_RESULT_SUCCESS) {
+    napi_delete_reference(env, entry->callback);
+    free(entry);
+    return throw_result(env, "cna_transparent_draw_list_submit", result);
+  }
+  entry->next = g_transparent_entries;
+  g_transparent_entries = entry;
+  return undefined_result(env, "cna_transparent_draw_list_submit");
+}
+
+static napi_value bridge_transparent_draw_list_clear(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle list = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &list)) return NULL;
+  const CNA_Result result = g_api.transparent_draw_list_clear(list);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_transparent_draw_list_clear", result);
+  }
+  transparent_forget(env, list);
+  return undefined_result(env, "cna_transparent_draw_list_clear");
+}
+
+static napi_value bridge_transparent_draw_list_destroy(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle list = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &list)) return NULL;
+  const CNA_Result result = g_api.transparent_draw_list_destroy(list);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_transparent_draw_list_destroy", result);
+  }
+  /* Only after the destroy succeeded: a list that refused to be released still holds the entries
+     it would run, and dropping their references here would leave it able to call freed memory. */
+  transparent_forget(env, list);
+  return undefined_result(env, "cna_transparent_draw_list_destroy");
+}
+
+static napi_value bridge_transparent_draw_list_get_count(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle list = 0;
+  uint64_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &list)) return NULL;
+  const CNA_Result result = g_api.transparent_draw_list_get_count(list, &count);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_transparent_draw_list_get_count", result);
+  }
+  if (count > (uint64_t) 1 << 53) {
+    return throw_message(env, "the size exceeds an exact JavaScript integer");
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) count, &output),
+    "cna_transparent_draw_list_get_count");
+  return output;
+}
+
+static napi_value bridge_transparent_draw_list_draw_sorted(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle list = 0;
+  CNA_Matrix view;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &list) ||
+      !read_matrix16(env, args[1], &view, "a view")) return NULL;
+  napi_env previous = g_transparent_env;
+  g_transparent_env = env;
+  const CNA_Result result = g_api.transparent_draw_list_draw_sorted(list, &view);
+  g_transparent_env = previous;
+  if (g_transparent_exception) {
+    napi_value pending;
+    if (napi_get_reference_value(env, g_transparent_exception, &pending) == napi_ok) {
+      napi_throw(env, pending);
+    }
+    napi_delete_reference(env, g_transparent_exception);
+    g_transparent_exception = NULL;
+    return NULL;
+  }
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_transparent_draw_list_draw_sorted", result);
+  }
+  return undefined_result(env, "cna_transparent_draw_list_draw_sorted");
+}
+
+static napi_value bridge_transparent_draw_list_copy_sorted_order_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output, entry;
+  CNA_Handle list = 0;
+  CNA_Matrix view;
+  uint64_t capacity = 0, produced = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &list) ||
+      !read_matrix16(env, args[1], &view, "a view")) return NULL;
+  CNA_Result result = g_api.transparent_draw_list_get_count(list, &capacity);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_transparent_draw_list_get_count", result);
+  }
+  if (capacity > (uint64_t) 1 << 24) return throw_message(env, "an implausible draw count");
+  int32_t* order = capacity == 0 ? NULL : (int32_t*) calloc((size_t) capacity, sizeof(int32_t));
+  if (capacity != 0 && !order) return throw_message(env, "sorted order allocation failed");
+  result = g_api.transparent_draw_list_copy_sorted_order_ext(
+    list, &view, order, capacity, &produced);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(order);
+    return throw_result(env, "cna_transparent_draw_list_copy_sorted_order_ext", result);
+  }
+  if (napi_create_array_with_length(env, (size_t) produced, &output) != napi_ok) {
+    free(order);
+    return throw_napi(env, "cna_transparent_draw_list_copy_sorted_order_ext");
+  }
+  for (uint64_t index = 0; index < produced; index += 1) {
+    if (napi_create_int32(env, order[index], &entry) != napi_ok ||
+        napi_set_element(env, output, (uint32_t) index, entry) != napi_ok) {
+      free(order);
+      return throw_napi(env, "cna_transparent_draw_list_copy_sorted_order_ext");
+    }
+  }
+  free(order);
+  return output;
+}
+
+static napi_value bridge_transparent_draw_list_sort_key(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_BoundingBox bounds;
+  CNA_Vector3 camera = {0, 0, 0};
+  float key = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_bounding_box(env, args[0], &bounds) ||
+      !read_vector3_fields(env, args[1], &camera)) return NULL;
+  const CNA_Result result = g_api.transparent_draw_list_sort_key(&bounds, &camera, &key);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_transparent_draw_list_sort_key", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) key, &output),
+    "cna_transparent_draw_list_sort_key");
+  return output;
+}
+
+static napi_value bridge_transparent_draw_list_camera_position_of(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1], output;
+  CNA_Matrix view;
+  CNA_Vector3 position = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_matrix16(env, args[0], &view, "a view")) return NULL;
+  const CNA_Result result =
+    g_api.transparent_draw_list_camera_position_of(&view, &position);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_transparent_draw_list_camera_position_of", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_object(env, &output), "cna_transparent_draw_list_camera_position_of");
+  if (!set_vector3_fields(env, output, &position)) {
+    return throw_napi(env, "cna_transparent_draw_list_camera_position_of");
+  }
+  return output;
+}
+
+static napi_value bridge_weighted_blended_transparency_create(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle device = 0, transparency = 0;
+  int32_t width = 0, height = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &width) != napi_ok ||
+      napi_get_value_int32(env, args[2], &height) != napi_ok) {
+    return throw_message(env, "expected a graphics device and a size");
+  }
+  const CNA_Result result =
+    g_api.weighted_blended_transparency_create(device, width, height, &transparency);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_weighted_blended_transparency_create", result);
+  }
+  return make_handle(env, transparency);
+}
+
+static napi_value bridge_weighted_blended_transparency_weight(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3], output;
+  double depth = 0, alpha = 0, farPlane = 0;
+  float weight = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      napi_get_value_double(env, args[0], &depth) != napi_ok ||
+      napi_get_value_double(env, args[1], &alpha) != napi_ok ||
+      napi_get_value_double(env, args[2], &farPlane) != napi_ok) {
+    return throw_message(env, "expected a view depth, an alpha and a far plane");
+  }
+  const CNA_Result result = g_api.weighted_blended_transparency_weight(
+    (float) depth, (float) alpha, (float) farPlane, &weight);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_weighted_blended_transparency_weight", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) weight, &output),
+    "cna_weighted_blended_transparency_weight");
+  return output;
+}
+
+static napi_value bridge_weighted_blended_transparency_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.weighted_blended_transparency_destroy, "cna_weighted_blended_transparency_destroy");
+}
+
+static napi_value bridge_weighted_blended_transparency_is_supported(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.weighted_blended_transparency_is_supported, "cna_weighted_blended_transparency_is_supported");
+}
+
+static napi_value bridge_weighted_blended_transparency_copy_unsupported_reason(napi_env env, napi_callback_info info) {
+  return copy_sized_text(env, info, g_api.weighted_blended_transparency_copy_unsupported_reason, "cna_weighted_blended_transparency_copy_unsupported_reason");
+}
+
+static napi_value bridge_weighted_blended_transparency_begin(
+  napi_env env, napi_callback_info info
+) {
+  return pp_set_float(
+    env, info, (HandleFloatFn) (void*) g_api.weighted_blended_transparency_begin,
+    "cna_weighted_blended_transparency_begin");
+}
+
+static napi_value bridge_weighted_blended_transparency_end(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.weighted_blended_transparency_end, "cna_weighted_blended_transparency_end");
+}
+
+static napi_value bridge_weighted_blended_transparency_is_accumulating(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.weighted_blended_transparency_is_accumulating, "cna_weighted_blended_transparency_is_accumulating");
+}
+
+static napi_value bridge_weighted_blended_transparency_get_accumulation_texture_ext(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.weighted_blended_transparency_get_accumulation_texture_ext, "cna_weighted_blended_transparency_get_accumulation_texture_ext");
+}
+
+static napi_value bridge_weighted_blended_transparency_get_revealage_texture_ext(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.weighted_blended_transparency_get_revealage_texture_ext, "cna_weighted_blended_transparency_get_revealage_texture_ext");
+}
+
+static napi_value bridge_weighted_blended_transparency_resize(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle handle = 0;
+  int32_t width = 0, height = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &handle) ||
+      napi_get_value_int32(env, args[1], &width) != napi_ok ||
+      napi_get_value_int32(env, args[2], &height) != napi_ok) {
+    return throw_message(env, "expected a transparency and a size");
+  }
+  const CNA_Result result = g_api.weighted_blended_transparency_resize(handle, width, height);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_weighted_blended_transparency_resize", result);
+  return undefined_result(env, "cna_weighted_blended_transparency_resize");
+}
+
+static napi_value bridge_weighted_blended_transparency_resolve(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle handle = 0;
+  int32_t width = 0, height = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &handle) ||
+      napi_get_value_int32(env, args[1], &width) != napi_ok ||
+      napi_get_value_int32(env, args[2], &height) != napi_ok) {
+    return throw_message(env, "expected a transparency and a size");
+  }
+  const CNA_Result result = g_api.weighted_blended_transparency_resolve(handle, width, height);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_weighted_blended_transparency_resolve", result);
+  return undefined_result(env, "cna_weighted_blended_transparency_resolve");
+}
+
+static napi_value bridge_weighted_blended_transparency_copy_accumulation_glsl(
+  napi_env env, napi_callback_info info
+) {
+  (void) info;
+  return copy_static_text(
+    env, g_api.weighted_blended_transparency_copy_accumulation_glsl,
+    "cna_weighted_blended_transparency_copy_accumulation_glsl");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "createTransparentDrawList", NULL, bridge_transparent_draw_list_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyTransparentDrawList", NULL, bridge_transparent_draw_list_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "clearTransparentDrawList", NULL, bridge_transparent_draw_list_clear, NULL, NULL, NULL, napi_default, NULL },
+    { "submitTransparentDraw", NULL, bridge_transparent_draw_list_submit, NULL, NULL, NULL, napi_default, NULL },
+    { "getTransparentDrawListCount", NULL, bridge_transparent_draw_list_get_count, NULL, NULL, NULL, napi_default, NULL },
+    { "drawTransparentDrawListSorted", NULL, bridge_transparent_draw_list_draw_sorted, NULL, NULL, NULL, napi_default, NULL },
+    { "getTransparentDrawListSortedOrder", NULL, bridge_transparent_draw_list_copy_sorted_order_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getTransparentDrawSortKey", NULL, bridge_transparent_draw_list_sort_key, NULL, NULL, NULL, napi_default, NULL },
+    { "getCameraPositionOfView", NULL, bridge_transparent_draw_list_camera_position_of, NULL, NULL, NULL, napi_default, NULL },
+    { "createWeightedBlendedTransparency", NULL, bridge_weighted_blended_transparency_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyWeightedBlendedTransparency", NULL, bridge_weighted_blended_transparency_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "isWeightedBlendedTransparencySupported", NULL, bridge_weighted_blended_transparency_is_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "getWeightedBlendedTransparencyUnsupportedReason", NULL, bridge_weighted_blended_transparency_copy_unsupported_reason, NULL, NULL, NULL, napi_default, NULL },
+    { "resizeWeightedBlendedTransparency", NULL, bridge_weighted_blended_transparency_resize, NULL, NULL, NULL, napi_default, NULL },
+    { "beginWeightedBlendedTransparency", NULL, bridge_weighted_blended_transparency_begin, NULL, NULL, NULL, napi_default, NULL },
+    { "endWeightedBlendedTransparency", NULL, bridge_weighted_blended_transparency_end, NULL, NULL, NULL, napi_default, NULL },
+    { "resolveWeightedBlendedTransparency", NULL, bridge_weighted_blended_transparency_resolve, NULL, NULL, NULL, napi_default, NULL },
+    { "isWeightedBlendedTransparencyAccumulating", NULL, bridge_weighted_blended_transparency_is_accumulating, NULL, NULL, NULL, napi_default, NULL },
+    { "getWeightedBlendedAccumulationTexture", NULL, bridge_weighted_blended_transparency_get_accumulation_texture_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getWeightedBlendedRevealageTexture", NULL, bridge_weighted_blended_transparency_get_revealage_texture_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getWeightedBlendedAccumulationGlsl", NULL, bridge_weighted_blended_transparency_copy_accumulation_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "getWeightedBlendedWeight", NULL, bridge_weighted_blended_transparency_weight, NULL, NULL, NULL, napi_default, NULL },
     { "createContactShadowPass", NULL, bridge_contact_shadow_pass_create, NULL, NULL, NULL, napi_default, NULL },
     { "getContactShadowLightDirection", NULL, bridge_contact_shadow_pass_get_light_direction, NULL, NULL, NULL, napi_default, NULL },
     { "setContactShadowLightDirection", NULL, bridge_contact_shadow_pass_set_light_direction, NULL, NULL, NULL, napi_default, NULL },

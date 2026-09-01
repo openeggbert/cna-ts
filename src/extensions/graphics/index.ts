@@ -8925,3 +8925,273 @@ export class ContactShadowPass extends PostProcessPass {
     return extensions().getContactShadowOcclusionGlsl();
   }
 }
+
+/**
+ * A back-to-front draw list for transparent geometry.
+ *
+ * Transparent surfaces do not commute: blending two of them gives a different colour depending on
+ * which was blended first, so a frame that draws them in submission order is wrong wherever two
+ * of them overlap. This list holds each draw with the world-space bounds that decide where it
+ * belongs, and {@link DrawSorted} runs them farthest-first.
+ *
+ * A pure CPU object — it holds bounds and callbacks and touches no device, so a game can build and
+ * inspect an order without a renderer at all. {@link GetSortedOrder} returns that order as indices
+ * rather than running it, which is what makes the ordering testable on its own.
+ */
+export class TransparentDrawList implements IDisposable {
+  #handle: NativeHandle | null;
+
+  public constructor() {
+    this.#handle = extensions().createTransparentDrawList();
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the transparent draw list is disposed");
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Harmless twice. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    // The handle is given up only once the destroy has succeeded. CNA refuses to release an object
+    // that is still lending, and clearing the field first would strand it: nothing would hold the
+    // handle any more, so nothing could ever release it, and the game itself would then refuse to
+    // be destroyed.
+    extensions().destroyTransparentDrawList(handle);
+    this.#handle = null;
+  }
+
+  /** How many entries it holds. */
+  public get Count(): number {
+    return extensions().getTransparentDrawListCount(this.#active());
+  }
+
+  /** Removes every entry. */
+  public Clear(): void {
+    extensions().clearTransparentDrawList(this.#active());
+  }
+
+  /**
+   * Adds one draw, with the world-space bounds that place it in the order.
+   *
+   * The bounds are what the sort sees; `draw` is never asked where it is. A draw whose geometry
+   * moves must be submitted again with its new bounds, not merely re-run.
+   */
+  public Submit(bounds: BoundingBox, draw: () => void): void {
+    if (bounds == null) throw new TypeError("bounds is required");
+    if (typeof draw !== "function") throw new TypeError("draw must be a function");
+    extensions().submitTransparentDraw(this.#active(), boundsSnapshot(bounds), draw);
+  }
+
+  /**
+   * Runs every entry's callback, farthest from the camera first.
+   *
+   * A callback that throws stops the draw there — the remaining entries are not run — and the
+   * exception reaches this caller. That is deliberate: a half-drawn frame with an exception you
+   * can locate beats a whole one with an exception you cannot.
+   */
+  public DrawSorted(view: Matrix): void {
+    extensions().drawTransparentDrawListSorted(this.#active(), matrixValues(view, "view"));
+  }
+
+  /**
+   * The order {@link DrawSorted} would use, as indices into submission order.
+   *
+   * Sorted by **distance alone**, and stably: two entries exactly as far away keep the order they
+   * were submitted in, on every run. That matters more than it sounds — an unstable tie-break makes
+   * a frame flicker between two orderings that are each individually defensible, and it does it
+   * precisely where a game has aligned its geometry on purpose.
+   */
+  public GetSortedOrder(view: Matrix): number[] {
+    return [...extensions().getTransparentDrawListSortedOrder(
+      this.#active(), matrixValues(view, "view"))];
+  }
+
+  /**
+   * The key one entry sorts on: the distance from the camera to the **nearest point of the box**.
+   *
+   * Not to its centre. A camera inside the box sorts at zero, and a large box that surrounds the
+   * camera does not sort as if it were half its diagonal away — which is what makes a skybox-sized
+   * transparent shell draw in the right place instead of in the middle of the scene.
+   *
+   * A pure function of its arguments.
+   */
+  public static SortKey(bounds: BoundingBox, cameraPosition: Vector3): number {
+    if (bounds == null) throw new TypeError("bounds is required");
+    return extensions().getTransparentDrawSortKey(
+      boundsSnapshot(bounds), vectorSnapshot(cameraPosition, "cameraPosition"));
+  }
+
+  /**
+   * The camera position a view matrix implies: the translation row of its inverse.
+   *
+   * Taken through a full inverse rather than by negating the translation and rotating it back,
+   * because that shortcut is only correct for a rigid view matrix and a game is free to hand this
+   * one that has a scale in it. `Matrix.Invert(view).Translation` of this package's own
+   * {@link Matrix} answers the same thing.
+   *
+   * A pure function of its argument.
+   */
+  public static CameraPositionOf(view: Matrix): Vector3 {
+    return toVector3(extensions().getCameraPositionOfView(matrixValues(view, "view")));
+  }
+}
+
+/**
+ * Weighted-blended order-independent transparency: McGuire and Bavoil's resolve.
+ *
+ * Sorting transparent geometry — what {@link TransparentDrawList} does — is exact but per-draw, so
+ * it cannot order two triangles *within* one mesh, and it costs a sort per frame. This trades that
+ * for an approximation that needs no order at all: every transparent fragment is accumulated with
+ * a weight that falls off with depth, and the resolve divides the weighted sum of colours by the
+ * weighted sum of alphas. The weights cancel, so the result is a weighted average of the surfaces
+ * that covered the pixel — near ones counting for more — rather than a blend in any order.
+ *
+ * Two half-float targets are needed: one accumulation and one revealage. A renderer without
+ * multiple render targets, without a half-float render target, or that will not execute effect
+ * source cannot run it, and {@link IsSupported} says so with {@link UnsupportedReason} giving CNA's
+ * own words.
+ */
+export class WeightedBlendedTransparency implements IDisposable {
+  #handle: NativeHandle | null;
+  readonly #device: GraphicsDevice;
+
+  public constructor(graphicsDevice: GraphicsDevice, width: number, height: number) {
+    this.#device = graphicsDevice;
+    this.#handle = extensions().createWeightedBlendedTransparency(
+      postProcessDeviceHandle(graphicsDevice),
+      wholeNumber(width, "width"), wholeNumber(height, "height"));
+  }
+
+  /**
+   * Wraps one of the two lent targets, or `null` where the renderer allocated none.
+   *
+   * A borrow, so the returned `Texture2D` must be disposed to give it back -- and until it is, the
+   * transparency itself refuses to be destroyed.
+   */
+  #borrow(handle: NativeHandle, label: string): Texture2D | null {
+    if (handle === 0n) return null;
+    return borrowNativeTextureForInternalUse(this.#device, handle, label);
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the weighted-blended transparency is disposed");
+    }
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases it. Harmless twice. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    // The handle is given up only once the destroy has succeeded. CNA refuses to release an object
+    // that is still lending, and clearing the field first would strand it: nothing would hold the
+    // handle any more, so nothing could ever release it, and the game itself would then refuse to
+    // be destroyed.
+    extensions().destroyWeightedBlendedTransparency(handle);
+    this.#handle = null;
+  }
+
+  /** Whether this renderer can run the resolve. */
+  public get IsSupported(): boolean {
+    return extensions().isWeightedBlendedTransparencySupported(this.#active());
+  }
+
+  /** Why it cannot, in CNA's own words, or `""` when it can. */
+  public get UnsupportedReason(): string {
+    return extensions().getWeightedBlendedTransparencyUnsupportedReason(this.#active());
+  }
+
+  /** Whether accumulation is open — that is, between {@link Begin} and {@link End}. */
+  public get IsAccumulating(): boolean {
+    return extensions().isWeightedBlendedTransparencyAccumulating(this.#active());
+  }
+
+  /** Resizes both targets. Refused while accumulation is open. */
+  public Resize(width: number, height: number): void {
+    extensions().resizeWeightedBlendedTransparency(
+      this.#active(), wholeNumber(width, "width"), wholeNumber(height, "height"));
+  }
+
+  /**
+   * Opens accumulation, binding and clearing both targets.
+   *
+   * The far plane is required because the weight divides by it, and it must be the same one the
+   * camera projects with or near surfaces will not be weighted as near.
+   *
+   * On a renderer that cannot run the resolve this still opens the bracket — {@link IsAccumulating}
+   * becomes `true` and a matching {@link End} succeeds — it simply skips the device work. CNA's own
+   * header still describes the older behaviour, where the bracket stayed closed and `End` refused;
+   * that was corrected in the implementation and the documentation did not follow. Measured, not
+   * inferred: see `docs/upstream-cna-findings.md` finding 21. Bracket it the obvious way and it
+   * works on both.
+   */
+  public Begin(farPlane: number): void {
+    extensions().beginWeightedBlendedTransparency(this.#active(), finite(farPlane, "farPlane"));
+  }
+
+  /** Closes accumulation, restoring exactly what the matching {@link Begin} changed. */
+  public End(): void {
+    extensions().endWeightedBlendedTransparency(this.#active());
+  }
+
+  /** Blends the accumulated transparency into the active target. Refused while still accumulating. */
+  public Resolve(width: number, height: number): void {
+    extensions().resolveWeightedBlendedTransparency(
+      this.#active(), wholeNumber(width, "width"), wholeNumber(height, "height"));
+  }
+
+  /**
+   * The accumulation target, borrowed — `rgb` is the weighted sum of premultiplied colour, `a` the
+   * weighted sum of alpha. `null` on a renderer that cannot run the resolve, which allocates none.
+   */
+  public get AccumulationTexture(): Texture2D | null {
+    return this.#borrow(
+      extensions().getWeightedBlendedAccumulationTexture(this.#active()),
+      "WeightedBlendedTransparency.AccumulationTexture");
+  }
+
+  /**
+   * The revealage target, borrowed — `r` is the **sum of the logs** of each surface's
+   * transmission, not the product the published technique accumulates. Summed so both targets can
+   * share one blend state and the geometry is drawn once; the resolve exponentiates it back, which
+   * is the same number by `exp(Σ log t) = Π t`.
+   */
+  public get RevealageTexture(): Texture2D | null {
+    return this.#borrow(
+      extensions().getWeightedBlendedRevealageTexture(this.#active()),
+      "WeightedBlendedTransparency.RevealageTexture");
+  }
+
+  /**
+   * The depth weight a fragment gets, as a pure function of its arguments.
+   *
+   * McGuire and Bavoil's `w(z, a) = a · clamp(0.03 / (1e-5 + z⁴), 1e-2, 3e3)` over the depth
+   * normalised to `[0, 1]` by the far plane. Clamped at **both** ends on purpose: without the
+   * ceiling a surface at the near plane swamps a half-float buffer, and without the floor a distant
+   * one contributes exactly nothing and vanishes rather than fading.
+   *
+   * This is the same arithmetic, in the same order, as {@link AccumulationGlsl}'s `cnaOitWeight` —
+   * so a game can predict on the CPU what its shader will compute.
+   */
+  public static Weight(viewDepth: number, alpha: number, farPlane: number): number {
+    return extensions().getWeightedBlendedWeight(
+      finite(viewDepth, "viewDepth"), finite(alpha, "alpha"), finite(farPlane, "farPlane"));
+  }
+
+  /**
+   * CNA's own GLSL for the accumulation half: `cnaOitWeight` and the `cnaOitEmit` a transparent
+   * shader writes instead of `FragColor`.
+   */
+  public static get AccumulationGlsl(): string {
+    return extensions().getWeightedBlendedAccumulationGlsl();
+  }
+}

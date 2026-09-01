@@ -2079,6 +2079,8 @@ npm test             332/332      native 41/41      windowed 16/16
 18  a REFUSED cna_game_destroy makes the process segfault at exit     NEW, measured, general
 19  a PBR effect's texture slots have two sources of truth            NEW, measured
 20  the GPU instance culler runs, reports success and culls nothing   NEW, measured
+21  the OIT bracket's documented behaviour was corrected in the code,
+    and its header and C shim still say the old thing                 NEW, measured
 ```
 
 Item 18 is the one to read first: it multiplies every leak finding in the document, and it was found
@@ -2086,14 +2088,13 @@ by noticing that a probe process died *after* printing everything it meant to pr
 
 ### Where the next session picks up
 
-`ACTIONABLE_LOCAL` is **162 unbound engine-layer routes**, by family:
+`ACTIONABLE_LOCAL` is **59 unbound engine-layer routes**, of which 14 are the deliberate
+non-binding below, so **45 are work**:
 
 ```text
-26  clustered_forward_effect        9  transparent            6  render_target_pool
-17  contact_shadow_pass             9  area_light_brdf_table  2  render_pipeline (draw callbacks)
-16  effect (get/set extras)         8  clustered_light        2  image_based_light_ext
-14  instanced_renderer_ext          7  clustered_light_buffer 2  indirect
-13  weighted_blended_transparency   6  shader_effect_factory  ~15 singles
+16  effect (get/set extras)        4  shader_effect_factory   2  image_based_light_ext
+14  instanced_renderer_ext (NO)    2  render_pipeline (draw)  2  graphics_device
+ 6  render_target_pool             2  indirect               ~11 singles
 ```
 
 Two are deliberate non-bindings rather than work, and both are recorded in the bridge beside the
@@ -2102,9 +2103,19 @@ routes they belong to: the **instanced renderer's object** and
 `CNA_ClusteredLightGridHandle` respectively, and this package's `ModelMeshPart` is a managed
 projection with no native handle while the clustered light *grid* is not projected at all. Binding
 either would offer routes that could only ever be handed zero — the same reason
-`cna_lod_group_ext_select` is unbound. The clustered grid is the one worth revisiting: projecting it
-would unlock the cluster-slice gizmo and most of the 15 remaining clustered routes.
+`cna_lod_group_ext_select` is unbound.
 
-The obvious next batch is **`clustered_forward_effect` (26) with `clustered_light` and
-`clustered_light_buffer` (15)**, which are one family and would close the clustered lighting story.
-`contact_shadow_pass` (17) is a screen-space pass and should qualify the way the volumetric ones did.
+**Bind `ShaderEffect` next**, from `effects.h` rather than the engine layer (23 routes, none of them
+bound). It is not on the list above because it is a different header, but it is the highest-value
+thing left, for a reason this session measured rather than guessed: two planted defects in the
+weighted-blended binding survive the whole qualification — the revealage getter wired to the
+accumulation route, and `Resolve(1, 1)` in place of `Resolve(4, 4)` — and both survive for the same
+cause. Nothing in this package can write into the two OIT targets, because doing so needs a fragment
+shader calling `cnaOitEmit`, and a custom shader needs `ShaderEffect`. With it, the accumulation
+half of the technique becomes checkable to the pixel against the weight this session already pinned
+on the CPU: two overlapping layers at different depths resolve to a weighted average whose ratio is
+`w1 : w2`, which no defect in either getter survives. It also unlocks `shader_effect_factory` (4)
+above.
+
+After that, `effect` get/set extras (16) and `render_target_pool` (6) are the two largest remaining
+engine-layer families.

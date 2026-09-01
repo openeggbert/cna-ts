@@ -591,6 +591,27 @@ Electron, or mobile support.
   two land on opposite sides and the float one is what ships. Combining with a shadow map's own
   visibility is a clamped product, so two half shadows compound rather than one winning. Five
   planted defects fail and none survives.
+- [x] **Transparency**, in both of the shapes CNA offers for it. The **sorted draw list** is a pure
+  CPU object, so the whole ordering is qualified with no renderer at all: the camera a view matrix
+  implies is checked against this package's own `Matrix.Invert` on six views, two of them with a
+  scale in them — and the rigid-view shortcut is written out in the test and shown to *disagree* on
+  those two and agree on the rigid ones, so the scaled cases are the assertion they claim to be. The
+  sort key is the distance to the **nearest point of the box**, pinned at the three places it
+  differs from what it is confused with: a camera inside the box sorts at zero, a box off two axes
+  is measured to its corner, and a large transparent shell around the camera sorts at zero rather
+  than at its half-diagonal. The order is farthest-first and **stable**, asserted against a stable
+  descending sort written out rather than borrowed; a callback that throws stops the draw where it
+  failed and propagates its own exception object. The **weighted-blended resolve** is McGuire and
+  Bavoil's, predicted in float in CNA's own order: the ceiling is taken exactly at the eye, the
+  depth clamp flattens everything past the far plane, alpha is a linear factor outside the clamp,
+  and the published lower clamp is shown to be **unreachable** once `z` is clamped to one — recorded
+  rather than asserted live. The bracket opens on every renderer including one that cannot resolve,
+  which is the opposite of what CNA's header still documents (finding 21). On a windowed renderer
+  both lent targets are half-float and read back as `HalfVector4` zeros, and an empty resolve
+  **discards** rather than blending a zero contribution, leaving the target exactly as cleared.
+  Eleven planted defects were run: nine fail, and the two that survive are recorded rather than
+  hidden — both need something able to write distinguishable values into the two targets, which
+  waits on binding CNA's `ShaderEffect`.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a

@@ -18,12 +18,12 @@ segmentation fault -- while projecting camera frame capture, and item 12 while p
 particle draw. Items 13 and 14 are new, found while projecting the depth/normal prepass and the
 decal projector that reads it, item 15 while projecting the atmosphere, item 16 while
 projecting the cascaded, spot and cube shadow passes, items 17 and 18 while projecting the
-post-process passes, item 19 while projecting the physically-based materials, and item 20 while
-projecting the culling families.
+post-process passes, item 19 while projecting the physically-based materials, item 20 while
+projecting the culling families, and item 21 while projecting the transparency families.
 
 **Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
 library. Both were found by this package, both were *asserted* rather than worked around, and both
-detectors fired the moment the repair landed. Four of the twenty findings are now closed.
+detectors fired the moment the repair landed. Four of the twenty-one findings are now closed.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -924,3 +924,51 @@ asserts the measured counts, with the CPU expectation computed beside them from 
 `BoundingFrustum`. A repaired culler makes the second and third rows fail, which is the point. The
 `FrustumCuller` next to it is checked against `BoundingFrustum` on the same geometry and agrees on
 every case, so the test also shows the two cullers disagreeing with each other.
+
+## 21. The weighted-blended bracket's documented behaviour was corrected in the code and not in the header
+
+**Severity:** documentation, and the wrong half is the one a careful caller reads.
+**Reproduced on:** HEADLESS (which cannot resolve) and OPENGLES3 (which can), CNA C ABI 0.21.0,
+2026-09-01.
+
+`CNA/C/engine_layer.h` says of `cna_weighted_blended_transparency_begin`:
+
+> **On a renderer that cannot run the resolve this succeeds without opening anything**, so
+> `cna_weighted_blended_transparency_is_accumulating` still reports `CNA_FALSE` and a matching
+> `cna_weighted_blended_transparency_end` refuses. That is the canonical behaviour, reproduced
+> rather than corrected; ask `is_supported` before bracketing, or treat `end`'s refusal on an
+> unsupported renderer as expected. See `plans/plan_binding.md` `CBIND-098`.
+
+`CnaCApiEngineLayer.cpp` repeats it in a comment on the shim. Neither is true any more.
+`WeightedBlendedTransparency::begin` was corrected the other way, and its own comment says so:
+
+> The bracket opens whether or not the resolve can run — the same correction ShadowMap needed
+> (`plans/plan_modern.md` MOD-1697) and for the same reason. Returning here before `accumulating_`
+> was set left a renderer that cannot resolve with a `begin()` that reported success and an `end()`
+> that threw "accumulation is not open" […] What the unsupported path skips is the device work, not
+> the bracket.
+
+Measured on HEADLESS, which reports `is_supported = CNA_FALSE` with the reason "this renderer has no
+half-float render target, and the accumulation sums values far outside 0..1":
+
+| call | header says | measured |
+| --- | --- | --- |
+| `begin(100)` | success | success |
+| `is_accumulating` | `CNA_FALSE` | **`CNA_TRUE`** |
+| `end()` | `CNA_RESULT_INVALID_STATE` | **success** |
+
+The code is right and the documentation is wrong, which is the harmless direction for a caller who
+writes the obvious `begin`/`end` pair and the harmful one for a caller who believes the header: the
+defensive `if (!is_supported) { /* skip end */ }` the header asks for leaves the bracket open
+forever, and the next `begin` then fails with `INVALID_STATE` on the renderer least able to explain
+why. That is the exact failure MOD-1697 removed, reintroduced by following the documentation.
+
+**Proposed change.** Delete the paragraph from `engine_layer.h` and the matching comment in
+`CnaCApiEngineLayer.cpp`, and say instead that the bracket opens on every renderer and that an
+unsupported one skips the device work inside it. `plan_binding.md` CBIND-098 should point at
+MOD-1697 rather than at the behaviour MOD-1697 removed.
+
+**Detector in cna-ts:** `test/native-cna.integration.mjs`, "the weighted-blended bracket opens on
+every renderer, including one that cannot resolve", asserts the measured column on whichever
+renderer it runs against. If the header is ever made true again — that is, if the code regresses to
+what it documents — that test fails, which is what it is for.

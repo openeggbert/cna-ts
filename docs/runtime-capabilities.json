@@ -13,7 +13,7 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 100,
+    "VERIFIED_NATIVE": 101,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 5,
@@ -1783,6 +1783,36 @@
       "evidence": "qualified integration reads package.json through the CNA title-storage count/copy route; CNA-TS rejects absolute/traversal host paths and default ContentManager appends RootDirectory plus .xnb",
       "proof": [
         "route:cna_title_container_read_ext"
+      ]
+    },
+    {
+      "operation": "Transparency: the back-to-front draw list, and the weighted-blended resolve that needs no order at all",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the sorted list is a pure CPU object, so the whole ordering is qualified without a renderer. The camera a view matrix implies is checked against this package's own Matrix.Invert on six views including two with a scale in them -- and the rigid-view shortcut, written out in the test, is shown to disagree on the scaled ones and to agree on the rigid ones, so the scaled cases are the assertion they claim to be. The sort key is the distance to the NEAREST POINT of the box, checked against a float clamp-into-box reference on seven boxes and pinned at the three places it differs from the mistakes it is confused with: a camera inside the box sorts at zero, a box off two axes is measured to its corner, and a large shell around the camera sorts at zero rather than at its half-diagonal. The order is farthest-first and STABLE: two draws at the same distance keep submission order, asserted against a stable descending sort written out in the test rather than borrowed, repeated eight times, and shown to change with the camera. DrawSorted runs the callbacks in exactly that order, and a callback that throws stops the draw where it failed, propagates its own exception object rather than a wrapper, and leaves the list usable. The OIT weight is McGuire and Bavoil's, predicted in float in CNA's own order over seventeen cases: the ceiling is taken exactly at the eye, the depth clamp makes everything past the far plane weigh the same, alpha is a linear factor, the curve decreases across 200 samples, and the published lower clamp is shown to be UNREACHABLE once z is clamped to one -- recorded rather than asserted live. A zero far plane is guarded rather than dividing by zero. The bracket opens on EVERY renderer including one that cannot resolve, which is CNA's corrected behaviour and the opposite of what its header still documents (finding 21); the state machine refuses a second Begin, a resize under itself and a resolve while accumulating, each with the result code that names the kind of mistake. On a windowed renderer both lent targets are half-float, the same shape, resize together, and read back as HalfVector4 zeros; an empty resolve then DISCARDS rather than blending a zero contribution, leaving the target exactly as it was cleared -- measured inside one binding, because binding a render target discards what it held and an earlier clear would have been gone. Nine planted binding defects fail; two survive and are recorded, both because nothing can yet write distinguishable values into the two targets",
+      "proof": [
+        "route:cna_transparent_draw_list_create",
+        "route:cna_transparent_draw_list_submit",
+        "route:cna_transparent_draw_list_draw_sorted",
+        "route:cna_transparent_draw_list_copy_sorted_order_ext",
+        "route:cna_transparent_draw_list_sort_key",
+        "route:cna_transparent_draw_list_camera_position_of",
+        "route:cna_transparent_draw_list_get_count",
+        "route:cna_transparent_draw_list_clear",
+        "route:cna_weighted_blended_transparency_create",
+        "route:cna_weighted_blended_transparency_is_supported",
+        "route:cna_weighted_blended_transparency_copy_unsupported_reason",
+        "route:cna_weighted_blended_transparency_begin",
+        "route:cna_weighted_blended_transparency_end",
+        "route:cna_weighted_blended_transparency_resolve",
+        "route:cna_weighted_blended_transparency_resize",
+        "route:cna_weighted_blended_transparency_is_accumulating",
+        "route:cna_weighted_blended_transparency_get_accumulation_texture_ext",
+        "route:cna_weighted_blended_transparency_get_revealage_texture_ext",
+        "route:cna_weighted_blended_transparency_weight",
+        "route:cna_weighted_blended_transparency_copy_accumulation_glsl",
+        "test:test/native-cna.integration.mjs",
+        "test:test/windowed-renderer.integration.mjs"
       ]
     },
     {
