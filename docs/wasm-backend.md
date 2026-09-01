@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=456
+WASM_BACKEND_ROUTES=490
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 456 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 490 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
@@ -457,6 +457,28 @@ suite reads the value back and takes the branch it finds rather than asserting t
 `RuntimeState::ownedGraphicsResourceCount`, so every later `cna_game_destroy` in the runtime refuses
 (finding 1). In a page, a game that cannot be destroyed is a worse outcome than a refusal that says
 so, and `Add` does everything the chain needs. When CNA repairs it this becomes two lines.
+
+### The rest of the family, and CNA checking itself
+
+The blit, the tonemapper, bloom, FXAA, chromatic aberration and film grain are bound beside the
+colour grade -- each is a `PostProcessPass`, so the apply, the chain and the frame context already
+serve them, and what each adds is its creation and its parameters.
+
+The tonemapper is the one worth describing, because **CNA checks it against itself**. It ships
+`TonemapPass.TonemapChannel(mode, value, exposure, gamma)`, a pure scalar of the same arithmetic
+its shader does, so the browser compares a rendered texel to CNA's own answer for that texel --
+two implementations of one specification reached by two different routes, rather than a picture
+compared to a picture taken earlier. Every channel of every source texel, in two modes that must
+also disagree with each other, or comparing each to its own scalar would prove only that the scalar
+was consulted twice.
+
+Bloom's bright pass is checked the same way, against a soft-knee curve restated from
+`BloomPass.cpp` rather than pinned as five numbers: `knee = threshold/2`, contribution squared,
+scaled by the value. The rest assert that they ran, that their output is not the blit's identity,
+and that their parameters round-trip -- **including CNA's clamp of chromatic aberration to
+`[0, 0.1]`**, which a test that only ever set an in-range value would never have found. Two
+expectations in this area were written wrong and the browser caught both: that bright pass is not a
+hard threshold, and 0.25 is not a legal aberration strength.
 
 ### What this device can be asked, and what that settles
 

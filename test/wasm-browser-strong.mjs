@@ -130,7 +130,7 @@ test("the engine layer's colour grade runs, and its texels are the arithmetic", 
   );
   assertColourGradeEvidence(grade);
   console.log(
-    "STRONG_WASM_ENGINE_SLICE=colour-grade PASSES=blit,strip,volume,half,zero,noLut " +
+    "STRONG_WASM_ENGINE_SLICE=post-process PASSES=blit,grade,tonemap,bloom,fxaa,aberration,grain " +
     `CHAIN=${grade.chain.twoCount}-pass GPU_TIMING=${grade.chain.timingEnabled ? "ON" : "REFUSED"} ` +
     `TIMINGS=${grade.chain.timings.length}`,
   );

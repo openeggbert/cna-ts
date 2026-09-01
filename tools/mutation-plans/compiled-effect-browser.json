@@ -165,6 +165,27 @@
       "file": "src/internal/wasm/shadows.ts",
       "find": "    this.#routes.invoke(\"cna_shadow_map_end\", map);",
       "replace": "    void map;"
+    },
+    {
+      "id": "tonemap-exposure-never-sent",
+      "why": "the tonemapper's exposure is stored managed and never written, so the shader tones a differently exposed image than CNA's own scalar says it should -- and the scalar, which takes exposure as an argument, still answers correctly",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "    this.#routes.invoke(\"cna_tonemap_pass_set_exposure\", pass, exposure);",
+      "replace": "    void pass; void exposure;"
+    },
+    {
+      "id": "tonemap-scalar-ignores-its-mode",
+      "why": "CNA's own tone-curve scalar always asked for mode zero: the None branch still agrees with its shader and the Reinhard one no longer does, which is exactly the half-right shape a shared-oracle test has to catch",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "    return this.#float(\"cna_tonemap_pass_tonemap_channel\", mode, value, exposure, gamma);",
+      "replace": "    void mode;\n    return this.#float(\"cna_tonemap_pass_tonemap_channel\", 0, value, exposure, gamma);"
+    },
+    {
+      "id": "bloom-threshold-never-sent",
+      "why": "bloom keeps its default threshold whatever the caller asks for, so a pass tuned to pick out highlights picks out something else",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "    this.#routes.invoke(\"cna_bloom_pass_set_threshold\", pass, threshold);",
+      "replace": "    void pass; void threshold;"
     }
   ]
 }

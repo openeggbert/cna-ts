@@ -374,6 +374,180 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
     return this.#routes.outHandle("cna_cube_lut_create_volume_texture", lut, device);
   }
 
+  // --- the rest of the post-process family -------------------------------------------------------
+  //
+  // Each of these is a `PostProcessPass`, so `applyPostProcessPass`, the chain and the frame
+  // context above already serve them; what each adds is its own creation and its own parameters.
+  // They are here rather than left refusing because two of them come with CNA's *own* scalar
+  // oracle -- `cna_tonemap_pass_tonemap_channel` and `cna_bloom_pass_extract_channel` are pure
+  // functions of the same arithmetic the shaders do -- so a browser can compare a rendered texel
+  // against CNA's answer for that texel rather than against a number read off a previous run.
+
+  public override createBlitPass(device: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_blit_pass_create", device);
+  }
+
+  public override createTonemapPass(device: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_tonemap_pass_create", device);
+  }
+
+  public override getTonemapMode(pass: NativeHandle): number {
+    return this.#routes.outU32("cna_tonemap_pass_get_mode", pass);
+  }
+
+  public override setTonemapMode(pass: NativeHandle, mode: number): void {
+    this.#routes.invoke("cna_tonemap_pass_set_mode", pass, mode);
+  }
+
+  public override getTonemapExposure(pass: NativeHandle): number {
+    return this.#float("cna_tonemap_pass_get_exposure", pass);
+  }
+
+  public override setTonemapExposure(pass: NativeHandle, exposure: number): void {
+    this.#routes.invoke("cna_tonemap_pass_set_exposure", pass, exposure);
+  }
+
+  public override getTonemapGamma(pass: NativeHandle): number {
+    return this.#float("cna_tonemap_pass_get_gamma", pass);
+  }
+
+  public override setTonemapGamma(pass: NativeHandle, gamma: number): void {
+    this.#routes.invoke("cna_tonemap_pass_set_gamma", pass, gamma);
+  }
+
+  public override getTonemapDebandEnabled(pass: NativeHandle): boolean {
+    return this.#bool("cna_tonemap_pass_is_deband_enabled", pass);
+  }
+
+  public override setTonemapDebandEnabled(pass: NativeHandle, enabled: boolean): void {
+    this.#routes.invoke("cna_tonemap_pass_set_deband_enabled", pass, enabled ? 1 : 0);
+  }
+
+  public override getTonemapDebandStrength(pass: NativeHandle): number {
+    return this.#float("cna_tonemap_pass_get_deband_strength", pass);
+  }
+
+  public override setTonemapDebandStrength(pass: NativeHandle, strength: number): void {
+    this.#routes.invoke("cna_tonemap_pass_set_deband_strength", pass, strength);
+  }
+
+  /**
+   * CNA's own answer for one channel, which is what makes the rendered image checkable.
+   *
+   * The same arithmetic the tonemapping shader does, as a pure function reached by a different
+   * route. A test comparing rendered texels to this is comparing two implementations of one
+   * specification, rather than comparing a picture to a picture taken earlier.
+   */
+  public override tonemapChannel(
+    mode: number, value: number, exposure: number, gamma: number,
+  ): number {
+    return this.#float("cna_tonemap_pass_tonemap_channel", mode, value, exposure, gamma);
+  }
+
+  public override createBloomPass(device: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_bloom_pass_create", device);
+  }
+
+  public override getBloomThreshold(pass: NativeHandle): number {
+    return this.#float("cna_bloom_pass_get_threshold", pass);
+  }
+
+  public override setBloomThreshold(pass: NativeHandle, threshold: number): void {
+    this.#routes.invoke("cna_bloom_pass_set_threshold", pass, threshold);
+  }
+
+  public override getBloomIntensity(pass: NativeHandle): number {
+    return this.#float("cna_bloom_pass_get_intensity", pass);
+  }
+
+  public override setBloomIntensity(pass: NativeHandle, intensity: number): void {
+    this.#routes.invoke("cna_bloom_pass_set_intensity", pass, intensity);
+  }
+
+  public override getBloomIterations(pass: NativeHandle): number {
+    return this.#int("cna_bloom_pass_get_iterations", pass);
+  }
+
+  public override setBloomIterations(pass: NativeHandle, iterations: number): void {
+    this.#routes.invoke("cna_bloom_pass_set_iterations", pass, Math.trunc(iterations));
+  }
+
+  public override resetBloomTargets(pass: NativeHandle): void {
+    this.#routes.invoke("cna_bloom_pass_reset_targets", pass);
+  }
+
+  public override bloomIterationsForQuality(quality: number): number {
+    return this.#int("cna_bloom_pass_iterations_for_quality", quality);
+  }
+
+  /** How much of one channel survives the bright-pass threshold; CNA's own scalar. */
+  public override extractBloomChannel(value: number, threshold: number): number {
+    return this.#float("cna_bloom_pass_extract_channel", value, threshold);
+  }
+
+  public override createFxaaPass(device: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_fxaa_pass_create", device);
+  }
+
+  public override getFxaaEdgeThreshold(pass: NativeHandle): number {
+    return this.#float("cna_fxaa_pass_get_edge_threshold", pass);
+  }
+
+  public override setFxaaEdgeThreshold(pass: NativeHandle, threshold: number): void {
+    this.#routes.invoke("cna_fxaa_pass_set_edge_threshold", pass, threshold);
+  }
+
+  public override fxaaEdgeThresholdForQuality(quality: number): number {
+    return this.#float("cna_fxaa_pass_edge_threshold_for_quality", quality);
+  }
+
+  /** The pass's own fragment shader source, which is a string with no separate count route. */
+  public override getFxaaFragmentGlsl(): string {
+    const scope = this.#routes.scope();
+    try {
+      const lengthOut = scope.allocate(8);
+      const probe = this.#routes.call("cna_fxaa_pass_copy_fragment_glsl", 0, 0n, lengthOut);
+      if (probe !== 0 && probe !== CNA_RESULT_BUFFER_TOO_SMALL) {
+        this.#routes.invoke("cna_fxaa_pass_copy_fragment_glsl", 0, 0n, lengthOut);
+      }
+      const byteLength = Number(this.#routes.view().getBigUint64(lengthOut, true));
+      if (byteLength === 0) return "";
+      const buffer = scope.allocate(byteLength + 1);
+      const writtenOut = scope.allocate(8);
+      this.#routes.invoke(
+        "cna_fxaa_pass_copy_fragment_glsl", buffer, BigInt(byteLength + 1), writtenOut);
+      const written = Number(this.#routes.view().getBigUint64(writtenOut, true));
+      return new TextDecoder().decode(
+        this.#routes.module.HEAPU8.subarray(buffer, buffer + written));
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override createChromaticAberrationPass(device: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_chromatic_aberration_pass_create", device);
+  }
+
+  public override getChromaticAberrationStrength(pass: NativeHandle): number {
+    return this.#float("cna_chromatic_aberration_pass_get_strength", pass);
+  }
+
+  public override setChromaticAberrationStrength(pass: NativeHandle, strength: number): void {
+    this.#routes.invoke("cna_chromatic_aberration_pass_set_strength", pass, strength);
+  }
+
+  public override createFilmGrainPass(device: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_film_grain_pass_create", device);
+  }
+
+  public override getFilmGrainIntensity(pass: NativeHandle): number {
+    return this.#float("cna_film_grain_pass_get_intensity", pass);
+  }
+
+  public override setFilmGrainIntensity(pass: NativeHandle, intensity: number): void {
+    this.#routes.invoke("cna_film_grain_pass_set_intensity", pass, intensity);
+  }
+
   // --- the instancing stream's layout, which a caller has to match exactly ----------------------
 
   /**

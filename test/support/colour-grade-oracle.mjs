@@ -150,6 +150,110 @@ export function assertColourGradeEvidence(grade) {
     assert.deepEqual(chain.timings, [], "a chain that could not enable timing reports none");
   }
 
+  // --- the tonemapper, checked by CNA against itself ---------------------------------------------
+  //
+  // The rendered image against `TonemapPass.TonemapChannel`, CNA's own pure scalar of the same
+  // arithmetic its shader does. Two implementations of one specification, reached by two different
+  // routes -- not a picture compared to a picture taken earlier.
+  const tonemap = grade.tonemap;
+  assert.equal(tonemap.rendered.length, tonemap.modes.length);
+  for (let mode = 0; mode < tonemap.modes.length; mode += 1) {
+    const rendered = tonemap.rendered[mode];
+    const expected = tonemap.expected[mode];
+    for (let index = 0; index < rendered.length; index += 1) {
+      for (let channel = 0; channel < 3; channel += 1) {
+        assert.ok(
+          Math.abs(rendered[index][channel] - expected[index][channel]) <= 1,
+          `tonemap mode ${tonemap.modes[mode]} texel ${index} channel ${channel}: rendered ` +
+          `${rendered[index][channel]}, CNA's own scalar says ${expected[index][channel]}`,
+        );
+      }
+    }
+  }
+  // The two modes are two different curves, so the assertions above are two assertions.
+  assert.notDeepEqual(
+    tonemap.rendered[0], tonemap.rendered[1],
+    "None and Reinhard must not produce the same image, or comparing each to its own scalar " +
+    "proves only that the scalar was consulted twice",
+  );
+  // The scalar itself is a tone curve: monotone, fixing zero, and compressing rather than scaling.
+  const curve = tonemap.scalar;
+  assert.equal(curve[0], 0, "Reinhard fixes zero");
+  for (let index = 1; index < curve.length; index += 1) {
+    assert.ok(curve[index] > curve[index - 1], "and is strictly increasing");
+    assert.ok(curve[index] < 1.0001, "and never exceeds one, which is what tone mapping is for");
+  }
+  assert.ok(curve[3] < 1 && curve[3] > 0.4, `Reinhard of 1 compresses rather than clips: ${curve[3]}`);
+  assert.equal(tonemap.state.deband, false, "dithering was off, so the curve is the only change");
+  assert.ok(Math.abs(tonemap.state.exposure - 1.5) < 1e-6, "exposure round-trips through CNA");
+
+  // --- the passes that must change something -----------------------------------------------------
+  const passes = grade.passes;
+  for (const name of ["blit", "bloom", "fxaa", "aberration", "grain"]) {
+    const pass = passes[name];
+    assert.ok(pass, `${name} produced no evidence`);
+    assert.equal(pass.failed ?? null, null, `${name}: ${pass.failed}`);
+    assert.equal(typeof pass.name, "string");
+    assert.ok(pass.name.length > 0, `${name} names itself`);
+    assert.equal(pass.supported, true, `${name} reports itself supported on this device`);
+    assert.equal(pass.pixels.length, 16);
+  }
+  // A blit is the identity, and the others are not: exact pixels are not the claim for a blur
+  // kernel or an edge filter, but "it ran and changed the image" is, and a pass that quietly did
+  // nothing would be indistinguishable from the blit.
+  eachTexel(passes.blit.pixels, source, (texel) => texel, "the blit pass");
+  for (const name of ["bloom", "aberration", "grain"]) {
+    assert.notDeepEqual(
+      passes[name].pixels, passes.blit.pixels,
+      `${name} at a real setting must change the image`,
+    );
+  }
+  assert.ok(Math.abs(passes.bloom.state.threshold - 0.5) < 1e-6, "bloom's threshold round-trips");
+  assert.equal(passes.bloom.state.iterations, 1);
+  assert.ok(Math.abs(passes.fxaa.state.edgeThreshold - 0.25) < 1e-6);
+  assert.ok(
+    Math.abs(passes.aberration.state.strength - 0.05) < 1e-6,
+    `an in-range aberration strength round-trips: ${passes.aberration.state.strength}`,
+  );
+  // And CNA clamps this one, which a test that only ever set an in-range value would never find.
+  // Measured, and confirmed in ChromaticAberrationPass.cpp: `std::clamp(value, 0.0f, 0.1f)`.
+  assert.ok(
+    Math.abs(passes.aberration.state.clampedFrom025 - 0.1) < 1e-6,
+    `0.25 is clamped to CNA's 0.1 ceiling, not stored: ${passes.aberration.state.clampedFrom025}`,
+  );
+  assert.ok(Math.abs(passes.grain.state.intensity - 0.5) < 1e-6);
+
+  // The pure presets and the bright-pass scalar. A threshold of 0.5 passes nothing below it and
+  // the excess above it, which is what a bright pass is.
+  const presets = passes.presets;
+  // Not a hard threshold: CNA's bright pass has a soft knee half the threshold wide, squared, and
+  // scales the value by it. Restated here from `BloomPass.cpp` rather than pinned as five numbers,
+  // so a change to the curve fails with the curve rather than with a constant nobody can check.
+  const brightPass = (value, threshold) => {
+    const knee = Math.max(threshold * 0.5, 1e-4);
+    const contribution = Math.min(Math.max((value - threshold + knee) / (2 * knee), 0), 1);
+    return value * contribution * contribution;
+  };
+  [0, 0.25, 0.5, 0.75, 1].forEach((value, index) => {
+    assert.ok(
+      Math.abs(presets.extract[index] - brightPass(value, 0.5)) < 1e-6,
+      `the bright pass of ${value} at threshold 0.5 is ${brightPass(value, 0.5)}, ` +
+      `CNA answered ${presets.extract[index]}`,
+    );
+  });
+  // And the shape that makes it a bright pass at all: nothing survives well below the threshold,
+  // everything survives well above it, and the knee is in between rather than a step.
+  assert.equal(presets.extract[0], 0, "black contributes nothing");
+  assert.ok(presets.extract[2] > 0 && presets.extract[2] < 0.5, "the threshold itself is the knee");
+  assert.ok(presets.extract[4] > presets.extract[3], "and brighter values contribute more");
+  assert.ok(
+    presets.bloomIterations.every((value, index, all) => index === 0 || value >= all[index - 1]),
+    `higher quality asks for at least as many iterations: ${presets.bloomIterations}`,
+  );
+  assert.ok(presets.fxaaThresholds.every((value) => value > 0 && value < 1));
+  assert.ok(presets.fxaaGlslLength > 100, "the FXAA fragment source is a real shader");
+  assert.match(presets.fxaaGlslHead, /\S/, "and it is text");
+
   // --- the instancing stream's layout ------------------------------------------------------------
   // CNA documents this declaration exactly -- "four Vector4 elements at TextureCoordinate usage
   // indices one through four, sixty-four bytes in total" -- so it is asserted rather than recorded,

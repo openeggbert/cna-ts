@@ -1232,6 +1232,100 @@ try {
           for (const pass of chainPasses) pass.Dispose();
         }
 
+        // --- the rest of the post-process family --------------------------------------------------
+        //
+        // The tonemapper is the one that can be checked exactly, and by CNA against itself: it
+        // ships a pure scalar, `TonemapPass.TonemapChannel(mode, value, exposure, gamma)`, which
+        // is the same arithmetic its shader does. The page records both the rendered texels and
+        // CNA's own answer for every channel of every source texel, so the test compares two
+        // implementations of one specification rather than a picture to a picture.
+        evidence.tonemap = (() => {
+          const modes = [PostProcess.TonemappingMode.None, PostProcess.TonemappingMode.Reinhard];
+          const out = { scalar: [], rendered: [], expected: [], modes };
+          for (const mode of modes) {
+            const pass = new PostProcess.TonemapPass(device);
+            const destination = new Graphics.RenderTarget2D(device, N, N);
+            try {
+              pass.Mode = mode;
+              pass.Exposure = 1.5;
+              pass.Gamma = 1;
+              // Off, so the only thing between source and output is the tone curve: dithering
+              // would move texels by a least significant bit and blur the comparison.
+              pass.DebandEnabled = false;
+              out.state = {
+                mode: pass.Mode, exposure: pass.Exposure, gamma: pass.Gamma,
+                deband: pass.DebandEnabled, debandStrength: pass.DebandStrength,
+              };
+              pass.Apply({ Source: source, Destination: destination, Width: N, Height: N });
+              out.rendered.push(read(destination));
+              out.expected.push(texels.map((colour) =>
+                [colour.R, colour.G, colour.B].map((channel) => Math.round(255 *
+                  PostProcess.TonemapPass.TonemapChannel(mode, channel / 255, 1.5, 1)))));
+            } finally {
+              destination.Dispose();
+              pass.Dispose();
+            }
+          }
+          // And the scalar itself, at values a shader cannot be asked about directly.
+          out.scalar = [0, 0.25, 0.5, 1, 2].map((value) =>
+            PostProcess.TonemapPass.TonemapChannel(
+              PostProcess.TonemappingMode.Reinhard, value, 1, 1));
+          return out;
+        })();
+
+        // The passes that must change something, and the parameters they change it by. Exact
+        // pixels are not the claim here -- a blur kernel and an edge filter are not arithmetic a
+        // test can restate -- so the claim is that each ran, that its output is not the source,
+        // and that its parameters round-trip through CNA.
+        evidence.passes = (() => {
+          const out = {};
+          const run = (name, make, tune) => {
+            const pass = make();
+            const destination = new Graphics.RenderTarget2D(device, N, N);
+            try {
+              const state = tune?.(pass) ?? null;
+              pass.Apply({ Source: source, Destination: destination, Width: N, Height: N });
+              out[name] = { name: pass.Name, supported: pass.IsSupportedOn(device),
+                            pixels: read(destination), state };
+            } catch (error) {
+              out[name] = { failed: `${error?.constructor?.name}: ${error?.message}` };
+            } finally {
+              destination.Dispose();
+              pass.Dispose();
+            }
+          };
+          run("blit", () => new PostProcess.BlitPass(device));
+          run("bloom", () => new PostProcess.BloomPass(device), (p) => {
+            p.Threshold = 0.5; p.Intensity = 1; p.Iterations = 1;
+            return { threshold: p.Threshold, intensity: p.Intensity, iterations: p.Iterations };
+          });
+          run("fxaa", () => new PostProcess.FxaaPass(device), (p) => {
+            p.EdgeThreshold = 0.25;
+            return { edgeThreshold: p.EdgeThreshold };
+          });
+          run("aberration", () => new PostProcess.ChromaticAberrationPass(device), (p) => {
+            // Two values, because CNA clamps this one to [0, 0.1] and a test that only ever set an
+            // in-range value would never find that out.
+            p.Strength = 0.25;
+            const clamped = p.Strength;
+            p.Strength = 0.05;
+            return { strength: p.Strength, clampedFrom025: clamped };
+          });
+          run("grain", () => new PostProcess.FilmGrainPass(device), (p) => {
+            p.Intensity = 0.5;
+            return { intensity: p.Intensity };
+          });
+          // The quality presets and the bright-pass scalar, which are pure and exact.
+          out.presets = {
+            bloomIterations: [0, 1, 2, 3].map((q) => PostProcess.BloomPass.IterationsForQuality(q)),
+            fxaaThresholds: [0, 1, 2, 3].map((q) => PostProcess.FxaaPass.EdgeThresholdForQuality(q)),
+            extract: [0, 0.25, 0.5, 0.75, 1].map((v) => PostProcess.BloomPass.ExtractChannel(v, 0.5)),
+            fxaaGlslLength: PostProcess.FxaaPass.FragmentGlsl.length,
+            fxaaGlslHead: PostProcess.FxaaPass.FragmentGlsl.slice(0, 32),
+          };
+          return out;
+        })();
+
         // --- the instancing stream's layout ------------------------------------------------------
         //
         // Pure computation about the layer's own shaders, and the one part of the instancing
