@@ -724,6 +724,9 @@ try {
       // --- shadow maps: what this device says, and the maths that is the same everywhere -------
       result.shadows = this.#shadowEvidence();
 
+      // --- level of detail: arithmetic, and the one engine family bound whole ------------------
+      result.lod = this.#lodEvidence();
+
       super.LoadContent();
     }
 
@@ -885,6 +888,82 @@ try {
         target.Dispose();
       }
       return evidence;
+    }
+
+    /**
+     * Level-of-detail selection, whole.
+     *
+     * Every route of it is arithmetic over thresholds -- no device, no resource, nothing drawn --
+     * so every answer here is exactly predictable and the page records enough for the suite to
+     * predict them rather than recognise them. The parts a level would draw are absent, which CNA
+     * treats as a real state rather than an error: a level that deliberately draws nothing.
+     */
+    #lodEvidence() {
+      const { LodGroup, LodSelectionMode } = PostProcess;
+      let group;
+      try {
+        group = new LodGroup();
+      } catch (error) {
+        return {
+          layerAbsent: true,
+          cnaResult: error?.cnaResult ?? null,
+          error: `${error?.constructor?.name}: ${error?.message}`,
+        };
+      }
+      try {
+        const out = { layerAbsent: false, emptyCount: group.Count };
+        out.emptyIndex = group.SelectIndex(10);
+        out.emptyPart = group.Select(10) === null;
+        // Three levels at 10, 25 and 50 units. Ascending, distinct, and none of them a round
+        // number of the others, so an off-by-one or a reversed comparison lands somewhere visible.
+        group.AddLevel(10).AddLevel(25).AddLevel(50);
+        out.levels = [...group.Thresholds];
+        out.count = group.Count;
+        out.mode = group.SelectionMode;
+        // Hysteresis off first, so selection is the threshold and nothing else.
+        out.defaultHysteresis = group.Hysteresis;
+        group.Hysteresis = 0;
+        out.selection = [0, 9.9, 10, 10.1, 24.9, 25, 25.1, 49.9, 50, 50.1, 1000]
+          .map((distance) => [distance, group.SelectIndex(distance)]);
+
+        // Hysteresis: having settled on a level, a small move back must not switch away from it.
+        group.ResetHysteresis();
+        group.Hysteresis = 5;
+        out.hysteresis = { margin: group.Hysteresis };
+        out.hysteresis.settleFar = group.SelectIndex(30);
+        out.hysteresis.smallStepBack = group.SelectIndex(24);
+        out.hysteresis.bigStepBack = group.SelectIndex(15);
+
+        // Screen-space mode: the thresholds become pixel radii, and CNA reports the projection it
+        // uses, so the test can compute the same number itself.
+        group.ResetHysteresis();
+        group.Hysteresis = 0;
+        group.SelectionMode = LodSelectionMode.ScreenSpaceError;
+        out.screenMode = group.SelectionMode;
+        const RADIUS = 2, FOV = Math.PI / 3, HEIGHT = 720;
+        group.SetScreenSpaceParameters(RADIUS, FOV, HEIGHT);
+        out.screenSpace = {
+          radius: RADIUS, fov: FOV, height: HEIGHT,
+          projected: [1, 2, 5, 10, 50, 100].map((distance) =>
+            [distance, group.ProjectedRadiusPixels(distance)]),
+          atEye: group.ProjectedRadiusPixels(0),
+          behindEye: group.ProjectedRadiusPixels(-5),
+          selection: [1, 10, 100, 1000].map((distance) =>
+            [distance, group.SelectIndex(distance)]),
+        };
+
+        group.Clear();
+        out.clearedCount = group.Count;
+        out.clearedIndex = group.SelectIndex(10);
+        return out;
+      } catch (error) {
+        return {
+          layerAbsent: false,
+          evidenceError: `${error?.constructor?.name}: ${error?.message}`,
+        };
+      } finally {
+        group.Dispose();
+      }
     }
 
     /**

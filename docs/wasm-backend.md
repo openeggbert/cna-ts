@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=490
+WASM_BACKEND_ROUTES=504
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 490 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 504 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
@@ -479,6 +479,29 @@ and that their parameters round-trip -- **including CNA's clamp of chromatic abe
 `[0, 0.1]`**, which a test that only ever set an in-range value would never have found. Two
 expectations in this area were written wrong and the browser caught both: that bright pass is not a
 hard threshold, and 0.25 is not a legal aberration strength.
+
+### Level of detail, bound whole
+
+The one engine family here implemented **completely** rather than in a slice, because there is
+nothing about it to slice: every route is arithmetic over thresholds -- no device, no resource,
+nothing drawn -- so there is no capability question to ask and nothing a browser could do
+differently from Node. Every answer is predicted rather than recognised:
+
+```text
+distance mode      the boundary is STRICT: a level covers distances below its threshold, so at
+                   exactly 10 the group has already moved on. That is upper_bound on
+                   `value < MaxDistance` in LodGroupEXT.cpp, and it is the reading this test
+                   started with backwards.
+past the last one  -1, which is CNA saying "draw nothing at this range" rather than clamping
+hysteresis         settled at level 2 by distance 30, a step back to 24 stays -- inside the
+                   5-unit margin -- and a step to 15 switches
+screen space       radius / (distance * tan(fov/2)) * (height/2), agreeing to one part in 1e4,
+                   halving with doubled distance, and the largest float at and behind the eye
+```
+
+Levels carry no `ModelMeshPart` in a browser, and CNA already treats that as a real state -- a
+level that deliberately draws nothing -- separating it from an empty group through
+`SelectIndex`. So a page gets the selection behaviour in full and only the payload is missing.
 
 ### What this device can be asked, and what that settles
 

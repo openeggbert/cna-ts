@@ -921,4 +921,13 @@ export const WASM_STRUCT_LAYOUTS = {
       max: { offset: 12, size: 12 },
     },
   },
+  CNA_LodLevelEXT: {
+    size: 16,
+    align: 8,
+    fields: {
+      part: { offset: 0, size: 8 },
+      max_distance: { offset: 8, size: 4 },
+      reserved0: { offset: 12, size: 4 },
+    },
+  },
 } as const satisfies Readonly<Record<string, WasmStructLayout>>;

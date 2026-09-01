@@ -14,7 +14,7 @@
   "counts": {
     "VERIFIED_MANAGED": 22,
     "VERIFIED_NATIVE": 120,
-    "VERIFIED_WEBASSEMBLY": 18,
+    "VERIFIED_WEBASSEMBLY": 19,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 1,
     "UPSTREAM_CNA_BLOCKED": 5,
     "FIXTURE_PENDING": 2,
@@ -2434,6 +2434,21 @@
         "wasmRoute:cna_graphics_device_get_max_compute_work_group_count_ext",
         "wasmRoute:cna_graphics_device_get_max_compute_work_group_size_ext",
         "wasmRoute:cna_graphics_device_get_max_compute_work_group_invocations_ext",
+        "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "Level-of-detail selection over WebAssembly",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "Available only on an artifact built with CNA_CNAEXT=ON, and the one engine family bound whole rather than sliced: every route of it is arithmetic over thresholds and touches no device. Asserted in a browser by prediction rather than recognition -- the distance rule restated from LodGroupEXT.cpp, where the boundary is strict (upper_bound on value < MaxDistance) so a distance equal to a threshold has already moved on; hysteresis holding a settled level against a step back inside the margin and releasing it past one; and the screen-space projection computed from the radius, vertical field of view and viewport height CNA was given, agreeing to one part in ten thousand, halving with doubled distance, and answering the largest representable float at and behind the eye. Levels carry no ModelMeshPart in a browser, which CNA treats as a real state -- a level that deliberately draws nothing -- and separates from an empty group through selectLodIndex.",
+      "proof": [
+        "wasmRoute:cna_lod_group_ext_create",
+        "wasmRoute:cna_lod_group_ext_add_level",
+        "wasmRoute:cna_lod_group_ext_copy_levels",
+        "wasmRoute:cna_lod_group_ext_select_index",
+        "wasmRoute:cna_lod_group_ext_set_hysteresis",
+        "wasmRoute:cna_lod_group_ext_projected_radius_pixels",
         "test:test/wasm-browser.mjs"
       ]
     },

@@ -19,6 +19,7 @@ import type {
   CnaContentBackend,
   CnaGraphicsBackend,
   CnaComputeBackend,
+  CnaLodBackend,
   CnaShadowBackend,
   CnaGraphicsExtensionBackend,
   CnaRuntimeServicesBackend,
@@ -79,6 +80,7 @@ import { WasmGraphicsBackend } from "./graphics.js";
 import { WasmEffectBackend } from "./effects.js";
 import { WasmComputeBackend } from "./compute.js";
 import { WasmGraphicsExtensionBackend } from "./graphics-ext.js";
+import { WasmLodBackend } from "./lod.js";
 import { WasmShadowBackend } from "./shadows.js";
 
 const CNA_RESULT_SUCCESS = CnaResult.Success;
@@ -227,6 +229,22 @@ const ROUTES = [
   "cna_post_process_pass_copy_name",
   "cna_post_process_pass_is_supported",
   "cna_post_process_pass_destroy",
+  // Level-of-detail selection, complete: thresholds, hysteresis, the two selection modes and the
+  // screen-space projection. All arithmetic, no device, nothing to draw.
+  "cna_lod_group_ext_create",
+  "cna_lod_group_ext_destroy",
+  "cna_lod_group_ext_add_level",
+  "cna_lod_group_ext_clear",
+  "cna_lod_group_ext_copy_levels",
+  "cna_lod_group_ext_select_index",
+  "cna_lod_group_ext_select",
+  "cna_lod_group_ext_get_hysteresis",
+  "cna_lod_group_ext_set_hysteresis",
+  "cna_lod_group_ext_reset_hysteresis",
+  "cna_lod_group_ext_get_selection_mode",
+  "cna_lod_group_ext_set_selection_mode",
+  "cna_lod_group_ext_set_screen_space_parameters",
+  "cna_lod_group_ext_projected_radius_pixels",
   // Shadow maps: what one is, what the device says about casting and sampling, and the pure light
   // transforms. The casting pass is not here -- see `WasmShadowBackend`.
   "cna_graphics_device_supports_shadow_sampling_ext",
@@ -659,6 +677,11 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
    * this context can cast is a question for the device, and the slice asks it rather than assuming.
    */
   public readonly Shadows: CnaShadowBackend;
+  /**
+   * Level-of-detail selection, which is the one engine family here that is implemented *whole*
+   * rather than sliced: every route of it is arithmetic over thresholds and touches no device.
+   */
+  public readonly Lod: CnaLodBackend;
   /** Sound effects, so a browser game can make a noise. */
   public readonly Audio: CnaAudioBackend;
   /**
@@ -683,6 +706,7 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
     this.GraphicsExtensions = new WasmGraphicsExtensionBackend(this.#routes);
     this.Compute = new WasmComputeBackend(this.#routes);
     this.Shadows = new WasmShadowBackend(this.#routes);
+    this.Lod = new WasmLodBackend(this.#routes);
     this.Audio = new WasmAudioBackend(
       this.#routes, () => this.#requireGame(), () => this.#requireGameLifetime(),
     );

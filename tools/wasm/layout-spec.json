@@ -610,6 +610,11 @@
     "CNA_BoundingBox": [
       "min",
       "max"
+    ],
+    "CNA_LodLevelEXT": [
+      "part",
+      "max_distance",
+      "reserved0"
     ]
   },
   "callbacks": {

@@ -36,6 +36,7 @@ import { after } from "node:test";
 
 import { browserBlocked, runFrames, WASM_DIR } from "./support/browser-harness.mjs";
 import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
+import { assertLodEvidence } from "./support/lod-oracle.mjs";
 import { assertShadowPassEvidence } from "./support/shadow-oracle.mjs";
 import { assertCompiledEffectEvidence } from "./support/compiled-effect-oracle.mjs";
 import { requiredSuite } from "./support/required-suite.mjs";
@@ -159,6 +160,18 @@ test("the engine layer casts a shadow map, and its depths are the light transfor
     `OCCLUDED=${shadows.high.occluded} HIGH=${shadows.high.low.toFixed(6)} ` +
     `LOW=${shadows.low.low.toFixed(6)}`,
   );
+});
+
+test("level-of-detail selection is present and complete", () => {
+  const lod = evidence.result.lod;
+  assert.ok(lod, "no level-of-detail evidence was produced");
+  assert.equal(lod.layerAbsent, false, `the artifact refused a LodGroup: ${lod.error}`);
+  assert.equal(lod.evidenceError ?? null, null, "the layer was present and the probe failed");
+  // The same oracle the ordinary suite applies. A strong run that asserted less than the ordinary
+  // one would let a defect through on exactly the run that exists to make the claim -- and did:
+  // a planted eight-byte stride for CNA_LodLevelEXT survived that gap before this was shared.
+  assertLodEvidence(lod);
+  console.log(`STRONG_WASM_LOD=COMPLETE LEVELS=${lod.count} MODES=distance,screen-space`);
 });
 
 test("the page raised nothing while doing it", () => {

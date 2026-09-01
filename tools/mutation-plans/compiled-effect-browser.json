@@ -186,6 +186,27 @@
       "file": "src/internal/wasm/graphics-ext.ts",
       "find": "    this.#routes.invoke(\"cna_bloom_pass_set_threshold\", pass, threshold);",
       "replace": "    void pass; void threshold;"
+    },
+    {
+      "id": "lod-levels-read-at-a-fixed-stride",
+      "why": "CNA_LodLevelEXT strided by eight bytes rather than its measured sixteen: the first threshold survives and the rest read out of a handle's low word, which is the shape of a layout guessed from the field list",
+      "file": "src/internal/wasm/lod.ts",
+      "find": "        new WasmStruct(this.#routes.module, \"CNA_LodLevelEXT\", buffer + layout.size * index)",
+      "replace": "        new WasmStruct(this.#routes.module, \"CNA_LodLevelEXT\", buffer + 8 * index)"
+    },
+    {
+      "id": "lod-hysteresis-never-sent",
+      "why": "the sticky margin is stored managed and never reaches CNA, so a level boundary flickers exactly where hysteresis exists to stop it -- and every threshold-only assertion still passes",
+      "file": "src/internal/wasm/lod.ts",
+      "find": "    this.#routes.invoke(\"cna_lod_group_ext_set_hysteresis\", group, margin);",
+      "replace": "    void group; void margin;"
+    },
+    {
+      "id": "lod-screen-space-parameters-transposed",
+      "why": "the field of view and the viewport height swapped: the projected radius is still finite, still falls with distance and still selects levels, and is wrong by three orders of magnitude",
+      "file": "src/internal/wasm/lod.ts",
+      "find": "      \"cna_lod_group_ext_set_screen_space_parameters\", group, radius, verticalFov, viewportHeight,",
+      "replace": "      \"cna_lod_group_ext_set_screen_space_parameters\", group, radius, viewportHeight, verticalFov,"
     }
   ]
 }

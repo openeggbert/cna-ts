@@ -14,6 +14,7 @@ import test from "node:test";
 
 import { browserBlocked, runFrames } from "./support/browser-harness.mjs";
 import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
+import { assertLodEvidence } from "./support/lod-oracle.mjs";
 import { assertShadowPassEvidence } from "./support/shadow-oracle.mjs";
 import { assertCompiledEffectEvidence } from "./support/compiled-effect-oracle.mjs";
 
@@ -641,6 +642,27 @@ test("a browser asks what its device can do with a shadow map, and answers", { s
   console.log(
     `CNA_TS_WASM_SHADOWS=ENGINE_LAYER_PRESENT CASTING=${shadows.supported} ` +
     `SAMPLING=${shadows.sampling} SIZE=${shadows.size}`,
+  );
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("a browser selects levels of detail, and the arithmetic is exactly predictable", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const lod = result.lod;
+  assert.ok(lod, "no level-of-detail evidence was produced");
+
+  if (lod.layerAbsent) {
+    assert.equal(lod.cnaResult, 6, `CNA's own NOT_SUPPORTED: ${lod.error}`);
+    console.log("CNA_TS_WASM_LOD=NO_ENGINE_LAYER");
+    return;
+  }
+  assert.equal(lod.evidenceError ?? null, null, "the layer was present and the probe failed");
+
+  assertLodEvidence(lod);
+  console.log(
+    `CNA_TS_WASM_LOD=COMPLETE LEVELS=${lod.count} MODES=distance,screen-space ` +
+    `HYSTERESIS=${lod.hysteresis.margin}`,
   );
   assert.deepEqual(consoleErrors, []);
 });
