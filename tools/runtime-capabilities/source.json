@@ -2125,6 +2125,35 @@
         "test:test/native-cna.integration.mjs",
         "test:test/windowed-renderer.integration.mjs"
       ]
+    },
+    {
+      "operation": "The shadow-receiver contract: the lighting and shadow state an effect carries",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "these are not properties of one class, because CNA hangs them off the Effect handle itself -- and that is shown rather than asserted: THREE effects give THREE different answers. A stock BasicEffect is a shadow receiver and NOT an image-based-light receiver; a PbrEffect is both; a ShaderEffect is neither and refuses every route with INVALID_ARGUMENT rather than accepting values nothing will read. Every documented default is checked field by field -- kind NONE, the origin, direction (0,-1,0), white, range 20, inner 0.35, outer 0.5, bias 0.004, no textures, zero cascades, four zero splits, no blend band, no debug tint -- and every one is exact except the transforms, which the header calls identity and which are ZERO matrices in all six places they appear. That is finding 23, and the implementation is the half that is right: its own comments say a defaulted C state must match a defaulted C++ one, where Matrix() is value-initialised to zeros. Asserted as measured, so making the documentation true by moving the code fails the test. The cascade array is a FIXED FOUR whatever the count says: two transforms given come back as two plus two defaults, a count of three with one transform given keeps the init's defaults in the other two rather than whatever the effect held before, and a fifth transform or a count outside the array is refused by name. Every setter writes a value different from the default it replaces, so one that never reached CNA is caught. The punctual light's two shadow textures come back as nothing WHATEVER was set -- the canonical structure holds raw pointers and this ABI will not invent a handle for a texture it does not track -- while every other field of the same structure round-trips, which is what makes that an asymmetry rather than a getter returning defaults. The image-based light's completeness test is checked from both sides: a light with no textures is not valid, and more mips do not make it so, because the textures are what is missing. Eleven planted binding defects were run: ten fail, and the survivor is recorded as equivalent under this ABI with the reason",
+      "proof": [
+        "route:cna_punctual_light_ext_init",
+        "route:cna_shadow_cascade_state_ext_init",
+        "route:cna_image_based_light_ext_init",
+        "route:cna_image_based_light_ext_is_valid",
+        "route:cna_effect_set_punctual_light_ext",
+        "route:cna_effect_get_punctual_light_ext",
+        "route:cna_effect_set_shadow_cascades_ext",
+        "route:cna_effect_get_shadow_cascades_ext",
+        "route:cna_effect_set_image_based_light_ext",
+        "route:cna_effect_get_image_based_light_ext",
+        "route:cna_effect_set_light_view_projection_ext",
+        "route:cna_effect_get_light_view_projection_ext",
+        "route:cna_effect_set_shadows_enabled_ext",
+        "route:cna_effect_is_shadows_enabled_ext",
+        "route:cna_effect_set_shadow_depth_bias_ext",
+        "route:cna_effect_get_shadow_depth_bias_ext",
+        "route:cna_effect_set_shadow_filter_radius_ext",
+        "route:cna_effect_get_shadow_filter_radius_ext",
+        "route:cna_effect_set_shadow_map_ext",
+        "route:cna_effect_get_shadow_map_ext",
+        "test:test/native-cna.integration.mjs"
+      ]
     }
   ]
 }

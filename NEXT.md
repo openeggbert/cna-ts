@@ -2082,6 +2082,7 @@ npm test             332/332      native 41/41      windowed 16/16
 21  the OIT bracket's documented behaviour was corrected in the code,
     and its header and C shim still say the old thing                 NEW, measured
 22  a ShaderEffect's FIRST SpriteBatch draw produces nothing at all   NEW, measured
+23  two _init routes document identity transforms and write zeros     NEW, measured
 ```
 
 Item 18 is the one to read first: it multiplies every leak finding in the document, and it was found
@@ -2089,28 +2090,23 @@ by noticing that a probe process died *after* printing everything it meant to pr
 
 ### Where the next session picks up
 
-`ACTIONABLE_LOCAL` is **47 unbound engine-layer routes**, of which 14 are the deliberate
-non-binding below, so **33 are work**:
+`ACTIONABLE_LOCAL` is **27 unbound engine-layer routes**, of which 15 are deliberate non-bindings,
+so **12 are work** — and they are the last twelve:
 
 ```text
-16  effect (get/set extras)        2  indirect               2  graphics_device
-14  instanced_renderer_ext (NO)    2  image_based_light_ext  2  engine_layer
- 2  render_pipeline (draw)                                  ~9  singles
+4  indirect draw (2 device routes + 2 init helpers)
+2  render_pipeline scene callbacks (shadow, transparent)
+2  engine_layer version (get, copy string)
+1  graphics_memory_barrier_has        1  gpu_cullable_instance_init
+1  post_process_chain_get_target_pool 1  cube_lut_load_from_file
 ```
 
-`shader_effect` from `effects.h` is bound in full (24 routes), and with it the weighted-blended
-accumulation is qualified to the pixel. `render_target_pool` and `shader_effect_factory` are done.
-**`effect` get/set extras (16)** is the largest family left and the obvious next batch; after it
-only singles and pairs remain, and `ACTIONABLE_LOCAL` reaches its floor of 14 — the deliberate
-non-binding.
+Bind those and `ACTIONABLE_LOCAL` reaches its floor of 15, which is the stop condition: the
+instanced renderer's fourteen routes and `cna_lod_group_ext_select` need handle types this package
+does not project, and binding them would offer routes that could only ever be handed zero. Both are
+recorded in the bridge beside the routes they belong to.
 
-Two are deliberate non-bindings rather than work, and both are recorded in the bridge beside the
-routes they belong to: the **instanced renderer's object** and
-`cna_debug_draw_add_cluster_slice_gizmo` need a `CNA_ModelMeshPartHandle` and a
-`CNA_ClusteredLightGridHandle` respectively, and this package's `ModelMeshPart` is a managed
-projection with no native handle while the clustered light *grid* is not projected at all. Binding
-either would offer routes that could only ever be handed zero — the same reason
-`cna_lod_group_ext_select` is unbound.
+After that the work is the final qualification suite and the handoff, not more binding.
 
 **Read finding 22 before writing anything that draws with a custom shader.** A fresh `ShaderEffect`
 loses its first `SpriteBatch` draw, and a custom-shader draw leaves a GL error pending that the next

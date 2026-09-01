@@ -1037,6 +1037,19 @@ typedef CNA_Result (*PoolAcquireFn)(CNA_Handle, int32_t, int32_t, CNA_SurfaceFor
 typedef CNA_Result (*FactoryAcquireFn)(CNA_Handle, CNA_StringView, CNA_StringView, CNA_StringView, CNA_Handle*);
 typedef CNA_Result (*FactoryContainsFn)(CNA_Handle, CNA_StringView, CNA_Bool*);
 
+typedef CNA_Result (*PunctualLightInitFn)(CNA_PunctualLightEXT*);
+typedef CNA_Result (*ShadowCascadeInitFn)(CNA_ShadowCascadeStateEXT*);
+typedef CNA_Result (*ImageBasedLightInitFn)(CNA_ImageBasedLightEXT*);
+typedef CNA_Result (*ImageBasedLightValidFn)(const CNA_ImageBasedLightEXT*, CNA_Bool*);
+typedef CNA_Result (*EffectSetPunctualFn)(CNA_Handle, const CNA_PunctualLightEXT*);
+typedef CNA_Result (*EffectGetPunctualFn)(CNA_Handle, CNA_PunctualLightEXT*);
+typedef CNA_Result (*EffectSetCascadesFn)(CNA_Handle, const CNA_ShadowCascadeStateEXT*);
+typedef CNA_Result (*EffectGetCascadesFn)(CNA_Handle, CNA_ShadowCascadeStateEXT*);
+typedef CNA_Result (*EffectSetIblFn)(CNA_Handle, const CNA_ImageBasedLightEXT*);
+typedef CNA_Result (*EffectGetIblFn)(CNA_Handle, CNA_ImageBasedLightEXT*);
+typedef CNA_Result (*EffectSetMatrixPtrFn)(CNA_Handle, const CNA_Matrix*);
+typedef CNA_Result (*EffectGetMatrixPtrFn)(CNA_Handle, CNA_Matrix*);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2743,6 +2756,26 @@ typedef struct Api {
   HandleU64OutFn shader_effect_factory_get_compile_count;
   GameHandleFn shader_effect_factory_clear;
   GameHandleFn shader_effect_factory_destroy;
+  PunctualLightInitFn punctual_light_ext_init;
+  ShadowCascadeInitFn shadow_cascade_state_ext_init;
+  ImageBasedLightInitFn image_based_light_ext_init;
+  ImageBasedLightValidFn image_based_light_ext_is_valid;
+  EffectSetPunctualFn effect_set_punctual_light_ext;
+  EffectGetPunctualFn effect_get_punctual_light_ext;
+  EffectSetCascadesFn effect_set_shadow_cascades_ext;
+  EffectGetCascadesFn effect_get_shadow_cascades_ext;
+  EffectSetIblFn effect_set_image_based_light_ext;
+  EffectGetIblFn effect_get_image_based_light_ext;
+  EffectSetMatrixPtrFn effect_set_light_view_projection_ext;
+  EffectGetMatrixPtrFn effect_get_light_view_projection_ext;
+  HandleBoolFn effect_set_shadows_enabled_ext;
+  BoolGetFn effect_is_shadows_enabled_ext;
+  HandleFloatFn effect_set_shadow_depth_bias_ext;
+  HandleFloatOutFn effect_get_shadow_depth_bias_ext;
+  HandleI32Fn effect_set_shadow_filter_radius_ext;
+  HandleI32OutFn effect_get_shadow_filter_radius_ext;
+  TwoHandleFn effect_set_shadow_map_ext;
+  HandleHandleOutFn effect_get_shadow_map_ext;
 } Api;
 
 typedef struct GameContext {
@@ -4736,6 +4769,26 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(shader_effect_factory_get_compile_count, HandleU64OutFn, "cna_shader_effect_factory_get_compile_count");
   LOAD_REQUIRED(shader_effect_factory_clear, GameHandleFn, "cna_shader_effect_factory_clear");
   LOAD_REQUIRED(shader_effect_factory_destroy, GameHandleFn, "cna_shader_effect_factory_destroy");
+  LOAD_REQUIRED(punctual_light_ext_init, PunctualLightInitFn, "cna_punctual_light_ext_init");
+  LOAD_REQUIRED(shadow_cascade_state_ext_init, ShadowCascadeInitFn, "cna_shadow_cascade_state_ext_init");
+  LOAD_REQUIRED(image_based_light_ext_init, ImageBasedLightInitFn, "cna_image_based_light_ext_init");
+  LOAD_REQUIRED(image_based_light_ext_is_valid, ImageBasedLightValidFn, "cna_image_based_light_ext_is_valid");
+  LOAD_REQUIRED(effect_set_punctual_light_ext, EffectSetPunctualFn, "cna_effect_set_punctual_light_ext");
+  LOAD_REQUIRED(effect_get_punctual_light_ext, EffectGetPunctualFn, "cna_effect_get_punctual_light_ext");
+  LOAD_REQUIRED(effect_set_shadow_cascades_ext, EffectSetCascadesFn, "cna_effect_set_shadow_cascades_ext");
+  LOAD_REQUIRED(effect_get_shadow_cascades_ext, EffectGetCascadesFn, "cna_effect_get_shadow_cascades_ext");
+  LOAD_REQUIRED(effect_set_image_based_light_ext, EffectSetIblFn, "cna_effect_set_image_based_light_ext");
+  LOAD_REQUIRED(effect_get_image_based_light_ext, EffectGetIblFn, "cna_effect_get_image_based_light_ext");
+  LOAD_REQUIRED(effect_set_light_view_projection_ext, EffectSetMatrixPtrFn, "cna_effect_set_light_view_projection_ext");
+  LOAD_REQUIRED(effect_get_light_view_projection_ext, EffectGetMatrixPtrFn, "cna_effect_get_light_view_projection_ext");
+  LOAD_REQUIRED(effect_set_shadows_enabled_ext, HandleBoolFn, "cna_effect_set_shadows_enabled_ext");
+  LOAD_REQUIRED(effect_is_shadows_enabled_ext, BoolGetFn, "cna_effect_is_shadows_enabled_ext");
+  LOAD_REQUIRED(effect_set_shadow_depth_bias_ext, HandleFloatFn, "cna_effect_set_shadow_depth_bias_ext");
+  LOAD_REQUIRED(effect_get_shadow_depth_bias_ext, HandleFloatOutFn, "cna_effect_get_shadow_depth_bias_ext");
+  LOAD_REQUIRED(effect_set_shadow_filter_radius_ext, HandleI32Fn, "cna_effect_set_shadow_filter_radius_ext");
+  LOAD_REQUIRED(effect_get_shadow_filter_radius_ext, HandleI32OutFn, "cna_effect_get_shadow_filter_radius_ext");
+  LOAD_REQUIRED(effect_set_shadow_map_ext, TwoHandleFn, "cna_effect_set_shadow_map_ext");
+  LOAD_REQUIRED(effect_get_shadow_map_ext, HandleHandleOutFn, "cna_effect_get_shadow_map_ext");
   LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
   LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
   LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
@@ -27763,10 +27816,428 @@ static napi_value bridge_shader_effect_factory_destroy(napi_env env, napi_callba
   return pp_handle_only(env, info, g_api.shader_effect_factory_destroy, "cna_shader_effect_factory_destroy");
 }
 
+/* ---- the shadow-receiver contract any effect may implement ------------------------------------
+   Three structures move across here: a punctual light with its shadow resources, the cascaded
+   state for one frame, and an image-based light. Each is filled by CNA's own `_init` first, so a
+   structure this bridge builds carries the size and version CNA expects rather than ones written
+   here, and only the fields a caller named are then overwritten. */
+
+static int read_punctual_light_ext(napi_env env, napi_value object, CNA_PunctualLightEXT* out) {
+  uint32_t kind = 0;
+  double range = 0, inner = 0, outer = 0, bias = 0;
+  napi_value transform;
+  const CNA_Result seeded = g_api.punctual_light_ext_init(out);
+  if (seeded != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_punctual_light_ext_init", seeded);
+    return 0;
+  }
+  if (!get_named_u32(env, object, "Kind", &kind) ||
+      !get_named_vector3(env, object, "Position", &out->position) ||
+      !get_named_vector3(env, object, "Direction", &out->direction) ||
+      !get_named_vector3(env, object, "DiffuseColor", &out->diffuse_color) ||
+      !get_named_double(env, object, "Range", &range) ||
+      !get_named_double(env, object, "InnerAngle", &inner) ||
+      !get_named_double(env, object, "OuterAngle", &outer) ||
+      !get_named_double(env, object, "ShadowDepthBias", &bias) ||
+      !get_named_handle_allow_zero(env, object, "ShadowCube", &out->shadow_cube) ||
+      !get_named_handle_allow_zero(env, object, "ShadowMap", &out->shadow_map) ||
+      !get_named_value(env, object, "ShadowViewProjection", &transform) ||
+      !read_matrix16(env, transform, &out->shadow_view_projection, "a shadow transform")) {
+    return 0;
+  }
+  out->kind = (CNA_PunctualLightKindEXT) kind;
+  out->range = (float) range;
+  out->inner_angle = (float) inner;
+  out->outer_angle = (float) outer;
+  out->shadow_depth_bias = (float) bias;
+  return 1;
+}
+
+static napi_value make_punctual_light_ext(
+  napi_env env, const CNA_PunctualLightEXT* light, const char* operation
+) {
+  napi_value output, value;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), operation);
+  if (!set_u32_property(env, output, "Kind", light->kind) ||
+      !set_vector3_property(env, output, "Position", light->position) ||
+      !set_vector3_property(env, output, "Direction", light->direction) ||
+      !set_vector3_property(env, output, "DiffuseColor", light->diffuse_color) ||
+      !set_f32_property(env, output, "Range", light->range) ||
+      !set_f32_property(env, output, "InnerAngle", light->inner_angle) ||
+      !set_f32_property(env, output, "OuterAngle", light->outer_angle) ||
+      !set_f32_property(env, output, "ShadowDepthBias", light->shadow_depth_bias) ||
+      !set_handle_property(env, output, "ShadowCube", light->shadow_cube) ||
+      !set_handle_property(env, output, "ShadowMap", light->shadow_map)) {
+    return throw_napi(env, operation);
+  }
+  value = make_matrix16(env, &light->shadow_view_projection, operation);
+  if (!value || napi_set_named_property(env, output, "ShadowViewProjection", value) != napi_ok) {
+    return value ? throw_napi(env, operation) : NULL;
+  }
+  return output;
+}
+
+static int read_shadow_cascade_state_ext(
+  napi_env env, napi_value object, CNA_ShadowCascadeStateEXT* out
+) {
+  int32_t count = 0;
+  double band = 0;
+  napi_value transforms, splits, camera, entry;
+  bool is_array = false;
+  uint32_t length = 0;
+  const CNA_Result seeded = g_api.shadow_cascade_state_ext_init(out);
+  if (seeded != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_shadow_cascade_state_ext_init", seeded);
+    return 0;
+  }
+  if (!get_named_i32(env, object, "Count", &count) ||
+      !get_named_double(env, object, "BlendBand", &band) ||
+      !get_named_bool(env, object, "DebugTint", &out->debug_tint) ||
+      !get_named_value(env, object, "CameraView", &camera) ||
+      !read_matrix16(env, camera, &out->camera_view, "a camera view") ||
+      !get_named_value(env, object, "WorldToAtlas", &transforms) ||
+      !get_named_value(env, object, "SplitDistance", &splits)) {
+    return 0;
+  }
+  if (count < 0 || count > CNA_SHADOW_CASCADE_MAX_EXT) {
+    throw_message(env, "a cascade count outside the fixed layout");
+    return 0;
+  }
+  out->count = count;
+  out->blend_band = (float) band;
+  /* The arrays are a fixed layout: entries past the count keep the defaults the init wrote, so a
+     caller who gives fewer than four gets identity transforms and zero splits rather than stale
+     values from whatever the effect held before. */
+  if (napi_is_array(env, transforms, &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, transforms, &length) != napi_ok ||
+      length > CNA_SHADOW_CASCADE_MAX_EXT) {
+    throw_message(env, "expected up to four cascade transforms");
+    return 0;
+  }
+  for (uint32_t index = 0; index < length; index += 1) {
+    if (napi_get_element(env, transforms, index, &entry) != napi_ok ||
+        !read_matrix16(env, entry, &out->world_to_atlas[index], "a cascade transform")) {
+      return 0;
+    }
+  }
+  if (napi_is_array(env, splits, &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, splits, &length) != napi_ok ||
+      length > CNA_SHADOW_CASCADE_MAX_EXT) {
+    throw_message(env, "expected up to four cascade split distances");
+    return 0;
+  }
+  for (uint32_t index = 0; index < length; index += 1) {
+    double split = 0;
+    if (napi_get_element(env, splits, index, &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &split) != napi_ok) {
+      throw_message(env, "expected a cascade split distance");
+      return 0;
+    }
+    out->split_distance[index] = (float) split;
+  }
+  return 1;
+}
+
+static napi_value make_shadow_cascade_state_ext(
+  napi_env env, const CNA_ShadowCascadeStateEXT* state, const char* operation
+) {
+  napi_value output, transforms, splits, entry;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), operation);
+  if (!set_i32_property(env, output, "Count", state->count) ||
+      !set_f32_property(env, output, "BlendBand", state->blend_band) ||
+      !set_bool_property(env, output, "DebugTint", state->debug_tint)) {
+    return throw_napi(env, operation);
+  }
+  entry = make_matrix16(env, &state->camera_view, operation);
+  if (!entry || napi_set_named_property(env, output, "CameraView", entry) != napi_ok) {
+    return entry ? throw_napi(env, operation) : NULL;
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_array_with_length(env, CNA_SHADOW_CASCADE_MAX_EXT, &transforms), operation);
+  NAPI_OR_RETURN(
+    env, napi_create_array_with_length(env, CNA_SHADOW_CASCADE_MAX_EXT, &splits), operation);
+  for (uint32_t index = 0; index < CNA_SHADOW_CASCADE_MAX_EXT; index += 1) {
+    entry = make_matrix16(env, &state->world_to_atlas[index], operation);
+    if (!entry || napi_set_element(env, transforms, index, entry) != napi_ok) {
+      return entry ? throw_napi(env, operation) : NULL;
+    }
+    if (napi_create_double(env, (double) state->split_distance[index], &entry) != napi_ok ||
+        napi_set_element(env, splits, index, entry) != napi_ok) {
+      return throw_napi(env, operation);
+    }
+  }
+  if (napi_set_named_property(env, output, "WorldToAtlas", transforms) != napi_ok ||
+      napi_set_named_property(env, output, "SplitDistance", splits) != napi_ok) {
+    return throw_napi(env, operation);
+  }
+  return output;
+}
+
+static int read_image_based_light_ext(napi_env env, napi_value object, CNA_ImageBasedLightEXT* out) {
+  int32_t mips = 0;
+  double intensity = 0;
+  const CNA_Result seeded = g_api.image_based_light_ext_init(out);
+  if (seeded != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_image_based_light_ext_init", seeded);
+    return 0;
+  }
+  if (!get_named_handle_allow_zero(env, object, "Irradiance", &out->irradiance) ||
+      !get_named_handle_allow_zero(
+        env, object, "PrefilteredSpecular", &out->prefiltered_specular) ||
+      !get_named_handle_allow_zero(env, object, "BrdfLut", &out->brdf_lut) ||
+      !get_named_i32(env, object, "PrefilteredMipCount", &mips) ||
+      !get_named_double(env, object, "Intensity", &intensity)) {
+    return 0;
+  }
+  out->prefiltered_mip_count = mips;
+  out->intensity = (float) intensity;
+  return 1;
+}
+
+static napi_value make_image_based_light_ext(
+  napi_env env, const CNA_ImageBasedLightEXT* light, const char* operation
+) {
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), operation);
+  if (!set_handle_property(env, output, "Irradiance", light->irradiance) ||
+      !set_handle_property(env, output, "PrefilteredSpecular", light->prefiltered_specular) ||
+      !set_handle_property(env, output, "BrdfLut", light->brdf_lut) ||
+      !set_i32_property(env, output, "PrefilteredMipCount", light->prefiltered_mip_count) ||
+      !set_f32_property(env, output, "Intensity", light->intensity)) {
+    return throw_napi(env, operation);
+  }
+  return output;
+}
+
+static napi_value bridge_effect_set_punctual_light_ext(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle effect = 0;
+  CNA_PunctualLightEXT light;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_punctual_light_ext(env, args[1], &light)) return NULL;
+  const CNA_Result result = g_api.effect_set_punctual_light_ext(effect, &light);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_effect_set_punctual_light_ext", result);
+  }
+  return undefined_result(env, "cna_effect_set_punctual_light_ext");
+}
+
+static napi_value bridge_effect_get_punctual_light_ext(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle effect = 0;
+  CNA_PunctualLightEXT light;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &effect)) return NULL;
+  memset(&light, 0, sizeof(light));
+  const CNA_Result result = g_api.effect_get_punctual_light_ext(effect, &light);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_effect_get_punctual_light_ext", result);
+  }
+  return make_punctual_light_ext(env, &light, "cna_effect_get_punctual_light_ext");
+}
+
+static napi_value bridge_effect_set_shadow_cascades_ext(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle effect = 0;
+  CNA_ShadowCascadeStateEXT state;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_shadow_cascade_state_ext(env, args[1], &state)) return NULL;
+  const CNA_Result result = g_api.effect_set_shadow_cascades_ext(effect, &state);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_effect_set_shadow_cascades_ext", result);
+  }
+  return undefined_result(env, "cna_effect_set_shadow_cascades_ext");
+}
+
+static napi_value bridge_effect_get_shadow_cascades_ext(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle effect = 0;
+  CNA_ShadowCascadeStateEXT state;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &effect)) return NULL;
+  memset(&state, 0, sizeof(state));
+  const CNA_Result result = g_api.effect_get_shadow_cascades_ext(effect, &state);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_effect_get_shadow_cascades_ext", result);
+  }
+  return make_shadow_cascade_state_ext(env, &state, "cna_effect_get_shadow_cascades_ext");
+}
+
+static napi_value bridge_effect_set_image_based_light_ext(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle effect = 0;
+  CNA_ImageBasedLightEXT light;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_image_based_light_ext(env, args[1], &light)) return NULL;
+  const CNA_Result result = g_api.effect_set_image_based_light_ext(effect, &light);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_effect_set_image_based_light_ext", result);
+  }
+  return undefined_result(env, "cna_effect_set_image_based_light_ext");
+}
+
+static napi_value bridge_effect_get_image_based_light_ext(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle effect = 0;
+  CNA_ImageBasedLightEXT light;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &effect)) return NULL;
+  memset(&light, 0, sizeof(light));
+  const CNA_Result result = g_api.effect_get_image_based_light_ext(effect, &light);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_effect_get_image_based_light_ext", result);
+  }
+  return make_image_based_light_ext(env, &light, "cna_effect_get_image_based_light_ext");
+}
+
+static napi_value bridge_image_based_light_ext_is_valid(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_ImageBasedLightEXT light;
+  CNA_Bool valid = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_image_based_light_ext(env, args[0], &light)) return NULL;
+  const CNA_Result result = g_api.image_based_light_ext_is_valid(&light, &valid);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_image_based_light_ext_is_valid", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_get_boolean(env, valid != CNA_FALSE, &output),
+    "cna_image_based_light_ext_is_valid");
+  return output;
+}
+
+static napi_value bridge_punctual_light_ext_init(napi_env env, napi_callback_info info) {
+  CNA_PunctualLightEXT light;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.punctual_light_ext_init(&light);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_punctual_light_ext_init", result);
+  }
+  return make_punctual_light_ext(env, &light, "cna_punctual_light_ext_init");
+}
+
+static napi_value bridge_shadow_cascade_state_ext_init(napi_env env, napi_callback_info info) {
+  CNA_ShadowCascadeStateEXT state;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.shadow_cascade_state_ext_init(&state);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_shadow_cascade_state_ext_init", result);
+  }
+  return make_shadow_cascade_state_ext(env, &state, "cna_shadow_cascade_state_ext_init");
+}
+
+static napi_value bridge_image_based_light_ext_init(napi_env env, napi_callback_info info) {
+  CNA_ImageBasedLightEXT light;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.image_based_light_ext_init(&light);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_image_based_light_ext_init", result);
+  }
+  return make_image_based_light_ext(env, &light, "cna_image_based_light_ext_init");
+}
+
+static napi_value bridge_effect_set_light_view_projection_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2];
+  CNA_Handle effect = 0;
+  CNA_Matrix value;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_matrix16(env, args[1], &value, "a light view-projection")) return NULL;
+  const CNA_Result result = g_api.effect_set_light_view_projection_ext(effect, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_effect_set_light_view_projection_ext", result);
+  }
+  return undefined_result(env, "cna_effect_set_light_view_projection_ext");
+}
+
+static napi_value bridge_effect_get_light_view_projection_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1];
+  CNA_Handle effect = 0;
+  CNA_Matrix value;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &effect)) return NULL;
+  const CNA_Result result = g_api.effect_get_light_view_projection_ext(effect, &value);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_effect_get_light_view_projection_ext", result);
+  }
+  return make_matrix16(env, &value, "cna_effect_get_light_view_projection_ext");
+}
+
+static napi_value bridge_effect_set_shadows_enabled_ext(napi_env env, napi_callback_info info) {
+  return pp_set_bool(env, info, g_api.effect_set_shadows_enabled_ext, "cna_effect_set_shadows_enabled_ext");
+}
+
+static napi_value bridge_effect_is_shadows_enabled_ext(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.effect_is_shadows_enabled_ext, "cna_effect_is_shadows_enabled_ext");
+}
+
+static napi_value bridge_effect_set_shadow_depth_bias_ext(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.effect_set_shadow_depth_bias_ext, "cna_effect_set_shadow_depth_bias_ext");
+}
+
+static napi_value bridge_effect_get_shadow_depth_bias_ext(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.effect_get_shadow_depth_bias_ext, "cna_effect_get_shadow_depth_bias_ext");
+}
+
+static napi_value bridge_effect_set_shadow_filter_radius_ext(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, g_api.effect_set_shadow_filter_radius_ext, "cna_effect_set_shadow_filter_radius_ext");
+}
+
+static napi_value bridge_effect_get_shadow_filter_radius_ext(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.effect_get_shadow_filter_radius_ext, "cna_effect_get_shadow_filter_radius_ext");
+}
+
+static napi_value bridge_effect_get_shadow_map_ext(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.effect_get_shadow_map_ext, "cna_effect_get_shadow_map_ext");
+}
+
+static napi_value bridge_effect_set_shadow_map_ext(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle effect = 0, map = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_handle_allow_zero(env, args[1], &map)) return NULL;
+  const CNA_Result result = g_api.effect_set_shadow_map_ext(effect, map);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_effect_set_shadow_map_ext", result);
+  }
+  return undefined_result(env, "cna_effect_set_shadow_map_ext");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "createDefaultPunctualLight", NULL, bridge_punctual_light_ext_init, NULL, NULL, NULL, napi_default, NULL },
+    { "createDefaultShadowCascadeState", NULL, bridge_shadow_cascade_state_ext_init, NULL, NULL, NULL, napi_default, NULL },
+    { "createDefaultImageBasedLight", NULL, bridge_image_based_light_ext_init, NULL, NULL, NULL, napi_default, NULL },
+    { "isImageBasedLightValid", NULL, bridge_image_based_light_ext_is_valid, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectPunctualLight", NULL, bridge_effect_set_punctual_light_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectPunctualLight", NULL, bridge_effect_get_punctual_light_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectShadowCascades", NULL, bridge_effect_set_shadow_cascades_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectShadowCascades", NULL, bridge_effect_get_shadow_cascades_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectImageBasedLight", NULL, bridge_effect_set_image_based_light_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectImageBasedLight", NULL, bridge_effect_get_image_based_light_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectLightViewProjection", NULL, bridge_effect_set_light_view_projection_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectLightViewProjection", NULL, bridge_effect_get_light_view_projection_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectShadowsEnabled", NULL, bridge_effect_set_shadows_enabled_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "isEffectShadowsEnabled", NULL, bridge_effect_is_shadows_enabled_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectShadowDepthBias", NULL, bridge_effect_set_shadow_depth_bias_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectShadowDepthBias", NULL, bridge_effect_get_shadow_depth_bias_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectShadowFilterRadius", NULL, bridge_effect_set_shadow_filter_radius_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectShadowFilterRadius", NULL, bridge_effect_get_shadow_filter_radius_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectShadowMap", NULL, bridge_effect_set_shadow_map_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectShadowMap", NULL, bridge_effect_get_shadow_map_ext, NULL, NULL, NULL, napi_default, NULL },
     { "createRenderTargetPool", NULL, bridge_render_target_pool_create, NULL, NULL, NULL, napi_default, NULL },
     { "acquirePooledRenderTarget", NULL, bridge_render_target_pool_acquire, NULL, NULL, NULL, napi_default, NULL },
     { "resetRenderTargetPool", NULL, bridge_render_target_pool_reset, NULL, NULL, NULL, napi_default, NULL },

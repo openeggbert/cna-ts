@@ -94,6 +94,7 @@ import type {
   GyroscopeReadingSnapshot,
   HapticCapabilitiesSnapshot,
   HostDeviceSnapshot,
+  ImageBasedLightSnapshot,
   JoystickCapabilitiesSnapshot,
   JoystickInfoSnapshot,
   JoystickStateSnapshot,
@@ -115,6 +116,7 @@ import type {
   PointLightSnapshot,
   PostProcessFrameSnapshot,
   PreferredLocaleSnapshot,
+  PunctualLightSnapshot,
   RasterizerStateSnapshot,
   RectangleSnapshot,
   RenderPipelineSettingsDefaults,
@@ -129,6 +131,7 @@ import type {
   SceneFaceDraw,
   SensorStateSnapshot,
   SensorSupportSnapshot,
+  ShadowCascadeStateSnapshot,
   SizeSnapshot,
   SoundEffectInstanceSnapshot,
   SpotLightSnapshot,
@@ -2569,6 +2572,71 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public destroyShaderEffectFactory(
     _factory: NativeHandle,
   ): void { return this.unsupported("destroyShaderEffectFactory"); }
+  public createDefaultPunctualLight(
+  ): PunctualLightSnapshot { return this.unsupported("createDefaultPunctualLight"); }
+  public createDefaultShadowCascadeState(
+  ): ShadowCascadeStateSnapshot { return this.unsupported("createDefaultShadowCascadeState"); }
+  public createDefaultImageBasedLight(
+  ): ImageBasedLightSnapshot { return this.unsupported("createDefaultImageBasedLight"); }
+  public isImageBasedLightValid(
+    _light: ImageBasedLightSnapshot,
+  ): boolean { return this.unsupported("isImageBasedLightValid"); }
+  public setEffectPunctualLight(
+    _effect: NativeHandle,
+    _light: PunctualLightSnapshot,
+  ): void { return this.unsupported("setEffectPunctualLight"); }
+  public getEffectPunctualLight(
+    _effect: NativeHandle,
+  ): PunctualLightSnapshot { return this.unsupported("getEffectPunctualLight"); }
+  public setEffectShadowCascades(
+    _effect: NativeHandle,
+    _state: ShadowCascadeStateSnapshot,
+  ): void { return this.unsupported("setEffectShadowCascades"); }
+  public getEffectShadowCascades(
+    _effect: NativeHandle,
+  ): ShadowCascadeStateSnapshot { return this.unsupported("getEffectShadowCascades"); }
+  public setEffectImageBasedLight(
+    _effect: NativeHandle,
+    _light: ImageBasedLightSnapshot,
+  ): void { return this.unsupported("setEffectImageBasedLight"); }
+  public getEffectImageBasedLight(
+    _effect: NativeHandle,
+  ): ImageBasedLightSnapshot { return this.unsupported("getEffectImageBasedLight"); }
+  public setEffectLightViewProjection(
+    _effect: NativeHandle,
+    _value: readonly number[],
+  ): void { return this.unsupported("setEffectLightViewProjection"); }
+  public getEffectLightViewProjection(
+    _effect: NativeHandle,
+  ): readonly number[] { return this.unsupported("getEffectLightViewProjection"); }
+  public setEffectShadowsEnabled(
+    _effect: NativeHandle,
+    _value: boolean,
+  ): void { return this.unsupported("setEffectShadowsEnabled"); }
+  public isEffectShadowsEnabled(
+    _effect: NativeHandle,
+  ): boolean { return this.unsupported("isEffectShadowsEnabled"); }
+  public setEffectShadowDepthBias(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setEffectShadowDepthBias"); }
+  public getEffectShadowDepthBias(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getEffectShadowDepthBias"); }
+  public setEffectShadowFilterRadius(
+    _effect: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setEffectShadowFilterRadius"); }
+  public getEffectShadowFilterRadius(
+    _effect: NativeHandle,
+  ): number { return this.unsupported("getEffectShadowFilterRadius"); }
+  public setEffectShadowMap(
+    _effect: NativeHandle,
+    _shadowMap: NativeHandle,
+  ): void { return this.unsupported("setEffectShadowMap"); }
+  public getEffectShadowMap(
+    _effect: NativeHandle,
+  ): NativeHandle { return this.unsupported("getEffectShadowMap"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,

@@ -21,7 +21,8 @@ import type {
   BoundingSphereSnapshot,
   RasterizerStateSnapshot,
   PbrMaterialExtSnapshot,
-  TextureTransformSnapshot, AreaLightSnapshot, ClusteredContributionSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
+  TextureTransformSnapshot, AreaLightSnapshot, PunctualLightSnapshot, ShadowCascadeStateSnapshot,
+  ImageBasedLightSnapshot, ClusteredContributionSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
   CnaDecalBackend,
   CnaDepthNormalPrepassBackend,
   CnaAtmosphereBackend,
@@ -9623,4 +9624,324 @@ function cacheKey(name: string): string {
     throw new TypeError("name must be a non-empty cache key -- the name is the key");
   }
   return name;
+}
+
+/** Which kind of punctual light a {@link PunctualLight} carries. */
+export const PunctualLightKind = {
+  /** No light; the slot contributes nothing. */
+  None: 0,
+  /** A point light, which shadows into a cube. */
+  Point: 1,
+  /** A spot light, which shadows into a map. */
+  Spot: 2,
+} as const;
+export type PunctualLightKind = (typeof PunctualLightKind)[keyof typeof PunctualLightKind];
+
+/**
+ * One punctual light as an effect consumes it, with its shadow resources attached.
+ *
+ * It carries **both** a cube and a 2D shadow texture because this is the shape the stock effects
+ * read: a point light shadows into the cube and a spot light into the map, and {@link Kind} says
+ * which of the two is meaningful.
+ */
+export interface PunctualLight {
+  /** Which kind this is; `None` leaves the slot unused. */
+  readonly Kind: PunctualLightKind;
+  /** World-space position. */
+  readonly Position: Vector3;
+  /** The direction a spot light points. */
+  readonly Direction: Vector3;
+  /** Linear RGB diffuse colour. */
+  readonly DiffuseColor: Vector3;
+  /** Distance at which the light stops contributing. */
+  readonly Range: number;
+  /** Half-angle in radians inside which a spot light is at full strength. */
+  readonly InnerAngle: number;
+  /** Half-angle in radians at which a spot light has fallen to nothing. */
+  readonly OuterAngle: number;
+  /** Depth bias applied when sampling this light's shadow. */
+  readonly ShadowDepthBias: number;
+  /** A point light's shadow cube, or `null`. */
+  readonly ShadowCube: TextureCube | null;
+  /** A spot light's shadow map, or `null`. */
+  readonly ShadowMap: Texture2D | null;
+  /** The transform that takes world space into this light's shadow space. */
+  readonly ShadowViewProjection: Matrix;
+}
+
+/**
+ * The cascaded-shadow state an effect reads for one frame.
+ *
+ * {@link Count} says how many entries of {@link WorldToAtlas} and {@link SplitDistance} are
+ * meaningful; the arrays are a **fixed four** either way, and the entries past the count keep their
+ * defaults rather than being removed.
+ */
+export interface ShadowCascadeState {
+  /** How many cascades are in use; zero disables cascaded shadows. */
+  readonly Count: number;
+  /** Width in world units over which neighbouring cascades cross-fade. */
+  readonly BlendBand: number;
+  /** Transform from world space into each cascade's atlas region. */
+  readonly WorldToAtlas: readonly Matrix[];
+  /** View-space distance at which each cascade ends. */
+  readonly SplitDistance: readonly number[];
+  /** The camera view the splits were computed against. */
+  readonly CameraView: Matrix;
+  /** Whether to tint each cascade differently, for diagnosing split placement. */
+  readonly DebugTint: boolean;
+}
+
+/** One image-based light: the three textures a PBR shader needs, and how bright they are. */
+export interface ImageBasedLight {
+  /** The irradiance cube, or `null`. */
+  readonly Irradiance: TextureCube | null;
+  /** The prefiltered specular cube, or `null`. */
+  readonly PrefilteredSpecular: TextureCube | null;
+  /** The BRDF lookup texture, or `null`. */
+  readonly BrdfLut: Texture2D | null;
+  /** How many mip levels the prefiltered cube has; at least one. */
+  readonly PrefilteredMipCount: number;
+  /** Scalar multiplier on the light. */
+  readonly Intensity: number;
+}
+
+/** The greatest number of cascades a {@link ShadowCascadeState} can describe. */
+export const ShadowCascadeMaxCount = 4;
+
+/**
+ * The shadow-receiver contract: the lighting and shadow state any effect that implements it carries.
+ *
+ * These are not properties of one class, because they are not properties of one effect. CNA hangs
+ * them off the `Effect` handle itself, so a `BasicEffect`, a `SkinnedEffect`, a
+ * {@link ClusteredForwardEffect} or a {@link ShaderEffect} that implements the contract all read
+ * the same state through the same routes — and one that does **not** implement it refuses with
+ * `INVALID_ARGUMENT` rather than silently accepting values nothing will read.
+ *
+ * Everything here is per effect and per frame: a game sets the light and the cascades it wants for
+ * this draw, draws, and sets the next ones.
+ */
+export const ShadowReceiver = {
+  /** A punctual light with CNA's own defaults: no light, white, range 20, pointing down. */
+  DefaultPunctualLight(): PunctualLight {
+    return toPunctualLight(extensions().createDefaultPunctualLight());
+  },
+
+  /** A cascade state with CNA's own defaults — zero cascades, which is what disables them. */
+  DefaultCascadeState(): ShadowCascadeState {
+    return toShadowCascadeState(extensions().createDefaultShadowCascadeState());
+  },
+
+  /** An image-based light with CNA's own defaults: no textures, so not yet {@link IsLightValid}. */
+  DefaultImageBasedLight(): ImageBasedLight {
+    return toImageBasedLight(extensions().createDefaultImageBasedLight());
+  },
+
+  /**
+   * Whether an image-based light is complete enough to shade with: all three textures present and
+   * at least one mip.
+   *
+   * The failure this answers is a light that is *nearly* complete, which does not look like a
+   * mismatch — it looks like a scene lit slightly wrong.
+   */
+  IsLightValid(light: ImageBasedLight): boolean {
+    return extensions().isImageBasedLightValid(imageBasedLightSnapshot(light));
+  },
+
+  /** Gives an effect the punctual light to shade and shadow with. */
+  SetPunctualLight(effect: Effect, light: PunctualLight): void {
+    extensions().setEffectPunctualLight(
+      resolveEffectHandleForInternalUse(effect), punctualLightSnapshot(light));
+  },
+
+  /**
+   * The punctual light an effect shades with.
+   *
+   * The two shadow textures come back as `null` **whatever was set**: CNA's canonical structure
+   * holds raw pointers and this ABI will not invent a handle for a texture it does not track. Every
+   * other field round-trips. Documented upstream, measured here, and the reason this getter is not
+   * the way to find out which shadow texture a light is using.
+   */
+  GetPunctualLight(effect: Effect): PunctualLight {
+    return toPunctualLight(
+      extensions().getEffectPunctualLight(resolveEffectHandleForInternalUse(effect)));
+  },
+
+  /** Gives an effect the cascaded-shadow state to sample with. */
+  SetCascadeState(effect: Effect, state: ShadowCascadeState): void {
+    extensions().setEffectShadowCascades(
+      resolveEffectHandleForInternalUse(effect), shadowCascadeStateSnapshot(state));
+  },
+
+  /** The cascaded-shadow state an effect samples with. */
+  GetCascadeState(effect: Effect): ShadowCascadeState {
+    return toShadowCascadeState(
+      extensions().getEffectShadowCascades(resolveEffectHandleForInternalUse(effect)));
+  },
+
+  /** Gives an effect the image-based light to shade with. */
+  SetImageBasedLight(effect: Effect, light: ImageBasedLight): void {
+    extensions().setEffectImageBasedLight(
+      resolveEffectHandleForInternalUse(effect), imageBasedLightSnapshot(light));
+  },
+
+  /** The image-based light an effect shades with. */
+  GetImageBasedLight(effect: Effect): ImageBasedLight {
+    return toImageBasedLight(
+      extensions().getEffectImageBasedLight(resolveEffectHandleForInternalUse(effect)));
+  },
+
+  /** The transform that takes world space into the light's shadow space. */
+  SetLightViewProjection(effect: Effect, value: Matrix): void {
+    extensions().setEffectLightViewProjection(
+      resolveEffectHandleForInternalUse(effect), matrixValues(value, "value"));
+  },
+
+  /** The same, read back. */
+  GetLightViewProjection(effect: Effect): Matrix {
+    return toMatrix(
+      extensions().getEffectLightViewProjection(resolveEffectHandleForInternalUse(effect)));
+  },
+
+  /** Whether the effect samples its shadow map at all. */
+  SetShadowsEnabled(effect: Effect, value: boolean): void {
+    extensions().setEffectShadowsEnabled(resolveEffectHandleForInternalUse(effect), Boolean(value));
+  },
+
+  /** The same, read back. */
+  IsShadowsEnabled(effect: Effect): boolean {
+    return extensions().isEffectShadowsEnabled(resolveEffectHandleForInternalUse(effect));
+  },
+
+  /** How far in front of a surface a sample must be before it counts as shadowed. */
+  SetShadowDepthBias(effect: Effect, value: number): void {
+    extensions().setEffectShadowDepthBias(
+      resolveEffectHandleForInternalUse(effect), finite(value, "value"));
+  },
+
+  /** The same, read back. */
+  GetShadowDepthBias(effect: Effect): number {
+    return extensions().getEffectShadowDepthBias(resolveEffectHandleForInternalUse(effect));
+  },
+
+  /** How wide a filter the effect uses when sampling its shadow map, in texels. */
+  SetShadowFilterRadius(effect: Effect, value: number): void {
+    extensions().setEffectShadowFilterRadius(
+      resolveEffectHandleForInternalUse(effect), wholeNumber(value, "value"));
+  },
+
+  /** The same, read back. */
+  GetShadowFilterRadius(effect: Effect): number {
+    return extensions().getEffectShadowFilterRadius(resolveEffectHandleForInternalUse(effect));
+  },
+
+  /** The shadow map the effect samples, or `null` to detach it. */
+  SetShadowMap(effect: Effect, shadowMap: Texture2D | null): void {
+    extensions().setEffectShadowMap(
+      resolveEffectHandleForInternalUse(effect), textureHandleOrNone(shadowMap));
+  },
+
+  /**
+   * The shadow map the effect samples, borrowed, or `null` when it has none.
+   *
+   * A borrow: dispose it to give it back, and until then the lender refuses to be released.
+   */
+  GetShadowMap(effect: Effect, graphicsDevice: GraphicsDevice): Texture2D | null {
+    const handle = extensions().getEffectShadowMap(resolveEffectHandleForInternalUse(effect));
+    if (handle === 0n) return null;
+    return borrowNativeTextureForInternalUse(
+      graphicsDevice, handle, "ShadowReceiver.GetShadowMap");
+  },
+} as const;
+
+function punctualLightSnapshot(light: PunctualLight): PunctualLightSnapshot {
+  if (light == null) throw new TypeError("light is required");
+  return {
+    Kind: wholeNumber(light.Kind, "Kind"),
+    Position: vectorSnapshot(light.Position, "Position"),
+    Direction: vectorSnapshot(light.Direction, "Direction"),
+    DiffuseColor: vectorSnapshot(light.DiffuseColor, "DiffuseColor"),
+    Range: finite(light.Range, "Range"),
+    InnerAngle: finite(light.InnerAngle, "InnerAngle"),
+    OuterAngle: finite(light.OuterAngle, "OuterAngle"),
+    ShadowDepthBias: finite(light.ShadowDepthBias, "ShadowDepthBias"),
+    ShadowCube: light.ShadowCube == null
+      ? 0n : resolveTextureCubeHandleForInternalUse(light.ShadowCube),
+    ShadowMap: textureHandleOrNone(light.ShadowMap),
+    ShadowViewProjection: matrixValues(light.ShadowViewProjection, "ShadowViewProjection"),
+  };
+}
+
+function toPunctualLight(snapshot: PunctualLightSnapshot): PunctualLight {
+  return {
+    Kind: snapshot.Kind as PunctualLightKind,
+    Position: toVector3(snapshot.Position),
+    Direction: toVector3(snapshot.Direction),
+    DiffuseColor: toVector3(snapshot.DiffuseColor),
+    Range: snapshot.Range,
+    InnerAngle: snapshot.InnerAngle,
+    OuterAngle: snapshot.OuterAngle,
+    ShadowDepthBias: snapshot.ShadowDepthBias,
+    // Always null coming back: CNA does not track a handle for these, and inventing one here would
+    // be this binding claiming to know something the ABI says it does not.
+    ShadowCube: null,
+    ShadowMap: null,
+    ShadowViewProjection: toMatrix(snapshot.ShadowViewProjection),
+  };
+}
+
+function shadowCascadeStateSnapshot(state: ShadowCascadeState): ShadowCascadeStateSnapshot {
+  if (state == null) throw new TypeError("state is required");
+  if (!Array.isArray(state.WorldToAtlas) || !Array.isArray(state.SplitDistance)) {
+    throw new TypeError("WorldToAtlas and SplitDistance must be arrays");
+  }
+  if (state.WorldToAtlas.length > ShadowCascadeMaxCount ||
+      state.SplitDistance.length > ShadowCascadeMaxCount) {
+    throw new TypeError(`at most ${ShadowCascadeMaxCount} cascades`);
+  }
+  return {
+    Count: wholeNumber(state.Count, "Count"),
+    BlendBand: finite(state.BlendBand, "BlendBand"),
+    WorldToAtlas: state.WorldToAtlas.map(
+      (value, index) => matrixValues(value, `WorldToAtlas[${index}]`)),
+    SplitDistance: state.SplitDistance.map(
+      (value, index) => finite(value, `SplitDistance[${index}]`)),
+    CameraView: matrixValues(state.CameraView, "CameraView"),
+    DebugTint: Boolean(state.DebugTint),
+  };
+}
+
+function toShadowCascadeState(snapshot: ShadowCascadeStateSnapshot): ShadowCascadeState {
+  return {
+    Count: snapshot.Count,
+    BlendBand: snapshot.BlendBand,
+    WorldToAtlas: snapshot.WorldToAtlas.map((values) => toMatrix(values)),
+    SplitDistance: [...snapshot.SplitDistance],
+    CameraView: toMatrix(snapshot.CameraView),
+    DebugTint: snapshot.DebugTint,
+  };
+}
+
+function imageBasedLightSnapshot(light: ImageBasedLight): ImageBasedLightSnapshot {
+  if (light == null) throw new TypeError("light is required");
+  return {
+    Irradiance: light.Irradiance == null
+      ? 0n : resolveTextureCubeHandleForInternalUse(light.Irradiance),
+    PrefilteredSpecular: light.PrefilteredSpecular == null
+      ? 0n : resolveTextureCubeHandleForInternalUse(light.PrefilteredSpecular),
+    BrdfLut: textureHandleOrNone(light.BrdfLut),
+    PrefilteredMipCount: wholeNumber(light.PrefilteredMipCount, "PrefilteredMipCount"),
+    Intensity: finite(light.Intensity, "Intensity"),
+  };
+}
+
+function toImageBasedLight(snapshot: ImageBasedLightSnapshot): ImageBasedLight {
+  return {
+    // The three textures are borrowed handles the structure only records, so they come back as
+    // nothing this package can hand out as an owned object.
+    Irradiance: null,
+    PrefilteredSpecular: null,
+    BrdfLut: null,
+    PrefilteredMipCount: snapshot.PrefilteredMipCount,
+    Intensity: snapshot.Intensity,
+  };
 }

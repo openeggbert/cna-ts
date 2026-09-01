@@ -637,6 +637,19 @@ Electron, or mobile support.
   new name compiles and draws, so the assertion is about the cache rather than about a shader that
   never worked. The compile count survives `Clear`. Both caches lend what they hold and refuse
   reset, clear and destruction while a borrow is out. Ten planted defects fail; none survives.
+- [x] **The shadow-receiver contract** — the lighting and shadow state CNA hangs off the `Effect`
+  handle itself rather than off one class. That it is a *contract* is shown rather than asserted:
+  three effects give three answers. A stock `BasicEffect` is a shadow receiver and **not** an
+  image-based-light receiver; a `PbrEffect` is both; a `ShaderEffect` is neither and refuses every
+  route rather than accepting values nothing will read. Every documented default is checked field by
+  field, and every one is exact except the transforms, which the header calls *identity* and which
+  are **zero matrices** in all six places they appear — finding 23, where the implementation is the
+  half that is right and says so in its own comments. The cascade array is a **fixed four** whatever
+  the count says, and what is missing keeps the init's defaults rather than whatever the effect held
+  before. The punctual light's two shadow textures come back as nothing *whatever was set*, while
+  every other field of the same structure round-trips — an asymmetry the ABI documents and this
+  pins. Eleven planted defects: ten fail, and the survivor is recorded as equivalent, with the
+  reason to keep the code it replaces anyway.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a

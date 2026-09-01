@@ -1505,6 +1505,27 @@ export interface CnaGraphicsExtensionBackend {
   getShaderEffectFactoryCompileCount(factory: NativeHandle): number;
   clearShaderEffectFactory(factory: NativeHandle): void;
   destroyShaderEffectFactory(factory: NativeHandle): void;
+  // --- the shadow-receiver contract any effect may implement -------------------------------------
+  createDefaultPunctualLight(): PunctualLightSnapshot;
+  createDefaultShadowCascadeState(): ShadowCascadeStateSnapshot;
+  createDefaultImageBasedLight(): ImageBasedLightSnapshot;
+  isImageBasedLightValid(light: ImageBasedLightSnapshot): boolean;
+  setEffectPunctualLight(effect: NativeHandle, light: PunctualLightSnapshot): void;
+  getEffectPunctualLight(effect: NativeHandle): PunctualLightSnapshot;
+  setEffectShadowCascades(effect: NativeHandle, state: ShadowCascadeStateSnapshot): void;
+  getEffectShadowCascades(effect: NativeHandle): ShadowCascadeStateSnapshot;
+  setEffectImageBasedLight(effect: NativeHandle, light: ImageBasedLightSnapshot): void;
+  getEffectImageBasedLight(effect: NativeHandle): ImageBasedLightSnapshot;
+  setEffectLightViewProjection(effect: NativeHandle, value: readonly number[]): void;
+  getEffectLightViewProjection(effect: NativeHandle): readonly number[];
+  setEffectShadowsEnabled(effect: NativeHandle, value: boolean): void;
+  isEffectShadowsEnabled(effect: NativeHandle): boolean;
+  setEffectShadowDepthBias(effect: NativeHandle, value: number): void;
+  getEffectShadowDepthBias(effect: NativeHandle): number;
+  setEffectShadowFilterRadius(effect: NativeHandle, value: number): void;
+  getEffectShadowFilterRadius(effect: NativeHandle): number;
+  setEffectShadowMap(effect: NativeHandle, shadowMap: NativeHandle): void;
+  getEffectShadowMap(effect: NativeHandle): NativeHandle;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
@@ -2171,6 +2192,40 @@ export interface AreaLightBrdfTermsSnapshot {
   readonly Fresnel: number;
   readonly AverageTangent: number;
   readonly AverageNormal: number;
+}
+
+/** One punctual light as an effect consumes it, with its shadow resources attached. */
+export interface PunctualLightSnapshot {
+  readonly Kind: number;
+  readonly Position: Vector3Snapshot;
+  readonly Direction: Vector3Snapshot;
+  readonly DiffuseColor: Vector3Snapshot;
+  readonly Range: number;
+  readonly InnerAngle: number;
+  readonly OuterAngle: number;
+  readonly ShadowDepthBias: number;
+  readonly ShadowCube: NativeHandle;
+  readonly ShadowMap: NativeHandle;
+  readonly ShadowViewProjection: readonly number[];
+}
+
+/** The cascaded-shadow state an effect reads for one frame; the arrays are a fixed four. */
+export interface ShadowCascadeStateSnapshot {
+  readonly Count: number;
+  readonly BlendBand: number;
+  readonly WorldToAtlas: readonly (readonly number[])[];
+  readonly SplitDistance: readonly number[];
+  readonly CameraView: readonly number[];
+  readonly DebugTint: boolean;
+}
+
+/** One image-based light: the three textures a PBR shader needs, and how bright they are. */
+export interface ImageBasedLightSnapshot {
+  readonly Irradiance: NativeHandle;
+  readonly PrefilteredSpecular: NativeHandle;
+  readonly BrdfLut: NativeHandle;
+  readonly PrefilteredMipCount: number;
+  readonly Intensity: number;
 }
 
 export interface Vector4Snapshot {

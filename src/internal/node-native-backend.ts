@@ -34,6 +34,9 @@ import type {
   TextureTransformSnapshot,
   Vector2Snapshot,
   Vector4Snapshot,
+  PunctualLightSnapshot,
+  ShadowCascadeStateSnapshot,
+  ImageBasedLightSnapshot,
   Vector3Snapshot,
   ColorSnapshot,
   PackedDepthSnapshot,
@@ -1366,6 +1369,26 @@ interface NativeBridge {
   getShaderEffectFactoryCompileCount(factory: bigint): number;
   clearShaderEffectFactory(factory: bigint): void;
   destroyShaderEffectFactory(factory: bigint): void;
+  createDefaultPunctualLight(): PunctualLightSnapshot;
+  createDefaultShadowCascadeState(): ShadowCascadeStateSnapshot;
+  createDefaultImageBasedLight(): ImageBasedLightSnapshot;
+  isImageBasedLightValid(light: ImageBasedLightSnapshot): boolean;
+  setEffectPunctualLight(effect: bigint, light: PunctualLightSnapshot): void;
+  getEffectPunctualLight(effect: bigint): PunctualLightSnapshot;
+  setEffectShadowCascades(effect: bigint, state: ShadowCascadeStateSnapshot): void;
+  getEffectShadowCascades(effect: bigint): ShadowCascadeStateSnapshot;
+  setEffectImageBasedLight(effect: bigint, light: ImageBasedLightSnapshot): void;
+  getEffectImageBasedLight(effect: bigint): ImageBasedLightSnapshot;
+  setEffectLightViewProjection(effect: bigint, value: readonly number[]): void;
+  getEffectLightViewProjection(effect: bigint): readonly number[];
+  setEffectShadowsEnabled(effect: bigint, value: boolean): void;
+  isEffectShadowsEnabled(effect: bigint): boolean;
+  setEffectShadowDepthBias(effect: bigint, value: number): void;
+  getEffectShadowDepthBias(effect: bigint): number;
+  setEffectShadowFilterRadius(effect: bigint, value: number): void;
+  getEffectShadowFilterRadius(effect: bigint): number;
+  setEffectShadowMap(effect: bigint, shadowMap: bigint): void;
+  getEffectShadowMap(effect: bigint): bigint;
   applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { Applied: number; Settings: PipelineSettingsSnapshot };
   getPipelinePassTiming(pipeline: bigint, index: number): { Milliseconds: number; SampleCount: number };
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -4004,6 +4027,26 @@ export class NodeNativeBackend
   public getShaderEffectFactoryCompileCount(factory: NativeHandle): number { return this.#bridge.getShaderEffectFactoryCompileCount(factory); }
   public clearShaderEffectFactory(factory: NativeHandle): void { this.#bridge.clearShaderEffectFactory(factory); }
   public destroyShaderEffectFactory(factory: NativeHandle): void { this.#bridge.destroyShaderEffectFactory(factory); }
+  public createDefaultPunctualLight(): PunctualLightSnapshot { return this.#bridge.createDefaultPunctualLight(); }
+  public createDefaultShadowCascadeState(): ShadowCascadeStateSnapshot { return this.#bridge.createDefaultShadowCascadeState(); }
+  public createDefaultImageBasedLight(): ImageBasedLightSnapshot { return this.#bridge.createDefaultImageBasedLight(); }
+  public isImageBasedLightValid(light: ImageBasedLightSnapshot): boolean { return this.#bridge.isImageBasedLightValid(light); }
+  public setEffectPunctualLight(effect: NativeHandle, light: PunctualLightSnapshot): void { this.#bridge.setEffectPunctualLight(effect, light); }
+  public getEffectPunctualLight(effect: NativeHandle): PunctualLightSnapshot { return this.#bridge.getEffectPunctualLight(effect); }
+  public setEffectShadowCascades(effect: NativeHandle, state: ShadowCascadeStateSnapshot): void { this.#bridge.setEffectShadowCascades(effect, state); }
+  public getEffectShadowCascades(effect: NativeHandle): ShadowCascadeStateSnapshot { return this.#bridge.getEffectShadowCascades(effect); }
+  public setEffectImageBasedLight(effect: NativeHandle, light: ImageBasedLightSnapshot): void { this.#bridge.setEffectImageBasedLight(effect, light); }
+  public getEffectImageBasedLight(effect: NativeHandle): ImageBasedLightSnapshot { return this.#bridge.getEffectImageBasedLight(effect); }
+  public setEffectLightViewProjection(effect: NativeHandle, value: readonly number[]): void { this.#bridge.setEffectLightViewProjection(effect, value); }
+  public getEffectLightViewProjection(effect: NativeHandle): readonly number[] { return this.#bridge.getEffectLightViewProjection(effect); }
+  public setEffectShadowsEnabled(effect: NativeHandle, value: boolean): void { this.#bridge.setEffectShadowsEnabled(effect, value); }
+  public isEffectShadowsEnabled(effect: NativeHandle): boolean { return this.#bridge.isEffectShadowsEnabled(effect); }
+  public setEffectShadowDepthBias(effect: NativeHandle, value: number): void { this.#bridge.setEffectShadowDepthBias(effect, value); }
+  public getEffectShadowDepthBias(effect: NativeHandle): number { return this.#bridge.getEffectShadowDepthBias(effect); }
+  public setEffectShadowFilterRadius(effect: NativeHandle, value: number): void { this.#bridge.setEffectShadowFilterRadius(effect, value); }
+  public getEffectShadowFilterRadius(effect: NativeHandle): number { return this.#bridge.getEffectShadowFilterRadius(effect); }
+  public setEffectShadowMap(effect: NativeHandle, shadowMap: NativeHandle): void { this.#bridge.setEffectShadowMap(effect, shadowMap); }
+  public getEffectShadowMap(effect: NativeHandle): NativeHandle { return this.#bridge.getEffectShadowMap(effect); }
   public applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { readonly Applied: number; readonly Settings: PipelineSettingsSnapshot } { return this.#bridge.applyPipelineSettingsFromString(settings, text); }
   public getPipelinePassTiming(pipeline: NativeHandle, index: number): { readonly Milliseconds: number; readonly SampleCount: number } { return this.#bridge.getPipelinePassTiming(pipeline, index); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }

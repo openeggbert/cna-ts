@@ -11052,3 +11052,367 @@ void main() { FragColor = vec4(${colour}); }
     `FACTORY_KEY=NAME_ALONE COMPILE_COUNT=SURVIVES_CLEAR BORROWS=REFUSE_RESET_AND_DESTROY`,
   );
 });
+
+test("the shadow-receiver contract asks the effect, and three effects give three answers", async () => {
+  const graphics = computeExtensions;
+  const R = graphics.ShadowReceiver;
+
+  class ReceiverProbeGame extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+
+    LoadContent() {
+      const device = this.GraphicsDevice;
+      const record = (name, body) => {
+        try {
+          this.evidence[name] = body();
+        } catch (error) {
+          this.evidence[name] = `${error.constructor.name}(${error.cnaResult ?? "-"}): ` +
+            `${(error.message ?? "").slice(0, 160)}`;
+        }
+      };
+      const outcome = (body) => {
+        try {
+          body();
+          return "ok";
+        } catch (error) {
+          return `${error.constructor.name}(${error.cnaResult ?? "-"})`;
+        }
+      };
+      const diagonal = (matrix) => [matrix.M11, matrix.M22, matrix.M33, matrix.M44];
+
+      record("defaults", () => {
+        const light = R.DefaultPunctualLight();
+        const cascades = R.DefaultCascadeState();
+        const ibl = R.DefaultImageBasedLight();
+        return {
+          light: {
+            kind: light.Kind,
+            position: [light.Position.X, light.Position.Y, light.Position.Z],
+            direction: [light.Direction.X, light.Direction.Y, light.Direction.Z],
+            colour: [light.DiffuseColor.X, light.DiffuseColor.Y, light.DiffuseColor.Z],
+            range: light.Range,
+            inner: light.InnerAngle,
+            outer: light.OuterAngle,
+            bias: light.ShadowDepthBias,
+            cube: light.ShadowCube,
+            map: light.ShadowMap,
+            transform: diagonal(light.ShadowViewProjection),
+          },
+          cascades: {
+            count: cascades.Count,
+            band: cascades.BlendBand,
+            tint: cascades.DebugTint,
+            atlas: cascades.WorldToAtlas.map((matrix) => diagonal(matrix)),
+            splits: [...cascades.SplitDistance],
+            camera: diagonal(cascades.CameraView),
+          },
+          ibl: {
+            mips: ibl.PrefilteredMipCount,
+            intensity: ibl.Intensity,
+            valid: R.IsLightValid(ibl),
+            validWithMoreMips: R.IsLightValid({ ...ibl, PrefilteredMipCount: 8 }),
+          },
+        };
+      });
+
+      // A stock effect that implements the shadow-receiver contract. Every value written differs
+      // from the default it replaces, so a setter that never reached CNA is caught.
+      record("basicEffect", () => {
+        const effect = new Graphics.BasicEffect(device);
+        try {
+          R.SetPunctualLight(effect, {
+            ...R.DefaultPunctualLight(),
+            Kind: graphics.PunctualLightKind.Spot,
+            Position: new Vector3(1, 2, 3),
+            Direction: new Vector3(0, 0, -1),
+            DiffuseColor: new Vector3(0.25, 0.5, 0.75),
+            Range: 42,
+            InnerAngle: 0.125,
+            OuterAngle: 0.875,
+            ShadowDepthBias: 0.0125,
+            ShadowViewProjection: Matrix.CreateTranslation(new Vector3(11, 12, 13)),
+          });
+          const light = R.GetPunctualLight(effect);
+          R.SetShadowsEnabled(effect, true);
+          R.SetShadowDepthBias(effect, 0.03125);
+          R.SetShadowFilterRadius(effect, 3);
+          R.SetLightViewProjection(effect, Matrix.CreateTranslation(new Vector3(4, 5, 6)));
+          R.SetCascadeState(effect, {
+            ...R.DefaultCascadeState(),
+            Count: 2,
+            BlendBand: 1.5,
+            SplitDistance: [10, 40],
+            WorldToAtlas: [Matrix.CreateScale(2, 2, 2), Matrix.CreateScale(3, 3, 3)],
+            CameraView: Matrix.CreateTranslation(new Vector3(7, 8, 9)),
+            DebugTint: true,
+          });
+          const cascades = R.GetCascadeState(effect);
+          const lightViewProjection = R.GetLightViewProjection(effect);
+          return {
+            light: {
+              kind: light.Kind,
+              position: [light.Position.X, light.Position.Y, light.Position.Z],
+              direction: [light.Direction.X, light.Direction.Y, light.Direction.Z],
+              colour: [light.DiffuseColor.X, light.DiffuseColor.Y, light.DiffuseColor.Z],
+              range: light.Range,
+              inner: light.InnerAngle,
+              outer: light.OuterAngle,
+              bias: light.ShadowDepthBias,
+              cube: light.ShadowCube,
+              map: light.ShadowMap,
+              transform: [
+                light.ShadowViewProjection.M41, light.ShadowViewProjection.M42,
+                light.ShadowViewProjection.M43,
+              ],
+            },
+            shadowsEnabled: R.IsShadowsEnabled(effect),
+            depthBias: R.GetShadowDepthBias(effect),
+            filterRadius: R.GetShadowFilterRadius(effect),
+            lightViewProjection: [
+              lightViewProjection.M41, lightViewProjection.M42, lightViewProjection.M43,
+            ],
+            cascades: {
+              count: cascades.Count,
+              band: cascades.BlendBand,
+              tint: cascades.DebugTint,
+              splits: [...cascades.SplitDistance],
+              atlas: cascades.WorldToAtlas.map((matrix) => matrix.M11),
+              camera: [cascades.CameraView.M41, cascades.CameraView.M42, cascades.CameraView.M43],
+            },
+            shadowsOff: (() => { R.SetShadowsEnabled(effect, false); return R.IsShadowsEnabled(effect); })(),
+            // A stock effect is a shadow receiver but NOT an image-based-light receiver.
+            imageBasedLight: outcome(
+              () => R.SetImageBasedLight(effect, R.DefaultImageBasedLight())),
+            detachShadowMap: outcome(() => R.SetShadowMap(effect, null)),
+            shadowMapWhenNone: R.GetShadowMap(effect, device),
+          };
+        } finally {
+          effect.Dispose();
+        }
+      });
+
+      // A physically-based effect, which implements BOTH contracts.
+      record("pbrEffect", () => {
+        const effect = graphics.PbrEffect.Create(device);
+        try {
+          R.SetImageBasedLight(effect, {
+            ...R.DefaultImageBasedLight(), PrefilteredMipCount: 5, Intensity: 2.5,
+          });
+          const light = R.GetImageBasedLight(effect);
+          return {
+            punctual: outcome(() => R.SetPunctualLight(effect, R.DefaultPunctualLight())),
+            mips: light.PrefilteredMipCount,
+            intensity: light.Intensity,
+            textures: [light.Irradiance, light.PrefilteredSpecular, light.BrdfLut],
+          };
+        } finally {
+          effect.Dispose();
+        }
+      });
+
+      // A custom shader, which implements neither.
+      record("shaderEffect", () => {
+        const effect = new graphics.ShaderEffect(
+          device,
+          "#version 300 es\nvoid main() { gl_Position = vec4(0.0); }\n",
+          "#version 300 es\nprecision highp float;\nout vec4 c;\nvoid main() { c = vec4(1.0); }\n",
+        );
+        try {
+          return {
+            punctual: outcome(() => R.SetPunctualLight(effect, R.DefaultPunctualLight())),
+            shadowsEnabled: outcome(() => R.SetShadowsEnabled(effect, true)),
+            depthBias: outcome(() => R.GetShadowDepthBias(effect)),
+            cascades: outcome(() => R.SetCascadeState(effect, R.DefaultCascadeState())),
+          };
+        } finally {
+          effect.Dispose();
+        }
+      });
+
+      record("cascadeGuards", () => {
+        const effect = new Graphics.BasicEffect(device);
+        try {
+          const result = {
+            tooManyTransforms: outcome(() => R.SetCascadeState(effect, {
+              ...R.DefaultCascadeState(),
+              WorldToAtlas: new Array(5).fill(Matrix.Identity),
+            })),
+            countTooHigh: outcome(
+              () => R.SetCascadeState(effect, { ...R.DefaultCascadeState(), Count: 9 })),
+            countNegative: outcome(
+              () => R.SetCascadeState(effect, { ...R.DefaultCascadeState(), Count: -1 })),
+          };
+          // Fewer transforms than the count: the array is a fixed four, so what is missing keeps
+          // the default the init wrote rather than whatever the effect held before.
+          R.SetCascadeState(effect, {
+            ...R.DefaultCascadeState(),
+            Count: 3,
+            WorldToAtlas: [Matrix.CreateScale(5, 5, 5)],
+            SplitDistance: [1],
+          });
+          const partial = R.GetCascadeState(effect);
+          result.partial = {
+            count: partial.Count,
+            atlas: partial.WorldToAtlas.map((matrix) => matrix.M11),
+            splits: [...partial.SplitDistance],
+          };
+          return result;
+        } finally {
+          effect.Dispose();
+        }
+      });
+
+      this.Exit();
+    }
+  }
+
+  const game = new ReceiverProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  // --- the documented defaults, field by field ------------------------------------------------------
+  const defaults = evidence.defaults;
+  assert.equal(typeof defaults, "object", `the defaults probe failed: ${defaults}`);
+  assert.equal(defaults.light.kind, graphics.PunctualLightKind.None, "the default light is no light");
+  assert.deepEqual(defaults.light.position, [0, 0, 0], "at the origin");
+  assert.deepEqual(defaults.light.direction, [0, -1, 0], "pointing straight down");
+  assert.deepEqual(defaults.light.colour, [1, 1, 1], "white");
+  assert.equal(defaults.light.range, 20);
+  assert.ok(Math.abs(defaults.light.inner - 0.35) < 1e-6, "inner half-angle 0.35");
+  assert.equal(defaults.light.outer, 0.5, "outer half-angle 0.5");
+  assert.ok(Math.abs(defaults.light.bias - 0.004) < 1e-8, "depth bias 0.004");
+  assert.equal(defaults.light.cube, null, "no shadow cube");
+  assert.equal(defaults.light.map, null, "and no shadow map");
+  assert.equal(defaults.cascades.count, 0, "no cascades, which is what disables them");
+  assert.equal(defaults.cascades.band, 0);
+  assert.equal(defaults.cascades.tint, false);
+  assert.deepEqual(defaults.cascades.splits, [0, 0, 0, 0], "and four zero splits");
+  assert.equal(defaults.cascades.atlas.length, 4, "the cascade array is a fixed four");
+
+  // Upstream finding 23. CNA's header says both routes write "identity transforms"; both write ZERO
+  // matrices, deliberately, and their own implementation comments say why -- so that a defaulted C
+  // state matches a defaulted C++ one, where Matrix() is value-initialised to zeros. The code is
+  // the half that is right and the documentation is the half that is wrong. Asserted as measured:
+  // if these are ever changed to identity, these three lines fail and say so.
+  assert.deepEqual(
+    defaults.light.transform, [0, 0, 0, 0],
+    "the default shadow transform is a ZERO matrix, not the identity the header promises",
+  );
+  for (const [index, atlas] of defaults.cascades.atlas.entries()) {
+    assert.deepEqual(atlas, [0, 0, 0, 0], `cascade ${index}'s default transform is zero, not identity`);
+  }
+  assert.deepEqual(
+    defaults.cascades.camera, [0, 0, 0, 0], "and so is the default camera view");
+
+  // The image-based light's completeness test. All three textures must be present, so a default
+  // light with none is not valid -- and adding mips does not make it so, because mips were never
+  // the missing part.
+  assert.equal(defaults.ibl.mips, 1, "the default prefiltered mip count is one");
+  assert.equal(defaults.ibl.intensity, 1);
+  assert.equal(
+    defaults.ibl.valid, false,
+    "a light with no textures is not complete enough to shade with",
+  );
+  assert.equal(
+    defaults.ibl.validWithMoreMips, false,
+    "and more mips do not make it so: the textures are what is missing",
+  );
+
+  // --- three effects, three answers ------------------------------------------------------------------
+  // This is what makes these routes a CONTRACT rather than properties of one class: they ask the
+  // effect, and the three here answer differently.
+  const basic = evidence.basicEffect;
+  assert.equal(typeof basic, "object", `the stock-effect probe failed: ${basic}`);
+  assert.equal(basic.light.kind, graphics.PunctualLightKind.Spot);
+  assert.deepEqual(basic.light.position, [1, 2, 3]);
+  assert.deepEqual(basic.light.direction, [0, 0, -1]);
+  assert.deepEqual(basic.light.colour, [0.25, 0.5, 0.75]);
+  assert.equal(basic.light.range, 42);
+  assert.equal(basic.light.inner, 0.125);
+  assert.equal(basic.light.outer, 0.875);
+  assert.ok(Math.abs(basic.light.bias - 0.0125) < 1e-7);
+  assert.deepEqual(basic.light.transform, [11, 12, 13], "and the light's own shadow transform");
+  // Documented upstream and confirmed here: the two shadow textures come back as nothing whatever
+  // was set, because the canonical structure holds raw pointers and this ABI will not invent a
+  // handle for a texture it does not track. Every OTHER field round-tripped above, which is what
+  // makes this an asymmetry rather than a getter that returns defaults.
+  assert.equal(basic.light.cube, null, "the shadow cube does not come back");
+  assert.equal(basic.light.map, null, "nor the shadow map");
+  assert.equal(basic.shadowsEnabled, true, "shadows can be switched on");
+  assert.equal(basic.shadowsOff, false, "and off again");
+  assert.ok(Math.abs(basic.depthBias - 0.03125) < 1e-7, "the effect's own depth bias round-trips");
+  assert.equal(basic.filterRadius, 3, "as does the filter radius, in texels");
+  assert.deepEqual(basic.lightViewProjection, [4, 5, 6]);
+  assert.equal(basic.cascades.count, 2);
+  assert.equal(basic.cascades.band, 1.5);
+  assert.equal(basic.cascades.tint, true);
+  assert.deepEqual(
+    basic.cascades.splits, [10, 40, 0, 0],
+    "two splits given, four read back -- the array is a fixed layout and the rest keep the default",
+  );
+  assert.deepEqual(
+    basic.cascades.atlas, [2, 3, 0, 0],
+    "the two transforms given are the two read back, and the unused pair are the zero matrices " +
+    "finding 23 is about",
+  );
+  assert.deepEqual(basic.cascades.camera, [7, 8, 9]);
+  // A stock effect is a shadow receiver but NOT an image-based-light receiver.
+  assert.equal(
+    basic.imageBasedLight, "Error(1)",
+    "a stock effect refuses an image-based light: the two contracts are separate",
+  );
+  assert.equal(basic.detachShadowMap, "ok", "and detaching its shadow map is allowed");
+  assert.equal(basic.shadowMapWhenNone, null, "an effect with no shadow map lends nothing");
+
+  const pbr = evidence.pbrEffect;
+  assert.equal(typeof pbr, "object", `the PBR probe failed: ${pbr}`);
+  assert.equal(pbr.punctual, "ok", "a physically-based effect is a shadow receiver too");
+  assert.equal(pbr.mips, 5, "and an image-based-light receiver, whose mip count round-trips");
+  assert.equal(pbr.intensity, 2.5, "as does its intensity");
+  assert.deepEqual(
+    pbr.textures, [null, null, null],
+    "while its three textures do not come back, for the same reason the shadow ones do not",
+  );
+
+  const shader = evidence.shaderEffect;
+  assert.equal(typeof shader, "object", `the shader-effect probe failed: ${shader}`);
+  for (const [name, answer] of Object.entries(shader)) {
+    assert.equal(
+      answer, "Error(1)",
+      `a custom shader implements neither contract, so ${name} must refuse with INVALID_ARGUMENT ` +
+      "rather than accept a value nothing will read",
+    );
+  }
+
+  // --- the fixed-four cascade layout -----------------------------------------------------------------
+  const guards = evidence.cascadeGuards;
+  assert.equal(typeof guards, "object", `the guard probe failed: ${guards}`);
+  assert.equal(
+    guards.tooManyTransforms, "TypeError(-)",
+    "a fifth cascade transform is refused here, by name, before CNA sees it",
+  );
+  assert.equal(guards.countTooHigh, "Error(-)", "and a count outside the fixed array is refused");
+  assert.equal(guards.countNegative, "Error(-)");
+  assert.equal(guards.partial.count, 3, "a count of three is accepted with one transform given");
+  assert.deepEqual(
+    guards.partial.atlas, [5, 0, 0, 0],
+    "and the two missing transforms are the init's defaults rather than whatever was there before",
+  );
+  assert.deepEqual(guards.partial.splits, [1, 0, 0, 0]);
+
+  // Eleven planted defects were run against this file. Ten fail. The eleventh -- replacing the call
+  // to CNA's own `cna_punctual_light_ext_init` with a hand-written memset that writes the same
+  // struct size and version -- survives, and is EQUIVALENT under this ABI rather than a gap: the
+  // snapshot that follows overwrites every field the init sets, so nothing observable is left for
+  // it to decide. The reason to keep calling the init anyway is the version: the day CNA bumps
+  // `struct_version`, the hand-written constant is wrong and the call is not.
+  console.log(
+    `CNA_TS_NATIVE_SHADOW_RECEIVER=PASS BASIC=SHADOWS_ONLY PBR=SHADOWS_AND_IBL SHADER=NEITHER ` +
+    `DEFAULT_TRANSFORMS=ZERO_NOT_IDENTITY CASCADES=FIXED_FOUR`,
+  );
+});

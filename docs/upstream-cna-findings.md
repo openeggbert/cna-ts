@@ -20,11 +20,12 @@ decal projector that reads it, item 15 while projecting the atmosphere, item 16 
 projecting the cascaded, spot and cube shadow passes, items 17 and 18 while projecting the
 post-process passes, item 19 while projecting the physically-based materials, item 20 while
 projecting the culling families, and items 21 and 22 while projecting the transparency
-families and the custom shader effects they need.
+families and the custom shader effects they need, and item 23 while projecting the
+shadow-receiver contract.
 
 **Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
 library. Both were found by this package, both were *asserted* rather than worked around, and both
-detectors fired the moment the repair landed. Four of the twenty-two findings are now closed.
+detectors fired the moment the repair landed. Four of the twenty-three findings are now closed.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -1043,3 +1044,62 @@ shader unreliable.
 asserts every row, including the blank first draw. When this is repaired the "nothing was drawn" row
 fails, which is the point. The weighted-blended accumulation test beside it applies its effect once
 before the bracket opens and says why.
+
+## 23. Two `_init` routes document identity transforms and write zero matrices
+
+**Severity:** documentation, and the implementation is the half that is right.
+**Reproduced on:** HEADLESS, CNA C ABI 0.21.0, 2026-09-01. Both routes are pure functions of their
+output, so the renderer does not enter into it.
+
+`cna_shadow_cascade_state_ext_init` says:
+
+> @param out_state Receives zero cascades, **identity transforms**, zero splits, no blend band and
+> no debug tint — which is the state that disables cascaded shadows.
+
+`cna_punctual_light_ext_init` says:
+
+> @param out_light Receives kind `NONE`, the origin, direction (0, -1, 0), white, range 20, inner
+> angle 0.35, outer angle 0.5, depth bias 0.004, no shadow textures and **an identity transform**.
+
+Measured, every other documented default is exact — kind, position, direction, colour, range, both
+angles, the depth bias, the absent textures, the zero count, the zero splits, the zero blend band
+and the absent debug tint all match to the bit. The transforms do not:
+
+| what the header promises | what is written |
+| --- | --- |
+| `world_to_atlas[0..3]` identity | all sixteen floats zero, in all four |
+| `camera_view` (unstated) | all sixteen floats zero |
+| `shadow_view_projection` identity | all sixteen floats zero |
+
+The implementation is deliberate and says so in its own words, which is what makes this a
+documentation defect rather than a behaviour one. `cna_shadow_cascade_state_ext_init`:
+
+> The canonical arrays are value-initialized, and `Matrix()` is all zeros — so these stay zero. That
+> matters: with `count` at 0 no cascade transform is read at all, and inventing an identity here
+> would make a defaulted C state differ from a defaulted C++ one for no gain.
+
+and `cna_punctual_light_ext_init`:
+
+> `ShadowViewProjection{}` is a value-initialized Matrix, which is all zeros; the memset above
+> already left exactly that.
+
+Both arguments are good ones. The header is simply describing a different decision from the one
+that was taken.
+
+**What it costs.** A caller who believes the header treats the unused slots as pass-through. The
+cascade array is a **fixed four** whatever `count` says, so a game that sets two cascades leaves two
+zero matrices behind it — and a zero matrix is not a harmless identity, it collapses every position
+it multiplies to the origin. Anything that reads past `count` — a blend band at the last cascade's
+edge, a debug view, a shader that loops to four — sees the origin instead of the point it asked
+about. The same for a punctual light whose transform is never set: "identity" would mean world
+space, and zero means everything is at the eye.
+
+**Proposed change.** Correct the two `@param` lines to say the transforms are **zero** matrices, and
+keep the implementation comments' reasoning where a reader will find it — that a defaulted C state
+matches a defaulted C++ one, and that no transform past `count` is read. The word to remove is
+"identity", in both places.
+
+**Detector in cna-ts:** `test/native-cna.integration.mjs`, "the shadow-receiver contract", asserts
+every documented default including these, so the table above is checked field by field. The two
+transform rows assert **zero**; if the routes are ever changed to write identity — that is, if the
+documentation is made true by moving the code — those two assertions fail and say so.
