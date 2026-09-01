@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=417
+WASM_BACKEND_ROUTES=429
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 417 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 429 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
@@ -438,6 +438,25 @@ with the table read back out of CNA before a pixel is drawn -- title, size, unit
 entries in order, a 4x2 strip and a 2x2x2 volume -- and the pass state a pixel cannot reach: its
 name, whether it is supported here, which table it holds through strip, volume, both and neither
 again, its interpolation and its strength.
+
+**And the chain, which is what makes the family usable.** A game applies several passes in order,
+so `PostProcessChain` is the API a consumer actually reaches for, and its pass order is what a
+single-pass test cannot see. Composing the rotation with itself is how that becomes provable: one
+pass gives `(b,r,g)` and two give `(g,b,r)`, a third distinct permutation of this gradient. A chain
+that ran one pass lands on the first; a chain that ran both and threw the intermediate away lands
+on the first too; only a real ping-pong between two pooled targets lands on the second. `Clear`
+takes the count back to zero, and `ResetTargets` drops the pool and draws the same picture again,
+because the pool is a cache and not state the answer depends on.
+
+`GpuTimingEnabled` is asked for and **refused** on this WebGL2 context -- SwiftShader has no
+disjoint-timer query -- and CNA reports that through the getter rather than by throwing, so the
+suite reads the value back and takes the branch it finds rather than asserting the one it wanted.
+
+`AddOwned` is refused **by name**, and for an upstream reason rather than an effort one:
+`cna_post_process_chain_add_owned_pass` releases the pass handle without decrementing
+`RuntimeState::ownedGraphicsResourceCount`, so every later `cna_game_destroy` in the runtime refuses
+(finding 1). In a page, a game that cannot be destroyed is a worse outcome than a refusal that says
+so, and `Add` does everything the chain needs. When CNA repairs it this becomes two lines.
 
 Everything else in the 603-member interface still refuses **by name** through
 `CnaGraphicsExtensionBackendBase`. The object being present rather than absent is the point: a

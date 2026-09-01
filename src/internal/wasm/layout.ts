@@ -891,4 +891,14 @@ export const WASM_STRUCT_LAYOUTS = {
       reserved: { offset: 28, size: 4 },
     },
   },
+  CNA_PassTimingEXT: {
+    size: 24,
+    align: 8,
+    fields: {
+      struct_size: { offset: 0, size: 4 },
+      struct_version: { offset: 4, size: 4 },
+      sample_count: { offset: 8, size: 4 },
+      milliseconds: { offset: 16, size: 8 },
+    },
+  },
 } as const satisfies Readonly<Record<string, WasmStructLayout>>;

@@ -2320,10 +2320,10 @@
       ]
     },
     {
-      "operation": "CNA's extended graphics layer over WebAssembly: the fullscreen blit and colour grading",
+      "operation": "CNA's extended graphics layer over WebAssembly: the fullscreen blit, colour grading and the post-process chain",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "cna-ts/extensions/graphics",
-      "evidence": "Available only on an artifact built with CNA_CNAEXT=ON; the default artifact compiles the layer out, cna_graphics_ext_is_available answers false, and every route answers CNA_RESULT_NOT_SUPPORTED. One family of the layer's 857 routes is bound and the rest of the 603-member interface refuses by name. On a strong artifact, headless Chromium on WebGL2 parses a size-2 .cube whose transfer is the channel rotation (r,g,b) -> (b,r,g), reads all eight entries back out of CNA, builds it as a 4x2 strip and a 2x2x2 volume, and grades a 4x4 gradient through both -- every texel predicted arithmetically rather than recorded, with the blit as the identity control and half/zero strength as the lerp endpoints.",
+      "evidence": "Available only on an artifact built with CNA_CNAEXT=ON; the default artifact compiles the layer out, cna_graphics_ext_is_available answers false, and every route answers CNA_RESULT_NOT_SUPPORTED. One family of the layer's 857 routes is bound and the rest of the 603-member interface refuses by name. On a strong artifact, headless Chromium on WebGL2 parses a size-2 .cube whose transfer is the channel rotation (r,g,b) -> (b,r,g), reads all eight entries back out of CNA, builds it as a 4x2 strip and a 2x2x2 volume, and grades a 4x4 gradient through both -- every texel predicted arithmetically rather than recorded, with the blit as the identity control and half/zero strength as the lerp endpoints. The chain composes the same rotation with itself, which is the assertion it exists for: one pass gives (b,r,g) and two give (g,b,r), a third distinct permutation, so a chain that ran one pass -- or ran both and discarded the intermediate -- lands somewhere else. GPU timing is asked for and refused on this WebGL2 context, and the refusal is read back through the getter rather than assumed. AddOwned is refused by name: CNA's owned transfer leaks a runtime counter that then refuses every later cna_game_destroy (upstream finding 1), and a page whose game cannot be destroyed is worse than a named refusal.",
       "proof": [
         "wasmRoute:cna_fullscreen_pass_draw",
         "wasmRoute:cna_post_process_pass_apply",
@@ -2331,7 +2331,11 @@
         "wasmRoute:cna_color_grade_pass_set_lut",
         "wasmRoute:cna_cube_lut_parse",
         "wasmRoute:cna_cube_lut_create_volume_texture",
-        "test:test/wasm-browser-strong.mjs"
+        "test:test/wasm-browser-strong.mjs",
+        "wasmRoute:cna_post_process_chain_create",
+        "wasmRoute:cna_post_process_chain_add_pass",
+        "wasmRoute:cna_post_process_chain_apply",
+        "wasmRoute:cna_post_process_chain_get_pass_count"
       ]
     },
     {

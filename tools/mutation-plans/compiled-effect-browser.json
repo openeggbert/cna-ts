@@ -1,5 +1,5 @@
 {
-  "name": "compiled effects and the engine layer's colour grade, in a browser",
+  "name": "compiled effects, colour grading and the post-process chain, in a browser",
   "artifact": "dist",
   "build": "npm run build",
   "command": "CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
@@ -102,6 +102,27 @@
       "file": "src/internal/wasm/graphics-ext.ts",
       "find": "      \"cna_fullscreen_pass_draw\", pass, source, destination, effect, width, height, 0,",
       "replace": "      \"cna_fullscreen_pass_draw\", pass, source, 0n, effect, width, height, 0,"
+    },
+    {
+      "id": "chain-add-is-a-no-op",
+      "why": "the chain accepts a pass and holds none, so its pass count stays zero and applying it produces whatever an empty chain does rather than the composed grade",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "    this.#routes.invoke(\"cna_post_process_chain_add_pass\", chain, pass);",
+      "replace": "    void chain; void pass;"
+    },
+    {
+      "id": "chain-applied-through-the-single-pass-route",
+      "why": "a chain handle sent to cna_post_process_pass_apply: the two routes take the same context and differ only in what the first argument is, which is exactly the confusion a route table makes easy",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "      this.#routes.invoke(\"cna_post_process_chain_apply\", chain, pointer);",
+      "replace": "      this.#routes.invoke(\"cna_post_process_pass_apply\", chain, pointer);"
+    },
+    {
+      "id": "post-process-context-drops-the-destination",
+      "why": "every pass and the chain draw to the back buffer instead of the target the caller named -- a whole family of draws that succeed and land nowhere, from one field of a shared descriptor",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "        .setU64(\"destination\", frame.Destination)",
+      "replace": "        .setU64(\"destination\", 0n)"
     }
   ]
 }

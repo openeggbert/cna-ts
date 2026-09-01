@@ -112,7 +112,11 @@ test("the engine layer's colour grade runs, and its texels are the arithmetic", 
     `the artifact reports CNAEXT available and then refused a FullscreenPass: ${grade.error}`,
   );
   assertColourGradeEvidence(grade);
-  console.log("STRONG_WASM_ENGINE_SLICE=colour-grade PASSES=blit,strip,volume,half,zero,noLut");
+  console.log(
+    "STRONG_WASM_ENGINE_SLICE=colour-grade PASSES=blit,strip,volume,half,zero,noLut " +
+    `CHAIN=${grade.chain.twoCount}-pass GPU_TIMING=${grade.chain.timingEnabled ? "ON" : "REFUSED"} ` +
+    `TIMINGS=${grade.chain.timings.length}`,
+  );
 });
 
 test("the page raised nothing while doing it", () => {

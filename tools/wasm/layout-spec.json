@@ -592,6 +592,12 @@
       "level_count",
       "format",
       "reserved"
+    ],
+    "CNA_PassTimingEXT": [
+      "struct_size",
+      "struct_version",
+      "sample_count",
+      "milliseconds"
     ]
   },
   "callbacks": {

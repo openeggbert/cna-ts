@@ -27,7 +27,7 @@
 // is missing rather than getting a silent wrong answer.
 
 import { CnaGraphicsExtensionBackendBase } from "../backend-base.js";
-import type { PostProcessFrameSnapshot, Vector3Snapshot } from "../backend.js";
+import type { PassTimingSnapshot, PostProcessFrameSnapshot, Vector3Snapshot } from "../backend.js";
 import type { NativeHandle } from "../ownership.js";
 import { WASM_STRUCT_LAYOUTS } from "./layout.js";
 import { allocateStruct, WasmScope, WasmStruct, type WasmRouteTable } from "./module.js";
@@ -100,6 +100,13 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
   public override applyPostProcessPass(
     pass: NativeHandle, frame: PostProcessFrameSnapshot,
   ): void {
+    this.#withPostProcessContext(frame, (pointer) => {
+      this.#routes.invoke("cna_post_process_pass_apply", pass, pointer);
+    });
+  }
+
+  /** The context one pass and a whole chain both take, built once so the two cannot disagree. */
+  #withPostProcessContext<T>(frame: PostProcessFrameSnapshot, body: (pointer: number) => T): T {
     const scope = this.#routes.scope();
     try {
       const context = new WasmStruct(
@@ -129,7 +136,7 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
       for (const [field, values] of matrices) {
         if (values != null) context.setF32Array(field, values);
       }
-      this.#routes.invoke("cna_post_process_pass_apply", pass, context.pointer);
+      return body(context.pointer);
     } finally {
       scope.dispose();
     }
@@ -147,6 +154,107 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
 
   public override destroyPostProcessPass(pass: NativeHandle): void {
     this.#routes.invoke("cna_post_process_pass_destroy", pass);
+  }
+
+  // --- the chain the passes run in ---------------------------------------------------------------
+
+  public override createPostProcessChain(device: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_post_process_chain_create", device);
+  }
+
+  public override destroyPostProcessChain(chain: NativeHandle): void {
+    this.#routes.invoke("cna_post_process_chain_destroy", chain);
+  }
+
+  /**
+   * A borrowed pass. The caller keeps its lifetime, which is the transfer this slice offers.
+   *
+   * `addOwnedPostProcessPass` is deliberately **not** implemented here, and the reason is upstream
+   * rather than effort: `cna_post_process_chain_add_owned_pass` releases the pass handle without
+   * decrementing `RuntimeState::ownedGraphicsResourceCount`, so `cna_game_destroy` afterwards
+   * refuses -- for every later game in the runtime, not only the one that owned the pass (finding
+   * 1 in docs/upstream-cna-findings.md). In a page, a game that cannot be destroyed is a worse
+   * outcome than a refusal that names itself, and `Add` does everything the chain needs. When CNA
+   * repairs it, this becomes an ordinary two-line addition.
+   */
+  public override addPostProcessPass(chain: NativeHandle, pass: NativeHandle): void {
+    this.#routes.invoke("cna_post_process_chain_add_pass", chain, pass);
+  }
+
+  public override clearPostProcessChain(chain: NativeHandle): void {
+    this.#routes.invoke("cna_post_process_chain_clear", chain);
+  }
+
+  public override resetPostProcessChainTargets(chain: NativeHandle): void {
+    this.#routes.invoke("cna_post_process_chain_reset_targets", chain);
+  }
+
+  public override getPostProcessChainPassCount(chain: NativeHandle): number {
+    const scope = this.#routes.scope();
+    try {
+      const out = scope.allocate(4);
+      this.#routes.invoke("cna_post_process_chain_get_pass_count", chain, out);
+      return this.#routes.view().getInt32(out, true);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override getPostProcessChainGpuTimingEnabled(chain: NativeHandle): boolean {
+    return this.#bool("cna_post_process_chain_is_gpu_timing_enabled", chain);
+  }
+
+  public override setPostProcessChainGpuTimingEnabled(
+    chain: NativeHandle, value: boolean,
+  ): void {
+    this.#routes.invoke("cna_post_process_chain_set_gpu_timing_enabled", chain, value ? 1 : 0);
+  }
+
+  /** The whole chain over one frame, through the same context one pass takes. */
+  public override applyPostProcessChain(
+    chain: NativeHandle, frame: PostProcessFrameSnapshot,
+  ): void {
+    this.#withPostProcessContext(frame, (pointer) => {
+      this.#routes.invoke("cna_post_process_chain_apply", chain, pointer);
+    });
+  }
+
+  /**
+   * What each pass cost, averaged.
+   *
+   * The name is read separately from the value because a C structure cannot own a string, so a
+   * timing is two calls rather than one. `sample_count` is zero for a pass that has not been timed
+   * -- which is what a chain answers with GPU timing off -- and that zero is reported rather than
+   * turned into an absent entry.
+   */
+  public override getPostProcessChainPassTimings(
+    chain: NativeHandle,
+  ): readonly PassTimingSnapshot[] {
+    const count = Number(
+      this.#routes.outU64("cna_post_process_chain_get_pass_timing_count", chain),
+    );
+    const timings: PassTimingSnapshot[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const scope = this.#routes.scope();
+      let sampleCount = 0, milliseconds = 0;
+      try {
+        const timing = allocateStruct(this.#routes.module, scope, "CNA_PassTimingEXT");
+        this.#routes.invoke(
+          "cna_post_process_chain_get_pass_timing", chain, BigInt(index), timing.pointer,
+        );
+        sampleCount = timing.getI32("sample_count");
+        milliseconds = timing.getF64("milliseconds");
+      } finally {
+        scope.dispose();
+      }
+      timings.push({
+        Name: this.#indexedProbedString(
+          "cna_post_process_chain_copy_pass_timing_name", chain, index),
+        SampleCount: sampleCount,
+        Milliseconds: milliseconds,
+      });
+    }
+    return timings;
   }
 
   // --- colour grading --------------------------------------------------------------------------
@@ -295,6 +403,29 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
       const buffer = scope.allocate(byteLength + 1);
       const writtenOut = scope.allocate(8);
       this.#routes.invoke(route, handle, buffer, BigInt(byteLength + 1), writtenOut);
+      const written = Number(this.#routes.view().getBigUint64(writtenOut, true));
+      return new TextDecoder().decode(
+        this.#routes.module.HEAPU8.subarray(buffer, buffer + written));
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /** The same, for a route whose subject is an index into a collection rather than a handle. */
+  #indexedProbedString(route: string, handle: NativeHandle, index: number): string {
+    const scope = this.#routes.scope();
+    try {
+      const lengthOut = scope.allocate(8);
+      const probe = this.#routes.call(route, handle, BigInt(index), 0, 0n, lengthOut);
+      if (probe !== 0 && probe !== CNA_RESULT_BUFFER_TOO_SMALL) {
+        this.#routes.invoke(route, handle, BigInt(index), 0, 0n, lengthOut);
+      }
+      const byteLength = Number(this.#routes.view().getBigUint64(lengthOut, true));
+      if (byteLength === 0) return "";
+      const buffer = scope.allocate(byteLength + 1);
+      const writtenOut = scope.allocate(8);
+      this.#routes.invoke(
+        route, handle, BigInt(index), buffer, BigInt(byteLength + 1), writtenOut);
       const written = Number(this.#routes.view().getBigUint64(writtenOut, true));
       return new TextDecoder().decode(
         this.#routes.module.HEAPU8.subarray(buffer, buffer + written));

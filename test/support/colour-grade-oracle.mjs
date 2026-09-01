@@ -110,6 +110,46 @@ export function assertColourGradeEvidence(grade) {
   assert.notDeepEqual(grade.grade.half, grade.grade.fullStrip);
   assert.notDeepEqual(grade.grade.half, grade.grade.zeroStrength);
 
+  // --- the chain ---------------------------------------------------------------------------------
+  const chain = grade.chain;
+  assert.equal(chain.emptyCount, 0, "a fresh chain holds no passes");
+  assert.equal(chain.oneCount, 1);
+  assert.equal(chain.twoCount, 2);
+  assert.equal(chain.clearedCount, 0, "Clear releases the chain's hold on its passes");
+
+  // One pass through the chain is the same picture the pass alone produces, so the chain adds
+  // nothing of its own to a single-pass run.
+  eachTexel(chain.once, source, rotated, "a one-pass chain", 1);
+  // Two are the rotation composed with itself: (r,g,b) -> (b,r,g) -> (g,b,r). This is the
+  // assertion the chain exists for. A chain that ran one pass lands on `once`; a chain that ran
+  // both but discarded the intermediate lands on `once` too; only a real ping-pong between two
+  // targets lands here. Two eight-bit hops, so two bytes of slack -- and the three permutations of
+  // this gradient are tens apart.
+  const twice = (texel) => rotated(rotated(texel));
+  eachTexel(chain.twice, source, twice, "a two-pass chain, composed in order", 2);
+  assert.notDeepEqual(
+    chain.twice, chain.once,
+    "the rotation is not an involution, so running it twice must not look like running it once",
+  );
+  // Resetting the pooled intermediates is a cache drop, not a state change.
+  eachTexel(chain.afterReset, source, twice, "the same chain after ResetTargets", 2);
+
+  assert.equal(chain.timingDefault, false, "GPU timing is off until asked for");
+  assert.equal(typeof chain.timingEnabled, "boolean");
+  assert.ok(Array.isArray(chain.timings), "the chain answers a timing list");
+  if (chain.timingEnabled) {
+    assert.equal(chain.timings.length, 2, "one timing per pass the chain ran");
+    for (const timing of chain.timings) {
+      assert.equal(typeof timing.Name, "string");
+      assert.ok(Number.isFinite(timing.Milliseconds), "a timing carries a finite duration");
+      assert.ok(timing.SampleCount >= 0, "and a sample count, zero for an untimed pass");
+    }
+  } else {
+    // WebGL2 has no disjoint-timer query in every browser, and CNA reports the refusal through the
+    // getter rather than by throwing. Recorded as measured rather than asserted away.
+    assert.deepEqual(chain.timings, [], "a chain that could not enable timing reports none");
+  }
+
   // --- the state a pixel cannot reach ----------------------------------------------------------
   assert.equal(typeof grade.state.name, "string");
   assert.ok(grade.state.name.length > 0, "the pass names itself");

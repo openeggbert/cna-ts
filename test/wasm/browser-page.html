@@ -979,6 +979,70 @@ try {
           noLut: through((p) => { p.Strength = 1; }),
         };
 
+        // --- the chain, which is what makes the family usable -----------------------------------
+        //
+        // Composing the rotation with itself is the point. One pass gives (r,g,b) -> (b,r,g); two
+        // in sequence give (g,b,r), a third distinct permutation. So a chain that ran only one
+        // pass, or ran both but threw the intermediate away, lands on a different picture from a
+        // chain that really ping-ponged a target between them -- which no single-pass assertion
+        // can distinguish.
+        const chainPasses = [];
+        const chain = new PostProcess.PostProcessChain(device);
+        try {
+          const chainDestination = new Graphics.RenderTarget2D(device, N, N);
+          try {
+            const gradePass = () => {
+              const pass = new PostProcess.ColorGradePass(device);
+              pass.SetLut(strip);
+              pass.Strength = 1;
+              chainPasses.push(pass);
+              return pass;
+            };
+            const applyChain = () => {
+              chain.Apply({
+                Source: source, Destination: chainDestination, Width: N, Height: N,
+              });
+              return read(chainDestination);
+            };
+            evidence.chain = { emptyCount: chain.PassCount };
+            chain.Add(gradePass());
+            evidence.chain.oneCount = chain.PassCount;
+            evidence.chain.once = applyChain();
+            chain.Add(gradePass());
+            evidence.chain.twoCount = chain.PassCount;
+            evidence.chain.twice = applyChain();
+
+            // GPU timing, and the names the chain reports for what it ran. Off by default, and a
+            // chain that refuses to turn it on says so through the getter rather than throwing --
+            // which is why the value is read back instead of assumed.
+            evidence.chain.timingDefault = chain.GpuTimingEnabled;
+            chain.GpuTimingEnabled = true;
+            evidence.chain.timingEnabled = chain.GpuTimingEnabled;
+            applyChain();
+            evidence.chain.timings = chain.GetPassTimings().map((timing) => ({
+              Name: timing.Name, SampleCount: timing.SampleCount,
+              Milliseconds: timing.Milliseconds,
+            }));
+            chain.GpuTimingEnabled = false;
+
+            // Releasing the pooled intermediates and running again must produce the same picture:
+            // the pool is a cache, not state the result depends on.
+            chain.ResetTargets();
+            evidence.chain.afterReset = applyChain();
+
+            chain.Clear();
+            evidence.chain.clearedCount = chain.PassCount;
+          } finally {
+            chainDestination.Dispose();
+          }
+        } finally {
+          // The chain borrowed every pass, so the passes outlive it and are released here. That is
+          // the transfer this backend offers; `AddOwned` is refused by name, because CNA's own
+          // owned-transfer leaks a runtime counter that then refuses every later cna_game_destroy.
+          chain.Dispose();
+          for (const pass of chainPasses) pass.Dispose();
+        }
+
         // What the pass says it holds, and what it says it is. State rather than pixels, and the
         // half of the slice a pixel assertion cannot reach.
         const pass = new PostProcess.ColorGradePass(device);
