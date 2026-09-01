@@ -335,6 +335,21 @@
     },
     {
       "headers": [
+        "sprite_font.h"
+      ],
+      "namePattern": "^cna_sprite_font_(create|destroy|get_info|measure_utf8)$",
+      "category": "TOOLING_ONLY",
+      "reason": "CNA's SpriteFont, imported as a measurement *oracle* rather than as a capability. SpriteFont.MeasureString is projected in TypeScript and adds nothing here; what these add is a second implementation of the same predicate, built over the same texture and the same glyph table and sharing no code with the first. It earned its place on the first run, finding a divergence on a trailing negative side bearing that XNA's own IL settles in this package's favour -- upstream finding 27. The font never leaves src/internal/sprite-font-oracle.ts"
+    },
+    {
+      "headers": [
+        "sprite_font.h"
+      ],
+      "category": "XNA_BACKING",
+      "reason": "the rest of CNA's SpriteFont: copying its characters and glyphs back out, and setting its line spacing, spacing and default character. Every one addresses state this package's own SpriteFont owns and answers from, so binding them would give one font two line spacings. The oracle above deliberately reads none of them back except the four-field summary it checks its own inputs against"
+    },
+    {
+      "headers": [
         "core.h",
         "runtime.h",
         "runtime_graphics_manager.h",
@@ -352,7 +367,6 @@
         "render_target.h",
         "texture.h",
         "texture_volume.h",
-        "sprite_font.h",
         "vertex_resources.h",
         "index_resources.h",
         "input.h",

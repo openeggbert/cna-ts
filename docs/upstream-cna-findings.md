@@ -1295,3 +1295,68 @@ validated but unused. No code change, and the behaviour must not be "fixed".
 **Detector in cna-ts:** `test/avatar-description.integration.mjs` asserts the zeros, the identical
 results across calls, and that both body types produce the same bytes. If a future CNA ever did
 start randomising, those three fail together and say why.
+
+## 27. `SpriteFont::MeasureString` counts a negative trailing side bearing into the width
+
+**Measured** 2026-09-01 against `cnanext` `e5ae0820e`, CNA C ABI 0.21.0.
+**Settled against XNA's own IL**, not against an opinion about what XNA ought to do.
+
+A glyph's kerning is `(left side bearing, width, right side bearing)`, and a right side bearing may
+be negative — that is how a font tucks the next glyph under an overhang. CNA and this package
+disagree about what a *trailing* negative one does to the measured width. Built over one glyph
+table, on a font whose `j` has kerning `(1, 6, -3)`:
+
+| string | CNA | this package |
+| --- | ---: | ---: |
+| `"j"` | 4 | **7** |
+| `"Aj"` | 18.5 | **21.5** |
+| `"jj"` | 9.5 | **12.5** |
+| `"A.j"` | 23 | **26** |
+| every other string tested (18 of them) | agree | agree |
+
+The difference is exactly the bearing's magnitude, only in width, and only when the widest line
+*ends* in such a glyph. `"jA"` and `"AjW."` agree, because there the negative bearing is interior
+and both implementations add it unclamped.
+
+**Which is XNA's.** `Microsoft.Xna.Framework.Graphics.dll` was disassembled.
+`SpriteFont::InternalMeasure` keeps each glyph's right side bearing in a local and adds it to the
+next glyph on the same line *unclamped*:
+
+```text
+IL_00da:  size.X = size.X + (spacing + pendingZ)      // interior glyph: raw
+IL_010d:  pendingZ = kerning.Z                        // carried forward
+```
+
+and adds it **clamped at zero** at every line break and once more after the loop:
+
+```text
+IL_0054:  size.X = size.X + Math.Max(pendingZ, 0)     // at '\n'
+IL_015c:  size.X = size.X + Math.Max(pendingZ, 0)     // after the last glyph
+```
+
+CNA has no such carry. `modules/graphics/src/Xna/SpriteFont.cpp` adds both components of every
+glyph as it goes:
+
+```cpp
+curLineWidth += cKern.Y + cKern.Z;
+```
+
+which is right for interior glyphs and wrong for the last one on a line.
+
+**What it costs.** Text laid out with a measured width — a centred string, a wrapped paragraph, a
+button sized to its label — is short by the overhang whenever the line ends in a glyph that has
+one. It is silent, it is font-dependent, and it grows with the number of lines, since every line's
+last glyph can contribute.
+
+**Proposed change.** Carry the right side bearing the way the canonical implementation does: add
+`cKern.Y` in the loop, keep `cKern.Z` in a pending local added unclamped before the next glyph, and
+add `std::max(pending, 0.0f)` at each line break and once after the loop. The same file's
+first-glyph rule is already derived that carefully, and its comment records the live XNA
+measurement it came from.
+
+**Detector in cna-ts:** `test/sprite-font-oracle.integration.mjs` builds CNA's own `SpriteFont`
+from this package's glyph table and measures twenty-four strings with both. Eighteen must agree
+exactly; five must differ by exactly the bearing's magnitude in width and not at all in height.
+When this is repaired the second group fails and the first grows to cover it.
+
+This is what the oracle was built for, and it found the divergence on its first run.

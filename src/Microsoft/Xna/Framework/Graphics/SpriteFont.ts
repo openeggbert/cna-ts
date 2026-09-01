@@ -120,6 +120,39 @@ export function spriteFontTextureForInternalUse(font: SpriteFont): Texture2D {
   return stateOf(font).Texture;
 }
 
+/**
+ * Internal: the font's complete glyph table, in the shape CNA's reader takes.
+ *
+ * Only the measurement oracle uses this. XNA exposes `Characters` but not the bounds, cropping or
+ * kerning behind them, and that stays true: this is not a public accessor, it is the input to a
+ * second implementation of `MeasureString` that the tests compare this one against.
+ */
+export function spriteFontGlyphTableForInternalUse(font: SpriteFont): readonly {
+  readonly Character: number;
+  readonly Bounds: { X: number; Y: number; Width: number; Height: number };
+  readonly Cropping: { X: number; Y: number; Width: number; Height: number };
+  readonly KerningLeft: number;
+  readonly KerningWidth: number;
+  readonly KerningRight: number;
+}[] {
+  const state = stateOf(font);
+  return state.Characters.map((character, index) => {
+    const bounds = state.GlyphBounds[index]!;
+    const cropping = state.Cropping[index]!;
+    const kerning = state.Kerning[index]!;
+    return {
+      Character: character.codePointAt(0) ?? 0,
+      Bounds: { X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: bounds.Height },
+      Cropping: {
+        X: cropping.X, Y: cropping.Y, Width: cropping.Width, Height: cropping.Height,
+      },
+      KerningLeft: kerning.X,
+      KerningWidth: kerning.Y,
+      KerningRight: kerning.Z,
+    };
+  });
+}
+
 export function appendSpriteFontGlyphPlacementsForInternalUse(
   font: SpriteFont,
   text: string,

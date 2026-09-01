@@ -12,7 +12,7 @@
     "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it. The count fell by one when VideoPlayer.GetTexture stopped refusing outright and began projecting CNA's borrowed frame. It rose by one when Texture3D gained the adopting construction the colour grade's volume LUT arrives through. It rose by one again when Effect gained the internal teardown hook a native model-mesh-part side-car uses to clear its retained effect slot before the effect is released. It rose once more, and brought a new file with it, when AvatarDescription began reaching CNA for the body type, height and validity it used to invent -- Avatars.ts had refused everything up to then and so had no boundary of its own."
   },
   "counts": {
-    "VERIFIED_MANAGED": 21,
+    "VERIFIED_MANAGED": 22,
     "VERIFIED_NATIVE": 111,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
@@ -390,6 +390,19 @@
       "evidence": "graphics/content differential observation and graphics-foundation tests",
       "proof": [
         "test:test/graphics-foundation.test.mjs"
+      ]
+    },
+    {
+      "operation": "SpriteFont.MeasureString, checked against CNA's own SpriteFont",
+      "category": "VERIFIED_MANAGED",
+      "owner": "CNA-TS",
+      "evidence": "Not checked against numbers somebody typed. CNA's SpriteFont is built over the same texture and the same glyph table and asked the same question, so twenty-four strings are measured twice by implementations that share no code. The font is built to make the corners load-bearing: a negative left bearing, a negative *right* bearing, unequal cropping heights and a non-zero Spacing, which is why the fixture's own test asserts that the strings measure to at least ten distinct widths and that 'Aj' and 'jA' differ. Eighteen agree exactly. Five differ by exactly one glyph's right side bearing, and which implementation is right is not a matter of opinion: Microsoft.Xna.Framework.Graphics.dll was disassembled, and SpriteFont::InternalMeasure carries the bearing forward and adds Math.Max(pending, 0) at each line break and once after the loop -- so this package is right and CNA is not, which is upstream finding 27. The five divergences are asserted exactly, so a repaired CNA fails them and says so",
+      "proof": [
+        "route:cna_sprite_font_create",
+        "route:cna_sprite_font_get_info",
+        "route:cna_sprite_font_measure_utf8",
+        "route:cna_sprite_font_destroy",
+        "test:test/sprite-font-oracle.integration.mjs"
       ]
     },
     {

@@ -57,6 +57,9 @@ import type {
   CnaInputDeviceInventoryBackend,
   CnaMediaLibraryBackend,
   CnaAvatarBackend,
+  CnaSpriteFontOracleBackend,
+  CnaSpriteFontGlyphSnapshot,
+  CnaSpriteFontInfoSnapshot,
   AvatarDescriptionSnapshot,
   MediaLibrarySnapshot,
   MediaSongSnapshot,
@@ -3895,6 +3898,30 @@ export abstract class CnaShadowBackendBase implements CnaShadowBackend {
   public cubeShadowMapSizeForQuality(
     _quality: number,
   ): number { return this.unsupported("cubeShadowMapSizeForQuality"); }
+}
+
+/** Refusing base for {@link CnaSpriteFontOracleBackend}. */
+export abstract class CnaSpriteFontOracleBackendBase implements CnaSpriteFontOracleBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createCnaSpriteFont(
+    _texture: NativeHandle,
+    _glyphs: readonly CnaSpriteFontGlyphSnapshot[],
+    _lineSpacing: number,
+    _spacing: number,
+    _defaultCharacter: number | null,
+  ): NativeHandle { return this.unsupported("createCnaSpriteFont"); }
+  public destroyCnaSpriteFont(_font: NativeHandle): void {
+    return this.unsupported("destroyCnaSpriteFont");
+  }
+  public getCnaSpriteFontInfo(_font: NativeHandle): CnaSpriteFontInfoSnapshot {
+    return this.unsupported("getCnaSpriteFontInfo");
+  }
+  public measureCnaSpriteFont(
+    _font: NativeHandle, _text: string,
+  ): { readonly X: number; readonly Y: number } {
+    return this.unsupported("measureCnaSpriteFont");
+  }
 }
 
 /** Refusing base for {@link CnaAvatarBackend}. */

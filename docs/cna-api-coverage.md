@@ -8,12 +8,12 @@ C source and the WebAssembly backend's route table rather than declared.
 ```text
 TOTAL_C_API_FUNCTIONS=4054
 PUBLIC_HEADERS=57
-XNA_BACKING=1586
+XNA_BACKING=1591
 CNA_EXTENSION_BACKING=1871
 INTERNAL_RUNTIME_ONLY=1
 MANAGED_BY_DESIGN=556
-TOOLING_ONLY=31
-INTENTIONALLY_DEFERRED=9
+TOOLING_ONLY=35
+INTENTIONALLY_DEFERRED=0
 UPSTREAM_RUNTIME_UNAVAILABLE=0
 UNEXPLAINED=0
 ```
@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=1848
+REACHABLE_NODE=1852
 REACHABLE_WASM=276
-REACHABLE_BY_ANY_BACKEND=1848
+REACHABLE_BY_ANY_BACKEND=1852
 REACHABLE_BY_EVERY_BACKEND=276
-REACHABLE_NODE_ONLY=1572
+REACHABLE_NODE_ONLY=1576
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -34,12 +34,11 @@ What each backend reaches, by what the routes are for:
 
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
-| `XNA_BACKING` | 1586 | 513 | 73 |
+| `XNA_BACKING` | 1591 | 513 | 73 |
 | `CNA_EXTENSION_BACKING` | 1871 | 1319 | 189 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 556 | 13 | 13 |
-| `TOOLING_ONLY` | 31 | 2 | 0 |
-| `INTENTIONALLY_DEFERRED` | 9 | 0 | 0 |
+| `TOOLING_ONLY` | 35 | 6 | 0 |
 
 ## By header
 
@@ -93,7 +92,7 @@ What each backend reaches, by what the routes are for:
 | `runtime_window.h` | 12 | 0 | 14 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `runtime.h` | 10 | 6 | 33 | 9 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `sensors.h` | 53 | 0 | 0 | 120 | 0 | 0 | 24 | 0 | 0 | 0 |
-| `sprite_font.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 9 | 0 | 0 |
+| `sprite_font.h` | 4 | 0 | 5 | 0 | 0 | 0 | 4 | 0 | 0 | 0 |
 | `storage.h` | 27 | 0 | 46 | 3 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `texture_volume.h` | 10 | 0 | 16 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `texture.h` | 5 | 3 | 21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |

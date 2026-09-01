@@ -19,7 +19,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 
 | Category | Operation families |
 | --- | ---: |
-| VERIFIED_MANAGED | 21 |
+| VERIFIED_MANAGED | 22 |
 | VERIFIED_NATIVE | 111 |
 | VERIFIED_WEBASSEMBLY | 13 |
 | EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND | 5 |
@@ -53,6 +53,7 @@ All selected-profile framework files containing explicit NativeUnavailableError 
 | Model graph collections, parent/child identity and absolute transforms | CNA-TS | graphics/content differential observation and managed Model tests |
 | SoundEffectInstance managed lifecycle state and disposal guards | CNA-TS | differential and audio/media/storage design suites |
 | SpriteBatch argument and Begin/End validation | CNA-TS | graphics/content differential observation and graphics-foundation tests |
+| SpriteFont.MeasureString, checked against CNA's own SpriteFont | CNA-TS | Not checked against numbers somebody typed. CNA's SpriteFont is built over the same texture and the same glyph table and asked the same question, so twenty-four strings are measured twice by implementations that share no code. The font is built to make the corners load-bearing: a negative left bearing, a negative *right* bearing, unequal cropping heights and a non-zero Spacing, which is why the fixture's own test asserts that the strings measure to at least ten distinct widths and that 'Aj' and 'jA' differ. Eighteen agree exactly. Five differ by exactly one glyph's right side bearing, and which implementation is right is not a matter of opinion: Microsoft.Xna.Framework.Graphics.dll was disassembled, and SpriteFont::InternalMeasure carries the bearing forward and adds Math.Max(pending, 0) at each line break and once after the loop -- so this package is right and CNA is not, which is upstream finding 27. The five divergences are asserted exactly, so a repaired CNA fails them and says so |
 | Storage path validation and isolated managed-directory adapter | CNA-TS | deterministic storage differential observation and design suite |
 | Texture2D, SpriteFont and Model managed XNB reader graphs | CNA-TS | uncompressed and compressed synthetic reader-graph tests |
 | Texture3D/TextureCube exact Color codec, bounds and CNA dispatch projection | CNA-TS | managed native-shaped backend verifies boxes, faces and exact packed Color round trips; all ABI signatures are compiler-audited and the qualified HEADLESS artifact returns documented NOT_SUPPORTED at creation |

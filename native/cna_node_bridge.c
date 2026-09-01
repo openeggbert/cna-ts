@@ -223,6 +223,16 @@ typedef CNA_Result (*PowerInfoFn)(CNA_Handle, CNA_PowerState*, int32_t*, int32_t
    JavaScript plain copied values, so no media handle ever needs an owner on the other side. That
    also side-steps an ownership split in CNA's own headers -- a song from a collection is "a new
    handle" the caller releases, an album from a collection is "borrowed" and must not be. */
+/* CNA's SpriteFont, used here as an *oracle* rather than as a capability. This package measures
+   text in TypeScript, and that algorithm is subtle -- a first glyph's left bearing is clamped and
+   later ones are not, the width uses a clamped right bearing while the advance uses the raw one,
+   and a line's height comes from cropping rather than line spacing. Building CNA's font from the
+   same glyph table and asking it the same question is a second implementation of one predicate,
+   neither derived from the other. Nothing public is added: MeasureString already exists. */
+typedef CNA_Result (*SpriteFontCreateFn)(const CNA_SpriteFontCreateInfo*, CNA_Handle*);
+typedef CNA_Result (*SpriteFontInfoFn)(CNA_Handle, CNA_SpriteFontInfo*);
+typedef CNA_Result (*SpriteFontMeasureFn)(CNA_Handle, CNA_StringView, CNA_Vector2*);
+
 /* Avatar descriptions. CNA makes a random one with no platform gamer service at all -- measured,
    and two of them differ -- which is why this family is here while the rest of the avatar surface
    still refuses: a renderer needs assets and a gamer that this host does not have. The handle
@@ -2662,6 +2672,10 @@ typedef struct Api {
   InputDeviceNameSizeAtFn input_devices_get_touch_device_name_size_at;
   InputDeviceCopyNameAtFn input_devices_copy_touch_device_name_at;
   PowerInfoFn power_get_info;
+  SpriteFontCreateFn sprite_font_create;
+  SpriteFontInfoFn sprite_font_get_info;
+  SpriteFontMeasureFn sprite_font_measure_utf8;
+  GameHandleFn sprite_font_destroy;
   AvatarDescriptionCreateFn avatar_description_create;
   AvatarDescriptionRandomFn avatar_description_create_random;
   AvatarDescriptionInfoFn avatar_description_get_info;
@@ -4841,6 +4855,10 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(input_devices_get_touch_device_name_size_at, InputDeviceNameSizeAtFn, "cna_input_devices_get_touch_device_name_size_at");
   LOAD_REQUIRED(input_devices_copy_touch_device_name_at, InputDeviceCopyNameAtFn, "cna_input_devices_copy_touch_device_name_at");
   LOAD_REQUIRED(power_get_info, PowerInfoFn, "cna_power_get_info");
+  LOAD_REQUIRED(sprite_font_create, SpriteFontCreateFn, "cna_sprite_font_create");
+  LOAD_REQUIRED(sprite_font_get_info, SpriteFontInfoFn, "cna_sprite_font_get_info");
+  LOAD_REQUIRED(sprite_font_measure_utf8, SpriteFontMeasureFn, "cna_sprite_font_measure_utf8");
+  LOAD_REQUIRED(sprite_font_destroy, GameHandleFn, "cna_sprite_font_destroy");
   LOAD_REQUIRED(avatar_description_create, AvatarDescriptionCreateFn, "cna_avatar_description_create");
   LOAD_REQUIRED(avatar_description_create_random, AvatarDescriptionRandomFn, "cna_avatar_description_create_random");
   LOAD_REQUIRED(avatar_description_get_info, AvatarDescriptionInfoFn, "cna_avatar_description_get_info");
@@ -25895,6 +25913,120 @@ static napi_value bridge_input_devices_get_touch_at(napi_env env, napi_callback_
     "cna_input_devices_get_touch_device_info_at");
 }
 
+/* ---- CNA's SpriteFont, as a measurement oracle ------------------------------------------------
+ *
+ * Deliberately internal: `SpriteFont.MeasureString` is already projected, in TypeScript, and this
+ * adds no public surface. What it adds is a second answer to the same question from an
+ * implementation that shares no code with the first, over the same texture and the same glyph
+ * table. `test/sprite-font-oracle.integration.mjs` is the only consumer.
+ */
+
+/* The CNB reader stack already reads exactly this glyph shape; one reader, not two. */
+static int read_glyph(napi_env env, napi_value value, CNA_SpriteFontGlyph* glyph);
+
+static napi_value bridge_sprite_font_create(napi_env env, napi_callback_info info) {
+  napi_value args[5], entry;
+  CNA_Handle texture = 0, font = 0;
+  uint32_t glyph_count = 0;
+  int32_t line_spacing = 0;
+  double spacing = 0;
+  napi_valuetype kind = napi_undefined;
+  uint32_t default_character = 0;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &texture) ||
+      napi_get_array_length(env, args[1], &glyph_count) != napi_ok ||
+      napi_get_value_int32(env, args[2], &line_spacing) != napi_ok ||
+      napi_get_value_double(env, args[3], &spacing) != napi_ok ||
+      napi_typeof(env, args[4], &kind) != napi_ok) {
+    return throw_message(env, "expected a texture, glyphs, line spacing, spacing and a fallback");
+  }
+  CNA_SpriteFontGlyph* glyphs = glyph_count == 0
+    ? NULL : (CNA_SpriteFontGlyph*) calloc(glyph_count, sizeof(CNA_SpriteFontGlyph));
+  if (glyph_count != 0 && !glyphs) return throw_message(env, "glyph table allocation failed");
+  for (uint32_t index = 0; index < glyph_count; index += 1) {
+    if (napi_get_element(env, args[1], index, &entry) != napi_ok ||
+        !read_glyph(env, entry, &glyphs[index])) {
+      free(glyphs);
+      return NULL;
+    }
+  }
+  CNA_SpriteFontCreateInfo create_info;
+  memset(&create_info, 0, sizeof(create_info));
+  create_info.struct_size = sizeof(create_info);
+  create_info.struct_version = 1;
+  create_info.texture = texture;
+  create_info.glyphs = glyphs;
+  create_info.glyph_count = glyph_count;
+  create_info.line_spacing = line_spacing;
+  create_info.spacing = (float) spacing;
+  if (kind != napi_undefined && kind != napi_null) {
+    if (napi_get_value_uint32(env, args[4], &default_character) != napi_ok) {
+      free(glyphs);
+      return throw_message(env, "a fallback character is a UTF-16 code or nothing");
+    }
+    create_info.default_character = (CNA_Char16) default_character;
+    create_info.has_default_character = CNA_TRUE;
+  }
+  const CNA_Result result = g_api.sprite_font_create(&create_info, &font);
+  free(glyphs);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_sprite_font_create", result);
+  }
+  return make_handle(env, font);
+}
+
+static napi_value bridge_sprite_font_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.sprite_font_destroy, "cna_sprite_font_destroy");
+}
+
+/* What CNA stored, so the oracle is checked against its own inputs before it is trusted. */
+static napi_value bridge_sprite_font_get_info(napi_env env, napi_callback_info info) {
+  napi_value args[1], output;
+  CNA_Handle font = 0;
+  CNA_SpriteFontInfo font_info;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &font)) return NULL;
+  memset(&font_info, 0, sizeof(font_info));
+  font_info.struct_size = sizeof(font_info);
+  font_info.struct_version = 1;
+  const CNA_Result result = g_api.sprite_font_get_info(font, &font_info);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_sprite_font_get_info", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "sprite font info");
+  if (!set_u32_property(env, output, "CharacterCount", (uint32_t) font_info.character_count) ||
+      !set_i32_property(env, output, "LineSpacing", font_info.line_spacing) ||
+      !set_double_property(env, output, "Spacing", (double) font_info.spacing) ||
+      !set_bool_property(env, output, "HasDefaultCharacter", font_info.has_default_character) ||
+      !set_u32_property(env, output, "DefaultCharacter", font_info.default_character)) {
+    return throw_napi(env, "sprite font info");
+  }
+  return output;
+}
+
+static napi_value bridge_sprite_font_measure(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle font = 0;
+  char* text = NULL;
+  size_t length = 0;
+  CNA_Vector2 size = {0.0F, 0.0F};
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &font) ||
+      !read_utf8(env, args[1], &text, &length)) return NULL;
+  const CNA_StringView view = {text, (uint64_t) length};
+  const CNA_Result result = g_api.sprite_font_measure_utf8(font, view, &size);
+  free(text);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_sprite_font_measure_utf8", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "measured size");
+  if (!set_double_property(env, output, "X", (double) size.x) ||
+      !set_double_property(env, output, "Y", (double) size.y)) {
+    return throw_napi(env, "measured size");
+  }
+  return output;
+}
+
 /* ---- avatar descriptions ------------------------------------------------------------------------
  *
  * `AvatarDescription.CreateRandom()` refused here, and CNA answers it without any platform gamer
@@ -30478,6 +30610,10 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getAttachedTouchDeviceCount", NULL, bridge_input_devices_get_touch_count, NULL, NULL, NULL, napi_default, NULL },
     { "getAttachedTouchDeviceAt", NULL, bridge_input_devices_get_touch_at, NULL, NULL, NULL, napi_default, NULL },
     { "getHostPowerInfo", NULL, bridge_power_get_info, NULL, NULL, NULL, napi_default, NULL },
+    { "createCnaSpriteFont", NULL, bridge_sprite_font_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyCnaSpriteFont", NULL, bridge_sprite_font_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "getCnaSpriteFontInfo", NULL, bridge_sprite_font_get_info, NULL, NULL, NULL, napi_default, NULL },
+    { "measureCnaSpriteFont", NULL, bridge_sprite_font_measure, NULL, NULL, NULL, napi_default, NULL },
     { "createAvatarDescription", NULL, bridge_avatar_description_create, NULL, NULL, NULL, napi_default, NULL },
     { "createRandomAvatarDescription", NULL, bridge_avatar_description_create_random, NULL, NULL, NULL, napi_default, NULL },
     { "createMediaLibrary", NULL, bridge_media_library_create, NULL, NULL, NULL, napi_default, NULL },

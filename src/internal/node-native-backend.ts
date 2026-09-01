@@ -22,6 +22,9 @@ import type {
   CnaInputDeviceInventoryBackend,
   CnaMediaLibraryBackend,
   CnaAvatarBackend,
+  CnaSpriteFontOracleBackend,
+  CnaSpriteFontGlyphSnapshot,
+  CnaSpriteFontInfoSnapshot,
   AvatarDescriptionSnapshot,
   MediaLibrarySnapshot,
   MediaSongSnapshot,
@@ -835,6 +838,13 @@ interface NativeBridge {
   destroyLodGroup(group: bigint): void;
   addLodLevel(group: bigint, maxDistance: number, part: bigint | null): void;
   selectLodPart(group: bigint, distance: number): bigint | null;
+  createCnaSpriteFont(
+    texture: bigint, glyphs: readonly CnaSpriteFontGlyphSnapshot[], lineSpacing: number,
+    spacing: number, defaultCharacter: number | null,
+  ): bigint;
+  destroyCnaSpriteFont(font: bigint): void;
+  getCnaSpriteFontInfo(font: bigint): CnaSpriteFontInfoSnapshot;
+  measureCnaSpriteFont(font: bigint, text: string): { readonly X: number; readonly Y: number };
   createAvatarDescription(bytes: Uint8Array): AvatarDescriptionSnapshot;
   createRandomAvatarDescription(): AvatarDescriptionSnapshot;
   createMediaLibrary(game: bigint): bigint;
@@ -1942,6 +1952,7 @@ export class NodeNativeBackend
   public readonly InputDeviceInventory: CnaInputDeviceInventoryBackend = this;
   public readonly MediaLibrary: CnaMediaLibraryBackend = this;
   public readonly Avatars: CnaAvatarBackend = this;
+  public readonly SpriteFontOracle: CnaSpriteFontOracleBackend = this;
   public readonly InstancedRenderer: CnaInstancedRendererBackend = this;
   public readonly Shadows: CnaShadowBackend = this;
   public readonly DepthNormalPrepass: CnaDepthNormalPrepassBackend = this;
@@ -3306,6 +3317,25 @@ export class NodeNativeBackend
   }
   public selectLodPart(group: NativeHandle, distance: number): NativeHandle | null {
     return this.#bridge.selectLodPart(group, distance);
+  }
+  public createCnaSpriteFont(
+    texture: NativeHandle, glyphs: readonly CnaSpriteFontGlyphSnapshot[], lineSpacing: number,
+    spacing: number, defaultCharacter: number | null,
+  ): NativeHandle {
+    return this.#bridge.createCnaSpriteFont(
+      texture, glyphs, lineSpacing, spacing, defaultCharacter,
+    );
+  }
+  public destroyCnaSpriteFont(font: NativeHandle): void {
+    this.#bridge.destroyCnaSpriteFont(font);
+  }
+  public getCnaSpriteFontInfo(font: NativeHandle): CnaSpriteFontInfoSnapshot {
+    return this.#bridge.getCnaSpriteFontInfo(font);
+  }
+  public measureCnaSpriteFont(
+    font: NativeHandle, text: string,
+  ): { readonly X: number; readonly Y: number } {
+    return this.#bridge.measureCnaSpriteFont(font, text);
   }
   public createAvatarDescription(bytes: Uint8Array): AvatarDescriptionSnapshot {
     return this.#bridge.createAvatarDescription(bytes);

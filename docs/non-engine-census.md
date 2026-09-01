@@ -5,10 +5,13 @@ Eleven headers used to carry one reason between them:
 > the adapter imports nothing from this header, so the whole family is measured and deferred rather
 > than partially covered
 
-That describes **history, not architecture**, and it was doing real damage: it hid three working
+That describes **history, not architecture**, and it was doing real damage: it hid working
 capabilities behind a sentence about what had not been done yet. This document replaces it. Every
 row below was measured against `cnanext` at CNA C ABI **0.21.0** (revision `e5ae0820e`) on
 2026-09-01, with pure-C probes under `build-probe/cbind_*_probe.c`.
+
+After it, **`INTENTIONALLY_DEFERRED` is zero**: every one of CNA's 4054 public routes has a purpose
+and a reason that is about the route rather than about the calendar.
 
 ## What the census found
 
@@ -142,12 +145,24 @@ height out of a struct in the same `printf` that filled it. Only the third, stri
 what is above. **Nothing was filed from the first two**, which is the only reason this section
 describes CNA's behaviour rather than a defect that was never there.
 
-### `sprite_font.h` — 9 routes
+### `sprite_font.h` — 9 routes, four of them an oracle
 
 CNA can build a `SpriteFont` from a texture and a glyph table — the same data this package's XNB
-reader produces — and measure a string with it. That makes it usable as an *independent oracle* for
-`SpriteFont.MeasureString`, which is otherwise checked against hand-written numbers. Recorded as
-the strongest remaining candidate of its kind.
+reader produces — and measure a string with it. Four routes are imported for exactly that, as
+**tooling**: `MeasureString` is already projected in TypeScript and this adds nothing public. What
+it adds is a second implementation of one predicate, sharing no code with the first.
+
+It earned its place on the first run. Over twenty-four strings the two agree eighteen times and
+differ five, always by exactly one glyph's right side bearing and only when the widest line *ends*
+in a glyph whose bearing is negative. Which is right was settled by disassembling
+`Microsoft.Xna.Framework.Graphics.dll`: `SpriteFont::InternalMeasure` carries the bearing forward
+and adds `Math.Max(pending, 0)` at each line break and once after the loop, so this package matches
+XNA and CNA does not. That is upstream finding 27, and the divergences are asserted exactly so a
+repaired CNA fails them.
+
+The other five routes set the line spacing, spacing and default character on CNA's font, or copy
+its characters and glyphs back out. Each addresses state this package's own `SpriteFont` owns and
+answers from, so binding them would give one font two line spacings.
 
 ## The method that mattered
 

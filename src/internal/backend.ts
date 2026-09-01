@@ -2677,6 +2677,42 @@ export interface CnaLodBackend {
   getLodProjectedRadiusPixels(group: NativeHandle, distance: number): number;
 }
 
+/** One glyph, in the shape CNA's reader already takes. */
+export interface CnaSpriteFontGlyphSnapshot {
+  readonly Character: number;
+  readonly Bounds: { readonly X: number; readonly Y: number; readonly Width: number; readonly Height: number };
+  readonly Cropping: { readonly X: number; readonly Y: number; readonly Width: number; readonly Height: number };
+  readonly KerningLeft: number;
+  readonly KerningWidth: number;
+  readonly KerningRight: number;
+}
+
+/** What CNA stored for a font, so the oracle can be checked against its own inputs. */
+export interface CnaSpriteFontInfoSnapshot {
+  readonly CharacterCount: number;
+  readonly LineSpacing: number;
+  readonly Spacing: number;
+  readonly HasDefaultCharacter: boolean;
+  readonly DefaultCharacter: number;
+}
+
+/**
+ * CNA's SpriteFont, used only as a measurement *oracle*. `SpriteFont.MeasureString` is projected
+ * in TypeScript; this is a second implementation of the same predicate, sharing no code with it.
+ */
+export interface CnaSpriteFontOracleBackend {
+  createCnaSpriteFont(
+    texture: NativeHandle,
+    glyphs: readonly CnaSpriteFontGlyphSnapshot[],
+    lineSpacing: number,
+    spacing: number,
+    defaultCharacter: number | null,
+  ): NativeHandle;
+  destroyCnaSpriteFont(font: NativeHandle): void;
+  getCnaSpriteFontInfo(font: NativeHandle): CnaSpriteFontInfoSnapshot;
+  measureCnaSpriteFont(font: NativeHandle, text: string): { readonly X: number; readonly Y: number };
+}
+
 /** An avatar description, copied whole: exactly 1021 bytes plus what CNA reads out of them. */
 export interface AvatarDescriptionSnapshot {
   readonly BodyType: number;
@@ -3473,6 +3509,7 @@ export interface CnaBackend {
   readonly InputDeviceInventory?: CnaInputDeviceInventoryBackend;
   readonly MediaLibrary?: CnaMediaLibraryBackend;
   readonly Avatars?: CnaAvatarBackend;
+  readonly SpriteFontOracle?: CnaSpriteFontOracleBackend;
   readonly InstancedRenderer?: CnaInstancedRendererBackend;
   readonly Shadows?: CnaShadowBackend;
   readonly DepthNormalPrepass?: CnaDepthNormalPrepassBackend;
