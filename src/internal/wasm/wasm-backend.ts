@@ -106,6 +106,9 @@ const ROUTES = [
   "cna_graphics_device_draw_primitives",
   "cna_graphics_device_draw_indexed_primitives",
   "cna_basic_effect_create",
+  // A compiled `.fxb`. Whether the artifact has the runtime behind it is the artifact's answer to
+  // give, and it cannot give it unless the route is resolved -- see `WasmEffectBackend`.
+  "cna_effect_create_compiled",
   "cna_basic_effect_set_vertex_color_enabled",
   "cna_effect_matrices_set_world",
   "cna_effect_matrices_set_view",

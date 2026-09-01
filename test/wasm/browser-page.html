@@ -38,6 +38,13 @@ try {
   module.FS.mkdir("/Content");
   module.FS.writeFile("/Content/Atlas.xnb", await fetchBytes("/fixtures/Atlas.xnb"));
   module.FS.writeFile("/Content/SyntheticFont.xnb", await fetchBytes("/fixtures/SyntheticFont.xnb"));
+  // The compiled effect the Node windowed suite draws with. Optional: it lives in `cnanext`, and
+  // where the server has no copy the page records that rather than inventing bytes.
+  let compiledEffectBytes = null;
+  try {
+    const response = await fetch("/fixtures/CnaConformanceEffect.fxb");
+    if (response.ok) compiledEffectBytes = new Uint8Array(await response.arrayBuffer());
+  } catch { compiledEffectBytes = null; }
 
   const status = await LoadWasmBackend({ Module: module });
   result.backend = status.Backend;
@@ -631,6 +638,37 @@ try {
         // A render target left bound stops the next present, which would turn one clear failure
         // into a confusing second one.
         try { this.GraphicsDevice.SetRenderTarget(null); } catch { /* already unbound */ }
+      }
+
+      // --- can this artifact run a COMPILED effect? ------------------------------------------
+      //
+      // The Node windowed suite draws with `CnaConformanceEffect.fxb` and asserts its texels. The
+      // honest question here is whether the same consumer scenario is available in a browser at
+      // all, and it is a property of the running artifact rather than of the renderer's name: CNA
+      // builds the compiled-effect runtime into the EasyGL family only when
+      // `CNA_EASYGL_COMPILED_EFFECTS` is on, and it is off by default because that runtime is a
+      // dependency those renderers do not otherwise need. So this asks the binary, with the real
+      // bytes, and records exactly what came back rather than reading a build flag.
+      if (!compiledEffectBytes) {
+        result.compiledEffect = { fixture: "absent" };
+      } else {
+        try {
+          const effect = new Graphics.Effect(this.GraphicsDevice, [...compiledEffectBytes]);
+          result.compiledEffect = {
+            fixture: "present",
+            outcome: "created",
+            parameters: effect.Parameters.Count,
+            techniques: effect.Techniques.Count,
+          };
+          effect.Dispose();
+        } catch (error) {
+          result.compiledEffect = {
+            fixture: "present",
+            outcome: "refused",
+            error: `${error?.constructor?.name}: ${error?.message}`,
+            cnaResult: error?.cnaResult ?? null,
+          };
+        }
       }
 
       super.LoadContent();

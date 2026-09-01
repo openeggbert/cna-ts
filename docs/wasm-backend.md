@@ -377,6 +377,30 @@ textured geometry, and each of the others needs its own dozen routes and its own
 that accepted them and set only the fields they happen to share would draw the wrong thing rather
 than say it could not.
 
+**A compiled effect is not one of those refusals, and used to be treated as one.** The Node windowed
+suite draws with `CnaConformanceEffect.fxb` and asserts its texels, so the honest question is
+whether a browser consumer can do the same. That is a property of the *artifact*, not of this
+package: CNA builds the compiled-effect runtime into the EasyGL family -- `WEBGL2` included -- only
+when `CNA_EASYGL_COMPILED_EFFECTS` is on, which is off by default because the runtime is a fetched
+dependency those renderers do not otherwise need.
+
+While `createEffectCompiled` was absent from this slice, that question could not be asked. The
+binding declined first, with its own message about a slice it had not implemented, and a consumer
+whose artifact *did* have the runtime would have been told the wrong thing. The route is now
+resolved and the bytes go through, so what comes back is CNA's own answer for the artifact in front
+of it. On the artifact this package qualifies against:
+
+```text
+cna_effect_create_compiled failed with CNA result 6: The active graphics renderer does not
+support compiled XNA/FNA Effect Framework bytecode (GraphicsCapability::CompiledEffects is false).
+```
+
+which is the same result and the same sentence the Node HEADLESS backend gives for the same bytes.
+`test/wasm-browser.mjs` asserts that refusal and takes the other branch -- reflecting the fixture's
+six parameters and two techniques -- if an artifact ever answers differently, so the unblocker is
+recorded as a build option rather than pinned as permanent behaviour. The unblocker is external and
+specific: build `cna_c_api_wasm` with `-DCNA_EASYGL_COMPILED_EFFECTS=ON`.
+
 ### A defect this slice found in its own first test
 
 The first version drew nothing at all — every texel the clear colour, in the browser *and* on Node.

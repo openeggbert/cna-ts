@@ -17,18 +17,18 @@
   },
   "reachable": {
     "NODE": 1889,
-    "WASM": 343
+    "WASM": 344
   },
   "reachableByAny": 1889,
-  "reachableByAll": 343,
+  "reachableByAll": 344,
   "reachableExclusively": {
-    "NODE": 1546,
+    "NODE": 1545,
     "WASM": 0
   },
   "reachabilityByCategory": {
     "XNA_BACKING": {
       "NODE": 550,
-      "WASM": 139
+      "WASM": 140
     },
     "CNA_EXTENSION_BACKING": {
       "NODE": 1319,
@@ -118,7 +118,7 @@
       "XNA_BACKING": 185,
       "REACHABLE_NODE": 186,
       "MANAGED_BY_DESIGN": 70,
-      "REACHABLE_WASM": 44,
+      "REACHABLE_WASM": 45,
       "CNA_EXTENSION_BACKING": 35
     },
     "engine_layer.h": {
@@ -10552,7 +10552,8 @@
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
       "backends": [
-        "NODE"
+        "NODE",
+        "WASM"
       ]
     },
     {

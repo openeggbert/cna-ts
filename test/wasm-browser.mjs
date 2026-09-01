@@ -80,6 +80,18 @@ const FIXTURES = new Map([
   ["SyntheticFont.xnb", compressedXnb(spriteFontXnb())],
 ]);
 
+/**
+ * The compiled effect the windowed Node suite draws with, served here so the browser is asked the
+ * same question with the same bytes. It lives in `cnanext`, so it is optional: without it the page
+ * records that it had no fixture rather than inventing one.
+ */
+const COMPILED_EFFECT = (() => {
+  const source = path.resolve(process.env.CNA_SOURCE_PATH ?? "../../cnanext");
+  const file = path.join(source, "modules/renderers/fna3d/effects/CnaConformanceEffect.fxb");
+  return fs.existsSync(file) ? fs.readFileSync(file) : null;
+})();
+if (COMPILED_EFFECT) FIXTURES.set("CnaConformanceEffect.fxb", COMPILED_EFFECT);
+
 function serve() {
   const server = http.createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
@@ -550,5 +562,57 @@ test("the WebAssembly backend runs 600 real browser frames without drift", { ski
   assert.ok(result.updates >= 600, `expected at least 600 updates, saw ${result.updates}`);
   assert.equal(result.disposed, true);
   assert.deepEqual(result.errors, []);
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("the browser artifact is asked whether it can run a compiled effect, and answers", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const compiled = result.compiledEffect;
+  assert.ok(compiled, "no compiled-effect evidence was produced");
+  if (compiled.fixture !== "present") {
+    // Only reachable without a `cnanext` checkout to take the bytes from. Said out loud rather
+    // than passed over, because a fixture that quietly went missing would look like a pass.
+    assert.equal(compiled.fixture, "absent");
+    console.log("CNA_TS_WASM_COMPILED_EFFECT=NO_FIXTURE");
+    return;
+  }
+
+  // Whichever way this artifact was built, the answer has to be one of exactly two, and both are
+  // asserted rather than tolerated. `refused` is what the current artifact does, because it is
+  // built with CNA_EASYGL_COMPILED_EFFECTS=OFF and CNA says so by name instead of quietly drawing
+  // with a stock shader. If a later artifact turns the option on, this test starts taking the
+  // other branch and the reflection assertions below become live -- which is the point of writing
+  // it this way rather than pinning today's refusal as the expected behaviour forever.
+  assert.ok(
+    compiled.outcome === "created" || compiled.outcome === "refused",
+    `unexpected outcome: ${JSON.stringify(compiled)}`,
+  );
+
+  if (compiled.outcome === "refused") {
+    // The refusal has to be CNA's, and it has to name the capability. This is the assertion the
+    // whole test exists for: before the route was registered the binding declined first, with its
+    // own message about a slice it had not implemented, and a browser consumer would have been
+    // told the wrong thing -- that cna-ts cannot do this, when what actually varies is whether
+    // their artifact was built with `CNA_EASYGL_COMPILED_EFFECTS`. Result 6 is NOT_SUPPORTED, and
+    // it is the same result and the same sentence the Node HEADLESS backend produces for the same
+    // bytes, which is the parity that matters here.
+    assert.equal(compiled.cnaResult, 6, `CNA's own NOT_SUPPORTED: ${compiled.error}`);
+    assert.match(
+      compiled.error, /GraphicsCapability::CompiledEffects is false/,
+      `the refusal names the capability rather than the binding: ${compiled.error}`,
+    );
+    console.log(`CNA_TS_WASM_COMPILED_EFFECT=REFUSED_BY_CNA capability=false`);
+  } else {
+    // The same fixture reflects six parameters and two techniques on the Node windowed build, so
+    // an artifact that accepts the bytes has to reflect the same graph -- this is where the Wasm
+    // half of the compiled-effect scenario would begin.
+    assert.equal(compiled.parameters, 6, "CnaConformanceEffect.fxb declares six parameters");
+    assert.equal(compiled.techniques, 2, "and two techniques");
+    console.log(
+      `CNA_TS_WASM_COMPILED_EFFECT=CREATED PARAMETERS=${compiled.parameters} ` +
+      `TECHNIQUES=${compiled.techniques}`,
+    );
+  }
   assert.deepEqual(consoleErrors, []);
 });

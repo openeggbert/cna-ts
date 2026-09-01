@@ -48,6 +48,37 @@ export class WasmEffectBackend extends CnaEffectBackendBase {
     return this.#routes.outHandle("cna_basic_effect_create", device);
   }
 
+  /**
+   * A compiled `.fxb`, handed straight to CNA.
+   *
+   * This slice covers `BasicEffect` and refuses the other stock effects by name, so a compiled
+   * effect looks at first like something it should refuse too. It is not the same case. The stock
+   * refusals are about routes this backend does not implement; a compiled effect is about a
+   * *runtime* the artifact may or may not have been built with, and only the artifact can answer
+   * that. CNA builds the compiled-effect runtime into the EasyGL family -- `WEBGL2` included --
+   * when `CNA_EASYGL_COMPILED_EFFECTS` is on, reports the answer through
+   * `CNA_GRAPHICS_CAPABILITY_COMPILED_EFFECTS`, and refuses the bytes with a named
+   * `NOT_SUPPORTED` when it is off rather than drawing with a stock shader instead.
+   *
+   * Refusing here would have made that unanswerable: the binding would decline before CNA was
+   * consulted, and a browser consumer would be told the *binding* has no route when what actually
+   * varies is how their artifact was built. So the bytes go through, and whatever comes back is
+   * CNA's own answer for the artifact in front of it.
+   */
+  public override createEffectCompiled(device: NativeHandle, bytes: Uint8Array): NativeHandle {
+    const scope = this.#routes.scope();
+    try {
+      const payload = scope.allocateBytes(bytes);
+      const out = scope.allocate(8);
+      this.#routes.invoke(
+        "cna_effect_create_compiled", device, payload, BigInt(bytes.byteLength), out,
+      );
+      return this.#routes.view().getBigUint64(out, true);
+    } finally {
+      scope.dispose();
+    }
+  }
+
   public override applyEffect(effect: NativeHandle): void {
     this.#routes.invoke("cna_effect_apply", effect);
   }
