@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "generatedFrom": "tools/runtime-capabilities/source.json",
   "profile": "XNA 4.0 Windows runtime",
-  "environment": "Linux x86-64 Node with CNA ABI 0.21.0 HEADLESS renderer and NULL audio, plus headless Chromium with the CNA ABI 0.21.0 WEBGL2 WebAssembly artifact",
+  "environment": "Linux x86-64 Node with CNA ABI 0.21.0 HEADLESS renderer and NULL audio, plus headless Chromium with the CNA ABI 0.21.0 WEBGL2 WebAssembly artifact -- in two builds, the default one and one built with CNA_EASYGL_COMPILED_EFFECTS=ON and CNA_CNAEXT=ON, whose rows say which",
   "granularity": "Each row is a reviewed operation family; overloads with the same implementation and evidence share a row.",
   "sourceAudit": {
     "root": "src/Microsoft/Xna/Framework",
@@ -14,7 +14,7 @@
   "counts": {
     "VERIFIED_MANAGED": 22,
     "VERIFIED_NATIVE": 120,
-    "VERIFIED_WEBASSEMBLY": 14,
+    "VERIFIED_WEBASSEMBLY": 16,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 1,
     "UPSTREAM_CNA_BLOCKED": 5,
     "FIXTURE_PENDING": 2,
@@ -2320,6 +2320,21 @@
       ]
     },
     {
+      "operation": "CNA's extended graphics layer over WebAssembly: the fullscreen blit and colour grading",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "Available only on an artifact built with CNA_CNAEXT=ON; the default artifact compiles the layer out, cna_graphics_ext_is_available answers false, and every route answers CNA_RESULT_NOT_SUPPORTED. One family of the layer's 857 routes is bound and the rest of the 603-member interface refuses by name. On a strong artifact, headless Chromium on WebGL2 parses a size-2 .cube whose transfer is the channel rotation (r,g,b) -> (b,r,g), reads all eight entries back out of CNA, builds it as a 4x2 strip and a 2x2x2 volume, and grades a 4x4 gradient through both -- every texel predicted arithmetically rather than recorded, with the blit as the identity control and half/zero strength as the lerp endpoints.",
+      "proof": [
+        "wasmRoute:cna_fullscreen_pass_draw",
+        "wasmRoute:cna_post_process_pass_apply",
+        "wasmRoute:cna_color_grade_pass_create",
+        "wasmRoute:cna_color_grade_pass_set_lut",
+        "wasmRoute:cna_cube_lut_parse",
+        "wasmRoute:cna_cube_lut_create_volume_texture",
+        "test:test/wasm-browser-strong.mjs"
+      ]
+    },
+    {
       "operation": "CNB curves and animation clips in a browser",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "cna-ts/extensions/content",
@@ -2381,6 +2396,22 @@
         "wasmRoute:cna_cnb_byte_writer_copy_bytes",
         "wasmRoute:cna_cnb_writer_get_limits",
         "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "Compiled XNA Effect reflection, native parameter write-through, technique selection and rendered pixels, over WebAssembly",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "Available only on an artifact built with CNA_EASYGL_COMPILED_EFFECTS=ON; the default artifact answers CNA_RESULT_NOT_SUPPORTED naming GraphicsCapability::CompiledEffects, and the browser suite asserts that refusal instead. On a strong artifact, headless Chromium on WebGL2 loads CnaConformanceEffect.fxb through the ordinary XNA Effect constructor, reflects its six parameters with their classes, types and array/struct shape, writes values that CNA reads back, selects both techniques, and draws texels matching arithmetic computed from CNA's own shipped HLSL to within a byte -- the same scenario and the same expectation the windowed OPENGLES3 suite is held to. Fourteen planted defects die on it.",
+      "proof": [
+        "wasmRoute:cna_effect_create_compiled",
+        "wasmRoute:cna_effect_get_parameters",
+        "wasmRoute:cna_effect_parameter_get_info",
+        "wasmRoute:cna_effect_parameter_set_value",
+        "wasmRoute:cna_effect_parameter_set_values",
+        "wasmRoute:cna_effect_set_current_technique",
+        "wasmRoute:cna_graphics_device_draw_user_primitives",
+        "test:test/wasm-browser-strong.mjs"
       ]
     },
     {

@@ -22,14 +22,15 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=247
+WASM_BACKEND_ROUTES=417
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 247 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 417 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
-artifact's loader before a browser is started.
+artifact's loader before a browser is started. The count is accounting, not the capability: what a
+browser consumer can now do is the subject of the sections below.
 
 `npm run test:wasm-browser` serves `dist/` and the artifact over HTTP, drives an ordinary XNA `Game`
 from `requestAnimationFrame`, and asserts the frame, update and draw counts, the texture the game
@@ -226,6 +227,54 @@ WASM_BYTES=18958610
 BINDING_LINK_OVERRIDES=0
 ```
 
+### Two optional CNA runtimes, and what turning them on is worth
+
+Two CMake options are off by default, each because it pulls something the renderer does not
+otherwise need, and each one gates a capability this binding can already reach. Adding both to the
+recipe above produces a second artifact:
+
+```sh
+emcmake cmake -S . -B cmake-build-tswasm-fx -G Ninja \
+  ...the same settings, plus... \
+  -DCNA_EASYGL_COMPILED_EFFECTS=ON \
+  -DCNA_CNAEXT=ON \
+  -DFETCHCONTENT_SOURCE_DIR_FNA3D=~/deps/FNA3D
+cmake --build cmake-build-tswasm-fx --target cna_c_api_wasm
+```
+
+`CNA_EASYGL_COMPILED_EFFECTS` fetches MojoShader through FNA3D, which is why the recipe points at a
+shared checkout rather than cloning one per build. Measured, against `cnanext` 7712534d:
+
+```text
+EMCC=6.0.3
+CNA_GRAPHICS_RENDERER=WEBGL2   CNA_EASYGL_COMPILED_EFFECTS=ON   CNA_CNAEXT=ON
+MODULE_SHA256=bbe0a94a8e50ddb4ea89b803cac74a901170990ea7ae79bf36d944359a83e22f
+WASM_SHA256=419475e19391c4bdb8dfd443e308b8dc107fcc100c5f66a8adaaf32f6580b756
+WASM_BYTES=24398416
+BINDING_LINK_OVERRIDES=0
+```
+
+**Neither artifact is the other's replacement, and the binding answers truthfully for both.** The
+same public API, the same bytes, two different answers -- and both of them CNA's:
+
+| asked of the running artifact | default | with both options |
+| --- | --- | --- |
+| `cna_graphics_ext_is_available` | `false` | `true` |
+| `cna_instanced_renderer_ext_get_instance_stride` | `NOT_SUPPORTED` | `SUCCESS`, stride 64 |
+| `new Effect(device, fxb)` | `NOT_SUPPORTED`, naming `GraphicsCapability::CompiledEffects` | a live effect, six parameters, two techniques |
+| `new FullscreenPass(device)` | `NOT_SUPPORTED` | a pass that blits |
+
+`npm run test:wasm-browser` runs against whichever artifact it is pointed at and asserts the
+consequences of *either* answer, so it is green on both and prints which one it measured
+(`CNA_TS_WASM_CNAEXT`, `CNA_TS_WASM_COMPILED_EFFECT`, `CNA_TS_WASM_ENGINE_LAYER`). That is the
+right shape for a suite a consumer runs and useless as a claim, because against the default
+artifact it takes the refusal branch and proves nothing about either capability. The claim lives in
+`npm run test:wasm-browser:strong:required`, which fails by name -- before a test registers -- on a
+missing artifact, on `cna_graphics_ext_is_available` false, on a refused compiled effect, on a
+missing fixture, and on a run in which nothing executed or anything skipped. Its refusals are
+exercised in `test/wasm-strong-gate.test.mjs`, one of them transcribed from a real default-artifact
+run.
+
 ## The two upstream gaps this backend measured, and their repair
 
 Both are **fixed in `cnanext` 599d14e5** and the fix is verified here against the artifact rather
@@ -354,23 +403,50 @@ struct to aggregates of both sizes, and to a `uint64_t` handle followed by one.
 
 ### What is not here, and why
 
-**The engine layer is absent from the artifact**, not merely unbound. The WebAssembly build sets
+**The engine layer is absent from the *default* artifact**, not merely unbound. That build sets
 `CNA_CNAEXT=OFF`, which compiles out `engine_layer.h`'s implementation and leaves the exported
-symbols as `ExtensionUnavailable()` stubs. Measured in a browser on WebGL2:
+symbols as `ExtensionUnavailable()` stubs. Measured on both artifacts, the same route:
 
 ```text
-cna_instanced_renderer_ext_get_instance_stride → 6   (CNA_RESULT_NOT_SUPPORTED)
-cna_instanced_renderer_ext_create              → 6
+cna_instanced_renderer_ext_get_instance_stride   default → 6 (NOT_SUPPORTED)
+                                                 -DCNA_CNAEXT=ON → 0, stride 64
 ```
 
-against `0` and a stride of `64` on the Node artifact. So the instanced renderer, LOD selection and
-every post-process pass would answer `NOT_SUPPORTED` here however carefully they were bound — the
-routes exist, the layer behind them does not. Binding them would offer a browser consumer a
-capability that cannot work.
+So on the default artifact the instanced renderer, LOD selection and every post-process pass answer
+`NOT_SUPPORTED` however carefully they are bound. **On an artifact built with `-DCNA_CNAEXT=ON`
+they do not**, and until recently the binding was the thing standing in the way: the WebAssembly
+backend had no `GraphicsExtensions` object at all, so every public API in
+`cna-ts/extensions/graphics` failed with "CNA extended graphics requires a loaded backend" -- a
+statement about this package, when what varies is how the consumer built their artifact.
 
-The unblocker is external and specific: build `cna_c_api_wasm` with `-DCNA_CNAEXT=ON`. That is a
-change to the artifact a consumer builds, not to this package, which is why it is recorded here
-rather than worked around.
+There is now a slice: **the fullscreen blit and colour grading**, one family of the layer's 857
+routes. It was chosen because its output is exactly predictable rather than merely plausible. A
+size-2 `.cube` whose transfer is the channel rotation `(r,g,b) -> (b,r,g)` is linear in each
+channel, so trilinear interpolation of its eight corners reproduces it exactly -- which means every
+graded texel is arithmetic from the source rather than a number read off a run. Over a 4x4 gradient
+on WebGL2, all asserted:
+
+| draw | expectation |
+| --- | --- |
+| a straight blit | the source exactly -- the control the grades are read against |
+| the strip LUT at full strength | the rotation, within a byte |
+| the volume LUT at full strength | the rotation, and agreeing with the strip within a byte |
+| the strip LUT at half strength | exactly the midpoint of source and rotation |
+| zero strength, and no LUT at all | the source |
+
+with the table read back out of CNA before a pixel is drawn -- title, size, unit domain, all eight
+entries in order, a 4x2 strip and a 2x2x2 volume -- and the pass state a pixel cannot reach: its
+name, whether it is supported here, which table it holds through strip, volume, both and neither
+again, its interpolation and its strength.
+
+Everything else in the 603-member interface still refuses **by name** through
+`CnaGraphicsExtensionBackendBase`. The object being present rather than absent is the point: a
+route outside the slice names itself, and a route inside it gets CNA's own answer for the artifact
+in front of it, `NOT_SUPPORTED` included.
+
+`Texture3D` gains exactly the lifecycle of a volume LUT CNA hands out -- describe it, release it --
+and nothing else. This backend creates no 3D texture and uploads to none, and `createTexture3D`
+and the data transfers say so rather than guessing.
 
 **The other four stock effects** refuse by name. `BasicEffect` is what draws untextured and
 textured geometry, and each of the others needs its own dozen routes and its own evidence; a facade
@@ -388,7 +464,7 @@ While `createEffectCompiled` was absent from this slice, that question could not
 binding declined first, with its own message about a slice it had not implemented, and a consumer
 whose artifact *did* have the runtime would have been told the wrong thing. The route is now
 resolved and the bytes go through, so what comes back is CNA's own answer for the artifact in front
-of it. On the artifact this package qualifies against:
+of it. On the default artifact:
 
 ```text
 cna_effect_create_compiled failed with CNA result 6: The active graphics renderer does not
@@ -396,10 +472,35 @@ support compiled XNA/FNA Effect Framework bytecode (GraphicsCapability::Compiled
 ```
 
 which is the same result and the same sentence the Node HEADLESS backend gives for the same bytes.
-`test/wasm-browser.mjs` asserts that refusal and takes the other branch -- reflecting the fixture's
-six parameters and two techniques -- if an artifact ever answers differently, so the unblocker is
-recorded as a build option rather than pinned as permanent behaviour. The unblocker is external and
-specific: build `cna_c_api_wasm` with `-DCNA_EASYGL_COMPILED_EFFECTS=ON`.
+
+**On an artifact built with `-DCNA_EASYGL_COMPILED_EFFECTS=ON`, the same bytes through the same
+public constructor produce a working effect**, and the whole consumer scenario is available. This
+is the same scenario `test/effect-reflection.integration.mjs` runs against windowed OPENGLES3 --
+same fixture, same values, same techniques, same 8x8 target -- and the expectations are computed
+from CNA's own shipped HLSL rather than from `GetValue*`, which answers from managed state and
+would agree with its own setter whether or not a uniform ever moved.
+
+`SecondTechnique/P1` is `return Tint * Weights[1];` and samples nothing:
+
+| state | Tint | Weights[1] | predicted | measured on WebGL2 |
+| --- | --- | --- | --- | --- |
+| A | 0.8, 0.6, 0.4, 1.0 | 0.5 | 102, 76.5, 51, 127.5 | 102, 76, 51, 128 |
+| B | 0.2, 1.0, 0.8, 0.6 | 0.5 | 25.5, 127.5, 102, 76.5 | 25, 128, 102, 76 |
+| C | 0.2, 1.0, 0.8, 0.6 | 0.25 | 12.75, 63.75, 51, 38.25 | 13, 64, 51, 38 |
+
+A to B moves only `Tint`; B to C only `Weights[1]`. `FirstTechnique/P0` is a different program over
+identical parameter state -- it samples a white texel and scales by `Gain` and the `Lighting`
+struct -- so its disagreement with P1 is what makes `CurrentTechnique` selection evidence rather
+than an assumption, and `Lighting.Intensity` with `Lighting.Thresholds[0]` are a struct member and
+a struct array element only the pixels could prove. The one-byte tolerance is the same one the
+windowed suite uses, for the same reason: two rasterizers round a half differently, and every pair
+of states above differs by tens.
+
+Beside the pixels, the reflection itself: six parameters with their classes, types, row and column
+counts, `Weights` as a two-element array, `Lighting` as a struct with members, both techniques by
+name in declaration order -- and native write-through, read back through CNA rather than through
+this package's getters. Fourteen planted defects die on it
+(`tools/mutation-plans/compiled-effect-browser.json`).
 
 ### A defect this slice found in its own first test
 
