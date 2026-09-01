@@ -1,0 +1,111 @@
+{
+  "name": "particle systems in a browser: the simulation, the two growable structures, and the draw",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
+  "environment": "CNA_WASM_ARTIFACT_DIR must point at a CNA wasm artifact built with -DCNA_EASYGL_COMPILED_EFFECTS=ON -DCNA_CNAEXT=ON, and CNA_SOURCE_PATH at a cnanext checkout. This is the one engine family in this slice that gets its pixels in a browser -- it draws into a single bound target, so upstream finding 30 takes nothing from it -- and the mutants are aimed at the two things that carry it: the marshalling of CNA_Particle and CNA_ParticleEmitterSettings, which are three CNA_Vector4s and fourteen fields across two growable structures, and the draw's own arguments.",
+  "mutants": [
+    {
+      "id": "emitter-settings-not-initialised",
+      "why": "the growable settings structure zeroed rather than filled by CNA's own initializer, so struct_size is zero and CNA reads a structure of no size. The likeliest single mistake in this file, and the one a zero-filled buffer makes look harmless",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "      this.#routes.invoke(\"cna_particle_emitter_settings_init\", settings.pointer);\n      return body(settings);",
+      "replace": "      return body(settings);"
+    },
+    {
+      "id": "start-and-end-colour-exchanged",
+      "why": "two adjacent CNA_Vector4 fields written to each other's offsets. Both are colours, both are four floats, and a scenario whose start and end colours are equal -- which the drawing one's are -- would never see it",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "    this.#setVector4(settings, \"start_color\", values.StartColor);\n    this.#setVector4(settings, \"end_color\", values.EndColor);",
+      "replace": "    this.#setVector4(settings, \"start_color\", values.EndColor);\n    this.#setVector4(settings, \"end_color\", values.StartColor);"
+    },
+    {
+      "id": "start-and-end-size-exchanged",
+      "why": "the last two floats of the settings structure swapped. The drawing scenario sets them equal, so only the round-trip with every field distinct catches this",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "      .setF32(\"start_size\", values.StartSize)\n      .setF32(\"end_size\", values.EndSize);",
+      "replace": "      .setF32(\"start_size\", values.EndSize)\n      .setF32(\"end_size\", values.StartSize);"
+    },
+    {
+      "id": "particle-velocity-read-as-its-position",
+      "why": "two of the three CNA_Vector4s in a particle read from one offset. The position still moves under gravity, so a trajectory test that watched only the position would pass",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "      Position: this.#vector4(particle, \"position\"),\n      Velocity: this.#vector4(particle, \"velocity\"),",
+      "replace": "      Position: this.#vector4(particle, \"position\"),\n      Velocity: this.#vector4(particle, \"position\"),"
+    },
+    {
+      "id": "particle-state-never-written",
+      "why": "the age, lifetime, seed and respawn count dropped on the way in, so every stepped particle is aged zero with a lifetime of zero -- dead before it is stepped, and silently so",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "    this.#setVector4(particle, \"state\", values.State);",
+      "replace": "    void values.State;"
+    },
+    {
+      "id": "step-elapsed-and-index-exchanged",
+      "why": "the two trailing arguments of the pure step reversed, so every particle is stepped by its own index in seconds and told it is particle zero",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "        \"cna_particle_system_step\", buffer.pointer, Math.trunc(index),\n        settingsBuffer.pointer, elapsedSeconds,",
+      "replace": "        \"cna_particle_system_step\", buffer.pointer, Math.trunc(elapsedSeconds),\n        settingsBuffer.pointer, index,"
+    },
+    {
+      "id": "random-ignores-its-seed",
+      "why": "the generator always asked for seed zero, which answers a perfectly plausible unit fraction every time",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "    return this.#mem.float(\"cna_particle_system_random\", seed >>> 0);",
+      "replace": "    return this.#mem.float(\"cna_particle_system_random\", 0);"
+    },
+    {
+      "id": "draw-view-and-projection-exchanged",
+      "why": "the two matrices swapped in the draw. Both are matrices, both are accepted, and the particles still land somewhere on screen",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "        \"cna_particle_system_draw\", system, viewPointer, projectionPointer, texture,",
+      "replace": "        \"cna_particle_system_draw\", system, projectionPointer, viewPointer, texture,"
+    },
+    {
+      "id": "draw-ignores-its-texture",
+      "why": "the particle texture dropped, so CNA draws with its own default. The squares are still in the right places and the wrong colour, which only asserting the colour catches",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "        \"cna_particle_system_draw\", system, viewPointer, projectionPointer, texture,",
+      "replace": "        \"cna_particle_system_draw\", system, viewPointer, projectionPointer, 0n,"
+    },
+    {
+      "id": "update-elapsed-ignored",
+      "why": "the frame time dropped, so no particle ever ages. It survived the first run of this plan because Reset fills the pool: the counts, the positions and every texel are identical whether Update ran or not. The particles' own age is the only thing that can tell, and asserting it is what the mutant asked for",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "    this.#routes.invoke(\"cna_particle_system_update\", system, elapsedSeconds);",
+      "replace": "    this.#routes.invoke(\"cna_particle_system_update\", system, 0);"
+    },
+    {
+      "id": "capacity-and-active-count-exchanged",
+      "why": "two int32 getters wired to each other. A system whose capacity happens to equal its active count -- which a full one's does -- would never show it",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "  public override getParticleSystemActiveCount(system: NativeHandle): number {\n    return this.#mem.int(\"cna_particle_system_get_active_count\", system);\n  }",
+      "replace": "  public override getParticleSystemActiveCount(system: NativeHandle): number {\n    return this.#mem.int(\"cna_particle_system_get_capacity\", system);\n  }"
+    },
+    {
+      "id": "softness-floored-in-the-binding",
+      "why": "the binding flooring softness instead of letting CNA do it. Behaviourally identical to CNA's own floor, so this is here to find out whether the test can tell whose clamp it is -- and it cannot, which is the honest answer",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "    this.#routes.invoke(\"cna_particle_system_set_softness_ext\", system, softness);",
+      "replace": "    this.#routes.invoke(\"cna_particle_system_set_softness_ext\", system, Math.max(0, softness));"
+    },
+    {
+      "id": "depth-input-far-plane-dropped",
+      "why": "the far plane the stored depth was normalised by replaced with zero, which is how CNA decides there is no usable depth at all. Invisible while finding 12 holds -- the fade changes nothing either way -- and it is recorded here so the day the fade works this is already planted",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "    this.#routes.invoke(\"cna_particle_system_set_depth_input_ext\", system, depth, farPlane);",
+      "replace": "    this.#routes.invoke(\"cna_particle_system_set_depth_input_ext\", system, depth, 0);"
+    },
+    {
+      "id": "copy-particles-reads-at-a-vector3-stride",
+      "why": "the particle pool walked as if CNA_Particle were three CNA_Vector3s rather than three CNA_Vector4s -- 36 bytes instead of 48 -- so every particle after the first reads across a boundary and the positions stop agreeing with the emitter",
+      "file": "src/internal/wasm/particles.ts",
+      "find": "    const layout = WASM_STRUCT_LAYOUTS.CNA_Particle;\n    return this.#mem.probedArray(",
+      "replace": "    const layout = { ...WASM_STRUCT_LAYOUTS.CNA_Particle, size: 36 };\n    return this.#mem.probedArray("
+    }
+  ],
+  "expectedSurvivors": {
+    "softness-floored-in-the-binding": "EQUIVALENT -- CNA floors softness to the same zero, so flooring before the call and after it are the same behaviour.",
+    "depth-input-far-plane-dropped": "BLOCKED by upstream finding 12 -- the fade changes no texel whatever the far plane is, so nothing observes this. It is planted now so that the day the fade works this is already in the plan."
+  }
+}

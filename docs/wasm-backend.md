@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=663
+WASM_BACKEND_ROUTES=687
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 663 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 687 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
@@ -579,6 +579,47 @@ survivor was a real gap and is now killed: a transposed `CNA_Matrix` write reach
 the engine layer and nothing could read one back, so the engine layer and the effect backend were
 made to share one writer -- and the browser suite's existing world-matrix round-trip through
 `cna_effect_matrices_get_world` catches it.
+
+### Particles, which are the family a browser gets whole
+
+Particle systems draw into whatever single target is bound, so upstream finding 30 takes nothing
+from them: this is the one family in this slice whose pixels a browser gets rather than only its
+state. The scenario is the windowed suite's, run unchanged and asserted through the same
+`test/support/particle-oracle.mjs` — every source of variance off and no speed at all, so each
+system paints one square where the camera puts its emitter, as wide as its particle size.
+
+The two backends land on the same texels:
+
+```text
+windowed OPENGLES3   NEAR=49px@80,48  FAR=156px@20,77  CAMERA_SHIFT=13px
+browser WEBGL2       NEAR=49px@80,48  FAR=156px@20,77  CAMERA_SHIFT=13px
+```
+
+Those numbers are the *camera's*: the view and projection are built in the test from `CreateLookAt`
+and `CreateOrthographic`, and the emitter positions and particle sizes are chosen there. A draw that
+ignored the view, the projection, the emitter position or the particle size lands somewhere the
+prediction cannot follow.
+
+A second half the windowed suite does not have: `ParticleMath.Random` and `ParticleMath.Step` are
+pure, so a trajectory is integrated forward here through CNA's own step and compared with the
+closed form for the same motion. Under gravity alone, twelve steps of 0.05 s at 9.8 fell exactly
+`g·dt²·n(n+1)/2` — semi-implicit Euler, measured rather than assumed — with the velocity linear and
+the age advancing by exactly one step each time. That is what says this backend's marshalling of
+`CNA_Particle` and `CNA_ParticleEmitterSettings` — three `CNA_Vector4`s and fourteen fields across
+two *growable* structures whose `struct_size` selects what CNA reads — agrees with what CNA reads
+out of the same memory. Both layouts are measured by `tools/wasm/generate-layout.mjs`, not written
+here.
+
+**Soft particles stay blocked, and are asserted as blocked.** Upstream finding 12: the depth input
+and the softness reach CNA, store, and read back, and the drawn picture is byte-identical with a
+depth image of zeros, with one of ones, and with none at all. The suite asserts that unchangedness
+rather than skipping it, so a repair fails and says so.
+
+Fourteen planted defects, twelve killed. The two survivors are equivalent or blocked — CNA floors
+softness to the same zero a binding-side floor would, and the depth input's far plane cannot matter
+while finding 12 holds. A third survivor was a real gap: dropping `Update`'s elapsed time changed no
+count, no position and no texel, because `Reset` fills the pool. The particles' own age is the only
+thing that can tell, and asserting it is what the mutant asked for.
 
 **And the chain, which is what makes the family usable.** A game applies several passes in order,
 so `PostProcessChain` is the API a consumer actually reaches for, and its pass order is what a

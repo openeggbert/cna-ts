@@ -727,6 +727,9 @@ try {
       // without a depth buffer asserted texel by texel.
       result.postProcess = this.#postProcessEvidence();
 
+      // --- particles: the one engine family here that gets its pixels in a browser -------------
+      result.particles = this.#particleEvidence();
+
       // --- the depth/normal prepass, and the decal projector that reads it -----------------------
       result.prepass = this.#prepassEvidence();
 
@@ -1890,6 +1893,305 @@ try {
         release();
       }
       return evidence;
+    }
+
+    /**
+     * Particle systems, in exactly the scenario the windowed suite runs, plus CNA's own simulation.
+     *
+     * The scenario and its expectations are `test/support/particle-oracle.mjs`, shared with
+     * `test/windowed-renderer.integration.mjs`: particles simulated on the CPU with every source of
+     * variance turned off and no speed at all, so each system paints one square where the camera
+     * puts its emitter, as wide as its particle size.
+     *
+     * This family is the one in this session that upstream finding 30 takes nothing from -- it
+     * draws into a single bound target -- so a browser gets the pixels rather than only the state.
+     *
+     * What is here and not in the windowed suite is the second half: `ParticleMath.Random`
+     * and `ParticleMath.Step` are pure, so a trajectory is integrated forward through CNA's
+     * own step function and compared with the closed form for the same motion. That is what says
+     * this backend's marshalling of `CNA_Particle` and `CNA_ParticleEmitterSettings` -- three
+     * `CNA_Vector4`s and fourteen fields across two growable structures -- reads and writes the
+     * same memory CNA does.
+     */
+    #particleEvidence() {
+      const device = this.GraphicsDevice;
+      const { ParticleMath, ParticleShaderSource, ParticleSystem } = PostProcess;
+      const SIZE = 128;
+      const CLEARED = new Color(12, 34, 56, 255);
+      const owned = [];
+      const release = () => {
+        for (const item of owned.reverse()) { try { item.Dispose(); } catch { /* reported */ } }
+      };
+      try {
+        owned.push(new ParticleSystem(device, 1));
+      } catch (error) {
+        release();
+        return {
+          layerAbsent: true,
+          cnaResult: error?.cnaResult ?? null,
+          error: `${error?.constructor?.name}: ${error?.message}`,
+        };
+      }
+      const result = { layerAbsent: false, size: SIZE };
+      try {
+        const emitter = (position, particleSize, emissionRate) => {
+          const system = new ParticleSystem(device, 32);
+          owned.push(system);
+          // The CPU path, so the same numbers come back on a renderer with compute and one without.
+          system.ForceSimulationOnCpu(true);
+          system.Settings = {
+            ...system.Settings,
+            Position: position,
+            Direction: new Vector3(0, 1, 0),
+            Gravity: Vector3.Zero,
+            StartColor: new Vector4(1, 1, 1, 1),
+            EndColor: new Vector4(1, 1, 1, 1),
+            ConeAngle: 0,
+            Speed: 0,
+            SpeedVariance: 0,
+            Lifetime: 100,
+            LifetimeVariance: 0,
+            Drag: 0,
+            EmissionRate: emissionRate,
+            StartSize: particleSize,
+            EndSize: particleSize,
+          };
+          system.Reset();
+          system.Update(0.5);
+          return system;
+        };
+        // What one frame of simulation actually did, which nothing else here would notice: a
+        // system whose pool is filled by Reset draws the same picture whether or not Update ever
+        // ran, so the elapsed time has to be read out of the particles themselves.
+        const aged = new ParticleSystem(device, 8);
+        owned.push(aged);
+        aged.ForceSimulationOnCpu(true);
+        aged.Settings = {
+          ...aged.Settings,
+          Position: Vector3.Zero, Direction: new Vector3(0, 1, 0), Gravity: Vector3.Zero,
+          ConeAngle: 0, Speed: 0, SpeedVariance: 0, Lifetime: 100, LifetimeVariance: 0,
+          Drag: 0, EmissionRate: 40, StartSize: 1, EndSize: 1,
+        };
+        aged.Reset();
+        const ageOf = (system) => system.ToArray().map((p) => p.State.X);
+        result.ageing = { afterReset: ageOf(aged), countAfterReset: aged.ActiveCount };
+        aged.Update(0.25);
+        result.ageing.afterOneUpdate = ageOf(aged);
+        aged.Update(0.25);
+        result.ageing.afterTwoUpdates = ageOf(aged);
+        result.ageing.countAfterUpdates = aged.ActiveCount;
+        const NEAR = { Position: new Vector3(3, 2, -4), Size: 1 };
+        const FAR = { Position: new Vector3(-6, -3, 0), Size: 2 };
+        const near = emitter(NEAR.Position, NEAR.Size, 40);
+        const far = emitter(FAR.Position, FAR.Size, 40);
+        const idle = emitter(new Vector3(0, 0, 0), 1, 0);
+
+        const settings = near.Settings;
+        result.near = { ...NEAR, position: [NEAR.Position.X, NEAR.Position.Y, NEAR.Position.Z] };
+        result.far = { ...FAR, position: [FAR.Position.X, FAR.Position.Y, FAR.Position.Z] };
+        result.settings = {
+          position: [settings.Position.X, settings.Position.Y, settings.Position.Z],
+          speed: settings.Speed, coneAngle: settings.ConeAngle, startSize: settings.StartSize,
+        };
+        result.counts = { near: near.ActiveCount, far: far.ActiveCount, idle: idle.ActiveCount };
+        result.nearPositions = [...new Set(
+          near.ToArray().map((p) => `${p.Position.X},${p.Position.Y},${p.Position.Z}`),
+        )];
+        result.defaultCapacity = (() => {
+          const system = ParticleSystem.AtDefaultCapacity(device);
+          try { return system.Capacity; } finally { system.Dispose(); }
+        })();
+        result.bindingPoint = ParticleShaderSource.BindingPoint;
+        result.glsl = ParticleShaderSource.Glsl;
+        result.softness = (() => {
+          const before = near.Softness;
+          near.Softness = 2.5;
+          const set = near.Softness;
+          near.Softness = -3;
+          return { before, set, floored: near.Softness };
+        })();
+
+        const target = new Graphics.RenderTarget2D(device, SIZE, SIZE);
+        owned.push(target);
+        const texture = new Graphics.Texture2D(device, 2, 2);
+        owned.push(texture);
+        texture.SetData([Color.Red, Color.Red, Color.Red, Color.Red]);
+        result.particleColor = Color.Red.PackedValue;
+        result.clearedColor = CLEARED.PackedValue;
+
+        const projection = Matrix.CreateOrthographic(20, 20, 0.1, 100);
+        const pixels = new Array(SIZE * SIZE);
+        // Connected regions of non-cleared texels, so two emitters are two findings rather than
+        // one bounding box around both.
+        const blobs = (view, systems) => {
+          device.SetRenderTarget(target);
+          try {
+            device.Clear(CLEARED);
+            for (const system of systems) system.Draw(view, projection, texture);
+          } finally {
+            device.SetRenderTarget(null);
+          }
+          target.GetData(pixels);
+          const found = [];
+          const visited = new Uint8Array(SIZE * SIZE);
+          const painted = (index) => pixels[index].PackedValue !== CLEARED.PackedValue;
+          for (let index = 0; index < SIZE * SIZE; index += 1) {
+            if (visited[index] || !painted(index)) continue;
+            const stack = [index];
+            visited[index] = 1;
+            let count = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            const colours = new Set();
+            while (stack.length > 0) {
+              const at = stack.pop();
+              const x = at % SIZE, y = Math.floor(at / SIZE);
+              count += 1;
+              colours.add(pixels[at].PackedValue);
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+              for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE) continue;
+                const next = ny * SIZE + nx;
+                if (!visited[next] && painted(next)) {
+                  visited[next] = 1;
+                  stack.push(next);
+                }
+              }
+            }
+            found.push({ count, minX, maxX, minY, maxY, colours: [...colours] });
+          }
+          return found.sort((left, right) => left.minX - right.minX);
+        };
+
+        const straightOn = Matrix.CreateLookAt(new Vector3(0, 0, 20), Vector3.Zero, Vector3.Up);
+        const CAMERA_SHIFT = 2;
+        const shifted = Matrix.CreateLookAt(
+          new Vector3(CAMERA_SHIFT, 0, 20), new Vector3(CAMERA_SHIFT, 0, 0), Vector3.Up,
+        );
+        result.projection = matrixRow(projection);
+        result.straightOn = { view: matrixRow(straightOn), blobs: blobs(straightOn, [near, far]) };
+        result.idleOnly = blobs(straightOn, [idle]);
+        result.shifted = {
+          view: matrixRow(shifted), shift: CAMERA_SHIFT, blobs: blobs(shifted, [near, far]),
+        };
+        result.nearOnly = blobs(straightOn, [near]);
+        result.farOnly = blobs(straightOn, [far]);
+
+        // Upstream finding 12, asserted as it behaves rather than skipped: the depth input and the
+        // softness reach CNA, store, read back, and change no texel.
+        const gpu = new ParticleSystem(device, 8);
+        owned.push(gpu);
+        gpu.Settings = { ...near.Settings, StartSize: 4, EndSize: 4, Position: Vector3.Zero };
+        gpu.Reset();
+        gpu.Update(0.5);
+        const depth = new Graphics.RenderTarget2D(device, SIZE, SIZE);
+        owned.push(depth);
+        device.SetRenderTarget(depth);
+        try {
+          device.Clear(new Color(0, 0, 0, 255));
+        } finally {
+          device.SetRenderTarget(null);
+        }
+        const fade = { usesCompute: gpu.UsesCompute, cpu: blobs(straightOn, [near]) };
+        fade.withoutDepth = blobs(straightOn, [gpu]);
+        gpu.Softness = 50;
+        fade.softness = gpu.Softness;
+        gpu.SetDepthInput(depth, 100);
+        fade.withNearDepth = blobs(straightOn, [gpu]);
+        gpu.SetDepthInput(null, 100);
+        fade.afterClearing = blobs(straightOn, [gpu]);
+        result.fade = fade;
+
+        const refusal = (body) => {
+          try { body(); return "ACCEPTED"; } catch (error) { return `${error.constructor.name}`; }
+        };
+        result.refusals = {
+          nullTexture: refusal(() => near.Draw(straightOn, projection, null)),
+          disposedTexture: refusal(() => {
+            const gone = new Graphics.Texture2D(device, 1, 1);
+            gone.Dispose();
+            near.Draw(straightOn, projection, gone);
+          }),
+          disposedSystem: refusal(() => {
+            const gone = new ParticleSystem(device, 1);
+            gone.Dispose();
+            gone.Draw(straightOn, projection, texture);
+          }),
+        };
+
+        // --- CNA's own simulation, as scalars ---------------------------------------------------
+        const v4 = (v) => [v.X, v.Y, v.Z, v.W];
+        const GRAVITY = 9.8, ELAPSED = 0.05, STEPS = 12;
+        const stepSettings = {
+          ...near.Settings,
+          Gravity: new Vector3(0, -GRAVITY, 0),
+          Drag: 0,
+          Speed: 0,
+          SpeedVariance: 0,
+          Lifetime: 1000,
+          LifetimeVariance: 0,
+        };
+        let particle = {
+          Position: new Vector4(1, 5, -2, 0),
+          Velocity: new Vector4(0, 0, 0, 0),
+          State: new Vector4(0, 1000, 7, 0),
+        };
+        const integrated = [{
+          Position: v4(particle.Position), Velocity: v4(particle.Velocity),
+          State: v4(particle.State),
+        }];
+        for (let step = 0; step < STEPS; step += 1) {
+          particle = ParticleMath.Step(particle, 0, stepSettings, ELAPSED);
+          integrated.push({
+            Position: v4(particle.Position), Velocity: v4(particle.Velocity),
+            State: v4(particle.State),
+          });
+        }
+        // Every field distinct, so a member read at a neighbour's offset comes back as a number
+        // that belongs to something else.
+        const roundTripSettings = {
+          Position: new Vector3(1.5, -2.25, 3.125),
+          Direction: new Vector3(0.25, 0.75, -0.5),
+          Gravity: new Vector3(-0.125, -4.5, 0.375),
+          StartColor: new Vector4(0.0625, 0.1875, 0.3125, 0.4375),
+          EndColor: new Vector4(0.5625, 0.6875, 0.8125, 0.9375),
+          ConeAngle: 0.28125, Speed: 12.5, SpeedVariance: 0.34375, Lifetime: 7.75,
+          LifetimeVariance: 0.40625, Drag: 0.046875, EmissionRate: 22.5,
+          StartSize: 1.375, EndSize: 2.625,
+        };
+        const roundTripSystem = new ParticleSystem(device, 4);
+        owned.push(roundTripSystem);
+        roundTripSystem.Settings = roundTripSettings;
+        const readBack = roundTripSystem.Settings;
+        const flatten = (s) => ({
+          Position: [s.Position.X, s.Position.Y, s.Position.Z],
+          Direction: [s.Direction.X, s.Direction.Y, s.Direction.Z],
+          Gravity: [s.Gravity.X, s.Gravity.Y, s.Gravity.Z],
+          StartColor: v4(s.StartColor), EndColor: v4(s.EndColor),
+          ConeAngle: s.ConeAngle, Speed: s.Speed, SpeedVariance: s.SpeedVariance,
+          Lifetime: s.Lifetime, LifetimeVariance: s.LifetimeVariance, Drag: s.Drag,
+          EmissionRate: s.EmissionRate, StartSize: s.StartSize, EndSize: s.EndSize,
+        });
+        result.simulation = {
+          random: [0, 1, 2, 7, 12345, 0xffffffff].map((seed) => [seed, ParticleMath.Random(seed)]),
+          defaultParticle: (() => {
+            const p = ParticleMath.DefaultParticle();
+            return { Position: v4(p.Position), Velocity: v4(p.Velocity), State: v4(p.State) };
+          })(),
+          trajectory: { integrated, gravity: GRAVITY, elapsed: ELAPSED, steps: STEPS },
+          settingsRoundTrip: {
+            written: flatten(roundTripSettings), read: flatten(readBack),
+          },
+        };
+      } catch (error) {
+        result.evidenceError = `${error?.constructor?.name}: ${error?.message}`;
+        result.evidenceStack = String(error?.stack ?? "");
+      } finally {
+        release();
+      }
+      return result;
     }
 
     #colourGradeEvidence() {

@@ -615,6 +615,29 @@
       "part",
       "max_distance",
       "reserved0"
+    ],
+    "CNA_Particle": [
+      "position",
+      "velocity",
+      "state"
+    ],
+    "CNA_ParticleEmitterSettings": [
+      "struct_size",
+      "struct_version",
+      "position",
+      "direction",
+      "gravity",
+      "start_color",
+      "end_color",
+      "cone_angle",
+      "speed",
+      "speed_variance",
+      "lifetime",
+      "lifetime_variance",
+      "drag",
+      "emission_rate",
+      "start_size",
+      "end_size"
     ]
   },
   "callbacks": {

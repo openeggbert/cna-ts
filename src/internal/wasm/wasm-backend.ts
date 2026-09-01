@@ -22,6 +22,7 @@ import type {
   CnaDecalBackend,
   CnaDepthNormalPrepassBackend,
   CnaLodBackend,
+  CnaParticleBackend,
   CnaShadowBackend,
   CnaGraphicsExtensionBackend,
   CnaRuntimeServicesBackend,
@@ -84,6 +85,7 @@ import { WasmComputeBackend } from "./compute.js";
 import { WasmGraphicsExtensionBackend } from "./graphics-ext.js";
 import { WasmLodBackend } from "./lod.js";
 import { WasmDecalBackend } from "./decals.js";
+import { WasmParticleBackend } from "./particles.js";
 import { WasmDepthNormalPrepassBackend } from "./prepass.js";
 import { WasmShadowBackend } from "./shadows.js";
 
@@ -760,6 +762,30 @@ const ROUTES = [
   "cna_depth_normal_prepass_set_velocity_enabled_ext",
   "cna_depth_normal_prepass_unpack_depth",
   "cna_depth_normal_prepass_uses_packed_depth_ext",
+  "cna_particle_emitter_settings_init",
+  "cna_particle_init",
+  "cna_particle_system_copy_particle_lookup_glsl",
+  "cna_particle_system_copy_particles_ext",
+  "cna_particle_system_copy_unsupported_reason",
+  "cna_particle_system_create",
+  "cna_particle_system_create_with_capacity",
+  "cna_particle_system_destroy",
+  "cna_particle_system_draw",
+  "cna_particle_system_get_active_count",
+  "cna_particle_system_get_capacity",
+  "cna_particle_system_get_settings",
+  "cna_particle_system_get_softness_ext",
+  "cna_particle_system_is_emission_rate_clamped",
+  "cna_particle_system_is_simulation_on_cpu_ext",
+  "cna_particle_system_random",
+  "cna_particle_system_reset",
+  "cna_particle_system_set_depth_input_ext",
+  "cna_particle_system_set_settings",
+  "cna_particle_system_set_simulation_on_cpu_ext",
+  "cna_particle_system_set_softness_ext",
+  "cna_particle_system_step",
+  "cna_particle_system_update",
+  "cna_particle_system_uses_compute",
 ] as const;
 
 type RouteName = (typeof ROUTES)[number];
@@ -828,6 +854,11 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
    */
   public readonly Decals: CnaDecalBackend;
   /**
+   * Particle systems, which draw into whatever single target is bound and are therefore the one
+   * family here that upstream finding 30 takes nothing away from.
+   */
+  public readonly Particles: CnaParticleBackend;
+  /**
    * Level-of-detail selection, which is the one engine family here that is implemented *whole*
    * rather than sliced: every route of it is arithmetic over thresholds and touches no device.
    */
@@ -858,6 +889,7 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
     this.Shadows = new WasmShadowBackend(this.#routes);
     this.DepthNormalPrepass = new WasmDepthNormalPrepassBackend(this.#routes);
     this.Decals = new WasmDecalBackend(this.#routes);
+    this.Particles = new WasmParticleBackend(this.#routes);
     this.Lod = new WasmLodBackend(this.#routes);
     this.Audio = new WasmAudioBackend(
       this.#routes, () => this.#requireGame(), () => this.#requireGameLifetime(),

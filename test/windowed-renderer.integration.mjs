@@ -60,6 +60,7 @@ function matrixRow(matrix) {
 import * as extensionsModule from "../dist/extensions/index.js";
 import { CnaResult } from "../dist/internal/cna-results.js";
 import * as computeModule from "../dist/extensions/graphics/index.js";
+import { assertParticleEvidence } from "./support/particle-oracle.mjs";
 import {
   assertPackedDepthPrecision, assertPrepassOrderingCodes,
 } from "./support/prepass-decal-oracle.mjs";
@@ -589,6 +590,26 @@ class WindowedProbeGame extends Game {
           system.Update(0.5);
           return system;
         };
+        // What one frame of simulation actually did, which nothing else here would notice: a
+        // system whose pool is filled by Reset draws the same picture whether or not Update ever
+        // ran, so the elapsed time has to be read out of the particles themselves.
+        const aged = new ParticleSystem(device, 8);
+        owned.push(aged);
+        aged.ForceSimulationOnCpu(true);
+        aged.Settings = {
+          ...aged.Settings,
+          Position: Vector3.Zero, Direction: new Vector3(0, 1, 0), Gravity: Vector3.Zero,
+          ConeAngle: 0, Speed: 0, SpeedVariance: 0, Lifetime: 100, LifetimeVariance: 0,
+          Drag: 0, EmissionRate: 40, StartSize: 1, EndSize: 1,
+        };
+        aged.Reset();
+        const ageOf = (system) => system.ToArray().map((p) => p.State.X);
+        const ageing = { afterReset: ageOf(aged), countAfterReset: aged.ActiveCount };
+        aged.Update(0.25);
+        ageing.afterOneUpdate = ageOf(aged);
+        aged.Update(0.25);
+        ageing.afterTwoUpdates = ageOf(aged);
+        ageing.countAfterUpdates = aged.ActiveCount;
         // Asymmetric on both screen axes, different sizes, and neither at the origin.
         const NEAR = { Position: new Vector3(3, 2, -4), Size: 1 };
         const FAR = { Position: new Vector3(-6, -3, 0), Size: 2 };
@@ -599,6 +620,7 @@ class WindowedProbeGame extends Game {
         const settings = near.Settings;
         const result = {
           size: SIZE,
+          ageing,
           near: { ...NEAR, position: [NEAR.Position.X, NEAR.Position.Y, NEAR.Position.Z] },
           far: { ...FAR, position: [FAR.Position.X, FAR.Position.Y, FAR.Position.Z] },
           // The settings CNA holds, read back rather than remembered.
@@ -4276,150 +4298,13 @@ test("a windowed CNA renderer draws particles where the camera puts them", { ski
     return;
   }
 
-  // CNA's own default capacity, through the route that does not take one. The number is not
-  // written here twice: tools/cna-abi/contract.json compiles a _Static_assert that
-  // CNA_PARTICLE_SYSTEM_DEFAULT_CAPACITY is 1024 against CNA's headers.
-  assert.equal(particles.defaultCapacity, 1024);
-  // The binding point a particle vertex shader reads the pool at, agreeing with the GLSL CNA hands
-  // out for exactly that purpose -- a macro and a shader string, from two different routes.
-  assert.equal(particles.bindingPoint, 7);
-  assert.match(
-    particles.glsl, new RegExp(`binding\\s*=\\s*${particles.bindingPoint}\\b`),
-    "CNA's particle GLSL declares the binding point the API states",
-  );
-  assert.match(particles.glsl, /std430/, "and it is the storage-buffer layout the simulation uses");
-
-  // Softness is floored rather than refused, which is CNA's documented choice.
-  assert.equal(particles.softness.before, 0);
-  assert.equal(particles.softness.set, 2.5, "a softness round-trips");
-  assert.equal(particles.softness.floored, 0, "and a negative one reads back as zero");
-
-  // The scene, before anything is drawn: the settings CNA holds are the ones that were set, and
-  // every particle is standing exactly on the emitter, which is what makes the draw predictable.
-  assert.deepEqual(particles.settings.position, particles.near.position);
-  assert.deepEqual(
-    [particles.settings.speed, particles.settings.coneAngle], [0, 0],
-    "no speed and no cone: every particle stays where it was born",
-  );
-  assert.deepEqual(
-    particles.nearPositions, [particles.near.position.join(",")],
-    "all 32 particles are on the emitter, and none anywhere else",
-  );
-  assert.equal(particles.counts.near, 32);
-  assert.equal(particles.counts.far, 32);
-  assert.equal(particles.counts.idle, 0, "an emission rate of zero brings nothing to life");
-
-  /*
-   * The oracle: where the camera puts a world point, and how big a world-space size is there.
-   *
-   * The view and the projection are the test's own -- built from XNA's CreateLookAt and
-   * CreateOrthographic -- and the emitter positions and particle sizes are the test's too. What
-   * CNA supplies is the picture. So a draw that ignored the view, ignored the projection, ignored
-   * the emitter position, or ignored the particle size lands somewhere this cannot follow it.
-   */
-  const project = (view, projection, point) => {
-    const through = (m, [x, y, z, w]) => [0, 1, 2, 3].map((column) =>
-      m[column] * x + m[4 + column] * y + m[8 + column] * z + m[12 + column] * w);
-    const clip = through(projection, through(view, [...point, 1]));
-    return { X: clip[0] / clip[3], Y: clip[1] / clip[3] };
-  };
-  const expectBlob = (label, blob, view, emitter) => {
-    const ndc = project(view, particles.projection, emitter.position);
-    const centreX = (ndc.X * 0.5 + 0.5) * particles.size;
-    const centreY = (0.5 - ndc.Y * 0.5) * particles.size;
-    // A particle is a square that many world units across, and the orthographic width says how
-    // many texels a world unit is worth.
-    const worldPerNdc = particles.projection[0];
-    const halfWidth = (emitter.Size * 0.5) * worldPerNdc * 0.5 * particles.size;
-    assert.ok(halfWidth > 2, "the particle must be big enough for its extent to mean something");
-    for (const [name, got, want] of [
-      ["minX", blob.minX, centreX - halfWidth], ["maxX", blob.maxX, centreX + halfWidth],
-      ["minY", blob.minY, centreY - halfWidth], ["maxY", blob.maxY, centreY + halfWidth],
-    ]) {
-      assert.ok(
-        Math.abs(got - want) <= 1.5,
-        `${label} ${name}: painted ${got}, the camera predicts ${want.toFixed(2)}`,
-      );
-    }
-    // Solid, not an outline, and painted in the particle texture's colour alone.
-    const area = 4 * halfWidth * halfWidth;
-    assert.ok(
-      Math.abs(blob.count - area) / area < 0.2,
-      `${label} covers ${blob.count} texels; the predicted square is ${area.toFixed(0)}`,
-    );
-    assert.deepEqual(
-      blob.colours, [particles.particleColor],
-      `${label} is painted in the particle texture's colour and nothing else`,
-    );
-  };
-
-  assert.equal(particles.straightOn.blobs.length, 2, "two emitters paint two separate regions");
+  // Every expectation below is `test/support/particle-oracle.mjs`, which the browser suite
+  // applies to the same scenario. The camera's predictions, the two emitters, the empty
+  // system, the camera move and upstream finding 12's unchanged fade are one set of claims
+  // about one piece of CNA, so they live in one place rather than in two that can drift.
+  assertParticleEvidence(particles);
   const [farBlob, nearBlob] = particles.straightOn.blobs;
-  expectBlob("the far emitter", farBlob, particles.straightOn.view, particles.far);
-  expectBlob("the near emitter", nearBlob, particles.straightOn.view, particles.near);
-  // Different sizes, not one square drawn twice.
-  assert.ok(
-    farBlob.count > nearBlob.count * 2,
-    "a particle twice as wide covers about four times the area",
-  );
-
-  // Each system's blob is its own.
-  assert.equal(particles.nearOnly.length, 1);
-  assert.equal(particles.farOnly.length, 1);
-  assert.deepEqual(
-    [particles.nearOnly[0].minX, particles.nearOnly[0].minY], [nearBlob.minX, nearBlob.minY],
-    "drawing one system alone puts its square exactly where drawing both did",
-  );
-  assert.deepEqual(
-    [particles.farOnly[0].minX, particles.farOnly[0].minY], [farBlob.minX, farBlob.minY],
-  );
-
-  // A system with nothing alive draws nothing and does not fail -- CNA says so, and it does.
-  assert.deepEqual(particles.idleOnly, [], "an empty system paints no texel at all");
-
-  // Move the camera, and both squares move by what the new view predicts.
-  assert.equal(particles.shifted.blobs.length, 2);
-  expectBlob("the shifted far emitter", particles.shifted.blobs[0], particles.shifted.view, particles.far);
-  expectBlob("the shifted near emitter", particles.shifted.blobs[1], particles.shifted.view, particles.near);
-  // And it really moved: a view the draw ignored would leave them where they were.
   const movedBy = particles.straightOn.blobs[0].minX - particles.shifted.blobs[0].minX;
-  assert.ok(
-    movedBy > 8,
-    `a ${particles.shifted.shift}-unit camera move must shift the picture, not leave it (moved ${movedBy})`,
-  );
-
-  /*
-   * Soft particles: `docs/upstream-cna-findings.md` item 12.
-   *
-   * The softness is set and reads back, the depth image says every pixel is at the camera, and the
-   * particle is drawn exactly as it was with no depth input at all. When CNA repairs the fade this
-   * fails, which is the point of asserting it.
-   */
-  const fade = particles.fade;
-  assert.equal(fade.softness, 50, "the softness CNA holds is the one that was set");
-  assert.equal(fade.withoutDepth.length, 1, "the system draws one square to begin with");
-  if (fade.usesCompute) {
-    // The GPU draw path really is the one running: it paints a different number of texels than the
-    // CPU billboard path does for the same particle. So a fade that does nothing is a fade that
-    // does nothing, not a quiet fallback to the path that never had one.
-    assert.notEqual(
-      fade.withoutDepth[0].count, fade.cpu[0].count,
-      "the GPU and CPU draw paths must be distinguishable for this measurement to mean anything",
-    );
-    assert.deepEqual(
-      fade.withNearDepth, fade.withoutDepth,
-      "UPSTREAM FINDING 12 REPAIRED: a depth image of zeros now changes the drawn particle. " +
-      "Update docs/upstream-cna-findings.md and assert the fade properly.",
-    );
-    assert.deepEqual(
-      fade.afterClearing, fade.withoutDepth, "and clearing the depth input changes nothing either",
-    );
-  }
-
-  // What the typed surface refuses before CNA ever sees it.
-  assert.equal(particles.refusals.nullTexture, "TypeError");
-  assert.equal(particles.refusals.disposedTexture, "ObjectDisposedException");
-  assert.equal(particles.refusals.disposedSystem, "NativeUnavailableError");
 
   console.log(
     `CNA_TS_WINDOWED_PARTICLES=OK NEAR=${nearBlob.count}px@${nearBlob.minX},${nearBlob.minY} ` +

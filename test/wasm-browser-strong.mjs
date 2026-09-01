@@ -37,6 +37,9 @@ import { after } from "node:test";
 import { browserBlocked, runFrames, WASM_DIR } from "./support/browser-harness.mjs";
 import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
 import { assertLodEvidence } from "./support/lod-oracle.mjs";
+import {
+  assertParticleEvidence, assertParticleSimulationOracle,
+} from "./support/particle-oracle.mjs";
 import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
 import {
   assertDecalState, assertPrepassMaths, assertPrepassState, multipleRenderTargetsDraw,
@@ -159,6 +162,31 @@ test("the rest of the post-process family runs, and CNA's own arithmetic checks 
     `CLAMPS=${Object.keys(postProcess.clamps).length} ` +
     `ASCII_GRIDS=${postProcess.ascii.colour.grid.join("x")},` +
     `${postProcess.ascii.collapsed.grid.join("x")},${postProcess.ascii.oblong.grid.join("x")}`,
+  );
+});
+
+test("particles draw where the camera puts them, and CNA's own step says where they went", () => {
+  const particles = evidence.result.particles;
+  assert.ok(particles, "no particle evidence was produced");
+  assert.equal(
+    particles.layerAbsent, false,
+    `the artifact reports CNAEXT available and then refused a ParticleSystem: ${particles.error}`,
+  );
+  // The same oracle, on the same scenario, that test/windowed-renderer.integration.mjs applies to
+  // the OPENGLES3 build: two emitters, one camera move, one empty system, and upstream finding 12's
+  // unchanged fade. This is the one engine family in this session whose pixels a browser gets --
+  // it draws into a single bound target, so finding 30 takes nothing from it.
+  assertParticleEvidence(particles);
+  // And the half the windowed suite does not have: CNA's own simulation, integrated forward here
+  // through its own pure step and compared with the closed form for the same motion.
+  assertParticleSimulationOracle(particles.simulation);
+  const [far, near] = particles.straightOn.blobs;
+  console.log(
+    `STRONG_WASM_PARTICLES=DRAWN NEAR=${near.count}px@${near.minX},${near.minY} ` +
+    `FAR=${far.count}px@${far.minX},${far.minY} ` +
+    `CAMERA_SHIFT=${particles.straightOn.blobs[0].minX - particles.shifted.blobs[0].minX}px ` +
+    `CAPACITY=${particles.defaultCapacity} STEPS=${particles.simulation.trajectory.steps} ` +
+    `SOFT_FADE=BLOCKED_UPSTREAM_FINDING_12`,
   );
 });
 

@@ -14,6 +14,9 @@ import test from "node:test";
 
 import { browserBlocked, runFrames } from "./support/browser-harness.mjs";
 import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
+import {
+  assertParticleEvidence, assertParticleSimulationOracle,
+} from "./support/particle-oracle.mjs";
 import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
 import {
   assertDecalState, assertPrepassMaths, assertPrepassState, multipleRenderTargetsDraw,
@@ -533,6 +536,27 @@ test("the rest of the post-process family answers, or says the layer is absent",
   console.log(
     `CNA_TS_WASM_POST_PROCESS=PRESENT PASSES=${Object.keys(postProcess.passes).length} ` +
     `SUPPORTED=${supported.length} ASCII_GRID=${postProcess.ascii.colour.grid.join("x")}`,
+  );
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("particles draw where the camera puts them, or say the layer is absent", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const particles = result.particles;
+  assert.ok(particles, "no particle evidence was produced");
+  assert.equal(typeof particles.layerAbsent, "boolean");
+  if (particles.layerAbsent) {
+    assert.equal(particles.cnaResult, 6, `CNA's own NOT_SUPPORTED: ${particles.error}`);
+    console.log("CNA_TS_WASM_PARTICLES=ABSENT_FROM_ARTIFACT");
+    assert.deepEqual(consoleErrors, []);
+    return;
+  }
+  assertParticleEvidence(particles);
+  assertParticleSimulationOracle(particles.simulation);
+  console.log(
+    `CNA_TS_WASM_PARTICLES=DRAWN BLOBS=${particles.straightOn.blobs.length} ` +
+    `ACTIVE=${particles.counts.near}`,
   );
   assert.deepEqual(consoleErrors, []);
 });
