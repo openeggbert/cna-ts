@@ -1,0 +1,43 @@
+{
+  "name": "the windowed build's audio backend: enumeration, state machine and duration",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "xvfb-run -a node --test --test-name-pattern='capture devices|finding 28|playback state machine' test/windowed-renderer.integration.mjs",
+  "mutants": [
+    {
+      "id": "enumerate-no-microphones",
+      "why": "the enumeration answers empty, which is exactly what the stale HEADLESS row claimed",
+      "file": "src/internal/node-native-backend.ts",
+      "find": "    return Object.freeze(this.#bridge.getMicrophones(this.#game()).map((value) => Object.freeze(value)));",
+      "replace": "    void this.#bridge; return Object.freeze([]);"
+    },
+    {
+      "id": "drop-last-microphone",
+      "why": "FIXTURE-LIMITED, and expected to survive: how many capture devices this host has is only knowable from the routine under test, so a truncated enumeration is indistinguishable from a host with one fewer device. Killing it would need a second call to the same C route presented as an oracle, which would raise the score without adding evidence",
+      "file": "src/internal/node-native-backend.ts",
+      "find": "    return Object.freeze(this.#bridge.getMicrophones(this.#game()).map((value) => Object.freeze(value)));",
+      "replace": "    return Object.freeze(this.#bridge.getMicrophones(this.#game()).slice(0, -1).map((value) => Object.freeze(value)));"
+    },
+    {
+      "id": "buffer-duration-never-written",
+      "why": "the setter is a no-op, so every value looks accepted and finding 28's table collapses",
+      "file": "src/internal/node-native-backend.ts",
+      "find": "    this.#bridge.setMicrophoneBufferDurationTicks(this.#game(), index, ticks);",
+      "replace": "    void this.#bridge; void index; void ticks;"
+    },
+    {
+      "id": "playback-state-from-managed",
+      "why": "State is answered as Stopped without asking CNA, which is what the NULL backend does",
+      "file": "src/Microsoft/Xna/Framework/Audio/SoundEffectInstance.ts",
+      "find": "    return state.Backend.getSoundEffectInstanceInfo(state.Lifetime.Handle).State as SoundState;",
+      "replace": "    void state.Backend; return SoundState.Stopped;"
+    },
+    {
+      "id": "duration-scaled-wrong",
+      "why": "SoundEffect.Duration is off by a factor, so a predicted 200 ms would not be met",
+      "file": "src/internal/node-native-backend.ts",
+      "find": "    return this.#bridge.getSoundEffectDurationTicks(soundEffect);",
+      "replace": "    return this.#bridge.getSoundEffectDurationTicks(soundEffect) / 2n;"
+    }
+  ]
+}

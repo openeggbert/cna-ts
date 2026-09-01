@@ -29,6 +29,7 @@ import { after } from "node:test";
 import { requiredSuite } from "./support/required-suite.mjs";
 
 import {
+  Audio,
   BoundingBox,
   BoundingFrustum,
   Color,
@@ -38,6 +39,7 @@ import {
   LoadNodeNativeBackend,
   Matrix,
   Rectangle,
+  TimeSpan,
   Vector2,
   Vector3,
   Vector4,
@@ -79,6 +81,12 @@ if (!skip) {
     BridgeModule: path.resolve(process.env.CNA_NODE_BRIDGE ?? "build/cna_node_bridge.node"),
   });
 }
+
+/**
+ * The first microphone's buffer duration as it was before this process wrote to it. Each test
+ * builds its own Game, but the device is shared, so only the first probe sees the untouched value.
+ */
+let pristineBufferDurationMs = null;
 
 /** The exact colour the render target is cleared to; every channel distinct, none of them 0 or 255. */
 const CLEAR = new Color(12, 34, 56, 255);
@@ -3603,6 +3611,81 @@ void main() { FragColor = vec4(${colour}); }
       }
     });
 
+    // --- the audio backend, which is the other thing this artifact has and HEADLESS does not ----
+    //
+    // This build is `CNA_AUDIO_PLATFORM=SDL3`; the one the default qualification uses is `NULL`.
+    // Two capability rows said microphones enumerate as none and that playback "verifies state and
+    // lifetime only", and both were true of the NULL backend and of nothing else. Asked here, the
+    // same routes answer with real hardware and a real state machine.
+    record("microphones", () => Audio.Microphone.All.map((microphone) => ({
+      Name: microphone.Name,
+      SampleRate: microphone.SampleRate,
+      IsHeadset: microphone.IsHeadset,
+      State: microphone.State,
+      BufferDurationMs: microphone.BufferDuration.TotalMilliseconds,
+      SampleSizeFor100ms: microphone.GetSampleSizeInBytes(TimeSpan.FromMilliseconds(100)),
+    })));
+    record("defaultMicrophone", () => Audio.Microphone.Default?.Name ?? null);
+
+    // Upstream finding 28. Each value is offered to a microphone that has not been written to, and
+    // the answer recorded; the assertions below compare the whole table against XNA's own IL rather
+    // than against what CNA happens to do. Capture is deliberately never started: enumerating
+    // devices and configuring a buffer touch no audio, and opening a capture stream would record
+    // from this host's real microphone.
+    record("bufferDurationRange", () => {
+      const microphone = Audio.Microphone.All[0];
+      if (!microphone) return null;
+      // The buffer duration is device state for the process, not for this Game, and the sweep
+      // below cannot put it back: the value it started at is the one value the setter refuses,
+      // which is the finding. So the pristine reading is taken once, before anything writes.
+      pristineBufferDurationMs ??= microphone.BufferDuration.TotalMilliseconds;
+      const initial = pristineBufferDurationMs;
+      const rows = [50, 90, 100, 500, 990, 1000, 1100, 1500, 2500, 60000].map((milliseconds) => {
+        try {
+          microphone.BufferDuration = TimeSpan.FromMilliseconds(milliseconds);
+          return [milliseconds, "accepted", microphone.BufferDuration.TotalMilliseconds];
+        } catch (error) {
+          return [milliseconds, error.constructor.name, null];
+        }
+      });
+      return { initial, rows };
+    });
+
+    // The playback state machine. On NULL audio every one of these answers Stopped, so the
+    // transitions are the part that only a real audio backend can produce. The fixture is a square
+    // wave whose duration is arithmetic -- 4410 frames at 22050 Hz is exactly 200 ms -- so the
+    // duration below is predicted rather than read back.
+    record("soundEffect", () => {
+      const frames = 4410;
+      const bytes = new Array(frames * 2);
+      for (let index = 0; index < frames; index += 1) {
+        const sample = (index % 100) < 50 ? 8000 : -8000;
+        bytes[index * 2] = sample & 0xff;
+        bytes[index * 2 + 1] = (sample >> 8) & 0xff;
+      }
+      const effect = new Audio.SoundEffect(bytes, 22050, Audio.AudioChannels.Mono);
+      const instance = effect.CreateInstance();
+      try {
+        const states = { initial: instance.State };
+        instance.Play(); states.playing = instance.State;
+        instance.Pause(); states.paused = instance.State;
+        instance.Resume(); states.resumed = instance.State;
+        instance.Stop(); states.stopped = instance.State;
+        instance.Volume = 0.5;
+        instance.Pitch = -0.25;
+        instance.Pan = 0.75;
+        return {
+          states,
+          durationMs: effect.Duration.TotalMilliseconds,
+          frames, sampleRate: 22050,
+          Volume: instance.Volume, Pitch: instance.Pitch, Pan: instance.Pan,
+        };
+      } finally {
+        instance.Dispose();
+        effect.Dispose();
+      }
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -6943,4 +7026,143 @@ test("a physical window raises ClientSizeChanged, and stops when unsubscribed", 
     "the second resize happened too, so the absence of a second event is unsubscription rather " +
     "than a resize that never occurred",
   );
+});
+
+test("a windowed CNA build enumerates the host's real capture devices", { skip }, async () => {
+  const game = new WindowedProbeGame(2);
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  // The capability row this replaces said "HEADLESS enumerates zero microphones", which was true
+  // and was about the NULL audio backend rather than about CNA. This artifact is SDL3 audio, and
+  // the same routes answer with the devices attached to the machine.
+  const microphones = evidence.microphones;
+  assert.ok(Array.isArray(microphones), `microphone enumeration failed: ${microphones}`);
+  assert.ok(
+    microphones.length > 0,
+    "an SDL3 audio build enumerates the host's capture devices; zero here means either this host " +
+    "genuinely has none attached or the enumeration route regressed, and the two are worth telling " +
+    "apart before this assertion is relaxed",
+  );
+  for (const microphone of microphones) {
+    assert.equal(typeof microphone.Name, "string");
+    assert.ok(microphone.Name.length > 0, "each device carries the name the host gave it");
+    assert.ok(microphone.SampleRate > 0, `a real sample rate: ${microphone.SampleRate}`);
+    assert.equal(typeof microphone.IsHeadset, "boolean");
+    // XNA's MicrophoneState: Started = 0, Stopped = 1. Nothing here starts a capture.
+    assert.equal(microphone.State, Audio.MicrophoneState.Stopped, "no capture was started");
+    // GetSampleSizeInBytes is arithmetic on the rate: 100 ms of 16-bit mono, rounded down to a
+    // whole block. Asserted against the rate the device reported rather than a constant.
+    const expected = Math.floor(microphone.SampleRate * 0.1) * 2;
+    assert.ok(
+      Math.abs(microphone.SampleSizeFor100ms - expected) <= 2 * 2,
+      `100 ms at ${microphone.SampleRate} Hz is about ${expected} bytes, got ` +
+      `${microphone.SampleSizeFor100ms}`,
+    );
+  }
+  // Every device is distinct and the default is one of them. This is as far as an assertion can
+  // go here: how many capture devices this host has is only knowable from the routine under test,
+  // so an enumeration that dropped its LAST device is indistinguishable from a host with one
+  // fewer -- a planted truncation survives this test, and is recorded as surviving rather than
+  // answered with a second call to the same C route dressed up as an oracle.
+  const names = microphones.map((microphone) => microphone.Name);
+  assert.equal(new Set(names).size, names.length, "no device is enumerated twice");
+  assert.equal(
+    typeof evidence.defaultMicrophone, "string",
+    "one of them is the default device",
+  );
+  assert.ok(
+    names.includes(evidence.defaultMicrophone),
+    `the default device is one of the enumerated ones: ${evidence.defaultMicrophone} in ${names}`,
+  );
+  console.log(`CNA_TS_MICROPHONES=${microphones.length} DEFAULT=${evidence.defaultMicrophone}`);
+});
+
+test("Microphone.BufferDuration refuses its own default -- upstream finding 28", { skip }, async () => {
+  const game = new WindowedProbeGame(2);
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const measured = evidence.bufferDurationRange;
+  assert.equal(typeof measured, "object", `the probe failed: ${measured}`);
+  const verdict = new Map(measured.rows.map((row) => [row[0], row[1]]));
+
+  // XNA's contract, transcribed from Microphone::set_BufferDuration in Microsoft.Xna.Framework.dll:
+  // `blt 100.` and `bgt 1000.` on get_TotalMilliseconds, then a 10 ms modulus. Both comparisons are
+  // strict, so the range is [100, 1000] with both endpoints legal.
+  const xnaAccepts = (milliseconds) =>
+    milliseconds >= 100 && milliseconds <= 1000 && milliseconds % 10 === 0;
+
+  // Where the two agree, they are asserted to agree.
+  for (const milliseconds of [50, 90, 100, 500, 990, 60000]) {
+    assert.equal(
+      verdict.get(milliseconds) === "accepted", xnaAccepts(milliseconds),
+      `${milliseconds} ms: CNA and XNA agree here`,
+    );
+  }
+
+  // Where they differ, the difference is asserted rather than tolerated, so a repair fails here.
+  // CNA reads TimeSpan's sub-second component where XNA reads the total, so 1000 ms arrives as 0.
+  assert.equal(
+    verdict.get(1000), "Error",
+    "CNA refuses 1000 ms, which XNA accepts -- when this starts passing, finding 28 is fixed",
+  );
+  assert.equal(
+    measured.initial, 1000,
+    "and 1000 ms is the value the property reports before anything writes it, so reading the " +
+    "property and assigning it straight back cannot complete",
+  );
+  for (const milliseconds of [1100, 1500, 2500]) {
+    assert.equal(
+      verdict.get(milliseconds), "accepted",
+      `CNA accepts ${milliseconds} ms, which XNA refuses as above ${1000}`,
+    );
+    assert.equal(xnaAccepts(milliseconds), false, "and XNA's own IL refuses it");
+  }
+  // 60000 ms is refused by both, but only by coincidence: its sub-second component is zero, which
+  // fails the lower bound rather than the upper one. Recorded so the agreement above is not read
+  // as evidence that the upper bound works.
+  assert.equal(verdict.get(60000), "Error");
+});
+
+test("a real audio backend runs the playback state machine, not just its lifetime", { skip }, async () => {
+  const game = new WindowedProbeGame(2);
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const sound = evidence.soundEffect;
+  assert.equal(typeof sound, "object", `the probe failed: ${sound}`);
+
+  // On the NULL audio backend every one of these is Stopped, which is what "verifies state and
+  // lifetime only" meant. Four distinct transitions is the evidence a real mixer is behind them.
+  assert.deepEqual(
+    sound.states,
+    {
+      initial: Audio.SoundState.Stopped,
+      playing: Audio.SoundState.Playing,
+      paused: Audio.SoundState.Paused,
+      resumed: Audio.SoundState.Playing,
+      stopped: Audio.SoundState.Stopped,
+    },
+    "Play, Pause, Resume and Stop each move the instance to their own state",
+  );
+
+  // Duration is arithmetic on the fixture, not a value read back from the thing under test.
+  const expectedMs = (sound.frames / sound.sampleRate) * 1000;
+  assert.equal(expectedMs, 200, "4410 frames at 22050 Hz is 200 ms");
+  assert.ok(
+    Math.abs(sound.durationMs - expectedMs) < 1,
+    `SoundEffect.Duration is the fixture's own length: ${sound.durationMs} vs ${expectedMs}`,
+  );
+
+  assert.equal(sound.Volume, 0.5);
+  assert.equal(sound.Pitch, -0.25);
+  assert.equal(sound.Pan, 0.75);
+
+  // Stated as narrowly as it was measured: this is a real mixer running a real state machine over
+  // a real device, and nobody listened to it. Audible output stays unverified here.
+  console.log(`CNA_TS_AUDIO_STATE_MACHINE=PASS DURATION_MS=${sound.durationMs} AUDIBLE=UNVERIFIED`);
 });

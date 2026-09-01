@@ -10,7 +10,7 @@ silently outgrowing its workaround.
 build configuration rather than runtime behaviour. **Both of those are now fixed upstream and
 verified here** — see items 3 and 4 below.
 
-Re-checked against `cnanext` 599d14e5 (CNA C ABI 0.21.0) on 2026-08-31. Items 5 and 6 are new,
+Re-checked against `cnanext` 7712534d (CNA C ABI 0.21.0) on 2026-09-01. Item 28 is new, found by asking the two audio capability rows which backend they had been measured on -- both said HEADLESS, whose audio platform is `NULL`. Items 5 and 6 are new,
 found while projecting the sensor families; item 7 is new, found while widening the windowed
 qualification to three renderers; items 8 and 9 are new, found while projecting the engine
 layer's compute path, item 10 while projecting its clustered lighting, item 11 -- a
@@ -1371,3 +1371,93 @@ exactly; five must differ by exactly the bearing's magnitude in width and not at
 When this is repaired the second group fails and the first grows to cover it.
 
 This is what the oracle was built for, and it found the divergence on its first run.
+
+## 28. `Microphone::BufferDuration` refuses its own default and accepts durations XNA rejects
+
+**Severity:** a legal value is refused, an illegal one is accepted, and the refused one is the value
+the property reports before anything sets it.
+**Reproduced on:** SDL3 platform with `CNA_AUDIO_PLATFORM=SDL3` (OPENGLES3 windowed build), CNA C
+ABI 0.21.0, 2026-09-01, against three real capture devices this host enumerates.
+
+`Microphone.BufferDuration` reports `1000 ms` on a fresh microphone. Assigning that same value back
+throws:
+
+```text
+cna_microphone_set_buffer_duration_ticks_at failed with CNA result 1:
+Specified argument was out of the range of valid values. (Parameter 'BufferDuration')
+```
+
+so `microphone.BufferDuration = microphone.BufferDuration` is a round trip that cannot complete.
+Each row below was measured in its own process, from the untouched initial state:
+
+| requested | CNA | XNA 4.0 |
+| --- | --- | --- |
+| 50 ms | refused | refused |
+| 90 ms | refused | refused |
+| 100 ms | accepted | accepted |
+| 500 ms | accepted | accepted |
+| 990 ms | accepted | accepted |
+| **1000 ms** | **refused** | **accepted** |
+| **1100 ms** | **accepted** | **refused** |
+| **1500 ms** | **accepted** | **refused** |
+| **2500 ms** | **accepted** | **refused** |
+| 60000 ms | refused | refused |
+
+**The contract is XNA's, and XNA's own IL settles it.** `monodis` on
+`Microsoft.Xna.Framework.dll`, `Microphone::set_BufferDuration`:
+
+```text
+IL_0013:  call TimeSpan::get_TotalMilliseconds()
+IL_0018:  ldc.r8 100.       IL_0021:  blt.s   -> throw
+IL_002a:  ldc.r8 1000.      IL_0033:  bgt.s   -> throw
+IL_003c:  ldc.r8 10.  rem   IL_004f:  bne     -> throw
+```
+
+`blt`/`bgt` are strict, so XNA accepts exactly `[100, 1000]` in 10 ms steps, endpoints included, and
+it reads **`get_TotalMilliseconds`**.
+
+**Root cause, and CNA's own source already names half of it.**
+`modules/audio/src/Xna/Microphone.cpp`:
+
+```cpp
+const auto milliseconds = value.getMillisecondsProperty();
+
+// getMillisecondsProperty() is the sub-second component, bounded to [-999, 999], so the
+// "> 1000" branch below can never be true; kept as-is to match FNA (Microphone.cs:60).
+if (milliseconds < 100 || milliseconds > 1000 || milliseconds % 10 != 0)
+```
+
+`getMillisecondsProperty()` is the **sub-second component**, where XNA reads the **total**. That one
+substitution produces every row above: `1000 ms` has a sub-second component of `0`, which fails
+`< 100`; `1500 ms` has one of `500`, which passes; `60000 ms` has one of `0`, so it is refused for
+the wrong reason and only looks correct.
+
+The comment records that the `> 1000` branch is unreachable and treats that as harmless. It is the
+symptom: a bound that cannot be reached is a bound being applied to the wrong quantity. The same
+observation appears a second time in `MicrophoneTests.cpp` -- "the setter's `>1000` branch is
+unreachable -- not tested here since no TimeSpan value can trigger it" -- and the suite stays green
+because `BufferDurationValidRoundTrip` uses `500 ms` and no case sits at or above `1000`.
+
+The constructor is unaffected because it assigns `bufferDuration_` directly, which is what lets the
+default be a value the setter rejects. `CnaCApiAudio.cpp` is a pure pass-through, so the C ABI
+inherits this exactly and adds nothing.
+
+**What it costs.** XNA's maximum buffer is the setting a game picks when it wants the fewest
+`BufferReady` callbacks -- voice chat, a push-to-talk recorder -- and it is the one value that
+cannot be set. A game that saves and restores the property, or that clamps to the documented maximum,
+fails on a value XNA's own documentation names. In the other direction a five-second buffer is
+accepted silently, and the caller gets a capture buffer XNA would have refused.
+
+**Proposed change.** Read the total rather than the component:
+
+```cpp
+const auto milliseconds = value.getTotalMillisecondsProperty();
+```
+
+which makes both bounds live and matches the IL above exactly. Add the two cases the current suite
+has no room for -- `1000 ms` accepted, `1100 ms` refused -- since neither can pass today.
+
+**Detector in cna-ts:** `test/windowed-renderer.integration.mjs` asserts the measured table above,
+including the two rows where CNA and XNA disagree. This package does **not** work around it: the
+property is a pass-through to CNA and adding managed validation would report a limit the runtime
+does not have. When the setter is repaired the two disagreeing rows fail, which is the point.

@@ -633,15 +633,34 @@
     },
     {
       "operation": "Microphone enumeration/capture/buffer callbacks",
-      "category": "HARDWARE_PENDING",
+      "category": "VERIFIED_NATIVE",
       "owner": "qualification hardware",
-      "evidence": "all routes imported; HEADLESS enumerates zero microphones"
+      "evidence": "The old row said 'all routes imported; HEADLESS enumerates zero microphones'. That was true of the HEADLESS artifact, whose audio platform is NULL, and was not a statement about CNA: asked of the windowed SDL3 build on the same host, the same routes enumerate three real capture devices and name them (a default device and two Ryzen HD Audio controller inputs), each reporting a 44100 Hz sample rate, a headset flag and the Stopped state. GetSampleSizeInBytes is checked against the rate the device itself reported rather than a constant. Capture is deliberately never started and no buffer callback is exercised: enumerating devices and configuring a buffer touch no audio, where opening a capture stream would record from the host's real microphone -- so enumeration and configuration are proved and the capture path is not, which is a choice rather than a limit. BufferDuration is upstream finding 28: CNA refuses 1000 ms, which is both XNA's documented maximum and the value the property itself reports before anything writes it, and it accepts durations above 1000 ms that XNA refuses. The whole measured table is asserted against XNA's own IL",
+      "proof": [
+        "route:cna_microphone_get_count",
+        "route:cna_microphone_get_name_size_at",
+        "route:cna_microphone_get_sample_rate_at",
+        "route:cna_microphone_get_is_headset_at",
+        "route:cna_microphone_get_state_at",
+        "route:cna_microphone_get_buffer_duration_ticks_at",
+        "route:cna_microphone_set_buffer_duration_ticks_at"
+      ]
     },
     {
-      "operation": "SoundEffect/MediaPlayer audible output",
-      "category": "HARDWARE_PENDING",
+      "operation": "SoundEffect playback state machine, and audible output",
+      "category": "VERIFIED_NATIVE",
       "owner": "qualification hardware",
-      "evidence": "NULL audio verifies state/lifetime only"
+      "evidence": "The old row said 'NULL audio verifies state/lifetime only', which was again a fact about the HEADLESS artifact rather than about CNA. On the windowed SDL3 build the state machine is real: a fresh instance is Stopped, Play makes it Playing, Pause makes it Paused, Resume makes it Playing and Stop makes it Stopped -- four distinct transitions where the NULL backend answers Stopped to every one of them. Volume, Pitch and Pan round-trip. Duration is predicted rather than read back: the fixture is 4410 frames at 22050 Hz, which is exactly 200 ms, and the NULL backend reports zero for the same effect. Audible output remains UNVERIFIED and is stated that way in the suite's own output: a real mixer ran a real state machine over a real device and nobody listened to it, which is evidence about the path and not about the sound",
+      "proof": [
+        "route:cna_sound_effect_instance_play",
+        "route:cna_sound_effect_instance_pause",
+        "route:cna_sound_effect_instance_resume",
+        "route:cna_sound_effect_instance_stop",
+        "route:cna_sound_effect_instance_set_volume",
+        "route:cna_sound_effect_instance_set_pitch",
+        "route:cna_sound_effect_instance_set_pan",
+        "route:cna_sound_effect_get_duration_ticks"
+      ]
     },
     {
       "operation": "Physical keyboard/mouse/gamepad/touch behavior",
@@ -650,10 +669,17 @@
       "evidence": "HEADLESS route execution is deterministic but not physical-device evidence"
     },
     {
-      "operation": "GPU custom-effect and rendering output qualification",
-      "category": "HARDWARE_PENDING",
+      "operation": "GPU custom-effect and rendering output qualification, by renderer",
+      "category": "VERIFIED_NATIVE",
       "owner": "qualification hardware",
-      "evidence": "typed bound/user/instanced draw routes now reach CNA, but the qualified HEADLESS pipeline returns result 12 and cannot prove visible output"
+      "evidence": "The old row said the typed draw routes reach CNA but 'the qualified HEADLESS pipeline returns result 12 and cannot prove visible output'. Both halves were about HEADLESS. On the windowed OPENGLES3 build the draw path produces exact pixels through both custom-shader APIs: a GLSL ShaderEffect writes a uniform-driven colour a fragment shader computed, and a compiled Effect loaded from .fxb bytecode draws a quad whose texels match its own HLSL arithmetic to within one byte across three parameter states and two techniques. Render-target readback is exact -- sixteen texels, each the colour Clear was given. What remains unproved is a *physical display*: every measurement here is a render-target readback under Xvfb, so the pixels are the renderer's and no claim is made about a monitor",
+      "proof": [
+        "route:cna_graphics_device_draw_user_primitives",
+        "route:cna_effect_pass_apply",
+        "route:cna_effect_create_compiled",
+        "route:cna_texture2d_get_data",
+        "route:cna_graphics_device_set_render_targets"
+      ]
     },
     {
       "operation": "Physical joystick and force-feedback hardware",
@@ -689,9 +715,14 @@
     },
     {
       "operation": "Windowed renderer behavior on Linux",
-      "category": "NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT",
+      "category": "VERIFIED_NATIVE",
       "owner": "selected environment",
-      "evidence": "qualified artifact is HEADLESS"
+      "evidence": "The old row said 'qualified artifact is HEADLESS', which stopped being the whole truth once a windowed artifact was qualified beside it. Twenty-five tests now run on Linux against a windowed OPENGLES3 build (EasyGL, Mesa 25.0.7, OpenGL ES 3.2) under Xvfb, covering render-target readback, the compute path, shadow, particle, decal, probe, sky, post-process, PBR, volumetric, culling, exposure and transparency passes, both custom-shader APIs, real GameWindow resize events, and the SDL3 audio backend. The suite is a REQUIRED gate: without CNA_WINDOWED_LIBRARY or a display it fails by name rather than skipping. Three further windowed renderers (SDL_RENDERER, SOFTWARE) are available on this host and are a wider matrix than this row claims",
+      "proof": [
+        "route:cna_graphics_device_draw_user_primitives",
+        "route:cna_texture2d_get_data",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
     },
     {
       "operation": "Windows and macOS Node/native runtime",
@@ -703,7 +734,7 @@
       "operation": "Electron desktop runtime",
       "category": "PLATFORM_PENDING",
       "owner": "platform qualification",
-      "evidence": "not attempted and no windowed artifact"
+      "evidence": "not attempted; no Electron main/renderer job exists. The old row also gave 'no windowed artifact' as a reason, which is no longer true -- a windowed OPENGLES3 build is qualified on this host -- so the remaining blocker is the Electron harness alone"
     },
     {
       "operation": "Android and iOS runtime",
