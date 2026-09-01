@@ -2824,3 +2824,189 @@ move past `89024e0d4`.
 And one habit: when `cnanext` moves, ask every claim of unavailability *which backend* it was
 measured on. That question has now found six stale rows across two sessions, and it found two of
 this session's three upstream findings.
+
+## 2026-09-01: the artifact was the limitation, and it was liftable
+
+### Where this started
+
+The previous session left `ACTIONABLE_LOCAL = 0` and three external unblockers, two of which were
+CMake options on the WebAssembly artifact. Both were taken. Everything below follows from that one
+move, and the point of writing it down this way is that **none of it was a limitation of this
+binding** — it was a limitation of the binary a consumer happens to build.
+
+`cna-ts` started clean at `96bedcc`, `cna-ts-template` at `8a806d8`, `cnanext` at `7712534d` and
+`sharp-runtimenext` at `9cc96cd5`. Both dependencies end with **zero modified tracked files**.
+
+### 1. Two artifacts, and the binding answers truthfully for both
+
+`cmake-build-tswasm-fx` is a new, config-named build directory in `cnanext` — `WEBGL2`,
+`CNA_EASYGL_COMPILED_EFFECTS=ON`, `CNA_CNAEXT=ON`, MojoShader through the shared `~/deps/FNA3D`
+checkout. The default `cmake-build-tswasm` is untouched and still the one the ordinary suites run
+against.
+
+| asked of the running artifact | default | strong |
+| --- | --- | --- |
+| `cna_graphics_ext_is_available` | false | true |
+| `cna_instanced_renderer_ext_get_instance_stride` | `NOT_SUPPORTED` | 64 |
+| `GraphicsCapability.CompiledEffects` | false | **true** |
+| `new Effect(device, fxb)` | `NOT_SUPPORTED`, naming the capability | a live effect |
+| device capabilities | 16/19 | 17/19 |
+
+The last row is the sharpest: **`CompiledEffects` is the only identity that moves**. That is a
+second, independent confirmation of the compiled-effect capability, reached without touching the
+`Effect` constructor — and it is why the two artifacts can be compared at all rather than merely
+described.
+
+No binding-specific link setting was needed. Both ABI-0.20-era workarounds are still fixed upstream,
+and `WASM_ARTIFACT_LINK_CONTRACT` proves it out of the built module rather than out of the recipe.
+
+### 2. What a browser consumer can now do
+
+Seven families, each with its own semantic evidence rather than a route count.
+
+**Compiled effects.** The same scenario the windowed OPENGLES3 suite runs — same `.fxb`, same
+values, same techniques, same 8×8 target — with expectations computed from CNA's own shipped HLSL
+rather than from `GetValue*`, which answers from managed state and would agree with its own setter
+whether or not a uniform ever moved. Six parameters reflected with their classes, types and
+array/struct shape; native write-through read back through CNA; `SecondTechnique/P1` drawing
+`Tint * Weights[1]` through three states where A→B moves only `Tint` and B→C only `Weights[1]`; the
+other technique disagreeing over identical parameter state; `Lighting.Intensity` and
+`Lighting.Thresholds[0]` proved by pixels alone.
+
+**Post-processing.** The blit, colour grading, the tonemapper, bloom, FXAA, chromatic aberration,
+film grain, and the chain. Two of them are checked **by CNA against itself**: `TonemapChannel` and
+`ExtractChannel` are pure scalars of the same arithmetic the shaders do, so a rendered texel is
+compared to CNA's own answer for that texel rather than to a picture taken earlier. The colour grade
+is exactly predictable for a different reason — a size-2 `.cube` whose transfer is the channel
+rotation is linear per channel, so trilinear interpolation reproduces it exactly. And the chain's
+*order* is provable because that rotation composed with itself is a third distinct permutation: a
+chain that ran one pass, or ran both and discarded the intermediate, lands somewhere else.
+
+**Shadow maps.** The device was asked rather than assumed, and said yes to both casting and
+sampling. A 512-texel map then clears to the far plane, records an occluder at two heights covering
+48,960 identical texels at depths 0.625 and 0.875, refuses a draw outside `Begin`/`End`, and refuses
+three ordering mistakes with CNA's own result codes. Every extent and depth is predicted from the
+light view-projection CNA reported — which is itself cross-checked against the product of the two
+pure maths routes, so three CNA routes and one local identity have to agree.
+
+**Level of detail**, bound whole rather than sliced, because every route of it is arithmetic.
+**Device capability queries**, which is how a page decides what to reach for and which had no answer
+in a browser at all. **The instancing stream's layout**, which is the half of that family a browser
+can have.
+
+### 3. The gates that had to be built before any of it could be claimed
+
+`test:wasm-browser` asks the artifact in front of it and asserts the consequences of *either*
+answer, so it is green on both and prints which one it measured. That is right for a suite a
+consumer runs and **useless as a claim**: against the default artifact it takes the refusal branch,
+passes, and proves nothing.
+
+So the claim lives in `test:wasm-browser:strong:required`, which cannot take a weaker branch.
+Measured, all four arms:
+
+```text
+required, no artifact        exit 1, names CNA_WASM_ARTIFACT_DIR
+required, DEFAULT artifact   exit 1, names -DCNA_CNAEXT=ON
+optional, DEFAULT artifact   exit 0, seven skips, executed 0
+required, strong artifact    exit 0, executed 7, skipped 0
+```
+
+Its refusal logic is a pure function, because reaching that decision inside the suite costs a served
+package, a headless Chromium and a compiled artifact — which makes "does this refuse the default
+artifact?" an expensive question asked rarely. `wasm-strong-gate.test.mjs` exercises all nine arms
+in milliseconds, one of them transcribed verbatim from a real default-artifact run.
+
+### 4. Twenty-nine planted defects, twenty-eight killed, one equivalent
+
+The survivor is the interesting one. Swapping a scene box's min and max **looks** like it must move
+the shadow and cannot: `computeLightView` takes the centre, symmetric under the swap, and a radius
+from summed squared extents whose signs cancel; `computeLightProjection` enumerates all eight
+corners, and a swapped box has the same eight. There is nothing there for a test to catch, so it is
+reported as surviving with the source that explains it rather than reclassified or deleted.
+
+Two of the killed ones catch defects no pixel could. `vector3-components-out-of-order` leaves the
+table CNA holds entirely correct and permutes only the read-back, so every graded texel still
+passes — it dies on the entries asserted before any pixel is drawn. `tonemap-scalar-ignores-its-mode`
+leaves the `None` branch agreeing with its shader and only Reinhard disagreeing, which is exactly the
+half-right shape a shared-oracle test has to catch.
+
+### 5. Five expectations written wrong, and what caught each
+
+| Wrong reading | Truth | Caught by |
+| --- | --- | --- |
+| `VertexElementUsage.TextureCoordinate` is 5 | it is 2; 5 is Tangent | the browser, on the first run |
+| a light view puts −1 on the Y-to-Z term | it puts +1; the sign is an axis convention, not a property | asserting what the transform *does* instead |
+| the bloom bright pass is a hard threshold | it has a soft knee half the threshold wide, squared | `ExtractChannel(0.5, 0.5)` answering 0.125 |
+| 0.25 is a chromatic aberration strength | CNA clamps to `[0, 0.1]` | the round-trip returning 0.1 |
+| a LOD level covers "up to and including" | the boundary is strict — `upper_bound` on `<` | selecting 1 at exactly 10 |
+
+Every one was a guess where CNA's own source or its own scalar was available. The tests now restate
+the source beside the assertion, which is why the last three are stronger than what they replaced:
+the bright-pass curve is computed rather than pinned, the clamp is asserted rather than avoided, and
+the strict boundary is stated where a reader will meet it.
+
+### 6. A gap the mutants found in the tests, not the code
+
+`lod-levels-read-at-a-fixed-stride` survived — because the strong-artifact suite asserted *less*
+about LOD than the ordinary one, on exactly the run that exists to make the claim. The assertions
+became `support/lod-oracle.mjs`, shared by both, and the mutant dies. That is the fourth shared
+oracle for the same reason. Two suites with their own copy of an expectation is how they come to
+disagree about what they measured.
+
+### 7. Gates at the end of the run
+
+```text
+api:verify / api:verify:live   TOTAL_DIFFERENCES=0  ALLOWLIST_SIZE=0
+verify:runtime                 RUNTIME_DIFFERENCES=0   TARGET_TYPES=348
+verify:leaks                   INTERNAL_LEAK=0
+verify:cna-contract            DIAGNOSTICS=0
+audit:cna-abi                  IMPORTED=1889  VERIFIED=1889  MISMATCHES=0  NEVER_LOADED=0
+                               WASM_BACKEND_ROUTES=504  MISSING_WASM_BACKEND_EXPORTS=0
+coverage:cna-abi               UNEXPLAINED=0  REACHABLE_BUT_DEFERRED=0  NODE=1889  WASM=502
+runtime:inventory              ENTRIES=180  CONSISTENCY_GATE=PASS  PROVED=168
+verify:package / build- / package-reproducibility   all PASS
+```
+
+```text
+test 341   differential 182   native 52   cnb 39   extensions 10
+content (required) 10, skipped 0        windowed (required) 25, skipped 0
+effect-reflection (required) 10, skipped 0
+model-part 9   content-survey 8   input-devices 3   media-library 6
+avatars 8   sprite-font-oracle 5   wasm-browser-input 7
+
+default artifact   wasm-browser 17   strong suite: 0 executed, 7 skipped, required exits 1
+strong artifact    wasm-browser 17   strong required: 7 executed, 0 skipped
+                   COMPILED_EFFECT_BROWSER_TESTS_EXECUTED=2
+```
+
+Template: build PASS; Node 60 and 600 PASS; browser 60 and 600 PASS on **both** artifacts;
+extensions smoke PASS; generated TypeScript and JavaScript consumers PASS.
+
+### 8. Where the next session picks up
+
+The two external unblockers this project had been recording are **gone**, and what they revealed is
+a frontier rather than an endpoint. CNA's engine layer is 857 C routes behind a 603-member
+interface; seven families of it are now reachable from a browser with semantic evidence, and the
+rest are in three groups:
+
+- **Renderer-blocked, measured.** Compute shaders, storage buffers, GPU timers, indirect draw and
+  GPU culling. `ComputeShaders` and `IndirectDraw` are false on WebGL 2.0 and no CNA build option
+  changes that; GPU timing was asked for and refused. These are facts about the context.
+- **Architecturally out of reach.** `InstancedRenderer`'s draw, the skinned shadow caster, and
+  anything else that needs a `ModelMeshPart` — those arrive through a native content manager this
+  package deliberately does not have. The census already records that decision.
+- **Neither.** PBR materials, the render pipeline, particles, light probes, atmosphere, decals, the
+  depth-normal prepass, clustered lighting, cascaded/spot/cube shadow maps, the remaining
+  post-process passes, and the rest. **These are not blocked.** They are unbound, and the pattern
+  for binding one is now established and worth following exactly: measure the capability from the
+  running artifact first, bind only what that answer justifies, put the expectation in a shared
+  oracle both suites use, and plant mutants until something that should fail does.
+
+Three things would change the picture from outside: a **gamer test backend** upstream (finding 29,
+still absent — five `..._set_test_backend_ext` routes exist and none of them is for a gamer); CNA
+repairing `add_owned_pass`'s leaked runtime counter (finding 1), which is the only reason
+`PostProcessChain.AddOwned` is refused here; and **pushing `cnanext`**, which would let the CI pin
+move past `89024e0d4`.
+
+And the habit that paid again: **ask CNA rather than remember it.** Five of this session's
+expectations were guesses where the source or a pure scalar was available, and all five were wrong.

@@ -812,8 +812,24 @@ Electron, or mobile support.
   boundary SDL3 actually reads. Absence is reported as absence: with no controller attached all four
   `PlayerIndex` slots report `IsConnected` false and `SetVibration` refuses. Three planted defects
   prove the tests can fail.
-- [ ] It is still a slice: members outside it refuse by name through the generated `CnaBackendBase`
-  or `CnaGraphicsBackendBase` instead of returning a plausible value.
+- [x] The browser slice reaches 504 routes. Beyond the list above: **compiled XNA effects** with
+  real reflection, native parameter write-through, technique selection and predicted render-target
+  pixels; **CNA's engine layer** -- the post-process family and its chain, shadow maps' rigid
+  casting pass, level-of-detail selection, the instancing stream's layout; and the **device
+  capability queries** a page branches on. Each is qualified against the same oracle the windowed
+  OPENGLES3 suite is held to, and 29 planted defects prove the tests can fail.
+- [x] The compiled-effect and engine-layer families need a CNA artifact built with
+  `-DCNA_EASYGL_COMPILED_EFFECTS=ON -DCNA_CNAEXT=ON`. The default artifact has neither, and the
+  binding gives CNA's own truthful refusal for it rather than a message about this package.
+  `test:wasm-browser` asserts the consequences of either answer; `test:wasm-browser:strong:required`
+  makes the claim and fails by name without such an artifact.
+- [ ] It is still a slice: members outside it refuse by name through the generated `CnaBackendBase`,
+  `CnaGraphicsBackendBase`, `CnaGraphicsExtensionBackendBase`, `CnaShadowBackendBase` or
+  `CnaComputeBackendBase` instead of returning a plausible value. Of CNA's engine layer, the
+  compute/indirect-draw families are renderer-blocked on WebGL 2.0 (measured), anything needing a
+  `ModelMeshPart` is architecturally out of reach, and the remainder -- PBR, the render pipeline,
+  particles, light probes, atmosphere, decals, the prepass, clustered lighting, the cascaded/spot/
+  cube shadow maps -- is unbound rather than blocked.
 
 ## Node, desktop, and mobile
 
