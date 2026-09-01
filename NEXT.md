@@ -2107,13 +2107,44 @@ could only ever be handed zero. Fourteen of them were bound once and *unbound ag
 left counted as reachable in `docs/cna-api-coverage.md`. Both are recorded in comments in the bridge
 beside the routes they belong to. **Do not "fix" this by binding them.**
 
-What is left is not more binding:
+### The qualification, as it stands
 
-- the final qualification suite and the handoff;
-- the two upstream findings that are documentation-only (21, 23) and the two that are behaviour
-  (22, 24) — each has a detector here that fails when the behaviour changes, which is how a repaired
-  upstream gets noticed;
-- `effects.h` and the other non-engine-layer headers, if the brief is ever widened.
+Every gate and every suite, run together on 2026-09-01 against `cnanext` at CNA C ABI 0.21.0:
+
+```text
+audit:cna-abi        IMPORTED=1718  MISSING=0  SIGNATURE_MISMATCHES=0
+verify:cna-contract  DIAGNOSTICS=0
+verify:leaks         INTERNAL_LEAK=0
+api:verify           TOTAL_DIFFERENCES=0  ALLOWLIST_SIZE=0   (frozen profile)
+api:verify:live      TOTAL_DIFFERENCES=0  ALLOWLIST_SIZE=0   (live reflection)
+verify:runtime       RUNTIME_DIFFERENCES=0  TARGET_TYPES=348
+verify:package       JAVASCRIPT_CONSUMER, TYPESCRIPT_CONSUMER, INTERNAL_EXPORT_BLOCK all PASS
+verify:build-reproducibility  DIST_BYTE_IDENTICAL=PASS  (816 files, 5,443,270 bytes)
+
+npm test             332 pass
+test:differential    182 pass
+test:native           52 pass   (HEADLESS)
+test:windowed         20 pass   (OPENGLES3 under Xvfb)
+test:cnb              39 pass
+test:extensions       10 pass
+test:content          10 pass   -- NEEDS CNA_NATIVE_LIBRARY or it silently skips all ten
+test:wasm-browser     11 pass
+test:wasm-browser-input 7 pass
+```
+
+`docs/runtime-capabilities.md` carries 167 qualified operations. Every one names what was measured
+rather than what was called.
+
+### What is left, which is not more binding
+
+- **The four open upstream findings from this run.** 21 and 23 are documentation that no longer
+  matches its own code; 22 and 24 are behaviour. Each has a detector here that *fails* when the
+  behaviour changes, which is how a repaired upstream gets noticed rather than silently outgrowing
+  a workaround. Finding 22 is the one to read first: it eats a frame.
+- **Non-engine-layer headers**, if the brief is ever widened. `effects.h`'s `shader_effect` family
+  was bound this run because the transparency qualification needed it; the rest of that header, and
+  the other headers, are outside what was asked for.
+- **The final handoff itself**, which this section is.
 
 **Read finding 22 before writing anything that draws with a custom shader.** A fresh `ShaderEffect`
 loses its first `SpriteBatch` draw, and a custom-shader draw leaves a GL error pending that the next
