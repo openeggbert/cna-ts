@@ -18,6 +18,7 @@ import {
   assertParticleEvidence, assertParticleSimulationOracle,
 } from "./support/particle-oracle.mjs";
 import { assertEngineArithmeticEvidence } from "./support/engine-arithmetic-oracle.mjs";
+import { assertEngineCensus } from "./support/engine-census-oracle.mjs";
 import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
 import { assertShadowVariantEvidence } from "./support/shadow-variant-oracle.mjs";
 import {
@@ -584,6 +585,22 @@ test("the depth/normal prepass answers, or says the layer is absent", { skip }, 
   console.log(
     `CNA_TS_WASM_PREPASS=PRESENT MULTIPLE_TARGET_DRAW=${draws ? "YES" : "NO_FINDING_30"} ` +
     `RASTERISED=${prepass.rasterised.count} PREPASS_OCCUPIED=${prepass.prepassOccupied.count}`,
+  );
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("every public engine class constructs, or CNA refuses it by name", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const census = result.engineCensus;
+  assert.ok(census, "no engine census was produced");
+  // Against an artifact with no engine layer every class is refused with CNA's NOT_SUPPORTED,
+  // which is the same code the compute-dependent ones give on the strong artifact -- so the
+  // ordinary suite records the split rather than requiring one.
+  const totals = assertEngineCensus(census, { computeOnly: false });
+  console.log(
+    `CNA_TS_WASM_ENGINE_CENSUS=CLASSES=${totals.classes} CONSTRUCTED=` +
+    `${totals.classes - totals.refused} REFUSED_BY_CNA=${totals.refused} READ=${totals.read}`,
   );
   assert.deepEqual(consoleErrors, []);
 });

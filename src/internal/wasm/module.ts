@@ -87,6 +87,9 @@ export class WasmStruct {
   /** The structure's address in module memory. */
   public get pointer(): number { return this.#pointer; }
 
+  /** Its own measured layout, so a caller can walk a nested array at the recorded stride. */
+  public get layout(): WasmStructLayout { return this.#layout; }
+
   #view(): DataView {
     const buffer = this.#module.HEAPU8.buffer as ArrayBuffer;
     return new DataView(buffer);
@@ -177,6 +180,59 @@ export class WasmStruct {
   }
 
   /** Writes a fixed-size `float` array field. The value must fill it exactly. */
+  /**
+   * A fixed-size `int32_t` array field, read and written whole.
+   *
+   * The count comes from the field's own measured size rather than from a constant written here,
+   * so a structure that grows an entry is read correctly without this file changing.
+   */
+  public getI32Array(field: string): number[] {
+    const entry = this.#layout.fields[field];
+    if (!entry) throw new Error(`the measured layout has no field ${field}`);
+    const view = this.#view();
+    const base = this.#pointer + entry.offset;
+    const values: number[] = [];
+    for (let offset = 0; offset + 4 <= entry.size; offset += 4) {
+      values.push(view.getInt32(base + offset, true));
+    }
+    return values;
+  }
+
+  public setI32Array(field: string, values: readonly number[]): this {
+    const entry = this.#layout.fields[field];
+    if (!entry) throw new Error(`the measured layout has no field ${field}`);
+    const view = this.#view();
+    const base = this.#pointer + entry.offset;
+    for (let index = 0; index * 4 + 4 <= entry.size; index += 1) {
+      view.setInt32(base + index * 4, Math.trunc(values[index] ?? 0), true);
+    }
+    return this;
+  }
+
+  /** The same for a fixed-size `CNA_Handle` array, which is eight bytes an entry. */
+  public getU64Array(field: string): bigint[] {
+    const entry = this.#layout.fields[field];
+    if (!entry) throw new Error(`the measured layout has no field ${field}`);
+    const view = this.#view();
+    const base = this.#pointer + entry.offset;
+    const values: bigint[] = [];
+    for (let offset = 0; offset + 8 <= entry.size; offset += 8) {
+      values.push(view.getBigUint64(base + offset, true));
+    }
+    return values;
+  }
+
+  public setU64Array(field: string, values: readonly (bigint | null)[]): this {
+    const entry = this.#layout.fields[field];
+    if (!entry) throw new Error(`the measured layout has no field ${field}`);
+    const view = this.#view();
+    const base = this.#pointer + entry.offset;
+    for (let index = 0; index * 8 + 8 <= entry.size; index += 1) {
+      view.setBigUint64(base + index * 8, values[index] ?? 0n, true);
+    }
+    return this;
+  }
+
   public setF32Array(field: string, values: readonly number[]): this {
     const entry = this.#layout.fields[field];
     if (!entry) throw new Error(`the measured layout has no field ${field}`);

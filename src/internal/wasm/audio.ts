@@ -21,13 +21,19 @@
  */
 
 import { CnaAudioBackendBase } from "../backend-base.js";
-import type { SoundEffectInstanceSnapshot } from "../backend.js";
+import type {
+  AudioEmitterSnapshot, AudioListenerSnapshot, SoundEffectInstanceSnapshot,
+} from "../backend.js";
 import { CnaResult } from "../cna-results.js";
 import type { NativeHandle, NativeResourceLifetime } from "../ownership.js";
-import { allocateStruct, WasmCnaError, type WasmRouteTable } from "./module.js";
+import { WasmEngineMemory } from "./graphics-ext-core.js";
+import { WASM_STRUCT_LAYOUTS } from "./layout.js";
+import { allocateStruct, WasmCnaError, WasmStruct, type WasmRouteTable } from "./module.js";
 
 export class WasmAudioBackend extends CnaAudioBackendBase {
-  readonly #routes: WasmRouteTable;
+  readonly #mem: WasmEngineMemory;
+  get #routes(): WasmRouteTable { return this.#mem.routes; }
+
   readonly #game: () => NativeHandle;
   readonly #parent: () => NativeResourceLifetime;
 
@@ -35,7 +41,7 @@ export class WasmAudioBackend extends CnaAudioBackendBase {
     routes: WasmRouteTable, game: () => NativeHandle, parent: () => NativeResourceLifetime,
   ) {
     super();
-    this.#routes = routes;
+    this.#mem = new WasmEngineMemory(routes);
     this.#game = game;
     this.#parent = parent;
   }
@@ -196,4 +202,122 @@ export class WasmAudioBackend extends CnaAudioBackendBase {
     if (result === CnaResult.Success) return;
     throw new WasmCnaError("cna_sound_effect_instance_destroy", result, this.#routes.lastError());
   }
+
+  // --- three-dimensional audio, and the dynamic instance a game feeds -----------------------------
+  //
+  // These were outside the first slice for the same reason the rest of it was: nobody had needed
+  // them yet. Nothing here is renderer-dependent -- the browser's audio platform is SDL3 through
+  // Emscripten, and CNA answers about it the same way it does anywhere.
+
+  public override createSoundEffectFromEncoded(encoded: Uint8Array): NativeHandle {
+    const scope = this.#routes.scope();
+    try {
+      return this.#routes.outHandle(
+        "cna_sound_effect_create_from_encoded_ext", this.#game(),
+        scope.allocateBytes(encoded), BigInt(encoded.byteLength),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override getDistanceScale(): number {
+    return this.#mem.float("cna_sound_effect_get_distance_scale", this.#game());
+  }
+
+  public override setDistanceScale(value: number): void {
+    this.#routes.invoke("cna_sound_effect_set_distance_scale", this.#game(), value);
+  }
+
+  public override getDopplerScale(): number {
+    return this.#mem.float("cna_sound_effect_get_doppler_scale", this.#game());
+  }
+
+  public override setDopplerScale(value: number): void {
+    this.#routes.invoke("cna_sound_effect_set_doppler_scale", this.#game(), value);
+  }
+
+  public override getSpeedOfSound(): number {
+    return this.#mem.float("cna_sound_effect_get_speed_of_sound", this.#game());
+  }
+
+  public override setSpeedOfSound(value: number): void {
+    this.#routes.invoke("cna_sound_effect_set_speed_of_sound", this.#game(), value);
+  }
+
+  /**
+   * Positions one instance against however many listeners a game has.
+   *
+   * XNA's `Apply3D` takes one listener or an array; CNA's route takes the array and its count, so
+   * the single-listener overload is the array of one rather than a second route.
+   */
+  public override applySoundEffectInstance3D(
+    instance: NativeHandle,
+    listeners: readonly AudioListenerSnapshot[],
+    emitter: AudioEmitterSnapshot,
+  ): void {
+    const scope = this.#routes.scope();
+    try {
+      // Both structures are growable, and their `struct_size` comes from the **measured wasm32
+      // layout** rather than from CNA's own initialiser. That is the same thing the Node-API
+      // bridge does with `sizeof`, which a WebAssembly binding cannot use -- and it keeps the
+      // browser slice a subset of Node's rather than reaching two routes Node never needs. Every
+      // other field is written explicitly below, so the initialiser's defaults are not wanted.
+      const layout = WASM_STRUCT_LAYOUTS.CNA_AudioListener;
+      const buffer = scope.allocate(layout.size * Math.max(listeners.length, 1));
+      listeners.forEach((listener, index) => {
+        const structure = new WasmStruct(
+          this.#routes.module, "CNA_AudioListener", buffer + layout.size * index);
+        structure.setU32("struct_size", layout.size).setU32("struct_version", 1);
+        this.#writeAudioVectors(structure, listener);
+      });
+      const emitterStructure = allocateStruct(this.#routes.module, scope, "CNA_AudioEmitter");
+      this.#writeAudioVectors(emitterStructure, emitter);
+      emitterStructure.setF32("doppler_scale", emitter.DopplerScale);
+      this.#routes.invoke(
+        "cna_sound_effect_instance_apply_3d_multi_ext", instance, buffer,
+        BigInt(listeners.length), emitterStructure.pointer,
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override createDynamicSoundEffectInstance(
+    sampleRate: number, channels: number,
+  ): NativeHandle {
+    return this.#routes.outHandle(
+      "cna_dynamic_sound_effect_instance_create", this.#game(), Math.trunc(sampleRate), channels);
+  }
+
+  public override getDynamicPendingBufferCount(instance: NativeHandle): number {
+    return this.#mem.int(
+      "cna_dynamic_sound_effect_instance_get_pending_buffer_count", instance);
+  }
+
+  public override submitDynamicBuffer(
+    instance: NativeHandle, buffer: Uint8Array, offset: number, count: number,
+  ): void {
+    const scope = this.#routes.scope();
+    try {
+      this.#routes.invoke(
+        "cna_dynamic_sound_effect_instance_submit_buffer", instance,
+        scope.allocateBytes(buffer), BigInt(buffer.byteLength),
+        Math.trunc(offset), Math.trunc(count),
+      );
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /** The four vectors a listener and an emitter share, written at their measured offsets. */
+  #writeAudioVectors(structure: WasmStruct, values: AudioListenerSnapshot): void {
+    for (const [field, value] of [
+      ["forward", values.Forward], ["position", values.Position],
+      ["up", values.Up], ["velocity", values.Velocity],
+    ] as const) {
+      structure.setF32Array(field, [value.X, value.Y, value.Z]);
+    }
+  }
+
 }

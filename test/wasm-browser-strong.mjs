@@ -41,6 +41,7 @@ import {
   assertParticleEvidence, assertParticleSimulationOracle,
 } from "./support/particle-oracle.mjs";
 import { assertEngineArithmeticEvidence } from "./support/engine-arithmetic-oracle.mjs";
+import { assertEngineCensus } from "./support/engine-census-oracle.mjs";
 import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
 import {
   assertDecalState, assertPrepassMaths, assertPrepassState, multipleRenderTargetsDraw,
@@ -275,6 +276,20 @@ test("the engine layer casts a shadow map, and its depths are the light transfor
     `STRONG_WASM_SHADOWS=CAST SIZE=${shadows.size} SAMPLING=${shadows.sampling} ` +
     `OCCLUDED=${shadows.high.occluded} HIGH=${shadows.high.low.toFixed(6)} ` +
     `LOW=${shadows.low.low.toFixed(6)}`,
+  );
+});
+
+test("every public engine class constructs, reads and round-trips in a browser", () => {
+  const census = evidence.result.engineCensus;
+  assert.ok(census, "no engine census was produced");
+  // Broad rather than deep, and deliberately: the oracles above prove particular families against
+  // arithmetic, and this proves that every class in the layer marshals at all. A slice this size
+  // fails in ways no scenario reaches, and this census found four such defects on its first run.
+  const totals = assertEngineCensus(census);
+  console.log(
+    `STRONG_WASM_ENGINE_CENSUS=OK CLASSES=${totals.classes} ACCESSORS_READ=${totals.read} ` +
+    `SETTERS=${totals.wrote} ROUND_TRIPPED=${totals.roundTripped} ` +
+    `REFUSED_BY_CNA=${totals.refused}/compute-dependent`,
   );
 });
 

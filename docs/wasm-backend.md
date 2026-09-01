@@ -22,15 +22,26 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=927
+WASM_BACKEND_ROUTES=1403
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 927 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 1403 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
+
+Route calls are checked as well as route names. `node tools/wasm/verify-route-calls.mjs` reads the C
+declaration of every route this backend calls and compares it with the call: the **argument count**,
+and which arguments must be `BigInt` because the artifact is linked `WASM_BIGINT` and an `i64`
+parameter given a `Number` throws from inside the export. That check found seven real defects the
+day it was written — a storage buffer's `uint64_t` size passed as a number, three counted `int32_t`
+arrays read through the *matrix* reader because their TypeScript answer is `readonly number[]` and
+so is a matrix's, two settings blocks normalised through a two-structure call where CNA edits one in
+place, and a Hammersley point read as one `CNA_Vector2` where the route writes two separate floats.
+It is the WebAssembly counterpart of the signature verification `audit:cna-abi` already does for the
+Node-API bridge.
 
 The list is **derived rather than maintained**. `node tools/wasm/sync-routes.mjs --check` reads the
 `"cna_..."` literals out of every file in `src/internal/wasm` and requires the array to equal them
@@ -695,6 +706,52 @@ itself rather than about the renderer. That last addition also found a hole in t
 names composed from a prefix at runtime never reach `ROUTES`, so `sync-routes.mjs` counted three
 prefixes as routes and missed six real ones. The names are written out now, and the reason is a
 comment on them.
+
+### The rest of the layer, and how a slice this size is qualified
+
+Every backend interface the WebAssembly build provides is now bound **whole**:
+
+```text
+GraphicsExtension 603/603   Content 126/126   Shadow 78/78   ClusteredLighting 54/54
+Graphics 48/48              LightProbe 46/46  Atmosphere 41/41  Compute 37/37
+DepthNormalPrepass 27/27    Particle 24/24    Effect 21/21   InstancedRenderer 14/14
+Lod 14/14                   Decal 12/12       NativeMeshPart 10/10   Audio 30/30
+the game boundary 52/52     runtime services 15/15
+```
+
+Two of those were recorded by an earlier session as architecturally out of reach, and that record
+was right about the content path and wrong about the route.
+`cna_model_mesh_part_create` takes a vertex buffer, an index buffer and four counts — **all of them
+the caller's own** — so a page that builds its own geometry can make a model mesh part with no
+native content manager anywhere near it, and the instanced renderer draws over one. What still needs
+a content manager is loading a `Model` out of XNB, and that decision is unchanged.
+
+Most of this was **generated rather than typed**, from three facts and no judgement: the member's
+signature in `CnaGraphicsExtensionBackend`, the route the Node-API bridge proves it against, and the
+C declaration of that route — which is what decides whether a `number` argument is truncated to an
+integer or passed as a float, because `size` is an `int32_t` in one route here and a `float` in the
+next. Seventeen CNA structures cross the boundary and each marshaller is paired field by field
+between the C declaration and the TypeScript snapshot, with the pairing required to be **total in
+both directions**: a member with no field, or a field with no member, is an error rather than a
+silently dropped value.
+
+**How a slice this size is qualified.** The family oracles above prove particular families against
+arithmetic. They cannot scale to nine hundred routes, and pretending otherwise would be the
+dishonest part. So there is a second kind of evidence beside them: a **census** that constructs
+every public engine class in a browser, reads every accessor on it, and writes and reads back every
+settable one — 22 classes, 69 accessors, 19 setters. That is not a claim about what any shader
+draws. It is a claim that every member marshals, and it is the only kind of claim that catches a
+field read four bytes off or a structure whose `struct_size` was never written.
+
+It earns its place: the census found four real defects on its first run, three of which the static
+route-call verifier then found too. The fourth — a `StorageBuffer` size reaching CNA as a `Number` —
+is why that verifier exists.
+
+The census also records what CNA refuses and why. On the strong artifact **exactly three** classes
+are refused, all with CNA's own `NOT_SUPPORTED`: `AutoExposure`, `StorageBuffer` and its typed form,
+all of which need a compute stage WebGL 2.0 does not have. On the default artifact eighteen are
+refused for the other reason — no `CNA_CNAEXT` — and four still construct, because `PbrEffect`,
+`SkinnedPbrEffect`, `FrustumCuller` and `TransparentDrawList` are not behind that build option.
 
 **And the chain, which is what makes the family usable.** A game applies several passes in order,
 so `PostProcessChain` is the API a consumer actually reaches for, and its pass order is what a

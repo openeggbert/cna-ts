@@ -69,8 +69,16 @@ export class WasmClusteredLightingBackend extends CnaClusteredLightingBackendBas
     this.#routes.invoke("cna_clustered_light_set_destroy", set);
   }
 
-  public override createClusterGrid( device: NativeHandle, tilesX: number, tilesY: number, sliceCount: number, ): NativeHandle {
-    return this.#routes.outHandle("cna_clustered_light_grid_create", device, tilesX, tilesY, Math.trunc(sliceCount));
+  public override createClusterGrid(
+    device: NativeHandle, tilesX: number, tilesY: number, sliceCount: number,
+  ): NativeHandle {
+    return this.#routes.outHandle(
+      "cna_clustered_light_grid_create",
+      device,
+      tilesX,
+      tilesY,
+      Math.trunc(sliceCount),
+    );
   }
 
   public override getClusterGridTilesX(grid: NativeHandle): number {
@@ -122,11 +130,11 @@ export class WasmClusteredLightingBackend extends CnaClusteredLightingBackendBas
   }
 
   public override copyAssignmentIndices(assignment: NativeHandle): readonly number[] {
-    return this.#mem.matrix("cna_clustered_light_assignment_copy_indices", assignment);
+    return this.#int32Array("cna_clustered_light_assignment_copy_indices", assignment);
   }
 
   public override copyAssignmentOffsets(assignment: NativeHandle): readonly number[] {
-    return this.#mem.matrix("cna_clustered_light_assignment_copy_offsets", assignment);
+    return this.#int32Array("cna_clustered_light_assignment_copy_offsets", assignment);
   }
 
   public override destroyClusteredLightAssignment(assignment: NativeHandle): void {
@@ -154,11 +162,15 @@ export class WasmClusteredLightingBackend extends CnaClusteredLightingBackendBas
   }
 
   public override copyShadowPolicySelected(policy: NativeHandle): readonly number[] {
-    return this.#mem.matrix("cna_clustered_shadow_policy_copy_selected", policy);
+    return this.#int32Array("cna_clustered_shadow_policy_copy_selected", policy);
   }
 
   public override isShadowPolicySelected(policy: NativeHandle, lightIndex: number): boolean {
-    return this.#mem.bool("cna_clustered_shadow_policy_is_selected", policy, Math.trunc(lightIndex));
+    return this.#mem.bool(
+      "cna_clustered_shadow_policy_is_selected",
+      policy,
+      Math.trunc(lightIndex),
+    );
   }
 
   public override getShadowPolicyScore(policy: NativeHandle, lightIndex: number): number {
@@ -173,7 +185,7 @@ export class WasmClusteredLightingBackend extends CnaClusteredLightingBackendBas
     this.#routes.invoke("cna_clustered_shadow_policy_destroy", policy);
   }
 
-  // --- the light set: a growable structure, written through CNA's own initializer -----------------
+  // --- the light set: a growable structure, written through CNA's own initializer ---------------
 
   public override isClusteredLightUsable(light: ClusteredLightSnapshot): boolean {
     const scope = this.#routes.scope();
@@ -296,7 +308,7 @@ export class WasmClusteredLightingBackend extends CnaClusteredLightingBackendBas
       });
   }
 
-  // --- the grid, whose slicing is a formula the public API documents ------------------------------
+  // --- the grid, whose slicing is a formula the public API documents ----------------------------
 
   public override setClusterGridProjection(
     grid: NativeHandle, projection: readonly number[], nearPlane: number, farPlane: number,
@@ -328,7 +340,7 @@ export class WasmClusteredLightingBackend extends CnaClusteredLightingBackendBas
       Math.trunc(x), Math.trunc(y), Math.trunc(slice));
   }
 
-  // --- the assignment ------------------------------------------------------------------------------
+  // --- the assignment ---------------------------------------------------------------------------
 
   /** Every light's influence sphere at once, so the assignment sees one array rather than many. */
   public override assignClusteredLights(
@@ -385,7 +397,7 @@ export class WasmClusteredLightingBackend extends CnaClusteredLightingBackendBas
       });
   }
 
-  // --- the shadow budget ---------------------------------------------------------------------------
+  // --- the shadow budget ------------------------------------------------------------------------
 
   public override selectShadowCasters(
     policy: NativeHandle, lights: NativeHandle, view: readonly number[],
@@ -410,7 +422,7 @@ export class WasmClusteredLightingBackend extends CnaClusteredLightingBackendBas
     return this.#mem.int("cna_clustered_shadow_policy_get_refused_count", policy);
   }
 
-  // --- the growable light structure ----------------------------------------------------------------
+  // --- the growable light structure -------------------------------------------------------------
 
   #allocateLight(scope: WasmScope): WasmStruct {
     const structure = new WasmStruct(
@@ -476,4 +488,20 @@ export class WasmClusteredLightingBackend extends CnaClusteredLightingBackendBas
       scope.dispose();
     }
   }
+
+  /**
+   * A counted `int32_t` array, probed for its length and then copied.
+   *
+   * These three read back through the same shape and were generated through the *matrix* reader,
+   * because their TypeScript return is `readonly number[]` and so is a matrix's. Sixteen floats
+   * and a variable-length integer array are not the same thing, and `verify-route-calls.mjs` is
+   * what separated them -- the matrix reader passed one argument where the route takes three.
+   */
+  #int32Array(route: string, handle: NativeHandle): readonly number[] {
+    return this.#mem.probedArray(route, [handle], 4, (base, written) => {
+      const view = this.#routes.view();
+      return Array.from({ length: written }, (_, index) => view.getInt32(base + index * 4, true));
+    });
+  }
+
 }

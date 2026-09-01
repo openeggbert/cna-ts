@@ -48,13 +48,13 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
     );
   }
 
-  // --- what the device says --------------------------------------------------------------------
+  // --- what the device says ---------------------------------------------------------------------
 
   public override supportsShadowSampling(device: NativeHandle): boolean {
     return this.#mem.bool("cna_graphics_device_supports_shadow_sampling_ext", device);
   }
 
-  // --- the object ------------------------------------------------------------------------------
+  // --- the object -------------------------------------------------------------------------------
 
   public override createShadowMap(device: NativeHandle, quality: number): NativeHandle {
     return this.#routes.outHandle("cna_shadow_map_create", device, quality);
@@ -95,7 +95,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
     return this.#mem.int("cna_shadow_map_get_filter_radius", map);
   }
 
-  // --- the pass -------------------------------------------------------------------------------
+  // --- the pass ---------------------------------------------------------------------------------
   //
   // Bound because the device said it could: `cna_shadow_map_is_supported` and
   // `cna_graphics_device_supports_shadow_sampling_ext` both answer true on a WebGL2 context with
@@ -143,7 +143,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
     return this.#mem.matrix("cna_shadow_map_get_light_view_projection", map);
   }
 
-  // --- the maths, which is the same arithmetic on every renderer -------------------------------
+  // --- the maths, which is the same arithmetic on every renderer --------------------------------
 
   public override shadowMapSizeForQuality(quality: number): number {
     return this.#mem.int("cna_shadow_map_size_for_quality", quality);
@@ -189,7 +189,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
     }
   }
 
-  // --- the shapes CNA takes these in -----------------------------------------------------------
+  // --- the shapes CNA takes these in ------------------------------------------------------------
 
   /** A versioned `CNA_DirectionalLightEXT`, whose two `CNA_Vector3` members are inline. */
   #light(scope: WasmScope, light: DirectionalLightSnapshot): number {
@@ -222,7 +222,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
 
 
 
-  // --- the three shadow maps that are not a directional one --------------------------------------
+  // --- the three shadow maps that are not a directional one ----------------------------------
   //
   // A directional light's shadow is one map over the whole scene; these three are not. A **spot**
   // light has a position, a range and a cone, so its shadow is one perspective map. A **point**
@@ -351,7 +351,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
     return this.#mem.bool("cna_cascaded_shadow_map_is_supported", map);
   }
 
-  // --- the spot map ------------------------------------------------------------------------------
+  // --- the spot map -----------------------------------------------------------------------------
 
   public override createSpotShadowMap(device: NativeHandle, quality: number): NativeHandle {
     return this.#mem.create("cna_spot_shadow_map_create", device, quality);
@@ -424,7 +424,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
     return this.#mem.bool("cna_spot_shadow_map_is_supported", map);
   }
 
-  // --- the cube map ------------------------------------------------------------------------------
+  // --- the cube map -----------------------------------------------------------------------------
 
   public override createCubeShadowMap(device: NativeHandle, quality: number): NativeHandle {
     return this.#mem.create("cna_cube_shadow_map_create", device, quality);
@@ -487,7 +487,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
     return this.#mem.bool("cna_cube_shadow_map_is_supported", map);
   }
 
-  // --- the transforms, which are the same arithmetic on every renderer ----------------------------
+  // --- the transforms, which are the same arithmetic on every renderer --------------------------
 
   public override computeSpotShadowLightView(light: SpotLightSnapshot): readonly number[] {
     const scope = this.#routes.scope();

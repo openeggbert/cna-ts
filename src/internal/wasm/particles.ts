@@ -45,7 +45,7 @@ export class WasmParticleBackend extends CnaParticleBackendBase {
     );
   }
 
-  // --- the system ---------------------------------------------------------------------------------
+  // --- the system -------------------------------------------------------------------------------
 
   public override createParticleSystemAtDefaultCapacity(device: NativeHandle): NativeHandle {
     return this.#mem.create("cna_particle_system_create", device);
@@ -107,7 +107,7 @@ export class WasmParticleBackend extends CnaParticleBackendBase {
       )));
   }
 
-  // --- soft particles, which is upstream finding 12 -------------------------------------------------
+  // --- soft particles, which is upstream finding 12 ---------------------------------------------
 
   /**
    * The depth image particles fade against, borrowed, with the far plane it was normalised by.
@@ -134,7 +134,7 @@ export class WasmParticleBackend extends CnaParticleBackendBase {
     return this.#mem.probedString("cna_particle_system_copy_particle_lookup_glsl");
   }
 
-  // --- the emitter ---------------------------------------------------------------------------------
+  // --- the emitter ------------------------------------------------------------------------------
 
   public override getParticleEmitterSettings(
     system: NativeHandle,
@@ -184,7 +184,7 @@ export class WasmParticleBackend extends CnaParticleBackendBase {
       });
   }
 
-  // --- the simulation, as scalars -------------------------------------------------------------------
+  // --- the simulation, as scalars ---------------------------------------------------------------
 
   /** The generator every spawn draws from: one seed in, one unit fraction out. */
   public override particleRandom(seed: number): number {
@@ -223,7 +223,7 @@ export class WasmParticleBackend extends CnaParticleBackendBase {
     }
   }
 
-  // --- the two structures ---------------------------------------------------------------------------
+  // --- the two structures -----------------------------------------------------------------------
 
   /**
    * A settings buffer that CNA's own initializer fills before anything is written into it.

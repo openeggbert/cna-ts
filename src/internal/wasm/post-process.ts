@@ -36,15 +36,15 @@ import type {
   RectangleSnapshot, SizeSnapshot, Vector2Snapshot, Vector3Snapshot,
 } from "../backend.js";
 import type { NativeHandle } from "../ownership.js";
-import { WasmGraphicsExtensionCore } from "./graphics-ext-core.js";
+import { WasmEngineState } from "./engine-state.js";
 import { WASM_STRUCT_LAYOUTS } from "./layout.js";
 import { allocateStruct } from "./module.js";
 
 /** Written into every `int32_t` output before the call, so a route that writes none is visible. */
 const POISONED_INT32 = -0x5f5f5f60;
 
-export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
-  // --- screen-space ambient occlusion ----------------------------------------------------------
+export abstract class WasmPostProcessPasses extends WasmEngineState {
+  // --- screen-space ambient occlusion ------------------------------------------------------------
 
   public override createSsaoPass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_ssao_pass_create", device);
@@ -120,7 +120,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
     this.routes.invoke("cna_ssao_pass_reset_targets", pass);
   }
 
-  // --- screen-space reflections ----------------------------------------------------------------
+  // --- screen-space reflections -----------------------------------------------------------------
 
   public override createSsrPass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_ssr_pass_create", device);
@@ -182,7 +182,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
     this.routes.invoke("cna_ssr_pass_set_step_count", pass, Math.trunc(value));
   }
 
-  // --- depth of field --------------------------------------------------------------------------
+  // --- depth of field ---------------------------------------------------------------------------
 
   public override createDepthOfFieldPass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_depth_of_field_pass_create", device);
@@ -238,7 +238,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
     );
   }
 
-  // --- lens flare ------------------------------------------------------------------------------
+  // --- lens flare -------------------------------------------------------------------------------
 
   public override createLensFlarePass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_lens_flare_pass_create", device);
@@ -268,7 +268,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
     this.routes.invoke("cna_lens_flare_pass_set_dispersal", pass, value);
   }
 
-  // --- motion blur -----------------------------------------------------------------------------
+  // --- motion blur ------------------------------------------------------------------------------
 
   public override createMotionBlurPass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_motion_blur_pass_create", device);
@@ -290,7 +290,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
     this.routes.invoke("cna_motion_blur_pass_set_max_distance", pass, value);
   }
 
-  // --- aerial perspective ----------------------------------------------------------------------
+  // --- aerial perspective -----------------------------------------------------------------------
 
   public override createAerialPerspectivePass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_aerial_perspective_pass_create", device);
@@ -350,7 +350,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
     return this.mem.vector3("cna_aerial_perspective_pass_transmittance", turbidity, airMass);
   }
 
-  // --- height fog ------------------------------------------------------------------------------
+  // --- height fog -------------------------------------------------------------------------------
 
   public override createHeightFogPass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_height_fog_pass_create", device);
@@ -400,7 +400,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
     );
   }
 
-  // --- light shafts ----------------------------------------------------------------------------
+  // --- light shafts -----------------------------------------------------------------------------
 
   public override createLightShaftPass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_light_shaft_pass_create", device);
@@ -441,7 +441,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
     this.routes.invoke("cna_light_shaft_pass_set_decay", pass, value);
   }
 
-  // --- volumetric fog --------------------------------------------------------------------------
+  // --- volumetric fog ---------------------------------------------------------------------------
 
   public override createVolumetricFogPass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_volumetric_fog_pass_create", device);
@@ -486,7 +486,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
         "cna_volumetric_fog_pass_set_light", pass, shadowMap, directionPointer, colorPointer)));
   }
 
-  // --- contact shadows -------------------------------------------------------------------------
+  // --- contact shadows --------------------------------------------------------------------------
 
   public override createContactShadowPass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_contact_shadow_pass_create", device);
@@ -574,7 +574,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
       "cna_contact_shadow_pass_combine_visibility", shadowMapVisibility, contactVisibility);
   }
 
-  // --- ASCII -----------------------------------------------------------------------------------
+  // --- ASCII ------------------------------------------------------------------------------------
 
   public override createAsciiPass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_ascii_pass_create", device);
@@ -699,7 +699,7 @@ export abstract class WasmPostProcessPasses extends WasmGraphicsExtensionCore {
     this.routes.invoke("cna_post_process_effect_pass_set_effect", pass, effect);
   }
 
-  // --- the spatial upscaler --------------------------------------------------------------------
+  // --- the spatial upscaler ---------------------------------------------------------------------
 
   public override createSpatialUpscalePass(device: NativeHandle): NativeHandle {
     return this.mem.create("cna_spatial_upscale_pass_create", device);

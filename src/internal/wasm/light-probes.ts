@@ -61,7 +61,9 @@ export class WasmLightProbeBackend extends CnaLightProbeBackendBase {
     return this.#mem.vector3("cna_light_probe_ext_get_coefficient", probe, Math.trunc(index));
   }
 
-  public override setLightProbeVisibility( probe: NativeHandle, direction: number, mean: number, meanSquared: number, ): void {
+  public override setLightProbeVisibility(
+    probe: NativeHandle, direction: number, mean: number, meanSquared: number,
+  ): void {
     this.#routes.invoke("cna_light_probe_ext_set_visibility", probe, direction, mean, meanSquared);
   }
 
@@ -69,7 +71,9 @@ export class WasmLightProbeBackend extends CnaLightProbeBackendBase {
     return this.#mem.float("cna_light_probe_ext_get_visibility_mean", probe, direction);
   }
 
-  public override getLightProbeVisibilityMeanSquared(probe: NativeHandle, direction: number): number {
+  public override getLightProbeVisibilityMeanSquared(
+    probe: NativeHandle, direction: number,
+  ): number {
     return this.#mem.float("cna_light_probe_ext_get_visibility_mean_squared", probe, direction);
   }
 
@@ -113,15 +117,21 @@ export class WasmLightProbeBackend extends CnaLightProbeBackendBase {
     return this.#mem.int("cna_light_probe_volume_ext_get_probe_count", volume);
   }
 
-  public override getLightProbeVolumeProbePosition( volume: NativeHandle, x: number, y: number, z: number, ): Vector3Snapshot {
+  public override getLightProbeVolumeProbePosition(
+    volume: NativeHandle, x: number, y: number, z: number,
+  ): Vector3Snapshot {
     return this.#mem.vector3("cna_light_probe_volume_ext_get_probe_position", volume, x, y, z);
   }
 
-  public override getLightProbeVolumeProbe( volume: NativeHandle, x: number, y: number, z: number, into: NativeHandle, ): void {
+  public override getLightProbeVolumeProbe(
+    volume: NativeHandle, x: number, y: number, z: number, into: NativeHandle,
+  ): void {
     this.#routes.invoke("cna_light_probe_volume_ext_get_probe", volume, x, y, z, into);
   }
 
-  public override setLightProbeVolumeProbe( volume: NativeHandle, x: number, y: number, z: number, probe: NativeHandle, ): void {
+  public override setLightProbeVolumeProbe(
+    volume: NativeHandle, x: number, y: number, z: number, probe: NativeHandle,
+  ): void {
     this.#routes.invoke("cna_light_probe_volume_ext_set_probe", volume, x, y, z, probe);
   }
 
@@ -157,11 +167,13 @@ export class WasmLightProbeBackend extends CnaLightProbeBackendBase {
     return this.#mem.float("cna_light_probe_baker_get_far_plane", baker);
   }
 
-  public override setLightProbeBakerPlanes(baker: NativeHandle, nearPlane: number, farPlane: number): void {
+  public override setLightProbeBakerPlanes(
+    baker: NativeHandle, nearPlane: number, farPlane: number,
+  ): void {
     this.#routes.invoke("cna_light_probe_baker_set_planes", baker, nearPlane, farPlane);
   }
 
-  // --- the routes that take a vector, a box, or a callback ---------------------------------------
+  // --- the routes that take a vector, a box, or a callback --------------------------------------
 
   public override createLightProbeAt(position: Vector3Snapshot): NativeHandle {
     return this.#mem.withVector3(position, (pointer) =>
@@ -214,7 +226,7 @@ export class WasmLightProbeBackend extends CnaLightProbeBackendBase {
       "cna_light_probe_ext_visibility_weight", probe, pointer, distance));
   }
 
-  // --- the volume, which is a grid of probes over a box ------------------------------------------
+  // --- the volume, which is a grid of probes over a box -----------------------------------------
 
   public override createLightProbeVolume(
     bounds: ClusterBoundsSnapshot, countX: number, countY: number, countZ: number,
@@ -257,7 +269,7 @@ export class WasmLightProbeBackend extends CnaLightProbeBackendBase {
         "cna_light_probe_volume_ext_irradiance", volume, positionPointer, normalPointer)));
   }
 
-  // --- the baker, whose capture callback is CNA's frame and not this binding's --------------------
+  // --- the baker, whose capture callback is CNA's frame and not this binding's ------------------
 
   public override createLightProbeBakerWithFaceSize(
     device: NativeHandle, faceSize: number,
@@ -281,18 +293,38 @@ export class WasmLightProbeBackend extends CnaLightProbeBackendBase {
         "cna_light_probe_baker_bake_probe", baker, pointer, callback, 0)));
   }
 
+  /**
+   * Bakes every probe in a volume, and answers **how many times the callback ran**.
+   *
+   * That number is not one of CNA's outputs -- the route has none. It is the count of scene draws
+   * the bake asked for, which is six per probe, and it is what the Node-API bridge reports for the
+   * same call. Counting it here rather than inventing a return keeps the two backends answering
+   * the same question.
+   */
   public override bakeLightProbeVolumeLight(
     baker: NativeHandle, volume: NativeHandle, draw: SceneFaceDraw,
   ): number {
-    return this.#withSceneDraw(draw, (callback) => this.#mem.int(
-      "cna_light_probe_baker_bake_light", baker, volume, callback, 0));
+    return this.#countedBake("cna_light_probe_baker_bake_light", baker, volume, draw);
   }
 
   public override bakeLightProbeVolumeVisibility(
     baker: NativeHandle, volume: NativeHandle, draw: SceneFaceDraw,
   ): number {
-    return this.#withSceneDraw(draw, (callback) => this.#mem.int(
-      "cna_light_probe_baker_bake_visibility", baker, volume, callback, 0));
+    return this.#countedBake("cna_light_probe_baker_bake_visibility", baker, volume, draw);
+  }
+
+  #countedBake(
+    route: string, baker: NativeHandle, volume: NativeHandle, draw: SceneFaceDraw,
+  ): number {
+    let calls = 0;
+    const counted: SceneFaceDraw = (view, projection) => {
+      calls += 1;
+      draw(view, projection);
+    };
+    this.#withSceneDraw(counted, (callback) => {
+      this.#routes.invoke(route, baker, volume, callback, 0);
+    });
+    return calls;
   }
 
   /**

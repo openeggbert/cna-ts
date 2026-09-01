@@ -49,7 +49,7 @@ export class WasmDepthNormalPrepassBackend extends CnaDepthNormalPrepassBackendB
     );
   }
 
-  // --- the prepass itself ------------------------------------------------------------------------
+  // --- the prepass itself -----------------------------------------------------------------------
 
   public override createDepthNormalPrepass(
     device: NativeHandle, width: number, height: number, encoding: number,
@@ -96,7 +96,7 @@ export class WasmDepthNormalPrepassBackend extends CnaDepthNormalPrepassBackendB
     this.#routes.invoke("cna_depth_normal_prepass_end", prepass);
   }
 
-  // --- what it wrote, all three borrowed from the prepass -----------------------------------------
+  // --- what it wrote, all three borrowed from the prepass ---------------------------------------
 
   /**
    * The linear-depth image. Borrowed: the prepass keeps the target and the caller releases only
@@ -124,7 +124,7 @@ export class WasmDepthNormalPrepassBackend extends CnaDepthNormalPrepassBackendB
       "cna_depth_normal_prepass_get_skinned_prepass_effect", prepass);
   }
 
-  // --- what it decided -----------------------------------------------------------------------------
+  // --- what it decided --------------------------------------------------------------------------
 
   public override isDepthNormalPrepassSupported(
     prepass: NativeHandle, device: NativeHandle,
@@ -184,10 +184,13 @@ export class WasmDepthNormalPrepassBackend extends CnaDepthNormalPrepassBackendB
       )));
   }
 
-  // --- the arithmetic, which is the same everywhere and is where finding 13 lives -----------------
+  // --- the arithmetic, which is the same everywhere and is where finding 13 lives ---------------
 
   public override getDepthDecodeGlsl(packed: boolean): string {
-    return this.#mem.probedString("cna_depth_normal_prepass_copy_depth_decode_glsl", packed ? 1 : 0);
+    return this.#mem.probedString(
+      "cna_depth_normal_prepass_copy_depth_decode_glsl",
+      packed ? 1 : 0,
+    );
   }
 
   public override getVelocityDecodeGlsl(): string {

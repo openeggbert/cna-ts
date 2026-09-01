@@ -134,20 +134,55 @@ export class WasmAtmosphereBackend extends CnaAtmosphereBackendBase {
     this.#routes.invoke("cna_environment_processor_destroy", processor);
   }
 
-  public override generateBrdfLut(processor: NativeHandle, size: number, sampleCount: number): NativeHandle {
-    return this.#routes.outHandle("cna_environment_processor_generate_brdf_lut", processor, Math.trunc(size), Math.trunc(sampleCount));
+  public override generateBrdfLut(
+    processor: NativeHandle, size: number, sampleCount: number,
+  ): NativeHandle {
+    return this.#routes.outHandle(
+      "cna_environment_processor_generate_brdf_lut",
+      processor,
+      Math.trunc(size),
+      Math.trunc(sampleCount),
+    );
   }
 
   public override mipForRoughness(roughness: number, mipCount: number): number {
-    return this.#mem.float("cna_environment_processor_mip_for_roughness", roughness, Math.trunc(mipCount));
+    return this.#mem.float(
+      "cna_environment_processor_mip_for_roughness",
+      roughness,
+      Math.trunc(mipCount),
+    );
   }
 
   public override roughnessForMip(mip: number, mipCount: number): number {
-    return this.#mem.float("cna_environment_processor_roughness_for_mip", mip, Math.trunc(mipCount));
+    return this.#mem.float(
+      "cna_environment_processor_roughness_for_mip",
+      mip,
+      Math.trunc(mipCount),
+    );
   }
 
+  /**
+   * The Hammersley point, which is **two separate `float*` outputs** rather than a `CNA_Vector2`.
+   *
+   * Generated as a vector read, because its TypeScript answer is a `Vector2Snapshot` -- and a
+   * vector read passes one pointer where the route wants two. `verify-route-calls.mjs` caught the
+   * arity; both outputs are poisoned so a route that wrote one would be visible too.
+   */
   public override hammersleyPoint(index: number, count: number): Vector2Snapshot {
-    return this.#mem.vector2("cna_environment_processor_hammersley", Math.trunc(index), Math.trunc(count));
+    const scope = this.#routes.scope();
+    try {
+      const x = scope.allocate(4);
+      const y = scope.allocate(4);
+      const before = this.#routes.view();
+      before.setFloat32(x, POISONED_FLOAT, true);
+      before.setFloat32(y, POISONED_FLOAT, true);
+      this.#routes.invoke(
+        "cna_environment_processor_hammersley", Math.trunc(index), Math.trunc(count), x, y);
+      const view = this.#routes.view();
+      return { X: view.getFloat32(x, true), Y: view.getFloat32(y, true) };
+    } finally {
+      scope.dispose();
+    }
   }
 
   public override cubeFaceDirection(face: number, u: number, v: number): Vector3Snapshot {
@@ -241,7 +276,7 @@ export class WasmAtmosphereBackend extends CnaAtmosphereBackendBase {
     }
   }
 
-  // --- the environment processor, which turns one image into the maps a PBR shader reads ---------
+  // --- the environment processor, which turns one image into the maps a PBR shader reads --------
 
   public override convertEquirectangular(
     processor: NativeHandle, panorama: NativeHandle, faceSize: number,
@@ -293,7 +328,12 @@ export class WasmAtmosphereBackend extends CnaAtmosphereBackendBase {
       before.setFloat32(u, POISONED_FLOAT, true);
       before.setFloat32(v, POISONED_FLOAT, true);
       this.#mem.withVector3(direction, (pointer) =>
-        this.#routes.invoke("cna_environment_processor_direction_to_equirectangular", pointer, u, v));
+        this.#routes.invoke(
+          "cna_environment_processor_direction_to_equirectangular",
+          pointer,
+          u,
+          v),
+        );
       const view = this.#routes.view();
       return { X: view.getFloat32(u, true), Y: view.getFloat32(v, true) };
     } finally {

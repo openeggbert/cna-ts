@@ -718,4 +718,19 @@ export class WasmEffectBackend extends CnaEffectBackendBase {
     _rasterizer: RasterizerStateSnapshot, _effect: NativeHandle,
     _transform: readonly number[] | null,
   ): void { return this.unsupported("beginSpriteBatchWithEffect"); }
+
+  /**
+   * An effect with no program, which is what an `Effect` subclass constructs before it compiles.
+   *
+   * And the clone XNA's copy constructor makes: a second effect over the same program, with its
+   * own parameter values. Both are owned handles the caller releases.
+   */
+  public override createEffectEmpty(device: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_effect_create_empty", device);
+  }
+
+  public override cloneEffect(effect: NativeHandle): NativeHandle {
+    return this.#routes.outHandle("cna_effect_clone", effect);
+  }
+
 }

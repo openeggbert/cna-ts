@@ -380,7 +380,11 @@ export class WasmGraphicsBackend extends CnaGraphicsBackendBase {
       const base = scope.allocate(stride * bindings.length);
       for (let index = 0; index < bindings.length; index += 1) {
         const binding = bindings[index] as RenderTargetBindingSnapshot;
-        const entry = new WasmStruct(this.#routes.module, "CNA_RenderTargetBinding", base + index * stride);
+        const entry = new WasmStruct(
+          this.#routes.module,
+          "CNA_RenderTargetBinding",
+          base + index * stride,
+        );
         entry.setU32("struct_size", stride).setU32("struct_version", 1);
         entry.setU64("render_target", binding.RenderTarget);
         entry.setI32("array_slice", binding.ArraySlice);
@@ -730,7 +734,7 @@ export class WasmGraphicsBackend extends CnaGraphicsBackendBase {
     this.#routes.invoke("cna_texturecube_destroy", texture);
   }
 
-  // --- occlusion queries -------------------------------------------------------------------------
+  // --- occlusion queries ------------------------------------------------------------------------
 
   public override createOcclusionQuery(device: NativeHandle): NativeHandle {
     return this.#routes.outHandle("cna_occlusion_query_create", device);
@@ -756,7 +760,7 @@ export class WasmGraphicsBackend extends CnaGraphicsBackendBase {
     this.#routes.invoke("cna_occlusion_query_destroy", query);
   }
 
-  // --- buffers ------------------------------------------------------------------------------------
+  // --- buffers ----------------------------------------------------------------------------------
 
   public override setVertexBufferRawAt(
     buffer: NativeHandle, offsetInBytes: number, bytes: Uint8Array,
@@ -824,7 +828,7 @@ export class WasmGraphicsBackend extends CnaGraphicsBackendBase {
     }
   }
 
-  // --- the three transfer and four state structures ----------------------------------------------
+  // --- the three transfer and four state structures ---------------------------------------------
 
   #texture3dTransfer(
     scope: WasmScope, level: number, left: number, top: number, right: number, bottom: number,
@@ -888,7 +892,7 @@ export class WasmGraphicsBackend extends CnaGraphicsBackendBase {
   }
 
 
-  // --- ContentLost, which is a real event on a renderer whose API can lose a device ---------------
+  // --- ContentLost, which is a real event on a renderer whose API can lose a device ------------
   //
   // WebGL 2.0 is not such a renderer: a context loss there is a different mechanism and CNA does
   // not raise this event on it. The subscription is bound anyway, and the reason is the same one

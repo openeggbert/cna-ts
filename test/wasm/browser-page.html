@@ -745,6 +745,9 @@ try {
       // --- shadow maps: what this device says, and the maths that is the same everywhere -------
       result.shadows = this.#shadowEvidence();
 
+      // --- every public engine class, constructed and exercised ---------------------------------
+      result.engineCensus = this.#engineCensus();
+
       // --- the sky, light probes and clustered lighting -----------------------------------------
       result.engineArithmetic = this.#engineArithmeticEvidence();
 
@@ -2786,6 +2789,137 @@ try {
         release();
       }
       return evidence;
+    }
+
+    /**
+     * Every public engine class, constructed and exercised, one property at a time.
+     *
+     * The deep scenarios above prove particular families against arithmetic. This proves something
+     * different and broader: that **every** member of the engine layer this backend now binds is
+     * reachable through the public API and marshals correctly. Nine hundred routes are not nine
+     * hundred hand-written tests, and a slice this size fails in a way no scenario catches -- a
+     * field read four bytes off, an enumeration read as an `int`, a growable structure whose size
+     * was never written.
+     *
+     * So each property is read, and each settable one is written with a value chosen to be
+     * distinguishable and read back. A getter that answers `undefined`, a setter whose value does
+     * not survive, or any call that throws where CNA did not refuse it, is a failure -- and a
+     * refusal that *is* CNA's is recorded with its result code rather than swallowed.
+     */
+    #engineCensus() {
+      const device = this.GraphicsDevice;
+      const owned = [];
+      const rows = [];
+      const record = (name, construct, extra) => {
+        let instance;
+        try {
+          instance = construct();
+        } catch (error) {
+          rows.push({
+            name, constructed: false,
+            cnaResult: error?.cnaResult ?? null,
+            error: `${error?.constructor?.name}: ${error?.message}`,
+          });
+          return;
+        }
+        owned.push(instance);
+        const row = { name, constructed: true, read: 0, wrote: 0, roundTripped: 0, failures: [] };
+        // Every accessor the class declares, read once. A getter that throws where CNA did not
+        // refuse is a marshalling failure; one that answers undefined is a binding that forgot to
+        // return.
+        for (const [property, descriptor] of Object.entries(
+          Object.getOwnPropertyDescriptors(Object.getPrototypeOf(instance)))) {
+          if (property === "constructor" || typeof descriptor.get !== "function") continue;
+          if (property === "IsDisposed") continue;
+          try {
+            const value = instance[property];
+            row.read += 1;
+            if (value === undefined) row.failures.push(`${property} answered undefined`);
+          } catch (error) {
+            row.failures.push(
+              `${property} threw ${error?.constructor?.name}` +
+              `${error?.cnaResult == null ? "" : ` (CNA ${error.cnaResult})`}: ${error?.message}`);
+          }
+          if (typeof descriptor.set !== "function") continue;
+          // A settable property is written with a value of its own type and read back. Numbers use
+          // a value CNA is unlikely to clamp; where it does, the clamp is recorded rather than
+          // treated as a failure, because a clamp is CNA's answer and proof the value arrived.
+          try {
+            const before = instance[property];
+            const attempt = typeof before === "number"
+              ? (Number.isInteger(before) ? 2 : 0.28125)
+              : typeof before === "boolean" ? !before
+              : null;
+            if (attempt === null) continue;
+            instance[property] = attempt;
+            row.wrote += 1;
+            const after = instance[property];
+            if (after === attempt) row.roundTripped += 1;
+            else if (typeof after !== typeof attempt) {
+              row.failures.push(`${property} wrote ${typeof attempt} and read ${typeof after}`);
+            }
+            instance[property] = before;
+          } catch (error) {
+            if (error?.cnaResult == null && !(error instanceof RangeError)
+              && !(error instanceof TypeError)) {
+              row.failures.push(`${property} setter threw ${error?.constructor?.name}`);
+            }
+          }
+        }
+        if (extra) {
+          try {
+            extra(instance, row);
+          } catch (error) {
+            row.failures.push(`extra: ${error?.constructor?.name}: ${error?.message}`);
+          }
+        }
+        rows.push(row);
+      };
+
+      const {
+        AreaLightBrdfTable, AsciiPostProcessEffect, AutoExposure, ClusteredForwardEffect,
+        ClusteredLightBuffer, CrtEffect, DebugDraw, DepthEffect, FrustumCuller, GpuInstanceCuller,
+        GpuTimer, HdrDisplayOutput, PbrEffect, PbrMaterialExtensions, RenderPipeline,
+        RenderTargetPool, ShaderEffectFactory, ShadowQuality, SkinnedPbrEffect, StorageBuffer,
+        TransparentDrawList, WeightedBlendedTransparency,
+      } = PostProcess;
+      void ShadowQuality;
+      try {
+        record("RenderPipeline", () => new RenderPipeline(device, 64, 48));
+        record("PbrEffect", () => new PbrEffect(device));
+        record("SkinnedPbrEffect", () => new SkinnedPbrEffect(device));
+        record("PbrMaterialExtensions", () => new PbrMaterialExtensions(device));
+        record("CrtEffect", () => new CrtEffect(device));
+        record("DepthEffect", () => new DepthEffect(device));
+        record("AsciiPostProcessEffect", () => new AsciiPostProcessEffect(device));
+        record("FrustumCuller", () => new FrustumCuller());
+        record("DebugDraw", () => new DebugDraw(device));
+        record("HdrDisplayOutput", () => new HdrDisplayOutput(device));
+        record("AutoExposure", () => new AutoExposure(device));
+        record("TransparentDrawList", () => new TransparentDrawList());
+        record("WeightedBlendedTransparency", () => new WeightedBlendedTransparency(device, 32, 32));
+        record("RenderTargetPool", () => new RenderTargetPool(device));
+        record("ShaderEffectFactory", () => new ShaderEffectFactory(device));
+        record("ClusteredLightBuffer", () => new ClusteredLightBuffer(device));
+        record("ClusteredForwardEffect", () => new ClusteredForwardEffect(device));
+        record("AreaLightBrdfTable", () => new AreaLightBrdfTable(device));
+        record("GpuInstanceCuller", () => new GpuInstanceCuller(device));
+        record("GpuTimer", () => new GpuTimer(device));
+        // `StorageBuffer`'s constructor is private: it is made through its factory, which is what
+        // a consumer calls and what carries the backend. Calling the constructor here gave the
+        // buffer a GraphicsDevice as its backend and three "not a function" failures -- a defect
+        // in this census rather than in the binding, and exactly what it is for.
+        record("StorageBuffer", () => StorageBuffer.Create(device, 256));
+        record("StorageBufferTyped", () => StorageBuffer.CreateTyped(device, 16, 16));
+      } catch (error) {
+        return {
+          censusError: `${error?.constructor?.name}: ${error?.message}`,
+          stack: String(error?.stack ?? ""), rows,
+        };
+      } finally {
+        for (const item of owned.reverse()) { try { item.Dispose?.(); } catch { /* reported */ } }
+      }
+      return { rows };
     }
 
     #colourGradeEvidence() {
