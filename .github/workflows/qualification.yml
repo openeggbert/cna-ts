@@ -161,6 +161,16 @@ jobs:
         run: npm run test:extensions
       - name: CNB compiled content, end to end
         run: npm run test:cnb
+      - name: The suites that need a native library and were never run here
+        # Seven suites that pass locally and that this workflow did not invoke, so a regression in
+        # any of them shipped green. They need exactly what this job already has.
+        run: |
+          npm run test:model-part
+          npm run test:content-survey
+          npm run test:input-devices
+          npm run test:media-library
+          npm run test:avatars
+          npm run test:sprite-font-oracle
       - name: The content pipeline, required to execute
         # `test:content` skips all ten of its tests without a native library and still exits zero,
         # which is a green tick for a suite that ran nothing. This job HAS the library, so it runs
@@ -197,3 +207,8 @@ jobs:
           CNA_WASM_ARTIFACT_DIR: ${{ vars.CNA_WASM_ARTIFACT_DIR }}
           CNA_PLAYWRIGHT_MODULE: ${{ vars.CNA_PLAYWRIGHT_MODULE }}
         run: npm run test:wasm-browser
+      - name: The same module, driven by real browser input
+        env:
+          CNA_WASM_ARTIFACT_DIR: ${{ vars.CNA_WASM_ARTIFACT_DIR }}
+          CNA_PLAYWRIGHT_MODULE: ${{ vars.CNA_PLAYWRIGHT_MODULE }}
+        run: npm run test:wasm-browser-input
