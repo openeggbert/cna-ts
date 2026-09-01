@@ -23,7 +23,16 @@ rather than by a revision either of them records:
 Both of those commits are `modules/net` and `net_sessions.h` only -- no graphics, audio, effect,
 content or renderer file between them -- so no finding below depends on the gap. It is stated rather
 than papered over because the two are genuinely different revisions and a later session should not
-have to re-derive that. Every detector was re-run and every one still fires: windowed 25,
+have to re-derive that.
+
+**Where "under `xvfb-run`" below actually ran.** Until 2026-09-01 it did not run under Xvfb at all.
+`xvfb-run` sets `DISPLAY` and leaves `WAYLAND_DISPLAY` alone, and SDL3 prefers Wayland whenever that
+is set, so every windowed measurement went to a real window on this host's desktop and therefore to
+the **AMD Radeon 780M (radeonsi)**. The suites now pin SDL to `x11`, which reaches Xvfb and Mesa's
+**llvmpipe**. Both are legitimate OpenGL ES 3.2 implementations and the findings below reproduce on
+whichever one is behind the window; two *tests* had pinned the AMD part's float-to-unorm8 rounding
+as exact and were corrected to a one-byte tolerance. Where a finding's numbers could depend on the
+rasterizer, it is the AMD part that produced them. Every detector was re-run and every one still fires: windowed 25,
 native 52, extensions 10, CNB 39, model-part 9, content-survey 8, input-devices 3, media-library 6,
 avatars 8, sprite-font-oracle 5, compiled effects 10, browser 13 -- all passing, which for a
 detector means the behaviour it pins has not changed.
