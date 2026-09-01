@@ -1,5 +1,5 @@
 {
-  "name": "compiled effects, colour grading and the post-process chain, in a browser",
+  "name": "compiled effects, colour grading, the post-process chain and the instancing stream, in a browser",
   "artifact": "dist",
   "build": "npm run build",
   "command": "CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
@@ -123,6 +123,20 @@
       "file": "src/internal/wasm/graphics-ext.ts",
       "find": "        .setU64(\"destination\", frame.Destination)",
       "replace": "        .setU64(\"destination\", 0n)"
+    },
+    {
+      "id": "vertex-elements-read-at-the-wrong-stride",
+      "why": "CNA_VertexElement strided by twelve bytes instead of its measured sixteen: the first element still reads correctly and every later one is misaligned, which is the shape of a layout copied from a header rather than measured",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "          this.#routes.module, \"CNA_VertexElement\", buffer + layout.size * index,",
+      "replace": "          this.#routes.module, \"CNA_VertexElement\", buffer + 12 * index,"
+    },
+    {
+      "id": "instance-stride-read-from-the-tint-route",
+      "why": "the transform stream's stride answered by the tint stream's route: both are int32 outputs with identical signatures, so nothing but the value distinguishes them -- 64 against 4",
+      "file": "src/internal/wasm/graphics-ext.ts",
+      "find": "    return this.#int(\"cna_instanced_renderer_ext_get_instance_stride\");",
+      "replace": "    return this.#int(\"cna_instanced_renderer_ext_get_tint_stride\");"
     }
   ]
 }

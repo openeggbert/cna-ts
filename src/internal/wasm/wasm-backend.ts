@@ -225,6 +225,13 @@ const ROUTES = [
   "cna_post_process_pass_copy_name",
   "cna_post_process_pass_is_supported",
   "cna_post_process_pass_destroy",
+  // The instancing stream's layout: pure computation about the layer's own shaders, and what a
+  // page building its own instance buffer has to match. The renderer itself draws a ModelMeshPart,
+  // which a browser has no native content manager to produce.
+  "cna_instanced_renderer_ext_copy_instance_elements",
+  "cna_instanced_renderer_ext_get_instance_stride",
+  "cna_instanced_renderer_ext_copy_tint_elements",
+  "cna_instanced_renderer_ext_get_tint_stride",
   "cna_post_process_chain_create",
   "cna_post_process_chain_destroy",
   "cna_post_process_chain_add_pass",

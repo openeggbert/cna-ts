@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=433
+WASM_BACKEND_ROUTES=437
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 433 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 437 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
@@ -488,6 +488,16 @@ Everything else in the 603-member interface still refuses **by name** through
 `CnaGraphicsExtensionBackendBase`. The object being present rather than absent is the point: a
 route outside the slice names itself, and a route inside it gets CNA's own answer for the artifact
 in front of it, `NOT_SUPPORTED` included.
+
+One more piece of the layer is reachable and worth naming, because it is the part of a family whose
+other half is not: **the instancing stream's layout**. `InstancedRenderer` itself draws a
+`ModelMeshPart`, and native model mesh parts arrive through a native content manager this package
+deliberately does not have, so the renderer is out of reach in a browser for an architectural
+reason rather than a capability one. Its two vertex declarations are not: they are pure computation
+about the layer's own shaders, and a page building its own instance buffer has to describe it
+*identically* to what the layer reads. Both are asserted against the declaration CNA's header
+documents -- four `Vector4` elements at `TextureCoordinate` usage indices one to four filling a
+64-byte stride, one `Color` at `Color` index one in four -- rather than against a recorded run.
 
 `Texture3D` gains exactly the lifecycle of a volume LUT CNA hands out -- describe it, release it --
 and nothing else. This backend creates no 3D texture and uploads to none, and `createTexture3D`

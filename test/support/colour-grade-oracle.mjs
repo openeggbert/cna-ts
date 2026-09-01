@@ -150,6 +150,26 @@ export function assertColourGradeEvidence(grade) {
     assert.deepEqual(chain.timings, [], "a chain that could not enable timing reports none");
   }
 
+  // --- the instancing stream's layout ------------------------------------------------------------
+  // CNA documents this declaration exactly -- "four Vector4 elements at TextureCoordinate usage
+  // indices one through four, sixty-four bytes in total" -- so it is asserted rather than recorded,
+  // and a caller who built a stream to match would find out here if the layer ever changed it.
+  const streams = grade.instanceStreams;
+  assert.equal(streams.transformStride, 64, "four rows of four floats fill the transform stride");
+  assert.deepEqual(
+    streams.transformElements,
+    // offset, VertexElementFormat.Vector4 (3), VertexElementUsage.TextureCoordinate (2), index
+    [[0, 3, 2, 1], [16, 3, 2, 2], [32, 3, 2, 3], [48, 3, 2, 4]],
+    "the transform stream is four Vector4s at TextureCoordinate 1..4, packed with no gaps",
+  );
+  assert.deepEqual(
+    streams.tintElements,
+    // VertexElementFormat.Color (4), VertexElementUsage.Color (1), index 1
+    [[0, 4, 1, 1]],
+    "and the tint stream is one Color at Color index 1",
+  );
+  assert.equal(streams.tintStride, 4, "which is four bytes");
+
   // --- the state a pixel cannot reach ----------------------------------------------------------
   assert.equal(typeof grade.state.name, "string");
   assert.ok(grade.state.name.length > 0, "the pass names itself");

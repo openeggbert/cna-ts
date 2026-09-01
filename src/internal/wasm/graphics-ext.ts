@@ -27,7 +27,9 @@
 // is missing rather than getting a silent wrong answer.
 
 import { CnaGraphicsExtensionBackendBase } from "../backend-base.js";
-import type { PassTimingSnapshot, PostProcessFrameSnapshot, Vector3Snapshot } from "../backend.js";
+import type {
+  PassTimingSnapshot, PostProcessFrameSnapshot, Vector3Snapshot, VertexElementSnapshot,
+} from "../backend.js";
 import type { NativeHandle } from "../ownership.js";
 import { WASM_STRUCT_LAYOUTS } from "./layout.js";
 import { allocateStruct, WasmScope, WasmStruct, type WasmRouteTable } from "./module.js";
@@ -372,6 +374,66 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
     return this.#routes.outHandle("cna_cube_lut_create_volume_texture", lut, device);
   }
 
+  // --- the instancing stream's layout, which a caller has to match exactly ----------------------
+
+  /**
+   * The two vertex declarations an instancing stream takes, and their strides.
+   *
+   * Pure computation -- they describe the layer's own shaders and touch no device -- and useful
+   * whether or not `InstancedRenderer` itself is reachable, which in a browser it is not: it draws
+   * a `ModelMeshPart`, and native model mesh parts arrive through a native content manager this
+   * package deliberately does not have. A page building its own instance stream still has to
+   * describe it **identically** to what the layer reads, and copying the elements from CNA is how
+   * that gets checked rather than assumed.
+   */
+  public override getInstancedRendererInstanceElements(): readonly VertexElementSnapshot[] {
+    return this.#vertexElements("cna_instanced_renderer_ext_copy_instance_elements");
+  }
+
+  public override getInstancedRendererInstanceStride(): number {
+    return this.#int("cna_instanced_renderer_ext_get_instance_stride");
+  }
+
+  public override getInstancedRendererTintElements(): readonly VertexElementSnapshot[] {
+    return this.#vertexElements("cna_instanced_renderer_ext_copy_tint_elements");
+  }
+
+  public override getInstancedRendererTintStride(): number {
+    return this.#int("cna_instanced_renderer_ext_get_tint_stride");
+  }
+
+  /** A `CNA_VertexElement` array, counted first and then copied. */
+  #vertexElements(route: string): VertexElementSnapshot[] {
+    const scope = this.#routes.scope();
+    try {
+      const countOut = scope.allocate(8);
+      const probe = this.#routes.call(route, 0, 0n, countOut);
+      if (probe !== 0 && probe !== CNA_RESULT_BUFFER_TOO_SMALL) {
+        this.#routes.invoke(route, 0, 0n, countOut);
+      }
+      const count = Number(this.#routes.view().getBigUint64(countOut, true));
+      if (count === 0) return [];
+      const layout = WASM_STRUCT_LAYOUTS.CNA_VertexElement;
+      const buffer = scope.allocate(layout.size * count);
+      this.#routes.invoke(route, buffer, BigInt(count), countOut);
+      const elements: VertexElementSnapshot[] = [];
+      for (let index = 0; index < count; index += 1) {
+        const element = new WasmStruct(
+          this.#routes.module, "CNA_VertexElement", buffer + layout.size * index,
+        );
+        elements.push({
+          Offset: element.getI32("offset"),
+          VertexElementFormat: element.getU32("format"),
+          VertexElementUsage: element.getU32("usage"),
+          UsageIndex: element.getI32("usage_index"),
+        });
+      }
+      return elements;
+    } finally {
+      scope.dispose();
+    }
+  }
+
   // --- the four output shapes this slice reads -------------------------------------------------
 
   /**
@@ -441,6 +503,18 @@ export class WasmGraphicsExtensionBackend extends CnaGraphicsExtensionBackendBas
       const out = scope.allocate(4);
       this.#routes.invoke(route, ...args, out);
       return this.#routes.view().getUint8(out) !== 0;
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /** An `int32_t*` output. */
+  #int(route: string, ...args: readonly (number | bigint)[]): number {
+    const scope = this.#routes.scope();
+    try {
+      const out = scope.allocate(4);
+      this.#routes.invoke(route, ...args, out);
+      return this.#routes.view().getInt32(out, true);
     } finally {
       scope.dispose();
     }

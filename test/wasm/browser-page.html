@@ -1077,6 +1077,26 @@ try {
           for (const pass of chainPasses) pass.Dispose();
         }
 
+        // --- the instancing stream's layout ------------------------------------------------------
+        //
+        // Pure computation about the layer's own shaders, and the one part of the instancing
+        // family a browser can reach: `InstancedRenderer` draws a `ModelMeshPart`, and native
+        // model mesh parts arrive through a native content manager this package deliberately does
+        // not have. A page building its own instance buffer still has to describe it identically
+        // to what the layer reads, so the elements are copied from CNA rather than written here.
+        evidence.instanceStreams = {
+          transformStride: PostProcess.InstanceStreams.TransformStride,
+          tintStride: PostProcess.InstanceStreams.TintStride,
+          transformElements: PostProcess.InstanceStreams.TransformElements.map((element) => [
+            element.Offset, element.VertexElementFormat, element.VertexElementUsage,
+            element.UsageIndex,
+          ]),
+          tintElements: PostProcess.InstanceStreams.TintElements.map((element) => [
+            element.Offset, element.VertexElementFormat, element.VertexElementUsage,
+            element.UsageIndex,
+          ]),
+        };
+
         // What the pass says it holds, and what it says it is. State rather than pixels, and the
         // half of the slice a pixel assertion cannot reach.
         const pass = new PostProcess.ColorGradePass(device);
