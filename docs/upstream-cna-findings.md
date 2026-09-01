@@ -1461,3 +1461,62 @@ has no room for -- `1000 ms` accepted, `1100 ms` refused -- since neither can pa
 including the two rows where CNA and XNA disagree. This package does **not** work around it: the
 property is a pass-through to CNA and adding managed validation would report a limit the runtime
 does not have. When the setter is repaired the two disagreeing rows fail, which is the point.
+
+## 29. Net sessions are reachable, and no binding can honestly reach them: there is no test-only signed-in gamer
+
+**Severity:** a testability gap, not a defect. CNA behaves correctly at every step below. The
+consequence is that roughly 136 `net_sessions.h` and `net_gamers.h` routes cannot be qualified by a
+language binding without that binding fabricating a player.
+**Reproduced on:** HEADLESS build, CNA C ABI 0.21.0, 2026-09-01, directly against the C ABI with
+every out-parameter poisoned before its call.
+
+```text
+1. cna_gamer_get_signed_in_gamer_count            -> SUCCESS, count 0
+2. cna_network_session_create(LOCAL, 1, 4, &out)  -> INVALID_ARGUMENT, out CNA_INVALID_HANDLE
+3. cna_signed_in_gamer_create_ext("Player", ...)  -> SUCCESS, gamer valid
+   cna_gamer_set_signed_in_gamers_ext(&gamer, 1)  -> SUCCESS, count 1
+4. cna_network_session_create(LOCAL, 2, 8, &out)  -> SUCCESS, session valid
+```
+
+Step 2 and step 4 are the same call. The only thing between them is a published gamer, which is
+exactly what `docs/c-api/NET.md` says: "the canonical constructor selects its host from its local
+gamers and fails while that list is empty." CNA's own `modules/c-api/tests/pure_c/NetSmoke.c` runs
+this sequence, and to get past step 2 it has to invent a gamer called `"Player"`.
+
+**Why a binding cannot do what that smoke test does.** `cna_signed_in_gamer_create_ext`'s own header
+says what it is for: "the canonical factory exists so a **platform layer** can publish a signed-in
+gamer." A platform layer publishing the gamer that is actually signed in is correct. A *binding*
+calling it is fabricating a player, and every claim built on the session that follows -- the host's
+identity, the local gamer roster, who a `NetworkGamer` is -- would be a claim about a player nobody
+signed in as. So this package does not bind those routes, and the reason is not that CNA lacks
+networking: Local and SystemLink sessions are created on this host and report their state.
+
+**What would unblock it, and CNA has already designed the shape five times.**
+`cna_compass_set_test_backend_ext`, `cna_motion_set_test_backend_ext`,
+`cna_vibrate_controller_set_test_backend_ext`, `cna_file_dialog_set_test_backend_ext` and
+`cna_message_box_set_test_backend_ext` all exist, and the compass one's header gives the argument
+verbatim: "Without it there is no compass on any verification machine and no way to reach a single
+line past the unsupported refusal." Substitute "signed-in gamer" and the sentence is this finding.
+
+A sixth in that family would do it -- sketched, not prescribed:
+
+```c
+/* Installs or removes this ABI's own signed-in-gamer backend for testing. */
+CNA_C_API CNA_Result cna_gamer_set_test_backend_ext(CNA_Bool installed, int32_t gamer_count);
+```
+
+What matters is not the signature but the two properties the existing five have. It is **named as a
+test route**, so a shipping consumer reading the header knows it is not for them; and the gamers it
+publishes are **visibly synthetic**, so nothing downstream can mistake one for a real sign-in. Both
+are what make the difference between a binding qualifying its session code and a binding inventing a
+player.
+
+**What this package will do with it.** Bind `net_sessions.h` and `net_gamers.h` behind it, in tests
+and internal qualification only, with the evidence labelled `SYNTHETIC_LOCAL_VERIFIED` and never
+`REAL_PLATFORM_VERIFIED`. Until then the family stays unbound and is classified
+`BLOCKED_UPSTREAM_TESTABILITY` rather than deferred, because nothing local can move it.
+
+**Detector in cna-ts:** none, and deliberately. There is no behaviour here to assert -- CNA is
+right at every step -- so a test would only pin the absence of a route, which the coverage report
+already records. `tools/upstream-repro/net-signed-in-gamer.py` is the reproduction above, kept
+runnable so the sequence can be re-measured when the dependency moves.
