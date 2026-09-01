@@ -1,0 +1,72 @@
+{
+  "name": "compiled-effect reflection, write-through and render, in a browser",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
+  "environment": "CNA_WASM_ARTIFACT_DIR must point at a CNA wasm artifact built with -DCNA_EASYGL_COMPILED_EFFECTS=ON -DCNA_CNAEXT=ON, and CNA_SOURCE_PATH at a cnanext checkout for the .fxb fixture. All but the last mutant are in the WebAssembly backend, because the shared managed half is already covered by compiled-effect-render.json against the windowed build and what is unproved here is the wasm32 half: the tagged-value writes, the pointer-and-handle struct layouts, and the routes this slice newly resolves. The last one is deliberately in the shared managed Effect, to show that this browser scenario really does run through it rather than through some browser-only path -- eight wasm mutants dying would otherwise be consistent with a page that had reimplemented the API it was supposed to be testing.",
+  "mutants": [
+    {
+      "id": "skip-native-write-through",
+      "why": "a scalar or vector parameter is accepted and never written into CNA's storage, so the shader keeps the value the .fxb declared -- the defect that looks exactly like a working SetValue",
+      "file": "src/internal/wasm/effects.ts",
+      "find": "      this.#routes.invoke(\"cna_effect_parameter_set_value\", parameter, valueType, pointer);",
+      "replace": "      void parameter; void valueType; void pointer;"
+    },
+    {
+      "id": "truncate-vector4-to-three",
+      "why": "a Vector4 writes three components, so Tint's alpha is whatever the previous allocation held; the RGB channels stay correct, which is what makes a three-channel assertion pass this",
+      "file": "src/internal/wasm/effects.ts",
+      "find": "    case 8: return { kind: \"float\", count: 4 };           // VECTOR4",
+      "replace": "    case 8: return { kind: \"float\", count: 3 };           // VECTOR4"
+    },
+    {
+      "id": "array-writes-first-element-only",
+      "why": "SetValue(number[]) sends element zero and leaves the rest at their declared values, so Weights[1] never moves -- and both draws that differ only in Weights become identical",
+      "file": "src/internal/wasm/effects.ts",
+      "find": "      writeTaggedValues(this.#routes.view(), pointer, kind, components, components.length);",
+      "replace": "      writeTaggedValues(this.#routes.view(), pointer, kind, components, 1);"
+    },
+    {
+      "id": "no-op-pass-apply",
+      "why": "Apply() binds nothing, so whichever program the device last had stays bound",
+      "file": "src/internal/wasm/effects.ts",
+      "find": "  public override applyEffectPass(pass: NativeHandle): void {\n    this.#routes.invoke(\"cna_effect_pass_apply\", pass);\n  }",
+      "replace": "  public override applyEffectPass(pass: NativeHandle): void {\n    void pass;\n  }"
+    },
+    {
+      "id": "ignore-current-technique",
+      "why": "CurrentTechnique is stored managed and never selected natively, so both techniques draw whichever one CNA had current",
+      "file": "src/internal/wasm/effects.ts",
+      "find": "    this.#routes.invoke(\"cna_effect_set_current_technique\", effect, technique);",
+      "replace": "    void effect; void technique;"
+    },
+    {
+      "id": "drop-structure-members",
+      "why": "a struct parameter reflects no members, so Lighting.Intensity cannot be reached at all -- the shape a reflection that stopped one level short would have",
+      "file": "src/internal/wasm/effects.ts",
+      "find": "      members = this.#readNestedParameters(\n        \"cna_effect_parameter_get_structure_members\", parameter, depth + 1, owned);",
+      "replace": "      members = [];"
+    },
+    {
+      "id": "wasm32-user-primitives-native-offsets",
+      "why": "the exact mistake docs/c-api/WASM_ARTIFACT.md warns a binding will make: CNA_UserPrimitives written at the native offsets, where vertex_data is eight bytes wide and the declaration handle lands where wasm32 puts the padding",
+      "file": "src/internal/wasm/graphics.ts",
+      "find": "        .setPointer(\"vertex_data\", scope.allocateBytes(bytes))\n        .setU64(\"vertex_declaration\", declarationHandle)\n        .setI32(\"vertex_offset\", vertexOffset)",
+      "replace": "        .setU64(\"vertex_declaration\", BigInt(scope.allocateBytes(bytes)))\n        .setI32(\"vertex_offset\", vertexOffset)"
+    },
+    {
+      "id": "draw-one-triangle-of-two",
+      "why": "half the quad is drawn, which leaves the sampled centre texel on the diagonal between the two triangles -- a geometry defect a pass/fail on 'did it throw' cannot see",
+      "file": "src/internal/wasm/graphics.ts",
+      "find": "        .setI32(\"primitive_count\", primitiveCount)",
+      "replace": "        .setI32(\"primitive_count\", Math.max(primitiveCount - 1, 1))"
+    },
+    {
+      "id": "shared-managed-write-through",
+      "why": "the same anchor compiled-effect-render.json mutates for the windowed build: if this kills the browser suite too, both backends reach one managed Effect rather than two that resemble each other",
+      "file": "src/Microsoft/Xna/Framework/Graphics/Effect.ts",
+      "find": "  backend.setEffectParameterValue(handle, described.Type, described.Components);",
+      "replace": "  void backend; void handle; void described;"
+    }
+  ]
+}

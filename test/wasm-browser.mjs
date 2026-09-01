@@ -13,6 +13,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { browserBlocked, runFrames } from "./support/browser-harness.mjs";
+import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
 import { assertCompiledEffectEvidence } from "./support/compiled-effect-oracle.mjs";
 
 const skip = browserBlocked;
@@ -469,6 +470,35 @@ test("the browser artifact is asked whether it can run a compiled effect, and an
     console.log(
       `CNA_TS_WASM_COMPILED_EFFECT=CREATED PARAMETERS=${compiled.parameters} ` +
       `TECHNIQUES=${compiled.techniques}`,
+    );
+  }
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("the browser artifact is asked whether it has CNA's engine layer, and answers", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const grade = result.colourGrade;
+  assert.ok(grade, "no extended-graphics evidence was produced");
+
+  // The same shape as the compiled-effect test above, and for the same reason. Whether CNA's
+  // extended graphics layer is in the artifact is a `-DCNA_CNAEXT` decision a consumer makes when
+  // they build it, so both answers are asserted rather than one of them pinned. Before this slice
+  // existed the question could not be reached at all: the WebAssembly backend had no
+  // `GraphicsExtensions` object, so every public engine API failed with a message about the
+  // *binding* rather than about the artifact.
+  assert.equal(typeof grade.layerAbsent, "boolean", `unexpected shape: ${JSON.stringify(grade)}`);
+
+  if (grade.layerAbsent) {
+    // CNA's own NOT_SUPPORTED, and the second route agreeing with it: a refusal that came from the
+    // binding would not have moved `IsGraphicsExtensionLayerAvailable` at all.
+    assert.equal(grade.cnaResult, 6, `CNA's own NOT_SUPPORTED: ${grade.error}`);
+    assert.equal(grade.extensionLayer, false, "and the availability query agrees");
+    console.log("CNA_TS_WASM_ENGINE_LAYER=ABSENT_FROM_ARTIFACT capability=false");
+  } else {
+    assertColourGradeEvidence(grade);
+    console.log(
+      `CNA_TS_WASM_ENGINE_LAYER=PRESENT COLOUR_GRADE=${grade.lut.title} SIZE=${grade.lut.size}`,
     );
   }
   assert.deepEqual(consoleErrors, []);

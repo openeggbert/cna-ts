@@ -18,6 +18,7 @@ import type {
   CnaAudioBackend,
   CnaContentBackend,
   CnaGraphicsBackend,
+  CnaGraphicsExtensionBackend,
   CnaRuntimeServicesBackend,
   PlatformSnapshot,
   RendererFallbackSnapshot,
@@ -74,6 +75,7 @@ import { WasmAudioBackend } from "./audio.js";
 import { WasmContentBackend } from "./content.js";
 import { WasmGraphicsBackend } from "./graphics.js";
 import { WasmEffectBackend } from "./effects.js";
+import { WasmGraphicsExtensionBackend } from "./graphics-ext.js";
 
 const CNA_RESULT_SUCCESS = CnaResult.Success;
 const CNA_RESULT_INVALID_STATE = CnaResult.InvalidState;
@@ -198,6 +200,44 @@ const ROUTES = [
   "cna_directional_light_set_enabled",
   "cna_directional_light_destroy",
   "cna_effect_destroy",
+  // A volume texture CNA made: its dimensions and its release, which is the whole lifecycle of a
+  // colour lookup table handed out by the engine layer. Creating and uploading one is not here.
+  "cna_texture3d_get_info",
+  "cna_texture3d_destroy",
+  // --- extended graphics: the fullscreen blit and colour grading -------------------------------
+  // One family of CNA's 857-route engine layer, not the layer. Every route here answers
+  // NOT_SUPPORTED on an artifact built CNA_CNAEXT=OFF, which is the artifact's answer to give and
+  // the reason they are resolved rather than withheld.
+  "cna_fullscreen_pass_create",
+  "cna_fullscreen_pass_destroy",
+  "cna_fullscreen_pass_draw",
+  "cna_fullscreen_pass_draw_over_current_target",
+  "cna_post_process_context_init",
+  "cna_post_process_pass_apply",
+  "cna_post_process_pass_copy_name",
+  "cna_post_process_pass_is_supported",
+  "cna_post_process_pass_destroy",
+  "cna_color_grade_pass_create",
+  "cna_color_grade_pass_create_identity_lut",
+  "cna_color_grade_pass_get_interpolation",
+  "cna_color_grade_pass_set_interpolation",
+  "cna_color_grade_pass_get_lut",
+  "cna_color_grade_pass_set_lut",
+  "cna_color_grade_pass_get_volume_lut",
+  "cna_color_grade_pass_set_volume_lut",
+  "cna_color_grade_pass_get_strength",
+  "cna_color_grade_pass_set_strength",
+  "cna_color_grade_pass_lut_size_for_strip",
+  "cna_cube_lut_parse",
+  "cna_cube_lut_destroy",
+  "cna_cube_lut_get_size",
+  "cna_cube_lut_get_entry",
+  "cna_cube_lut_get_domain_min",
+  "cna_cube_lut_get_domain_max",
+  "cna_cube_lut_is_unit_domain",
+  "cna_cube_lut_copy_title",
+  "cna_cube_lut_create_strip_texture",
+  "cna_cube_lut_create_volume_texture",
   // --- avatar descriptions: pure computation, and it answers here ------------------------------
   "cna_avatar_description_create",
   "cna_avatar_description_create_random",
@@ -506,6 +546,18 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
    */
   public readonly Graphics: CnaGraphicsBackend;
   public readonly Effects: CnaEffectBackend;
+  /**
+   * CNA's extended graphics layer, which the browser backend had none of until now.
+   *
+   * Present rather than absent even though only one family of it is implemented, and the
+   * difference matters to a consumer: an absent `GraphicsExtensions` makes every public engine API
+   * fail with "CNA extended graphics requires a loaded backend", which is a statement about the
+   * *binding*. What actually varies is whether their artifact was built `CNA_CNAEXT=ON` -- and
+   * with the object present, a route outside the slice names itself and a route inside it gets
+   * CNA's own answer for the artifact in front of it, including `NOT_SUPPORTED` where the layer
+   * was compiled out.
+   */
+  public readonly GraphicsExtensions: CnaGraphicsExtensionBackend;
   /** Sound effects, so a browser game can make a noise. */
   public readonly Audio: CnaAudioBackend;
   /**
@@ -527,6 +579,7 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
     this.#routes = new WasmRouteTable(module, ROUTES);
     this.Graphics = new WasmGraphicsBackend(this.#routes);
     this.Effects = new WasmEffectBackend(this.#routes);
+    this.GraphicsExtensions = new WasmGraphicsExtensionBackend(this.#routes);
     this.Audio = new WasmAudioBackend(
       this.#routes, () => this.#requireGame(), () => this.#requireGameLifetime(),
     );

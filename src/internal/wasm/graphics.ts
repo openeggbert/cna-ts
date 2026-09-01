@@ -19,6 +19,7 @@ import type {
   RasterizerStateSnapshot,
   RenderTargetBindingSnapshot,
   RenderTargetInfo,
+  Texture3DInfo,
   VertexBufferBindingSnapshot,
   VertexElementSnapshot,
 } from "../backend.js";
@@ -257,6 +258,36 @@ export class WasmGraphicsBackend extends CnaGraphicsBackendBase {
     } finally {
       scope.dispose();
     }
+  }
+
+  /**
+   * A volume texture CNA made, described so this package can wrap it.
+   *
+   * Deliberately not the whole `Texture3D` family: this slice creates no 3D texture and uploads to
+   * none. What it has is the lifecycle of one CNA handed *out* -- the volume lookup table
+   * `CubeLut.CreateVolumeTexture` produces -- which needs exactly its dimensions and its release.
+   * `createTexture3D` and the data transfers still refuse by name, because a browser consumer
+   * calling them would be asking for something this backend has no evidence for.
+   */
+  public override getTexture3DInfo(texture: NativeHandle): Texture3DInfo {
+    const scope = this.#routes.scope();
+    try {
+      const info = allocateStruct(this.#routes.module, scope, "CNA_Texture3DInfo");
+      this.#routes.invoke("cna_texture3d_get_info", texture, info.pointer);
+      return {
+        Width: info.getU32("width"),
+        Height: info.getU32("height"),
+        Depth: info.getU32("depth"),
+        LevelCount: info.getU32("level_count"),
+        Format: info.getU32("format"),
+      };
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  public override destroyTexture3D(texture: NativeHandle): void {
+    this.#routes.invoke("cna_texture3d_destroy", texture);
   }
 
   public override createRenderTarget2D(

@@ -35,6 +35,7 @@ import assert from "node:assert/strict";
 import { after } from "node:test";
 
 import { browserBlocked, runFrames, WASM_DIR } from "./support/browser-harness.mjs";
+import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
 import { assertCompiledEffectEvidence } from "./support/compiled-effect-oracle.mjs";
 import { requiredSuite } from "./support/required-suite.mjs";
 import { strongArtifactBlocked } from "./support/strong-artifact-gate.mjs";
@@ -101,6 +102,17 @@ compiledEffectTest("a compiled effect reflects, writes through to CNA and draws 
     `TECHNIQUES=${capabilities.compiled.techniques} ` +
     `DRAWS=${capabilities.compiled.states.length + 2}`,
   );
+});
+
+test("the engine layer's colour grade runs, and its texels are the arithmetic", () => {
+  const grade = evidence.result.colourGrade;
+  assert.ok(grade, "no extended-graphics evidence was produced");
+  assert.equal(
+    grade.layerAbsent, false,
+    `the artifact reports CNAEXT available and then refused a FullscreenPass: ${grade.error}`,
+  );
+  assertColourGradeEvidence(grade);
+  console.log("STRONG_WASM_ENGINE_SLICE=colour-grade PASSES=blit,strip,volume,half,zero,noLut");
 });
 
 test("the page raised nothing while doing it", () => {

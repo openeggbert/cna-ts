@@ -93,6 +93,8 @@ try {
 
   // Imported before the game runs: LoadContent is synchronous, as XNA's is.
   const cnb = await import("/cna-ts/extensions/content/index.js");
+  // CNA's extended graphics layer, through the same public entry point a desktop consumer uses.
+  const PostProcess = await import("/cna-ts/extensions/graphics/index.js");
 
   const targetFrames = Number(new URLSearchParams(location.search).get("frames") ?? "60");
 
@@ -672,16 +674,9 @@ try {
       if (!compiledEffectBytes) {
         result.compiledEffect = { fixture: "absent" };
       } else {
+        let effect = null;
         try {
-          const effect = new Graphics.Effect(this.GraphicsDevice, [...compiledEffectBytes]);
-          // The effect is handed over rather than disposed here: it retains the texture given to
-          // `FxTexture`, so releasing that texture while the effect still holds it is refused --
-          // the scenario owns both and releases them in the one order that works.
-          result.compiledEffect = {
-            fixture: "present",
-            outcome: "created",
-            ...this.#compiledEffectEvidence(effect),
-          };
+          effect = new Graphics.Effect(this.GraphicsDevice, [...compiledEffectBytes]);
         } catch (error) {
           result.compiledEffect = {
             fixture: "present",
@@ -690,7 +685,31 @@ try {
             cnaResult: error?.cnaResult ?? null,
           };
         }
+        if (effect) {
+          // Two different failures, kept apart. CNA declining the bytes is a fact about how the
+          // artifact was built; the scenario below throwing is a fact about this binding, and
+          // recording the second as the first would tell somebody to rebuild CNA over a defect in
+          // cna-ts. The effect is handed over rather than disposed here because it retains the
+          // texture given to `FxTexture`: the scenario owns both and releases them in the one
+          // order that works.
+          result.compiledEffect = { fixture: "present", outcome: "created" };
+          try {
+            Object.assign(result.compiledEffect, this.#compiledEffectEvidence(effect));
+          } catch (error) {
+            result.compiledEffect.evidenceError =
+              `${error?.constructor?.name}: ${error?.message}`;
+          }
+        }
       }
+
+      // --- CNA's extended graphics layer, one family of it ------------------------------------
+      //
+      // Every public API in cna-ts/extensions/graphics used to fail in a browser before it reached
+      // CNA at all, because the WebAssembly backend had no GraphicsExtensions object. It has one
+      // now, covering the fullscreen blit and colour grading, so what comes back here is CNA's own
+      // answer for the artifact in front of it -- NOT_SUPPORTED where the layer was compiled out,
+      // and graded pixels where it was not.
+      result.colourGrade = this.#colourGradeEvidence();
 
       super.LoadContent();
     }
@@ -853,6 +872,147 @@ try {
         target.Dispose();
       }
       return evidence;
+    }
+
+    /**
+     * A `.cube` colour grade over a 4x4 gradient, and the blit that is its control.
+     *
+     * The same scenario `test/windowed-renderer.integration.mjs` runs against windowed OPENGLES3,
+     * and the reason this family was the first engine slice bound to WebAssembly: the table is a
+     * size-2 cube whose transfer is the channel rotation (r,g,b) -> (b,r,g), which is linear in
+     * each channel, so trilinear interpolation of its eight corners reproduces it *exactly*. The
+     * expected texels are that rotation applied in JavaScript -- not numbers read off a run.
+     */
+    #colourGradeEvidence() {
+      const device = this.GraphicsDevice;
+      const N = 4;
+      const owned = [];
+      let blit;
+      try {
+        blit = new PostProcess.FullscreenPass(device);
+      } catch (error) {
+        // The artifact has no engine layer. CNA's own answer, recorded as such: this is the branch
+        // a default-built artifact takes, and it is a build option rather than a browser limit.
+        return {
+          layerAbsent: true,
+          cnaResult: error?.cnaResult ?? null,
+          error: `${error?.constructor?.name}: ${error?.message}`,
+          extensionLayer: ext.IsGraphicsExtensionLayerAvailable(),
+        };
+      }
+      owned.push(blit);
+      try {
+        // Distinct in all three channels and in both axes, and not symmetric under any flip, so a
+        // transposed or mirrored read is a different picture rather than the same one.
+        const texels = [];
+        for (let y = 0; y < N; y += 1) {
+          for (let x = 0; x < N; x += 1) {
+            texels.push(new Color(16 + x * 60, 8 + y * 70, 250 - (x + y) * 30, 255));
+          }
+        }
+        const source = new Graphics.Texture2D(device, N, N);
+        owned.push(source);
+        source.SetData(texels);
+        const read = (texture) => {
+          const pixels = new Array(N * N);
+          texture.GetData(pixels);
+          return pixels.map((color) => [color.R, color.G, color.B, color.A]);
+        };
+
+        const evidence = { layerAbsent: false, source: read(source) };
+
+        // The control: a straight blit. Its output must be the source exactly, which is what makes
+        // every graded result below attributable to the grade rather than to the copy.
+        const copy = new Graphics.RenderTarget2D(device, N, N);
+        owned.push(copy);
+        blit.Draw(source, copy, null, N, N);
+        evidence.blit = read(copy);
+
+        const corners = [
+          [0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1], [1, 1, 1],
+        ];
+        const rotate = ([r, g, b]) => [b, r, g];
+        const cube = PostProcess.CubeLut.Parse(
+          ['TITLE "rotate"', "LUT_3D_SIZE 2", ...corners.map((c) => rotate(c).join(" "))].join("\n"),
+        );
+        owned.push(cube);
+        const strip = cube.CreateStripTexture(device);
+        owned.push(strip);
+        const volume = cube.CreateVolumeTexture(device);
+        owned.push(volume);
+        evidence.lut = {
+          title: cube.Title,
+          size: cube.Size,
+          unitDomain: cube.IsUnitDomain,
+          // Read back through CNA rather than from the text this page wrote, so a parser that
+          // dropped or reordered entries is visible before any pixel is drawn.
+          entries: corners.map(([r, g, b]) => {
+            const entry = cube.GetEntry(r, g, b);
+            return [entry.X, entry.Y, entry.Z];
+          }),
+          stripSize: [strip.Width, strip.Height],
+          volumeSize: [volume.Width, volume.Height, volume.Depth],
+          sizeForStrip: PostProcess.ColorGradePass.LutSizeForStrip(strip.Width, strip.Height),
+        };
+
+        const through = (tune) => {
+          const pass = new PostProcess.ColorGradePass(device);
+          const destination = new Graphics.RenderTarget2D(device, N, N);
+          try {
+            tune(pass);
+            pass.Apply({ Source: source, Destination: destination, Width: N, Height: N });
+            return read(destination);
+          } finally {
+            destination.Dispose();
+            pass.Dispose();
+          }
+        };
+        evidence.grade = {
+          fullStrip: through((p) => {
+            p.SetLut(strip);
+            p.Strength = 1;
+            p.Interpolation = PostProcess.LutInterpolation.Trilinear;
+          }),
+          fullVolume: through((p) => { p.SetVolumeLut(volume); p.Strength = 1; }),
+          half: through((p) => { p.SetLut(strip); p.Strength = 0.5; }),
+          zeroStrength: through((p) => { p.SetLut(strip); p.Strength = 0; }),
+          noLut: through((p) => { p.Strength = 1; }),
+        };
+
+        // What the pass says it holds, and what it says it is. State rather than pixels, and the
+        // half of the slice a pixel assertion cannot reach.
+        const pass = new PostProcess.ColorGradePass(device);
+        try {
+          evidence.state = { name: pass.Name, supported: pass.IsSupportedOn(device) };
+          evidence.state.hasNothing = [pass.HasLut, pass.HasVolumeLut];
+          pass.SetLut(strip);
+          evidence.state.hasStrip = [pass.HasLut, pass.HasVolumeLut];
+          pass.SetVolumeLut(volume);
+          evidence.state.hasBoth = [pass.HasLut, pass.HasVolumeLut];
+          pass.SetLut(null);
+          pass.SetVolumeLut(null);
+          evidence.state.hasNeitherAgain = [pass.HasLut, pass.HasVolumeLut];
+          pass.Interpolation = PostProcess.LutInterpolation.Tetrahedral;
+          evidence.state.interpolation = pass.Interpolation;
+          pass.Strength = 0.375;
+          evidence.state.strength = pass.Strength;
+        } finally {
+          pass.Dispose();
+        }
+        return evidence;
+      } catch (error) {
+        // The layer is present and the scenario failed, which is a cna-ts defect rather than a
+        // missing CNA build option -- kept apart for the same reason the compiled-effect probe
+        // keeps them apart.
+        return {
+          layerAbsent: false,
+          evidenceError: `${error?.constructor?.name}: ${error?.message}`,
+        };
+      } finally {
+        for (const item of owned.reverse()) {
+          try { item.Dispose(); } catch { /* already gone */ }
+        }
+      }
     }
 
     UnloadContent() {

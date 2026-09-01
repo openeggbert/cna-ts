@@ -562,6 +562,36 @@
       "num_vertices",
       "primitive_count",
       "reserved"
+    ],
+    "CNA_PostProcessContext": [
+      "struct_size",
+      "struct_version",
+      "source",
+      "source_depth",
+      "source_normals",
+      "source_velocity",
+      "destination",
+      "width",
+      "height",
+      "elapsed_seconds",
+      "near_plane",
+      "far_plane",
+      "has_previous_frame",
+      "projection",
+      "inverse_projection",
+      "inverse_view",
+      "previous_view_projection",
+      "settings"
+    ],
+    "CNA_Texture3DInfo": [
+      "struct_size",
+      "struct_version",
+      "width",
+      "height",
+      "depth",
+      "level_count",
+      "format",
+      "reserved"
     ]
   },
   "callbacks": {

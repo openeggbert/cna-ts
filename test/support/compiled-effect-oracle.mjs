@@ -73,6 +73,15 @@ function assertTexel(actual, expected, what) {
  * cannot claim different things.
  */
 export function assertCompiledEffectEvidence(compiled) {
+  // The artifact accepted the bytes, so anything that went wrong afterwards is this binding's --
+  // asserted first, because every assertion below would otherwise fail on a missing field and say
+  // nothing about why.
+  assert.equal(
+    compiled.evidenceError ?? null, null,
+    "the artifact created the effect and the scenario then failed, which is a cna-ts defect " +
+    "rather than a missing CNA build option",
+  );
+
   // --- reflection ---------------------------------------------------------------------------
   assert.equal(compiled.parameters, 6, "CnaConformanceEffect.fxb declares six parameters");
   assert.equal(compiled.techniques, 2, "and two techniques");
