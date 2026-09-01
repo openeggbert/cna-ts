@@ -46,7 +46,14 @@ jobs:
           # The revision the checked-in ABI, contract and coverage reports were measured from. A
           # branch name here would make every report a moving target; a SHA makes a moved
           # dependency a deliberate update with new numbers rather than a silent drift.
-          ref: 17b5a90a0878f3f44c23bc8e3197d5d30373dc72
+          #
+          # It had drifted anyway, in the direction the comment above did not anticipate: the
+          # reports moved and the pin did not. `17b5a90a0` declares 4051 routes and the checked-in
+          # report says 4054, so the `cmp` below could not have passed. Both now name
+          # `89024e0d4`, which is the newest commit that exists on the remote -- CNA's own
+          # `next` has ten further commits that are local to the development machine, and a SHA
+          # this workflow cannot fetch is not a pin.
+          ref: 89024e0d4eef43d197549dcc1378dd551a9fb973
           path: cna-headers
       - name: ABI declarations and all imported signatures
         run: |

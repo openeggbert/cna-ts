@@ -20,9 +20,11 @@ import type {
   AccelerometerReadingSnapshot,
   AreaLightBrdfTermsSnapshot,
   AreaLightSnapshot,
+  AttachedInputDeviceSnapshot,
   AudioEmitterSnapshot,
   AudioListenerSnapshot,
   AudioVectorSnapshot,
+  AvatarDescriptionSnapshot,
   BackendKind,
   BackendRendererInfo,
   BlendStateSnapshot,
@@ -33,10 +35,12 @@ import type {
   ClusteredLightSnapshot,
   CnaAtmosphereBackend,
   CnaAudioBackend,
+  CnaAvatarBackend,
   CnaBackend,
   CnaClusteredLightingBackend,
   CnaComputeBackend,
   CnaContentBackend,
+  CnaContentSurveyBackend,
   CnaDecalBackend,
   CnaDepthNormalPrepassBackend,
   CnaDeviceBackend,
@@ -50,30 +54,20 @@ import type {
   CnaGraphicsAdapterBackend,
   CnaGraphicsBackend,
   CnaGraphicsExtensionBackend,
+  CnaInputDeviceInventoryBackend,
+  CnaInstancedRendererBackend,
   CnaLightProbeBackend,
   CnaLodBackend,
-  CnaNativeMeshPartBackend,
-  CnaContentSurveyBackend,
-  CnaInputDeviceInventoryBackend,
-  CnaMediaLibraryBackend,
-  CnaAvatarBackend,
-  CnaSpriteFontOracleBackend,
-  CnaSpriteFontGlyphSnapshot,
-  CnaSpriteFontInfoSnapshot,
-  AvatarDescriptionSnapshot,
-  MediaLibrarySnapshot,
-  MediaSongSnapshot,
-  MediaPictureSnapshot,
-  AttachedInputDeviceSnapshot,
-  HostPowerSnapshot,
-  ContentSurveyEntrySnapshot,
-  ContentSurveyReaderUsageSnapshot,
-  CnaInstancedRendererBackend,
   CnaMediaBackend,
+  CnaMediaLibraryBackend,
+  CnaNativeMeshPartBackend,
   CnaParticleBackend,
   CnaRuntimeServicesBackend,
   CnaSensorBackend,
   CnaShadowBackend,
+  CnaSpriteFontGlyphSnapshot,
+  CnaSpriteFontInfoSnapshot,
+  CnaSpriteFontOracleBackend,
   CnaStorageBackend,
   CnaVideoBackend,
   CnaXactBackend,
@@ -94,6 +88,8 @@ import type {
   ColorSnapshot,
   CompassReadingSnapshot,
   ContentLostResourceKind,
+  ContentSurveyEntrySnapshot,
+  ContentSurveyReaderUsageSnapshot,
   CueSnapshot,
   CullableInstanceSnapshot,
   DebugVertexSnapshot,
@@ -112,19 +108,25 @@ import type {
   GyroscopeReadingSnapshot,
   HapticCapabilitiesSnapshot,
   HostDeviceSnapshot,
+  HostPowerSnapshot,
   ImageBasedLightSnapshot,
   IndirectDrawArgumentsSnapshot,
   IndirectDrawIndexedArgumentsSnapshot,
   JoystickCapabilitiesSnapshot,
   JoystickInfoSnapshot,
   JoystickStateSnapshot,
+  MediaLibrarySnapshot,
+  MediaNamedSnapshot,
+  MediaPictureSnapshot,
   MediaSongPlaybackSnapshot,
+  MediaSongSnapshot,
   MediaSourceSnapshot,
   MicrophoneSnapshot,
   MotionReadingSnapshot,
+  NativeEffectAnnotationSnapshot,
+  NativeEffectParameterSnapshot,
   NativeEffectPassSnapshot,
   NativeEffectReflectionSnapshot,
-  NativeEffectParameterSnapshot,
   NativeEffectTechniqueSnapshot,
   PackedDepthSnapshot,
   ParticleEmitterSettingsSnapshot,
@@ -583,6 +585,40 @@ export abstract class CnaEffectBackendBase implements CnaEffectBackend {
   public getEffectReflection(
     _effect: NativeHandle,
   ): NativeEffectReflectionSnapshot { return this.unsupported("getEffectReflection"); }
+  public getEffectParameters(
+    _effect: NativeHandle,
+  ): readonly NativeEffectParameterSnapshot[] { return this.unsupported("getEffectParameters"); }
+  public destroyEffectParameter(
+    _parameter: NativeHandle,
+  ): void { return this.unsupported("destroyEffectParameter"); }
+  public setEffectParameterValue(
+    _parameter: NativeHandle,
+    _valueType: number,
+    _components: readonly number[],
+  ): void { return this.unsupported("setEffectParameterValue"); }
+  public getEffectParameterValue(
+    _parameter: NativeHandle,
+    _valueType: number,
+  ): number[] { return this.unsupported("getEffectParameterValue"); }
+  public setEffectParameterValues(
+    _parameter: NativeHandle,
+    _valueType: number,
+    _components: readonly number[],
+  ): void { return this.unsupported("setEffectParameterValues"); }
+  public getEffectParameterValues(
+    _parameter: NativeHandle,
+    _valueType: number,
+    _requested: number,
+  ): number[] { return this.unsupported("getEffectParameterValues"); }
+  public setEffectParameterTexture(
+    _parameter: NativeHandle,
+    _textureType: number,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setEffectParameterTexture"); }
+  public setEffectParameterString(
+    _parameter: NativeHandle,
+    _value: string,
+  ): void { return this.unsupported("setEffectParameterString"); }
   public setEffectCurrentTechnique(
     _effect: NativeHandle,
     _technique: NativeHandle,
@@ -598,30 +634,6 @@ export abstract class CnaEffectBackendBase implements CnaEffectBackend {
     _technique: NativeHandle,
   ): void { return this.unsupported("destroyEffectTechnique"); }
   public destroyEffectPass(_pass: NativeHandle): void { return this.unsupported("destroyEffectPass"); }
-  public getEffectParameters(
-    _effect: NativeHandle,
-  ): readonly NativeEffectParameterSnapshot[] { return this.unsupported("getEffectParameters"); }
-  public destroyEffectParameter(
-    _parameter: NativeHandle,
-  ): void { return this.unsupported("destroyEffectParameter"); }
-  public setEffectParameterValue(
-    _parameter: NativeHandle, _valueType: number, _components: readonly number[],
-  ): void { return this.unsupported("setEffectParameterValue"); }
-  public getEffectParameterValue(
-    _parameter: NativeHandle, _valueType: number,
-  ): number[] { return this.unsupported("getEffectParameterValue"); }
-  public setEffectParameterValues(
-    _parameter: NativeHandle, _valueType: number, _components: readonly number[],
-  ): void { return this.unsupported("setEffectParameterValues"); }
-  public getEffectParameterValues(
-    _parameter: NativeHandle, _valueType: number, _requested: number,
-  ): number[] { return this.unsupported("getEffectParameterValues"); }
-  public setEffectParameterTexture(
-    _parameter: NativeHandle, _textureType: number, _texture: NativeHandle,
-  ): void { return this.unsupported("setEffectParameterTexture"); }
-  public setEffectParameterString(
-    _parameter: NativeHandle, _value: string,
-  ): void { return this.unsupported("setEffectParameterString"); }
   public destroyEffect(_effect: NativeHandle): void { return this.unsupported("destroyEffect"); }
   public beginSpriteBatchWithEffect(
     _spriteBatch: NativeHandle,
@@ -3925,231 +3937,6 @@ export abstract class CnaShadowBackendBase implements CnaShadowBackend {
   ): number { return this.unsupported("cubeShadowMapSizeForQuality"); }
 }
 
-/** Refusing base for {@link CnaSpriteFontOracleBackend}. */
-export abstract class CnaSpriteFontOracleBackendBase implements CnaSpriteFontOracleBackend {
-  /** Refuses one member of this boundary, naming it. */
-  protected abstract unsupported(member: string): never;
-  public createCnaSpriteFont(
-    _texture: NativeHandle,
-    _glyphs: readonly CnaSpriteFontGlyphSnapshot[],
-    _lineSpacing: number,
-    _spacing: number,
-    _defaultCharacter: number | null,
-  ): NativeHandle { return this.unsupported("createCnaSpriteFont"); }
-  public destroyCnaSpriteFont(_font: NativeHandle): void {
-    return this.unsupported("destroyCnaSpriteFont");
-  }
-  public getCnaSpriteFontInfo(_font: NativeHandle): CnaSpriteFontInfoSnapshot {
-    return this.unsupported("getCnaSpriteFontInfo");
-  }
-  public measureCnaSpriteFont(
-    _font: NativeHandle, _text: string,
-  ): { readonly X: number; readonly Y: number } {
-    return this.unsupported("measureCnaSpriteFont");
-  }
-}
-
-/** Refusing base for {@link CnaAvatarBackend}. */
-export abstract class CnaAvatarBackendBase implements CnaAvatarBackend {
-  /** Refuses one member of this boundary, naming it. */
-  protected abstract unsupported(member: string): never;
-  public createAvatarDescription(_bytes: Uint8Array): AvatarDescriptionSnapshot {
-    return this.unsupported("createAvatarDescription");
-  }
-  public createRandomAvatarDescription(): AvatarDescriptionSnapshot {
-    return this.unsupported("createRandomAvatarDescription");
-  }
-}
-
-/** Refusing base for {@link CnaMediaLibraryBackend}. */
-export abstract class CnaMediaLibraryBackendBase implements CnaMediaLibraryBackend {
-  /** Refuses one member of this boundary, naming it. */
-  protected abstract unsupported(member: string): never;
-  public createMediaLibrary(): NativeHandle { return this.unsupported("createMediaLibrary"); }
-  public destroyMediaLibrary(_library: NativeHandle): void {
-    return this.unsupported("destroyMediaLibrary");
-  }
-  public getMediaLibrarySnapshot(_library: NativeHandle): MediaLibrarySnapshot {
-    return this.unsupported("getMediaLibrarySnapshot");
-  }
-  public getMediaLibraryPlaylistSongs(
-    _library: NativeHandle, _index: number,
-  ): readonly MediaSongSnapshot[] {
-    return this.unsupported("getMediaLibraryPlaylistSongs");
-  }
-  public getMediaLibraryAlbumBytes(
-    _library: NativeHandle, _index: number, _thumbnail: boolean,
-  ): Uint8Array { return this.unsupported("getMediaLibraryAlbumBytes"); }
-  public getMediaLibraryPictureBytes(
-    _library: NativeHandle, _saved: boolean, _index: number, _thumbnail: boolean,
-  ): Uint8Array { return this.unsupported("getMediaLibraryPictureBytes"); }
-  public saveMediaLibraryPicture(
-    _library: NativeHandle, _name: string, _image: Uint8Array,
-  ): MediaPictureSnapshot { return this.unsupported("saveMediaLibraryPicture"); }
-  public getMediaLibraryPictureFromToken(
-    _library: NativeHandle, _token: string,
-  ): MediaPictureSnapshot | null {
-    return this.unsupported("getMediaLibraryPictureFromToken");
-  }
-}
-
-/** Refusing base for {@link CnaInputDeviceInventoryBackend}. */
-export abstract class CnaInputDeviceInventoryBackendBase
-implements CnaInputDeviceInventoryBackend {
-  /** Refuses one member of this boundary, naming it. */
-  protected abstract unsupported(member: string): never;
-  public getClipboardText(): string { return this.unsupported("getClipboardText"); }
-  public getClipboardTextSize(): number { return this.unsupported("getClipboardTextSize"); }
-  public getClipboardHasText(): boolean { return this.unsupported("getClipboardHasText"); }
-  public setClipboardTextUngated(_text: string): void {
-    return this.unsupported("setClipboardTextUngated");
-  }
-  public getAttachedMouseCount(): number { return this.unsupported("getAttachedMouseCount"); }
-  public getAttachedMouseAt(_index: number): AttachedInputDeviceSnapshot {
-    return this.unsupported("getAttachedMouseAt");
-  }
-  public getAttachedKeyboardCount(): number {
-    return this.unsupported("getAttachedKeyboardCount");
-  }
-  public getAttachedKeyboardAt(_index: number): AttachedInputDeviceSnapshot {
-    return this.unsupported("getAttachedKeyboardAt");
-  }
-  public getAttachedTouchDeviceCount(): number {
-    return this.unsupported("getAttachedTouchDeviceCount");
-  }
-  public getAttachedTouchDeviceAt(_index: number): AttachedInputDeviceSnapshot {
-    return this.unsupported("getAttachedTouchDeviceAt");
-  }
-  public getHostPowerInfo(): HostPowerSnapshot { return this.unsupported("getHostPowerInfo"); }
-}
-
-/** Refusing base for {@link CnaContentSurveyBackend}. */
-export abstract class CnaContentSurveyBackendBase implements CnaContentSurveyBackend {
-  /** Refuses one member of this boundary, naming it. */
-  protected abstract unsupported(member: string): never;
-  public createContentSurvey(
-    _device: NativeHandle, _rootDirectory: string,
-  ): NativeHandle { return this.unsupported("createContentSurvey"); }
-  public destroyContentSurvey(_survey: NativeHandle): void {
-    return this.unsupported("destroyContentSurvey");
-  }
-  public getContentSurveyRoot(_survey: NativeHandle): string {
-    return this.unsupported("getContentSurveyRoot");
-  }
-  public setContentSurveyRoot(_survey: NativeHandle, _rootDirectory: string): void {
-    return this.unsupported("setContentSurveyRoot");
-  }
-  public refreshContentSurvey(_survey: NativeHandle): void {
-    return this.unsupported("refreshContentSurvey");
-  }
-  public getContentSurveyEntryCount(_survey: NativeHandle): number {
-    return this.unsupported("getContentSurveyEntryCount");
-  }
-  public getContentSurveyEntry(
-    _survey: NativeHandle, _index: number,
-  ): ContentSurveyEntrySnapshot { return this.unsupported("getContentSurveyEntry"); }
-  public getContentSurveyReaderUsageCount(_survey: NativeHandle): number {
-    return this.unsupported("getContentSurveyReaderUsageCount");
-  }
-  public getContentSurveyReaderUsage(
-    _survey: NativeHandle, _index: number,
-  ): ContentSurveyReaderUsageSnapshot {
-    return this.unsupported("getContentSurveyReaderUsage");
-  }
-  public isContentTypeReaderRegisteredWithCna(_readerName: string): boolean {
-    return this.unsupported("isContentTypeReaderRegisteredWithCna");
-  }
-}
-
-/** Refusing base for {@link CnaNativeMeshPartBackend}. */
-export abstract class CnaNativeMeshPartBackendBase implements CnaNativeMeshPartBackend {
-  /** Refuses one member of this boundary, naming it. */
-  protected abstract unsupported(member: string): never;
-  public createNativeMeshPart(
-    _vertexBuffer: NativeHandle,
-    _indexBuffer: NativeHandle,
-    _numVertices: number,
-    _primitiveCount: number,
-    _startIndex: number,
-    _vertexOffset: number,
-  ): NativeHandle { return this.unsupported("createNativeMeshPart"); }
-  public destroyNativeMeshPart(_part: NativeHandle): void {
-    return this.unsupported("destroyNativeMeshPart");
-  }
-  public setNativeMeshPartEffect(
-    _part: NativeHandle, _effect: NativeHandle | null,
-  ): void { return this.unsupported("setNativeMeshPartEffect"); }
-  public getNativeMeshPartEffect(_part: NativeHandle): NativeHandle | null {
-    return this.unsupported("getNativeMeshPartEffect");
-  }
-  public getNativeMeshPartVertexBuffer(_part: NativeHandle): NativeHandle | null {
-    return this.unsupported("getNativeMeshPartVertexBuffer");
-  }
-  public getNativeMeshPartIndexBuffer(_part: NativeHandle): NativeHandle | null {
-    return this.unsupported("getNativeMeshPartIndexBuffer");
-  }
-  public getNativeMeshPartNumVertices(_part: NativeHandle): number {
-    return this.unsupported("getNativeMeshPartNumVertices");
-  }
-  public getNativeMeshPartPrimitiveCount(_part: NativeHandle): number {
-    return this.unsupported("getNativeMeshPartPrimitiveCount");
-  }
-  public getNativeMeshPartStartIndex(_part: NativeHandle): number {
-    return this.unsupported("getNativeMeshPartStartIndex");
-  }
-  public getNativeMeshPartVertexOffset(_part: NativeHandle): number {
-    return this.unsupported("getNativeMeshPartVertexOffset");
-  }
-}
-
-/** Refusing base for {@link CnaInstancedRendererBackend}. */
-export abstract class CnaInstancedRendererBackendBase implements CnaInstancedRendererBackend {
-  /** Refuses one member of this boundary, naming it. */
-  protected abstract unsupported(member: string): never;
-  public createInstancedRenderer(
-    _device: NativeHandle, _part: NativeHandle,
-  ): NativeHandle { return this.unsupported("createInstancedRenderer"); }
-  public destroyInstancedRenderer(_renderer: NativeHandle): void {
-    return this.unsupported("destroyInstancedRenderer");
-  }
-  public setInstancedRendererInstances(
-    _renderer: NativeHandle, _transforms: readonly (readonly number[])[],
-  ): void { return this.unsupported("setInstancedRendererInstances"); }
-  public setInstancedRendererTints(
-    _renderer: NativeHandle, _tints: readonly ColorSnapshot[],
-  ): void { return this.unsupported("setInstancedRendererTints"); }
-  public getInstancedRendererTintsEnabled(_renderer: NativeHandle): boolean {
-    return this.unsupported("getInstancedRendererTintsEnabled");
-  }
-  public setInstancedRendererTintsEnabled(
-    _renderer: NativeHandle, _enabled: boolean,
-  ): void { return this.unsupported("setInstancedRendererTintsEnabled"); }
-  public drawInstancedRenderer(
-    _renderer: NativeHandle, _effect: NativeHandle,
-  ): void { return this.unsupported("drawInstancedRenderer"); }
-  public getInstancedRendererInstancingSupported(_renderer: NativeHandle): boolean {
-    return this.unsupported("getInstancedRendererInstancingSupported");
-  }
-  public getInstancedRendererFallbackEnabled(_renderer: NativeHandle): boolean {
-    return this.unsupported("getInstancedRendererFallbackEnabled");
-  }
-  public setInstancedRendererFallbackEnabled(
-    _renderer: NativeHandle, _enabled: boolean,
-  ): void { return this.unsupported("setInstancedRendererFallbackEnabled"); }
-  public getInstancedRendererInstanceCount(_renderer: NativeHandle): number {
-    return this.unsupported("getInstancedRendererInstanceCount");
-  }
-  public getInstancedRendererInstanceCapacity(_renderer: NativeHandle): number {
-    return this.unsupported("getInstancedRendererInstanceCapacity");
-  }
-  public getInstancedRendererLastDrawCallCount(_renderer: NativeHandle): number {
-    return this.unsupported("getInstancedRendererLastDrawCallCount");
-  }
-  public getInstancedRendererDidLastDrawInstance(_renderer: NativeHandle): boolean {
-    return this.unsupported("getInstancedRendererDidLastDrawInstance");
-  }
-}
-
 /** Refusing base for {@link CnaLodBackend}. */
 export abstract class CnaLodBackendBase implements CnaLodBackend {
   /** Refuses one member of this boundary, naming it. */
@@ -4161,16 +3948,16 @@ export abstract class CnaLodBackendBase implements CnaLodBackend {
     _maxDistance: number,
     _part: NativeHandle | null,
   ): void { return this.unsupported("addLodLevel"); }
-  public selectLodPart(
-    _group: NativeHandle,
-    _distance: number,
-  ): NativeHandle | null { return this.unsupported("selectLodPart"); }
   public clearLodGroup(_group: NativeHandle): void { return this.unsupported("clearLodGroup"); }
   public copyLodLevels(_group: NativeHandle): readonly number[] { return this.unsupported("copyLodLevels"); }
   public selectLodIndex(
     _group: NativeHandle,
     _distance: number,
   ): number { return this.unsupported("selectLodIndex"); }
+  public selectLodPart(
+    _group: NativeHandle,
+    _distance: number,
+  ): NativeHandle | null { return this.unsupported("selectLodPart"); }
   public getLodHysteresis(_group: NativeHandle): number { return this.unsupported("getLodHysteresis"); }
   public setLodHysteresis(
     _group: NativeHandle,
@@ -4192,6 +3979,235 @@ export abstract class CnaLodBackendBase implements CnaLodBackend {
     _group: NativeHandle,
     _distance: number,
   ): number { return this.unsupported("getLodProjectedRadiusPixels"); }
+}
+
+/** Refusing base for {@link CnaSpriteFontOracleBackend}. */
+export abstract class CnaSpriteFontOracleBackendBase implements CnaSpriteFontOracleBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createCnaSpriteFont(
+    _texture: NativeHandle,
+    _glyphs: readonly CnaSpriteFontGlyphSnapshot[],
+    _lineSpacing: number,
+    _spacing: number,
+    _defaultCharacter: number | null,
+  ): NativeHandle { return this.unsupported("createCnaSpriteFont"); }
+  public destroyCnaSpriteFont(_font: NativeHandle): void { return this.unsupported("destroyCnaSpriteFont"); }
+  public getCnaSpriteFontInfo(
+    _font: NativeHandle,
+  ): CnaSpriteFontInfoSnapshot { return this.unsupported("getCnaSpriteFontInfo"); }
+  public measureCnaSpriteFont(
+    _font: NativeHandle,
+    _text: string,
+  ): {
+    readonly X: number;
+    readonly Y: number;
+} { return this.unsupported("measureCnaSpriteFont"); }
+}
+
+/** Refusing base for {@link CnaAvatarBackend}. */
+export abstract class CnaAvatarBackendBase implements CnaAvatarBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createAvatarDescription(
+    _bytes: Uint8Array,
+  ): AvatarDescriptionSnapshot { return this.unsupported("createAvatarDescription"); }
+  public createRandomAvatarDescription(
+  ): AvatarDescriptionSnapshot { return this.unsupported("createRandomAvatarDescription"); }
+}
+
+/** Refusing base for {@link CnaMediaLibraryBackend}. */
+export abstract class CnaMediaLibraryBackendBase implements CnaMediaLibraryBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createMediaLibrary(): NativeHandle { return this.unsupported("createMediaLibrary"); }
+  public destroyMediaLibrary(_library: NativeHandle): void { return this.unsupported("destroyMediaLibrary"); }
+  public getMediaLibrarySnapshot(
+    _library: NativeHandle,
+  ): MediaLibrarySnapshot { return this.unsupported("getMediaLibrarySnapshot"); }
+  public getMediaLibraryPlaylistSongs(
+    _library: NativeHandle,
+    _index: number,
+  ): readonly MediaSongSnapshot[] { return this.unsupported("getMediaLibraryPlaylistSongs"); }
+  public getMediaLibraryAlbumBytes(
+    _library: NativeHandle,
+    _index: number,
+    _thumbnail: boolean,
+  ): Uint8Array { return this.unsupported("getMediaLibraryAlbumBytes"); }
+  public getMediaLibraryPictureBytes(
+    _library: NativeHandle,
+    _saved: boolean,
+    _index: number,
+    _thumbnail: boolean,
+  ): Uint8Array { return this.unsupported("getMediaLibraryPictureBytes"); }
+  public saveMediaLibraryPicture(
+    _library: NativeHandle,
+    _name: string,
+    _image: Uint8Array,
+  ): MediaPictureSnapshot { return this.unsupported("saveMediaLibraryPicture"); }
+  public getMediaLibraryPictureFromToken(
+    _library: NativeHandle,
+    _token: string,
+  ): MediaPictureSnapshot | null { return this.unsupported("getMediaLibraryPictureFromToken"); }
+}
+
+/** Refusing base for {@link CnaInputDeviceInventoryBackend}. */
+export abstract class CnaInputDeviceInventoryBackendBase implements CnaInputDeviceInventoryBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public getClipboardText(): string { return this.unsupported("getClipboardText"); }
+  public getClipboardTextSize(): number { return this.unsupported("getClipboardTextSize"); }
+  public getClipboardHasText(): boolean { return this.unsupported("getClipboardHasText"); }
+  public setClipboardTextUngated(_text: string): void { return this.unsupported("setClipboardTextUngated"); }
+  public getAttachedMouseCount(): number { return this.unsupported("getAttachedMouseCount"); }
+  public getAttachedMouseAt(
+    _index: number,
+  ): AttachedInputDeviceSnapshot { return this.unsupported("getAttachedMouseAt"); }
+  public getAttachedKeyboardCount(): number { return this.unsupported("getAttachedKeyboardCount"); }
+  public getAttachedKeyboardAt(
+    _index: number,
+  ): AttachedInputDeviceSnapshot { return this.unsupported("getAttachedKeyboardAt"); }
+  public getAttachedTouchDeviceCount(): number { return this.unsupported("getAttachedTouchDeviceCount"); }
+  public getAttachedTouchDeviceAt(
+    _index: number,
+  ): AttachedInputDeviceSnapshot { return this.unsupported("getAttachedTouchDeviceAt"); }
+  public getHostPowerInfo(): HostPowerSnapshot { return this.unsupported("getHostPowerInfo"); }
+}
+
+/** Refusing base for {@link CnaContentSurveyBackend}. */
+export abstract class CnaContentSurveyBackendBase implements CnaContentSurveyBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createContentSurvey(
+    _device: NativeHandle,
+    _rootDirectory: string,
+  ): NativeHandle { return this.unsupported("createContentSurvey"); }
+  public destroyContentSurvey(
+    _survey: NativeHandle,
+  ): void { return this.unsupported("destroyContentSurvey"); }
+  public getContentSurveyRoot(
+    _survey: NativeHandle,
+  ): string { return this.unsupported("getContentSurveyRoot"); }
+  public setContentSurveyRoot(
+    _survey: NativeHandle,
+    _rootDirectory: string,
+  ): void { return this.unsupported("setContentSurveyRoot"); }
+  public refreshContentSurvey(
+    _survey: NativeHandle,
+  ): void { return this.unsupported("refreshContentSurvey"); }
+  public getContentSurveyEntryCount(
+    _survey: NativeHandle,
+  ): number { return this.unsupported("getContentSurveyEntryCount"); }
+  public getContentSurveyEntry(
+    _survey: NativeHandle,
+    _index: number,
+  ): ContentSurveyEntrySnapshot { return this.unsupported("getContentSurveyEntry"); }
+  public getContentSurveyReaderUsageCount(
+    _survey: NativeHandle,
+  ): number { return this.unsupported("getContentSurveyReaderUsageCount"); }
+  public getContentSurveyReaderUsage(
+    _survey: NativeHandle,
+    _index: number,
+  ): ContentSurveyReaderUsageSnapshot { return this.unsupported("getContentSurveyReaderUsage"); }
+  public isContentTypeReaderRegisteredWithCna(
+    _readerName: string,
+  ): boolean { return this.unsupported("isContentTypeReaderRegisteredWithCna"); }
+}
+
+/** Refusing base for {@link CnaNativeMeshPartBackend}. */
+export abstract class CnaNativeMeshPartBackendBase implements CnaNativeMeshPartBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createNativeMeshPart(
+    _vertexBuffer: NativeHandle,
+    _indexBuffer: NativeHandle,
+    _numVertices: number,
+    _primitiveCount: number,
+    _startIndex: number,
+    _vertexOffset: number,
+  ): NativeHandle { return this.unsupported("createNativeMeshPart"); }
+  public destroyNativeMeshPart(
+    _part: NativeHandle,
+  ): void { return this.unsupported("destroyNativeMeshPart"); }
+  public setNativeMeshPartEffect(
+    _part: NativeHandle,
+    _effect: NativeHandle | null,
+  ): void { return this.unsupported("setNativeMeshPartEffect"); }
+  public getNativeMeshPartEffect(
+    _part: NativeHandle,
+  ): NativeHandle | null { return this.unsupported("getNativeMeshPartEffect"); }
+  public getNativeMeshPartVertexBuffer(
+    _part: NativeHandle,
+  ): NativeHandle | null { return this.unsupported("getNativeMeshPartVertexBuffer"); }
+  public getNativeMeshPartIndexBuffer(
+    _part: NativeHandle,
+  ): NativeHandle | null { return this.unsupported("getNativeMeshPartIndexBuffer"); }
+  public getNativeMeshPartNumVertices(
+    _part: NativeHandle,
+  ): number { return this.unsupported("getNativeMeshPartNumVertices"); }
+  public getNativeMeshPartPrimitiveCount(
+    _part: NativeHandle,
+  ): number { return this.unsupported("getNativeMeshPartPrimitiveCount"); }
+  public getNativeMeshPartStartIndex(
+    _part: NativeHandle,
+  ): number { return this.unsupported("getNativeMeshPartStartIndex"); }
+  public getNativeMeshPartVertexOffset(
+    _part: NativeHandle,
+  ): number { return this.unsupported("getNativeMeshPartVertexOffset"); }
+}
+
+/** Refusing base for {@link CnaInstancedRendererBackend}. */
+export abstract class CnaInstancedRendererBackendBase implements CnaInstancedRendererBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createInstancedRenderer(
+    _device: NativeHandle,
+    _part: NativeHandle,
+  ): NativeHandle { return this.unsupported("createInstancedRenderer"); }
+  public destroyInstancedRenderer(
+    _renderer: NativeHandle,
+  ): void { return this.unsupported("destroyInstancedRenderer"); }
+  public setInstancedRendererInstances(
+    _renderer: NativeHandle,
+    _transforms: readonly (readonly number[])[],
+  ): void { return this.unsupported("setInstancedRendererInstances"); }
+  public setInstancedRendererTints(
+    _renderer: NativeHandle,
+    _tints: readonly ColorSnapshot[],
+  ): void { return this.unsupported("setInstancedRendererTints"); }
+  public getInstancedRendererTintsEnabled(
+    _renderer: NativeHandle,
+  ): boolean { return this.unsupported("getInstancedRendererTintsEnabled"); }
+  public setInstancedRendererTintsEnabled(
+    _renderer: NativeHandle,
+    _enabled: boolean,
+  ): void { return this.unsupported("setInstancedRendererTintsEnabled"); }
+  public drawInstancedRenderer(
+    _renderer: NativeHandle,
+    _effect: NativeHandle,
+  ): void { return this.unsupported("drawInstancedRenderer"); }
+  public getInstancedRendererInstancingSupported(
+    _renderer: NativeHandle,
+  ): boolean { return this.unsupported("getInstancedRendererInstancingSupported"); }
+  public getInstancedRendererFallbackEnabled(
+    _renderer: NativeHandle,
+  ): boolean { return this.unsupported("getInstancedRendererFallbackEnabled"); }
+  public setInstancedRendererFallbackEnabled(
+    _renderer: NativeHandle,
+    _enabled: boolean,
+  ): void { return this.unsupported("setInstancedRendererFallbackEnabled"); }
+  public getInstancedRendererInstanceCount(
+    _renderer: NativeHandle,
+  ): number { return this.unsupported("getInstancedRendererInstanceCount"); }
+  public getInstancedRendererInstanceCapacity(
+    _renderer: NativeHandle,
+  ): number { return this.unsupported("getInstancedRendererInstanceCapacity"); }
+  public getInstancedRendererLastDrawCallCount(
+    _renderer: NativeHandle,
+  ): number { return this.unsupported("getInstancedRendererLastDrawCallCount"); }
+  public getInstancedRendererDidLastDrawInstance(
+    _renderer: NativeHandle,
+  ): boolean { return this.unsupported("getInstancedRendererDidLastDrawInstance"); }
 }
 
 /** Refusing base for {@link CnaClusteredLightingBackend}. */

@@ -11,7 +11,7 @@
   },
   "targetedAbiMatchesHeaders": true,
   "publicHeaders": 61,
-  "exportedFunctions": 4055,
+  "exportedFunctions": 4054,
   "requiredSymbols": 46,
   "missingRequiredSymbols": [],
   "nodeBridgeImportedSymbols": [
