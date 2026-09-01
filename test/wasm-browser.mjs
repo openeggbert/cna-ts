@@ -17,6 +17,7 @@ import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
 import {
   assertParticleEvidence, assertParticleSimulationOracle,
 } from "./support/particle-oracle.mjs";
+import { assertEngineArithmeticEvidence } from "./support/engine-arithmetic-oracle.mjs";
 import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
 import { assertShadowVariantEvidence } from "./support/shadow-variant-oracle.mjs";
 import {
@@ -583,6 +584,26 @@ test("the depth/normal prepass answers, or says the layer is absent", { skip }, 
   console.log(
     `CNA_TS_WASM_PREPASS=PRESENT MULTIPLE_TARGET_DRAW=${draws ? "YES" : "NO_FINDING_30"} ` +
     `RASTERISED=${prepass.rasterised.count} PREPASS_OCCUPIED=${prepass.prepassOccupied.count}`,
+  );
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("the sky, light probes and clustered lighting answer, or say the layer is absent", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const engine = result.engineArithmetic;
+  assert.ok(engine, "no engine-arithmetic evidence was produced");
+  assert.equal(typeof engine.layerAbsent, "boolean");
+  if (engine.layerAbsent) {
+    assert.equal(engine.cnaResult, 6, `CNA's own NOT_SUPPORTED: ${engine.error}`);
+    console.log("CNA_TS_WASM_ENGINE_ARITHMETIC=ABSENT_FROM_ARTIFACT");
+    assert.deepEqual(consoleErrors, []);
+    return;
+  }
+  assertEngineArithmeticEvidence(engine);
+  console.log(
+    `CNA_TS_WASM_ENGINE_ARITHMETIC=PRESENT SKY=${engine.sky.supported} ` +
+    `BAKER=${engine.baker.supported} CLUSTERS=${engine.grid.tiles[3]}`,
   );
   assert.deepEqual(consoleErrors, []);
 });

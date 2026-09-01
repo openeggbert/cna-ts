@@ -745,6 +745,9 @@ try {
       // --- shadow maps: what this device says, and the maths that is the same everywhere -------
       result.shadows = this.#shadowEvidence();
 
+      // --- the sky, light probes and clustered lighting -----------------------------------------
+      result.engineArithmetic = this.#engineArithmeticEvidence();
+
       // --- the spot, cube and cascaded shadow maps ----------------------------------------------
       result.shadowVariants = this.#shadowVariantEvidence();
 
@@ -2447,6 +2450,335 @@ try {
           try { cube.Begin(6); cube.End(); return "accepted"; }
           catch (error) { return error?.constructor?.name ?? "threw"; }
         })();
+      } catch (error) {
+        evidence.evidenceError = `${error?.constructor?.name}: ${error?.message}`;
+        evidence.evidenceStack = String(error?.stack ?? "");
+      } finally {
+        release();
+      }
+      return evidence;
+    }
+
+    /**
+     * The sky, light probes and clustered lighting: three families whose answers are arithmetic.
+     *
+     * All three were asked of the running artifact rather than inferred.
+     * `cna_atmospheric_sky_is_supported` and `cna_light_probe_baker_is_supported` answer **true**
+     * on WebGL 2.0; `cna_clustered_light_compute_is_supported` answers **false**, which is why the
+     * GPU cluster builder is a different object and is not here.
+     *
+     * What makes each checkable:
+     *
+     * - the sky ships its own model as a scalar, so a texel is compared with the radiance CNA says
+     *   the ray through it carries;
+     * - a probe's irradiance is Ramamoorthi and Hanrahan's nine-term reconstruction, restated in
+     *   the oracle from `LightProbeEXT.cpp`, so a probe with chosen coefficients has a *computable*
+     *   irradiance for every normal;
+     * - the cluster grid's slicing is `near * (far / near) ^ (slice / count)`, and its assignment
+     *   is set arithmetic over spheres and boxes.
+     */
+    #engineArithmeticEvidence() {
+      const device = this.GraphicsDevice;
+      const {
+        AtmosphericSky, ClusteredLightAssignment, ClusteredLightSet, ClusteredLightType,
+        ClusteredShadowPolicy, ClusterGrid, EnvironmentProcessor, LightProbe, LightProbeBaker,
+        LightProbeVolume, ShadowQuality, Skybox,
+      } = PostProcess;
+      void ShadowQuality;
+      const owned = [];
+      const release = () => {
+        for (const item of owned.reverse()) { try { item.Dispose(); } catch { /* reported */ } }
+      };
+      let sky;
+      try {
+        sky = new AtmosphericSky(device);
+      } catch (error) {
+        release();
+        return {
+          layerAbsent: true,
+          cnaResult: error?.cnaResult ?? null,
+          error: `${error?.constructor?.name}: ${error?.message}`,
+        };
+      }
+      owned.push(sky);
+      const v3 = (v) => [v.X, v.Y, v.Z];
+      const evidence = { layerAbsent: false };
+      try {
+        // --- the sky --------------------------------------------------------------------------
+        sky.SunDirection = new Vector3(0.3, 0.8, -0.5);
+        sky.Turbidity = 3.5;
+        sky.Intensity = 1.25;
+        evidence.sky = {
+          supported: sky.IsSupported,
+          sunDirection: v3(sky.SunDirection),
+          turbidity: sky.Turbidity,
+          intensity: sky.Intensity,
+          // CNA's own model, over rays that straddle the sun and the horizon. The oracle asserts
+          // the properties a sky model must have rather than the numbers this run produced.
+          radiance: [
+            ["at the sun", [0.3, 0.8, -0.5]],
+            ["near the sun", [0.35, 0.78, -0.5]],
+            ["overhead", [0, 1, 0]],
+            ["horizon toward the sun", [0.51, 0.02, -0.86]],
+            ["horizon away", [-0.51, 0.02, 0.86]],
+            ["below", [0, -1, 0]],
+          ].map(([label, ray]) => [
+            label, ray,
+            v3(PostProcess.AtmosphericSkyMath.Radiance(new Vector3(...ray), new Vector3(0.3, 0.8, -0.5), 3.5)),
+          ]),
+          // Turbidity is haze: more of it means less contrast between the sun and the rest.
+          radianceHazy: v3(PostProcess.AtmosphericSkyMath.Radiance(
+            new Vector3(0, 1, 0), new Vector3(0.3, 0.8, -0.5), 9)),
+          modelGlslLength: PostProcess.AtmosphericSkyMath.ModelGlsl.length,
+        };
+
+        // A skybox, whose view ray is the other half of checking a drawn sky.
+        const environment = new Graphics.TextureCube(device, 4, false, Graphics.SurfaceFormat.Color);
+        owned.push(environment);
+        const skybox = new Skybox(device, environment);
+        owned.push(skybox);
+        skybox.Yaw = 0.75;
+        skybox.Intensity = 1.5;
+        skybox.Tint = new Vector3(0.25, 0.5, 0.75);
+        const view = Matrix.CreateLookAt(new Vector3(0, 0, 0), new Vector3(0, 0, -1), Vector3.Up);
+        const projection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 2, 1, 0.1, 100);
+        evidence.skybox = {
+          supported: skybox.IsSupported,
+          hasEnvironment: skybox.HasEnvironment,
+          yaw: skybox.Yaw,
+          intensity: skybox.Intensity,
+          tint: v3(skybox.Tint),
+          // The centre of the screen looks along the camera's forward axis; the corners do not.
+          viewRays: [
+            ["centre", 0, 0], ["left", -1, 0], ["right", 1, 0], ["up", 0, 1], ["down", 0, -1],
+          ].map(([label, x, y]) => [
+            label, x, y, v3(PostProcess.AtmosphericSkyMath.ViewRay(view, projection, x, y, 0)),
+          ]),
+          // The same centre ray with the skybox turned a quarter turn, which must rotate it.
+          yawedCentre: v3(PostProcess.AtmosphericSkyMath.ViewRay(view, projection, 0, 0, Math.PI / 2)),
+        };
+
+        // The environment processor's two pure routes.
+        const processor = new EnvironmentProcessor(device);
+        owned.push(processor);
+        evidence.environment = {
+          equirectangular: [
+            ["forward", [0, 0, -1]], ["back", [0, 0, 1]], ["right", [1, 0, 0]],
+            ["left", [-1, 0, 0]], ["up", [0, 1, 0]], ["down", [0, -1, 0]],
+          ].map(([label, direction]) => {
+            const uv = PostProcess.EnvironmentProcessorMath.DirectionToEquirectangular(
+              new Vector3(...direction));
+            return [label, direction, [uv.X, uv.Y]];
+          }),
+          // At roughness zero the GGX importance sample is the normal itself, whatever the sample
+          // point: a perfect mirror scatters in one direction only.
+          ggxMirror: [[0.1, 0.2], [0.7, 0.9]].map(([x, y]) =>
+            v3(PostProcess.EnvironmentProcessorMath.ImportanceSampleGgx(
+              x, y, new Vector3(0, 1, 0), 0))),
+          ggxRough: [[0.1, 0.2], [0.7, 0.9]].map(([x, y]) =>
+            v3(PostProcess.EnvironmentProcessorMath.ImportanceSampleGgx(
+              x, y, new Vector3(0, 1, 0), 0.8))),
+        };
+
+        // --- light probes ------------------------------------------------------------------------
+        const probe = new LightProbe(new Vector3(1, 2, 3));
+        owned.push(probe);
+        // Nine coefficients, all distinct and none symmetric, so a permuted read is a different
+        // reconstruction for every normal.
+        const coefficients = [
+          [0.90, 0.80, 0.70], [0.11, 0.12, 0.13], [0.21, 0.22, 0.23],
+          [0.31, 0.32, 0.33], [0.041, 0.042, 0.043], [0.051, 0.052, 0.053],
+          [0.061, 0.062, 0.063], [0.071, 0.072, 0.073], [0.081, 0.082, 0.083],
+        ];
+        coefficients.forEach((c, index) => probe.SetCoefficient(index, new Vector3(...c)));
+        evidence.probe = {
+          position: v3(probe.Position),
+          coefficients: probe.ToArray().map(v3),
+          written: coefficients,
+          isZero: probe.IsZero,
+          irradiance: [
+            ["+Y", [0, 1, 0]], ["-Y", [0, -1, 0]], ["+X", [1, 0, 0]], ["-X", [-1, 0, 0]],
+            ["+Z", [0, 0, 1]], ["-Z", [0, 0, -1]], ["diagonal", [0.577, 0.577, 0.577]],
+            ["unnormalised", [0, 5, 0]],
+          ].map(([label, normal]) => [
+            label, normal, v3(probe.Irradiance(new Vector3(...normal))),
+          ]),
+          visibility: (() => {
+            probe.SetVisibility(0, 4.5, 25);
+            return {
+              has: probe.HasVisibility,
+              mean: probe.GetVisibilityMean(0),
+              meanSquared: probe.GetVisibilityMeanSquared(0),
+              weightNear: probe.VisibilityWeight(new Vector3(1, 0, 0), 1),
+              weightFar: probe.VisibilityWeight(new Vector3(1, 0, 0), 40),
+            };
+          })(),
+        };
+
+        // A volume of two probes on one axis, so the interpolation between them is a line.
+        const volume = new LightProbeVolume(
+          new BoundingBox(new Vector3(0, 0, 0), new Vector3(10, 0, 0)), 2, 1, 1);
+        owned.push(volume);
+        const dark = new LightProbe(new Vector3(0, 0, 0));
+        owned.push(dark);
+        dark.SetCoefficient(0, new Vector3(1, 1, 1));
+        const bright = new LightProbe(new Vector3(10, 0, 0));
+        owned.push(bright);
+        bright.SetCoefficient(0, new Vector3(3, 3, 3));
+        volume.SetProbe(0, 0, 0, dark);
+        volume.SetProbe(1, 0, 0, bright);
+        const sampled = new LightProbe(new Vector3(0, 0, 0));
+        owned.push(sampled);
+        evidence.volume = {
+          bounds: [v3(volume.Bounds.Min), v3(volume.Bounds.Max)],
+          counts: [volume.CountX, volume.CountY, volume.CountZ, volume.ProbeCount],
+          contains: [
+            [[5, 0, 0], volume.Contains(new Vector3(5, 0, 0))],
+            [[-1, 0, 0], volume.Contains(new Vector3(-1, 0, 0))],
+            [[11, 0, 0], volume.Contains(new Vector3(11, 0, 0))],
+          ],
+          // The DC coefficient across the axis: 1 at one end, 3 at the other, and the linear blend
+          // in between, which is what trilinear interpolation of two corners is.
+          interpolated: [0, 0.25, 0.5, 0.75, 1].map((t) => {
+            volume.SampleProbe(new Vector3(t * 10, 0, 0), sampled);
+            return [t, v3(sampled.GetCoefficient(0))];
+          }),
+          irradianceAcross: [0, 0.5, 1].map((t) => [
+            t, v3(volume.Irradiance(new Vector3(t * 10, 0, 0), new Vector3(0, 1, 0))),
+          ]),
+        };
+
+        const baker = new LightProbeBaker(device);
+        owned.push(baker);
+        baker.SetPlanes(0.25, 60);
+        evidence.baker = {
+          supported: baker.IsSupported,
+          faceCount: LightProbeBaker.FaceCount,
+          faceSize: baker.FaceSize,
+          nearPlane: baker.NearPlane,
+          farPlane: baker.FarPlane,
+          faceViews: Array.from(
+            { length: LightProbeBaker.FaceCount },
+            (_, face) => matrixRow(baker.FaceView(face, new Vector3(2, 5, -7)))),
+        };
+        // The capture itself: six faces, each handed a view and a projection by CNA. Nothing is
+        // bound inside the callback -- CNA has its own target bound for the face it is drawing.
+        evidence.baker.capture = (() => {
+          const seen = [];
+          try {
+            const baked = baker.BakeProbe(new Vector3(0, 1, 0), (bakeView, bakeProjection) => {
+              seen.push([matrixRow(bakeView), matrixRow(bakeProjection)]);
+            });
+            const result = {
+              faces: seen.length,
+              distinctViews: new Set(seen.map(([m]) => m.join(","))).size,
+              distinctProjections: new Set(seen.map(([, m]) => m.join(","))).size,
+              coefficients: baked.ToArray().map(v3),
+            };
+            baked.Dispose();
+            return result;
+          } catch (error) {
+            return { failed: `${error?.constructor?.name}: ${error?.message}`, faces: seen.length };
+          }
+        })();
+        // A callback that throws must not unwind into CNA, and must surface afterwards.
+        evidence.baker.throwingCallback = (() => {
+          try {
+            const baked = baker.BakeProbe(new Vector3(0, 1, 0), () => {
+              throw new RangeError("the page's own failure");
+            });
+            baked.Dispose();
+            return "swallowed";
+          } catch (error) {
+            return `${error?.constructor?.name}: ${error?.message}`;
+          }
+        })();
+
+        // --- clustered lighting --------------------------------------------------------------------
+        const lights = new ClusteredLightSet(device);
+        owned.push(lights);
+        const point = {
+          Type: ClusteredLightType.Point, Position: new Vector3(1, 2, -6),
+          Direction: new Vector3(0, -1, 0), Color: new Vector3(1, 0.5, 0.25),
+          Intensity: 2, Range: 8, InnerAngle: 0, OuterAngle: 0, CastsShadows: true,
+        };
+        const spot = {
+          Type: ClusteredLightType.Spot, Position: new Vector3(-4, 1, -12),
+          Direction: new Vector3(0, 0, -1), Color: new Vector3(0.25, 0.5, 1),
+          Intensity: 3, Range: 20, InnerAngle: 0.3, OuterAngle: 0.7, CastsShadows: false,
+        };
+        evidence.clustered = {
+          usable: [
+            ["a point light with a range", ClusteredLightSet.IsUsable(point)],
+            ["one with no range", ClusteredLightSet.IsUsable({ ...point, Range: 0 })],
+            ["one with no intensity", ClusteredLightSet.IsUsable({ ...point, Intensity: 0 })],
+          ],
+          added: [lights.Add(point), lights.Add(spot)],
+          count: lights.Count,
+          readBack: [lights.GetAt(0), lights.GetAt(1)].map((l) => ({
+            Type: l.Type, Position: v3(l.Position), Direction: v3(l.Direction),
+            Color: v3(l.Color), Intensity: l.Intensity, Range: l.Range,
+            InnerAngle: l.InnerAngle, OuterAngle: l.OuterAngle, CastsShadows: l.CastsShadows,
+          })),
+          bounds: [lights.GetBoundsAt(0), lights.GetBoundsAt(1)].map((b) => ({
+            Center: v3(b.Center), Radius: b.Radius,
+          })),
+        };
+
+        const grid = new ClusterGrid(device, 16, 8, 24);
+        owned.push(grid);
+        const clusterProjection =
+          Matrix.CreatePerspectiveFieldOfView(Math.PI / 3, 16 / 9, 0.5, 120);
+        grid.SetProjection(clusterProjection, 0.5, 120);
+        evidence.grid = {
+          tiles: [grid.TilesX, grid.TilesY, grid.SliceCount, grid.ClusterCount],
+          planes: [grid.NearPlane, grid.FarPlane],
+          hasProjection: grid.HasProjection,
+          sliceDistances: Array.from(
+            { length: grid.SliceCount + 1 }, (_, slice) => [slice, grid.SliceDistance(slice)]),
+          sliceForDistance: [0.5, 1, 5, 30, 119, 500].map(
+            (distance) => [distance, grid.SliceForViewDistance(distance)]),
+          clusterIndex: [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [15, 7, 23]].map(
+            ([x, y, s]) => [[x, y, s], grid.ClusterIndex(x, y, s)]),
+          bounds: [[0, 0, 0], [8, 4, 12]].map(([x, y, s]) => {
+            const b = grid.ClusterBounds(x, y, s);
+            return [[x, y, s], v3(b.Min), v3(b.Max)];
+          }),
+        };
+
+        const assignment = new ClusteredLightAssignment(device);
+        owned.push(assignment);
+        const cameraView =
+          Matrix.CreateLookAt(new Vector3(0, 0, 0), new Vector3(0, 0, -1), Vector3.Up);
+        assignment.Assign(grid, cameraView, lights.GetBounds());
+        evidence.assignment = {
+          lightCount: assignment.LightCount,
+          clusterCount: assignment.ClusterCount,
+          totalReferences: assignment.TotalReferenceCount,
+          maxPerCluster: assignment.MaxLightsPerCluster,
+          // Every cluster's list, summed, must be the total: two routes over one table.
+          summed: (() => {
+            let total = 0;
+            const populated = [];
+            for (let cluster = 0; cluster < assignment.ClusterCount; cluster += 1) {
+              const inside = assignment.LightsInCluster(cluster);
+              total += inside.length;
+              if (inside.length > 0) populated.push([cluster, [...inside]]);
+            }
+            return { total, populated: populated.length, sample: populated.slice(0, 3) };
+          })(),
+        };
+
+        const policy = new ClusteredShadowPolicy(device, 1);
+        owned.push(policy);
+        policy.Select(lights, cameraView, clusterProjection, new Vector3(0, 0, 0));
+        evidence.policy = {
+          budget: policy.Budget,
+          requestCount: policy.RequestCount,
+          refusedCount: policy.RefusedCount,
+          selected: [policy.IsSelected(0), policy.IsSelected(1)],
+          scores: [policy.GetScore(0), policy.GetScore(1)],
+        };
       } catch (error) {
         evidence.evidenceError = `${error?.constructor?.name}: ${error?.message}`;
         evidence.evidenceStack = String(error?.stack ?? "");

@@ -659,11 +659,139 @@
       "inner_angle",
       "outer_angle",
       "casts_shadows"
+    ],
+    "CNA_ClusteredLightEXT": [
+      "struct_size",
+      "struct_version",
+      "type",
+      "casts_shadows",
+      "position",
+      "direction",
+      "color",
+      "intensity",
+      "range",
+      "inner_angle",
+      "outer_angle"
+    ],
+    "CNA_BoundingSphere": [
+      "center",
+      "radius"
+    ],
+    "CNA_TextureCubeInfo": [
+      "struct_size",
+      "struct_version",
+      "size",
+      "level_count",
+      "format"
+    ],
+    "CNA_TextureCubeTransfer": [
+      "struct_size",
+      "struct_version",
+      "face",
+      "level",
+      "has_rectangle",
+      "rectangle",
+      "start_index",
+      "element_count"
+    ],
+    "CNA_Texture3DTransfer": [
+      "struct_size",
+      "struct_version",
+      "level",
+      "left",
+      "top",
+      "right",
+      "bottom",
+      "front",
+      "back",
+      "start_index",
+      "element_count"
+    ],
+    "CNA_BlendState": [
+      "struct_size",
+      "struct_version",
+      "alpha_blend_function",
+      "alpha_destination_blend",
+      "alpha_source_blend",
+      "color_blend_function",
+      "color_destination_blend",
+      "color_source_blend",
+      "color_write_channels",
+      "color_write_channels1",
+      "color_write_channels2",
+      "color_write_channels3",
+      "blend_factor",
+      "multi_sample_mask"
+    ],
+    "CNA_SamplerState": [
+      "struct_size",
+      "struct_version",
+      "address_u",
+      "address_v",
+      "address_w",
+      "filter",
+      "max_anisotropy",
+      "max_mip_level",
+      "mip_map_level_of_detail_bias"
+    ],
+    "CNA_Viewport": [
+      "x",
+      "y",
+      "width",
+      "height",
+      "min_depth",
+      "max_depth"
+    ],
+    "CNA_Texture3DCreateInfo": [
+      "struct_size",
+      "struct_version",
+      "width",
+      "height",
+      "depth",
+      "mip_map",
+      "format"
+    ],
+    "CNA_TextureCubeCreateInfo": [
+      "struct_size",
+      "struct_version",
+      "size",
+      "mip_map",
+      "format"
+    ],
+    "CNA_VertexBufferInfo": [
+      "struct_size",
+      "struct_version",
+      "vertex_count",
+      "buffer_usage",
+      "dynamic",
+      "is_content_lost",
+      "has_renderer",
+      "vertex_stride",
+      "vertex_element_count"
+    ],
+    "CNA_IndexBufferInfo": [
+      "struct_size",
+      "struct_version",
+      "index_count",
+      "index_element_size",
+      "buffer_usage",
+      "dynamic",
+      "is_content_lost",
+      "has_renderer"
+    ],
+    "CNA_UserIndices": [
+      "struct_size",
+      "struct_version",
+      "index_element_size",
+      "index_offset",
+      "index_data"
     ]
   },
   "callbacks": {
     "CNA_GameLifecycleCallback": "ijiii",
-    "CNA_GameBeginDrawCallback": "ijiiii"
+    "CNA_GameBeginDrawCallback": "ijiiii",
+    "CNA_LightProbeSceneDrawCallback": "viii",
+    "CNA_ContentLostCallback": "vji"
   },
   "callbackSignatureNote": "An Emscripten addFunction signature names the return type first and then the parameters, so a CNA_Result(CNA_Handle, const CNA_GameTime*, void*, CNA_CallbackError*) is 'ijiii': i32 return, i64 handle, three pointers."
 }

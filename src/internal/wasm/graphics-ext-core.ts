@@ -194,6 +194,47 @@ export class WasmEngineMemory {
     }
   }
 
+  /** A `CNA_BoundingBox` into a caller-owned scope: two `CNA_Vector3`s at their measured offsets. */
+  public writeBounds(
+    scope: WasmScope,
+    bounds: { readonly Min: Vector3Snapshot; readonly Max: Vector3Snapshot },
+  ): number {
+    const layout = WASM_STRUCT_LAYOUTS.CNA_BoundingBox;
+    const pointer = scope.allocate(layout.size);
+    const view = this.routes.view();
+    for (const [field, value] of [["min", bounds.Min], ["max", bounds.Max]] as const) {
+      const at = pointer + layout.fields[field].offset;
+      view.setFloat32(at, value.X, true);
+      view.setFloat32(at + 4, value.Y, true);
+      view.setFloat32(at + 8, value.Z, true);
+    }
+    return pointer;
+  }
+
+  /** Reads one back, in the same two fields. */
+  public bounds(
+    route: string, ...args: readonly (number | bigint)[]
+  ): { Min: Vector3Snapshot; Max: Vector3Snapshot } {
+    const layout = WASM_STRUCT_LAYOUTS.CNA_BoundingBox;
+    const scope = this.routes.scope();
+    try {
+      const out = scope.allocate(layout.size);
+      this.routes.invoke(route, ...args, out);
+      const view = this.routes.view();
+      const read = (field: "min" | "max"): Vector3Snapshot => {
+        const at = out + layout.fields[field].offset;
+        return {
+          X: view.getFloat32(at, true),
+          Y: view.getFloat32(at + 4, true),
+          Z: view.getFloat32(at + 8, true),
+        };
+      };
+      return { Min: read("min"), Max: read("max") };
+    } finally {
+      scope.dispose();
+    }
+  }
+
   /** The same for a `CNA_Vector2`. */
   public withVector2<T>(value: Vector2Snapshot, body: (pointer: number) => T): T {
     const scope = this.routes.scope();

@@ -115,7 +115,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
     const scope = this.#routes.scope();
     try {
       this.#routes.invoke(
-        "cna_shadow_map_begin", map, this.#light(scope, light), this.#bounds(scope, bounds),
+        "cna_shadow_map_begin", map, this.#light(scope, light), this.#mem.writeBounds(scope, bounds),
       );
     } finally {
       scope.dispose();
@@ -161,7 +161,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
       const out = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Matrix.size);
       this.#routes.invoke(
         "cna_shadow_map_compute_light_view",
-        this.#light(scope, light), this.#bounds(scope, bounds), out,
+        this.#light(scope, light), this.#mem.writeBounds(scope, bounds), out,
       );
       return this.#matrix(out);
     } finally {
@@ -181,7 +181,7 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
       }
       const out = scope.allocate(WASM_STRUCT_LAYOUTS.CNA_Matrix.size);
       this.#routes.invoke(
-        "cna_shadow_map_compute_light_projection", view, this.#bounds(scope, bounds), out,
+        "cna_shadow_map_compute_light_projection", view, this.#mem.writeBounds(scope, bounds), out,
       );
       return this.#matrix(out);
     } finally {
@@ -213,18 +213,6 @@ export class WasmShadowBackend extends CnaShadowBackendBase {
   }
 
   /** A `CNA_BoundingBox`, which is unversioned: two `CNA_Vector3` and nothing else. */
-  #bounds(scope: WasmScope, bounds: ClusterBoundsSnapshot): number {
-    const layout = WASM_STRUCT_LAYOUTS.CNA_BoundingBox;
-    const pointer = scope.allocate(layout.size);
-    const view = this.#routes.view();
-    for (const [field, value] of [["min", bounds.Min], ["max", bounds.Max]] as const) {
-      const offset = pointer + layout.fields[field].offset;
-      view.setFloat32(offset, value.X, true);
-      view.setFloat32(offset + 4, value.Y, true);
-      view.setFloat32(offset + 8, value.Z, true);
-    }
-    return pointer;
-  }
 
   #matrix(pointer: number): number[] {
     const view = this.#routes.view();

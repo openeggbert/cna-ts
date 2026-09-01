@@ -40,6 +40,7 @@ import { assertLodEvidence } from "./support/lod-oracle.mjs";
 import {
   assertParticleEvidence, assertParticleSimulationOracle,
 } from "./support/particle-oracle.mjs";
+import { assertEngineArithmeticEvidence } from "./support/engine-arithmetic-oracle.mjs";
 import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
 import {
   assertDecalState, assertPrepassMaths, assertPrepassState, multipleRenderTargetsDraw,
@@ -274,6 +275,22 @@ test("the engine layer casts a shadow map, and its depths are the light transfor
     `STRONG_WASM_SHADOWS=CAST SIZE=${shadows.size} SAMPLING=${shadows.sampling} ` +
     `OCCLUDED=${shadows.high.occluded} HIGH=${shadows.high.low.toFixed(6)} ` +
     `LOW=${shadows.low.low.toFixed(6)}`,
+  );
+});
+
+test("the sky, light probes and clustered lighting answer their own arithmetic", () => {
+  const engine = evidence.result.engineArithmetic;
+  assert.ok(engine, "no engine-arithmetic evidence was produced");
+  assert.equal(
+    engine.layerAbsent, false,
+    `the artifact reports CNAEXT available and then refused an AtmosphericSky: ${engine.error}`,
+  );
+  assertEngineArithmeticEvidence(engine);
+  console.log(
+    `STRONG_WASM_SKY=SUPPORTED BAKER=SUPPORTED CLUSTER_COMPUTE=RENDERER_BLOCKED ` +
+    `PROBE_COEFFICIENTS=9 BAKE_FACES=${engine.baker.capture.faces} ` +
+    `CLUSTERS=${engine.grid.tiles[3]} SLICES=${engine.grid.tiles[2]} ` +
+    `REFERENCES=${engine.assignment.totalReferences}`,
   );
 });
 

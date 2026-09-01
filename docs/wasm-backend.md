@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=748
+WASM_BACKEND_ROUTES=927
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 748 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 927 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
@@ -656,6 +656,45 @@ caller-supplied count has — an empty palette and an implausibly large one, bot
 The skinned caster is bound with the rest, and the reason it was once thought unreachable is worth
 recording: it takes a bone palette from the *caller*, not from a model. What needs a native content
 manager is drawing a skinned `ModelMeshPart`, which is a different thing and stays out of reach.
+
+### The sky, light probes, clustered lighting — and the core graphics gap they exposed
+
+Three more families, all bound whole, and all checkable without a picture.
+
+`cna_atmospheric_sky_is_supported` and `cna_light_probe_baker_is_supported` both answer **true**
+here. `cna_clustered_light_compute_is_supported` answers **false** — but that is one object, and the
+other four in the clustered family compute entirely on the CPU, so "clustered lighting" is bound and
+its GPU cluster builder is renderer-blocked. Those are different statements and the census keeps
+them apart.
+
+| what | checked against |
+| --- | --- |
+| a skybox's view ray | a ninety-degree frustum's own corners: `(0,0,−1)` at the centre and `(±1/√2, 0, −1/√2)` at the edges, and a quarter-turn of yaw taking the centre onto −X |
+| the equirectangular mapping | `u = 0.5 + atan2(x, −z)/2π`, `v = 0.5 − asin(y)/π`, for all six axes |
+| the GGX importance sample | the normal itself at roughness zero, whatever the sample point — a mirror scatters once |
+| a probe's irradiance | Ramamoorthi and Hanrahan's nine terms, restated in the oracle from `LightProbeEXT.cpp` |
+| a volume's interpolation | the straight line two corner probes make: 1 at one end, 3 at the other, exactly 1 + 2t between |
+| the cluster grid | `near · (far/near)^(slice/count)` for all 25 boundaries, and `slice·tx·ty + y·tx + x` for the flattening a shader has to agree with |
+| the assignment | its own 3072 per-cluster lists, summed, against its own total — two routes over one table, both 2165 |
+| the shadow budget | one request per *shadow-casting* light, which is one of the two, and a budget of one accepting it |
+
+The baker is the one with a callback, and the callback is the interesting part: six faces, six
+different views, one shared projection, with CNA's own capture target bound each time. So it binds
+no target of its own, and a JavaScript exception thrown inside it is **held and rethrown after the
+bake** rather than unwound into compiled C — asserted, because "swallowed" would mean a page whose
+draw failed got a probe baked from nothing and no indication of it.
+
+Two corrections the measurements made: the sun direction comes back **normalised**, and a clustered
+light with **no intensity is still usable** while one with no range is not. Neither was the guess.
+
+**The core graphics slice is now complete too, at 48 of 48**, and the reason is that the engine layer
+reached it: a skybox is a `TextureCube`, a colour-grade volume is a `Texture3D`, and a page drawing
+its own geometry sets its own blend, sampler, scissor and viewport state. `ContentLost` is bound with
+them — WebGL 2.0 does not raise it, and a binding that refused would be answering a question about
+itself rather than about the renderer. That last addition also found a hole in the route gate: route
+names composed from a prefix at runtime never reach `ROUTES`, so `sync-routes.mjs` counted three
+prefixes as routes and missed six real ones. The names are written out now, and the reason is a
+comment on them.
 
 **And the chain, which is what makes the family usable.** A game applies several passes in order,
 so `PostProcessChain` is the API a consumer actually reaches for, and its pass order is what a
