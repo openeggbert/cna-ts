@@ -18,7 +18,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import test, { after } from "node:test";
+import { after } from "node:test";
+
+import { requiredSuite } from "../../test/support/required-suite.mjs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -49,14 +51,14 @@ const blocked = !library
 // qualification run: `node --test` reports a suite that ran nothing exactly like a suite that
 // passed -- ten skipped, zero failed, exit zero. `CNA_REQUIRE_CONTENT_TESTS=1` turns the skip into
 // a failure, so a CI or handoff run has to say how many tests actually executed rather than
-// inheriting a green tick from an absent environment variable.
-const required = process.env.CNA_REQUIRE_CONTENT_TESTS === "1";
-if (blocked && required) {
-  throw new Error(
-    `CNA_REQUIRE_CONTENT_TESTS=1 but the content suite cannot run: ${blocked}`,
-  );
-}
-const skip = blocked ?? false;
+// inheriting a green tick from an absent environment variable. The gate itself is shared with the
+// windowed and compiled-effect suites, which had grown the same boilerplate around the same trap.
+const { test, skip } = requiredSuite({
+  label: "content",
+  envVar: "CNA_REQUIRE_CONTENT_TESTS",
+  counter: "CONTENT_TESTS",
+  blocked,
+});
 
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "cna-ts-content-"));
 after(() => fs.rmSync(workspace, { recursive: true, force: true }));

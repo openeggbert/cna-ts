@@ -154,12 +154,26 @@ jobs:
         run: npm run test:extensions
       - name: CNB compiled content, end to end
         run: npm run test:cnb
+      - name: The content pipeline, required to execute
+        # `test:content` skips all ten of its tests without a native library and still exits zero,
+        # which is a green tick for a suite that ran nothing. This job HAS the library, so it runs
+        # the required variant: a skip here is a failure by name.
+        run: npm run test:content:required
       - name: Windowed renderer with real GPU pixels
-        # Opt-in and skips with a reason where no windowed library exists, so a runner without one
-        # reports a skip rather than a pass it did not earn.
+        # Guarded on the variable rather than left to skip internally. Where a windowed library is
+        # configured this runs the REQUIRED variant, which fails by name if the library or the
+        # display turns out to be missing and prints WINDOWED_TESTS_EXECUTED; where it is not
+        # configured the step does not run at all, which the run reports as a skipped step rather
+        # than as a passing suite that tested nothing.
+        if: ${{ vars.CNA_WINDOWED_LIBRARY_PATH != '' }}
         env:
           CNA_WINDOWED_LIBRARY: ${{ vars.CNA_WINDOWED_LIBRARY_PATH }}
-        run: xvfb-run -a npm run test:windowed
+        run: xvfb-run -a npm run test:windowed:required
+      - name: Compiled effects, from reflection through to pixels
+        if: ${{ vars.CNA_WINDOWED_LIBRARY_PATH != '' }}
+        env:
+          CNA_WINDOWED_LIBRARY: ${{ vars.CNA_WINDOWED_LIBRARY_PATH }}
+        run: xvfb-run -a npm run test:effect-reflection:required
 
   browser-qualification:
     if: ${{ vars.CNA_WASM_ARTIFACT_DIR != '' }}

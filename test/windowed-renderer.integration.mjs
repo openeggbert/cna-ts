@@ -24,7 +24,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import test, { after } from "node:test";
+import { after } from "node:test";
+
+import { requiredSuite } from "./support/required-suite.mjs";
 
 import {
   BoundingBox,
@@ -56,9 +58,16 @@ import * as computeModule from "../dist/extensions/graphics/index.js";
 
 const library = process.env.CNA_WINDOWED_LIBRARY;
 const display = process.env.DISPLAY;
-const skip = library
-  ? (display ? false : "no DISPLAY; run this under xvfb-run or on a session with a screen")
-  : "set CNA_WINDOWED_LIBRARY to a CNA library built with a windowed renderer";
+// Optional for a developer with no windowed CNA to hand; `CNA_REQUIRE_WINDOWED_TESTS=1` makes the
+// missing environment a named failure and requires the suite to prove it executed.
+const { test, skip } = requiredSuite({
+  label: "windowed-renderer",
+  envVar: "CNA_REQUIRE_WINDOWED_TESTS",
+  counter: "WINDOWED_TESTS",
+  blocked: library
+    ? (display ? null : "no DISPLAY; run this under xvfb-run or on a session with a screen")
+    : "set CNA_WINDOWED_LIBRARY to a CNA library built with a windowed renderer",
+});
 
 const storageHome = fs.mkdtempSync(path.join(os.tmpdir(), "cna-ts-windowed-"));
 after(() => fs.rmSync(storageHome, { recursive: true, force: true }));

@@ -19,7 +19,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import test from "node:test";
+import { requiredSuite } from "./support/required-suite.mjs";
 
 import {
   Color, Game, Graphics, GraphicsDeviceManager, LoadNodeNativeBackend, Matrix, Vector2, Vector3,
@@ -30,9 +30,16 @@ import { readNativeParameterValueForInternalUse, readNativeParameterValuesForInt
 
 const library = process.env.CNA_WINDOWED_LIBRARY;
 const display = process.env.DISPLAY;
-const skip = library
-  ? (display ? false : "no DISPLAY; run this under xvfb-run or on a session with a screen")
-  : "set CNA_WINDOWED_LIBRARY to a CNA library built with a windowed renderer";
+// Optional for a developer with no windowed CNA to hand; `CNA_REQUIRE_EFFECT_TESTS=1` makes the
+// missing environment a named failure and requires the suite to prove it executed.
+const { test, skip } = requiredSuite({
+  label: "compiled-effect",
+  envVar: "CNA_REQUIRE_EFFECT_TESTS",
+  counter: "EFFECT_REFLECTION_TESTS",
+  blocked: library
+    ? (display ? null : "no DISPLAY; run this under xvfb-run or on a session with a screen")
+    : "set CNA_WINDOWED_LIBRARY to a CNA library built with a windowed renderer",
+});
 
 const cnaSource = path.resolve(process.env.CNA_SOURCE_PATH ?? "../../cnanext");
 const effectPath = (name) =>
@@ -368,11 +375,10 @@ test("a compiled effect reflects its parameters", { skip }, () => {
   );
 });
 
-test("the reflected metadata is XNA's, not a renumbering of it", () => {
+test("the reflected metadata is XNA's, not a renumbering of it", { skip }, () => {
   // CNA's CNA_EFFECT_PARAMETER_CLASS_* and _TYPE_* happen to use XNA's own numbering, and this
   // package passes them straight through. That is an assumption worth failing on rather than
   // discovering as mistyped parameters, so it is asserted against a parameter whose shape is known.
-  if (skip) return;
   const world = evidence.basic.Parameters.find((item) => item.Name === "World");
   assert.equal(world.ParameterClass, Graphics.EffectParameterClass.Matrix, "World is a matrix");
   assert.equal(world.ParameterType, Graphics.EffectParameterType.Single, "of singles");
