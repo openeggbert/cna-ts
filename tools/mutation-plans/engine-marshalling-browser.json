@@ -3,7 +3,7 @@
   "artifact": "dist",
   "build": "npm run build",
   "command": "CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
-  "environment": "CNA_WASM_ARTIFACT_DIR must point at a CNA wasm artifact built with -DCNA_EASYGL_COMPILED_EFFECTS=ON -DCNA_CNAEXT=ON, and CNA_SOURCE_PATH at a cnanext checkout. Most of this layer is generated, so the defects worth planting are the ones a generator makes: an accessor of the wrong width, a growable structure whose size is never written, a nested array walked at the wrong stride, an initialiser skipped, a 64-bit argument passed as a number. Each is invisible to the type checker and each is what the census and tools/wasm/verify-route-calls.mjs exist to catch.",
+  "environment": "CNA_WASM_ARTIFACT_DIR must point at a CNA wasm artifact built with -DCNA_EASYGL_COMPILED_EFFECTS=ON -DCNA_CNAEXT=ON, and CNA_SOURCE_PATH at a cnanext checkout. Most of this layer is generated, so the defects worth planting are the ones a generator makes: an accessor of the wrong width, a growable structure whose size is never written, a nested array walked at the wrong stride, an initialiser skipped, a 64-bit argument passed as a number. Each is invisible to the type checker and each is what the census and tools/wasm/verify-route-calls.mjs exist to catch. Mutating an oracle is deliberately not attempted here: an oracle lives in test/support, which dist does not contain, so the artifact comes out byte-identical and the harness rightly refuses a verdict. The oracles are checked instead in test/oracles.test.mjs, which gives each of them evidence with exactly one thing wrong and requires it to say so -- eighteen cases, one per defect an oracle exists to catch.",
   "mutants": [
     {
       "id": "growable-structures-never-sized",
@@ -71,6 +71,20 @@
       "replace": "  structure.setF32Array(field, [value.Min.X, value.Min.Y, value.Min.Z]);"
     },
     {
+      "id": "matrix-array-read-at-a-vector-stride",
+      "why": "a nested array of `CNA_Matrix` walked sixteen bytes at a time rather than sixty-four, so every cascade transform after the first is read out of the middle of the one before it. The array whose fields the layout probe never measured, so until the generator read them from CNA's headers nothing could reach this at all",
+      "file": "src/internal/wasm/engine-structures.ts",
+      "find": "        structure.pointer + entry.offset + index * WASM_STRUCT_LAYOUTS.CNA_Matrix.size\n        + element * 4, true),",
+      "replace": "        structure.pointer + entry.offset + index * 16\n        + element * 4, true),"
+    },
+    {
+      "id": "matrix-array-write-drops-all-but-the-first",
+      "why": "the same array written with only its first entry, which is what a loop bound taken from the value rather than from the measured field size produces when a caller passes fewer matrices than the structure holds",
+      "file": "src/internal/wasm/engine-structures.ts",
+      "find": "    const count = Math.floor(entry.size / WASM_STRUCT_LAYOUTS.CNA_Matrix.size);\n    for (let index = 0; index < count; index += 1) {",
+      "replace": "    const count = Math.floor(entry.size / WASM_STRUCT_LAYOUTS.CNA_Matrix.size);\n    for (let index = 0; index < Math.min(count, 1); index += 1) {"
+    },
+    {
       "id": "vector4-nested-read-drops-its-w",
       "why": "a `CNA_Vector4` inside a structure read as three components, so every colour in a material loses its alpha. Read back through glTF's own default base colour, which is opaque white",
       "file": "src/internal/wasm/engine-structures.ts",
@@ -91,13 +105,6 @@
       "find": "      if (this.routes.view().getUint8(present) === 0) return 0n;\n      return this.routes.view().getBigUint64(handle, true);",
       "replace": "      void present;\n      return this.routes.view().getBigUint64(handle, true);",
       "expect": "survives"
-    },
-    {
-      "id": "census-swallows-a-failing-accessor",
-      "why": "the census recording a getter that threw as a success. Not a defect in the binding -- a defect in the thing that watches it, and the one mutation that says whether the census is doing any work at all",
-      "file": "test/support/engine-census-oracle.mjs",
-      "find": "    assert.deepEqual(\n      row.failures, [],\n      `${row.name} has members that do not marshal: ${row.failures.join(\"; \")}`,\n    );",
-      "replace": "    void row.failures;"
     }
   ]
 }

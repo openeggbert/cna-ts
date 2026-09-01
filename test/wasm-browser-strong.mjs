@@ -307,7 +307,8 @@ test("every field of a material reaches CNA, and the nested structures survive w
   const nestedTotals = assertNestedStructures(nested);
   console.log(
     `STRONG_WASM_STRUCTURE_FIELDS=OK FIELDS_ASKED=${fieldTotals.fields} ` +
-    `BOUNDS_CULLED=${nestedTotals.boundsTested} SLOT_READS=${nestedTotals.slotsTested}`,
+    `BOUNDS_CULLED=${nestedTotals.boundsTested} SLOT_READS=${nestedTotals.slotsTested} ` +
+    `CASCADE_MATRICES=${nestedTotals.cascades}`,
   );
 });
 

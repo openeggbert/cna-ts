@@ -795,6 +795,14 @@ is an argument and not a method for exactly the accesses that matter — a `CNA_
 missed the glTF coordinate sets, which is the defect that prompted the file. Its own proof is three
 planted misspellings, one per shape, each caught with the right structure named.
 
+**And who watches the oracles.** Every browser claim here is an oracle applied to evidence, so an
+oracle that accepts anything makes its suite green and meaningless. The mutation harness cannot
+catch that — an oracle lives in `test/support`, which `dist` does not contain, so mutating one
+leaves the artifact byte-identical and the harness rightly refuses to score it.
+`test/oracles.test.mjs` is the check that fits: eighteen cases, each giving an oracle evidence with
+exactly one thing wrong — a field that never reached CNA, a handle array walked at a pointer's
+stride, a class refused by the binding rather than by CNA — and requiring it to say so.
+
 The three static wasm gates now run as one command, `npm run verify:wasm`, and CI runs it: the route
 table matching the routes actually called, every call's arity and BigInt-ness against its C
 declaration, and every structure field against the measured layout. None of them had been wired into

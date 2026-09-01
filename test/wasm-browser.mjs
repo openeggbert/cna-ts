@@ -632,6 +632,7 @@ test("nested structures survive whole, or CNA says the layer is absent", { skip 
       ["glTF source", nested.gltfError],
       ["frustum culler", nested.cullerError],
       ["texture slots", nested.slotError],
+      ["cascade state", nested.cascadeError],
     ]) {
       if (message == null) continue;
       assert.match(

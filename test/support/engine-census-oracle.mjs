@@ -224,6 +224,29 @@ export function assertNestedStructures(evidence) {
     "a slot cleared after being filled reads as no handle again, rather than as the handle it held",
   );
 
+  // A `CNA_Matrix[4]` and a `float[4]` in one structure, round-tripped whole.
+  assert.equal(
+    evidence.cascadeError ?? null, null, `the cascade state failed: ${evidence.cascadeError}`,
+  );
+  const cascades = evidence.cascadeState;
+  assert.equal(cascades.count, 3, "the cascade count survives");
+  assert.equal(cascades.blendBand, 0.375, "and the blend band");
+  assert.equal(cascades.debugTint, true, "and the debug tint");
+  assert.deepEqual(
+    cascades.splitDistance, [4.5, 18.25, 60.125, 240.0625],
+    "all four split distances, including the ones past the count -- which CNA keeps rather than " +
+    "removing, so a reader that stopped at the count would lose the last one",
+  );
+  assert.deepEqual(
+    cascades.cameraTranslation, [-7, -8, -9],
+    "the camera view is one matrix among the arrays and comes back whole",
+  );
+  assert.deepEqual(
+    cascades.atlasTranslations, [[1, 2, 3], [2, 4, 6], [3, 6, 9], [4, 8, 12]],
+    "and four cascade transforms at their own stride: each is sixty-four bytes, so a walk at any " +
+    "other stride reads the next matrix's rows into this one",
+  );
+
   // CNA's own refusal, recorded rather than required.
   assert.equal(
     evidence.gpuCullerSupported, false,
@@ -233,5 +256,5 @@ export function assertNestedStructures(evidence) {
     evidence.gpuCullerReason ?? "", /compute/i,
     "and says so in CNA's own words",
   );
-  return { boundsTested: 3, slotsTested: 4 };
+  return { boundsTested: 3, slotsTested: 4, cascades: cascades.atlasTranslations.length };
 }

@@ -2961,7 +2961,9 @@ try {
      * CNA's answer and a W of zero is the binding's.
      */
     #nestedStructureEvidence() {
-      const { GltfMaterialBridge, FrustumCuller, PbrEffect, PbrTextureSlot } = PostProcess;
+      const {
+        GltfMaterialBridge, FrustumCuller, PbrEffect, PbrTextureSlot, ShadowReceiver,
+      } = PostProcess;
       const out = {};
       try {
         const source = GltfMaterialBridge.CreateSource();
@@ -3019,6 +3021,38 @@ try {
       } catch (error) {
         out.slotError = `${error?.constructor?.name}: ${error?.message}`;
       } finally { texture?.Dispose(); effect?.Dispose(); }
+
+      // A `CNA_Matrix[4]` and a `float[4]` nested in one structure, round-tripped whole. This is
+      // the third structure whose fields the layout probe never measured, so until the generator
+      // read them from CNA's headers this threw on the first call; nothing else exercises a nested
+      // array of matrices, whose stride is sixty-four bytes and whose count is four.
+      try {
+        const effect = PbrEffect.Create(this.GraphicsDevice);
+        try {
+          const cascades = [0, 1, 2, 3].map((index) =>
+            Matrix.CreateTranslation(new Vector3(index + 1, (index + 1) * 2, (index + 1) * 3)));
+          ShadowReceiver.SetCascadeState(effect, {
+            Count: 3,
+            BlendBand: 0.375,
+            WorldToAtlas: cascades,
+            SplitDistance: [4.5, 18.25, 60.125, 240.0625],
+            CameraView: Matrix.CreateTranslation(new Vector3(-7, -8, -9)),
+            DebugTint: true,
+          });
+          const read = ShadowReceiver.GetCascadeState(effect);
+          out.cascadeState = {
+            count: read.Count,
+            blendBand: read.BlendBand,
+            splitDistance: [...read.SplitDistance],
+            debugTint: read.DebugTint,
+            // The translation of each cascade transform, which is where the stride shows.
+            atlasTranslations: read.WorldToAtlas.map((m) => [m.M41, m.M42, m.M43]),
+            cameraTranslation: [read.CameraView.M41, read.CameraView.M42, read.CameraView.M43],
+          };
+        } finally { effect.Dispose(); }
+      } catch (error) {
+        out.cascadeError = `${error?.constructor?.name}: ${error?.message}`;
+      }
 
       // The GPU instance culler writes the same structure nested inside an instance, and this
       // renderer refuses it. Recorded rather than required: it is CNA's refusal, not the binding's.
