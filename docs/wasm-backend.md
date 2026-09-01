@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=437
+WASM_BACKEND_ROUTES=456
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 437 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 456 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
@@ -488,6 +488,41 @@ Everything else in the 603-member interface still refuses **by name** through
 `CnaGraphicsExtensionBackendBase`. The object being present rather than absent is the point: a
 route outside the slice names itself, and a route inside it gets CNA's own answer for the artifact
 in front of it, `NOT_SUPPORTED` included.
+
+### Shadows: the device was asked, and said yes
+
+The most-used engine feature in a 3D game, and the one whose availability had to be *measured*
+rather than judged. Both of CNA's shadow capabilities -- casting and sampling, which are separate
+questions a renderer can answer differently -- are true on a WebGL2 context with an artifact built
+`-DCNA_CNAEXT=ON`, so the rigid casting pass is bound and held to the same oracle the windowed
+OPENGLES3 suite uses (`test/support/shadow-oracle.mjs`, shared by both).
+
+The oracle knows two things CNA was never told together: where the occluder is in world space, and
+the light view-projection the pass built from a light and a scene box. Multiplying one by the other
+gives the texel each corner lands on and the depth it records, so a binding that transposed the
+matrix, dropped a row, mixed up the axes or ignored the light direction moves the *predicted*
+rectangle away from the rendered one instead of moving both together. Measured in headless Chromium:
+
+```text
+map                512 texels square, SurfaceFormat.Single, borrowed once
+empty pass         every texel at the far plane -- low 1, high 1, occluded 0
+occluder high      48960 texels, depth 0.625        occluder low  48960 texels, depth 0.875
+                   same rectangle, to within 1.5 texels of the prediction on all four edges
+                   and the 8-unit height gap is exactly what the projection's depth scale says
+outside the pass   nothing reaches the map, so End really unbinds it
+ordering           End without Begin, ApplyCaster outside a pass, and a second Begin are each
+                   refused by CNA with a result code rather than by a managed guard
+```
+
+Before any of that, the transform is cross-checked: `Begin` built its matrix inside CNA, and the
+product of the two pure maths routes -- which take the same light and box and touch no shadow map
+-- has to equal it. Three CNA routes and one local arithmetic identity have to agree, and a `Begin`
+that dropped the bounds cannot be rescued by the geometry checks, because those use CNA's own
+reported matrix and would move with it.
+
+The **skinned** caster is not bound, for an architectural reason rather than a capability one: it
+takes a bone palette, and skinned meshes reach a game through a native content manager this package
+deliberately does not have.
 
 One more piece of the layer is reachable and worth naming, because it is the part of a family whose
 other half is not: **the instancing stream's layout**. `InstancedRenderer` itself draws a

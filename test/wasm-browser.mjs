@@ -14,6 +14,7 @@ import test from "node:test";
 
 import { browserBlocked, runFrames } from "./support/browser-harness.mjs";
 import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
+import { assertShadowPassEvidence } from "./support/shadow-oracle.mjs";
 import { assertCompiledEffectEvidence } from "./support/compiled-effect-oracle.mjs";
 
 const skip = browserBlocked;
@@ -535,5 +536,111 @@ test("a browser can ask its device what it supports, and the answers are the dev
 
   const on = Object.entries(caps.supported).filter(([, value]) => value).map(([name]) => name);
   console.log(`CNA_TS_WASM_DEVICE_CAPABILITIES=${on.length}/19 ON=${on.join(",")}`);
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("a browser asks what its device can do with a shadow map, and answers", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const shadows = result.shadows;
+  assert.ok(shadows, "no shadow evidence was produced");
+
+  if (shadows.layerAbsent) {
+    // The default artifact, where the engine layer is compiled out entirely.
+    assert.equal(shadows.cnaResult, 6, `CNA's own NOT_SUPPORTED: ${shadows.error}`);
+    console.log("CNA_TS_WASM_SHADOWS=NO_ENGINE_LAYER");
+    return;
+  }
+  assert.equal(shadows.evidenceError ?? null, null, "the layer was present and the probe failed");
+
+  // The maths first, because it is the same arithmetic on every renderer and does not depend on
+  // what this context can cast. A light pointing straight down at a scene box asymmetric on all
+  // three axes: a transform that dropped a translation term or swapped an axis lands elsewhere.
+  assert.equal(shadows.math.view.length, 16);
+  assert.equal(shadows.math.projection.length, 16);
+  for (const value of [...shadows.math.view, ...shadows.math.projection]) {
+    assert.ok(Number.isFinite(value), `every component is a real number: ${value}`);
+  }
+  // What the transform has to *do*, rather than which component holds which sign -- the second is
+  // an axis convention this test would only be guessing at, and it guessed wrong once. XNA
+  // multiplies a row vector on the left, so this is v * M.
+  const transform = ([x, y, z], m) => [
+    x * m[0] + y * m[4] + z * m[8] + m[12],
+    x * m[1] + y * m[5] + z * m[9] + m[13],
+    x * m[2] + y * m[6] + z * m[10] + m[14],
+    x * m[3] + y * m[7] + z * m[11] + m[15],
+  ];
+  const MIN = [-10, -4, -6], MAX = [6, 12, 14];
+  const centre = MIN.map((low, axis) => (low + MAX[axis]) / 2);
+
+  // The defining property of a light view fitted to a scene: the scene's centre lands on the view
+  // axis. A dropped translation term or a swapped axis moves it off, by units rather than epsilon.
+  const centreInLight = transform(centre, shadows.math.view);
+  assert.ok(
+    Math.abs(centreInLight[0]) < 1e-3 && Math.abs(centreInLight[1]) < 1e-3,
+    `the scene centre lies on the light's view axis: ${centreInLight.join(",")}`,
+  );
+
+  // And the defining property of the projection fitted to those bounds: every corner of the box
+  // lands inside the unit cube in x and y, and none of them is comfortably inside -- the extreme
+  // corners touch the edges, which is what "fitted" means and what a projection ignoring the
+  // bounds would not do.
+  let widest = 0;
+  for (const x of [MIN[0], MAX[0]]) {
+    for (const y of [MIN[1], MAX[1]]) {
+      for (const z of [MIN[2], MAX[2]]) {
+        const clip = transform(transform([x, y, z], shadows.math.view), shadows.math.projection);
+        for (const axis of [0, 1]) {
+          assert.ok(
+            Math.abs(clip[axis]) <= 1 + 1e-3,
+            `corner ${x},${y},${z} lands inside the light's frustum: ${clip.join(",")}`,
+          );
+          widest = Math.max(widest, Math.abs(clip[axis]));
+        }
+      }
+    }
+  }
+  // Fitted, and fitted *tightly*: the extreme corners reach 0.998 of the way to the frustum edge,
+  // which for a 512-texel map is half a texel of margin on each side -- 1 - 1/512 is 0.998047 --
+  // and is CNA leaving room so a caster exactly on the boundary is not clipped. A projection that
+  // ignored the bounds, or padded them generously, would put this well under 0.99; one that
+  // clipped them would have failed the loop above.
+  assert.ok(
+    widest > 0.99 && widest <= 1,
+    `the box fills the light's frustum to within about half a texel: widest ${widest}`,
+  );
+  // An orthographic projection's last row ends in 1, which a perspective one does not.
+  assert.ok(
+    Math.abs(shadows.math.projection[15] - 1) < 1e-6,
+    "the light's projection is orthographic, as a directional light's must be",
+  );
+
+  // The quality table, which is CNA's and not this package's.
+  assert.deepEqual(
+    shadows.sizeForQuality, [512, 1024, 2048],
+    "Low, Medium and High are 512, 1024 and 2048 texels square",
+  );
+  assert.equal(shadows.size, shadows.sizeForQuality[0], "and a Low map is the Low size");
+  assert.equal(shadows.filterRadius, shadows.radiusForQuality[0]);
+  for (const radius of shadows.radiusForQuality) assert.ok(radius >= 0);
+  assert.ok(
+    Math.abs(shadows.depthBias.afterSet - 0.0125) < 1e-6,
+    `the depth bias round-trips through CNA: ${shadows.depthBias.afterSet}`,
+  );
+  assert.notEqual(
+    shadows.depthBias.afterSet, shadows.depthBias.initial,
+    "and the value written is not the one it already had, so the round trip is testable",
+  );
+
+  // And what the device says about casting. Both answers are legitimate and neither is assumed --
+  // a renderer can rasterise a depth pass it cannot then sample, so the two are asked separately.
+  assert.equal(typeof shadows.supported, "boolean");
+  assert.equal(typeof shadows.sampling, "boolean");
+  // Where it can cast, the whole pass is asserted against the transform CNA reported for it.
+  if (shadows.supported) assertShadowPassEvidence(shadows);
+  console.log(
+    `CNA_TS_WASM_SHADOWS=ENGINE_LAYER_PRESENT CASTING=${shadows.supported} ` +
+    `SAMPLING=${shadows.sampling} SIZE=${shadows.size}`,
+  );
   assert.deepEqual(consoleErrors, []);
 });

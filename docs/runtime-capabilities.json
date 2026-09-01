@@ -14,7 +14,7 @@
   "counts": {
     "VERIFIED_MANAGED": 22,
     "VERIFIED_NATIVE": 120,
-    "VERIFIED_WEBASSEMBLY": 17,
+    "VERIFIED_WEBASSEMBLY": 18,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 1,
     "UPSTREAM_CNA_BLOCKED": 5,
     "FIXTURE_PENDING": 2,
@@ -2443,6 +2443,23 @@
         "wasmRoute:cna_graphics_renderer_try_parse_name_ext",
         "wasmRoute:cna_graphics_renderer_copy_available_ext",
         "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "Shadow maps over WebAssembly: the rigid casting pass and the light transforms",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "Available only on an artifact built with CNA_CNAEXT=ON; the default artifact refuses a ShadowMap with CNA_RESULT_NOT_SUPPORTED. The device was asked rather than assumed and answered yes to both capabilities -- cna_shadow_map_is_supported and cna_graphics_device_supports_shadow_sampling_ext are true on a WebGL2 context in headless Chromium. A 512-texel Low map then clears to the far plane on an empty pass, records an occluder at two heights covering 48,960 identical texels with depths 0.625 and 0.875, refuses a draw made outside Begin/End, and refuses End without Begin, ApplyCaster outside a pass and a second Begin. Every texel extent and depth is predicted from the light view-projection CNA reported for the pass -- and that matrix is cross-checked against the product of the two pure maths routes, so three CNA routes and one local identity have to agree. The skinned caster is not bound: it takes a bone palette, and skinned meshes arrive through a native content manager this package deliberately does not have.",
+      "proof": [
+        "wasmRoute:cna_shadow_map_create",
+        "wasmRoute:cna_shadow_map_begin",
+        "wasmRoute:cna_shadow_map_apply_caster",
+        "wasmRoute:cna_shadow_map_end",
+        "wasmRoute:cna_shadow_map_get_shadow_texture",
+        "wasmRoute:cna_shadow_map_get_light_view_projection",
+        "wasmRoute:cna_shadow_map_compute_light_view",
+        "wasmRoute:cna_graphics_device_supports_shadow_sampling_ext",
+        "test:test/wasm-browser-strong.mjs"
       ]
     },
     {

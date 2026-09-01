@@ -36,6 +36,7 @@ import { after } from "node:test";
 
 import { browserBlocked, runFrames, WASM_DIR } from "./support/browser-harness.mjs";
 import { assertColourGradeEvidence } from "./support/colour-grade-oracle.mjs";
+import { assertShadowPassEvidence } from "./support/shadow-oracle.mjs";
 import { assertCompiledEffectEvidence } from "./support/compiled-effect-oracle.mjs";
 import { requiredSuite } from "./support/required-suite.mjs";
 import { strongArtifactBlocked } from "./support/strong-artifact-gate.mjs";
@@ -132,6 +133,31 @@ test("the engine layer's colour grade runs, and its texels are the arithmetic", 
     "STRONG_WASM_ENGINE_SLICE=colour-grade PASSES=blit,strip,volume,half,zero,noLut " +
     `CHAIN=${grade.chain.twoCount}-pass GPU_TIMING=${grade.chain.timingEnabled ? "ON" : "REFUSED"} ` +
     `TIMINGS=${grade.chain.timings.length}`,
+  );
+});
+
+test("the engine layer casts a shadow map, and its depths are the light transform's", () => {
+  const shadows = evidence.result.shadows;
+  assert.ok(shadows, "no shadow evidence was produced");
+  assert.equal(
+    shadows.layerAbsent, false,
+    `the artifact reports CNAEXT available and then refused a ShadowMap: ${shadows.error}`,
+  );
+  assert.equal(shadows.evidenceError ?? null, null, "the layer was present and the probe failed");
+  // Not asserted as an assumption: a renderer is allowed to say it cannot cast, and this one is
+  // asked. What is required of a *strong-artifact* run is that the answer be recorded and, where
+  // it is yes, that the pass then be held to the prediction rather than merely run.
+  assert.equal(typeof shadows.supported, "boolean");
+  assert.equal(typeof shadows.sampling, "boolean");
+  if (!shadows.supported) {
+    console.log(`STRONG_WASM_SHADOWS=NOT_SUPPORTED_RENDERER SIZE=${shadows.size}`);
+    return;
+  }
+  assertShadowPassEvidence(shadows);
+  console.log(
+    `STRONG_WASM_SHADOWS=CAST SIZE=${shadows.size} SAMPLING=${shadows.sampling} ` +
+    `OCCLUDED=${shadows.high.occluded} HIGH=${shadows.high.low.toFixed(6)} ` +
+    `LOW=${shadows.low.low.toFixed(6)}`,
   );
 });
 

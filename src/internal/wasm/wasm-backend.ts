@@ -19,6 +19,7 @@ import type {
   CnaContentBackend,
   CnaGraphicsBackend,
   CnaComputeBackend,
+  CnaShadowBackend,
   CnaGraphicsExtensionBackend,
   CnaRuntimeServicesBackend,
   PlatformSnapshot,
@@ -78,6 +79,7 @@ import { WasmGraphicsBackend } from "./graphics.js";
 import { WasmEffectBackend } from "./effects.js";
 import { WasmComputeBackend } from "./compute.js";
 import { WasmGraphicsExtensionBackend } from "./graphics-ext.js";
+import { WasmShadowBackend } from "./shadows.js";
 
 const CNA_RESULT_SUCCESS = CnaResult.Success;
 const CNA_RESULT_INVALID_STATE = CnaResult.InvalidState;
@@ -225,6 +227,27 @@ const ROUTES = [
   "cna_post_process_pass_copy_name",
   "cna_post_process_pass_is_supported",
   "cna_post_process_pass_destroy",
+  // Shadow maps: what one is, what the device says about casting and sampling, and the pure light
+  // transforms. The casting pass is not here -- see `WasmShadowBackend`.
+  "cna_graphics_device_supports_shadow_sampling_ext",
+  "cna_shadow_map_create",
+  "cna_shadow_map_destroy",
+  "cna_shadow_map_is_supported",
+  "cna_shadow_map_get_size",
+  "cna_shadow_map_get_quality",
+  "cna_shadow_map_get_depth_bias",
+  "cna_shadow_map_set_depth_bias",
+  "cna_shadow_map_get_filter_radius",
+  "cna_shadow_map_size_for_quality",
+  "cna_shadow_map_filter_radius_for_quality",
+  "cna_shadow_map_begin",
+  "cna_shadow_map_end",
+  "cna_shadow_map_apply_caster",
+  "cna_shadow_map_get_shadow_texture",
+  "cna_shadow_map_get_caster_effect",
+  "cna_shadow_map_get_light_view_projection",
+  "cna_shadow_map_compute_light_view",
+  "cna_shadow_map_compute_light_projection",
   // The instancing stream's layout: pure computation about the layer's own shaders, and what a
   // page building its own instance buffer has to match. The renderer itself draws a ModelMeshPart,
   // which a browser has no native content manager to produce.
@@ -593,6 +616,11 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
    * of constructing something that needs a capability and reading the exception.
    */
   public readonly Compute: CnaComputeBackend;
+  /**
+   * A shadow map's description and the maths that decides where it looks from. Not the pass: what
+   * this context can cast is a question for the device, and the slice asks it rather than assuming.
+   */
+  public readonly Shadows: CnaShadowBackend;
   /** Sound effects, so a browser game can make a noise. */
   public readonly Audio: CnaAudioBackend;
   /**
@@ -616,6 +644,7 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
     this.Effects = new WasmEffectBackend(this.#routes);
     this.GraphicsExtensions = new WasmGraphicsExtensionBackend(this.#routes);
     this.Compute = new WasmComputeBackend(this.#routes);
+    this.Shadows = new WasmShadowBackend(this.#routes);
     this.Audio = new WasmAudioBackend(
       this.#routes, () => this.#requireGame(), () => this.#requireGameLifetime(),
     );

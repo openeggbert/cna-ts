@@ -901,4 +901,24 @@ export const WASM_STRUCT_LAYOUTS = {
       milliseconds: { offset: 16, size: 8 },
     },
   },
+  CNA_DirectionalLightEXT: {
+    size: 40,
+    align: 4,
+    fields: {
+      struct_size: { offset: 0, size: 4 },
+      struct_version: { offset: 4, size: 4 },
+      direction: { offset: 8, size: 12 },
+      color: { offset: 20, size: 12 },
+      intensity: { offset: 32, size: 4 },
+      casts_shadows: { offset: 36, size: 1 },
+    },
+  },
+  CNA_BoundingBox: {
+    size: 24,
+    align: 4,
+    fields: {
+      min: { offset: 0, size: 12 },
+      max: { offset: 12, size: 12 },
+    },
+  },
 } as const satisfies Readonly<Record<string, WasmStructLayout>>;

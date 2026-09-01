@@ -21,7 +21,8 @@ window.addEventListener("unhandledrejection", (event) => result.errors.push(
 
 try {
   const {
-    Audio, Color, Content, Game, GraphicsDeviceManager, Graphics, GetRuntimeStatus, LoadWasmBackend,
+    Audio, BoundingBox, Color, Content, Game, GraphicsDeviceManager, Graphics, GetRuntimeStatus,
+    LoadWasmBackend,
     Curve, CurveContinuity, CurveKey, CurveLoopType,
     Matrix, Quaternion, TitleContainer, TimeSpan, Vector2, Vector3, Vector4,
   } = await import("/cna-ts/index.js");
@@ -720,6 +721,9 @@ try {
       // needed them and read the exception.
       result.deviceCapabilities = this.#deviceCapabilityEvidence();
 
+      // --- shadow maps: what this device says, and the maths that is the same everywhere -------
+      result.shadows = this.#shadowEvidence();
+
       super.LoadContent();
     }
 
@@ -881,6 +885,157 @@ try {
         target.Dispose();
       }
       return evidence;
+    }
+
+    /**
+     * A shadow map's description, and CNA's pure light transforms.
+     *
+     * The pass -- Begin, the caster draws, End, and reading depths back -- is not here, because
+     * whether this context can cast at all is what the two capability answers below decide. They
+     * are recorded rather than asserted in the page, so the suite can say what a WebGL2 context
+     * answers instead of the page assuming it.
+     */
+    #shadowEvidence() {
+      const device = this.GraphicsDevice;
+      const { GraphicsDeviceCapabilities, ShadowMap, ShadowMapMath, ShadowQuality } = PostProcess;
+      let map;
+      try {
+        map = new ShadowMap(device, ShadowQuality.Low);
+      } catch (error) {
+        return {
+          layerAbsent: true,
+          cnaResult: error?.cnaResult ?? null,
+          error: `${error?.constructor?.name}: ${error?.message}`,
+        };
+      }
+      try {
+        const evidence = {
+          layerAbsent: false,
+          // Casting and sampling are separate CNA capabilities; a frame that draws shadows needs
+          // both, so both are recorded rather than one standing in for the other.
+          supported: map.IsSupported,
+          sampling: GraphicsDeviceCapabilities.SupportsShadowSampling(device),
+          size: map.Size,
+          quality: map.Quality,
+          filterRadius: map.FilterRadius,
+          sizeForQuality: [ShadowQuality.Low, ShadowQuality.Medium, ShadowQuality.High]
+            .map((quality) => ShadowMapMath.SizeForQuality(quality)),
+          radiusForQuality: [ShadowQuality.Low, ShadowQuality.Medium, ShadowQuality.High]
+            .map((quality) => ShadowMapMath.FilterRadiusForQuality(quality)),
+        };
+        const bias = map.DepthBias;
+        map.DepthBias = 0.0125;
+        evidence.depthBias = { initial: bias, afterSet: map.DepthBias };
+
+        // The pure transforms, over the same light and the same asymmetric scene box the windowed
+        // suite uses -- asymmetric on all three axes, so a transform that dropped a translation
+        // term or swapped an axis lands on different numbers.
+        const light = {
+          Direction: new Vector3(0, -1, 0), Color: new Vector3(1, 1, 1), Intensity: 1,
+        };
+        const box = new BoundingBox(new Vector3(-10, -4, -6), new Vector3(6, 12, 14));
+        const view = ShadowMapMath.ComputeLightView(light, box);
+        const projection = ShadowMapMath.ComputeLightProjection(view, box);
+        const rows = (matrix) => [
+          matrix.M11, matrix.M12, matrix.M13, matrix.M14,
+          matrix.M21, matrix.M22, matrix.M23, matrix.M24,
+          matrix.M31, matrix.M32, matrix.M33, matrix.M34,
+          matrix.M41, matrix.M42, matrix.M43, matrix.M44,
+        ];
+        evidence.math = { view: rows(view), projection: rows(projection) };
+
+        // --- the pass ---------------------------------------------------------------------------
+        //
+        // Only where the device says it can cast. The occluder is one axis-aligned quad, placed
+        // asymmetrically in x and z and drawn at two known heights: the light points straight
+        // down, so the higher quad must record the *smaller* depth and both must cover exactly the
+        // same texels. Numbers this test predicts from the light transform, not from a run.
+        if (evidence.supported) {
+          const QUAD = { X0: -8, X1: -2, Z0: -4, Z1: 6, High: 8, Low: 0 };
+          const white = new Color(255, 255, 255, 255);
+          const quadAt = (y) => {
+            const at = (x, z) =>
+              new Graphics.VertexPositionColor(new Vector3(x, y, z), white);
+            return [
+              at(QUAD.X0, QUAD.Z0), at(QUAD.X1, QUAD.Z0), at(QUAD.X1, QUAD.Z1),
+              at(QUAD.X0, QUAD.Z0), at(QUAD.X1, QUAD.Z1), at(QUAD.X0, QUAD.Z1),
+            ];
+          };
+          const texture = map.ShadowTexture;
+          evidence.texture = {
+            width: texture.Width, height: texture.Height, format: texture.Format,
+            cached: map.ShadowTexture === texture,
+          };
+          const texels = new Float32Array(texture.Width * texture.Height);
+          const survey = () => {
+            texture.GetData(texels);
+            let low = Infinity, high = -Infinity, occluded = 0;
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (let index = 0; index < texels.length; index += 1) {
+              const depth = texels[index];
+              if (depth < low) low = depth;
+              if (depth > high) high = depth;
+              // 1.0 is the far plane the pass cleared to; anything nearer is a caster.
+              if (depth < 1) {
+                occluded += 1;
+                const x = index % texture.Width, y = Math.floor(index / texture.Width);
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+                if (y < minY) minY = y;
+                if (y > maxY) maxY = y;
+              }
+            }
+            return { low, high, occluded, minX, maxX, minY, maxY };
+          };
+
+          // 1. An empty pass clears the whole map to the far plane.
+          map.Begin(light, box);
+          evidence.lightViewProjection = rows(map.LightViewProjection);
+          map.End();
+          evidence.cleared = survey();
+
+          // 2. The occluder at two heights.
+          const castAt = (y) => {
+            map.Begin(light, box);
+            map.ApplyCaster();
+            device.DrawUserPrimitives(Graphics.PrimitiveType.TriangleList, quadAt(y), 0, 2);
+            map.End();
+            return survey();
+          };
+          evidence.quad = QUAD;
+          evidence.high = castAt(QUAD.High);
+          evidence.low = castAt(QUAD.Low);
+
+          // 3. The same draw outside the pass must not reach the map at all: End has to have
+          //    unbound it. Cleared first, so a stale earlier result cannot pass for one.
+          map.Begin(light, box);
+          map.End();
+          device.DrawUserPrimitives(
+            Graphics.PrimitiveType.TriangleList, quadAt(QUAD.High), 0, 2);
+          evidence.outsidePass = survey();
+
+          // 4. Pass ordering, refused by CNA rather than by this binding.
+          const refusal = (body) => {
+            try { body(); return "ACCEPTED"; }
+            catch (error) { return `${error?.cnaResult}`; }
+          };
+          evidence.ordering = {
+            endWithoutBegin: refusal(() => map.End()),
+            applyOutsidePass: refusal(() => map.ApplyCaster()),
+          };
+          map.Begin(light, box);
+          evidence.ordering.beginTwice = refusal(() => map.Begin(light, box));
+          map.End();
+        }
+        return evidence;
+      } catch (error) {
+        return {
+          layerAbsent: false,
+          evidenceError: `${error?.constructor?.name}: ${error?.message}`,
+        };
+      } finally {
+        map.Dispose();
+      }
     }
 
     /** Every `GraphicsCapability` this device answers, and the compute limits beside them. */

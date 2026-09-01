@@ -1,5 +1,5 @@
 {
-  "name": "compiled effects, colour grading, the post-process chain and the instancing stream, in a browser",
+  "name": "compiled effects, colour grading, the post-process chain, the instancing stream and shadow maps, in a browser",
   "artifact": "dist",
   "build": "npm run build",
   "command": "CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
@@ -137,6 +137,34 @@
       "file": "src/internal/wasm/graphics-ext.ts",
       "find": "    return this.#int(\"cna_instanced_renderer_ext_get_instance_stride\");",
       "replace": "    return this.#int(\"cna_instanced_renderer_ext_get_tint_stride\");"
+    },
+    {
+      "id": "light-direction-read-from-its-colour",
+      "why": "the light's direction filled from its colour: white is (1,1,1) here, so the pass looks along a diagonal instead of straight down and every predicted texel moves -- and the two pure maths routes move with it, so only the geometry catches it",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "    write(\"direction\", light.Direction);",
+      "replace": "    write(\"direction\", light.Color);"
+    },
+    {
+      "id": "scene-bounds-min-and-max-swapped",
+      "why": "EQUIVALENT, and kept because finding that out is the point. Swapping a scene box's min and max looks like it must move the shadow, and it cannot: ShadowMap.cpp's computeLightView takes the box's centre -- symmetric under the swap -- and a radius from the sum of squared extents, whose signs cancel; computeLightProjection enumerates all eight corners and takes their min and max in light space, and the eight corners of a swapped box are the same eight points. There is nothing here for a test to catch, so this survives and is reported as surviving rather than reclassified or deleted.",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "    for (const [field, value] of [[\"min\", bounds.Min], [\"max\", bounds.Max]] as const) {",
+      "replace": "    for (const [field, value] of [[\"min\", bounds.Max], [\"max\", bounds.Min]] as const) {"
+    },
+    {
+      "id": "matrix-read-transposed",
+      "why": "a CNA_Matrix read column-major: the shape survives, the translation terms move into the last column, and the pass transform stops agreeing with view * projection -- the cross-route check exists for exactly this",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "    return Array.from({ length: 16 }, (_, index) => view.getFloat32(pointer + index * 4, true));",
+      "replace": "    return Array.from({ length: 16 }, (_, index) =>\n      view.getFloat32(pointer + ((index % 4) * 4 + Math.floor(index / 4)) * 4, true));"
+    },
+    {
+      "id": "shadow-pass-never-ends",
+      "why": "End is a no-op, so the map stays bound and the draw that follows the pass reaches it -- a leak of render state that looks like nothing at all until something later writes where it should not",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "    this.#routes.invoke(\"cna_shadow_map_end\", map);",
+      "replace": "    void map;"
     }
   ]
 }

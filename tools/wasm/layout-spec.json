@@ -598,6 +598,18 @@
       "struct_version",
       "sample_count",
       "milliseconds"
+    ],
+    "CNA_DirectionalLightEXT": [
+      "struct_size",
+      "struct_version",
+      "direction",
+      "color",
+      "intensity",
+      "casts_shadows"
+    ],
+    "CNA_BoundingBox": [
+      "min",
+      "max"
     ]
   },
   "callbacks": {
