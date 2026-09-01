@@ -4,30 +4,30 @@
     "NODE",
     "WASM"
   ],
-  "totalFunctions": 4054,
+  "totalFunctions": 4055,
   "totals": {
-    "XNA_BACKING": 1591,
+    "XNA_BACKING": 1522,
     "CNA_EXTENSION_BACKING": 1871,
     "INTERNAL_RUNTIME_ONLY": 1,
-    "MANAGED_BY_DESIGN": 556,
+    "MANAGED_BY_DESIGN": 626,
     "TOOLING_ONLY": 35,
     "INTENTIONALLY_DEFERRED": 0,
     "UPSTREAM_RUNTIME_UNAVAILABLE": 0,
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 1852,
+    "NODE": 1889,
     "WASM": 343
   },
-  "reachableByAny": 1852,
+  "reachableByAny": 1889,
   "reachableByAll": 343,
   "reachableExclusively": {
-    "NODE": 1509,
+    "NODE": 1546,
     "WASM": 0
   },
   "reachabilityByCategory": {
     "XNA_BACKING": {
-      "NODE": 513,
+      "NODE": 550,
       "WASM": 139
     },
     "CNA_EXTENSION_BACKING": {
@@ -115,8 +115,9 @@
       "REACHABLE_NODE": 14
     },
     "effects.h": {
-      "XNA_BACKING": 255,
-      "REACHABLE_NODE": 149,
+      "XNA_BACKING": 185,
+      "REACHABLE_NODE": 186,
+      "MANAGED_BY_DESIGN": 70,
       "REACHABLE_WASM": 44,
       "CNA_EXTENSION_BACKING": 35
     },
@@ -247,7 +248,7 @@
       "XNA_BACKING": 33
     },
     "net_sessions.h": {
-      "XNA_BACKING": 103
+      "XNA_BACKING": 104
     },
     "net.h": {
       "XNA_BACKING": 1,
@@ -1177,43 +1178,43 @@
     {
       "name": "cna_alpha_test_effect_get_alpha",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_alpha_test_effect_get_alpha_function",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_alpha_test_effect_get_diffuse_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_alpha_test_effect_get_reference_alpha",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_alpha_test_effect_get_texture",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_alpha_test_effect_get_vertex_color_enabled",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
@@ -2726,64 +2727,64 @@
     {
       "name": "cna_basic_effect_get_alpha",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_basic_effect_get_diffuse_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_basic_effect_get_emissive_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_basic_effect_get_prefer_per_pixel_lighting",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_basic_effect_get_specular_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_basic_effect_get_specular_power",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_basic_effect_get_texture",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_basic_effect_get_texture_enabled",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_basic_effect_get_vertex_color_enabled",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
@@ -7395,15 +7396,15 @@
     {
       "name": "cna_color_matrix_effect_get_matrix",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_color_matrix_effect_get_offset",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
@@ -10010,29 +10011,29 @@
     {
       "name": "cna_directional_light_get_diffuse_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_directional_light_get_direction",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_directional_light_get_enabled",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_directional_light_get_specular_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
@@ -10168,29 +10169,29 @@
     {
       "name": "cna_dual_texture_effect_get_alpha",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_dual_texture_effect_get_diffuse_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_dual_texture_effect_get_texture",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_dual_texture_effect_get_vertex_color_enabled",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
@@ -10322,15 +10323,15 @@
     {
       "name": "cna_effect_annotation_collection_add",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb",
       "backends": []
     },
     {
       "name": "cna_effect_annotation_collection_create",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb",
       "backends": []
     },
     {
@@ -10338,13 +10339,15 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_collection_find",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "looks an element up by name or semantic. The managed collections already index the reflected data by both -- EffectParameterCollection.Get(name) and GetParameterBySemantic -- over the very rows these routes would search, so binding them would give one collection two lookups. It would also be the more expensive one: CNA's find mints a fresh owned element view per call, where the managed index returns the EffectParameter the consumer already holds",
       "backends": []
     },
     {
@@ -10352,27 +10355,33 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_collection_get_count",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_copy_name",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_copy_semantic",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads back a value this package already holds. A texture or a string set on a reflected parameter is written through to CNA and kept managed in the same step, so GetValueTexture2D and GetValueString answer from the value the consumer set rather than from a second copy that could disagree. The numeric read-back is imported for the integration test alone, which is what proves the write-through actually reaches CNA; nothing public reads through it. EffectAnnotation carries no Semantic in XNA 4.0, so its semantic accessors project nothing",
       "backends": []
     },
     {
@@ -10380,13 +10389,15 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_create",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb",
       "backends": []
     },
     {
@@ -10394,27 +10405,33 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_get_info",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_get_name_byte_count",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_get_semantic_byte_count",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads back a value this package already holds. A texture or a string set on a reflected parameter is written through to CNA and kept managed in the same step, so GetValueTexture2D and GetValueString answer from the value the consumer set rather than from a second copy that could disagree. The numeric read-back is imported for the integration test alone, which is what proves the write-through actually reaches CNA; nothing public reads through it. EffectAnnotation carries no Semantic in XNA 4.0, so its semantic accessors project nothing",
       "backends": []
     },
     {
@@ -10422,56 +10439,72 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_get_value_int32",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_get_value_matrix",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_get_value_single",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_get_value_string_byte_count",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_get_value_vector2",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_get_value_vector3",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_annotation_get_value_vector4",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_apply",
@@ -10551,29 +10584,29 @@
     {
       "name": "cna_effect_fog_get_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_effect_fog_get_enabled",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_effect_fog_get_end",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_effect_fog_get_start",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
@@ -10670,7 +10703,9 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_get_punctual_light_ext",
@@ -10839,22 +10874,22 @@
     {
       "name": "cna_effect_matrices_get_projection",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_effect_matrices_get_view",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_effect_matrices_get_world",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
@@ -10890,15 +10925,15 @@
     {
       "name": "cna_effect_parameter_collection_add_create",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb",
       "backends": []
     },
     {
       "name": "cna_effect_parameter_collection_create",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb",
       "backends": []
     },
     {
@@ -10906,20 +10941,22 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_collection_find_name",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "looks an element up by name or semantic. The managed collections already index the reflected data by both -- EffectParameterCollection.Get(name) and GetParameterBySemantic -- over the very rows these routes would search, so binding them would give one collection two lookups. It would also be the more expensive one: CNA's find mints a fresh owned element view per call, where the managed index returns the EffectParameter the consumer already holds",
       "backends": []
     },
     {
       "name": "cna_effect_parameter_collection_find_semantic",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "looks an element up by name or semantic. The managed collections already index the reflected data by both -- EffectParameterCollection.Get(name) and GetParameterBySemantic -- over the very rows these routes would search, so binding them would give one collection two lookups. It would also be the more expensive one: CNA's find mints a fresh owned element view per call, where the managed index returns the EffectParameter the consumer already holds",
       "backends": []
     },
     {
@@ -10927,41 +10964,49 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_collection_get_count",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_copy_name",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_copy_semantic",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_copy_value_string",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads back a value this package already holds. A texture or a string set on a reflected parameter is written through to CNA and kept managed in the same step, so GetValueTexture2D and GetValueString answer from the value the consumer set rather than from a second copy that could disagree. The numeric read-back is imported for the integration test alone, which is what proves the write-through actually reaches CNA; nothing public reads through it. EffectAnnotation carries no Semantic in XNA 4.0, so its semantic accessors project nothing",
       "backends": []
     },
     {
       "name": "cna_effect_parameter_create",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb",
       "backends": []
     },
     {
@@ -10969,69 +11014,85 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_get_annotations",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_get_elements",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_get_info",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_get_name_byte_count",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_get_semantic_byte_count",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_get_structure_members",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_get_value",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_get_value_string_byte_count",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads back a value this package already holds. A texture or a string set on a reflected parameter is written through to CNA and kept managed in the same step, so GetValueTexture2D and GetValueString answer from the value the consumer set rather than from a second copy that could disagree. The numeric read-back is imported for the integration test alone, which is what proves the write-through actually reaches CNA; nothing public reads through it. EffectAnnotation carries no Semantic in XNA 4.0, so its semantic accessors project nothing",
       "backends": []
     },
     {
       "name": "cna_effect_parameter_get_value_texture",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads back a value this package already holds. A texture or a string set on a reflected parameter is written through to CNA and kept managed in the same step, so GetValueTexture2D and GetValueString answer from the value the consumer set rather than from a second copy that could disagree. The numeric read-back is imported for the integration test alone, which is what proves the write-through actually reaches CNA; nothing public reads through it. EffectAnnotation carries no Semantic in XNA 4.0, so its semantic accessors project nothing",
       "backends": []
     },
     {
@@ -11039,35 +11100,45 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_set_value",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_set_value_string",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_set_value_texture",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_parameter_set_values",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_pass_apply",
@@ -11082,15 +11153,15 @@
     {
       "name": "cna_effect_pass_collection_add_create",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb",
       "backends": []
     },
     {
       "name": "cna_effect_pass_collection_create",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb",
       "backends": []
     },
     {
@@ -11106,8 +11177,8 @@
     {
       "name": "cna_effect_pass_collection_find",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "looks an element up by name or semantic. The managed collections already index the reflected data by both -- EffectParameterCollection.Get(name) and GetParameterBySemantic -- over the very rows these routes would search, so binding them would give one collection two lookups. It would also be the more expensive one: CNA's find mints a fresh owned element view per call, where the managed index returns the EffectParameter the consumer already holds",
       "backends": []
     },
     {
@@ -11169,7 +11240,9 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_pass_get_index_ext",
@@ -11272,22 +11345,22 @@
     {
       "name": "cna_effect_technique_collection_add_default",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb",
       "backends": []
     },
     {
       "name": "cna_effect_technique_collection_add_named",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb",
       "backends": []
     },
     {
       "name": "cna_effect_technique_collection_create",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb",
       "backends": []
     },
     {
@@ -11303,8 +11376,8 @@
     {
       "name": "cna_effect_technique_collection_find",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "looks an element up by name or semantic. The managed collections already index the reflected data by both -- EffectParameterCollection.Get(name) and GetParameterBySemantic -- over the very rows these routes would search, so binding them would give one collection two lookups. It would also be the more expensive one: CNA's find mints a fresh owned element view per call, where the managed index returns the EffectParameter the consumer already holds",
       "backends": []
     },
     {
@@ -11373,7 +11446,9 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_effect_technique_get_identity",
@@ -11463,57 +11538,57 @@
     {
       "name": "cna_environment_map_effect_get_alpha",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_environment_map_effect_get_amount",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_environment_map_effect_get_diffuse_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_environment_map_effect_get_emissive_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_environment_map_effect_get_environment_map",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_environment_map_effect_get_fresnel_factor",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_environment_map_effect_get_specular",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_environment_map_effect_get_texture",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
@@ -22343,6 +22418,13 @@
       "backends": []
     },
     {
+      "name": "cna_network_session_replace_session_properties",
+      "header": "net_sessions.h",
+      "category": "XNA_BACKING",
+      "reason": "backs NetworkSession, NetworkGamer and the session collections. Not blocked by CNA: measured, a session is created successfully on this host, both Local and SystemLink, and reports its state and that it is the host. It is blocked by what a session needs first -- at least one signed-in gamer. This host has none, and the only route that produces one is cna_signed_in_gamer_create_ext, which CNA's header describes as the hook for a *platform layer* to publish a gamer. A binding calling it would be inventing the player, and every session claim built on that would be false. The strict surface keeps refusing with GamerServicesNotAvailableException, which is what XNA raises where there is no service",
+      "backends": []
+    },
+    {
       "name": "cna_network_session_reset_ready",
       "header": "net_sessions.h",
       "category": "XNA_BACKING",
@@ -27038,64 +27120,64 @@
     {
       "name": "cna_skinned_effect_get_alpha",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_skinned_effect_get_diffuse_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_skinned_effect_get_emissive_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_skinned_effect_get_prefer_per_pixel_lighting",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_skinned_effect_get_specular_color",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_skinned_effect_get_specular_power",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_skinned_effect_get_texture",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_skinned_effect_get_vertex_color_enabled",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {
       "name": "cna_skinned_effect_get_weights_per_vertex",
       "header": "effects.h",
-      "category": "XNA_BACKING",
-      "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant",
       "backends": []
     },
     {

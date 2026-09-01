@@ -124,6 +124,7 @@ import type {
   MotionReadingSnapshot,
   NativeEffectPassSnapshot,
   NativeEffectReflectionSnapshot,
+  NativeEffectParameterSnapshot,
   NativeEffectTechniqueSnapshot,
   PackedDepthSnapshot,
   ParticleEmitterSettingsSnapshot,
@@ -597,6 +598,30 @@ export abstract class CnaEffectBackendBase implements CnaEffectBackend {
     _technique: NativeHandle,
   ): void { return this.unsupported("destroyEffectTechnique"); }
   public destroyEffectPass(_pass: NativeHandle): void { return this.unsupported("destroyEffectPass"); }
+  public getEffectParameters(
+    _effect: NativeHandle,
+  ): readonly NativeEffectParameterSnapshot[] { return this.unsupported("getEffectParameters"); }
+  public destroyEffectParameter(
+    _parameter: NativeHandle,
+  ): void { return this.unsupported("destroyEffectParameter"); }
+  public setEffectParameterValue(
+    _parameter: NativeHandle, _valueType: number, _components: readonly number[],
+  ): void { return this.unsupported("setEffectParameterValue"); }
+  public getEffectParameterValue(
+    _parameter: NativeHandle, _valueType: number,
+  ): number[] { return this.unsupported("getEffectParameterValue"); }
+  public setEffectParameterValues(
+    _parameter: NativeHandle, _valueType: number, _components: readonly number[],
+  ): void { return this.unsupported("setEffectParameterValues"); }
+  public getEffectParameterValues(
+    _parameter: NativeHandle, _valueType: number, _requested: number,
+  ): number[] { return this.unsupported("getEffectParameterValues"); }
+  public setEffectParameterTexture(
+    _parameter: NativeHandle, _textureType: number, _texture: NativeHandle,
+  ): void { return this.unsupported("setEffectParameterTexture"); }
+  public setEffectParameterString(
+    _parameter: NativeHandle, _value: string,
+  ): void { return this.unsupported("setEffectParameterString"); }
   public destroyEffect(_effect: NativeHandle): void { return this.unsupported("destroyEffect"); }
   public beginSpriteBatchWithEffect(
     _spriteBatch: NativeHandle,

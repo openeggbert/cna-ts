@@ -7,15 +7,15 @@
   "sourceAudit": {
     "root": "src/Microsoft/Xna/Framework",
     "nativeUnavailableErrorSites": 64,
-    "notSupportedExceptionSites": 7,
+    "notSupportedExceptionSites": 10,
     "filesWithExplicitFailureSites": 24,
-    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it. The count fell by one when VideoPlayer.GetTexture stopped refusing outright and began projecting CNA's borrowed frame. It rose by one when Texture3D gained the adopting construction the colour grade's volume LUT arrives through. It rose by one again when Effect gained the internal teardown hook a native model-mesh-part side-car uses to clear its retained effect slot before the effect is released. It rose once more, and brought a new file with it, when AvatarDescription began reaching CNA for the body type, height and validity it used to invent -- Avatars.ts had refused everything up to then and so had no boundary of its own."
+    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it. The count fell by one when VideoPlayer.GetTexture stopped refusing outright and began projecting CNA's borrowed frame. It rose by one when Texture3D gained the adopting construction the colour grade's volume LUT arrives through. It rose by one again when Effect gained the internal teardown hook a native model-mesh-part side-car uses to clear its retained effect slot before the effect is released. It rose once more, and brought a new file with it, when AvatarDescription began reaching CNA for the body type, height and validity it used to invent -- Avatars.ts had refused everything up to then and so had no boundary of its own. It rose by three, all in Effect.ts, when a compiled effect's parameters began reaching the shader: SetValue refuses by name a value shape, an array of mixed shapes, or an array element type that CNA's tagged value API cannot carry, rather than storing it managed and letting the draw use the old uniform."
   },
   "counts": {
     "VERIFIED_MANAGED": 22,
-    "VERIFIED_NATIVE": 111,
+    "VERIFIED_NATIVE": 115,
     "VERIFIED_WEBASSEMBLY": 14,
-    "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
+    "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 1,
     "UPSTREAM_CNA_BLOCKED": 5,
     "FIXTURE_PENDING": 2,
     "HARDWARE_PENDING": 6,
@@ -26,34 +26,10 @@
   },
   "entries": [
     {
-      "operation": "Compiled-effect execution on the qualified renderer",
-      "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
-      "owner": "current qualified backend",
-      "evidence": "CNA capability bit reports compiled effects unavailable"
-    },
-    {
       "operation": "ContentLost event delivery",
       "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
       "owner": "current qualified backend",
       "evidence": "ABI 0.9 raises the event for real on the renderers whose API can lose a device (DirectX9, Direct2D, Skia); HEADLESS has no device to lose, so the producer never runs and the native suite asserts zero raises rather than pretending otherwise"
-    },
-    {
-      "operation": "GraphicsAdapter discovery, current display mode and windowed adapter capabilities",
-      "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
-      "owner": "current qualified backend",
-      "evidence": "HEADLESS artifact exposes no windowed adapter/display evidence"
-    },
-    {
-      "operation": "Physical GameWindow resize/orientation/screen-device event qualification",
-      "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
-      "owner": "current qualified backend",
-      "evidence": "event registrations are real and removable, but HEADLESS exposes no physical window or event stimulus"
-    },
-    {
-      "operation": "Texture3D and TextureCube resource execution on the qualified renderer",
-      "category": "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND",
-      "owner": "current qualified backend",
-      "evidence": "both exact ABI-0.7 creation routes return CNA_RESULT_NOT_SUPPORTED under HEADLESS; no storage or transfer success is claimed"
     },
     {
       "operation": "AudioEngine, AudioCategory, WaveBank, SoundBank and Cue authored success",
@@ -842,9 +818,34 @@
       "operation": "Compiled Effect creation binding route",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",
-      "evidence": "exact byte payload reaches cna_effect_create_compiled with compiler-verified ABI; three legal conformance-FXB attempts deterministically return the qualified HEADLESS result 6 with invalid output and no shader-execution claim",
+      "evidence": "exact byte payload reaches cna_effect_create_compiled with compiler-verified ABI; three legal conformance-FXB attempts deterministically return the qualified HEADLESS result 6 with invalid output and no shader-execution claim, and the same payload succeeds on the windowed build",
       "proof": [
         "route:cna_effect_create_compiled"
+      ]
+    },
+    {
+      "operation": "Compiled-effect execution, by renderer",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "the capability is a renderer property and was read from the running binary rather than from the renderer's name: CNA_GRAPHICS_CAPABILITY_COMPILED_EFFECTS is false on HEADLESS and true on the windowed OPENGLES3 build. On the windowed one XNA's own BasicEffect.fxb and the CnaConformanceEffect.fxb both load through cna_effect_create_compiled; on HEADLESS the same bytes are refused with result 6 and no shader-execution claim is made. The earlier inventory said only that the bit reports unavailable, which was true of the headless backend and too broad for the qualified set",
+      "proof": [
+        "route:cna_effect_create_compiled",
+        "route:cna_graphics_device_supports_capability"
+      ]
+    },
+    {
+      "operation": "Compiled-effect parameter reflection and shader write-through",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "Effect.Parameters used to be built empty for a natively reflected effect. A stock effect's native collection really is empty on both backends -- measured -- so the surface looked unreachable; a compiled effect on a renderer that can run one carries the real thing. XNA's BasicEffect.fxb reflects twenty-three parameters with their names, classes, types, row and column counts, the 32-element VSIndices and PSIndices arrays, and Texture as an Object/Texture2D. SetValue is proved to reach CNA rather than managed state alone by reading the value back through cna_effect_parameter_get_value: a Matrix, a Vector4 and a scalar each arrive component for component. A value shape CNA's tagged API cannot carry is refused by name rather than stored and dropped",
+      "proof": [
+        "route:cna_effect_get_parameters",
+        "route:cna_effect_parameter_collection_get_at",
+        "route:cna_effect_parameter_get_info",
+        "route:cna_effect_parameter_set_value",
+        "route:cna_effect_parameter_get_value",
+        "route:cna_effect_parameter_set_values",
+        "route:cna_effect_parameter_set_value_texture"
       ]
     },
     {
@@ -1392,6 +1393,15 @@
       ]
     },
     {
+      "operation": "Physical GameWindow resize events, by renderer",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "the earlier claim was that the registrations are real and removable but that there is no physical window or event stimulus. The first half held; the second was true of HEADLESS and generalised too far. On the windowed OPENGLES3 build a game that changes its preferred back buffer and calls ApplyChanges resizes from 320x240 to 512x384, and ClientSizeChanged fires exactly once carrying the new bounds rather than the old. Unsubscribing then resizing again to 400x300 delivers no further event while the resize still happens, so the silence is removal and not a resize that never occurred. Orientation and screen-device changes still have no stimulus here: this host has one display and no rotation",
+      "proof": [
+        "route:cna_game_window_get_client_bounds"
+      ]
+    },
+    {
       "operation": "RenderTarget ContentLost subscription and deterministic release",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS",
@@ -1507,6 +1517,18 @@
         "route:cna_texture2d_get_data",
         "route:cna_texture2d_create_from_encoded_memory",
         "route:cna_texture2d_copy_encoded"
+      ]
+    },
+    {
+      "operation": "Texture3D and TextureCube resource execution, by renderer",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "both creation routes answer CNA_RESULT_NOT_SUPPORTED under HEADLESS, which is where the earlier claim of unavailability came from and where it stopped being true: a renderer with a device creates both. On the windowed OPENGLES3 build a 4x4x4 Texture3D and an 8-wide TextureCube are created, and the volume is written and read back with two different texels so the evidence is storage rather than construction alone. The cube is exercised further by the skybox case, whose six faces are asserted to be a bijection onto six uploaded colours",
+      "proof": [
+        "route:cna_texture3d_create",
+        "route:cna_texturecube_create",
+        "route:cna_texture3d_set_data",
+        "route:cna_texture3d_get_data"
       ]
     },
     {

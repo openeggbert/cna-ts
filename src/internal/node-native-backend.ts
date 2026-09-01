@@ -147,6 +147,7 @@ import type {
   RenderTargetInfo,
   RenderTargetBindingSnapshot,
   GameWindowBoundsSnapshot,
+  NativeEffectParameterSnapshot,
   NativeEffectReflectionSnapshot,
   StockEffectSnapshot,
   CnaRuntimeServicesBackend,
@@ -361,6 +362,14 @@ interface NativeBridge {
   syncStockEffect(effect: bigint, kind: number, snapshot: StockEffectSnapshot): void;
   destroyEffectTechnique(technique: bigint): void;
   destroyEffectPass(pass: bigint): void;
+  getEffectParameters(effect: bigint): readonly NativeEffectParameterSnapshot[];
+  destroyEffectParameter(parameter: bigint): void;
+  setEffectParameterValue(parameter: bigint, valueType: number, components: readonly number[]): void;
+  getEffectParameterValue(parameter: bigint, valueType: number): number[];
+  setEffectParameterValues(parameter: bigint, valueType: number, components: readonly number[]): void;
+  getEffectParameterValues(parameter: bigint, valueType: number, requested: number): number[];
+  setEffectParameterTexture(parameter: bigint, textureType: number, texture: bigint): void;
+  setEffectParameterString(parameter: bigint, value: string): void;
   destroyEffect(effect: bigint): void;
   beginSpriteBatchWithEffect(
     spriteBatch: bigint, sortMode: number, blend: BlendStateSnapshot,
@@ -2305,6 +2314,30 @@ export class NodeNativeBackend
     this.#bridge.destroyEffectTechnique(technique);
   }
   public destroyEffectPass(pass: NativeHandle): void { this.#bridge.destroyEffectPass(pass); }
+  public getEffectParameters(effect: NativeHandle): readonly NativeEffectParameterSnapshot[] {
+    return this.#bridge.getEffectParameters(effect);
+  }
+  public destroyEffectParameter(parameter: NativeHandle): void {
+    this.#bridge.destroyEffectParameter(parameter);
+  }
+  public setEffectParameterValue(
+    parameter: NativeHandle, valueType: number, components: readonly number[],
+  ): void { this.#bridge.setEffectParameterValue(parameter, valueType, components); }
+  public getEffectParameterValue(parameter: NativeHandle, valueType: number): number[] {
+    return this.#bridge.getEffectParameterValue(parameter, valueType);
+  }
+  public setEffectParameterValues(
+    parameter: NativeHandle, valueType: number, components: readonly number[],
+  ): void { this.#bridge.setEffectParameterValues(parameter, valueType, components); }
+  public getEffectParameterValues(
+    parameter: NativeHandle, valueType: number, requested: number,
+  ): number[] { return this.#bridge.getEffectParameterValues(parameter, valueType, requested); }
+  public setEffectParameterTexture(
+    parameter: NativeHandle, textureType: number, texture: NativeHandle,
+  ): void { this.#bridge.setEffectParameterTexture(parameter, textureType, texture); }
+  public setEffectParameterString(
+    parameter: NativeHandle, value: string,
+  ): void { this.#bridge.setEffectParameterString(parameter, value); }
   public destroyEffect(effect: NativeHandle): void { this.#bridge.destroyEffect(effect); }
   public beginSpriteBatchWithEffect(
     spriteBatch: NativeHandle, sortMode: number, blend: BlendStateSnapshot,

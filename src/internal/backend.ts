@@ -447,17 +447,48 @@ export interface CnaGraphicsBackend {
 export interface NativeEffectPassSnapshot {
   readonly Handle: NativeHandle;
   readonly Name: string;
+  readonly Annotations: readonly NativeEffectAnnotationSnapshot[];
 }
 
 export interface NativeEffectTechniqueSnapshot {
   readonly Handle: NativeHandle;
   readonly Name: string;
   readonly Passes: readonly NativeEffectPassSnapshot[];
+  readonly Annotations: readonly NativeEffectAnnotationSnapshot[];
 }
 
 export interface NativeEffectReflectionSnapshot {
   readonly CurrentTechnique: number;
   readonly Techniques: readonly NativeEffectTechniqueSnapshot[];
+}
+
+export interface NativeEffectAnnotationSnapshot {
+  readonly Name: string;
+  readonly RowCount: number;
+  readonly ColumnCount: number;
+  readonly ParameterClass: number;
+  readonly ParameterType: number;
+  /** The declared value, or `null` for a shape CNA has no accessor for -- never a stand-in zero. */
+  readonly Value: boolean | number | string | readonly number[] | null;
+}
+
+/**
+ * One reflected effect parameter, and the owned native view it was read through.
+ *
+ * `Handle` is a view CNA minted for this call and is released through the effect's lifetime; it
+ * never leaves internal state, so no public member exposes it.
+ */
+export interface NativeEffectParameterSnapshot {
+  readonly Handle: NativeHandle;
+  readonly Name: string;
+  readonly Semantic: string;
+  readonly RowCount: number;
+  readonly ColumnCount: number;
+  readonly ParameterClass: number;
+  readonly ParameterType: number;
+  readonly Elements: readonly NativeEffectParameterSnapshot[];
+  readonly StructureMembers: readonly NativeEffectParameterSnapshot[];
+  readonly Annotations: readonly NativeEffectAnnotationSnapshot[];
 }
 
 export interface StockEffectSnapshot {
@@ -503,6 +534,18 @@ export interface CnaEffectBackend {
   cloneEffect(effect: NativeHandle): NativeHandle;
   createStockEffect(device: NativeHandle, kind: number): NativeHandle;
   getEffectReflection(effect: NativeHandle): NativeEffectReflectionSnapshot;
+  getEffectParameters(effect: NativeHandle): readonly NativeEffectParameterSnapshot[];
+  destroyEffectParameter(parameter: NativeHandle): void;
+  setEffectParameterValue(
+    parameter: NativeHandle, valueType: number, components: readonly number[]): void;
+  getEffectParameterValue(parameter: NativeHandle, valueType: number): number[];
+  setEffectParameterValues(
+    parameter: NativeHandle, valueType: number, components: readonly number[]): void;
+  getEffectParameterValues(
+    parameter: NativeHandle, valueType: number, requested: number): number[];
+  setEffectParameterTexture(
+    parameter: NativeHandle, textureType: number, texture: NativeHandle): void;
+  setEffectParameterString(parameter: NativeHandle, value: string): void;
   setEffectCurrentTechnique(effect: NativeHandle, technique: NativeHandle): void;
   applyEffect(effect: NativeHandle): void;
   applyEffectPass(pass: NativeHandle): void;

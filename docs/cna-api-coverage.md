@@ -6,12 +6,12 @@ two independent axes: what the route is *for*, which is exclusive and must never
 C source and the WebAssembly backend's route table rather than declared.
 
 ```text
-TOTAL_C_API_FUNCTIONS=4054
+TOTAL_C_API_FUNCTIONS=4055
 PUBLIC_HEADERS=57
-XNA_BACKING=1591
+XNA_BACKING=1522
 CNA_EXTENSION_BACKING=1871
 INTERNAL_RUNTIME_ONLY=1
-MANAGED_BY_DESIGN=556
+MANAGED_BY_DESIGN=626
 TOOLING_ONLY=35
 INTENTIONALLY_DEFERRED=0
 UPSTREAM_RUNTIME_UNAVAILABLE=0
@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=1852
+REACHABLE_NODE=1889
 REACHABLE_WASM=343
-REACHABLE_BY_ANY_BACKEND=1852
+REACHABLE_BY_ANY_BACKEND=1889
 REACHABLE_BY_EVERY_BACKEND=343
-REACHABLE_NODE_ONLY=1509
+REACHABLE_NODE_ONLY=1546
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -34,10 +34,10 @@ What each backend reaches, by what the routes are for:
 
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
-| `XNA_BACKING` | 1591 | 513 | 139 |
+| `XNA_BACKING` | 1522 | 550 | 139 |
 | `CNA_EXTENSION_BACKING` | 1871 | 1319 | 190 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
-| `MANAGED_BY_DESIGN` | 556 | 13 | 13 |
+| `MANAGED_BY_DESIGN` | 626 | 13 | 13 |
 | `TOOLING_ONLY` | 35 | 6 | 0 |
 
 ## By header
@@ -55,7 +55,7 @@ What each backend reaches, by what the routes are for:
 | `curve.h` | 13 | 13 | 0 | 0 | 0 | 45 | 0 | 0 | 0 | 0 |
 | `devices.h` | 29 | 0 | 0 | 61 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `display.h` | 14 | 0 | 0 | 22 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `effects.h` | 149 | 44 | 255 | 35 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `effects.h` | 186 | 44 | 185 | 35 | 0 | 70 | 0 | 0 | 0 | 0 |
 | `engine_layer.h` | 857 | 0 | 0 | 857 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `gamer_services.h` | 36 | 5 | 249 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `geometry.h` | 0 | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 | 0 |
@@ -82,7 +82,7 @@ What each backend reaches, by what the routes are for:
 | `media.h` | 20 | 0 | 37 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `models.h` | 10 | 0 | 82 | 134 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `net_gamers.h` | 0 | 0 | 33 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `net_sessions.h` | 0 | 0 | 103 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `net_sessions.h` | 0 | 0 | 104 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `net.h` | 0 | 0 | 1 | 0 | 0 | 49 | 0 | 0 | 0 | 0 |
 | `packed_vectors.h` | 0 | 0 | 0 | 0 | 0 | 7 | 0 | 0 | 0 | 0 |
 | `quaternion.h` | 0 | 0 | 0 | 0 | 0 | 28 | 0 | 0 | 0 | 0 |

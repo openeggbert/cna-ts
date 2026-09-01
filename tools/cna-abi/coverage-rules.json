@@ -350,6 +350,42 @@
     },
     {
       "headers": [
+        "effects.h"
+      ],
+      "namePattern": "^cna_(effect_parameter|effect_annotation|effect_pass|effect_technique)_collection_(create|add|add_create|add_default|add_named)$|^cna_(effect_parameter|effect_annotation)_create$",
+      "category": "MANAGED_BY_DESIGN",
+      "requireHeaderReached": false,
+      "reason": "builds an effect graph from nothing -- a collection, then parameters or annotations pushed into it. This package never authors an effect: it reflects one CNA built from bytecode, and the reflected graph is what Effect.Parameters, Techniques and their annotations are made from. Calling the constructors would produce a second, empty graph beside the real one with nothing to reconcile them. The reading half of the same families is bound and exercised against XNA's own BasicEffect.fxb"
+    },
+    {
+      "headers": [
+        "effects.h"
+      ],
+      "namePattern": "^cna_effect_(parameter|annotation|pass|technique)_collection_find(_name|_semantic)?$",
+      "category": "MANAGED_BY_DESIGN",
+      "requireHeaderReached": false,
+      "reason": "looks an element up by name or semantic. The managed collections already index the reflected data by both -- EffectParameterCollection.Get(name) and GetParameterBySemantic -- over the very rows these routes would search, so binding them would give one collection two lookups. It would also be the more expensive one: CNA's find mints a fresh owned element view per call, where the managed index returns the EffectParameter the consumer already holds"
+    },
+    {
+      "headers": [
+        "effects.h"
+      ],
+      "namePattern": "^cna_effect_parameter_(get_value_texture|copy_value_string|get_value_string_byte_count)$|^cna_effect_annotation_(copy_semantic|get_semantic_byte_count)$",
+      "category": "MANAGED_BY_DESIGN",
+      "requireHeaderReached": false,
+      "reason": "reads back a value this package already holds. A texture or a string set on a reflected parameter is written through to CNA and kept managed in the same step, so GetValueTexture2D and GetValueString answer from the value the consumer set rather than from a second copy that could disagree. The numeric read-back is imported for the integration test alone, which is what proves the write-through actually reaches CNA; nothing public reads through it. EffectAnnotation carries no Semantic in XNA 4.0, so its semantic accessors project nothing"
+    },
+    {
+      "headers": [
+        "effects.h"
+      ],
+      "namePattern": "^cna_(basic|skinned|alpha_test|dual_texture|environment_map|color_matrix)_effect_get_|^cna_(directional_light|effect_fog|effect_matrices)_get_",
+      "category": "MANAGED_BY_DESIGN",
+      "requireHeaderReached": false,
+      "reason": "reads one field back off a stock effect. This package's stock effect state is authoritative in TypeScript and is pushed to CNA as a whole snapshot at apply time, so every one of these has a managed answer already; reading through them would give one effect two values for one field with nothing deciding which is current. That split is deliberate and measured rather than assumed: a stock effect's *native* parameter collection is empty -- cna_basic_effect_create then cna_effect_get_parameters answers count 0 on both the headless and the windowed build -- so CNA offers no reflected state for a stock effect to be authoritative over. The setters are bound and exercised; only the getters are redundant"
+    },
+    {
+      "headers": [
         "core.h",
         "runtime.h",
         "runtime_graphics_manager.h",

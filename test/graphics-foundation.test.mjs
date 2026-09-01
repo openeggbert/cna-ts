@@ -247,9 +247,21 @@ function effectRuntimeBackend(calls) {
       }
       return {
         CurrentTechnique: 0,
-        Techniques: [{ Handle: next++, Name: "Default", Passes: [{ Handle: next++, Name: "P0" }] }],
+        Techniques: [{
+          Handle: next++,
+          Name: "Default",
+          Annotations: [],
+          Passes: [{ Handle: next++, Name: "P0", Annotations: [] }],
+        }],
       };
     },
+    // A stock effect carries no native parameter collection -- CNA answers count 0 for one, which
+    // is measured in effect-reflection.integration.mjs. This double says the same.
+    getEffectParameters(effect) {
+      calls.push(["effectParameters", effect]);
+      return [];
+    },
+    destroyEffectParameter(parameter) { calls.push(["effectParameterDestroy", parameter]); },
     setEffectCurrentTechnique(effect, technique) { calls.push(["effectTechnique", effect, technique]); },
     applyEffect(effect) { calls.push(["effectApply", effect]); },
     applyEffectPass(pass) { calls.push(["effectPassApply", pass]); },

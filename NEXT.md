@@ -2150,3 +2150,405 @@ rather than what was called.
 loses its first `SpriteBatch` draw, and a custom-shader draw leaves a GL error pending that the next
 multiple-render-target bind refuses on. Both are asserted rather than worked around, and the
 weighted-blended accumulation test shows the shape a test has to take to live with them.
+
+## 2026-09-01: a native ModelMeshPart, the non-engine census, and two false floors
+
+### 1. Repository state
+
+- `cna-ts` started clean at `22de02d` on `develop` and ends clean, **nothing pushed**.
+- `cna-ts-template` was not modified this session.
+- `cnanext` and `sharp-runtimenext` are read only and **unmodified**: `git status` in both is clean
+  and neither HEAD was moved by this session. The only files written under `cnanext` are untracked
+  probe sources and binaries in the shared `build-probe/`, which is what that directory is for.
+
+`cnanext` moved underneath the session, twice, which matters for every measurement below:
+
+```text
+e5ae0820e  11:51  fix(SAMPLE-092): register XNA List<string> content reader
+c195fe8ce  14:56  fix(SAMPLE-100): replicate mutable session properties
+7712534d3  16:11  fix(CABI-49): preserve mutable session properties in C
+```
+
+The two libraries under test were **not** rebuilt by this session — they belong to another agent's
+build directories — so what each one contains is decided by when it was built:
+
+| Library | Built | Contains |
+| --- | --- | --- |
+| `cmake-build-tsnext` (HEADLESS) | 12:51 | `e5ae0820e` |
+| `cmake-build-debug` (windowed OPENGLES3) | 15:55 | `c195fe8ce` |
+
+`7712534d3` is in neither. All three post-`e5ae0820e` commits concern mutable session properties, a
+family this session classified and deliberately did not bind, so nothing here depends on them.
+`docs/non-engine-census.md` carries this table, because a document that cited one revision for both
+halves of its evidence would have been wrong about half of them.
+
+### 2. What was asked, and what the answer turned out to be
+
+The session's central question was whether CNA's model API could support a **truthful native
+`ModelMeshPart` bridge** — one that does not upload the same geometry twice and does not give one
+logical resource two owners. It can, and it does now. But the more useful finding is the one the
+mandatory census produced at the end, and it is a lesson about method rather than about models:
+
+> Four capability claims in this repository were measured on the headless build and then written
+> down about "the current qualified backend". This repository qualifies **two** backends. Three of
+> those four claims were false on the other one.
+
+That is how `Effect.Parameters` came to be built empty for every compiled effect — a real, shipped
+capability gap sitting behind a reason that read as settled architecture.
+
+### 3. The native ModelMeshPart side-car, and what was measured before writing it
+
+`docs/native-model-graph.md` is the ownership map, and it was written **before** any binding, from
+a pure-C probe (`build-probe/cbind_modelpart_bridge_probe.c`). Four measurements decided the design:
+
+| Stage | Measured | Consequence |
+| --- | --- | --- |
+| `vb_same=1 ib_same=1` | a part built over existing buffers uploads no second copy | no duplicate geometry, which the brief forbade |
+| `vb_destroy=3` | CNA refuses to destroy a buffer a part retains (`INVALID_STATE`) | retention is enforced by CNA, not by convention here |
+| `STAGE6_NEAR/FAR` identical handle | LOD select returns the handle it was given | `select` is a **borrow**, and is the one route that can be |
+| `first_is_original=0 second_is_first=0` | collection getters mint a fresh handle every call | handle equality is **not** identity, so a reverse map keyed on handles would be wrong |
+
+The last one is why the side-car exists at all. `src/internal/native-mesh-part.ts` keeps a `WeakMap`
+from the public `ModelMeshPart` to a private native view, a reverse map keyed on the handle's
+string, and a teardown hung on `NativeResourceLifetime.TrackCallback` for both buffers. Nothing
+public exposes a handle, a bigint id, or any bridge internal: the strict XNA surface did not change,
+and `api:verify` proves it.
+
+Ownership, in the vocabulary the brief required:
+
+| Object | Label |
+| --- | --- |
+| the managed `VertexBuffer` / `IndexBuffer` | **OWNED** by the managed side |
+| the native `CNA_ModelMeshPartHandle` | **OWNED** by the side-car |
+| those buffers, as CNA sees them | **RETAINED_DEPENDENCY** — CNA refuses to destroy them, measured |
+| the handle returned by `lod_group_select` | **BORROWED** — it is the handle that went in |
+| a collection getter's handle | **TRANSIENT_VIEW** — fresh per call, released immediately |
+
+The teardown moved from `GraphicsResource.Dispose` to the lifetime callback after a real failure:
+disposing the *game* cascades to children and bypassed the Dispose guard, so a retained buffer was
+destroyed under CNA and produced `CNA result 3`. Hanging it on the lifetime fixes both paths.
+
+With real identity in place the **fifteen** engine model-part routes that had been unbound are bound
+and exercised. The comment that used to say `ModelMeshPart` had no native handle to give was
+replaced with what is now true, including why `select` is the one borrow.
+
+### 4. The content decision, taken rather than left as UNIMPLEMENTED
+
+`docs/native-content-survey.md`. Loading **stays managed** — one authority for asset identity — and
+CNA's content *survey* is adopted, because it answers a question the managed loader does not: what
+is in a content root and which readers does it need. The CNB loader registry is deferred **with**
+the load routes and for their reason, not as a leftover.
+
+### 5. The non-engine census
+
+`docs/non-engine-census.md` retired the blanket reason —
+
+> the adapter imports nothing from this header, so the whole family is measured and deferred
+
+— from eleven headers. That sentence described history, and it was hiding working capability. Three
+families were not blocked at all:
+
+| Family | Was reported | Actually |
+| --- | --- | --- |
+| `MediaLibrary` | empty collections, `SavePicture` refuses | indexes Music and Pictures; a WAV gives a song, an album, an artist |
+| the clipboard | writable, not readable | round-trips exactly, non-ASCII included |
+| attached input devices | nothing projected | one mouse and one keyboard, by the platform's names |
+
+`AvatarDescription` was a fourth, with a twist worth keeping: `CreateRandom` returns **1021 zero
+bytes, identical every call, with `IsValid` false**, and the `bodyType` overload validates its
+argument and then ignores it. That is XNA's own behaviour, which CNA reproduces on purpose and says
+so in its source. The honest projection hands back the zeros.
+
+`INTENTIONALLY_DEFERRED` went **515 → 0**.
+
+### 6. `effects.h`: the false floor
+
+`Effect.Parameters` was built **empty** for every natively reflected effect. The code said
+`Parameters: []`, and the obvious check agreed with it: a stock effect's native parameter collection
+really is empty — `cna_basic_effect_create` then `cna_effect_get_parameters` answers **count 0** on
+both builds. So forty-five routes looked like a container CNA offers and never fills.
+
+`effects.h` says compiled-effect support "is a renderer property, not a property of this ABI".
+Asked of the running binary instead of inferred from the renderer's name:
+
+```text
+HEADLESS            COMPILED_EFFECTS=0   cna_effect_create_compiled -> result 6 (refused)
+windowed OPENGLES3  COMPILED_EFFECTS=1   cna_effect_create_compiled -> SUCCESS
+```
+
+And the reflection is real. XNA's own `BasicEffect.fxb` gives **23** parameters with names, classes,
+types and dimensions: `World` as a 4×4 matrix of singles, `Texture` as an Object of type `Texture2D`,
+`VSIndices` and `PSIndices` as 32-element arrays, `DiffuseColor` as a float4 — not the float3 a guess
+would have written, and there is no `Alpha` parameter at all because FNA's BasicEffect packs alpha
+into `.w`. `CnaConformanceEffect.fxb` gives its own six, which is what proves the reflection comes
+from the effect that was loaded rather than from somewhere else.
+
+So a consumer who loaded a compiled effect on a renderer that could run it got a shader it could
+draw with and **not one uniform it could set**. That is bound now, with the pieces that make it
+truthful rather than merely present:
+
+- **`SetValue` writes through.** The test sets a `Matrix`, a `Vector4` and a scalar and reads each
+  back through `cna_effect_parameter_get_value`, because `GetValue*` answers from managed state and
+  would have passed either way.
+- **`SetValueTranspose` too.** It stored without writing through — the same defect one method along
+  — and is fixed and asserted with a non-symmetric matrix, after the assertion guard caught a first
+  fixture (`CreateScale`) that was symmetric and therefore proved nothing.
+- **Arrays, textures and strings each get their real route**, so `SetValue(Matrix[])` and a sampler
+  reach the shader instead of being stored and silently dropped.
+- **A shape CNA cannot carry is refused by name.** A `SetValue` that returns normally and never
+  reaches the shader is the worst failure available here.
+- **Annotations are read, not invented.** Parameters, techniques and passes all carried an empty
+  annotation array; all three are reflected now, and an annotation whose value CNA has no accessor
+  for is **dropped** rather than published with a stand-in zero.
+- **Stock effects stay managed-authoritative**, asserted as a control so the split is checked.
+
+Ownership: each parameter view CNA mints is **OWNED** and released through a
+`NativeResourceLifetime` parented on the effect, exactly as the technique and pass views already
+were. No handle reaches public API.
+
+### 7. Three more claims that generalised from one backend
+
+`effects.h` was not a one-off; the *shape* of its error was the finding. Every capability the
+inventory called `EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND` was re-asked of the windowed build:
+
+| Claim | Windowed build |
+| --- | --- |
+| Texture3D/TextureCube creation "returns NOT_SUPPORTED" | creates a 4×4×4 volume and an 8-wide cube; the volume round-trips two different texels |
+| "no windowed adapter/display evidence" | already superseded by a later entry binding all fourteen adapter routes — the stale one was a duplicate, removed |
+| "no physical window or event stimulus" | `ApplyChanges` resizes 320×240 → 512×384 and `ClientSizeChanged` fires once with the new bounds |
+| `ContentLost` | **stands**: CNA raises it only where the API can lose a device, and OPENGLES3 is not such a renderer |
+
+Each correction is now a test rather than a sentence. The window case also asserts the negative:
+unsubscribing and resizing again to 400×300 delivers no second event *while the resize still
+happens*, which separates removal from a resize that never occurred.
+
+### 8. WebAssembly
+
+276 → 343 routes, selected for what a browser can actually do rather than for parity. The slice now
+draws **3D geometry** and reads the texels back: a triangle into an 8×8 render target, three times —
+identity, translated off-screen, nudged — with the pixels compared.
+
+The first attempt produced only the clear colour. Running the identical code against the proven Node
+backend produced the same nothing, which is what proved the *scene* was wrong rather than the slice:
+XNA culls counter-clockwise by default. `RasterizerState.CullNone` and `DepthStencilState.None` fixed
+it. That comparison is the technique worth keeping — a second implementation is a cheaper oracle than
+reasoning about a backend.
+
+Layouts remain Emscripten-measured; no offsets were handwritten. The wasm32 by-value struct
+convention was measured with a probe and written down, closing an item `docs/c-api/WASM_ARTIFACT.md`
+had left open.
+
+### 9. Route coverage
+
+```text
+                     start of session   end of session
+Node imported              1718              1889
+Wasm routes                 276               343
+INTENTIONALLY_DEFERRED      515                 0
+UNEXPLAINED                   0                 0
+REACHABLE_BUT_DEFERRED        0                 0
+SIGNATURE_MISMATCHES          0                 0
+NEVER_LOADED_FIELDS           -                 0
+```
+
+`coverage-rules.json` went 14 → 46 rules. Every remaining unreached family carries a reason about
+the route rather than about the calendar; the four rules added for `effects.h` are the model:
+collection *builders* are unbound because this package reflects an effect rather than authoring one;
+`find_name`/`find_semantic` because the managed collections already index the same rows by both keys
+and CNA's find mints a fresh owned view per call; the value read-backs because the write-through
+keeps managed and native in step; the stock-effect getters because the managed snapshot is
+authoritative and CNA offers no reflected state for a stock effect to be authoritative over —
+measured, not assumed.
+
+### 10. A permanent gate that came out of a crash
+
+Three `g_api` fields had been declared by an earlier session with no `LOAD_REQUIRED`. They were NULL
+function pointers, and calling one segfaulted the model-part test. `tools/audit-cna-abi.mjs` now has
+a `NODE_BRIDGE_NEVER_LOADED_FIELDS` gate, **proven to fail on a planted defect**, so a declared-but-
+unloaded field is a failing audit rather than a crash in whichever test reaches it first.
+
+### 11. Mutation evidence, including a run that was wrong
+
+Eleven planted defects across the media-library and avatar suites: **eight fail**. The three that
+survive are recorded with what makes each unobservable — an equivalent mutant (CNA generates no
+separate thumbnail, so album art and thumbnail return the same bytes by design), a fixture-limited
+one (`BodyType` and `Height` are both zero in every description obtainable without a gamer), and an
+unobservable one (a native handle leak, where CNA exposes no live-object count — checked — and
+`verify:leaks` is an API-surface gate, not a memory one). A fourth "survivor" was **vacuous**: it
+mutated a call that the baseline deliberately never makes.
+
+The part worth carrying forward is that the **first media-library run reported `KILLED=0` and was
+wrong**. Its picture mutant swaps width for height against a deliberately 2×1 PNG that the suite
+asserts exactly; it cannot survive. The harness had scored a run whose tests never executed. Rebuilt
+to parse the TAP summary and refuse a verdict when `pass + fail == 0`, it killed that mutant and the
+source-name mutant immediately. It also now refuses an anchor that does not match exactly once,
+which caught the source-name mutation patching the wrong call site — reported as `ANCHOR x2` rather
+than scored.
+
+**A mutation run that cannot prove the test executed against the mutated artifact is not evidence,
+and the number it prints is worse than no number at all.**
+
+### 12. Upstream findings
+
+17–24 preserved and re-detected. Three new, none fixed from here:
+
+- **25** — a `logic_error` arm reachable through a public route.
+- **26** — `AvatarDescription::CreateRandom`'s header describes randomisation the implementation
+  deliberately does not do (CNA's own comment says it is preserving XNA exactly; the *header* is
+  what misleads).
+- **27** — `SpriteFont::MeasureString` counts a **negative trailing right side bearing** into the
+  width. Settled against XNA's own IL: `monodis` on `Microsoft.Xna.Framework.Graphics.dll` shows
+  `InternalMeasure` adding `Math.Max(pending, 0f)` at each line break and once after the loop, so
+  the trailing bearing is clamped. This package matches XNA; CNA does not. The five diverging
+  strings are asserted exactly, so a repaired CNA fails them.
+
+Finding 27 came out of building a **second implementation as an oracle**: CNA's own `SpriteFont`,
+over the same texture and glyph table, sharing no code. Over twenty-four strings the two agree
+eighteen times.
+
+### 13. Gates and suites at the end of the run
+
+```text
+api:verify                TOTAL_DIFFERENCES=0   ALLOWLIST_SIZE=0   (Windows profile)
+api:verify:live           TOTAL_DIFFERENCES=0   ALLOWLIST_SIZE=0   (live reflection)
+verify:leaks              INTERNAL_LEAK=0
+verify:runtime            RUNTIME_DIFFERENCES=0   TARGET_TYPES=348
+verify:cna-contract       DIAGNOSTICS=0
+audit:cna-abi             IMPORTED=1889  VERIFIED=1889  MISMATCHES=0  NEVER_LOADED=0
+                          WASM_BACKEND_ROUTES=343  MISSING_WASM_BACKEND_EXPORTS=0
+coverage:cna-abi          UNEXPLAINED=0  REACHABLE_BUT_DEFERRED=0  INTENTIONALLY_DEFERRED=0
+                          REACHABLE_NODE=1889  REACHABLE_WASM=343
+runtime:inventory         ENTRIES=174  CONSISTENCY_GATE=PASS  PROVED=158
+verify:package            PASS      verify:build-reproducibility  PASS
+verify:package-reproducibility  PASS
+```
+
+Suites, all green:
+
+```text
+npm test                 332      differential            182
+native                    52      cnb                      39
+extensions                10      content (required)       10   <- executed, 0 skipped
+model-part                 9      content-survey            8
+input-devices              3      media-library             6
+avatars                    8      sprite-font-oracle        5
+effect-reflection          5      windowed                 22
+wasm-browser              12      wasm-browser-input        7
+```
+
+`windowed` is 20 → 22 and `effect-reflection` is new; both need `CNA_WINDOWED_LIBRARY` and a
+display, and both skip cleanly without one. That skip is exactly the trap `test:content` had, so it
+is worth saying plainly: **these suites are where three of this session's four findings live, and a
+CI job that omits the windowed library will report green while testing none of them.**
+
+### 14. What was measured wrong first, and caught
+
+Six readings in this session were wrong on the first measurement. None reached a document or a
+finding, and the reason they did not is worth more than the findings themselves.
+
+| Wrong reading | Cause | Caught by |
+| --- | --- | --- |
+| media-library collection getters "return SUCCESS with the invalid handle" | C leaves argument evaluation order unspecified; the out-parameter was read in the call that filled it | sequencing the calls |
+| avatar `get_info` reports zero bytes while declaring 1021 | the same bug again | the same fix |
+| "two random avatar descriptions differ" | `memcmp` over 1021 bytes in a 512-byte buffer | sizing the buffer |
+| media-library mutation score `KILLED=0` | the harness scored a run whose tests never executed | a harness that refuses a verdict when `pass + fail == 0` |
+| the browser 3D draw produced only the clear colour | the *scene* was wrong — XNA culls counter-clockwise | running the same code on the proven Node backend |
+| `SetValueTranspose` "proved" by a `CreateScale` fixture | a scale matrix is symmetric, so the transpose proved nothing | the assertion written to fail on a vacuous fixture |
+
+Two of these — the argument-order pair — nearly became upstream findings against CNA. **Nothing was
+filed from them**, which is the only reason the census describes CNA's behaviour rather than a
+defect that was never there.
+
+### 15. What is deliberately not bound, and why
+
+The reasons that matter, in one place, none of them "historically deferred":
+
+- **`net_sessions.h` / `net_gamers.h`** — not blocked by CNA. Sessions are created on this host,
+  Local and SystemLink, and report their state. They are blocked by what a session needs first: a
+  signed-in gamer. The only route that makes one is CNA's hook for a *platform layer* to publish
+  one, so calling it from the binding would be inventing the player and every session claim built on
+  it would be false. A synthetic-gamer test hook, in the style of `CnaCamera.OpenForTests`, is the
+  one honest route to local exercise. Recorded, not done.
+- **`graphics_resource.h`** — twelve routes, all working, none bound. This package's `Name` and `Tag`
+  are authoritative in TypeScript, and XNA's `Tag` is a managed object of any type where CNA's is a
+  `uint64`: the two cannot hold the same value.
+- **`runtime_components.h`** — CNA's header states a game owns exactly one component collection.
+  Binding these would give one game two.
+- **`models.h`** — a parallel native model graph. CNA's getters mint a fresh owned handle per call,
+  so it cannot even preserve the object identity the managed graph has. The one place a native
+  object is genuinely needed — a part handle for the engine extensions — is the side-car above.
+- **CNA's XNB reader stack** — a parallel decoder for a format this package already decodes;
+  adopting it needs the native `ContentManager` that would be a second asset cache.
+
+### 16. Build and artifact hygiene
+
+Every build reused an existing directory. Nothing was built in the scratchpad or under `/tmp`. No
+new build directory was invented and none was suffixed with a ticket or a date: all probes went into
+`cnanext`'s shared `build-probe/` under the `cbind_*` file-name prefix. Dependencies were not
+re-cloned. `ccache` was used throughout. The two dependency build directories belong to another
+agent and were read only — neither was reconfigured, cleaned, or rebuilt.
+
+Probe binaries left in `build-probe/` are small; the sources are worth keeping since each one is the
+evidence behind a documented claim, and they are untracked in a repository this session must not
+commit to.
+
+### 17. What remains ACTIONABLE_LOCAL
+
+**Zero, as of the sweep above** — but that claim is worth less than it was this morning, and the
+next session should treat it as a starting hypothesis rather than a result. It was zero before
+`effects.h` was re-examined too.
+
+The check that found four real items, and the one to run again when the dependency moves:
+
+1. Take every claim of unavailability and ask **which backend** it was measured on. Anything that
+   says "the current qualified backend" is suspect: there are two, and a capability that is a
+   renderer property has to be asked of each.
+2. Take every collection this package projects as empty and ask whether CNA has rows for it. The
+   `Parameters: []` line had been correct once and stopped being correct without anything changing
+   in this repository.
+3. Prefer asking the running binary over reading the renderer's name. `COMPILED_EFFECTS` is true on
+   OPENGLES3 *when the build option is on*, which no amount of reading the renderer identity tells
+   you.
+
+Named, unfinished, and honest:
+
+- **Orientation and screen-device-name events** have no stimulus on this host: one display, no
+  rotation. Not a binding gap.
+- **`ContentLost`** needs a renderer whose API can lose a device. Not available here.
+- **A synthetic signed-in gamer test hook** would make `net_sessions.h` and `net_gamers.h` locally
+  exercisable without fabricating a player in the shipping path. This is the largest remaining block
+  (136 routes) and the only one whose reason is "no honest fixture" rather than "no capability".
+- **Compiled-effect *execution*** — parameters are set and read back, but no test yet draws with a
+  compiled effect and asserts pixels. The reflection is proved; the draw is not.
+
+### 18. Git state
+
+Nine commits on `develop`, **nothing pushed**, working tree clean. No prior engine commit was
+rewritten. Before each commit: the diff was read, focused tests were run, `git diff --check` was
+clean, generated output was regenerated and inspected, and the mutation artifact was proved back at
+baseline.
+
+### 19. The gates, and one that had to be strengthened
+
+`npm run test:content` silently skips all ten of its tests when `CNA_NATIVE_LIBRARY` is absent and
+still reports zero failures. That is convenient for a developer and dangerous for a handoff, so the
+ordinary behaviour is unchanged and a new `test:content:required` sets `CNA_REQUIRE_CONTENT_TESTS=1`
+and turns the skip into a **named failure**. The final gate uses it.
+
+**`CONTENT_TESTS_EXECUTED=10`, skipped 0.**
+
+### 20. Where the next session picks up
+
+The engine and non-engine surfaces are closed to the best of this session's ability to measure them.
+The highest-value work is not more binding:
+
+1. **Draw with a compiled effect and assert the pixels.** The parameters demonstrably reach CNA; the
+   remaining question is whether a pass drawn with them produces the image XNA would. That is the
+   natural completion of section 6, and it needs the windowed renderer.
+2. **The synthetic-gamer hook**, which would unlock the largest deliberately-unbound block without
+   inventing a player anywhere a consumer could reach.
+3. **Re-run the two audits in section 17 whenever `cnanext` moves.** Both found real, shipped gaps
+   this session, and neither is expensive.
+
+Read `docs/upstream-cna-findings.md` finding 22 before writing anything that draws with a custom
+shader; it has not changed and still applies.

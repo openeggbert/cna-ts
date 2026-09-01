@@ -300,6 +300,35 @@ class WindowedProbeGame extends Game {
     });
     record("windowOrientation", () => window.CurrentOrientation);
 
+    // Volume and cube textures, which the capability inventory used to report as unavailable on
+    // "the current qualified backend". That was measured on HEADLESS, where both creation routes
+    // really do answer NOT_SUPPORTED, and generalised too far: a renderer with a device creates
+    // both. This is the evidence for the corrected claim, so a regression is a failing test rather
+    // than a stale sentence.
+    record("volumeAndCubeTextures", () => {
+      const volume = new Graphics.Texture3D(device, 4, 4, 4, false, Graphics.SurfaceFormat.Color);
+      const cube = new Graphics.TextureCube(device, 8, false, Graphics.SurfaceFormat.Color);
+      try {
+        // A round trip through the volume, so this is storage rather than only construction.
+        const written = new Array(4 * 4 * 4).fill(new Color(9, 8, 7, 255));
+        written[0] = new Color(1, 2, 3, 255);
+        volume.SetData(written);
+        const read = new Array(written.length).fill(new Color(0, 0, 0, 0));
+        volume.GetData(read);
+        return {
+          volume: [volume.Width, volume.Height, volume.Depth],
+          cubeSize: cube.Size,
+          firstTexel: read[0].PackedValue,
+          lastTexel: read[read.length - 1].PackedValue,
+          expectedFirst: written[0].PackedValue,
+          expectedLast: written[written.length - 1].PackedValue,
+        };
+      } finally {
+        volume.Dispose();
+        cube.Dispose();
+      }
+    });
+
     // The graphics adapter, which needs a live device and therefore a callback like this one.
     record("adapter", () => {
       const adapter = Graphics.GraphicsAdapter.DefaultAdapter;
@@ -6814,5 +6843,95 @@ test("a windowed CNA renderer's two engine caches hand back the same thing they 
   console.log(
     `CNA_TS_WINDOWED_CACHES=PASS RENDERER=${evidence.renderer.name} ` +
     `POOL_SAME_KEY=ONE_TARGET POOL_SLOT=SEPARATE FACTORY_NAME_WINS_OVER_SOURCE=yes`,
+  );
+});
+
+test("volume and cube textures execute on a renderer with a device", { skip }, async () => {
+  const game = new WindowedProbeGame(1);
+  await game.Run();
+  const seen = game.evidence.volumeAndCubeTextures;
+  game.Dispose();
+
+  assert.equal(typeof seen, "object", `the probe failed: ${seen}`);
+  assert.deepEqual(seen.volume, [4, 4, 4], "a Texture3D is created at the size it was asked for");
+  assert.equal(seen.cubeSize, 8, "and a TextureCube at its own");
+  assert.equal(
+    seen.firstTexel, seen.expectedFirst,
+    "a volume texel round-trips, so this is storage and not only construction",
+  );
+  assert.equal(seen.lastTexel, seen.expectedLast, "and so does the last one");
+  assert.notEqual(
+    seen.expectedFirst, seen.expectedLast,
+    "the two texels differ, so a backend returning one colour everywhere would fail above",
+  );
+});
+
+/**
+ * A game that resizes itself, so the window event has a real stimulus.
+ *
+ * The capability inventory used to say the physical resize/orientation events could not be
+ * qualified because HEADLESS "exposes no physical window or event stimulus". The first half is
+ * true and the second is not, on a renderer with a window: `ApplyChanges` after changing the
+ * preferred back buffer is a stimulus, and the event delivers with the new bounds.
+ */
+class ResizingProbeGame extends Game {
+  constructor() {
+    super();
+    this.graphics = new GraphicsDeviceManager(this);
+    this.graphics.PreferredBackBufferWidth = 320;
+    this.graphics.PreferredBackBufferHeight = 240;
+    this.ticks = 0;
+    this.events = [];
+    this.sizes = {};
+  }
+
+  Initialize() {
+    const window = this.Window;
+    this.handler = () => this.events.push([window.ClientBounds.Width, window.ClientBounds.Height]);
+    window.ClientSizeChanged.Add(this.handler);
+    this.sizes.initial = [window.ClientBounds.Width, window.ClientBounds.Height];
+    super.Initialize();
+  }
+
+  Update(gameTime) {
+    this.ticks += 1;
+    if (this.ticks === 2) {
+      this.graphics.PreferredBackBufferWidth = 512;
+      this.graphics.PreferredBackBufferHeight = 384;
+      this.graphics.ApplyChanges();
+    }
+    if (this.ticks === 4) {
+      this.sizes.afterApply = [this.Window.ClientBounds.Width, this.Window.ClientBounds.Height];
+      // Removed before the second resize, so the handler count proves removal rather than assuming it.
+      this.Window.ClientSizeChanged.Remove(this.handler);
+      this.graphics.PreferredBackBufferWidth = 400;
+      this.graphics.PreferredBackBufferHeight = 300;
+      this.graphics.ApplyChanges();
+    }
+    if (this.ticks === 6) {
+      this.sizes.afterRemoval = [this.Window.ClientBounds.Width, this.Window.ClientBounds.Height];
+      this.Exit();
+    }
+    super.Update(gameTime);
+  }
+}
+
+test("a physical window raises ClientSizeChanged, and stops when unsubscribed", { skip }, async () => {
+  const game = new ResizingProbeGame();
+  await game.Run();
+  const { events, sizes } = game;
+  game.Dispose();
+
+  assert.deepEqual(sizes.initial, [320, 240], "the window starts at the size that was asked for");
+  assert.deepEqual(sizes.afterApply, [512, 384], "and ApplyChanges actually resizes it");
+  assert.deepEqual(
+    events, [[512, 384]],
+    "the event fired exactly once, carrying the new bounds -- not the old ones, which is what a " +
+    "handler invoked before the resize completed would have reported",
+  );
+  assert.deepEqual(
+    sizes.afterRemoval, [400, 300],
+    "the second resize happened too, so the absence of a second event is unsubscription rather " +
+    "than a resize that never occurred",
   );
 });

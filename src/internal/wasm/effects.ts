@@ -12,7 +12,7 @@
 
 import { CnaEffectBackendBase } from "../backend-base.js";
 import type {
-  BlendStateSnapshot, DepthStencilStateSnapshot, NativeEffectPassSnapshot,
+  BlendStateSnapshot, DepthStencilStateSnapshot, NativeEffectParameterSnapshot, NativeEffectPassSnapshot,
   NativeEffectReflectionSnapshot, NativeEffectTechniqueSnapshot, RasterizerStateSnapshot,
   SamplerStateSnapshot, StockEffectSnapshot,
 } from "../backend.js";
@@ -189,9 +189,15 @@ export class WasmEffectBackend extends CnaEffectBackendBase {
                 Name: this.#routes.copyString(
                   "cna_effect_pass_get_name_byte_count", "cna_effect_pass_copy_name", pass,
                 ),
+                // Empty because it *is* empty, not as a stand-in: this backend creates stock
+                // effects only -- it refuses every other kind by name -- and a stock effect
+                // carries no annotations on either side. A compiled effect, which is where
+                // annotations live, needs the COMPILED_EFFECTS capability this slice has no
+                // renderer for.
+                Annotations: [],
               });
             }
-            techniques.push({ Handle: technique, Name: name, Passes: passes });
+            techniques.push({ Handle: technique, Name: name, Passes: passes, Annotations: [] });
           } finally {
             this.#routes.invoke("cna_effect_pass_collection_destroy", passCollection);
           }
@@ -208,6 +214,19 @@ export class WasmEffectBackend extends CnaEffectBackendBase {
 
   public override applyEffectPass(pass: NativeHandle): void {
     this.#routes.invoke("cna_effect_pass_apply", pass);
+  }
+
+  /**
+   * No parameters, because a stock effect has none.
+   *
+   * This backend creates stock effects only -- every other kind is refused by name -- and a stock
+   * effect's native parameter collection is empty on every build measured, so answering with an
+   * empty array is this backend's truth rather than a stand-in for something it cannot read.
+   * `cna_effect_get_parameters` is deliberately not imported here: importing it to return the same
+   * empty answer would add a route to the slice and tell the reader nothing.
+   */
+  public override getEffectParameters(_effect: NativeHandle): readonly NativeEffectParameterSnapshot[] {
+    return [];
   }
 
   public override destroyEffectTechnique(technique: NativeHandle): void {

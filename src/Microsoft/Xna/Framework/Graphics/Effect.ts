@@ -3,11 +3,14 @@ import {
   ArgumentNullException,
   ArgumentOutOfRangeException,
   InvalidOperationException,
+  NotSupportedException,
   ObjectDisposedException,
 } from "../../../../internal/exceptions.js";
 import { NativeUnavailableError } from "../../../../internal/native-error.js";
 import type {
   CnaEffectBackend,
+  NativeEffectAnnotationSnapshot,
+  NativeEffectParameterSnapshot,
   NativeEffectReflectionSnapshot,
   NativeEffectTechniqueSnapshot,
   StockEffectSnapshot,
@@ -31,7 +34,7 @@ import {
   guardGraphicsResourceDisposeForInternalUse,
   setGraphicsResourceLifetimeForInternalUse,
 } from "./GraphicsResource.js";
-import { Texture } from "./Texture.js";
+import { resolveTextureHandleForInternalUse, Texture } from "./Texture.js";
 import { Texture2D } from "./Texture2D.js";
 import { Texture3D } from "./Texture3D.js";
 import { TextureCube } from "./TextureCube.js";
@@ -152,6 +155,19 @@ type EffectParameterDescription = {
   readonly StructureMembers?: ReadonlyArray<EffectParameterDescription>;
 }
 
+/**
+ * What a reflected parameter needs to reach the shader.
+ *
+ * A stock effect has none of this: its state lives in TypeScript and is pushed as a whole snapshot
+ * at apply time, and that stays authoritative. A *compiled* effect is the other way round -- CNA
+ * owns the uniform storage, so a `SetValue` that only wrote managed state would leave the draw
+ * using whatever the effect shipped with.
+ */
+type NativeParameterBinding = {
+  readonly Backend: CnaEffectBackend;
+  readonly Handle: NativeHandle;
+};
+
 type ParameterState = {
   readonly Owner: EffectOwner;
   readonly Device: GraphicsDevice;
@@ -159,6 +175,7 @@ type ParameterState = {
   readonly Annotations: EffectAnnotationCollection;
   readonly Elements: EffectParameterCollection;
   readonly StructureMembers: EffectParameterCollection;
+  readonly Native: NativeParameterBinding | null;
   Value: EffectValue;
 };
 const parameterStates = new WeakMap<EffectParameter, ParameterState>();
@@ -228,13 +245,19 @@ export class EffectParameter {
       throw new InvalidOperationException("The texture belongs to a different GraphicsDevice");
     }
     state.Value = cloneValue(value);
+    writeParameterThrough(state, value);
   }
   public SetValueTranspose(value: Matrix): void;
   public SetValueTranspose(value: Matrix[]): void;
   public SetValueTranspose(value: Matrix | Matrix[]): void {
-    parameterState(this).Value = Array.isArray(value)
+    const state = parameterState(this);
+    const transposed = Array.isArray(value)
       ? value.map(Matrix.Transpose)
       : Matrix.Transpose(value);
+    state.Value = transposed;
+    // The transpose is what is stored, so it is also what goes to the shader -- sent as an ordinary
+    // matrix rather than through CNA's MATRIX_TRANSPOSE tag, which would transpose it a second time.
+    writeParameterThrough(state, transposed);
   }
 }
 
@@ -673,8 +696,12 @@ function initializeReflectedNativeEffect(
   handle: NativeHandle,
 ): void {
   let reflection: NativeEffectReflectionSnapshot;
+  let nativeParameters: readonly NativeEffectParameterSnapshot[];
   try {
     reflection = backend.getEffectReflection(handle);
+    // Read in the same guarded step as the techniques: a reflection that half succeeded would
+    // otherwise leave the effect handle owned by nobody.
+    nativeParameters = backend.getEffectParameters(handle);
   } catch (error) {
     try {
       backend.destroyEffect(handle);
@@ -707,13 +734,18 @@ function initializeReflectedNativeEffect(
     }
     const description: EffectDescription = {
       CurrentTechnique: reflection.CurrentTechnique,
-      Parameters: [],
+      Parameters: describeNativeParameters(nativeParameters),
       Techniques: reflection.Techniques.map((technique) => ({
         Name: technique.Name,
-        Passes: technique.Passes.map((pass) => ({ Name: pass.Name })),
+        Annotations: describeNativeAnnotations(technique.Annotations),
+        Passes: technique.Passes.map((pass) => ({
+          Name: pass.Name,
+          Annotations: describeNativeAnnotations(pass.Annotations),
+        })),
       })),
     };
-    const parameters = createParameters(owner, device, []);
+    const parameters = createParameters(
+      owner, device, description.Parameters ?? [], nativeParameters, backend, lifetime);
     const techniques = reflection.Techniques.map((item, index) =>
       createTechnique(owner, description.Techniques[index], effect, backend, lifetime, item));
     if (
@@ -770,21 +802,250 @@ function createAnnotations(
   );
 }
 
+/**
+ * Reflected annotations, for a parameter, a technique or a pass.
+ *
+ * An annotation whose value CNA could not read is dropped rather than published with a stand-in:
+ * XNA's `EffectAnnotation` is a typed value, and an absent one is not a zero.
+ */
+function describeNativeAnnotations(
+  natives: readonly NativeEffectAnnotationSnapshot[],
+): EffectAnnotationDescription[] {
+  return natives
+    .filter((annotation) => annotation.Value !== null)
+    .map((annotation): EffectAnnotationDescription => ({
+      Name: annotation.Name,
+      ParameterClass: annotation.ParameterClass as EffectParameterClass,
+      ParameterType: annotation.ParameterType as EffectParameterType,
+      RowCount: annotation.RowCount,
+      ColumnCount: annotation.ColumnCount,
+      Value: annotationValue(annotation),
+    }));
+}
+
+/** Turns a reflected annotation's components back into the XNA value its type names. */
+function annotationValue(
+  annotation: NativeEffectAnnotationSnapshot,
+): EffectAnnotationDescription["Value"] {
+  const value = annotation.Value;
+  if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 16) {
+      return new Matrix(
+        value[0], value[1], value[2], value[3],
+        value[4], value[5], value[6], value[7],
+        value[8], value[9], value[10], value[11],
+        value[12], value[13], value[14], value[15],
+      );
+    }
+    if (value.length === 4) return new Vector4(value[0], value[1], value[2], value[3]);
+    if (value.length === 3) return new Vector3(value[0], value[1], value[2]);
+    if (value.length === 2) return new Vector2(value[0], value[1]);
+  }
+  throw new InvalidOperationException(
+    `CNA effect annotation "${annotation.Name}" has no value this package can project`,
+  );
+}
+
+/**
+ * Reads one parameter's value back out of CNA.
+ *
+ * Internal, and used by the integration test alone: `GetValue*` answers from managed state, so a
+ * test that only compared those would pass whether or not the value ever reached the shader. This
+ * asks CNA what it holds. Returns `null` for a parameter with no native view.
+ */
+export function readNativeParameterValueForInternalUse(
+  parameter: EffectParameter,
+  valueType: number,
+): number[] | null {
+  const state = parameterState(parameter);
+  if (state.Native == null) return null;
+  return state.Native.Backend.getEffectParameterValue(state.Native.Handle, valueType);
+}
+
+/**
+ * The same, for an array parameter. Internal, and used by the integration test alone.
+ *
+ * Returns the components flattened, `requested` elements at a time, or `null` for a parameter with
+ * no native view.
+ */
+export function readNativeParameterValuesForInternalUse(
+  parameter: EffectParameter,
+  valueType: number,
+  requested: number,
+): number[] | null {
+  const state = parameterState(parameter);
+  if (state.Native == null) return null;
+  return state.Native.Backend.getEffectParameterValues(state.Native.Handle, valueType, requested);
+}
+
+/** CNA's tagged effect-value identities, from `effects.h`. */
+const EFFECT_VALUE_BOOLEAN = 0;
+const EFFECT_VALUE_INT32 = 1;
+const EFFECT_VALUE_SINGLE = 2;
+const EFFECT_VALUE_MATRIX = 3;
+const EFFECT_VALUE_QUATERNION = 5;
+const EFFECT_VALUE_VECTOR2 = 6;
+const EFFECT_VALUE_VECTOR3 = 7;
+const EFFECT_VALUE_VECTOR4 = 8;
+
+/** CNA's `CNA_EFFECT_TEXTURE_*` families. */
+function effectTextureType(texture: Texture): number {
+  if (texture instanceof Texture2D) return 1;
+  if (texture instanceof Texture3D) return 2;
+  if (texture instanceof TextureCube) return 3;
+  return 0;
+}
+
+/**
+ * One value, as the tag CNA wants and the components that go with it.
+ *
+ * A `number` is deliberately decided by the *parameter's* declared type rather than by the value:
+ * JavaScript has one number type and the shader does not, so `SetValue(1)` on an `int` parameter
+ * has to arrive as an int.
+ */
+function describeEffectValue(
+  value: Exclude<EffectValue, string | Texture>,
+  parameterType: EffectParameterType,
+): { readonly Type: number; readonly Components: number[] } | null {
+  if (typeof value === "boolean") return { Type: EFFECT_VALUE_BOOLEAN, Components: [value ? 1 : 0] };
+  if (typeof value === "number") {
+    return parameterType === EffectParameterType.Int32
+      ? { Type: EFFECT_VALUE_INT32, Components: [Math.trunc(value)] }
+      : { Type: EFFECT_VALUE_SINGLE, Components: [value] };
+  }
+  if (value instanceof Matrix) return { Type: EFFECT_VALUE_MATRIX, Components: matrixComponents(value) };
+  if (value instanceof Quaternion) {
+    return { Type: EFFECT_VALUE_QUATERNION, Components: [value.X, value.Y, value.Z, value.W] };
+  }
+  if (value instanceof Vector4) {
+    return { Type: EFFECT_VALUE_VECTOR4, Components: [value.X, value.Y, value.Z, value.W] };
+  }
+  if (value instanceof Vector3) {
+    return { Type: EFFECT_VALUE_VECTOR3, Components: [value.X, value.Y, value.Z] };
+  }
+  if (value instanceof Vector2) return { Type: EFFECT_VALUE_VECTOR2, Components: [value.X, value.Y] };
+  return null;
+}
+
+function matrixComponents(value: Matrix): number[] {
+  return [
+    value.M11, value.M12, value.M13, value.M14,
+    value.M21, value.M22, value.M23, value.M24,
+    value.M31, value.M32, value.M33, value.M34,
+    value.M41, value.M42, value.M43, value.M44,
+  ];
+}
+
+/**
+ * Sends one value to CNA, for a parameter that has a native view.
+ *
+ * Anything this cannot express is refused by name rather than dropped: a silently ignored
+ * `SetValue` is a shader drawing with the wrong uniform and no way to tell.
+ */
+function writeParameterThrough(state: ParameterState, value: EffectValue): void {
+  const native = state.Native;
+  if (native == null) return;
+  const { Backend: backend, Handle: handle } = native;
+  const parameterType = state.Description.ParameterType;
+  if (typeof value === "string") {
+    backend.setEffectParameterString(handle, value);
+    return;
+  }
+  if (value instanceof Texture) {
+    backend.setEffectParameterTexture(
+      handle, effectTextureType(value), resolveTextureHandleForInternalUse(value));
+    return;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) return;
+    const first = describeEffectValue(value[0] as never, parameterType);
+    if (first == null) {
+      throw new NotSupportedException(
+        `an effect parameter array of this type cannot be sent to the shader: ${state.Description.Name}`,
+      );
+    }
+    const components: number[] = [];
+    for (const element of value) {
+      const described = describeEffectValue(element as never, parameterType);
+      if (described == null || described.Type !== first.Type) {
+        throw new NotSupportedException(
+          `an effect parameter array must be one type throughout: ${state.Description.Name}`,
+        );
+      }
+      components.push(...described.Components);
+    }
+    backend.setEffectParameterValues(handle, first.Type, components);
+    return;
+  }
+  const described = describeEffectValue(value as never, parameterType);
+  if (described == null) {
+    throw new NotSupportedException(
+      `an effect parameter of this type cannot be sent to the shader: ${state.Description.Name}`,
+    );
+  }
+  backend.setEffectParameterValue(handle, described.Type, described.Components);
+}
+
+/**
+ * Turns CNA's reflected parameters into the descriptions this package already builds from, keeping
+ * the native view for each one alongside.
+ *
+ * CNA's class and type identities are XNA's own numbering; the integration test asserts that rather
+ * than trusting it, because a silent renumbering upstream would mistype every parameter here.
+ */
+function describeNativeParameters(
+  natives: readonly NativeEffectParameterSnapshot[],
+): EffectParameterDescription[] {
+  return natives.map((native) => ({
+    Name: native.Name,
+    Semantic: native.Semantic,
+    ParameterClass: native.ParameterClass as EffectParameterClass,
+    ParameterType: native.ParameterType as EffectParameterType,
+    RowCount: native.RowCount,
+    ColumnCount: native.ColumnCount,
+    Annotations: describeNativeAnnotations(native.Annotations),
+    Elements: describeNativeParameters(native.Elements),
+    StructureMembers: describeNativeParameters(native.StructureMembers),
+  }));
+}
+
 function createParameters(
   owner: EffectOwner,
   device: GraphicsDevice,
   descriptions: ReadonlyArray<EffectParameterDescription>,
+  natives: readonly NativeEffectParameterSnapshot[] | null = null,
+  backend: CnaEffectBackend | null = null,
+  parent: NativeResourceLifetime | null = null,
 ): EffectParameterCollection {
-  const items = descriptions.map((description) => {
+  const items = descriptions.map((description, index) => {
     const item = new EffectParameter();
+    const native = natives?.[index] ?? null;
+    // The view CNA minted for this parameter is owned, and is released with the effect. It is
+    // parented rather than tracked here so a disposed effect cannot leave a live parameter behind.
+    if (native != null && backend != null && parent != null) {
+      new NativeResourceLifetime({
+        Handle: native.Handle,
+        Ownership: "owned",
+        Parent: parent,
+        Release: (handle) => backend.destroyEffectParameter(handle),
+        Label: "CNA EffectParameter view",
+      });
+    }
     parameterStates.set(item, {
       Owner: owner,
       Device: device,
       Description: description,
+      Native: native != null && backend != null ? { Backend: backend, Handle: native.Handle } : null,
       Value: cloneValue(description.Value ?? defaultValue(description.ParameterType)),
       Annotations: createAnnotations(owner, description.Annotations ?? []),
-      Elements: createParameters(owner, device, description.Elements ?? []),
-      StructureMembers: createParameters(owner, device, description.StructureMembers ?? []),
+      Elements: createParameters(
+        owner, device, description.Elements ?? [], native?.Elements ?? null, backend, parent),
+      StructureMembers: createParameters(
+        owner, device, description.StructureMembers ?? [],
+        native?.StructureMembers ?? null, backend, parent),
     });
     return item;
   });

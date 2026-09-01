@@ -339,6 +339,22 @@ typedef CNA_Result (*EffectHandleFn)(CNA_EffectHandle);
 typedef CNA_Result (*EffectGetHandleFn)(CNA_EffectHandle, CNA_Handle*);
 typedef CNA_Result (*EffectSetHandleFn)(CNA_EffectHandle, CNA_Handle);
 typedef CNA_Result (*HandleIndexHandleOutFn)(CNA_Handle, uint64_t, CNA_Handle*);
+typedef CNA_Result (*EffectParameterInfoFn)(CNA_Handle, CNA_EffectParameterInfo*);
+typedef CNA_Result (*EffectAnnotationInfoFn)(CNA_Handle, CNA_EffectAnnotationInfo*);
+typedef CNA_Result (*EffectParameterValueFn)(CNA_Handle, CNA_EffectValueType, void*);
+typedef CNA_Result (*EffectParameterSetValueFn)(CNA_Handle, CNA_EffectValueType, const void*);
+typedef CNA_Result (*EffectParameterSetValuesFn)(CNA_Handle, CNA_EffectValueType, const void*, uint64_t);
+typedef CNA_Result (*EffectParameterGetValuesFn)(
+  CNA_Handle, CNA_EffectValueType, uint64_t, void*, uint64_t, uint64_t*);
+typedef CNA_Result (*EffectParameterTextureFn)(CNA_Handle, CNA_EffectTextureType, CNA_Handle);
+typedef CNA_Result (*EffectParameterStringFn)(CNA_Handle, CNA_StringView);
+typedef CNA_Result (*EffectAnnotationBoolFn)(CNA_Handle, CNA_Bool*);
+typedef CNA_Result (*EffectAnnotationInt32Fn)(CNA_Handle, int32_t*);
+typedef CNA_Result (*EffectAnnotationSingleFn)(CNA_Handle, float*);
+typedef CNA_Result (*EffectAnnotationVector2Fn)(CNA_Handle, CNA_Vector2*);
+typedef CNA_Result (*EffectAnnotationVector3Fn)(CNA_Handle, CNA_Vector3*);
+typedef CNA_Result (*EffectAnnotationVector4Fn)(CNA_Handle, CNA_Vector4*);
+typedef CNA_Result (*EffectAnnotationMatrixFn)(CNA_Handle, CNA_Matrix*);
 typedef CNA_Result (*EffectMatrixFn)(CNA_EffectHandle, CNA_Matrix);
 typedef CNA_Result (*EffectVector3Fn)(CNA_EffectHandle, CNA_Vector3);
 typedef CNA_Result (*EffectFloatFn)(CNA_EffectHandle, float);
@@ -1323,6 +1339,46 @@ typedef struct Api {
   GameHandleFn effect_technique_destroy;
   HandleU64OutFn effect_technique_get_name_size;
   HandleCopyStringFn effect_technique_copy_name;
+  /* Effect *parameter* reflection. Reachable only on a renderer whose COMPILED_EFFECTS capability
+   * is true -- measured true on the windowed OPENGLES3 build and false on HEADLESS -- because a
+   * stock effect's parameter collection is empty and only a compiled effect carries one. */
+  EffectGetHandleFn effect_get_parameters;
+  GameHandleFn effect_parameter_collection_destroy;
+  HandleU64OutFn effect_parameter_collection_get_count;
+  HandleIndexHandleOutFn effect_parameter_collection_get_at;
+  GameHandleFn effect_parameter_destroy;
+  EffectParameterInfoFn effect_parameter_get_info;
+  HandleU64OutFn effect_parameter_get_name_size;
+  HandleCopyStringFn effect_parameter_copy_name;
+  HandleU64OutFn effect_parameter_get_semantic_size;
+  HandleCopyStringFn effect_parameter_copy_semantic;
+  EffectGetHandleFn effect_parameter_get_elements;
+  EffectGetHandleFn effect_parameter_get_structure_members;
+  EffectGetHandleFn effect_parameter_get_annotations;
+  EffectGetHandleFn effect_technique_get_annotations;
+  EffectGetHandleFn effect_pass_get_annotations;
+  EffectParameterValueFn effect_parameter_get_value;
+  EffectParameterSetValueFn effect_parameter_set_value;
+  EffectParameterGetValuesFn effect_parameter_get_values;
+  EffectParameterSetValuesFn effect_parameter_set_values;
+  EffectParameterTextureFn effect_parameter_set_value_texture;
+  EffectParameterStringFn effect_parameter_set_value_string;
+  GameHandleFn effect_annotation_collection_destroy;
+  HandleU64OutFn effect_annotation_collection_get_count;
+  HandleIndexHandleOutFn effect_annotation_collection_get_at;
+  GameHandleFn effect_annotation_destroy;
+  EffectAnnotationInfoFn effect_annotation_get_info;
+  HandleU64OutFn effect_annotation_get_name_size;
+  HandleCopyStringFn effect_annotation_copy_name;
+  EffectAnnotationBoolFn effect_annotation_get_value_boolean;
+  EffectAnnotationInt32Fn effect_annotation_get_value_int32;
+  EffectAnnotationSingleFn effect_annotation_get_value_single;
+  EffectAnnotationVector2Fn effect_annotation_get_value_vector2;
+  EffectAnnotationVector3Fn effect_annotation_get_value_vector3;
+  EffectAnnotationVector4Fn effect_annotation_get_value_vector4;
+  EffectAnnotationMatrixFn effect_annotation_get_value_matrix;
+  HandleU64OutFn effect_annotation_get_value_string_size;
+  HandleCopyStringFn effect_annotation_copy_value_string;
   GameU32OutFn effect_technique_get_index;
   HandleHandleOutFn effect_technique_get_passes;
   GameHandleFn effect_pass_collection_destroy;
@@ -3561,6 +3617,43 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(effect_technique_destroy, GameHandleFn, "cna_effect_technique_destroy");
   LOAD_REQUIRED(effect_technique_get_name_size, HandleU64OutFn, "cna_effect_technique_get_name_byte_count");
   LOAD_REQUIRED(effect_technique_copy_name, HandleCopyStringFn, "cna_effect_technique_copy_name");
+  LOAD_REQUIRED(effect_get_parameters, EffectGetHandleFn, "cna_effect_get_parameters");
+  LOAD_REQUIRED(effect_parameter_collection_destroy, GameHandleFn, "cna_effect_parameter_collection_destroy");
+  LOAD_REQUIRED(effect_parameter_collection_get_count, HandleU64OutFn, "cna_effect_parameter_collection_get_count");
+  LOAD_REQUIRED(effect_parameter_collection_get_at, HandleIndexHandleOutFn, "cna_effect_parameter_collection_get_at");
+  LOAD_REQUIRED(effect_parameter_destroy, GameHandleFn, "cna_effect_parameter_destroy");
+  LOAD_REQUIRED(effect_parameter_get_info, EffectParameterInfoFn, "cna_effect_parameter_get_info");
+  LOAD_REQUIRED(effect_parameter_get_name_size, HandleU64OutFn, "cna_effect_parameter_get_name_byte_count");
+  LOAD_REQUIRED(effect_parameter_copy_name, HandleCopyStringFn, "cna_effect_parameter_copy_name");
+  LOAD_REQUIRED(effect_parameter_get_semantic_size, HandleU64OutFn, "cna_effect_parameter_get_semantic_byte_count");
+  LOAD_REQUIRED(effect_parameter_copy_semantic, HandleCopyStringFn, "cna_effect_parameter_copy_semantic");
+  LOAD_REQUIRED(effect_parameter_get_elements, EffectGetHandleFn, "cna_effect_parameter_get_elements");
+  LOAD_REQUIRED(effect_parameter_get_structure_members, EffectGetHandleFn, "cna_effect_parameter_get_structure_members");
+  LOAD_REQUIRED(effect_parameter_get_annotations, EffectGetHandleFn, "cna_effect_parameter_get_annotations");
+  LOAD_REQUIRED(effect_technique_get_annotations, EffectGetHandleFn, "cna_effect_technique_get_annotations");
+  LOAD_REQUIRED(effect_pass_get_annotations, EffectGetHandleFn, "cna_effect_pass_get_annotations");
+  LOAD_REQUIRED(effect_parameter_get_value, EffectParameterValueFn, "cna_effect_parameter_get_value");
+  LOAD_REQUIRED(effect_parameter_set_value, EffectParameterSetValueFn, "cna_effect_parameter_set_value");
+  LOAD_REQUIRED(effect_parameter_get_values, EffectParameterGetValuesFn, "cna_effect_parameter_get_values");
+  LOAD_REQUIRED(effect_parameter_set_values, EffectParameterSetValuesFn, "cna_effect_parameter_set_values");
+  LOAD_REQUIRED(effect_parameter_set_value_texture, EffectParameterTextureFn, "cna_effect_parameter_set_value_texture");
+  LOAD_REQUIRED(effect_parameter_set_value_string, EffectParameterStringFn, "cna_effect_parameter_set_value_string");
+  LOAD_REQUIRED(effect_annotation_collection_destroy, GameHandleFn, "cna_effect_annotation_collection_destroy");
+  LOAD_REQUIRED(effect_annotation_collection_get_count, HandleU64OutFn, "cna_effect_annotation_collection_get_count");
+  LOAD_REQUIRED(effect_annotation_collection_get_at, HandleIndexHandleOutFn, "cna_effect_annotation_collection_get_at");
+  LOAD_REQUIRED(effect_annotation_destroy, GameHandleFn, "cna_effect_annotation_destroy");
+  LOAD_REQUIRED(effect_annotation_get_info, EffectAnnotationInfoFn, "cna_effect_annotation_get_info");
+  LOAD_REQUIRED(effect_annotation_get_name_size, HandleU64OutFn, "cna_effect_annotation_get_name_byte_count");
+  LOAD_REQUIRED(effect_annotation_copy_name, HandleCopyStringFn, "cna_effect_annotation_copy_name");
+  LOAD_REQUIRED(effect_annotation_get_value_boolean, EffectAnnotationBoolFn, "cna_effect_annotation_get_value_boolean");
+  LOAD_REQUIRED(effect_annotation_get_value_int32, EffectAnnotationInt32Fn, "cna_effect_annotation_get_value_int32");
+  LOAD_REQUIRED(effect_annotation_get_value_single, EffectAnnotationSingleFn, "cna_effect_annotation_get_value_single");
+  LOAD_REQUIRED(effect_annotation_get_value_vector2, EffectAnnotationVector2Fn, "cna_effect_annotation_get_value_vector2");
+  LOAD_REQUIRED(effect_annotation_get_value_vector3, EffectAnnotationVector3Fn, "cna_effect_annotation_get_value_vector3");
+  LOAD_REQUIRED(effect_annotation_get_value_vector4, EffectAnnotationVector4Fn, "cna_effect_annotation_get_value_vector4");
+  LOAD_REQUIRED(effect_annotation_get_value_matrix, EffectAnnotationMatrixFn, "cna_effect_annotation_get_value_matrix");
+  LOAD_REQUIRED(effect_annotation_get_value_string_size, HandleU64OutFn, "cna_effect_annotation_get_value_string_byte_count");
+  LOAD_REQUIRED(effect_annotation_copy_value_string, HandleCopyStringFn, "cna_effect_annotation_copy_value_string");
   LOAD_REQUIRED(effect_technique_get_index, GameU32OutFn, "cna_effect_technique_get_index_ext");
   LOAD_REQUIRED(effect_technique_get_passes, HandleHandleOutFn, "cna_effect_technique_get_passes");
   LOAD_REQUIRED(effect_pass_collection_destroy, GameHandleFn, "cna_effect_pass_collection_destroy");
@@ -6653,23 +6746,30 @@ static int copy_effect_name(
   return 1;
 }
 
+/* Which destroy a remembered reflection view needs. One list holds all three because they are
+ * released together, in reverse order, on the one failure path that has to undo a half-built
+ * reflection. */
+#define CNA_TECHNIQUE_VIEW 0
+#define CNA_PASS_VIEW 1
+#define CNA_PARAMETER_VIEW 2
+
 typedef struct EffectReflectionHandle {
   CNA_Handle handle;
-  CNA_Bool is_pass;
+  int kind;
 } EffectReflectionHandle;
 
 static int remember_effect_reflection_handle(
   EffectReflectionHandle** handles,
   size_t* count,
   CNA_Handle handle,
-  CNA_Bool is_pass
+  int kind
 ) {
   if (*count == SIZE_MAX / sizeof(EffectReflectionHandle)) return 0;
   EffectReflectionHandle* resized = (EffectReflectionHandle*) realloc(
     *handles, (*count + 1) * sizeof(EffectReflectionHandle));
   if (!resized) return 0;
   *handles = resized;
-  resized[*count] = (EffectReflectionHandle){handle, is_pass};
+  resized[*count] = (EffectReflectionHandle){handle, kind};
   *count += 1;
   return 1;
 }
@@ -6681,7 +6781,8 @@ static void release_effect_reflection_handles(
   for (size_t index = count; index > 0; index -= 1) {
     const EffectReflectionHandle item = handles[index - 1];
     if (item.handle == CNA_INVALID_HANDLE) continue;
-    if (item.is_pass == CNA_TRUE) (void) g_api.effect_pass_destroy(item.handle);
+    if (item.kind == CNA_PASS_VIEW) (void) g_api.effect_pass_destroy(item.handle);
+    else if (item.kind == CNA_PARAMETER_VIEW) (void) g_api.effect_parameter_destroy(item.handle);
     else (void) g_api.effect_technique_destroy(item.handle);
   }
   free(handles);
@@ -6743,6 +6844,8 @@ static napi_value create_stock_effect(napi_env env, napi_callback_info info) {
   return make_handle(env, effect);
 }
 
+static int build_effect_annotation_array(napi_env env, CNA_Handle collection, napi_value* out);
+
 static napi_value get_effect_reflection(napi_env env, napi_callback_info info) {
   if (!require_loaded(env)) return NULL;
   napi_value args[1];
@@ -6781,7 +6884,7 @@ static napi_value get_effect_reflection(napi_env env, napi_callback_info info) {
     CNA_Handle technique = 0, passes_collection = 0;
     result = g_api.effect_technique_collection_get_at(collection, technique_index, &technique);
     if (result != CNA_RESULT_SUCCESS) break;
-    if (!remember_effect_reflection_handle(&owned, &owned_count, technique, CNA_FALSE)) {
+    if (!remember_effect_reflection_handle(&owned, &owned_count, technique, CNA_TECHNIQUE_VIEW)) {
       (void) g_api.effect_technique_destroy(technique);
       result = CNA_RESULT_OUT_OF_MEMORY;
       break;
@@ -6809,7 +6912,7 @@ static napi_value get_effect_reflection(napi_env env, napi_callback_info info) {
       CNA_Handle pass = 0;
       result = g_api.effect_pass_collection_get_at(passes_collection, pass_index, &pass);
       if (result != CNA_RESULT_SUCCESS) break;
-      if (!remember_effect_reflection_handle(&owned, &owned_count, pass, CNA_TRUE)) {
+      if (!remember_effect_reflection_handle(&owned, &owned_count, pass, CNA_PASS_VIEW)) {
         (void) g_api.effect_pass_destroy(pass);
         result = CNA_RESULT_OUT_OF_MEMORY;
         break;
@@ -6822,15 +6925,35 @@ static napi_value get_effect_reflection(napi_env env, napi_callback_info info) {
           g_api.effect_pass_copy_name, "CNA effect pass name", &pass_name)) {
         status = napi_pending_exception;
       }
+      napi_value pass_annotations;
+      CNA_Handle pass_annotation_collection = CNA_INVALID_HANDLE;
+      result = g_api.effect_pass_get_annotations(pass, &pass_annotation_collection);
+      if (result != CNA_RESULT_SUCCESS) break;
+      if (!build_effect_annotation_array(env, pass_annotation_collection, &pass_annotations)) {
+        status = napi_pending_exception;
+        break;
+      }
       if (status == napi_ok) status = napi_set_named_property(env, pass_object, "Handle", pass_handle);
       if (status == napi_ok) status = napi_set_named_property(env, pass_object, "Name", pass_name);
+      if (status == napi_ok) status = napi_set_named_property(env, pass_object, "Annotations", pass_annotations);
       if (status == napi_ok) status = napi_set_element(env, passes, (uint32_t) pass_index, pass_object);
     }
     const CNA_Result passes_destroy_result = g_api.effect_pass_collection_destroy(passes_collection);
     if (result == CNA_RESULT_SUCCESS) result = passes_destroy_result;
     if (result != CNA_RESULT_SUCCESS || status != napi_ok) break;
+    napi_value technique_annotations;
+    CNA_Handle technique_annotation_collection = CNA_INVALID_HANDLE;
+    result = g_api.effect_technique_get_annotations(technique, &technique_annotation_collection);
+    if (result != CNA_RESULT_SUCCESS) break;
+    if (!build_effect_annotation_array(env, technique_annotation_collection, &technique_annotations)) {
+      status = napi_pending_exception;
+      break;
+    }
     status = napi_set_named_property(env, technique_object, "Handle", technique_handle);
     if (status == napi_ok) status = napi_set_named_property(env, technique_object, "Name", technique_name);
+    if (status == napi_ok) {
+      status = napi_set_named_property(env, technique_object, "Annotations", technique_annotations);
+    }
     if (status == napi_ok) status = napi_set_named_property(env, technique_object, "Passes", passes);
     if (status == napi_ok) status = napi_set_element(
       env, techniques, (uint32_t) technique_index, technique_object);
@@ -6847,6 +6970,574 @@ static napi_value get_effect_reflection(napi_env env, napi_callback_info info) {
   }
   free(owned);
   return output;
+}
+
+static int set_i32_property(napi_env env, napi_value object, const char* name, int32_t value);
+static int read_utf8(napi_env env, napi_value value, char** out_data, size_t* out_length);
+static napi_value make_matrix16(napi_env env, const CNA_Matrix* matrix, const char* operation);
+
+/* Effect *parameter* reflection.
+ *
+ * `Effect.Parameters` used to be built empty for a natively reflected effect, which meant a game
+ * that loaded a compiled `.fxb` got a shader it could draw with and not one uniform it could set.
+ * That was not a deliberate managed-authoritative choice -- a stock effect's parameter collection
+ * really is empty (measured: `cna_basic_effect_create` then `get_parameters` answers count 0 on
+ * both backends), so the surface looked unreachable. It is not: a *compiled* effect on a renderer
+ * whose COMPILED_EFFECTS capability is true carries the real thing. `BasicEffect.fxb` on the
+ * windowed OPENGLES3 build reflects twenty-three parameters, `World` and `DiffuseColor` among them.
+ *
+ * Ownership: `get_at` mints an **owned** element view per call, so every handle handed to
+ * JavaScript here is released through a `NativeResourceLifetime` parented on the effect, exactly
+ * as the technique and pass views already are. The collection handle itself is transient and
+ * destroyed before this function returns. */
+static int build_effect_parameter_array(
+  napi_env env,
+  CNA_Handle collection,
+  EffectReflectionHandle** owned,
+  size_t* owned_count,
+  int depth,
+  napi_value* out
+);
+
+/* An annotation's value, read through the accessor its declared class and type name.
+ *
+ * XNA exposes an annotation as a typed value, so guessing here would be worse than refusing: this
+ * writes `null` for a shape CNA has no accessor for, and the projection reports it as absent. */
+static CNA_Result read_effect_annotation_value(
+  napi_env env,
+  CNA_Handle annotation,
+  CNA_EffectParameterClass parameter_class,
+  CNA_EffectParameterType parameter_type,
+  napi_value* out,
+  napi_status* status
+) {
+  *out = NULL;
+  CNA_Result result = CNA_RESULT_SUCCESS;
+  if (parameter_type == UINT32_C(4)) {                      /* STRING */
+    if (!copy_effect_name(env, annotation, g_api.effect_annotation_get_value_string_size,
+        g_api.effect_annotation_copy_value_string, "CNA effect annotation value", out)) {
+      *status = napi_pending_exception;
+    }
+    return result;
+  }
+  if (parameter_class == UINT32_C(2)) {                     /* MATRIX */
+    CNA_Matrix matrix;
+    memset(&matrix, 0, sizeof(matrix));
+    result = g_api.effect_annotation_get_value_matrix(annotation, &matrix);
+    if (result == CNA_RESULT_SUCCESS) {
+      *out = make_matrix16(env, &matrix, "CNA effect annotation matrix value");
+      if (*out == NULL) *status = napi_pending_exception;
+    }
+    return result;
+  }
+  if (parameter_class == UINT32_C(1)) {                     /* VECTOR */
+    float components[4] = {0.0F, 0.0F, 0.0F, 0.0F};
+    /* The width is discovered by asking widest-first: CNA refuses an accessor whose width the
+     * annotation does not have, which is a cheaper and more truthful test than reading the column
+     * count and trusting it. */
+    uint32_t count = 4;
+    CNA_Vector2 vector2;
+    CNA_Vector3 vector3;
+    CNA_Vector4 vector4;
+    result = g_api.effect_annotation_get_value_vector4(annotation, &vector4);
+    if (result == CNA_RESULT_SUCCESS) {
+      components[0] = vector4.x; components[1] = vector4.y;
+      components[2] = vector4.z; components[3] = vector4.w;
+    } else {
+      result = g_api.effect_annotation_get_value_vector3(annotation, &vector3);
+      if (result == CNA_RESULT_SUCCESS) {
+        count = 3;
+        components[0] = vector3.x; components[1] = vector3.y; components[2] = vector3.z;
+      } else {
+        result = g_api.effect_annotation_get_value_vector2(annotation, &vector2);
+        if (result != CNA_RESULT_SUCCESS) return result;
+        count = 2;
+        components[0] = vector2.x; components[1] = vector2.y;
+      }
+    }
+    napi_value array;
+    *status = napi_create_array_with_length(env, count, &array);
+    for (uint32_t index = 0; *status == napi_ok && index < count; index += 1) {
+      napi_value element;
+      *status = napi_create_double(env, (double) components[index], &element);
+      if (*status == napi_ok) *status = napi_set_element(env, array, index, element);
+    }
+    if (*status == napi_ok) *out = array;
+    return CNA_RESULT_SUCCESS;
+  }
+  if (parameter_type == UINT32_C(1)) {                      /* BOOL */
+    CNA_Bool value = CNA_FALSE;
+    result = g_api.effect_annotation_get_value_boolean(annotation, &value);
+    if (result == CNA_RESULT_SUCCESS) *status = napi_get_boolean(env, value == CNA_TRUE, out);
+    return result;
+  }
+  if (parameter_type == UINT32_C(2)) {                      /* INT32 */
+    int32_t value = 0;
+    result = g_api.effect_annotation_get_value_int32(annotation, &value);
+    if (result == CNA_RESULT_SUCCESS) *status = napi_create_int32(env, value, out);
+    return result;
+  }
+  if (parameter_type == UINT32_C(3)) {                      /* SINGLE */
+    float value = 0.0F;
+    result = g_api.effect_annotation_get_value_single(annotation, &value);
+    if (result == CNA_RESULT_SUCCESS) *status = napi_create_double(env, (double) value, out);
+    return result;
+  }
+  *status = napi_get_null(env, out);
+  return CNA_RESULT_SUCCESS;
+}
+
+/* An annotation collection, as an array of `{Name, Value, RowCount, ColumnCount, ParameterClass,
+ * ParameterType}`. Parameters, techniques and passes all carry one, and all three used to project
+ * an empty array regardless of what CNA held. The collection handle is transient: it is destroyed
+ * here, and so is every element view, because nothing later reads an annotation back. */
+static int build_effect_annotation_array(
+  napi_env env,
+  CNA_Handle annotation_collection,
+  napi_value* out
+) {
+  CNA_Result result = CNA_RESULT_SUCCESS;
+  uint64_t annotation_count = 0;
+  result = g_api.effect_annotation_collection_get_count(annotation_collection, &annotation_count);
+  if (result == CNA_RESULT_SUCCESS && annotation_count > UINT32_MAX) result = CNA_RESULT_OVERFLOW;
+  if (result != CNA_RESULT_SUCCESS) {
+    (void) g_api.effect_annotation_collection_destroy(annotation_collection);
+    throw_result(env, "cna_effect_annotation_collection_get_count", result);
+    return 0;
+  }
+  napi_value annotations;
+  napi_status status = napi_create_array_with_length(env, (size_t) annotation_count, &annotations);
+  for (uint64_t index = 0; status == napi_ok && index < annotation_count; index += 1) {
+    CNA_Handle annotation = CNA_INVALID_HANDLE;
+    result = g_api.effect_annotation_collection_get_at(annotation_collection, index, &annotation);
+    if (result != CNA_RESULT_SUCCESS) break;
+    CNA_EffectAnnotationInfo annotation_info;
+    memset(&annotation_info, 0, sizeof(annotation_info));
+    annotation_info.struct_size = sizeof(annotation_info);
+    annotation_info.struct_version = UINT32_C(1);
+    result = g_api.effect_annotation_get_info(annotation, &annotation_info);
+    napi_value annotation_object, annotation_name, annotation_value;
+    if (result == CNA_RESULT_SUCCESS) {
+      status = napi_create_object(env, &annotation_object);
+      if (status == napi_ok && !copy_effect_name(
+          env, annotation, g_api.effect_annotation_get_name_size,
+          g_api.effect_annotation_copy_name, "CNA effect annotation name", &annotation_name)) {
+        status = napi_pending_exception;
+      }
+      /* The value is read through the accessor its declared type names. An annotation whose value
+       * this cannot read is reported with `Value: null` rather than a zero, because a zero would be
+       * indistinguishable from an annotation that really says zero. */
+      if (status == napi_ok) {
+        result = read_effect_annotation_value(
+          env, annotation, annotation_info.parameter_class, annotation_info.parameter_type,
+          &annotation_value, &status);
+      }
+    }
+    /* An annotation is metadata read once at reflection time; nothing later reads it back through
+     * a handle, so the view is released here rather than handed out. */
+    const CNA_Result annotation_destroy = g_api.effect_annotation_destroy(annotation);
+    if (result == CNA_RESULT_SUCCESS) result = annotation_destroy;
+    if (result != CNA_RESULT_SUCCESS || status != napi_ok) break;
+    if (!set_i32_property(env, annotation_object, "RowCount", annotation_info.row_count) ||
+        !set_i32_property(env, annotation_object, "ColumnCount", annotation_info.column_count) ||
+        !set_u32(env, annotation_object, "ParameterClass", (uint32_t) annotation_info.parameter_class) ||
+        !set_u32(env, annotation_object, "ParameterType", (uint32_t) annotation_info.parameter_type)) {
+      status = napi_pending_exception;
+      break;
+    }
+    if (status == napi_ok) status = napi_set_named_property(env, annotation_object, "Name", annotation_name);
+    if (status == napi_ok) status = napi_set_named_property(env, annotation_object, "Value", annotation_value);
+    if (status == napi_ok) status = napi_set_element(env, annotations, (uint32_t) index, annotation_object);
+  }
+  const CNA_Result annotations_destroy =
+    g_api.effect_annotation_collection_destroy(annotation_collection);
+  if (result == CNA_RESULT_SUCCESS) result = annotations_destroy;
+  if (result != CNA_RESULT_SUCCESS) {
+    throw_result(env, "CNA effect annotation reflection", result);
+    return 0;
+  }
+  if (status != napi_ok) return throw_napi(env, "effect annotation object"), 0;
+  *out = annotations;
+  return 1;
+}
+
+/* One parameter, its metadata, and -- recursively -- its array elements and struct members. */
+static int build_effect_parameter(
+  napi_env env,
+  CNA_Handle parameter,
+  EffectReflectionHandle** owned,
+  size_t* owned_count,
+  int depth,
+  napi_value* out
+) {
+  CNA_EffectParameterInfo info;
+  memset(&info, 0, sizeof(info));
+  info.struct_size = sizeof(info);
+  info.struct_version = UINT32_C(1);
+  CNA_Result result = g_api.effect_parameter_get_info(parameter, &info);
+  if (result != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_effect_parameter_get_info", result);
+    return 0;
+  }
+  napi_value object, handle_value, name_value, semantic_value;
+  if (napi_create_object(env, &object) != napi_ok) return throw_napi(env, "effect parameter"), 0;
+  if (napi_create_bigint_uint64(env, parameter, &handle_value) != napi_ok) {
+    return throw_napi(env, "effect parameter handle"), 0;
+  }
+  if (!copy_effect_name(env, parameter, g_api.effect_parameter_get_name_size,
+      g_api.effect_parameter_copy_name, "CNA effect parameter name", &name_value)) return 0;
+  if (!copy_effect_name(env, parameter, g_api.effect_parameter_get_semantic_size,
+      g_api.effect_parameter_copy_semantic, "CNA effect parameter semantic", &semantic_value)) return 0;
+
+  napi_value elements, members, annotations;
+  CNA_Handle element_collection = CNA_INVALID_HANDLE;
+  CNA_Handle member_collection = CNA_INVALID_HANDLE;
+  CNA_Handle annotation_collection = CNA_INVALID_HANDLE;
+
+  /* A parameter's elements are parameters again. The depth cap is a guard against a malformed
+   * effect describing a cycle, not an expected shape: nothing legal nests this far. */
+  if (depth >= 8) {
+    if (napi_create_array_with_length(env, 0, &elements) != napi_ok ||
+        napi_create_array_with_length(env, 0, &members) != napi_ok) {
+      return throw_napi(env, "effect parameter depth guard"), 0;
+    }
+  } else {
+    result = g_api.effect_parameter_get_elements(parameter, &element_collection);
+    if (result != CNA_RESULT_SUCCESS) {
+      throw_result(env, "cna_effect_parameter_get_elements", result);
+      return 0;
+    }
+    int ok = build_effect_parameter_array(
+      env, element_collection, owned, owned_count, depth + 1, &elements);
+    (void) g_api.effect_parameter_collection_destroy(element_collection);
+    if (!ok) return 0;
+
+    result = g_api.effect_parameter_get_structure_members(parameter, &member_collection);
+    if (result != CNA_RESULT_SUCCESS) {
+      throw_result(env, "cna_effect_parameter_get_structure_members", result);
+      return 0;
+    }
+    ok = build_effect_parameter_array(
+      env, member_collection, owned, owned_count, depth + 1, &members);
+    (void) g_api.effect_parameter_collection_destroy(member_collection);
+    if (!ok) return 0;
+  }
+
+  result = g_api.effect_parameter_get_annotations(parameter, &annotation_collection);
+  if (result != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_effect_parameter_get_annotations", result);
+    return 0;
+  }
+  if (!build_effect_annotation_array(env, annotation_collection, &annotations)) return 0;
+
+  if (!set_i32_property(env, object, "RowCount", info.row_count) ||
+      !set_i32_property(env, object, "ColumnCount", info.column_count) ||
+      !set_u32(env, object, "ParameterClass", (uint32_t) info.parameter_class) ||
+      !set_u32(env, object, "ParameterType", (uint32_t) info.parameter_type)) return 0;
+  if (napi_set_named_property(env, object, "Handle", handle_value) != napi_ok ||
+      napi_set_named_property(env, object, "Name", name_value) != napi_ok ||
+      napi_set_named_property(env, object, "Semantic", semantic_value) != napi_ok ||
+      napi_set_named_property(env, object, "Elements", elements) != napi_ok ||
+      napi_set_named_property(env, object, "StructureMembers", members) != napi_ok ||
+      napi_set_named_property(env, object, "Annotations", annotations) != napi_ok) {
+    return throw_napi(env, "effect parameter properties"), 0;
+  }
+  *out = object;
+  return 1;
+}
+
+static int build_effect_parameter_array(
+  napi_env env,
+  CNA_Handle collection,
+  EffectReflectionHandle** owned,
+  size_t* owned_count,
+  int depth,
+  napi_value* out
+) {
+  uint64_t count = 0;
+  CNA_Result result = g_api.effect_parameter_collection_get_count(collection, &count);
+  if (result == CNA_RESULT_SUCCESS && count > UINT32_MAX) result = CNA_RESULT_OVERFLOW;
+  if (result != CNA_RESULT_SUCCESS) {
+    throw_result(env, "cna_effect_parameter_collection_get_count", result);
+    return 0;
+  }
+  napi_value array;
+  if (napi_create_array_with_length(env, (size_t) count, &array) != napi_ok) {
+    return throw_napi(env, "effect parameter array"), 0;
+  }
+  for (uint64_t index = 0; index < count; index += 1) {
+    CNA_Handle parameter = CNA_INVALID_HANDLE;
+    result = g_api.effect_parameter_collection_get_at(collection, index, &parameter);
+    if (result != CNA_RESULT_SUCCESS) {
+      throw_result(env, "cna_effect_parameter_collection_get_at", result);
+      return 0;
+    }
+    /* Remembered before anything else can fail: an owned view that is not remembered is a leak,
+     * and one that is remembered twice is a double free. */
+    if (!remember_effect_reflection_handle(owned, owned_count, parameter, CNA_PARAMETER_VIEW)) {
+      (void) g_api.effect_parameter_destroy(parameter);
+      throw_result(env, "CNA effect parameter reflection", CNA_RESULT_OUT_OF_MEMORY);
+      return 0;
+    }
+    napi_value item;
+    if (!build_effect_parameter(env, parameter, owned, owned_count, depth, &item)) return 0;
+    if (napi_set_element(env, array, (uint32_t) index, item) != napi_ok) {
+      return throw_napi(env, "effect parameter element"), 0;
+    }
+  }
+  *out = array;
+  return 1;
+}
+
+static napi_value get_effect_parameters(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  CNA_Handle effect = 0, collection = 0;
+  EffectReflectionHandle* owned = NULL;
+  size_t owned_count = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &effect)) return NULL;
+  CNA_Result result = g_api.effect_get_parameters(effect, &collection);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_effect_get_parameters", result);
+  napi_value output;
+  const int ok = build_effect_parameter_array(env, collection, &owned, &owned_count, 0, &output);
+  const CNA_Result destroy_result = g_api.effect_parameter_collection_destroy(collection);
+  if (!ok) {
+    release_effect_reflection_handles(owned, owned_count);
+    return NULL;
+  }
+  if (destroy_result != CNA_RESULT_SUCCESS) {
+    release_effect_reflection_handles(owned, owned_count);
+    return throw_result(env, "cna_effect_parameter_collection_destroy", destroy_result);
+  }
+  free(owned);
+  return output;
+}
+
+/* The tagged value API takes a `void*` whose real type is decided by the tag, so every call has to
+ * agree with CNA about both the element type and the element count. This table is that agreement
+ * in one place: getting it wrong is a wrong-sized write into CNA's storage, not a type error. */
+typedef enum EffectValueKind { EFFECT_VALUE_BOOL, EFFECT_VALUE_INT32, EFFECT_VALUE_FLOAT } EffectValueKind;
+
+static int describe_effect_value_type(
+  uint32_t value_type, EffectValueKind* out_kind, uint32_t* out_components
+) {
+  switch (value_type) {
+    case 0: *out_kind = EFFECT_VALUE_BOOL;  *out_components = 1;  return 1;   /* BOOLEAN */
+    case 1: *out_kind = EFFECT_VALUE_INT32; *out_components = 1;  return 1;   /* INT32 */
+    case 2: *out_kind = EFFECT_VALUE_FLOAT; *out_components = 1;  return 1;   /* SINGLE */
+    case 3: case 4: *out_kind = EFFECT_VALUE_FLOAT; *out_components = 16; return 1; /* MATRIX(_TRANSPOSE) */
+    case 5: *out_kind = EFFECT_VALUE_FLOAT; *out_components = 4;  return 1;   /* QUATERNION */
+    case 6: *out_kind = EFFECT_VALUE_FLOAT; *out_components = 2;  return 1;   /* VECTOR2 */
+    case 7: *out_kind = EFFECT_VALUE_FLOAT; *out_components = 3;  return 1;   /* VECTOR3 */
+    case 8: *out_kind = EFFECT_VALUE_FLOAT; *out_components = 4;  return 1;   /* VECTOR4 */
+    default: return 0;
+  }
+}
+
+/* Components are always passed as a JavaScript number array, one entry per component, so a caller
+ * never has to know which C type a tag means. A boolean arrives as 0 or 1. */
+static napi_value set_effect_parameter_value(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle parameter = 0;
+  uint32_t value_type = 0;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &parameter) ||
+      napi_get_value_uint32(env, args[1], &value_type) != napi_ok) return NULL;
+  EffectValueKind kind = EFFECT_VALUE_FLOAT;
+  uint32_t components = 0;
+  if (!describe_effect_value_type(value_type, &kind, &components)) {
+    return throw_message(env, "unknown effect parameter value type");
+  }
+  float floats[16];
+  if (!read_float_array(env, args[2], floats, components,
+      "an effect parameter value needs one number per component")) return NULL;
+  CNA_Result result;
+  if (kind == EFFECT_VALUE_BOOL) {
+    const CNA_Bool value = floats[0] != 0.0F ? CNA_TRUE : CNA_FALSE;
+    result = g_api.effect_parameter_set_value(parameter, value_type, &value);
+  } else if (kind == EFFECT_VALUE_INT32) {
+    const int32_t value = (int32_t) floats[0];
+    result = g_api.effect_parameter_set_value(parameter, value_type, &value);
+  } else {
+    result = g_api.effect_parameter_set_value(parameter, value_type, floats);
+  }
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_effect_parameter_set_value", result);
+  return undefined_result(env, "effect parameter set value result");
+}
+
+/* The array overloads. XNA's `SetValue(Matrix[])` and friends land here; without them a reflected
+ * effect would take an array, store it managed, and never send it to the shader -- which looks like
+ * a working call and draws the wrong thing. */
+static napi_value set_effect_parameter_values(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle parameter = 0;
+  uint32_t value_type = 0;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &parameter) ||
+      napi_get_value_uint32(env, args[1], &value_type) != napi_ok) return NULL;
+  EffectValueKind kind = EFFECT_VALUE_FLOAT;
+  uint32_t components = 0;
+  if (!describe_effect_value_type(value_type, &kind, &components)) {
+    return throw_message(env, "unknown effect parameter value type");
+  }
+  bool is_array = false;
+  uint32_t length = 0;
+  if (napi_is_array(env, args[2], &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, args[2], &length) != napi_ok) {
+    return throw_message(env, "an effect parameter array needs a flat number array");
+  }
+  if (components == 0 || length % components != 0) {
+    return throw_message(env, "an effect parameter array needs a whole number of elements");
+  }
+  const uint32_t count = length / components;
+  void* buffer = NULL;
+  if (length != 0) {
+    const size_t width = kind == EFFECT_VALUE_BOOL ? sizeof(CNA_Bool)
+      : kind == EFFECT_VALUE_INT32 ? sizeof(int32_t) : sizeof(float);
+    buffer = malloc((size_t) length * width);
+    if (!buffer) return throw_message(env, "effect parameter array allocation failed");
+    for (uint32_t index = 0; index < length; index += 1) {
+      napi_value element;
+      double number = 0;
+      if (napi_get_element(env, args[2], index, &element) != napi_ok ||
+          napi_get_value_double(env, element, &number) != napi_ok) {
+        free(buffer);
+        return throw_message(env, "an effect parameter array needs numbers throughout");
+      }
+      if (kind == EFFECT_VALUE_BOOL) ((CNA_Bool*) buffer)[index] = number != 0.0 ? CNA_TRUE : CNA_FALSE;
+      else if (kind == EFFECT_VALUE_INT32) ((int32_t*) buffer)[index] = (int32_t) number;
+      else ((float*) buffer)[index] = (float) number;
+    }
+  }
+  const CNA_Result result = g_api.effect_parameter_set_values(parameter, value_type, buffer, count);
+  free(buffer);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_effect_parameter_set_values", result);
+  return undefined_result(env, "effect parameter set values result");
+}
+
+static napi_value get_effect_parameter_values(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle parameter = 0;
+  uint32_t value_type = 0, requested = 0;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &parameter) ||
+      napi_get_value_uint32(env, args[1], &value_type) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &requested) != napi_ok) return NULL;
+  EffectValueKind kind = EFFECT_VALUE_FLOAT;
+  uint32_t components = 0;
+  if (!describe_effect_value_type(value_type, &kind, &components)) {
+    return throw_message(env, "unknown effect parameter value type");
+  }
+  const size_t width = kind == EFFECT_VALUE_BOOL ? sizeof(CNA_Bool)
+    : kind == EFFECT_VALUE_INT32 ? sizeof(int32_t) : sizeof(float);
+  const size_t capacity = (size_t) requested * components;
+  void* buffer = capacity == 0 ? NULL : malloc(capacity * width);
+  if (capacity != 0 && !buffer) return throw_message(env, "effect parameter array allocation failed");
+  uint64_t produced = 0;
+  const CNA_Result result = g_api.effect_parameter_get_values(
+    parameter, value_type, requested, buffer, (uint64_t) capacity, &produced);
+  if (result != CNA_RESULT_SUCCESS) {
+    free(buffer);
+    return throw_result(env, "cna_effect_parameter_get_values", result);
+  }
+  napi_value output;
+  const uint32_t total = (uint32_t) (produced * components);
+  if (napi_create_array_with_length(env, total, &output) != napi_ok) {
+    free(buffer);
+    return throw_napi(env, "effect parameter values");
+  }
+  for (uint32_t index = 0; index < total; index += 1) {
+    const double number = kind == EFFECT_VALUE_BOOL ? (((CNA_Bool*) buffer)[index] ? 1.0 : 0.0)
+      : kind == EFFECT_VALUE_INT32 ? (double) ((int32_t*) buffer)[index]
+      : (double) ((float*) buffer)[index];
+    napi_value element;
+    if (napi_create_double(env, number, &element) != napi_ok ||
+        napi_set_element(env, output, index, element) != napi_ok) {
+      free(buffer);
+      return throw_napi(env, "effect parameter value component");
+    }
+  }
+  free(buffer);
+  return output;
+}
+
+static napi_value get_effect_parameter_value(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle parameter = 0;
+  uint32_t value_type = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &parameter) ||
+      napi_get_value_uint32(env, args[1], &value_type) != napi_ok) return NULL;
+  EffectValueKind kind = EFFECT_VALUE_FLOAT;
+  uint32_t components = 0;
+  if (!describe_effect_value_type(value_type, &kind, &components)) {
+    return throw_message(env, "unknown effect parameter value type");
+  }
+  float floats[16];
+  CNA_Bool boolean = CNA_FALSE;
+  int32_t integer = 0;
+  CNA_Result result;
+  if (kind == EFFECT_VALUE_BOOL) result = g_api.effect_parameter_get_value(parameter, value_type, &boolean);
+  else if (kind == EFFECT_VALUE_INT32) result = g_api.effect_parameter_get_value(parameter, value_type, &integer);
+  else result = g_api.effect_parameter_get_value(parameter, value_type, floats);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_effect_parameter_get_value", result);
+  napi_value output;
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, components, &output), "effect parameter value");
+  for (uint32_t index = 0; index < components; index += 1) {
+    const double number = kind == EFFECT_VALUE_BOOL ? (boolean == CNA_TRUE ? 1.0 : 0.0)
+      : kind == EFFECT_VALUE_INT32 ? (double) integer : (double) floats[index];
+    napi_value element;
+    NAPI_OR_RETURN(env, napi_create_double(env, number, &element), "effect parameter component");
+    NAPI_OR_RETURN(env, napi_set_element(env, output, index, element), "effect parameter component");
+  }
+  return output;
+}
+
+/* A sampler and a string are not tagged values -- CNA gives each its own route -- so they get their
+ * own crossings rather than a pretend tag. */
+static napi_value set_effect_parameter_texture(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[3];
+  CNA_Handle parameter = 0, texture = 0;
+  uint32_t texture_type = 0;
+  if (!get_args(env, info, 3, args) || !read_handle(env, args[0], &parameter) ||
+      napi_get_value_uint32(env, args[1], &texture_type) != napi_ok ||
+      !read_handle(env, args[2], &texture)) return NULL;
+  const CNA_Result result =
+    g_api.effect_parameter_set_value_texture(parameter, texture_type, texture);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_effect_parameter_set_value_texture", result);
+  }
+  return undefined_result(env, "effect parameter set texture result");
+}
+
+static napi_value set_effect_parameter_string(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[2];
+  CNA_Handle parameter = 0;
+  char* text = NULL;
+  size_t length = 0;
+  if (!get_args(env, info, 2, args) || !read_handle(env, args[0], &parameter) ||
+      !read_utf8(env, args[1], &text, &length)) return NULL;
+  CNA_StringView view;
+  view.data = text;
+  view.byte_length = (uint64_t) length;
+  const CNA_Result result = g_api.effect_parameter_set_value_string(parameter, view);
+  free(text);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_effect_parameter_set_value_string", result);
+  }
+  return undefined_result(env, "effect parameter set string result");
+}
+
+static napi_value destroy_effect_parameter(napi_env env, napi_callback_info info) {
+  if (!require_loaded(env)) return NULL;
+  napi_value args[1];
+  CNA_Handle parameter = 0;
+  if (!get_args(env, info, 1, args) || !read_handle(env, args[0], &parameter)) return NULL;
+  CNA_Result result = g_api.effect_parameter_destroy(parameter);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_effect_parameter_destroy", result);
+  return undefined_result(env, "effect parameter destroy result");
 }
 
 static napi_value set_effect_current_technique(napi_env env, napi_callback_info info) {
@@ -30917,6 +31608,14 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "cloneEffect", NULL, clone_effect, NULL, NULL, NULL, napi_default, NULL },
     { "createStockEffect", NULL, create_stock_effect, NULL, NULL, NULL, napi_default, NULL },
     { "getEffectReflection", NULL, get_effect_reflection, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectParameters", NULL, get_effect_parameters, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectParameterValue", NULL, set_effect_parameter_value, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectParameterValue", NULL, get_effect_parameter_value, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectParameterValues", NULL, set_effect_parameter_values, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectParameterTexture", NULL, set_effect_parameter_texture, NULL, NULL, NULL, napi_default, NULL },
+    { "setEffectParameterString", NULL, set_effect_parameter_string, NULL, NULL, NULL, napi_default, NULL },
+    { "getEffectParameterValues", NULL, get_effect_parameter_values, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyEffectParameter", NULL, destroy_effect_parameter, NULL, NULL, NULL, napi_default, NULL },
     { "setEffectCurrentTechnique", NULL, set_effect_current_technique, NULL, NULL, NULL, napi_default, NULL },
     { "applyEffect", NULL, apply_effect, NULL, NULL, NULL, napi_default, NULL },
     { "applyEffectPass", NULL, apply_effect_pass, NULL, NULL, NULL, napi_default, NULL },
