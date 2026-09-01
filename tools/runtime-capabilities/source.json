@@ -2018,6 +2018,27 @@
         "route:cna_clustered_forward_effect_has_area_light",
         "test:test/native-cna.integration.mjs"
       ]
+    },
+    {
+      "operation": "Contact shadows: the short screen-space ray that catches what a shadow map misses",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the pass's two decisions are published as pure routes, so both are checked against their closed forms without a depth buffer. The occlusion test is a BAND, not a threshold, and every side of it is pinned: a surface does not shadow itself, nor does a ray within the bias of it, a ray behind it by more than the bias and less than the thickness is occluded, and one behind it by more than the thickness has gone around the occluder rather than into it -- which is what stops a contact shadow smearing into a streak behind every object, and is the half a one-sided test would get wrong. Both ends are exclusive, shown at the thickness end where the float arithmetic is exact, and a thickness equal to the bias leaves a band with nothing in it so nothing is ever occluded. The reference is computed in float rather than double, because at a boundary like 1.05 minus 1.0 the two land on opposite sides and the float one is what ships. Combining with a shadow map's own visibility is a clamped product: two half shadows compound rather than one winning, a visibility above one is clamped so it cannot brighten the other, and one below zero is clamped rather than flipping the sign. On a windowed renderer the pass compiles and runs, its own off switch is a byte-exact copy, and it names which input it was missing in a three-state ladder whose second state names the inverse view -- a different input from the one the aerial pass's second state names, so the two ladders are not one string. Five planted binding defects fail and none survives",
+      "proof": [
+        "route:cna_contact_shadow_pass_create",
+        "route:cna_contact_shadow_pass_is_occluded",
+        "route:cna_contact_shadow_pass_combine_visibility",
+        "route:cna_contact_shadow_pass_copy_occlusion_test_glsl",
+        "route:cna_contact_shadow_pass_copy_fallback_reason",
+        "route:cna_contact_shadow_pass_set_light_direction",
+        "route:cna_contact_shadow_pass_set_step_count",
+        "route:cna_contact_shadow_pass_set_thickness",
+        "route:cna_contact_shadow_pass_set_bias",
+        "route:cna_contact_shadow_pass_set_intensity",
+        "route:cna_contact_shadow_pass_set_max_distance",
+        "test:test/native-cna.integration.mjs",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
     }
   ]
 }

@@ -1290,6 +1290,23 @@ interface NativeBridge {
   setClusteredForwardAreaLight(effect: bigint, light: AreaLightSnapshot, table: bigint): void;
   hasClusteredForwardAreaLight(effect: bigint): boolean;
   clearClusteredForwardAreaLight(effect: bigint): void;
+  createContactShadowPass(graphicsDevice: bigint): bigint;
+  getContactShadowLightDirection(pass: bigint): Vector3Snapshot;
+  setContactShadowLightDirection(pass: bigint, value: Vector3Snapshot): void;
+  getContactShadowMaxDistance(pass: bigint): number;
+  setContactShadowMaxDistance(pass: bigint, value: number): void;
+  getContactShadowStepCount(pass: bigint): number;
+  setContactShadowStepCount(pass: bigint, value: number): void;
+  getContactShadowThickness(pass: bigint): number;
+  setContactShadowThickness(pass: bigint, value: number): void;
+  getContactShadowIntensity(pass: bigint): number;
+  setContactShadowIntensity(pass: bigint, value: number): void;
+  getContactShadowBias(pass: bigint): number;
+  setContactShadowBias(pass: bigint, value: number): void;
+  getContactShadowFallbackReason(pass: bigint): string;
+  isContactShadowOccluded(rayViewDepth: number, sceneViewDepth: number, bias: number, thickness: number): boolean;
+  getContactShadowOcclusionGlsl(): string;
+  combineContactShadowVisibility(shadowMapVisibility: number, contactVisibility: number): number;
   applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { Applied: number; Settings: PipelineSettingsSnapshot };
   getPipelinePassTiming(pipeline: bigint, index: number): { Milliseconds: number; SampleCount: number };
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -3851,6 +3868,25 @@ export class NodeNativeBackend
   public setClusteredForwardAreaLight(effect: NativeHandle, light: AreaLightSnapshot, table: NativeHandle): void { this.#bridge.setClusteredForwardAreaLight(effect, light, table); }
   public hasClusteredForwardAreaLight(effect: NativeHandle): boolean { return this.#bridge.hasClusteredForwardAreaLight(effect); }
   public clearClusteredForwardAreaLight(effect: NativeHandle): void { this.#bridge.clearClusteredForwardAreaLight(effect); }
+
+  // Contact shadows.
+  public createContactShadowPass(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createContactShadowPass(graphicsDevice); }
+  public getContactShadowLightDirection(pass: NativeHandle): Vector3Snapshot { return this.#bridge.getContactShadowLightDirection(pass); }
+  public setContactShadowLightDirection(pass: NativeHandle, value: Vector3Snapshot): void { this.#bridge.setContactShadowLightDirection(pass, value); }
+  public getContactShadowMaxDistance(pass: NativeHandle): number { return this.#bridge.getContactShadowMaxDistance(pass); }
+  public setContactShadowMaxDistance(pass: NativeHandle, value: number): void { this.#bridge.setContactShadowMaxDistance(pass, value); }
+  public getContactShadowStepCount(pass: NativeHandle): number { return this.#bridge.getContactShadowStepCount(pass); }
+  public setContactShadowStepCount(pass: NativeHandle, value: number): void { this.#bridge.setContactShadowStepCount(pass, value); }
+  public getContactShadowThickness(pass: NativeHandle): number { return this.#bridge.getContactShadowThickness(pass); }
+  public setContactShadowThickness(pass: NativeHandle, value: number): void { this.#bridge.setContactShadowThickness(pass, value); }
+  public getContactShadowIntensity(pass: NativeHandle): number { return this.#bridge.getContactShadowIntensity(pass); }
+  public setContactShadowIntensity(pass: NativeHandle, value: number): void { this.#bridge.setContactShadowIntensity(pass, value); }
+  public getContactShadowBias(pass: NativeHandle): number { return this.#bridge.getContactShadowBias(pass); }
+  public setContactShadowBias(pass: NativeHandle, value: number): void { this.#bridge.setContactShadowBias(pass, value); }
+  public getContactShadowFallbackReason(pass: NativeHandle): string { return this.#bridge.getContactShadowFallbackReason(pass); }
+  public isContactShadowOccluded(rayViewDepth: number, sceneViewDepth: number, bias: number, thickness: number): boolean { return this.#bridge.isContactShadowOccluded(rayViewDepth, sceneViewDepth, bias, thickness); }
+  public getContactShadowOcclusionGlsl(): string { return this.#bridge.getContactShadowOcclusionGlsl(); }
+  public combineContactShadowVisibility(shadowMapVisibility: number, contactVisibility: number): number { return this.#bridge.combineContactShadowVisibility(shadowMapVisibility, contactVisibility); }
   public applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { readonly Applied: number; readonly Settings: PipelineSettingsSnapshot } { return this.#bridge.applyPipelineSettingsFromString(settings, text); }
   public getPipelinePassTiming(pipeline: NativeHandle, index: number): { readonly Milliseconds: number; readonly SampleCount: number } { return this.#bridge.getPipelinePassTiming(pipeline, index); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }

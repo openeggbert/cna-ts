@@ -2995,6 +2995,118 @@ class WindowedProbeGame extends Game {
       }
     });
 
+    // --- contact shadows on a real renderer ----------------------------------------------------------
+    //
+    // Its two decisions are qualified headless against their closed forms. What a renderer adds is
+    // that the pass compiles, that its own off switch is an exact copy, and that it names which
+    // input it was missing rather than drawing a wrong picture -- a three-state ladder like the
+    // aerial pass's, and the second state names a different input from that one's.
+    record("contactShadow", () => {
+      const { ContactShadowPass, DepthNormalPrepassMath, IsGraphicsExtensionLayerAvailable } =
+        computeModule;
+      const N = 4;
+      const owned = [];
+      try {
+        let pass;
+        try {
+          pass = new ContactShadowPass(device);
+        } catch (error) {
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(pass);
+        const result = {
+          name: pass.Name,
+          supported: pass.IsSupportedOn(device),
+          defaults: {
+            direction: [
+              pass.LightDirection.X, pass.LightDirection.Y, pass.LightDirection.Z,
+            ],
+            maxDistance: pass.MaxDistance,
+            stepCount: pass.StepCount,
+            thickness: pass.Thickness,
+            intensity: pass.Intensity,
+            bias: pass.Bias,
+          },
+          fallbackBeforeAnyFrame: pass.FallbackReason,
+        };
+        // Every value differs from the default it replaces, the step count included -- CNA's own
+        // default is twelve, so writing twelve would have proved nothing.
+        pass.LightDirection = new Vector3(0.1, -0.9, 0.2);
+        pass.MaxDistance = 0.625;
+        pass.StepCount = 20;
+        pass.Thickness = 0.375;
+        pass.Intensity = 0.875;
+        pass.Bias = 0.03125;
+        result.written = {
+          direction: [pass.LightDirection.X, pass.LightDirection.Y, pass.LightDirection.Z],
+          maxDistance: pass.MaxDistance,
+          stepCount: pass.StepCount,
+          thickness: pass.Thickness,
+          intensity: pass.Intensity,
+          bias: pass.Bias,
+        };
+
+        const source = new Graphics.Texture2D(device, N, N);
+        owned.push(source);
+        source.SetData(new Array(N * N).fill(0).map(() => new Color(200, 100, 40, 255)));
+        const depth = new Graphics.Texture2D(device, N, N);
+        owned.push(depth);
+        depth.SetData(new Array(N * N).fill(0).map((_, index) => {
+          const packed = DepthNormalPrepassMath.PackDepth(0.2 + (index / (N * N)) * 0.5);
+          return new Color(packed.R, packed.G, packed.B, packed.A);
+        }));
+        const read = (texture) => {
+          const pixels = new Array(N * N);
+          texture.GetData(pixels);
+          return pixels.map((color) => [color.R, color.G, color.B]);
+        };
+        const sourcePixels = read(source);
+        const run = (extra) => {
+          const destination = new Graphics.RenderTarget2D(device, N, N);
+          try {
+            pass.Apply({ Source: source, Destination: destination, Width: N, Height: N, ...extra });
+            return read(destination);
+          } finally {
+            destination.Dispose();
+          }
+        };
+        const copied = (pixels) => pixels.every(
+          (texel, index) => texel.every((value, channel) => value === sourcePixels[index][channel]));
+
+        const view = Matrix.CreateLookAt(new Vector3(0, 0, 10), Vector3.Zero, Vector3.Up);
+        const projection = Matrix.CreatePerspectiveFieldOfView(Math.PI / 3, 1, 1, 100);
+        const camera = {
+          SourceDepth: depth, NearPlane: 1, FarPlane: 100, Projection: projection,
+          InverseProjection: Matrix.Invert(projection), InverseView: Matrix.Invert(view),
+        };
+        result.ladder = [];
+        result.ladder.push({ copied: copied(run({})), reason: pass.FallbackReason });
+        result.ladder.push({
+          copied: copied(run({ SourceDepth: depth, NearPlane: 1, FarPlane: 100 })),
+          reason: pass.FallbackReason,
+        });
+        run(camera);
+        result.ladder.push({ reason: pass.FallbackReason });
+        pass.Intensity = 0;
+        result.zeroIntensityIsACopy = copied(run(camera));
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch (error) {
+            (this.evidence.contactShadowCleanup ??= []).push(
+              `${error.constructor.name}: ${(error.message ?? "").slice(0, 90)}`,
+            );
+          }
+        }
+      }
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -5827,5 +5939,88 @@ test("a windowed CNA renderer adapts its exposure the way its own model says", {
   console.log(
     `CNA_TS_WINDOWED_EXPOSURE=PASS MEASURE=AVERAGE_CHANNEL ADAPT=EXPONENTIAL_TWO_SPEEDS ` +
     `TARGET=${brightTarget}/${darkTarget.toFixed(2)} SRGB_DRAW=EXACT_COPY UPSCALE=FLAT_PRESERVED`,
+  );
+});
+
+test("a windowed CNA renderer's contact shadow pass says which input it was missing", { skip }, async () => {
+  const game = new WindowedProbeGame(6);
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const contact = evidence.contactShadow;
+  assert.equal(typeof contact, "object", `the contact shadow block did not run: ${contact}`);
+  if (contact.layerAbsent) {
+    assert.equal(contact.extensionLayer, false);
+    console.log(`CNA_TS_WINDOWED_CONTACT_SHADOW=SKIPPED_NO_LAYER RESULT=${contact.cnaResult}`);
+    return;
+  }
+  assert.equal(
+    evidence.contactShadowCleanup, undefined, `cleanup failed: ${evidence.contactShadowCleanup}`);
+
+  assert.equal(contact.name, "ContactShadow", "the pass names itself for its GPU timing");
+  assert.equal(contact.supported, true, "and runs on this renderer");
+  assert.equal(
+    contact.fallbackBeforeAnyFrame, "",
+    "nothing has fallen back before the first frame",
+  );
+
+  // CNA's own defaults: a short ray straight down, because a contact shadow is a short-range trick.
+  assert.deepEqual(
+    contact.defaults.direction, [0, -1, 0], "the default light points straight down");
+  assert.ok(
+    contact.defaults.maxDistance > 0 && contact.defaults.maxDistance < 1,
+    `a contact shadow's reach is under a world unit, not ${contact.defaults.maxDistance}`,
+  );
+  assert.ok(contact.defaults.stepCount >= 4, "with enough steps to find something");
+  assert.ok(
+    contact.defaults.thickness > contact.defaults.bias,
+    "and a band with something in it: the thickness must exceed the bias or nothing is ever occluded",
+  );
+  assert.equal(contact.defaults.intensity, 1);
+
+  const close = (actual, expected, what) => assert.ok(
+    Math.abs(actual - expected) < 1e-5, `${what}: ${actual} vs ${expected}`);
+  contact.written.direction.forEach((value, index) => close(
+    value, [0.1, -0.9, 0.2][index], `direction ${index}`));
+  close(contact.written.maxDistance, 0.625, "max distance");
+  assert.equal(contact.written.stepCount, 20, "the step count is written, not left at its default");
+  assert.notEqual(
+    contact.written.stepCount, contact.defaults.stepCount,
+    "and it really differs from the default, or the setter would be unproven",
+  );
+  close(contact.written.thickness, 0.375, "thickness");
+  close(contact.written.intensity, 0.875, "intensity");
+  close(contact.written.bias, 0.03125, "bias");
+
+  // The ladder: three states, each naming what was missing, and the second names a different input
+  // from the aerial pass's second state -- this one needs the inverse view, not the whole camera.
+  assert.equal(contact.ladder.length, 3);
+  assert.equal(contact.ladder[0].copied, true, "with no depth image the pass copies its input");
+  assert.match(
+    contact.ladder[0].reason, /depth/i,
+    `and says the depth image was missing: ${contact.ladder[0].reason}`,
+  );
+  assert.equal(contact.ladder[1].copied, true, "with depth but no camera it still copies");
+  assert.match(
+    contact.ladder[1].reason, /view/i,
+    `and now names the view matrix it needs to bring the light into view space: ` +
+    `${contact.ladder[1].reason}`,
+  );
+  assert.notEqual(
+    contact.ladder[0].reason, contact.ladder[1].reason,
+    "the reason must change as inputs are supplied, or it names nothing in particular",
+  );
+  assert.equal(contact.ladder[2].reason, "", "and with everything supplied it falls back to nothing");
+
+  assert.equal(
+    contact.zeroIntensityIsACopy, true,
+    "a contact shadow of no intensity is an exact copy, whatever the ray finds",
+  );
+
+  console.log(
+    `CNA_TS_WINDOWED_CONTACT_SHADOW=PASS LADDER=3_STATES DEFAULTS=` +
+    `${contact.defaults.maxDistance}/${contact.defaults.stepCount}/${contact.defaults.thickness} ` +
+    `OFF=EXACT_COPY`,
   );
 });

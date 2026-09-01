@@ -580,6 +580,17 @@ Electron, or mobile support.
   way and watching only the two-sided light still reach it. The table reports the size and sample
   count the caller chose and its texture is exactly that size. Six planted defects fail and none
   survives.
+- [x] **Contact shadows**, whose two decisions are published and therefore checkable without a
+  depth buffer. The occlusion test is a **band**, not a threshold, and every side of it is pinned:
+  a surface does not shadow itself, nor does a ray within the bias; a ray behind it by more than the
+  bias and less than the thickness is occluded; and one behind it by more than the thickness has
+  gone *around* the occluder rather than into it — which is what stops a contact shadow smearing
+  into a streak behind every object, and is exactly the half a one-sided test gets wrong. A
+  thickness equal to the bias leaves a band with nothing in it, so nothing is ever occluded. The
+  reference is computed in **float** rather than double, because at a boundary like `1.05 − 1.0` the
+  two land on opposite sides and the float one is what ships. Combining with a shadow map's own
+  visibility is a clamped product, so two half shadows compound rather than one winning. Five
+  planted defects fail and none survives.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a
@@ -674,7 +685,7 @@ Electron, or mobile support.
 - [x] Generate machine-readable JSON and human-readable Markdown from one reviewed source.
 - [x] Every capability row carries machine-checkable proof and the generator refuses to write the
   document when a claim does not hold; mutation controls prove the gate can fail.
-- [x] Current baseline is 161 operation families: 21 verified managed, 99 verified native, 13
+- [x] Current baseline is 162 operation families: 21 verified managed, 100 verified native, 13
   verified WebAssembly, five explicitly unavailable on the qualified backend, five upstream-CNA
   blocked, three fixture pending, six hardware pending, three platform pending, two unimplemented
   in CNA-TS, three language-mapping limitations, and one not applicable to HEADLESS Linux.

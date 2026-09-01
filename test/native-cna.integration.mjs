@@ -9933,3 +9933,110 @@ test("an area light's shading maths is exact where it is closed and monotone whe
     `COVERAGE=${narrow.toFixed(3)}/${facing.toFixed(3)}/${wide.toFixed(3)} TABLE=MAGNITUDE_FALLS`,
   );
 });
+
+test("a contact shadow's two decisions are a band and a clamped product", async () => {
+  const { ContactShadowPass } = computeExtensions;
+
+  // --- one step of the ray -----------------------------------------------------------------------
+  // A band, not a threshold: further than the surface by more than the bias, and by less than the
+  // thickness. Written out here so both ends are checked rather than just the near one.
+  // In float, as CNA computes it -- at a boundary like 1.05 - 1.0 the double and the float answer
+  // land on opposite sides of the bias, and the float one is the one that ships.
+  const occluded = (ray, scene, bias, thickness) => {
+    const difference = Math.fround(Math.fround(ray) - Math.fround(scene));
+    return difference > Math.fround(bias) && difference < Math.fround(thickness);
+  };
+  for (const [ray, scene, bias, thickness] of [
+    [1, 1, 0.05, 0.5], [1.04, 1, 0.05, 0.5], [1.05, 1, 0.05, 0.5], [1.06, 1, 0.05, 0.5],
+    [1.3, 1, 0.05, 0.5], [1.49, 1, 0.05, 0.5], [1.5, 1, 0.05, 0.5], [1.51, 1, 0.05, 0.5],
+    [2, 1, 0.05, 0.5], [0.9, 1, 0.05, 0.5], [5, 4.9, 0.01, 0.2], [-1, -2, 0.5, 2],
+  ]) {
+    assert.equal(
+      ContactShadowPass.IsOccluded(ray, scene, bias, thickness),
+      occluded(ray, scene, bias, thickness),
+      `occlusion at ray ${ray} scene ${scene} bias ${bias} thickness ${thickness}`,
+    );
+  }
+  // The four facts that make it a band, named so a regression to a one-sided test is unmistakable.
+  assert.equal(
+    ContactShadowPass.IsOccluded(1, 1, 0.05, 0.5), false,
+    "a surface does not shadow itself",
+  );
+  assert.equal(
+    ContactShadowPass.IsOccluded(1.04, 1, 0.05, 0.5), false,
+    "nor does a ray within the bias of it",
+  );
+  assert.equal(
+    ContactShadowPass.IsOccluded(1.3, 1, 0.05, 0.5), true,
+    "a ray behind it by more than the bias and less than the thickness is occluded",
+  );
+  assert.equal(
+    ContactShadowPass.IsOccluded(2, 1, 0.05, 0.5), false,
+    "and one behind it by more than the thickness has gone AROUND the occluder, not into it -- " +
+    "which is what stops a contact shadow smearing into a streak behind every object",
+  );
+  assert.equal(
+    ContactShadowPass.IsOccluded(0.9, 1, 0.05, 0.5), false,
+    "a ray in front of the surface is not behind anything",
+  );
+  // Both ends are exclusive. The thickness end is the one that can be shown exactly, because
+  // 1.5 - 1 is 0.5 in float with nothing left over, and 0.5 < 0.5 is false.
+  assert.equal(
+    ContactShadowPass.IsOccluded(1.5, 1, 0.05, 0.5), false,
+    "a difference of exactly the thickness is outside the band, not on its edge",
+  );
+  assert.equal(
+    ContactShadowPass.IsOccluded(1.4999, 1, 0.05, 0.5), true,
+    "while anything below it is inside",
+  );
+  // A thickness at or below the bias is a band with nothing in it, which is a pass that shadows
+  // nothing rather than one that shadows everything.
+  for (const ray of [1, 1.1, 1.5, 2, 10]) {
+    assert.equal(
+      ContactShadowPass.IsOccluded(ray, 1, 0.5, 0.5), false,
+      `a thickness equal to the bias leaves no band, so ray ${ray} cannot be occluded`,
+    );
+  }
+
+  // --- and how it joins the shadow map's own answer -------------------------------------------------
+  // Both clamped, then multiplied: two partial shadows compound, and neither can brighten the other.
+  const combine = (a, b) => Math.min(Math.max(a, 0), 1) * Math.min(Math.max(b, 0), 1);
+  for (const [a, b] of [
+    [1, 1], [0.5, 1], [1, 0.5], [0.5, 0.5], [0, 1], [1, 0], [0, 0],
+    [2, 0.5], [-1, 0.5], [0.5, 2], [0.5, -1], [0.25, 0.25],
+  ]) {
+    assert.ok(
+      Math.abs(ContactShadowPass.CombineVisibility(a, b) - combine(a, b)) < 1e-6,
+      `combining ${a} and ${b}: ${ContactShadowPass.CombineVisibility(a, b)} vs ${combine(a, b)}`,
+    );
+  }
+  assert.equal(
+    ContactShadowPass.CombineVisibility(0.5, 0.5), 0.25,
+    "two half shadows compound rather than one winning: it is a product, not a minimum",
+  );
+  assert.equal(
+    ContactShadowPass.CombineVisibility(2, 0.5), 0.5,
+    "a visibility above one is clamped, so it cannot brighten the other",
+  );
+  assert.equal(
+    ContactShadowPass.CombineVisibility(-1, 0.5), 0,
+    "and one below zero is clamped rather than flipping the sign of the result",
+  );
+  assert.equal(
+    ContactShadowPass.CombineVisibility(0, 1), 0,
+    "anything fully shadowed by either stays fully shadowed",
+  );
+
+  const glsl = ContactShadowPass.OcclusionGlsl;
+  assert.equal(typeof glsl, "string");
+  assert.ok(glsl.length > 100, `the occlusion source is too short to be GLSL: ${glsl.length}`);
+  assert.ok(glsl.includes("bias") && glsl.includes("thickness"), "and names both ends of the band");
+
+  assert.throws(() => ContactShadowPass.IsOccluded(Number.NaN, 1, 0, 1), TypeError);
+  assert.throws(() => ContactShadowPass.CombineVisibility(Number.NaN, 1), TypeError);
+
+  console.log(
+    `CNA_TS_NATIVE_CONTACT_SHADOW=PASS OCCLUSION=STRICT_BAND COMBINE=CLAMPED_PRODUCT ` +
+    `GLSL=${glsl.length}`,
+  );
+});

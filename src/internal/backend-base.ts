@@ -2282,6 +2282,65 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public clearClusteredForwardAreaLight(
     _effect: NativeHandle,
   ): void { return this.unsupported("clearClusteredForwardAreaLight"); }
+  public createContactShadowPass(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createContactShadowPass"); }
+  public getContactShadowLightDirection(
+    _pass: NativeHandle,
+  ): Vector3Snapshot { return this.unsupported("getContactShadowLightDirection"); }
+  public setContactShadowLightDirection(
+    _pass: NativeHandle,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setContactShadowLightDirection"); }
+  public getContactShadowMaxDistance(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getContactShadowMaxDistance"); }
+  public setContactShadowMaxDistance(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setContactShadowMaxDistance"); }
+  public getContactShadowStepCount(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getContactShadowStepCount"); }
+  public setContactShadowStepCount(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setContactShadowStepCount"); }
+  public getContactShadowThickness(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getContactShadowThickness"); }
+  public setContactShadowThickness(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setContactShadowThickness"); }
+  public getContactShadowIntensity(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getContactShadowIntensity"); }
+  public setContactShadowIntensity(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setContactShadowIntensity"); }
+  public getContactShadowBias(
+    _pass: NativeHandle,
+  ): number { return this.unsupported("getContactShadowBias"); }
+  public setContactShadowBias(
+    _pass: NativeHandle,
+    _value: number,
+  ): void { return this.unsupported("setContactShadowBias"); }
+  public getContactShadowFallbackReason(
+    _pass: NativeHandle,
+  ): string { return this.unsupported("getContactShadowFallbackReason"); }
+  public isContactShadowOccluded(
+    _rayViewDepth: number,
+    _sceneViewDepth: number,
+    _bias: number,
+    _thickness: number,
+  ): boolean { return this.unsupported("isContactShadowOccluded"); }
+  public getContactShadowOcclusionGlsl(): string { return this.unsupported("getContactShadowOcclusionGlsl"); }
+  public combineContactShadowVisibility(
+    _shadowMapVisibility: number,
+    _contactVisibility: number,
+  ): number { return this.unsupported("combineContactShadowVisibility"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,

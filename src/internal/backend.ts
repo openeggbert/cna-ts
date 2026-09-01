@@ -1422,6 +1422,28 @@ export interface CnaGraphicsExtensionBackend {
   ): void;
   hasClusteredForwardAreaLight(effect: NativeHandle): boolean;
   clearClusteredForwardAreaLight(effect: NativeHandle): void;
+  // --- contact shadows ---------------------------------------------------------------------------
+  createContactShadowPass(graphicsDevice: NativeHandle): NativeHandle;
+  getContactShadowLightDirection(pass: NativeHandle): Vector3Snapshot;
+  setContactShadowLightDirection(pass: NativeHandle, value: Vector3Snapshot): void;
+  getContactShadowMaxDistance(pass: NativeHandle): number;
+  setContactShadowMaxDistance(pass: NativeHandle, value: number): void;
+  getContactShadowStepCount(pass: NativeHandle): number;
+  setContactShadowStepCount(pass: NativeHandle, value: number): void;
+  getContactShadowThickness(pass: NativeHandle): number;
+  setContactShadowThickness(pass: NativeHandle, value: number): void;
+  getContactShadowIntensity(pass: NativeHandle): number;
+  setContactShadowIntensity(pass: NativeHandle, value: number): void;
+  getContactShadowBias(pass: NativeHandle): number;
+  setContactShadowBias(pass: NativeHandle, value: number): void;
+  getContactShadowFallbackReason(pass: NativeHandle): string;
+  isContactShadowOccluded(
+    rayViewDepth: number, sceneViewDepth: number, bias: number, thickness: number,
+  ): boolean;
+  getContactShadowOcclusionGlsl(): string;
+  combineContactShadowVisibility(
+    shadowMapVisibility: number, contactVisibility: number,
+  ): number;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;

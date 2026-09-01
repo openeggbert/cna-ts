@@ -1002,6 +1002,9 @@ typedef CNA_Result (*AreaContributionFn)(const CNA_AreaLightEXT*, const CNA_Vect
 typedef CNA_Result (*AreaLobeScaleFn)(float, float*);
 typedef CNA_Result (*ClusteredSetAreaLightFn)(CNA_Handle, const CNA_AreaLightEXT*, CNA_Handle);
 
+typedef CNA_Result (*ContactOccludedFn)(float, float, float, float, CNA_Bool*);
+typedef CNA_Result (*ContactCombineFn)(float, float, float*);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2633,6 +2636,23 @@ typedef struct Api {
   ClusteredSetAreaLightFn clustered_forward_effect_set_area_light;
   BoolGetFn clustered_forward_effect_has_area_light;
   GameHandleFn clustered_forward_effect_clear_area_light;
+  PostProcessPassCreateFn contact_shadow_pass_create;
+  SkyVector3OutFn contact_shadow_pass_get_light_direction;
+  SkyVector3InFn contact_shadow_pass_set_light_direction;
+  HandleFloatOutFn contact_shadow_pass_get_max_distance;
+  HandleFloatFn contact_shadow_pass_set_max_distance;
+  HandleI32OutFn contact_shadow_pass_get_step_count;
+  HandleI32Fn contact_shadow_pass_set_step_count;
+  HandleFloatOutFn contact_shadow_pass_get_thickness;
+  HandleFloatFn contact_shadow_pass_set_thickness;
+  HandleFloatOutFn contact_shadow_pass_get_intensity;
+  HandleFloatFn contact_shadow_pass_set_intensity;
+  HandleFloatOutFn contact_shadow_pass_get_bias;
+  HandleFloatFn contact_shadow_pass_set_bias;
+  HandleCopyStringFn contact_shadow_pass_copy_fallback_reason;
+  ContactOccludedFn contact_shadow_pass_is_occluded;
+  GpuCullGlslFn contact_shadow_pass_copy_occlusion_test_glsl;
+  ContactCombineFn contact_shadow_pass_combine_visibility;
 } Api;
 
 typedef struct GameContext {
@@ -4551,6 +4571,23 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(clustered_forward_effect_set_area_light, ClusteredSetAreaLightFn, "cna_clustered_forward_effect_set_area_light");
   LOAD_REQUIRED(clustered_forward_effect_has_area_light, BoolGetFn, "cna_clustered_forward_effect_has_area_light");
   LOAD_REQUIRED(clustered_forward_effect_clear_area_light, GameHandleFn, "cna_clustered_forward_effect_clear_area_light");
+  LOAD_REQUIRED(contact_shadow_pass_create, PostProcessPassCreateFn, "cna_contact_shadow_pass_create");
+  LOAD_REQUIRED(contact_shadow_pass_get_light_direction, SkyVector3OutFn, "cna_contact_shadow_pass_get_light_direction");
+  LOAD_REQUIRED(contact_shadow_pass_set_light_direction, SkyVector3InFn, "cna_contact_shadow_pass_set_light_direction");
+  LOAD_REQUIRED(contact_shadow_pass_get_max_distance, HandleFloatOutFn, "cna_contact_shadow_pass_get_max_distance");
+  LOAD_REQUIRED(contact_shadow_pass_set_max_distance, HandleFloatFn, "cna_contact_shadow_pass_set_max_distance");
+  LOAD_REQUIRED(contact_shadow_pass_get_step_count, HandleI32OutFn, "cna_contact_shadow_pass_get_step_count");
+  LOAD_REQUIRED(contact_shadow_pass_set_step_count, HandleI32Fn, "cna_contact_shadow_pass_set_step_count");
+  LOAD_REQUIRED(contact_shadow_pass_get_thickness, HandleFloatOutFn, "cna_contact_shadow_pass_get_thickness");
+  LOAD_REQUIRED(contact_shadow_pass_set_thickness, HandleFloatFn, "cna_contact_shadow_pass_set_thickness");
+  LOAD_REQUIRED(contact_shadow_pass_get_intensity, HandleFloatOutFn, "cna_contact_shadow_pass_get_intensity");
+  LOAD_REQUIRED(contact_shadow_pass_set_intensity, HandleFloatFn, "cna_contact_shadow_pass_set_intensity");
+  LOAD_REQUIRED(contact_shadow_pass_get_bias, HandleFloatOutFn, "cna_contact_shadow_pass_get_bias");
+  LOAD_REQUIRED(contact_shadow_pass_set_bias, HandleFloatFn, "cna_contact_shadow_pass_set_bias");
+  LOAD_REQUIRED(contact_shadow_pass_copy_fallback_reason, HandleCopyStringFn, "cna_contact_shadow_pass_copy_fallback_reason");
+  LOAD_REQUIRED(contact_shadow_pass_is_occluded, ContactOccludedFn, "cna_contact_shadow_pass_is_occluded");
+  LOAD_REQUIRED(contact_shadow_pass_copy_occlusion_test_glsl, GpuCullGlslFn, "cna_contact_shadow_pass_copy_occlusion_test_glsl");
+  LOAD_REQUIRED(contact_shadow_pass_combine_visibility, ContactCombineFn, "cna_contact_shadow_pass_combine_visibility");
   LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
   LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
   LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
@@ -26457,10 +26494,139 @@ static napi_value bridge_area_light_shading_copy_shading_glsl(napi_env env, napi
   return copy_static_text(env, g_api.area_light_shading_copy_shading_glsl, "cna_area_light_shading_copy_shading_glsl");
 }
 
+/* ---- contact shadows: the short screen-space ray that catches what a shadow map misses ---------
+   Its two decisions are published as pure routes -- whether a step is occluded, and how the result
+   combines with a shadow map's own -- so both are checkable without a depth buffer. */
+
+static napi_value bridge_contact_shadow_pass_is_occluded(napi_env env, napi_callback_info info) {
+  napi_value args[4], output;
+  double values[4] = {0, 0, 0, 0};
+  CNA_Bool occluded = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 4, args)) return NULL;
+  for (int index = 0; index < 4; index += 1) {
+    if (napi_get_value_double(env, args[index], &values[index]) != napi_ok) {
+      return throw_message(env, "expected a ray depth, a scene depth, a bias and a thickness");
+    }
+  }
+  const CNA_Result result = g_api.contact_shadow_pass_is_occluded(
+    (float) values[0], (float) values[1], (float) values[2], (float) values[3], &occluded);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_contact_shadow_pass_is_occluded", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_get_boolean(env, occluded != CNA_FALSE, &output),
+    "cna_contact_shadow_pass_is_occluded");
+  return output;
+}
+
+static napi_value bridge_contact_shadow_pass_combine_visibility(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  double shadowMap = 0, contact = 0;
+  float combined = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      napi_get_value_double(env, args[0], &shadowMap) != napi_ok ||
+      napi_get_value_double(env, args[1], &contact) != napi_ok) {
+    return throw_message(env, "expected two visibilities");
+  }
+  const CNA_Result result = g_api.contact_shadow_pass_combine_visibility(
+    (float) shadowMap, (float) contact, &combined);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_contact_shadow_pass_combine_visibility", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_double(env, (double) combined, &output),
+    "cna_contact_shadow_pass_combine_visibility");
+  return output;
+}
+
+static napi_value bridge_contact_shadow_pass_create(napi_env env, napi_callback_info info) {
+  return pp_create(env, info, g_api.contact_shadow_pass_create, "cna_contact_shadow_pass_create");
+}
+
+static napi_value bridge_contact_shadow_pass_get_light_direction(napi_env env, napi_callback_info info) {
+  return probe_vector3(env, info, g_api.contact_shadow_pass_get_light_direction, "cna_contact_shadow_pass_get_light_direction");
+}
+
+static napi_value bridge_contact_shadow_pass_set_light_direction(napi_env env, napi_callback_info info) {
+  return sky_set_vector3(env, info, g_api.contact_shadow_pass_set_light_direction, "cna_contact_shadow_pass_set_light_direction");
+}
+
+static napi_value bridge_contact_shadow_pass_get_max_distance(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.contact_shadow_pass_get_max_distance, "cna_contact_shadow_pass_get_max_distance");
+}
+
+static napi_value bridge_contact_shadow_pass_set_max_distance(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.contact_shadow_pass_set_max_distance, "cna_contact_shadow_pass_set_max_distance");
+}
+
+static napi_value bridge_contact_shadow_pass_get_step_count(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.contact_shadow_pass_get_step_count, "cna_contact_shadow_pass_get_step_count");
+}
+
+static napi_value bridge_contact_shadow_pass_set_step_count(napi_env env, napi_callback_info info) {
+  return pp_set_i32(env, info, g_api.contact_shadow_pass_set_step_count, "cna_contact_shadow_pass_set_step_count");
+}
+
+static napi_value bridge_contact_shadow_pass_get_thickness(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.contact_shadow_pass_get_thickness, "cna_contact_shadow_pass_get_thickness");
+}
+
+static napi_value bridge_contact_shadow_pass_set_thickness(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.contact_shadow_pass_set_thickness, "cna_contact_shadow_pass_set_thickness");
+}
+
+static napi_value bridge_contact_shadow_pass_get_intensity(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.contact_shadow_pass_get_intensity, "cna_contact_shadow_pass_get_intensity");
+}
+
+static napi_value bridge_contact_shadow_pass_set_intensity(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.contact_shadow_pass_set_intensity, "cna_contact_shadow_pass_set_intensity");
+}
+
+static napi_value bridge_contact_shadow_pass_get_bias(napi_env env, napi_callback_info info) {
+  return pp_get_float(env, info, g_api.contact_shadow_pass_get_bias, "cna_contact_shadow_pass_get_bias");
+}
+
+static napi_value bridge_contact_shadow_pass_set_bias(napi_env env, napi_callback_info info) {
+  return pp_set_float(env, info, g_api.contact_shadow_pass_set_bias, "cna_contact_shadow_pass_set_bias");
+}
+
+static napi_value bridge_contact_shadow_pass_copy_fallback_reason(napi_env env, napi_callback_info info) {
+  return copy_sized_text(env, info, g_api.contact_shadow_pass_copy_fallback_reason, "cna_contact_shadow_pass_copy_fallback_reason");
+}
+
+static napi_value bridge_contact_shadow_pass_copy_occlusion_test_glsl(
+  napi_env env, napi_callback_info info
+) {
+  (void) info;
+  return copy_static_text(
+    env, g_api.contact_shadow_pass_copy_occlusion_test_glsl,
+    "cna_contact_shadow_pass_copy_occlusion_test_glsl");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "createContactShadowPass", NULL, bridge_contact_shadow_pass_create, NULL, NULL, NULL, napi_default, NULL },
+    { "getContactShadowLightDirection", NULL, bridge_contact_shadow_pass_get_light_direction, NULL, NULL, NULL, napi_default, NULL },
+    { "setContactShadowLightDirection", NULL, bridge_contact_shadow_pass_set_light_direction, NULL, NULL, NULL, napi_default, NULL },
+    { "getContactShadowMaxDistance", NULL, bridge_contact_shadow_pass_get_max_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "setContactShadowMaxDistance", NULL, bridge_contact_shadow_pass_set_max_distance, NULL, NULL, NULL, napi_default, NULL },
+    { "getContactShadowStepCount", NULL, bridge_contact_shadow_pass_get_step_count, NULL, NULL, NULL, napi_default, NULL },
+    { "setContactShadowStepCount", NULL, bridge_contact_shadow_pass_set_step_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getContactShadowThickness", NULL, bridge_contact_shadow_pass_get_thickness, NULL, NULL, NULL, napi_default, NULL },
+    { "setContactShadowThickness", NULL, bridge_contact_shadow_pass_set_thickness, NULL, NULL, NULL, napi_default, NULL },
+    { "getContactShadowIntensity", NULL, bridge_contact_shadow_pass_get_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "setContactShadowIntensity", NULL, bridge_contact_shadow_pass_set_intensity, NULL, NULL, NULL, napi_default, NULL },
+    { "getContactShadowBias", NULL, bridge_contact_shadow_pass_get_bias, NULL, NULL, NULL, napi_default, NULL },
+    { "setContactShadowBias", NULL, bridge_contact_shadow_pass_set_bias, NULL, NULL, NULL, napi_default, NULL },
+    { "getContactShadowFallbackReason", NULL, bridge_contact_shadow_pass_copy_fallback_reason, NULL, NULL, NULL, napi_default, NULL },
+    { "isContactShadowOccluded", NULL, bridge_contact_shadow_pass_is_occluded, NULL, NULL, NULL, napi_default, NULL },
+    { "getContactShadowOcclusionGlsl", NULL, bridge_contact_shadow_pass_copy_occlusion_test_glsl, NULL, NULL, NULL, napi_default, NULL },
+    { "combineContactShadowVisibility", NULL, bridge_contact_shadow_pass_combine_visibility, NULL, NULL, NULL, napi_default, NULL },
     { "getDefaultAreaLight", NULL, bridge_area_light_ext_init, NULL, NULL, NULL, napi_default, NULL },
     { "isAreaLightValid", NULL, bridge_area_light_ext_is_valid, NULL, NULL, NULL, napi_default, NULL },
     { "createAreaLightBrdfTable", NULL, bridge_area_light_brdf_table_create, NULL, NULL, NULL, napi_default, NULL },

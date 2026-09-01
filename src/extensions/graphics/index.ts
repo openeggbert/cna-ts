@@ -8809,3 +8809,119 @@ export class AreaLightBrdfTable implements IDisposable {
     return extensions().getAreaLightBrdfLookupGlsl();
   }
 }
+
+/* ================================================================================================
+ * Contact shadows
+ * ==============================================================================================*/
+
+/**
+ * The short screen-space ray that catches what a shadow map's resolution misses.
+ *
+ * A shadow map cannot resolve the contact between an object and the surface it rests on; this
+ * marches a few steps through the depth buffer towards the light and darkens where it hits
+ * something. Its two decisions are published as pure functions — {@link IsOccluded} for one step
+ * and {@link CombineVisibility} for the result — so both can be checked without a depth buffer.
+ *
+ * It needs a depth image and a camera, and says which it was missing through
+ * {@link FallbackReason} rather than drawing a wrong picture.
+ */
+export class ContactShadowPass extends PostProcessPass {
+  public constructor(graphicsDevice: GraphicsDevice) {
+    super(extensions().createContactShadowPass(postProcessDeviceHandle(graphicsDevice)));
+  }
+
+  /** Which way the light is, which is the way the ray marches. */
+  public get LightDirection(): Vector3 {
+    return toVector3(extensions().getContactShadowLightDirection(this.HandleForInternalUse));
+  }
+  public set LightDirection(value: Vector3) {
+    extensions().setContactShadowLightDirection(
+      this.HandleForInternalUse, vectorSnapshot(value, "LightDirection"));
+  }
+
+  /** How far the ray travels before it gives up, in world units. */
+  public get MaxDistance(): number {
+    return extensions().getContactShadowMaxDistance(this.HandleForInternalUse);
+  }
+  public set MaxDistance(value: number) {
+    extensions().setContactShadowMaxDistance(this.HandleForInternalUse, finite(value, "MaxDistance"));
+  }
+
+  /** How many samples it takes along the way. */
+  public get StepCount(): number {
+    return extensions().getContactShadowStepCount(this.HandleForInternalUse);
+  }
+  public set StepCount(value: number) {
+    extensions().setContactShadowStepCount(this.HandleForInternalUse, wholeNumber(value, "StepCount"));
+  }
+
+  /**
+   * How thick an occluder is assumed to be.
+   *
+   * The depth buffer records a surface, not a solid, so the pass has to guess how far behind that
+   * surface the object continues. A ray further behind it than this has passed *around* the
+   * occluder rather than into it — see {@link IsOccluded}.
+   */
+  public get Thickness(): number {
+    return extensions().getContactShadowThickness(this.HandleForInternalUse);
+  }
+  public set Thickness(value: number) {
+    extensions().setContactShadowThickness(this.HandleForInternalUse, finite(value, "Thickness"));
+  }
+
+  /** How dark the shadow it finds is. Zero adds nothing. */
+  public get Intensity(): number {
+    return extensions().getContactShadowIntensity(this.HandleForInternalUse);
+  }
+  public set Intensity(value: number) {
+    extensions().setContactShadowIntensity(this.HandleForInternalUse, finite(value, "Intensity"));
+  }
+
+  /** How far in front of a surface a ray must be before it counts as behind it. */
+  public get Bias(): number {
+    return extensions().getContactShadowBias(this.HandleForInternalUse);
+  }
+  public set Bias(value: number) {
+    extensions().setContactShadowBias(this.HandleForInternalUse, finite(value, "Bias"));
+  }
+
+  /** Why the last frame fell back to a copy, in CNA's own words, or `""` when it did not. */
+  public get FallbackReason(): string {
+    return extensions().getContactShadowFallbackReason(this.HandleForInternalUse);
+  }
+
+  /**
+   * Whether one step of the ray is behind something, as a pure function of two depths.
+   *
+   * A **band**, not a threshold: the ray must be further from the camera than the surface by more
+   * than the bias — so a surface does not shadow itself — and by less than the thickness, because
+   * past that the ray has gone around the occluder rather than into it. Getting only the first half
+   * right is what makes a contact shadow smear into a long streak behind every object.
+   */
+  public static IsOccluded(
+    rayViewDepth: number, sceneViewDepth: number, bias: number, thickness: number,
+  ): boolean {
+    return extensions().isContactShadowOccluded(
+      finite(rayViewDepth, "rayViewDepth"), finite(sceneViewDepth, "sceneViewDepth"),
+      finite(bias, "bias"), finite(thickness, "thickness"));
+  }
+
+  /**
+   * How a contact shadow joins the shadow map's own answer: both clamped, then multiplied.
+   *
+   * Multiplied rather than taken as a minimum, so two partial shadows compound; and clamped first,
+   * so neither can brighten the other by being handed a number above one.
+   */
+  public static CombineVisibility(
+    shadowMapVisibility: number, contactVisibility: number,
+  ): number {
+    return extensions().combineContactShadowVisibility(
+      finite(shadowMapVisibility, "shadowMapVisibility"),
+      finite(contactVisibility, "contactVisibility"));
+  }
+
+  /** CNA's own GLSL for the occlusion test, for a shader that wants to do it itself. */
+  public static get OcclusionGlsl(): string {
+    return extensions().getContactShadowOcclusionGlsl();
+  }
+}
