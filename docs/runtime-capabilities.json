@@ -6,14 +6,14 @@
   "granularity": "Each row is a reviewed operation family; overloads with the same implementation and evidence share a row.",
   "sourceAudit": {
     "root": "src/Microsoft/Xna/Framework",
-    "nativeUnavailableErrorSites": 63,
+    "nativeUnavailableErrorSites": 64,
     "notSupportedExceptionSites": 7,
-    "filesWithExplicitFailureSites": 23,
-    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it. The count fell by one when VideoPlayer.GetTexture stopped refusing outright and began projecting CNA's borrowed frame. It rose by one when Texture3D gained the adopting construction the colour grade's volume LUT arrives through. It rose by one again when Effect gained the internal teardown hook a native model-mesh-part side-car uses to clear its retained effect slot before the effect is released."
+    "filesWithExplicitFailureSites": 24,
+    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it. The count fell by one when VideoPlayer.GetTexture stopped refusing outright and began projecting CNA's borrowed frame. It rose by one when Texture3D gained the adopting construction the colour grade's volume LUT arrives through. It rose by one again when Effect gained the internal teardown hook a native model-mesh-part side-car uses to clear its retained effect slot before the effect is released. It rose once more, and brought a new file with it, when AvatarDescription began reaching CNA for the body type, height and validity it used to invent -- Avatars.ts had refused everything up to then and so had no boundary of its own."
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 110,
+    "VERIFIED_NATIVE": 111,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 5,
@@ -511,6 +511,20 @@
         "route:cna_auto_exposure_ext_get_brightening_speed",
         "route:cna_auto_exposure_ext_get_darkening_speed",
         "test:test/windowed-renderer.integration.mjs"
+      ]
+    },
+    {
+      "operation": "AvatarDescription: construction from bytes, and XNA's non-random CreateRandom",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "Projected because it needs nothing this host lacks -- no gamer, no sign-in, no service -- while the renderer and the get-from-gamer routes still refuse, which the test asserts separately so that nothing here is mistaken for a fabricated service. What CreateRandom returns is the finding: 1021 zero bytes, identical every call, IsValid false, and the bodyType overload validates its argument and then ignores it. That is XNA's own behaviour, not a CNA stub -- CNA's source says \"the real XNA implementation never actually randomizes anything ... Preserved exactly, not fixed\" -- so the projection hands back the zeros rather than inventing the variety the name implies, and the test asserts both body types produce the same bytes so that a projection which quietly started honouring the argument would fail. The byte constructor also stopped lying: it used to accept any length and report Male for anything, and now CNA reads the body type, the height and the validity out of the bytes and refuses any length but 1021. Three measurements were needed to get this right; the first two were probe defects and nothing was filed from them. CNA's body-type overload is deliberately not imported: it validates its argument and then ignores it, so its output is byte-identical to the plain route's and importing it would add a route that provably cannot change any observable. A planted defect proved exactly that -- routing the body type or not made no difference -- and the route went rather than the mutation being explained away",
+      "proof": [
+        "route:cna_avatar_description_create",
+        "route:cna_avatar_description_create_random",
+        "route:cna_avatar_description_get_info",
+        "route:cna_avatar_description_copy_description",
+        "route:cna_avatar_description_destroy",
+        "test:test/avatar-description.integration.mjs"
       ]
     },
     {

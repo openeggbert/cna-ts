@@ -6,8 +6,8 @@
   ],
   "totalFunctions": 4054,
   "totals": {
-    "XNA_BACKING": 1587,
-    "CNA_EXTENSION_BACKING": 1870,
+    "XNA_BACKING": 1586,
+    "CNA_EXTENSION_BACKING": 1871,
     "INTERNAL_RUNTIME_ONLY": 1,
     "MANAGED_BY_DESIGN": 556,
     "TOOLING_ONLY": 31,
@@ -16,18 +16,18 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 1843,
+    "NODE": 1848,
     "WASM": 276
   },
-  "reachableByAny": 1843,
+  "reachableByAny": 1848,
   "reachableByAll": 276,
   "reachableExclusively": {
-    "NODE": 1567,
+    "NODE": 1572,
     "WASM": 0
   },
   "reachabilityByCategory": {
     "XNA_BACKING": {
-      "NODE": 508,
+      "NODE": 513,
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
@@ -124,8 +124,9 @@
       "REACHABLE_NODE": 857
     },
     "gamer_services.h": {
-      "XNA_BACKING": 250,
-      "REACHABLE_NODE": 31
+      "XNA_BACKING": 249,
+      "REACHABLE_NODE": 36,
+      "CNA_EXTENSION_BACKING": 1
     },
     "geometry.h": {
       "MANAGED_BY_DESIGN": 94
@@ -2428,84 +2429,84 @@
       "name": "cna_avatar_animation_copy_real_clip_name_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_animation_create",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_animation_destroy",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_animation_get_bone_transform_at",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_animation_get_expression",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_animation_get_info",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_animation_get_real_clip_name_size_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_animation_preset_copy_clip_name_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_animation_preset_get_clip_name_size_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_animation_set_current_position",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_animation_set_real_clip_name_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_animation_update",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
@@ -2533,56 +2534,66 @@
       "name": "cna_avatar_description_copy_description",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_avatar_description_create",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_avatar_description_create_random",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_avatar_description_create_random_for_body_type",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
       "backends": []
     },
     {
       "name": "cna_avatar_description_destroy",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_avatar_description_get_from_gamer",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
       "backends": []
     },
     {
       "name": "cna_avatar_description_get_info",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
-      "backends": []
+      "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_avatar_description_subscribe_changed_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface",
       "backends": []
     },
     {
@@ -2596,98 +2607,98 @@
       "name": "cna_avatar_renderer_create",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_destroy",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_draw_animation",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_draw_bones",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_draw_real_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_enable_real_rendering_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_get_bind_pose_at",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_get_info",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_get_lighting",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_get_parent_bone_at",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_get_transforms",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_set_appearance_ext",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_set_lighting",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
       "name": "cna_avatar_renderer_set_transforms",
       "header": "gamer_services.h",
       "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing",
       "backends": []
     },
     {
@@ -26811,8 +26822,8 @@
     {
       "name": "cna_signed_in_gamer_create_ext",
       "header": "gamer_services.h",
-      "category": "XNA_BACKING",
-      "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's hook for a *platform layer* to publish a signed-in gamer, which its own header says in as many words. Calling it from a binding would be inventing the player, and everything downstream -- sessions, achievements, leaderboards, an avatar off a gamer -- would then be claims about someone who does not exist. Deliberately not called; see docs/non-engine-census.md",
       "backends": []
     },
     {

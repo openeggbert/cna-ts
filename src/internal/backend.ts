@@ -2677,6 +2677,20 @@ export interface CnaLodBackend {
   getLodProjectedRadiusPixels(group: NativeHandle, distance: number): number;
 }
 
+/** An avatar description, copied whole: exactly 1021 bytes plus what CNA reads out of them. */
+export interface AvatarDescriptionSnapshot {
+  readonly BodyType: number;
+  readonly Height: number;
+  readonly IsValid: boolean;
+  readonly Description: Uint8Array;
+}
+
+/** CNA's avatar descriptions, which need no gamer service. */
+export interface CnaAvatarBackend {
+  createAvatarDescription(bytes: Uint8Array): AvatarDescriptionSnapshot;
+  createRandomAvatarDescription(): AvatarDescriptionSnapshot;
+}
+
 /** One song as CNA's media index describes it. Relationships are names, not handles. */
 export interface MediaSongSnapshot {
   readonly Name: string;
@@ -3458,6 +3472,7 @@ export interface CnaBackend {
   readonly ContentSurvey?: CnaContentSurveyBackend;
   readonly InputDeviceInventory?: CnaInputDeviceInventoryBackend;
   readonly MediaLibrary?: CnaMediaLibraryBackend;
+  readonly Avatars?: CnaAvatarBackend;
   readonly InstancedRenderer?: CnaInstancedRendererBackend;
   readonly Shadows?: CnaShadowBackend;
   readonly DepthNormalPrepass?: CnaDepthNormalPrepassBackend;

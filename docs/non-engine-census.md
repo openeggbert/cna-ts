@@ -20,9 +20,10 @@ Three families were **not blocked at all** — CNA answers, and this package was
 | the clipboard | writable, not readable | reads round-trip exactly, non-ASCII included |
 | attached input devices | nothing projected | one mouse and one keyboard, by the platform's own names |
 
-A fourth is the same shape and is recorded below rather than fixed here:
-`AvatarDescription.CreateRandom()` refuses, while `cna_avatar_description_create_random` succeeds
-with no platform service and produces a different 1021-byte description each time.
+A fourth was **almost** a fourth. `AvatarDescription.CreateRandom()` refused while CNA answers it
+with no platform service — so it is projected now — but what CNA answers is not what the name
+suggests, and getting that right took three measurements. See
+[Avatar descriptions](#avatar-descriptions-the-answer-is-real-the-name-is-not).
 
 Two families were **confirmed blocked**, with better reasons than before:
 
@@ -116,6 +117,31 @@ claim built on that would be false. The strict surface keeps refusing with
 A synthetic-gamer *test hook*, in the style of the existing `CnaCamera.OpenForTests`, is the one
 honest way this could become locally exercisable. It is recorded as a possibility, not done.
 
+### Avatar descriptions: the answer is real, the name is not
+
+`AvatarDescription.CreateRandom()` refused here, and `cna_avatar_description_create_random`
+succeeds with no gamer, no sign-in and no service. So it is projected — along with the byte
+constructor, which used to accept any length and report a body type it had invented.
+
+What it returns is the part worth writing down: **1021 zero bytes, identical every call, with
+`IsValid` false, and the `bodyType` overload validates its argument and then ignores it.** That is
+not a CNA stub. CNA's own source says so:
+
+```cpp
+// Despite the name, the real XNA implementation never actually randomizes anything -
+// always an all-zero (invalid) description. Preserved exactly, not "fixed."
+```
+
+So the honest projection is the one that hands back the zeros, and
+`test/avatar-description.integration.mjs` asserts them — including that both body types produce the
+same bytes, so a projection that quietly started honouring the argument would fail.
+
+Getting there took three readings. The first said "two random descriptions differ" and was a
+`memcmp` past the end of a 512-byte buffer holding 1021 bytes. The second read the body type and
+height out of a struct in the same `printf` that filled it. Only the third, strictly sequenced, said
+what is above. **Nothing was filed from the first two**, which is the only reason this section
+describes CNA's behaviour rather than a defect that was never there.
+
 ### `sprite_font.h` — 9 routes
 
 CNA can build a `SpriteFont` from a texture and a glyph table — the same data this package's XNB
@@ -125,15 +151,18 @@ the strongest remaining candidate of its kind.
 
 ## The method that mattered
 
-Two readings in this census were **wrong on the first measurement**, and both were caught before
+Three readings in this census were **wrong on the first measurement**, and both were caught before
 anything was written down:
 
 - the media library's collection getters appeared to return `SUCCESS` with the invalid handle;
-- an avatar description appeared to report zero bytes while declaring 1021.
+- an avatar description appeared to report zero bytes while declaring 1021;
+- two "random" avatar descriptions appeared to differ, when in fact all 1021 bytes of both are zero.
 
-Both were the same defect in the *probe*, not in CNA: C leaves argument evaluation order
-unspecified, and reading an out-parameter inside the same call expression that fills it measures the
-value from before the call. Sequencing the call first turned both into ordinary correct answers.
+Three, counting the avatar reading above. All were defects in the *probe*, not in CNA, and two of
+them were the same one: C leaves argument evaluation order unspecified, and reading an
+out-parameter inside the same call expression that fills it measures the value from before the
+call. The third was a `memcmp` reading past the end of a buffer. Sequencing the calls and sizing
+the buffers turned all three into ordinary correct answers.
 
 The rule that saved them is the one this package already follows: measure, then predict from
 something independent, and never file a finding from a single reading of a program you wrote five

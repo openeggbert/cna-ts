@@ -223,6 +223,18 @@ typedef CNA_Result (*PowerInfoFn)(CNA_Handle, CNA_PowerState*, int32_t*, int32_t
    JavaScript plain copied values, so no media handle ever needs an owner on the other side. That
    also side-steps an ownership split in CNA's own headers -- a song from a collection is "a new
    handle" the caller releases, an album from a collection is "borrowed" and must not be. */
+/* Avatar descriptions. CNA makes a random one with no platform gamer service at all -- measured,
+   and two of them differ -- which is why this family is here while the rest of the avatar surface
+   still refuses: a renderer needs assets and a gamer that this host does not have. The handle
+   never crosses into JavaScript; a description is 1021 bytes and is copied out whole. */
+typedef CNA_Result (*AvatarDescriptionCreateFn)(
+  const uint8_t*, uint64_t, CNA_AvatarDescriptionHandle*);
+typedef CNA_Result (*AvatarDescriptionRandomFn)(CNA_AvatarDescriptionHandle*);
+typedef CNA_Result (*AvatarDescriptionInfoFn)(
+  CNA_AvatarDescriptionHandle, CNA_AvatarDescriptionInfo*);
+typedef CNA_Result (*AvatarDescriptionCopyFn)(
+  CNA_AvatarDescriptionHandle, uint8_t*, uint64_t, uint64_t*);
+
 typedef CNA_Result (*MediaLibraryCreateFn)(CNA_Handle, CNA_MediaLibraryHandle*);
 typedef CNA_Result (*MediaLibraryCollectionFn)(CNA_MediaLibraryHandle, CNA_Handle*);
 typedef CNA_Result (*MediaCountFn)(CNA_Handle, int32_t*);
@@ -2650,6 +2662,11 @@ typedef struct Api {
   InputDeviceNameSizeAtFn input_devices_get_touch_device_name_size_at;
   InputDeviceCopyNameAtFn input_devices_copy_touch_device_name_at;
   PowerInfoFn power_get_info;
+  AvatarDescriptionCreateFn avatar_description_create;
+  AvatarDescriptionRandomFn avatar_description_create_random;
+  AvatarDescriptionInfoFn avatar_description_get_info;
+  AvatarDescriptionCopyFn avatar_description_copy_description;
+  GameHandleFn avatar_description_destroy;
   MediaLibraryCreateFn media_library_create;
   GameHandleFn media_library_destroy;
   MediaLibraryCollectionFn media_library_get_songs;
@@ -4824,6 +4841,11 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(input_devices_get_touch_device_name_size_at, InputDeviceNameSizeAtFn, "cna_input_devices_get_touch_device_name_size_at");
   LOAD_REQUIRED(input_devices_copy_touch_device_name_at, InputDeviceCopyNameAtFn, "cna_input_devices_copy_touch_device_name_at");
   LOAD_REQUIRED(power_get_info, PowerInfoFn, "cna_power_get_info");
+  LOAD_REQUIRED(avatar_description_create, AvatarDescriptionCreateFn, "cna_avatar_description_create");
+  LOAD_REQUIRED(avatar_description_create_random, AvatarDescriptionRandomFn, "cna_avatar_description_create_random");
+  LOAD_REQUIRED(avatar_description_get_info, AvatarDescriptionInfoFn, "cna_avatar_description_get_info");
+  LOAD_REQUIRED(avatar_description_copy_description, AvatarDescriptionCopyFn, "cna_avatar_description_copy_description");
+  LOAD_REQUIRED(avatar_description_destroy, GameHandleFn, "cna_avatar_description_destroy");
   LOAD_REQUIRED(media_library_create, MediaLibraryCreateFn, "cna_media_library_create");
   LOAD_REQUIRED(media_library_destroy, GameHandleFn, "cna_media_library_destroy");
   LOAD_REQUIRED(media_library_get_songs, MediaLibraryCollectionFn, "cna_media_library_get_songs");
@@ -25873,6 +25895,91 @@ static napi_value bridge_input_devices_get_touch_at(napi_env env, napi_callback_
     "cna_input_devices_get_touch_device_info_at");
 }
 
+/* ---- avatar descriptions ------------------------------------------------------------------------
+ *
+ * `AvatarDescription.CreateRandom()` refused here, and CNA answers it without any platform gamer
+ * service -- measured, and two random descriptions differ, so it is generating one rather than
+ * returning a constant. The handle is released before returning: a description is exactly 1021
+ * bytes and everything about it is copied out, so there is nothing for a consumer to own.
+ */
+
+static napi_value avatar_description_snapshot(napi_env env, CNA_AvatarDescriptionHandle handle) {
+  napi_value output, bytes;
+  CNA_AvatarDescriptionInfo info;
+  void* data = NULL;
+  uint64_t copied = 0;
+  memset(&info, 0, sizeof(info));
+  info.struct_size = sizeof(info);
+  info.struct_version = 1;
+  CNA_Result result = g_api.avatar_description_get_info(handle, &info);
+  if (result != CNA_RESULT_SUCCESS) {
+    (void) g_api.avatar_description_destroy(handle);
+    return throw_result(env, "cna_avatar_description_get_info", result);
+  }
+  if (info.description_byte_count > SIZE_MAX) {
+    (void) g_api.avatar_description_destroy(handle);
+    return throw_message(env, "an avatar description exceeds the host address space");
+  }
+  if (napi_create_buffer(env, (size_t) info.description_byte_count, &data, &bytes) != napi_ok) {
+    (void) g_api.avatar_description_destroy(handle);
+    return throw_napi(env, "avatar description bytes");
+  }
+  if (info.description_byte_count != 0) {
+    result = g_api.avatar_description_copy_description(
+      handle, (uint8_t*) data, info.description_byte_count, &copied);
+    if (result != CNA_RESULT_SUCCESS || copied != info.description_byte_count) {
+      (void) g_api.avatar_description_destroy(handle);
+      return throw_result(env, "cna_avatar_description_copy_description", result);
+    }
+  }
+  (void) g_api.avatar_description_destroy(handle);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "avatar description");
+  if (!set_u32_property(env, output, "BodyType", info.body_type) ||
+      !set_double_property(env, output, "Height", (double) info.height) ||
+      !set_bool_property(env, output, "IsValid", info.is_valid) ||
+      napi_set_named_property(env, output, "Description", bytes) != napi_ok) {
+    return throw_napi(env, "avatar description");
+  }
+  return output;
+}
+
+static napi_value bridge_avatar_description_create(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_AvatarDescriptionHandle handle = CNA_INVALID_HANDLE;
+  void* data = NULL;
+  size_t byte_count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args)) return NULL;
+  if (napi_get_buffer_info(env, args[0], &data, &byte_count) != napi_ok) {
+    return throw_message(env, "expected avatar description bytes");
+  }
+  const CNA_Result result = g_api.avatar_description_create(
+    (const uint8_t*) data, (uint64_t) byte_count, &handle);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_avatar_description_create", result);
+  }
+  return avatar_description_snapshot(env, handle);
+}
+
+/*
+ * There is deliberately one route here and not two. CNA's body-type overload validates its
+ * argument and then ignores it -- XNA's behaviour, reproduced on purpose -- so its output is
+ * byte-identical to the plain route's, and importing it would add a route that provably cannot
+ * change any observable. The validation the overload would have done is done in TypeScript
+ * instead, where it can raise the exception XNA raises rather than a result code.
+ */
+static napi_value bridge_avatar_description_create_random(
+  napi_env env, napi_callback_info info
+) {
+  CNA_AvatarDescriptionHandle handle = CNA_INVALID_HANDLE;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.avatar_description_create_random(&handle);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_avatar_description_create_random", result);
+  }
+  return avatar_description_snapshot(env, handle);
+}
+
 /* ---- the media library ------------------------------------------------------------------------
  *
  * `Microsoft.Xna.Framework.Media.MediaLibrary` was projected here with empty collections. It is not
@@ -30371,6 +30478,8 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getAttachedTouchDeviceCount", NULL, bridge_input_devices_get_touch_count, NULL, NULL, NULL, napi_default, NULL },
     { "getAttachedTouchDeviceAt", NULL, bridge_input_devices_get_touch_at, NULL, NULL, NULL, napi_default, NULL },
     { "getHostPowerInfo", NULL, bridge_power_get_info, NULL, NULL, NULL, napi_default, NULL },
+    { "createAvatarDescription", NULL, bridge_avatar_description_create, NULL, NULL, NULL, napi_default, NULL },
+    { "createRandomAvatarDescription", NULL, bridge_avatar_description_create_random, NULL, NULL, NULL, napi_default, NULL },
     { "createMediaLibrary", NULL, bridge_media_library_create, NULL, NULL, NULL, napi_default, NULL },
     { "destroyMediaLibrary", NULL, bridge_media_library_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "getMediaLibrarySnapshot", NULL, bridge_media_library_snapshot, NULL, NULL, NULL, napi_default, NULL },

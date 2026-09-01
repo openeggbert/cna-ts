@@ -8,8 +8,8 @@ C source and the WebAssembly backend's route table rather than declared.
 ```text
 TOTAL_C_API_FUNCTIONS=4054
 PUBLIC_HEADERS=57
-XNA_BACKING=1587
-CNA_EXTENSION_BACKING=1870
+XNA_BACKING=1586
+CNA_EXTENSION_BACKING=1871
 INTERNAL_RUNTIME_ONLY=1
 MANAGED_BY_DESIGN=556
 TOOLING_ONLY=31
@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=1843
+REACHABLE_NODE=1848
 REACHABLE_WASM=276
-REACHABLE_BY_ANY_BACKEND=1843
+REACHABLE_BY_ANY_BACKEND=1848
 REACHABLE_BY_EVERY_BACKEND=276
-REACHABLE_NODE_ONLY=1567
+REACHABLE_NODE_ONLY=1572
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -34,8 +34,8 @@ What each backend reaches, by what the routes are for:
 
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
-| `XNA_BACKING` | 1587 | 508 | 73 |
-| `CNA_EXTENSION_BACKING` | 1870 | 1319 | 189 |
+| `XNA_BACKING` | 1586 | 513 | 73 |
+| `CNA_EXTENSION_BACKING` | 1871 | 1319 | 189 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 556 | 13 | 13 |
 | `TOOLING_ONLY` | 31 | 2 | 0 |
@@ -58,7 +58,7 @@ What each backend reaches, by what the routes are for:
 | `display.h` | 14 | 0 | 0 | 22 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `effects.h` | 149 | 0 | 255 | 35 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `engine_layer.h` | 857 | 0 | 0 | 857 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `gamer_services.h` | 31 | 0 | 250 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `gamer_services.h` | 36 | 0 | 249 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `geometry.h` | 0 | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 | 0 |
 | `graphics_device.h` | 27 | 2 | 73 | 14 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `graphics_ext.h` | 28 | 1 | 0 | 28 | 0 | 0 | 0 | 0 | 0 | 0 |

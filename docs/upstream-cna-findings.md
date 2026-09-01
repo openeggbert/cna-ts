@@ -1234,3 +1234,64 @@ already believed the arm was there.
 rather than only whether it succeeded", asserts `Error(12)` for the fallback-disabled refusal. When
 this is repaired that line fails and names the finding, rather than the binding quietly outgrowing a
 stale expectation.
+
+## 26. `cna_avatar_description_create_random`'s header does not say that it never randomises
+
+**Measured** 2026-09-01 against `cnanext` `e5ae0820e`, CNA C ABI 0.21.0, HEADLESS.
+`build-probe/cbind_avatar2_probe.c`.
+
+The header documents the route the way its name reads:
+
+```c
+/**
+ * @brief Creates a random avatar description.
+ *
+ * @param out_description Receives an owned description handle.
+ * @return `CNA_RESULT_SUCCESS` or a documented argument/thread failure.
+ */
+CNA_C_API CNA_Result cna_avatar_description_create_random(
+    CNA_AvatarDescriptionHandle* out_description);
+```
+
+and the body-type overload documents its parameter without qualification.
+
+What comes back:
+
+```text
+A bytes=1021 body=0 height=0.000000 valid=0
+B bytes=1021 body=0 height=0.000000 valid=0
+C(female) bytes=1021 body=0 height=0.000000 valid=0
+A_vs_B_identical=1  A_vs_C_identical=1
+A nonzero_bytes=0 of 1021
+```
+
+Every call returns the same 1021 zero bytes, `is_valid` is false, and the requested body type
+changes nothing.
+
+**This is not a defect.** The implementation says so in as many words, and is right to:
+
+```cpp
+// Despite the name, the real XNA implementation never actually randomizes anything -
+// always an all-zero (invalid) description. Preserved exactly, not "fixed."
+...
+// bodyType is validated but, matching the real XNA implementation, never actually used.
+```
+
+Reproducing XNA exactly is the correct choice, and this ABI's whole value rests on it.
+
+**What is worth changing is only the header.** A C consumer reads `gamer_services.h`, not
+`AvatarDescription.cpp`. As it stands the two documented behaviours a caller would most reasonably
+expect — that two "random" descriptions differ, and that asking for a body type produces one —
+are both false, and nothing in the header hints at it. A caller who tests for variety concludes the
+ABI is broken; one who does not, ships an avatar system that always shows the same invalid avatar.
+
+This is the same class as findings 21 and 23: behaviour the code states deliberately and the header
+does not carry.
+
+**Proposed change.** Two sentences in the header, saying what the implementation already says —
+that the canonical operation returns an all-zero, invalid description and that the body type is
+validated but unused. No code change, and the behaviour must not be "fixed".
+
+**Detector in cna-ts:** `test/avatar-description.integration.mjs` asserts the zeros, the identical
+results across calls, and that both body types produce the same bytes. If a future CNA ever did
+start randomising, those three fail together and say why.

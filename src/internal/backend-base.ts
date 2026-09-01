@@ -56,6 +56,8 @@ import type {
   CnaContentSurveyBackend,
   CnaInputDeviceInventoryBackend,
   CnaMediaLibraryBackend,
+  CnaAvatarBackend,
+  AvatarDescriptionSnapshot,
   MediaLibrarySnapshot,
   MediaSongSnapshot,
   MediaPictureSnapshot,
@@ -3893,6 +3895,18 @@ export abstract class CnaShadowBackendBase implements CnaShadowBackend {
   public cubeShadowMapSizeForQuality(
     _quality: number,
   ): number { return this.unsupported("cubeShadowMapSizeForQuality"); }
+}
+
+/** Refusing base for {@link CnaAvatarBackend}. */
+export abstract class CnaAvatarBackendBase implements CnaAvatarBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createAvatarDescription(_bytes: Uint8Array): AvatarDescriptionSnapshot {
+    return this.unsupported("createAvatarDescription");
+  }
+  public createRandomAvatarDescription(): AvatarDescriptionSnapshot {
+    return this.unsupported("createRandomAvatarDescription");
+  }
 }
 
 /** Refusing base for {@link CnaMediaLibraryBackend}. */

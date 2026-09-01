@@ -18,6 +18,10 @@ import {
   AvatarRendererState,
 } from "./Enums.js";
 import { GamerServicesNotAvailableException } from "./Exceptions.js";
+import { ArgumentOutOfRangeException } from "../../../../internal/exceptions.js";
+import type { AvatarDescriptionSnapshot, CnaAvatarBackend } from "../../../../internal/backend.js";
+import { getBackend } from "../../../../internal/backend.js";
+import { NativeUnavailableError } from "../../../../internal/native-error.js";
 
 function requirePlatform(): never {
   throw new GamerServicesNotAvailableException();
@@ -95,15 +99,40 @@ export class AvatarAnimation implements IAvatarAnimation, IDisposable {
 }
 
 /** The description of an avatar's appearance. */
+function avatars(operation: string): CnaAvatarBackend {
+  const backend = getBackend().Avatars;
+  if (!backend) {
+    throw new NativeUnavailableError(
+      `${operation} requires a CNA backend with the avatar routes; ` +
+      "load the Node-API backend with LoadNodeNativeBackend",
+    );
+  }
+  return backend;
+}
+
 export class AvatarDescription {
   static readonly #changed = new EventDispatcher<unknown, EventArgs>();
   #bodyType = AvatarBodyType.Male;
   #description: Uint8Array = new Uint8Array(0);
   #height = 0;
+  #isValid = false;
+
+  /** Copies what CNA read out of the bytes onto a description. */
+  static #apply(target: AvatarDescription, snapshot: AvatarDescriptionSnapshot): void {
+    target.#bodyType = snapshot.BodyType as AvatarBodyType;
+    target.#description = new Uint8Array(snapshot.Description);
+    target.#height = snapshot.Height;
+    target.#isValid = snapshot.IsValid;
+  }
 
   public constructor(data: number[]) {
     if (data == null) throw new TypeError("data is required");
-    this.#description = Uint8Array.from(data);
+    // The canonical constructor takes exactly one description's worth of bytes and refuses
+    // anything else; CNA enforces the same count, and its refusal is passed through rather than
+    // pre-empted with a number written down twice. This used to accept any length and report a
+    // body type it had invented; it now reads what the bytes actually say.
+    AvatarDescription.#apply(this, avatars("new AvatarDescription()")
+      .createAvatarDescription(Uint8Array.from(data)));
   }
 
   /** Raised when the avatar the description came from changes. */
@@ -115,8 +144,13 @@ export class AvatarDescription {
   public get Description(): number[] { return Array.from(this.#description); }
   /** The avatar's height in metres. */
   public get Height(): number { return this.#height; }
-  /** Whether the description bytes describe a usable avatar. */
-  public get IsValid(): boolean { return this.#description.length > 0; }
+  /**
+   * Whether the description bytes describe a usable avatar.
+   *
+   * Decided by the description's first byte, which is CNA's answer rather than "is it non-empty":
+   * a full-length description can still be an unusable one.
+   */
+  public get IsValid(): boolean { return this.#isValid; }
 
   /** Begins reading a gamer's avatar description. */
   public static BeginGetFromGamer(
@@ -130,7 +164,34 @@ export class AvatarDescription {
   public static CreateRandom(): AvatarDescription;
   /** Makes a random avatar description of one body type. */
   public static CreateRandom(bodyType: AvatarBodyType): AvatarDescription;
-  public static CreateRandom(bodyType?: AvatarBodyType): AvatarDescription { return requirePlatform(); }
+  /**
+   * Makes a "random" avatar description.
+   *
+   * **It is not random, and that is XNA's behaviour rather than a limitation here.** XNA 4.0's own
+   * implementation never randomises anything: it returns an all-zero — and therefore
+   * {@link IsValid}-false — description, and the `bodyType` overload validates its argument and
+   * then ignores it. CNA reproduces both deliberately, saying so in its source, and this projects
+   * what CNA does rather than inventing the variety the name implies.
+   *
+   * What it does need is nothing: no gamer, no sign-in and no service, which is why it answers
+   * where the rest of the avatar surface still refuses.
+   */
+  public static CreateRandom(bodyType?: AvatarBodyType): AvatarDescription {
+    if (bodyType !== undefined
+      && bodyType !== AvatarBodyType.Male && bodyType !== AvatarBodyType.Female) {
+      throw new ArgumentOutOfRangeException("bodyType");
+    }
+    // Built through the ordinary constructor rather than around it: CNA generates the bytes, and
+    // the constructor is what reads a body type, a height and a validity out of them. One path
+    // into a description means one place where those three can disagree with the bytes: none.
+    // The body type is checked above and then dropped, because CNA's own overload checks it and
+    // drops it too -- XNA's behaviour. Sending it would import a second route that cannot change
+    // the answer.
+    const generated = avatars("AvatarDescription.CreateRandom")
+      .createRandomAvatarDescription();
+    return new AvatarDescription(Array.from(generated.Description));
+  }
+
 }
 
 /** Draws an avatar. */

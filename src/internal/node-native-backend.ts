@@ -21,6 +21,8 @@ import type {
   CnaContentSurveyBackend,
   CnaInputDeviceInventoryBackend,
   CnaMediaLibraryBackend,
+  CnaAvatarBackend,
+  AvatarDescriptionSnapshot,
   MediaLibrarySnapshot,
   MediaSongSnapshot,
   MediaPictureSnapshot,
@@ -833,6 +835,8 @@ interface NativeBridge {
   destroyLodGroup(group: bigint): void;
   addLodLevel(group: bigint, maxDistance: number, part: bigint | null): void;
   selectLodPart(group: bigint, distance: number): bigint | null;
+  createAvatarDescription(bytes: Uint8Array): AvatarDescriptionSnapshot;
+  createRandomAvatarDescription(): AvatarDescriptionSnapshot;
   createMediaLibrary(game: bigint): bigint;
   destroyMediaLibrary(library: bigint): void;
   getMediaLibrarySnapshot(library: bigint): MediaLibrarySnapshot;
@@ -1937,6 +1941,7 @@ export class NodeNativeBackend
   public readonly ContentSurvey: CnaContentSurveyBackend = this;
   public readonly InputDeviceInventory: CnaInputDeviceInventoryBackend = this;
   public readonly MediaLibrary: CnaMediaLibraryBackend = this;
+  public readonly Avatars: CnaAvatarBackend = this;
   public readonly InstancedRenderer: CnaInstancedRendererBackend = this;
   public readonly Shadows: CnaShadowBackend = this;
   public readonly DepthNormalPrepass: CnaDepthNormalPrepassBackend = this;
@@ -3301,6 +3306,12 @@ export class NodeNativeBackend
   }
   public selectLodPart(group: NativeHandle, distance: number): NativeHandle | null {
     return this.#bridge.selectLodPart(group, distance);
+  }
+  public createAvatarDescription(bytes: Uint8Array): AvatarDescriptionSnapshot {
+    return this.#bridge.createAvatarDescription(bytes);
+  }
+  public createRandomAvatarDescription(): AvatarDescriptionSnapshot {
+    return this.#bridge.createRandomAvatarDescription();
   }
   public createMediaLibrary(): NativeHandle {
     return this.#bridge.createMediaLibrary(this.#game());

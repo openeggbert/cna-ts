@@ -85,6 +85,30 @@
       "headers": [
         "gamer_services.h"
       ],
+      "namePattern": "^cna_avatar_description_",
+      "category": "XNA_BACKING",
+      "reason": "backs AvatarDescription, which needs no gamer, no sign-in and no service and is projected. What it answers is worth knowing: CreateRandom returns 1021 zero bytes identically every call and the bodyType overload validates its argument then ignores it -- XNA's own behaviour, which CNA reproduces deliberately and says so in its source. The body-type overload is deliberately not imported either: it validates its argument and then ignores it, so its result is byte-identical to the plain route's, and a planted defect confirmed that routing the argument or not changes nothing observable. The two get-from-gamer routes stay deferred with the rest of the gamer surface"
+    },
+    {
+      "headers": [
+        "gamer_services.h"
+      ],
+      "namePattern": "^cna_(avatar_renderer_|avatar_animation_)",
+      "category": "XNA_BACKING",
+      "reason": "backs AvatarRenderer and AvatarAnimation. Unlike a description these need something this host does not have: the avatar assets to draw, and a gamer to have an avatar. CNA's header says a built-in animation preset carries the skeleton but no timeline, so even the parts that construct would advance nothing"
+    },
+    {
+      "headers": [
+        "gamer_services.h"
+      ],
+      "namePattern": "^cna_signed_in_gamer_create_ext$",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's hook for a *platform layer* to publish a signed-in gamer, which its own header says in as many words. Calling it from a binding would be inventing the player, and everything downstream -- sessions, achievements, leaderboards, an avatar off a gamer -- would then be claims about someone who does not exist. Deliberately not called; see docs/non-engine-census.md"
+    },
+    {
+      "headers": [
+        "gamer_services.h"
+      ],
       "category": "XNA_BACKING",
       "requireHeaderReached": true,
       "reason": "backs the projected Microsoft.Xna.Framework.GamerServices types; the adapter reaches this family through the dispatcher's lifetime and the Guide's state, so the rest of it is surface behind an API this package publishes rather than an unbound family",
