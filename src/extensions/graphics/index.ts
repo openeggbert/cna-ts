@@ -31,6 +31,8 @@ import type {
   SceneFaceDraw,
   ClusterBoundsSnapshot,
   CnaLodBackend,
+  CnaInstancedRendererBackend,
+  ColorSnapshot,
   CnaParticleBackend,
   ParticleEmitterSettingsSnapshot,
   ParticleSnapshot,
@@ -53,6 +55,13 @@ import type {
 } from "../../Microsoft/Xna/Framework/Graphics/DeviceEnums.js";
 import { NativeUnavailableError } from "../../internal/native-error.js";
 import { Color } from "../../Microsoft/Xna/Framework/Color.js";
+import { ObjectDisposedException } from "../../internal/exceptions.js";
+import type { ModelMeshPart } from "../../Microsoft/Xna/Framework/Graphics/Model.js";
+import {
+  acquireNativeMeshPartForInternalUse,
+  resolveMeshPartFromHandleForInternalUse,
+  trackMeshPartDependentForInternalUse,
+} from "../../internal/native-mesh-part.js";
 import type { GraphicsDevice } from "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
 import { resolveGraphicsDeviceHandleForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
@@ -2132,6 +2141,10 @@ function lod(): CnaLodBackend {
  */
 export class LodGroup implements IDisposable {
   readonly #backend: CnaLodBackend;
+  /* The parts this group's levels borrow, held so a level cannot outlive the object it names. */
+  readonly #parts = new Set<ModelMeshPart>();
+  /* Set when a part this group borrowed has had its buffers disposed. */
+  #stale = false;
   #handle: NativeHandle | null;
 
   public constructor() {
@@ -2144,16 +2157,55 @@ export class LodGroup implements IDisposable {
 
   #active(): NativeHandle {
     if (this.#handle == null) throw new NativeUnavailableError("the LOD group is disposed");
+    if (this.#stale) {
+      throw new ObjectDisposedException(
+        "LodGroup: a ModelMeshPart this group borrows has had its buffers disposed",
+      );
+    }
     return this.#handle;
   }
 
-  /** Adds a level. The group re-sorts, so the order levels are added in does not matter. */
-  public AddLevel(maxDistance: number): this {
+  /**
+   * Adds a level. The group re-sorts, so the order levels are added in does not matter.
+   *
+   * The part is optional in both directions: omit it to add a threshold and index your own array
+   * with {@link SelectIndex}, or pass one and let {@link Select} hand the part itself back. A
+   * level with no part is also how a group draws nothing past a distance, which is why `null` is
+   * accepted rather than refused.
+   *
+   * A part passed here is **borrowed**. The group does not keep it alive, and this object keeps a
+   * reference to it for exactly as long as the level lasts so that it cannot be collected first.
+   */
+  public AddLevel(maxDistance: number, part: ModelMeshPart | null = null): this {
     if (typeof maxDistance !== "number" || !Number.isFinite(maxDistance)) {
       throw new TypeError("maxDistance must be a finite number");
     }
-    this.#backend.addLodLevel(this.#active(), maxDistance);
+    const handle = part == null ? null : acquireNativeMeshPartForInternalUse(part);
+    this.#backend.addLodLevel(this.#active(), maxDistance, handle);
+    if (part != null) {
+      this.#parts.add(part);
+      // A group whose geometry has been freed cannot answer for it. CNA never dereferences a
+      // level's part -- it only hands the handle back -- so nothing here is unsafe; what would be
+      // wrong is answering "this level draws nothing" for a part that has gone.
+      trackMeshPartDependentForInternalUse(part, () => { this.#stale = true; });
+    }
     return this;
+  }
+
+  /**
+   * The part a distance selects, or null when the group is empty or the chosen level deliberately
+   * draws nothing. {@link SelectIndex} separates those two.
+   *
+   * The object returned is **the very `ModelMeshPart` that was added**, not a new wrapper around
+   * an equal value, so `Select(d) === myPart` is a meaningful test.
+   */
+  public Select(distance: number): ModelMeshPart | null {
+    if (typeof distance !== "number" || !Number.isFinite(distance)) {
+      throw new TypeError("distance must be a finite number");
+    }
+    return resolveMeshPartFromHandleForInternalUse(
+      this.#backend.selectLodPart(this.#active(), distance),
+    );
   }
 
   /** Every level's threshold, in the group's own sorted order. */
@@ -2166,7 +2218,12 @@ export class LodGroup implements IDisposable {
 
   /** Removes every level, and forgets the last selection. */
   public Clear(): this {
-    this.#backend.clearLodGroup(this.#active());
+    // Clearing is the one operation a stale group may still do: it is how a caller recovers,
+    // because after it the group borrows nothing.
+    if (this.#handle == null) throw new NativeUnavailableError("the LOD group is disposed");
+    this.#backend.clearLodGroup(this.#handle);
+    this.#parts.clear();
+    this.#stale = false;
     return this;
   }
 
@@ -2237,11 +2294,17 @@ export class LodGroup implements IDisposable {
     return this.#backend.getLodProjectedRadiusPixels(this.#active(), distance);
   }
 
-  /** Releases the group. Disposing twice is harmless. */
+  /**
+   * Releases the group. Disposing twice is harmless.
+   *
+   * The parts its levels named are borrowed, so they are untouched: each one's native view lives
+   * as long as the buffers it was built over, not as long as this group.
+   */
   public Dispose(): void {
     const handle = this.#handle;
     if (handle == null) return;
     this.#handle = null;
+    this.#parts.clear();
     this.#backend.destroyLodGroup(handle);
   }
 }
@@ -7606,17 +7669,27 @@ export class GpuInstanceCuller implements IDisposable {
   }
 }
 
+function instancing(): CnaInstancedRendererBackend {
+  const backend = getBackend();
+  if (!backend.IsAvailable || backend.InstancedRenderer == null) {
+    throw new NativeUnavailableError(
+      `CNA's instanced renderer requires a loaded backend that has it: ${backend.Detail}`,
+    );
+  }
+  return backend.InstancedRenderer;
+}
+
+function instanceTint(color: Color, what: string): ColorSnapshot {
+  if (color == null) throw new TypeError(`${what} is required`);
+  return { R: color.R, G: color.G, B: color.B, A: color.A };
+}
+
 /**
  * The two vertex declarations an instancing stream takes, and their strides.
  *
- * CNA's own instanced renderer object is deliberately not projected, for the reason
- * `cna_lod_group_ext_select` is not: it is built around a `CNA_ModelMeshPartHandle`, and this
- * package's `ModelMeshPart` is a managed projection with managed vertex and index buffers and no
- * native handle to give. Binding it would offer routes that could only ever be handed zero.
- *
- * What a caller actually needs in order to draw instances themselves is here: the layout of the
- * per-instance transform stream and of the per-instance tint stream, described by CNA rather than
- * written down again, so a `VertexBuffer` built to them is built to what the layer's shaders read.
+ * These are useful whether or not {@link InstancedRenderer} is used: a caller building its own
+ * instance stream has to describe it *identically* to what the layer's shaders read, and copying
+ * the elements from CNA is how that can be checked rather than assumed.
  */
 export const InstanceStreams = {
   /** The per-instance transform stream's elements. */
@@ -7639,6 +7712,160 @@ export const InstanceStreams = {
     return extensions().getInstancedRendererTintStride();
   },
 } as const;
+
+/**
+ * Draws one {@link ModelMeshPart} many times, each with its own world transform.
+ *
+ * ### What it is built over
+ *
+ * CNA's instanced renderer takes a native mesh part. This package's `ModelMeshPart` is a managed
+ * XNB projection, and it stays that way — but it can now *lend* CNA a native view of itself, built
+ * over the very vertex and index buffers it already owns rather than over copies of them. Nothing
+ * is uploaded to the GPU twice, and `Microsoft.Xna.Framework.Graphics.ModelMeshPart` gains no
+ * member. `docs/native-model-graph.md` records the measurements that back both claims.
+ *
+ * ### Ownership
+ *
+ * The part is **borrowed** and must outlive the renderer, which this object guarantees by holding
+ * a reference to it. Disposing the renderer leaves the part, its buffers and its native view
+ * untouched; disposing the part's `VertexBuffer` releases the native view first, so a renderer
+ * still holding it must be disposed before then.
+ *
+ * ### Instancing is not universal
+ *
+ * {@link IsInstancingSupported} answers whether this renderer can draw every instance in one call.
+ * Where it cannot — HEADLESS is one — {@link FallbackEnabled} decides between drawing them one at
+ * a time with a per-instance transform, which needs an effect that carries matrices, and refusing.
+ * {@link DidLastDrawInstance} says which of the two actually happened, so a test can tell a real
+ * instanced draw from a loop that produced the same picture.
+ */
+export class InstancedRenderer implements IDisposable {
+  readonly #part: ModelMeshPart;
+  #handle: NativeHandle | null;
+
+  /**
+   * @param graphicsDevice The device to draw with.
+   * @param part The part to instance. It needs both buffers and at least one primitive; CNA
+   * refuses anything else, and so does the native view this builds.
+   */
+  public constructor(graphicsDevice: GraphicsDevice, part: ModelMeshPart) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (part == null) throw new TypeError("part is required");
+    this.#part = part;
+    this.#handle = instancing().createInstancedRenderer(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice),
+      acquireNativeMeshPartForInternalUse(part),
+    );
+    // CNA dereferences the part when it draws, so a renderer must never outlive the part's native
+    // view. Disposing the part's VertexBuffer releases that view; this hands the renderer back
+    // first, in the same teardown pass and ahead of it.
+    trackMeshPartDependentForInternalUse(part, () => this.Dispose());
+  }
+
+  /** The part being instanced — the same object that was passed in. */
+  public get Part(): ModelMeshPart { return this.#part; }
+
+  /** Whether the renderer has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the instanced renderer is disposed");
+    return this.#handle;
+  }
+
+  /**
+   * Uploads the world transforms, one per instance.
+   *
+   * The instance buffer grows when it has to and is otherwise reused, so re-uploading the same
+   * number of instances every frame allocates nothing after the first. An empty array is not an
+   * error: it is how a caller stops drawing without destroying the renderer.
+   */
+  public SetInstances(transforms: readonly Matrix[]): this {
+    if (!Array.isArray(transforms)) throw new TypeError("transforms must be an array");
+    instancing().setInstancedRendererInstances(
+      this.#active(),
+      transforms.map((transform, index) => matrixValues(transform, `transforms[${index}]`)),
+    );
+    return this;
+  }
+
+  /**
+   * Uploads the per-instance tints. Independent of {@link TintsEnabled}: tints may be uploaded
+   * while the stream is unbound, and are simply not read.
+   */
+  public SetTints(tints: readonly Color[]): this {
+    if (!Array.isArray(tints)) throw new TypeError("tints must be an array");
+    instancing().setInstancedRendererTints(
+      this.#active(),
+      tints.map((tint, index) => instanceTint(tint, `tints[${index}]`)),
+    );
+    return this;
+  }
+
+  /** Whether the tint stream is bound. */
+  public get TintsEnabled(): boolean {
+    return instancing().getInstancedRendererTintsEnabled(this.#active());
+  }
+  public set TintsEnabled(value: boolean) {
+    if (typeof value !== "boolean") throw new TypeError("TintsEnabled must be a boolean");
+    instancing().setInstancedRendererTintsEnabled(this.#active(), value);
+  }
+
+  /**
+   * Draws every uploaded instance with the given effect.
+   *
+   * Refuses when this renderer cannot instance and {@link FallbackEnabled} is false, and when the
+   * fallback is on but the effect cannot carry a per-instance transform.
+   */
+  public Draw(effect: Effect): void {
+    if (effect == null) throw new TypeError("effect is required");
+    instancing().drawInstancedRenderer(
+      this.#active(), resolveEffectHandleForInternalUse(effect),
+    );
+  }
+
+  /** Whether this renderer can draw every instance in a single call. */
+  public get IsInstancingSupported(): boolean {
+    return instancing().getInstancedRendererInstancingSupported(this.#active());
+  }
+
+  /** Whether drawing one instance at a time is allowed where instancing is unavailable. */
+  public get FallbackEnabled(): boolean {
+    return instancing().getInstancedRendererFallbackEnabled(this.#active());
+  }
+  public set FallbackEnabled(value: boolean) {
+    if (typeof value !== "boolean") throw new TypeError("FallbackEnabled must be a boolean");
+    instancing().setInstancedRendererFallbackEnabled(this.#active(), value);
+  }
+
+  /** How many instances are uploaded. */
+  public get InstanceCount(): number {
+    return instancing().getInstancedRendererInstanceCount(this.#active());
+  }
+
+  /** How many the instance buffer can hold before it has to grow again. */
+  public get InstanceCapacity(): number {
+    return instancing().getInstancedRendererInstanceCapacity(this.#active());
+  }
+
+  /** How many draw calls the last {@link Draw} issued: one when instanced, one per instance else. */
+  public get LastDrawCallCount(): number {
+    return instancing().getInstancedRendererLastDrawCallCount(this.#active());
+  }
+
+  /** Whether the last {@link Draw} instanced, rather than falling back to a loop. */
+  public get DidLastDrawInstance(): boolean {
+    return instancing().getInstancedRendererDidLastDrawInstance(this.#active());
+  }
+
+  /** Releases the renderer. The part it borrowed is untouched. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    instancing().destroyInstancedRenderer(handle);
+  }
+}
 
 /* ================================================================================================
  * The debug drawer

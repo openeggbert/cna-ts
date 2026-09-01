@@ -240,6 +240,14 @@ export function resolveIndexBufferHandleForInternalUse(buffer: IndexBuffer) {
   return stateOf(buffer).Lifetime.Handle;
 }
 
+/** Internal: the index-buffer twin of {@link trackVertexBufferReleaseForInternalUse}. */
+export function trackIndexBufferReleaseForInternalUse(
+  buffer: IndexBuffer,
+  teardown: () => void,
+): () => void {
+  return stateOf(buffer).Lifetime.TrackCallback(teardown);
+}
+
 /** Internal: gives a dynamic index buffer's declared ContentLost event a real CNA producer. */
 export function bindIndexBufferContentLostForInternalUse(
   buffer: IndexBuffer, raise: () => void,

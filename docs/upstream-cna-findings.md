@@ -1162,3 +1162,75 @@ reason.
 **Detector in cna-ts:** `test/native-cna.integration.mjs`, "the last of the engine layer", loads a
 missing path, a malformed file and a valid one written by the test, and asserts all three results.
 When this is repaired the first two rows fail, which is the point.
+
+## 25. The exception barrier has no `std::logic_error` arm, so two documented refusals arrive as `INTERNAL`
+
+**Measured** 2026-09-01 against `cnanext` `e5ae0820e`, CNA C ABI 0.21.0, HEADLESS. Reproduced in
+pure C first — `build-probe/cbind_instanced_draw_probe.c` — before any binding was involved.
+
+`cna_instanced_renderer_ext_draw` has two canonical refusals, and its header documents both as
+`CNA_RESULT_INVALID_STATE`:
+
+> `CNA_RESULT_INVALID_STATE` when this renderer cannot instance and the fallback is disabled, or
+> when the fallback is enabled and the effect cannot carry a per-instance transform
+
+The C shim says the same thing about itself, in a comment written to explain why it does not
+translate the messages by hand:
+
+```cpp
+// Both canonical refusals are logic_error, and both are state rather than argument errors:
+// the layer is here and the arguments are fine, this combination of renderer, setting and
+// effect is not. The exception barrier maps logic_error to INVALID_STATE, so they arrive
+// with their own messages without being restated here.
+r->value->draw(*effect->value);
+```
+
+What actually comes back on a renderer that cannot instance with the fallback off:
+
+```text
+CAPS supported=0 fallback=0
+DRAW_NO_FALLBACK result=12 message="CNA::Graphics::InstancedRendererEXT::draw: this renderer
+                                    does not support instancing and the per-instance fallback
+                                    is not enabled"
+```
+
+`12` is `CNA_RESULT_INTERNAL`. The message is exactly the intended one; the *classification* is not.
+
+**The cause, read from the source.** `InstancedRendererEXT::draw` throws `std::logic_error` for
+both refusals. `CallWithExceptionBarrier` in `modules/c-api/src/CnaCApiDetail.hpp` catches
+`std::out_of_range` and `std::invalid_argument` — two *derived* classes of `std::logic_error` — but
+has **no arm for `std::logic_error` itself**. A plain one therefore falls all the way through to
+
+```cpp
+} catch (const std::exception& exception) {
+    return Fail(CNA_RESULT_INTERNAL, CNA_ERROR_CATEGORY_INTERNAL, exception.what());
+}
+```
+
+The shim's comment describes a mapping that does not exist.
+
+**What it costs.** `CNA_RESULT_INTERNAL` means "a bug in CNA" everywhere else in this ABI, and it is
+the one code a caller cannot act on: there is no state to change and no argument to fix. Here it is
+returned for the most ordinary thing in the world — a renderer on a backend without instancing,
+asked to draw with the fallback left at its default of off. A game that logs `INTERNAL` as a defect
+and carries on will report a bug against CNA every frame; one that treats it as fatal will stop.
+The two refusals are precisely the ones a caller *should* branch on, since enabling the fallback
+fixes the first and choosing an `IEffectMatrices` effect fixes the second.
+
+This is wider than the instanced renderer: any route in the ABI that throws a bare
+`std::logic_error` is misclassified the same way, and the comment above shows at least one author
+already believed the arm was there.
+
+**Proposed change.** Add one arm to the barrier, after `std::out_of_range` and
+`std::invalid_argument` so their more specific mappings still win:
+
+```cpp
+} catch (const std::logic_error& exception) {
+    return Fail(CNA_RESULT_INVALID_STATE, CNA_ERROR_CATEGORY_STATE, exception.what());
+}
+```
+
+**Detector in cna-ts:** `test/native-model-part.integration.mjs`, "drawing names which path it took
+rather than only whether it succeeded", asserts `Error(12)` for the fallback-disabled refusal. When
+this is repaired that line fails and names the finding, rather than the binding quietly outgrowing a
+stale expectation.

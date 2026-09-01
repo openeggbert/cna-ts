@@ -17,6 +17,8 @@ import type {
   CnaClusteredLightingBackend,
   CnaComputeBackend,
   CnaLodBackend,
+  CnaNativeMeshPartBackend,
+  CnaInstancedRendererBackend,
   CnaParticleBackend,
   CnaShadowBackend,
   CnaDecalBackend,
@@ -819,7 +821,37 @@ interface NativeBridge {
   computeCubeShadowFaceProjection(range: number): readonly number[];
   cubeShadowMapSizeForQuality(quality: number): number;
   destroyLodGroup(group: bigint): void;
-  addLodLevel(group: bigint, maxDistance: number): void;
+  addLodLevel(group: bigint, maxDistance: number, part: bigint | null): void;
+  selectLodPart(group: bigint, distance: number): bigint | null;
+  createNativeMeshPart(
+    vertexBuffer: bigint, indexBuffer: bigint, numVertices: number, primitiveCount: number,
+    startIndex: number, vertexOffset: number,
+  ): bigint;
+  destroyNativeMeshPart(part: bigint): void;
+  setNativeMeshPartEffect(part: bigint, effect: bigint | null): void;
+  getNativeMeshPartEffect(part: bigint): bigint | null;
+  getNativeMeshPartVertexBuffer(part: bigint): bigint | null;
+  getNativeMeshPartIndexBuffer(part: bigint): bigint | null;
+  getNativeMeshPartNumVertices(part: bigint): number;
+  getNativeMeshPartPrimitiveCount(part: bigint): number;
+  getNativeMeshPartStartIndex(part: bigint): number;
+  getNativeMeshPartVertexOffset(part: bigint): number;
+  createInstancedRenderer(device: bigint, part: bigint): bigint;
+  destroyInstancedRenderer(renderer: bigint): void;
+  setInstancedRendererInstances(
+    renderer: bigint, transforms: readonly (readonly number[])[],
+  ): void;
+  setInstancedRendererTints(renderer: bigint, tints: readonly ColorSnapshot[]): void;
+  getInstancedRendererTintsEnabled(renderer: bigint): boolean;
+  setInstancedRendererTintsEnabled(renderer: bigint, enabled: boolean): void;
+  drawInstancedRenderer(renderer: bigint, effect: bigint): void;
+  getInstancedRendererInstancingSupported(renderer: bigint): boolean;
+  getInstancedRendererFallbackEnabled(renderer: bigint): boolean;
+  setInstancedRendererFallbackEnabled(renderer: bigint, enabled: boolean): void;
+  getInstancedRendererInstanceCount(renderer: bigint): number;
+  getInstancedRendererInstanceCapacity(renderer: bigint): number;
+  getInstancedRendererLastDrawCallCount(renderer: bigint): number;
+  getInstancedRendererDidLastDrawInstance(renderer: bigint): boolean;
   clearLodGroup(group: bigint): void;
   copyLodLevels(group: bigint): readonly number[];
   selectLodIndex(group: bigint, distance: number): number;
@@ -1860,6 +1892,8 @@ export class NodeNativeBackend
   public readonly Compute: CnaComputeBackend = this;
   public readonly ClusteredLighting: CnaClusteredLightingBackend = this;
   public readonly Lod: CnaLodBackend = this;
+  public readonly NativeMeshParts: CnaNativeMeshPartBackend = this;
+  public readonly InstancedRenderer: CnaInstancedRendererBackend = this;
   public readonly Shadows: CnaShadowBackend = this;
   public readonly DepthNormalPrepass: CnaDepthNormalPrepassBackend = this;
   public readonly Decals: CnaDecalBackend = this;
@@ -3216,8 +3250,94 @@ export class NodeNativeBackend
   public destroyLodGroup(group: NativeHandle): void {
     this.#bridge.destroyLodGroup(group);
   }
-  public addLodLevel(group: NativeHandle, maxDistance: number): void {
-    this.#bridge.addLodLevel(group, maxDistance);
+  public addLodLevel(
+    group: NativeHandle, maxDistance: number, part: NativeHandle | null,
+  ): void {
+    this.#bridge.addLodLevel(group, maxDistance, part);
+  }
+  public selectLodPart(group: NativeHandle, distance: number): NativeHandle | null {
+    return this.#bridge.selectLodPart(group, distance);
+  }
+  public createNativeMeshPart(
+    vertexBuffer: NativeHandle, indexBuffer: NativeHandle, numVertices: number,
+    primitiveCount: number, startIndex: number, vertexOffset: number,
+  ): NativeHandle {
+    return this.#bridge.createNativeMeshPart(
+      vertexBuffer, indexBuffer, numVertices, primitiveCount, startIndex, vertexOffset,
+    );
+  }
+  public destroyNativeMeshPart(part: NativeHandle): void {
+    this.#bridge.destroyNativeMeshPart(part);
+  }
+  public setNativeMeshPartEffect(part: NativeHandle, effect: NativeHandle | null): void {
+    this.#bridge.setNativeMeshPartEffect(part, effect);
+  }
+  public getNativeMeshPartEffect(part: NativeHandle): NativeHandle | null {
+    return this.#bridge.getNativeMeshPartEffect(part);
+  }
+  public getNativeMeshPartVertexBuffer(part: NativeHandle): NativeHandle | null {
+    return this.#bridge.getNativeMeshPartVertexBuffer(part);
+  }
+  public getNativeMeshPartIndexBuffer(part: NativeHandle): NativeHandle | null {
+    return this.#bridge.getNativeMeshPartIndexBuffer(part);
+  }
+  public getNativeMeshPartNumVertices(part: NativeHandle): number {
+    return this.#bridge.getNativeMeshPartNumVertices(part);
+  }
+  public getNativeMeshPartPrimitiveCount(part: NativeHandle): number {
+    return this.#bridge.getNativeMeshPartPrimitiveCount(part);
+  }
+  public getNativeMeshPartStartIndex(part: NativeHandle): number {
+    return this.#bridge.getNativeMeshPartStartIndex(part);
+  }
+  public getNativeMeshPartVertexOffset(part: NativeHandle): number {
+    return this.#bridge.getNativeMeshPartVertexOffset(part);
+  }
+  public createInstancedRenderer(device: NativeHandle, part: NativeHandle): NativeHandle {
+    return this.#bridge.createInstancedRenderer(device, part);
+  }
+  public destroyInstancedRenderer(renderer: NativeHandle): void {
+    this.#bridge.destroyInstancedRenderer(renderer);
+  }
+  public setInstancedRendererInstances(
+    renderer: NativeHandle, transforms: readonly (readonly number[])[],
+  ): void {
+    this.#bridge.setInstancedRendererInstances(renderer, transforms);
+  }
+  public setInstancedRendererTints(
+    renderer: NativeHandle, tints: readonly ColorSnapshot[],
+  ): void {
+    this.#bridge.setInstancedRendererTints(renderer, tints);
+  }
+  public getInstancedRendererTintsEnabled(renderer: NativeHandle): boolean {
+    return this.#bridge.getInstancedRendererTintsEnabled(renderer);
+  }
+  public setInstancedRendererTintsEnabled(renderer: NativeHandle, enabled: boolean): void {
+    this.#bridge.setInstancedRendererTintsEnabled(renderer, enabled);
+  }
+  public drawInstancedRenderer(renderer: NativeHandle, effect: NativeHandle): void {
+    this.#bridge.drawInstancedRenderer(renderer, effect);
+  }
+  public getInstancedRendererInstancingSupported(renderer: NativeHandle): boolean {
+    return this.#bridge.getInstancedRendererInstancingSupported(renderer);
+  }
+  public getInstancedRendererFallbackEnabled(renderer: NativeHandle): boolean {
+    return this.#bridge.getInstancedRendererFallbackEnabled(renderer);
+  }
+  public setInstancedRendererFallbackEnabled(renderer: NativeHandle, enabled: boolean): void {
+    this.#bridge.setInstancedRendererFallbackEnabled(renderer, enabled);
+  }
+  public getInstancedRendererInstanceCount(renderer: NativeHandle): number {
+    return this.#bridge.getInstancedRendererInstanceCount(renderer);
+  }
+  public getInstancedRendererInstanceCapacity(renderer: NativeHandle): number {
+    return this.#bridge.getInstancedRendererInstanceCapacity(renderer);
+  }
+  public getInstancedRendererLastDrawCallCount(renderer: NativeHandle): number {
+    return this.#bridge.getInstancedRendererLastDrawCallCount(renderer);
+  }
+  public getInstancedRendererDidLastDrawInstance(renderer: NativeHandle): boolean {
+    return this.#bridge.getInstancedRendererDidLastDrawInstance(renderer);
   }
   public clearLodGroup(group: NativeHandle): void {
     this.#bridge.clearLodGroup(group);

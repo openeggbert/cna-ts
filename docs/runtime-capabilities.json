@@ -6,14 +6,14 @@
   "granularity": "Each row is a reviewed operation family; overloads with the same implementation and evidence share a row.",
   "sourceAudit": {
     "root": "src/Microsoft/Xna/Framework",
-    "nativeUnavailableErrorSites": 62,
+    "nativeUnavailableErrorSites": 63,
     "notSupportedExceptionSites": 7,
     "filesWithExplicitFailureSites": 23,
-    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it. The count fell by one when VideoPlayer.GetTexture stopped refusing outright and began projecting CNA's borrowed frame. It rose by one when Texture3D gained the adopting construction the colour grade's volume LUT arrives through."
+    "scope": "All selected-profile framework files containing explicit NativeUnavailableError or NotSupportedException construction were reviewed into the operation families below. Internal construction guards share their public operation family: the seventh NotSupportedException site is Texture2D's internal whole-level byte upload, which belongs to the CNB Texture2D family that uses it. The count fell by one when VideoPlayer.GetTexture stopped refusing outright and began projecting CNA's borrowed frame. It rose by one when Texture3D gained the adopting construction the colour grade's volume LUT arrives through. It rose by one again when Effect gained the internal teardown hook a native model-mesh-part side-car uses to clear its retained effect slot before the effect is released."
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 105,
+    "VERIFIED_NATIVE": 107,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 5,
@@ -1173,13 +1173,15 @@
       "operation": "Level-of-detail groups, and the hysteresis that damps a boundary",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS",
-      "evidence": "levels added out of order come back sorted, and every band is checked on both sides of every threshold -- a threshold ends its level, and past the last one the answer is -1 rather than a clamp to the coarsest. The hysteresis is the part worth proving: with a margin of 3 around a boundary at 25, climbing holds the near level until 28 and descending holds the far one until 22, and the two walks are asserted not to be each other reversed, which is what separates hysteresis from rounding. A jump of more than one level is deliberately undamped, and that is asserted too. Screen-space selection projects radius * (height / 2) / (distance * tan(fov / 2)) exactly, and halving with distance. Three planted defects fail: a Reset that does not forget, a margin that never reaches CNA, and a projection that ignores its distance. CNA associates each level with a ModelMeshPart and can hand it back; that half is deliberately unprojected because this package ModelMeshPart is managed and has no native handle to give, so the route could only ever answer nothing",
+      "evidence": "levels added out of order come back sorted, and every band is checked on both sides of every threshold -- a threshold ends its level, and past the last one the answer is -1 rather than a clamp to the coarsest. The hysteresis is the part worth proving: with a margin of 3 around a boundary at 25, climbing holds the near level until 28 and descending holds the far one until 22, and the two walks are asserted not to be each other reversed, which is what separates hysteresis from rounding. A jump of more than one level is deliberately undamped, and that is asserted too. Screen-space selection projects radius * (height / 2) / (distance * tan(fov / 2)) exactly, and halving with distance. Three planted defects fail: a Reset that does not forget, a margin that never reaches CNA, and a projection that ignores its distance. Levels now carry a real ModelMeshPart. Select hands back the very public object that was added -- asserted by identity, not by equality -- because a managed part can lend CNA a native view of itself built over the buffers it already owns. A level added with no part answers null and is separated from an empty group by SelectIndex, which answers 1 for the first and -1 for the second",
       "proof": [
         "route:cna_lod_group_ext_select_index",
+        "route:cna_lod_group_ext_select",
+        "route:cna_lod_group_ext_add_level",
         "route:cna_lod_group_ext_set_hysteresis",
         "route:cna_lod_group_ext_projected_radius_pixels",
-        "absentRoute:cna_lod_group_ext_select",
-        "test:test/native-cna.integration.mjs"
+        "test:test/native-cna.integration.mjs",
+        "test:test/native-model-part.integration.mjs"
       ]
     },
     {
@@ -1665,6 +1667,29 @@
       ]
     },
     {
+      "operation": "The instanced renderer: uploading transforms and tints, and which draw path ran",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "Built over one XNB-loaded ModelMeshPart, which the renderer borrows and this object keeps alive. The instance buffer is measured rather than trusted: uploading three then two lowers the count to two while the capacity does not fall, which is CNA reusing the buffer rather than reallocating, and an empty upload is accepted as the documented way to stop drawing without destroying the renderer. Drawing is qualified on what it says it did, not on success: HEADLESS answers false to is_instancing_supported, so with the fallback off the draw refuses, and with it on two instances produce two draw calls with did_last_draw_instance false -- the observable that separates a per-instance loop from one instanced call. The refusal arrives as INTERNAL rather than the documented INVALID_STATE; that is upstream finding 25, reproduced in pure C first and asserted here so a repair fails the assertion and says so. No pixel claim is made on HEADLESS",
+      "proof": [
+        "route:cna_instanced_renderer_ext_create",
+        "route:cna_instanced_renderer_ext_destroy",
+        "route:cna_instanced_renderer_ext_set_instances",
+        "route:cna_instanced_renderer_ext_set_instance_tints",
+        "route:cna_instanced_renderer_ext_is_tints_enabled",
+        "route:cna_instanced_renderer_ext_set_tints_enabled",
+        "route:cna_instanced_renderer_ext_draw",
+        "route:cna_instanced_renderer_ext_is_instancing_supported",
+        "route:cna_instanced_renderer_ext_is_fallback_enabled",
+        "route:cna_instanced_renderer_ext_set_fallback_enabled",
+        "route:cna_instanced_renderer_ext_get_instance_count",
+        "route:cna_instanced_renderer_ext_get_instance_capacity",
+        "route:cna_instanced_renderer_ext_get_last_draw_call_count",
+        "route:cna_instanced_renderer_ext_did_last_draw_instance",
+        "test:test/native-model-part.integration.mjs"
+      ]
+    },
+    {
       "operation": "The last of the engine layer: indirect draws, the frame's two scenes, and the odds",
       "category": "VERIFIED_NATIVE",
       "owner": "cna-ts/extensions/graphics",
@@ -1683,6 +1708,25 @@
         "route:cna_render_pipeline_set_shadow_scene",
         "route:cna_render_pipeline_set_transparent_scene",
         "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "The native model-mesh-part side-car a managed ModelMeshPart lends CNA",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS",
+      "evidence": "The subject is a real XNB-loaded Model read through the strict ContentManager, so what is measured is the object a consumer actually holds. The claim that matters is that no geometry is uploaded twice: cna_model_mesh_part_create retains the buffers it is given rather than copying them, and the native part is asked for its vertex and index buffers and hands back the same handles the managed VertexBuffer and IndexBuffer own -- checked against the live handles, not assumed. All four scalars round-trip, and the bridge refuses its own side-car at creation if any of them disagrees, so an upstream change that stopped preserving one surfaces as an error rather than as geometry drawn from the wrong offset. Identity is a WeakMap on the public object: borrowing twice yields one native part, and reaching the same part through the collection again yields that same one. The disposal order is the trap and is asserted separately: CNA refuses to destroy a buffer a part retains (INVALID_STATE, measured in pure C), so a side-car that outlived its buffers would break XNA's IDisposable contract. The teardown hangs on the buffer's NativeResourceLifetime rather than on GraphicsResource.Dispose, because the game lifetime also cascades to its children and that path never touches the wrapper -- disposing the managed VertexBuffer succeeds, and re-borrowing afterwards names ObjectDisposedException",
+      "proof": [
+        "route:cna_model_mesh_part_create",
+        "route:cna_model_mesh_part_destroy",
+        "route:cna_model_mesh_part_set_effect",
+        "route:cna_model_mesh_part_get_effect",
+        "route:cna_model_mesh_part_get_vertex_buffer",
+        "route:cna_model_mesh_part_get_index_buffer",
+        "route:cna_model_mesh_part_get_num_vertices",
+        "route:cna_model_mesh_part_get_primitive_count",
+        "route:cna_model_mesh_part_get_start_index",
+        "route:cna_model_mesh_part_get_vertex_offset",
+        "test:test/native-model-part.integration.mjs"
       ]
     },
     {

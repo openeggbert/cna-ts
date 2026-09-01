@@ -241,6 +241,7 @@ function formatText(report) {
     `MISSING_NODE_BRIDGE_SYMBOLS=${report.missingNodeBridgeSymbols.length}`,
     `NODE_BRIDGE_SIGNATURES_VERIFIED=${report.nodeBridgeSignaturesVerified}`,
     `NODE_BRIDGE_SIGNATURE_MISMATCHES=${report.nodeBridgeSignatureMismatches}`,
+    `NODE_BRIDGE_NEVER_LOADED_FIELDS=${report.neverLoadedBridgeFields.length}`,
     `QUALIFIED_LIBRARY=${report.qualifiedLibrary ?? "NOT_PROVIDED"}`,
     `QUALIFIED_LIBRARY_EXPORTED_FUNCTIONS=${report.qualifiedLibraryExportedFunctions ?? 0}`,
     `MISSING_QUALIFIED_LIBRARY_IMPORTS=${report.missingQualifiedLibraryImports.length}`,
@@ -391,6 +392,20 @@ function main() {
   const missingNodeBridgeSymbols = nodeBridgeImportedSymbols.filter(
     (symbol) => !exportedSymbols.has(symbol),
   );
+  // A field declared in the adapter's function-pointer table but never given a LOAD_REQUIRED is a
+  // null pointer that segfaults the process the first time a route calls it -- silently, because
+  // every other gate here counts LOAD_REQUIRED lines and so cannot see it. Three such fields were
+  // shipped this way before this check existed. The field names are the ones LOAD_REQUIRED
+  // assigns to, so the two lists are directly comparable.
+  const bridgeLoadedFields = new Set(
+    [...bridgeSource.matchAll(/LOAD_REQUIRED\(\s*([A-Za-z0-9_]+)\s*,/g)].map((match) => match[1]),
+  );
+  const neverLoadedBridgeFields = [
+    ...bridgeSource.matchAll(/^ {2}[A-Za-z_][A-Za-z0-9_]*Fn {1,}([a-z][A-Za-z0-9_]*);$/gm),
+  ]
+    .map((match) => match[1])
+    .filter((field) => !bridgeLoadedFields.has(field))
+    .sort();
   let qualifiedLibraryExports = null;
   if (args.nativeLibrary) {
     if (!fs.statSync(args.nativeLibrary, { throwIfNoEntry: false })?.isFile()) {
@@ -444,6 +459,7 @@ function main() {
     nodeBridgeImportedSymbols,
     missingNodeBridgeSymbols,
     nodeBridgeSignaturesVerified: verifiedSignatures.length,
+    neverLoadedBridgeFields,
     nodeBridgeSignatureMismatches: 0,
     qualifiedLibrary: args.nativeLibrary,
     qualifiedLibraryExportedFunctions: qualifiedLibraryExports?.size ?? null,
@@ -484,6 +500,7 @@ function main() {
 
   if (
     missing.length > 0 || missingNodeBridgeSymbols.length > 0 || missingQualifiedLibraryImports.length > 0 ||
+    report.neverLoadedBridgeFields.length > 0 ||
     !report.targetedAbiMatchesHeaders ||
     report.missingWasmBackendExports.length > 0 ||
     report.wasmArtifactLinkContract.startsWith("BROKEN_") ||

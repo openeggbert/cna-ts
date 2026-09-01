@@ -84,13 +84,61 @@
     },
     {
       "headers": [
+        "models.h"
+      ],
+      "namePattern": "^cna_matrix_",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "an infinite-perspective projection, declared in models.h because glTF cameras need it but a pure matrix routine with no XNA 4.0 counterpart -- XNA's Matrix has no infinite-far-plane perspective at all"
+    },
+    {
+      "headers": [
+        "models.h"
+      ],
+      "namePattern": "^cna_(skinning_data|animation_player)_",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace"
+    },
+    {
+      "headers": [
+        "models.h"
+      ],
+      "namePattern": "_ext(_|$)",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold"
+    },
+    {
+      "headers": [
+        "models.h"
+      ],
+      "namePattern": "^cna_model_mesh_part_(?!collection_)",
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md"
+    },
+    {
+      "headers": [
+        "models.h"
+      ],
+      "namePattern": "^cna_(model|model_mesh|model_bone|model_effect)",
+      "category": "XNA_BACKING",
+      "requireHeaderReached": false,
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry"
+    },
+    {
+      "headers": [
+        "models.h"
+      ],
+      "namePattern": "^cna_content_manager_",
+      "category": "XNA_BACKING",
+      "reason": "loads a Model through CNA's own native content manager. Microsoft.Xna.Framework.Content.ContentManager here is the managed XNB reader stack, with its own cache and its own asset identity; routing Model loads through a second, native cache would give one asset two owners and two identities. It belongs to the native content extension question, not to the strict ContentManager"
+    },
+    {
+      "headers": [
         "core.h",
         "runtime.h",
         "runtime_components.h",
         "runtime_graphics_manager.h",
         "runtime_window.h",
         "content_readers.h",
-        "models.h",
         "effects.h",
         "media_library.h",
         "media_player.h",

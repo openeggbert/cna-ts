@@ -245,6 +245,18 @@ export function resolveVertexBufferHandleForInternalUse(buffer: VertexBuffer) {
   return stateOf(buffer).Lifetime.Handle;
 }
 
+/**
+ * Internal: runs `teardown` before the buffer's native handle is released, whichever path releases
+ * it — `Dispose()` on the wrapper, or the game lifetime cascading to its children. Returns an
+ * idempotent early-unsubscribe.
+ */
+export function trackVertexBufferReleaseForInternalUse(
+  buffer: VertexBuffer,
+  teardown: () => void,
+): () => void {
+  return stateOf(buffer).Lifetime.TrackCallback(teardown);
+}
+
 /** Internal: gives a dynamic vertex buffer's declared ContentLost event a real CNA producer. */
 export function bindVertexBufferContentLostForInternalUse(
   buffer: VertexBuffer, raise: () => void,

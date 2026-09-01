@@ -6,32 +6,32 @@
   ],
   "totalFunctions": 4054,
   "totals": {
-    "XNA_BACKING": 1152,
-    "CNA_EXTENSION_BACKING": 1737,
+    "XNA_BACKING": 1234,
+    "CNA_EXTENSION_BACKING": 1816,
     "INTERNAL_RUNTIME_ONLY": 1,
     "MANAGED_BY_DESIGN": 457,
     "TOOLING_ONLY": 31,
-    "INTENTIONALLY_DEFERRED": 676,
+    "INTENTIONALLY_DEFERRED": 515,
     "UPSTREAM_RUNTIME_UNAVAILABLE": 0,
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 1718,
+    "NODE": 1743,
     "WASM": 276
   },
-  "reachableByAny": 1718,
+  "reachableByAny": 1743,
   "reachableByAll": 276,
   "reachableExclusively": {
-    "NODE": 1442,
+    "NODE": 1467,
     "WASM": 0
   },
   "reachabilityByCategory": {
     "XNA_BACKING": {
-      "NODE": 434,
+      "NODE": 444,
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 1268,
+      "NODE": 1283,
       "WASM": 189
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -119,7 +119,7 @@
     },
     "engine_layer.h": {
       "CNA_EXTENSION_BACKING": 857,
-      "REACHABLE_NODE": 842
+      "REACHABLE_NODE": 857
     },
     "gamer_services.h": {
       "XNA_BACKING": 250,
@@ -228,8 +228,9 @@
       "CNA_EXTENSION_BACKING": 2
     },
     "models.h": {
-      "INTENTIONALLY_DEFERRED": 161,
-      "CNA_EXTENSION_BACKING": 55
+      "CNA_EXTENSION_BACKING": 134,
+      "XNA_BACKING": 82,
+      "REACHABLE_NODE": 10
     },
     "net_gamers.h": {
       "INTENTIONALLY_DEFERRED": 33
@@ -1233,78 +1234,78 @@
     {
       "name": "cna_animation_player_copy_bone_transforms",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_animation_player_copy_current_clip_name",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_animation_player_copy_skin_transforms",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_animation_player_copy_world_transforms",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_animation_player_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_animation_player_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_animation_player_get_current_clip_info",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_animation_player_get_current_clip_name_byte_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_animation_player_get_current_position",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_animation_player_start_clip",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_animation_player_update",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
@@ -8016,8 +8017,8 @@
     {
       "name": "cna_content_manager_load_model",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "loads a Model through CNA's own native content manager. Microsoft.Xna.Framework.Content.ContentManager here is the managed XNB reader stack, with its own cache and its own asset identity; routing Model loads through a second, native cache would give one asset two owners and two identities. It belongs to the native content extension question, not to the strict ContentManager",
       "backends": []
     },
     {
@@ -16981,42 +16982,54 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_destroy",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_did_last_draw_instance",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_draw",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_get_instance_capacity",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_get_instance_count",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_get_instance_stride",
@@ -17032,7 +17045,9 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_get_tint_stride",
@@ -17048,49 +17063,63 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_is_instancing_supported",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_is_tints_enabled",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_set_fallback_enabled",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_set_instance_tints",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_set_instances",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_instanced_renderer_ext_set_tints_enabled",
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_invite_accepted_event_info_init",
@@ -18477,7 +18506,9 @@
       "header": "engine_layer.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "canonical CNA surface with no Microsoft.Xna.Framework counterpart; it belongs under cna-ts/extensions and never inside the strict XNA projection",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_lod_group_ext_select_index",
@@ -19891,64 +19922,64 @@
     {
       "name": "cna_model_animations_ext_copy_clip_name_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_model_animations_ext_copy_type_name",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_model_animations_ext_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_model_animations_ext_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_model_animations_ext_get_clip_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_model_animations_ext_get_clip_info_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_model_animations_ext_get_clip_name_byte_count_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_model_animations_ext_get_type_name_byte_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_model_animations_ext_set_clip_target_space_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
@@ -19968,120 +19999,120 @@
     {
       "name": "cna_model_bone_add_child",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_collection_contains",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_collection_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_collection_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_collection_find",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_collection_get_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_collection_get_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_copy_name",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_create_default",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_get_children",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_get_index",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_get_name_byte_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_get_parent",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_get_transform",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_bone_set_transform",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
@@ -20101,15 +20132,15 @@
     {
       "name": "cna_model_copy_absolute_bone_transforms",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_copy_bone_transforms",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
@@ -20164,15 +20195,15 @@
     {
       "name": "cna_model_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_create_default",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
@@ -20185,78 +20216,78 @@
     {
       "name": "cna_model_create_with_parents",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_draw",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_effect_collection_add",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_effect_collection_contains",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_effect_collection_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_effect_collection_get_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_effect_collection_get_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_effect_collection_remove",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_get_bone_transform_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_get_bones",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
@@ -20367,15 +20398,15 @@
     {
       "name": "cna_model_get_meshes",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_get_root",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
@@ -20409,191 +20440,199 @@
     {
       "name": "cna_model_get_tag",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_collection_contains",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_collection_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_collection_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_collection_find",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_collection_get_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_collection_get_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_copy_name",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_create_named",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_draw",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_get_bounding_sphere",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_get_effects",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_get_mesh_parts",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_get_name_byte_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_get_parent_bone",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_get_tag",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_part_collection_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_part_collection_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_part_collection_get_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_part_collection_get_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_part_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_model_mesh_part_create_default",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
       "backends": []
     },
     {
       "name": "cna_model_mesh_part_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_model_mesh_part_get_effect",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_model_mesh_part_get_index_buffer",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_model_mesh_part_get_morph_target_data_ext",
@@ -20605,16 +20644,20 @@
     {
       "name": "cna_model_mesh_part_get_num_vertices",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_model_mesh_part_get_primitive_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_model_mesh_part_get_primitive_type_ext",
@@ -20633,43 +20676,51 @@
     {
       "name": "cna_model_mesh_part_get_start_index",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_model_mesh_part_get_tag",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
       "backends": []
     },
     {
       "name": "cna_model_mesh_part_get_vertex_buffer",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_model_mesh_part_get_vertex_offset",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_model_mesh_part_set_effect",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_model_mesh_part_set_index_buffer",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
       "backends": []
     },
     {
@@ -20689,15 +20740,15 @@
     {
       "name": "cna_model_mesh_part_set_num_vertices",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
       "backends": []
     },
     {
       "name": "cna_model_mesh_part_set_primitive_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
       "backends": []
     },
     {
@@ -20717,57 +20768,57 @@
     {
       "name": "cna_model_mesh_part_set_start_index",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
       "backends": []
     },
     {
       "name": "cna_model_mesh_part_set_tag",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
       "backends": []
     },
     {
       "name": "cna_model_mesh_part_set_vertex_buffer",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
       "backends": []
     },
     {
       "name": "cna_model_mesh_part_set_vertex_offset",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Microsoft.Xna.Framework.Graphics.ModelMeshPart. Ten of these are imported: a managed part lends CNA a native view of itself, built over the vertex and index buffers it already owns rather than over copies, so that CNA's instanced renderer and LOD selection can take a real part. The rest are the setters -- num_vertices, primitive_count, start_index, vertex_offset -- which the managed part exposes as readonly, exactly as XNA does, so there is nothing for them to set. See docs/native-model-graph.md",
       "backends": []
     },
     {
       "name": "cna_model_mesh_set_bounding_sphere",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_set_parent_bone",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_mesh_set_tag",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_set_bone_transforms",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
@@ -20787,50 +20838,50 @@
     {
       "name": "cna_model_set_owned_resources",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_model_set_tag",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs Model, ModelMesh, ModelBone and their collections, all of which this package implements exactly in TypeScript from the XNB readers. These routes are a *parallel* native model graph rather than the backing of the managed one, and adopting them wholesale would give one logical model two owners: CNA's own getters mint a fresh owned handle on every call (measured -- reading one part out of a collection twice yields two different handles, neither equal to the original), so a native graph cannot even preserve the stable object identity the managed graph already has. Deferred deliberately, not for want of measurement; the one place a native object is genuinely needed -- a part handle for the engine extensions -- is covered by the side-car above without duplicating a byte of geometry",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_blend",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_copy_base_vertex_bytes",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_copy_normal_deltas",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_copy_position_deltas",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_copy_tangent_deltas",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
@@ -20843,43 +20894,43 @@
     {
       "name": "cna_morph_target_data_ext_copy_type_name",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_copy_weight_keyframe",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_copy_weights",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_get_base_vertex_byte_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
@@ -20892,29 +20943,29 @@
     {
       "name": "cna_morph_target_data_ext_get_stride",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_get_target_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_get_type_name_byte_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_get_weight_track_info",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
@@ -20927,8 +20978,8 @@
     {
       "name": "cna_morph_target_data_ext_set_tangent_deltas",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
@@ -20941,22 +20992,22 @@
     {
       "name": "cna_morph_target_data_ext_set_weight_track",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_target_data_ext_set_weights",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_morph_weight_track_ext_evaluate",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
@@ -26885,183 +26936,183 @@
     {
       "name": "cna_skinned_model_ext_add_part",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_attach_parts",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_compute_bone_transforms",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_copy_bind_pose_local",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_copy_clip_name_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_copy_clip_track",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_copy_inverse_bind_pose_global",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_copy_parent_bone_indices",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_copy_part_name_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_create_default",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_create_move",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_get_bone_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_get_clip_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_get_clip_info",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_get_clip_name_byte_count_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_get_owned_resource_counts",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_get_part_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_get_part_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_get_part_name_byte_count_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_move_assign",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_remove_clip",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_remove_part",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_set_clip",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
       "name": "cna_skinned_model_ext_set_skeleton",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "modern model surface with no XNA 4.0 counterpart: glTF import diagnostics, cameras, skins, material variants, morph targets, GPU-skinned models, named animation clips and the content-tag dictionary. XNA's Model carries none of these -- it has bones, meshes, parts and a tag, and nothing else -- so projecting them into Microsoft.Xna.Framework.Graphics.Model would break the strict contract these gates exist to hold",
       "backends": []
     },
     {
@@ -27130,36 +27181,36 @@
     {
       "name": "cna_skinning_data_copy_bind_pose",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_skinning_data_copy_clip_name_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_skinning_data_copy_clip_track",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_skinning_data_copy_inverse_bind_pose",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_skinning_data_copy_skeleton_hierarchy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
@@ -27172,57 +27223,57 @@
     {
       "name": "cna_skinning_data_copy_skeleton_root_prefix",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_skinning_data_copy_type_name",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_skinning_data_create",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_skinning_data_destroy",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_skinning_data_get_bone_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_skinning_data_get_clip_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_skinning_data_get_clip_info",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
       "name": "cna_skinning_data_get_clip_name_byte_count_at",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {
@@ -27249,8 +27300,8 @@
     {
       "name": "cna_skinning_data_get_type_name_byte_count",
       "header": "models.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "SkinningData and AnimationPlayer are the XNA Skinned Model *Sample's* types, not Microsoft.Xna.Framework members -- there is no such class in any XNA 4.0 reference assembly, which is why they carry a content type name of their own. They are CNA extension surface and belong under cna-ts/extensions if they are ever projected, never inside the strict XNA namespace",
       "backends": []
     },
     {

@@ -2661,10 +2661,11 @@ export interface CnaShadowBackend {
 export interface CnaLodBackend {
   createLodGroup(): NativeHandle;
   destroyLodGroup(group: NativeHandle): void;
-  addLodLevel(group: NativeHandle, maxDistance: number): void;
+  addLodLevel(group: NativeHandle, maxDistance: number, part: NativeHandle | null): void;
   clearLodGroup(group: NativeHandle): void;
   copyLodLevels(group: NativeHandle): readonly number[];
   selectLodIndex(group: NativeHandle, distance: number): number;
+  selectLodPart(group: NativeHandle, distance: number): NativeHandle | null;
   getLodHysteresis(group: NativeHandle): number;
   setLodHysteresis(group: NativeHandle, margin: number): void;
   resetLodHysteresis(group: NativeHandle): void;
@@ -2674,6 +2675,51 @@ export interface CnaLodBackend {
     group: NativeHandle, radius: number, verticalFov: number, viewportHeight: number,
   ): void;
   getLodProjectedRadiusPixels(group: NativeHandle, distance: number): number;
+}
+
+/**
+ * The native model-mesh-part side-car: a `CNA_ModelMeshPartHandle` built over the vertex and index
+ * buffers a managed `ModelMeshPart` already owns. `createNativeMeshPart` retains those buffers
+ * rather than copying them, so nothing is uploaded to the GPU twice.
+ */
+export interface CnaNativeMeshPartBackend {
+  createNativeMeshPart(
+    vertexBuffer: NativeHandle,
+    indexBuffer: NativeHandle,
+    numVertices: number,
+    primitiveCount: number,
+    startIndex: number,
+    vertexOffset: number,
+  ): NativeHandle;
+  destroyNativeMeshPart(part: NativeHandle): void;
+  setNativeMeshPartEffect(part: NativeHandle, effect: NativeHandle | null): void;
+  getNativeMeshPartEffect(part: NativeHandle): NativeHandle | null;
+  getNativeMeshPartVertexBuffer(part: NativeHandle): NativeHandle | null;
+  getNativeMeshPartIndexBuffer(part: NativeHandle): NativeHandle | null;
+  getNativeMeshPartNumVertices(part: NativeHandle): number;
+  getNativeMeshPartPrimitiveCount(part: NativeHandle): number;
+  getNativeMeshPartStartIndex(part: NativeHandle): number;
+  getNativeMeshPartVertexOffset(part: NativeHandle): number;
+}
+
+/** CNA's instanced renderer, which borrows one native mesh part and draws it many times. */
+export interface CnaInstancedRendererBackend {
+  createInstancedRenderer(device: NativeHandle, part: NativeHandle): NativeHandle;
+  destroyInstancedRenderer(renderer: NativeHandle): void;
+  setInstancedRendererInstances(
+    renderer: NativeHandle, transforms: readonly (readonly number[])[],
+  ): void;
+  setInstancedRendererTints(renderer: NativeHandle, tints: readonly ColorSnapshot[]): void;
+  getInstancedRendererTintsEnabled(renderer: NativeHandle): boolean;
+  setInstancedRendererTintsEnabled(renderer: NativeHandle, enabled: boolean): void;
+  drawInstancedRenderer(renderer: NativeHandle, effect: NativeHandle): void;
+  getInstancedRendererInstancingSupported(renderer: NativeHandle): boolean;
+  getInstancedRendererFallbackEnabled(renderer: NativeHandle): boolean;
+  setInstancedRendererFallbackEnabled(renderer: NativeHandle, enabled: boolean): void;
+  getInstancedRendererInstanceCount(renderer: NativeHandle): number;
+  getInstancedRendererInstanceCapacity(renderer: NativeHandle): number;
+  getInstancedRendererLastDrawCallCount(renderer: NativeHandle): number;
+  getInstancedRendererDidLastDrawInstance(renderer: NativeHandle): boolean;
 }
 
 export interface CnaClusteredLightingBackend {
@@ -3271,6 +3317,8 @@ export interface CnaBackend {
   readonly Compute?: CnaComputeBackend;
   readonly ClusteredLighting?: CnaClusteredLightingBackend;
   readonly Lod?: CnaLodBackend;
+  readonly NativeMeshParts?: CnaNativeMeshPartBackend;
+  readonly InstancedRenderer?: CnaInstancedRendererBackend;
   readonly Shadows?: CnaShadowBackend;
   readonly DepthNormalPrepass?: CnaDepthNormalPrepassBackend;
   readonly Decals?: CnaDecalBackend;

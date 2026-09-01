@@ -564,6 +564,27 @@ typedef CNA_Result (*LodAddLevelFn)(CNA_LodGroupEXTHandle, float, CNA_ModelMeshP
 typedef CNA_Result (*LodCopyLevelsFn)(
   CNA_LodGroupEXTHandle, CNA_LodLevelEXT*, uint64_t, uint64_t*);
 typedef CNA_Result (*LodSelectIndexFn)(CNA_LodGroupEXTHandle, float, int32_t*);
+typedef CNA_Result (*LodSelectFn)(
+  CNA_LodGroupEXTHandle, float, CNA_ModelMeshPartHandle*);
+
+/* The native model-mesh-part side-car. See docs/native-model-graph.md for what each one was
+   measured to do -- in particular that `create` *retains* the buffers it is given rather than
+   copying their contents, which is the whole reason this bridge is honest. */
+typedef CNA_Result (*ModelMeshPartCreateFn)(
+  CNA_VertexBufferHandle, CNA_IndexBufferHandle, int32_t, int32_t, int32_t, int32_t,
+  CNA_ModelMeshPartHandle*);
+typedef CNA_Result (*ModelMeshPartGetResourceFn)(
+  CNA_ModelMeshPartHandle, CNA_Bool*, CNA_Handle*);
+typedef CNA_Result (*ModelMeshPartSetEffectFn)(CNA_ModelMeshPartHandle, CNA_EffectHandle);
+
+typedef CNA_Result (*InstancedRendererCreateFn)(
+  CNA_Handle, CNA_ModelMeshPartHandle, CNA_InstancedRendererEXTHandle*);
+typedef CNA_Result (*InstancedRendererSetInstancesFn)(
+  CNA_InstancedRendererEXTHandle, const CNA_Matrix*, uint64_t);
+typedef CNA_Result (*InstancedRendererSetTintsFn)(
+  CNA_InstancedRendererEXTHandle, const CNA_Color*, uint64_t);
+typedef CNA_Result (*InstancedRendererDrawFn)(
+  CNA_InstancedRendererEXTHandle, CNA_EffectHandle);
 typedef CNA_Result (*LodModeOutFn)(CNA_LodGroupEXTHandle, CNA_LodSelectionMode*);
 typedef CNA_Result (*LodModeInFn)(CNA_LodGroupEXTHandle, CNA_LodSelectionMode);
 typedef CNA_Result (*LodScreenSpaceFn)(CNA_LodGroupEXTHandle, float, float, float);
@@ -1841,6 +1862,7 @@ typedef struct Api {
   GameHandleFn lod_group_ext_clear;
   LodCopyLevelsFn lod_group_ext_copy_levels;
   LodSelectIndexFn lod_group_ext_select_index;
+  LodSelectFn lod_group_ext_select;
   HandleFloatOutFn lod_group_ext_get_hysteresis;
   HandleFloatFn lod_group_ext_set_hysteresis;
   GameHandleFn lod_group_ext_reset_hysteresis;
@@ -2526,6 +2548,27 @@ typedef struct Api {
   HandleI32OutFn instanced_renderer_ext_get_instance_count;
   HandleI32OutFn instanced_renderer_ext_get_instance_capacity;
   HandleI32OutFn instanced_renderer_ext_get_last_draw_call_count;
+  InstancedRendererCreateFn instanced_renderer_ext_create;
+  GameHandleFn instanced_renderer_ext_destroy;
+  InstancedRendererSetInstancesFn instanced_renderer_ext_set_instances;
+  InstancedRendererSetTintsFn instanced_renderer_ext_set_instance_tints;
+  BoolGetFn instanced_renderer_ext_is_tints_enabled;
+  HandleBoolFn instanced_renderer_ext_set_tints_enabled;
+  InstancedRendererDrawFn instanced_renderer_ext_draw;
+  BoolGetFn instanced_renderer_ext_is_instancing_supported;
+  BoolGetFn instanced_renderer_ext_is_fallback_enabled;
+  HandleBoolFn instanced_renderer_ext_set_fallback_enabled;
+  BoolGetFn instanced_renderer_ext_did_last_draw_instance;
+  ModelMeshPartCreateFn model_mesh_part_create;
+  GameHandleFn model_mesh_part_destroy;
+  ModelMeshPartSetEffectFn model_mesh_part_set_effect;
+  ModelMeshPartGetResourceFn model_mesh_part_get_effect;
+  ModelMeshPartGetResourceFn model_mesh_part_get_vertex_buffer;
+  ModelMeshPartGetResourceFn model_mesh_part_get_index_buffer;
+  HandleI32OutFn model_mesh_part_get_num_vertices;
+  HandleI32OutFn model_mesh_part_get_primitive_count;
+  HandleI32OutFn model_mesh_part_get_start_index;
+  HandleI32OutFn model_mesh_part_get_vertex_offset;
   FrustumCullerCreateFn frustum_culler_ext_create;
   GameHandleFn frustum_culler_ext_destroy;
   CullerMatrixFn frustum_culler_ext_set_view_projection;
@@ -3949,6 +3992,7 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(lod_group_ext_clear, GameHandleFn, "cna_lod_group_ext_clear");
   LOAD_REQUIRED(lod_group_ext_copy_levels, LodCopyLevelsFn, "cna_lod_group_ext_copy_levels");
   LOAD_REQUIRED(lod_group_ext_select_index, LodSelectIndexFn, "cna_lod_group_ext_select_index");
+  LOAD_REQUIRED(lod_group_ext_select, LodSelectFn, "cna_lod_group_ext_select");
   LOAD_REQUIRED(lod_group_ext_get_hysteresis, HandleFloatOutFn, "cna_lod_group_ext_get_hysteresis");
   LOAD_REQUIRED(lod_group_ext_set_hysteresis, HandleFloatFn, "cna_lod_group_ext_set_hysteresis");
   LOAD_REQUIRED(lod_group_ext_reset_hysteresis, GameHandleFn, "cna_lod_group_ext_reset_hysteresis");
@@ -4574,6 +4618,30 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(instanced_renderer_ext_get_instance_stride, StrideOutFn, "cna_instanced_renderer_ext_get_instance_stride");
   LOAD_REQUIRED(instanced_renderer_ext_copy_tint_elements, InstanceElementsFn, "cna_instanced_renderer_ext_copy_tint_elements");
   LOAD_REQUIRED(instanced_renderer_ext_get_tint_stride, StrideOutFn, "cna_instanced_renderer_ext_get_tint_stride");
+  LOAD_REQUIRED(instanced_renderer_ext_create, InstancedRendererCreateFn, "cna_instanced_renderer_ext_create");
+  LOAD_REQUIRED(instanced_renderer_ext_destroy, GameHandleFn, "cna_instanced_renderer_ext_destroy");
+  LOAD_REQUIRED(instanced_renderer_ext_set_instances, InstancedRendererSetInstancesFn, "cna_instanced_renderer_ext_set_instances");
+  LOAD_REQUIRED(instanced_renderer_ext_set_instance_tints, InstancedRendererSetTintsFn, "cna_instanced_renderer_ext_set_instance_tints");
+  LOAD_REQUIRED(instanced_renderer_ext_is_tints_enabled, BoolGetFn, "cna_instanced_renderer_ext_is_tints_enabled");
+  LOAD_REQUIRED(instanced_renderer_ext_set_tints_enabled, HandleBoolFn, "cna_instanced_renderer_ext_set_tints_enabled");
+  LOAD_REQUIRED(instanced_renderer_ext_draw, InstancedRendererDrawFn, "cna_instanced_renderer_ext_draw");
+  LOAD_REQUIRED(instanced_renderer_ext_is_instancing_supported, BoolGetFn, "cna_instanced_renderer_ext_is_instancing_supported");
+  LOAD_REQUIRED(instanced_renderer_ext_is_fallback_enabled, BoolGetFn, "cna_instanced_renderer_ext_is_fallback_enabled");
+  LOAD_REQUIRED(instanced_renderer_ext_set_fallback_enabled, HandleBoolFn, "cna_instanced_renderer_ext_set_fallback_enabled");
+  LOAD_REQUIRED(instanced_renderer_ext_did_last_draw_instance, BoolGetFn, "cna_instanced_renderer_ext_did_last_draw_instance");
+  LOAD_REQUIRED(instanced_renderer_ext_get_instance_count, HandleI32OutFn, "cna_instanced_renderer_ext_get_instance_count");
+  LOAD_REQUIRED(instanced_renderer_ext_get_instance_capacity, HandleI32OutFn, "cna_instanced_renderer_ext_get_instance_capacity");
+  LOAD_REQUIRED(instanced_renderer_ext_get_last_draw_call_count, HandleI32OutFn, "cna_instanced_renderer_ext_get_last_draw_call_count");
+  LOAD_REQUIRED(model_mesh_part_create, ModelMeshPartCreateFn, "cna_model_mesh_part_create");
+  LOAD_REQUIRED(model_mesh_part_destroy, GameHandleFn, "cna_model_mesh_part_destroy");
+  LOAD_REQUIRED(model_mesh_part_set_effect, ModelMeshPartSetEffectFn, "cna_model_mesh_part_set_effect");
+  LOAD_REQUIRED(model_mesh_part_get_effect, ModelMeshPartGetResourceFn, "cna_model_mesh_part_get_effect");
+  LOAD_REQUIRED(model_mesh_part_get_vertex_buffer, ModelMeshPartGetResourceFn, "cna_model_mesh_part_get_vertex_buffer");
+  LOAD_REQUIRED(model_mesh_part_get_index_buffer, ModelMeshPartGetResourceFn, "cna_model_mesh_part_get_index_buffer");
+  LOAD_REQUIRED(model_mesh_part_get_num_vertices, HandleI32OutFn, "cna_model_mesh_part_get_num_vertices");
+  LOAD_REQUIRED(model_mesh_part_get_primitive_count, HandleI32OutFn, "cna_model_mesh_part_get_primitive_count");
+  LOAD_REQUIRED(model_mesh_part_get_start_index, HandleI32OutFn, "cna_model_mesh_part_get_start_index");
+  LOAD_REQUIRED(model_mesh_part_get_vertex_offset, HandleI32OutFn, "cna_model_mesh_part_get_vertex_offset");
   LOAD_REQUIRED(debug_draw_create, PostProcessPassCreateFn, "cna_debug_draw_create");
   LOAD_REQUIRED(debug_draw_destroy, GameHandleFn, "cna_debug_draw_destroy");
   LOAD_REQUIRED(debug_draw_begin, DebugDrawBeginFn, "cna_debug_draw_begin");
@@ -20252,10 +20320,12 @@ static napi_value shadow_map_compute_light_projection(napi_env env, napi_callbac
  *
  * `cna_lod_group_ext_add_level` associates each level with a `CNA_ModelMeshPartHandle`, and
  * `cna_lod_group_ext_select` hands that handle back. Neither is projected: this package's
- * `ModelMeshPart` is a managed projection built from XNB readers, with managed vertex and index
- * buffers and no native handle to give -- so binding `select` would project a route that could
- * only ever answer zero. What is bound is the selection *arithmetic*, which is the whole value of
- * a LOD group, and a consumer indexes their own array of parts with the answer.
+ * `ModelMeshPart` used to be a managed-only projection with no native handle to give, so `select`
+ * was left unbound rather than made to answer zero. That is no longer true: a managed part can now
+ * carry a native side-car built over the very buffers it already owns, so both `add_level` and
+ * `select` take and return real parts. `select` is the one route whose returned handle is a
+ * *borrow* of what was put in -- measured, because CNA's collection getters mint fresh handles
+ * instead and would make a reverse map wrong. See docs/native-model-graph.md.
  */
 
 static napi_value lod_group_create(napi_env env, napi_callback_info info) {
@@ -20287,18 +20357,46 @@ static napi_value lod_group_set_hysteresis(napi_env env, napi_callback_info info
 }
 
 static napi_value lod_group_add_level(napi_env env, napi_callback_info info) {
-  napi_value args[2];
+  napi_value args[3];
   CNA_Handle group = 0;
+  CNA_ModelMeshPartHandle part = CNA_INVALID_HANDLE;
   double distance = 0;
-  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+  napi_valuetype kind = napi_undefined;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
       !read_handle(env, args[0], &group) ||
-      napi_get_value_double(env, args[1], &distance) != napi_ok) return NULL;
-  /* No mesh part: see the note above. CNA_INVALID_HANDLE is how this ABI spells "absent". */
-  const CNA_Result result = g_api.lod_group_ext_add_level(group, (float) distance, 0);
+      napi_get_value_double(env, args[1], &distance) != napi_ok ||
+      napi_typeof(env, args[2], &kind) != napi_ok) return NULL;
+  /* CNA_INVALID_HANDLE is how this ABI spells "this level deliberately draws nothing". */
+  if (kind != napi_undefined && kind != napi_null &&
+      !read_handle(env, args[2], &part)) return NULL;
+  const CNA_Result result = g_api.lod_group_ext_add_level(group, (float) distance, part);
   if (result != CNA_RESULT_SUCCESS) {
     return throw_result(env, "cna_lod_group_ext_add_level", result);
   }
   return undefined_result(env, "cna_lod_group_ext_add_level");
+}
+
+/*
+ * Answers the selected part's handle, or null when the group is empty or the chosen level draws
+ * nothing. The two are separated by `selectLodIndex`, which answers -1 only for the first.
+ */
+static napi_value lod_group_select(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle group = 0;
+  CNA_ModelMeshPartHandle part = CNA_INVALID_HANDLE;
+  double distance = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &group) ||
+      napi_get_value_double(env, args[1], &distance) != napi_ok) return NULL;
+  const CNA_Result result = g_api.lod_group_ext_select(group, (float) distance, &part);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_lod_group_ext_select", result);
+  }
+  if (part == CNA_INVALID_HANDLE) {
+    NAPI_OR_RETURN(env, napi_get_null(env, &output), "cna_lod_group_ext_select");
+    return output;
+  }
+  return make_handle(env, part);
 }
 
 static napi_value lod_group_copy_levels(napi_env env, napi_callback_info info) {
@@ -24840,13 +24938,12 @@ static napi_value copy_vertex_elements(
 }
 
 /*
- * The instanced renderer's own object is deliberately not bound, and for the reason the LOD group
- * above records: `cna_instanced_renderer_ext_create` takes a `CNA_ModelMeshPartHandle`, and this
- * package's `ModelMeshPart` is a managed projection built from XNB readers with managed vertex and
- * index buffers and no native handle to give. Binding it would project routes that could only ever
- * be handed zero. What *is* bound is the part a caller needs whatever draws the instances: the two
- * vertex declarations the instancing streams take and their strides, which are static and describe
- * the buffers a consumer builds themselves.
+ * The instanced renderer's own object is bound now that a managed `ModelMeshPart` can carry a
+ * native side-car -- see the LOD note above and docs/native-model-graph.md. The part is *borrowed*
+ * by the renderer and must outlive it, which the extension enforces by holding the side-car for as
+ * long as the renderer lives. Also bound, and useful on their own: the two vertex declarations the
+ * instancing streams take and their strides, which are static and describe the buffers a consumer
+ * building its own instance stream has to match exactly.
  */
 static napi_value bridge_instanced_renderer_ext_copy_instance_elements(
   napi_env env, napi_callback_info info
@@ -24892,6 +24989,271 @@ static napi_value bridge_instanced_renderer_ext_get_tint_stride(
   return stride_only(
     env, g_api.instanced_renderer_ext_get_tint_stride,
     "cna_instanced_renderer_ext_get_tint_stride");
+}
+
+static napi_value bridge_instanced_renderer_ext_create(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0;
+  CNA_ModelMeshPartHandle part = 0;
+  CNA_InstancedRendererEXTHandle renderer = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      !read_handle(env, args[1], &part)) return NULL;
+  const CNA_Result result = g_api.instanced_renderer_ext_create(device, part, &renderer);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_instanced_renderer_ext_create", result);
+  }
+  return make_handle(env, renderer);
+}
+
+static napi_value bridge_instanced_renderer_ext_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.instanced_renderer_ext_destroy,
+    "cna_instanced_renderer_ext_destroy");
+}
+
+/* Uploading zero instances is not an error: it is how a caller stops drawing without destroying
+   the renderer, so an empty array reaches CNA as a null pointer with a zero count. */
+static napi_value bridge_instanced_renderer_ext_set_instances(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], entry;
+  CNA_Handle renderer = 0;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &renderer) ||
+      napi_get_array_length(env, args[1], &count) != napi_ok) {
+    return throw_message(env, "expected an instanced renderer and an array of matrices");
+  }
+  CNA_Matrix* transforms = count == 0 ? NULL : (CNA_Matrix*) calloc(count, sizeof(CNA_Matrix));
+  if (count != 0 && !transforms) return throw_message(env, "instance transform allocation failed");
+  for (uint32_t index = 0; index < count; index += 1) {
+    if (napi_get_element(env, args[1], index, &entry) != napi_ok ||
+        !read_matrix16(env, entry, &transforms[index], "an instance transform")) {
+      free(transforms);
+      return NULL;
+    }
+  }
+  const CNA_Result result =
+    g_api.instanced_renderer_ext_set_instances(renderer, transforms, count);
+  free(transforms);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_instanced_renderer_ext_set_instances", result);
+  }
+  return undefined_result(env, "cna_instanced_renderer_ext_set_instances");
+}
+
+static napi_value bridge_instanced_renderer_ext_set_instance_tints(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], entry;
+  CNA_Handle renderer = 0;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &renderer) ||
+      napi_get_array_length(env, args[1], &count) != napi_ok) {
+    return throw_message(env, "expected an instanced renderer and an array of colours");
+  }
+  CNA_Color* tints = count == 0 ? NULL : (CNA_Color*) calloc(count, sizeof(CNA_Color));
+  if (count != 0 && !tints) return throw_message(env, "instance tint allocation failed");
+  for (uint32_t index = 0; index < count; index += 1) {
+    if (napi_get_element(env, args[1], index, &entry) != napi_ok ||
+        !read_color_bytes(env, entry, &tints[index])) {
+      free(tints);
+      return NULL;
+    }
+  }
+  const CNA_Result result =
+    g_api.instanced_renderer_ext_set_instance_tints(renderer, tints, count);
+  free(tints);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_instanced_renderer_ext_set_instance_tints", result);
+  }
+  return undefined_result(env, "cna_instanced_renderer_ext_set_instance_tints");
+}
+
+static napi_value bridge_instanced_renderer_ext_is_tints_enabled(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_bool(env, info, g_api.instanced_renderer_ext_is_tints_enabled,
+    "cna_instanced_renderer_ext_is_tints_enabled");
+}
+
+static napi_value bridge_instanced_renderer_ext_set_tints_enabled(
+  napi_env env, napi_callback_info info
+) {
+  return pp_set_bool(env, info, g_api.instanced_renderer_ext_set_tints_enabled,
+    "cna_instanced_renderer_ext_set_tints_enabled");
+}
+
+static napi_value bridge_instanced_renderer_ext_draw(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle renderer = 0;
+  CNA_EffectHandle effect = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &renderer) ||
+      !read_handle(env, args[1], &effect)) return NULL;
+  const CNA_Result result = g_api.instanced_renderer_ext_draw(renderer, effect);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_instanced_renderer_ext_draw", result);
+  }
+  return undefined_result(env, "cna_instanced_renderer_ext_draw");
+}
+
+static napi_value bridge_instanced_renderer_ext_is_instancing_supported(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_bool(env, info, g_api.instanced_renderer_ext_is_instancing_supported,
+    "cna_instanced_renderer_ext_is_instancing_supported");
+}
+
+static napi_value bridge_instanced_renderer_ext_is_fallback_enabled(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_bool(env, info, g_api.instanced_renderer_ext_is_fallback_enabled,
+    "cna_instanced_renderer_ext_is_fallback_enabled");
+}
+
+static napi_value bridge_instanced_renderer_ext_set_fallback_enabled(
+  napi_env env, napi_callback_info info
+) {
+  return pp_set_bool(env, info, g_api.instanced_renderer_ext_set_fallback_enabled,
+    "cna_instanced_renderer_ext_set_fallback_enabled");
+}
+
+static napi_value bridge_instanced_renderer_ext_get_instance_count(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(env, info, g_api.instanced_renderer_ext_get_instance_count,
+    "cna_instanced_renderer_ext_get_instance_count");
+}
+
+static napi_value bridge_instanced_renderer_ext_get_instance_capacity(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(env, info, g_api.instanced_renderer_ext_get_instance_capacity,
+    "cna_instanced_renderer_ext_get_instance_capacity");
+}
+
+static napi_value bridge_instanced_renderer_ext_get_last_draw_call_count(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(env, info, g_api.instanced_renderer_ext_get_last_draw_call_count,
+    "cna_instanced_renderer_ext_get_last_draw_call_count");
+}
+
+static napi_value bridge_instanced_renderer_ext_did_last_draw_instance(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_bool(env, info, g_api.instanced_renderer_ext_did_last_draw_instance,
+    "cna_instanced_renderer_ext_did_last_draw_instance");
+}
+
+/* ---- the native model-mesh-part side-car -------------------------------------------------------
+   A managed `ModelMeshPart` is authoritative and stays so. These routes build a native part *over
+   the buffers it already owns* -- `create` retains them rather than copying, measured, so no
+   geometry is uploaded twice -- and the getters exist so the side-car can be checked against the
+   managed original instead of assumed to match it. */
+
+static napi_value bridge_model_mesh_part_create(napi_env env, napi_callback_info info) {
+  napi_value args[6];
+  CNA_VertexBufferHandle vertex_buffer = 0;
+  CNA_IndexBufferHandle index_buffer = 0;
+  int32_t num_vertices = 0, primitive_count = 0, start_index = 0, vertex_offset = 0;
+  CNA_ModelMeshPartHandle part = 0;
+  if (!require_loaded(env) || !get_args(env, info, 6, args) ||
+      !read_handle(env, args[0], &vertex_buffer) ||
+      !read_handle(env, args[1], &index_buffer) ||
+      napi_get_value_int32(env, args[2], &num_vertices) != napi_ok ||
+      napi_get_value_int32(env, args[3], &primitive_count) != napi_ok ||
+      napi_get_value_int32(env, args[4], &start_index) != napi_ok ||
+      napi_get_value_int32(env, args[5], &vertex_offset) != napi_ok) {
+    return throw_message(env, "expected two buffers and four integers");
+  }
+  const CNA_Result result = g_api.model_mesh_part_create(
+    vertex_buffer, index_buffer, num_vertices, primitive_count, start_index, vertex_offset,
+    &part);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_model_mesh_part_create", result);
+  }
+  return make_handle(env, part);
+}
+
+static napi_value bridge_model_mesh_part_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.model_mesh_part_destroy, "cna_model_mesh_part_destroy");
+}
+
+static napi_value bridge_model_mesh_part_set_effect(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle part = 0;
+  CNA_EffectHandle effect = CNA_INVALID_HANDLE;
+  napi_valuetype kind = napi_undefined;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &part) ||
+      napi_typeof(env, args[1], &kind) != napi_ok) return NULL;
+  /* The invalid handle is how this ABI spells "clear the effect". */
+  if (kind != napi_undefined && kind != napi_null &&
+      !read_handle(env, args[1], &effect)) return NULL;
+  const CNA_Result result = g_api.model_mesh_part_set_effect(part, effect);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_model_mesh_part_set_effect", result);
+  }
+  return undefined_result(env, "cna_model_mesh_part_set_effect");
+}
+
+/* Answers the retained handle, or null when the slot is empty. */
+static napi_value part_resource(
+  napi_env env, napi_callback_info info, ModelMeshPartGetResourceFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle part = 0;
+  CNA_Bool present = CNA_FALSE;
+  CNA_Handle resource = CNA_INVALID_HANDLE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &part)) return NULL;
+  const CNA_Result result = route(part, &present, &resource);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  if (present != CNA_TRUE || resource == CNA_INVALID_HANDLE) {
+    NAPI_OR_RETURN(env, napi_get_null(env, &output), name);
+    return output;
+  }
+  return make_handle(env, resource);
+}
+
+static napi_value bridge_model_mesh_part_get_effect(napi_env env, napi_callback_info info) {
+  return part_resource(env, info, g_api.model_mesh_part_get_effect,
+    "cna_model_mesh_part_get_effect");
+}
+
+static napi_value bridge_model_mesh_part_get_vertex_buffer(napi_env env, napi_callback_info info) {
+  return part_resource(env, info, g_api.model_mesh_part_get_vertex_buffer,
+    "cna_model_mesh_part_get_vertex_buffer");
+}
+
+static napi_value bridge_model_mesh_part_get_index_buffer(napi_env env, napi_callback_info info) {
+  return part_resource(env, info, g_api.model_mesh_part_get_index_buffer,
+    "cna_model_mesh_part_get_index_buffer");
+}
+
+static napi_value bridge_model_mesh_part_get_num_vertices(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.model_mesh_part_get_num_vertices,
+    "cna_model_mesh_part_get_num_vertices");
+}
+
+static napi_value bridge_model_mesh_part_get_primitive_count(
+  napi_env env, napi_callback_info info
+) {
+  return pp_get_i32(env, info, g_api.model_mesh_part_get_primitive_count,
+    "cna_model_mesh_part_get_primitive_count");
+}
+
+static napi_value bridge_model_mesh_part_get_start_index(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.model_mesh_part_get_start_index,
+    "cna_model_mesh_part_get_start_index");
+}
+
+static napi_value bridge_model_mesh_part_get_vertex_offset(napi_env env, napi_callback_info info) {
+  return pp_get_i32(env, info, g_api.model_mesh_part_get_vertex_offset,
+    "cna_model_mesh_part_get_vertex_offset");
 }
 
 
@@ -28854,6 +29216,30 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getInstancedRendererInstanceStride", NULL, bridge_instanced_renderer_ext_get_instance_stride, NULL, NULL, NULL, napi_default, NULL },
     { "getInstancedRendererTintElements", NULL, bridge_instanced_renderer_ext_copy_tint_elements, NULL, NULL, NULL, napi_default, NULL },
     { "getInstancedRendererTintStride", NULL, bridge_instanced_renderer_ext_get_tint_stride, NULL, NULL, NULL, napi_default, NULL },
+    { "createInstancedRenderer", NULL, bridge_instanced_renderer_ext_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyInstancedRenderer", NULL, bridge_instanced_renderer_ext_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "setInstancedRendererInstances", NULL, bridge_instanced_renderer_ext_set_instances, NULL, NULL, NULL, napi_default, NULL },
+    { "setInstancedRendererTints", NULL, bridge_instanced_renderer_ext_set_instance_tints, NULL, NULL, NULL, napi_default, NULL },
+    { "getInstancedRendererTintsEnabled", NULL, bridge_instanced_renderer_ext_is_tints_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "setInstancedRendererTintsEnabled", NULL, bridge_instanced_renderer_ext_set_tints_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "drawInstancedRenderer", NULL, bridge_instanced_renderer_ext_draw, NULL, NULL, NULL, napi_default, NULL },
+    { "getInstancedRendererInstancingSupported", NULL, bridge_instanced_renderer_ext_is_instancing_supported, NULL, NULL, NULL, napi_default, NULL },
+    { "getInstancedRendererFallbackEnabled", NULL, bridge_instanced_renderer_ext_is_fallback_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "setInstancedRendererFallbackEnabled", NULL, bridge_instanced_renderer_ext_set_fallback_enabled, NULL, NULL, NULL, napi_default, NULL },
+    { "getInstancedRendererInstanceCount", NULL, bridge_instanced_renderer_ext_get_instance_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getInstancedRendererInstanceCapacity", NULL, bridge_instanced_renderer_ext_get_instance_capacity, NULL, NULL, NULL, napi_default, NULL },
+    { "getInstancedRendererLastDrawCallCount", NULL, bridge_instanced_renderer_ext_get_last_draw_call_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getInstancedRendererDidLastDrawInstance", NULL, bridge_instanced_renderer_ext_did_last_draw_instance, NULL, NULL, NULL, napi_default, NULL },
+    { "createNativeMeshPart", NULL, bridge_model_mesh_part_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyNativeMeshPart", NULL, bridge_model_mesh_part_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "setNativeMeshPartEffect", NULL, bridge_model_mesh_part_set_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getNativeMeshPartEffect", NULL, bridge_model_mesh_part_get_effect, NULL, NULL, NULL, napi_default, NULL },
+    { "getNativeMeshPartVertexBuffer", NULL, bridge_model_mesh_part_get_vertex_buffer, NULL, NULL, NULL, napi_default, NULL },
+    { "getNativeMeshPartIndexBuffer", NULL, bridge_model_mesh_part_get_index_buffer, NULL, NULL, NULL, napi_default, NULL },
+    { "getNativeMeshPartNumVertices", NULL, bridge_model_mesh_part_get_num_vertices, NULL, NULL, NULL, napi_default, NULL },
+    { "getNativeMeshPartPrimitiveCount", NULL, bridge_model_mesh_part_get_primitive_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getNativeMeshPartStartIndex", NULL, bridge_model_mesh_part_get_start_index, NULL, NULL, NULL, napi_default, NULL },
+    { "getNativeMeshPartVertexOffset", NULL, bridge_model_mesh_part_get_vertex_offset, NULL, NULL, NULL, napi_default, NULL },
     { "createFrustumCuller", NULL, bridge_frustum_culler_ext_create, NULL, NULL, NULL, napi_default, NULL },
     { "destroyFrustumCuller", NULL, bridge_frustum_culler_ext_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "setFrustumCullerViewProjection", NULL, bridge_frustum_culler_ext_set_view_projection, NULL, NULL, NULL, napi_default, NULL },
@@ -29651,6 +30037,7 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "clearLodGroup", NULL, lod_group_clear, NULL, NULL, NULL, napi_default, NULL },
     { "copyLodLevels", NULL, lod_group_copy_levels, NULL, NULL, NULL, napi_default, NULL },
     { "selectLodIndex", NULL, lod_group_select_index, NULL, NULL, NULL, napi_default, NULL },
+    { "selectLodPart", NULL, lod_group_select, NULL, NULL, NULL, napi_default, NULL },
     { "getLodHysteresis", NULL, lod_group_get_hysteresis, NULL, NULL, NULL, napi_default, NULL },
     { "setLodHysteresis", NULL, lod_group_set_hysteresis, NULL, NULL, NULL, napi_default, NULL },
     { "resetLodHysteresis", NULL, lod_group_reset_hysteresis, NULL, NULL, NULL, napi_default, NULL },

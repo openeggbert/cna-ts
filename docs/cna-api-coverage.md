@@ -8,12 +8,12 @@ C source and the WebAssembly backend's route table rather than declared.
 ```text
 TOTAL_C_API_FUNCTIONS=4054
 PUBLIC_HEADERS=57
-XNA_BACKING=1152
-CNA_EXTENSION_BACKING=1737
+XNA_BACKING=1234
+CNA_EXTENSION_BACKING=1816
 INTERNAL_RUNTIME_ONLY=1
 MANAGED_BY_DESIGN=457
 TOOLING_ONLY=31
-INTENTIONALLY_DEFERRED=676
+INTENTIONALLY_DEFERRED=515
 UPSTREAM_RUNTIME_UNAVAILABLE=0
 UNEXPLAINED=0
 ```
@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=1718
+REACHABLE_NODE=1743
 REACHABLE_WASM=276
-REACHABLE_BY_ANY_BACKEND=1718
+REACHABLE_BY_ANY_BACKEND=1743
 REACHABLE_BY_EVERY_BACKEND=276
-REACHABLE_NODE_ONLY=1442
+REACHABLE_NODE_ONLY=1467
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -34,12 +34,12 @@ What each backend reaches, by what the routes are for:
 
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
-| `XNA_BACKING` | 1152 | 434 | 73 |
-| `CNA_EXTENSION_BACKING` | 1737 | 1268 | 189 |
+| `XNA_BACKING` | 1234 | 444 | 73 |
+| `CNA_EXTENSION_BACKING` | 1816 | 1283 | 189 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 457 | 13 | 13 |
 | `TOOLING_ONLY` | 31 | 2 | 0 |
-| `INTENTIONALLY_DEFERRED` | 676 | 0 | 0 |
+| `INTENTIONALLY_DEFERRED` | 515 | 0 | 0 |
 
 ## By header
 
@@ -57,7 +57,7 @@ What each backend reaches, by what the routes are for:
 | `devices.h` | 29 | 0 | 0 | 61 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `display.h` | 14 | 0 | 0 | 22 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `effects.h` | 149 | 0 | 255 | 35 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `engine_layer.h` | 842 | 0 | 0 | 857 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `engine_layer.h` | 857 | 0 | 0 | 857 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `gamer_services.h` | 31 | 0 | 250 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `geometry.h` | 0 | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 | 0 |
 | `graphics_device.h` | 27 | 2 | 73 | 14 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -81,7 +81,7 @@ What each backend reaches, by what the routes are for:
 | `media_library.h` | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 146 | 0 | 0 |
 | `media_player.h` | 15 | 0 | 33 | 8 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `media.h` | 8 | 0 | 37 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `models.h` | 0 | 0 | 0 | 55 | 0 | 0 | 0 | 161 | 0 | 0 |
+| `models.h` | 10 | 0 | 82 | 134 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `net_gamers.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 33 | 0 | 0 |
 | `net_sessions.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 103 | 0 | 0 |
 | `net.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 50 | 0 | 0 |

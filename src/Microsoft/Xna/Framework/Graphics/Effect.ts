@@ -576,6 +576,16 @@ export function resolveEffectHandleForInternalUse(effect: Effect): NativeHandle 
   return native.Lifetime.Handle;
 }
 
+/** Internal: the Effect twin of {@link trackVertexBufferReleaseForInternalUse}. */
+export function trackEffectReleaseForInternalUse(
+  effect: Effect,
+  teardown: () => void,
+): () => void {
+  const native = effectState(effect).Native;
+  if (native == null) throw new NativeUnavailableError("Effect has no native handle");
+  return native.Lifetime.TrackCallback(teardown);
+}
+
 /**
  * Hands the effect's native handle to another owner and leaves this wrapper owning nothing.
  *

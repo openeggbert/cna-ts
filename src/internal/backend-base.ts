@@ -52,6 +52,8 @@ import type {
   CnaGraphicsExtensionBackend,
   CnaLightProbeBackend,
   CnaLodBackend,
+  CnaNativeMeshPartBackend,
+  CnaInstancedRendererBackend,
   CnaMediaBackend,
   CnaParticleBackend,
   CnaRuntimeServicesBackend,
@@ -3883,6 +3885,95 @@ export abstract class CnaShadowBackendBase implements CnaShadowBackend {
   ): number { return this.unsupported("cubeShadowMapSizeForQuality"); }
 }
 
+/** Refusing base for {@link CnaNativeMeshPartBackend}. */
+export abstract class CnaNativeMeshPartBackendBase implements CnaNativeMeshPartBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createNativeMeshPart(
+    _vertexBuffer: NativeHandle,
+    _indexBuffer: NativeHandle,
+    _numVertices: number,
+    _primitiveCount: number,
+    _startIndex: number,
+    _vertexOffset: number,
+  ): NativeHandle { return this.unsupported("createNativeMeshPart"); }
+  public destroyNativeMeshPart(_part: NativeHandle): void {
+    return this.unsupported("destroyNativeMeshPart");
+  }
+  public setNativeMeshPartEffect(
+    _part: NativeHandle, _effect: NativeHandle | null,
+  ): void { return this.unsupported("setNativeMeshPartEffect"); }
+  public getNativeMeshPartEffect(_part: NativeHandle): NativeHandle | null {
+    return this.unsupported("getNativeMeshPartEffect");
+  }
+  public getNativeMeshPartVertexBuffer(_part: NativeHandle): NativeHandle | null {
+    return this.unsupported("getNativeMeshPartVertexBuffer");
+  }
+  public getNativeMeshPartIndexBuffer(_part: NativeHandle): NativeHandle | null {
+    return this.unsupported("getNativeMeshPartIndexBuffer");
+  }
+  public getNativeMeshPartNumVertices(_part: NativeHandle): number {
+    return this.unsupported("getNativeMeshPartNumVertices");
+  }
+  public getNativeMeshPartPrimitiveCount(_part: NativeHandle): number {
+    return this.unsupported("getNativeMeshPartPrimitiveCount");
+  }
+  public getNativeMeshPartStartIndex(_part: NativeHandle): number {
+    return this.unsupported("getNativeMeshPartStartIndex");
+  }
+  public getNativeMeshPartVertexOffset(_part: NativeHandle): number {
+    return this.unsupported("getNativeMeshPartVertexOffset");
+  }
+}
+
+/** Refusing base for {@link CnaInstancedRendererBackend}. */
+export abstract class CnaInstancedRendererBackendBase implements CnaInstancedRendererBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createInstancedRenderer(
+    _device: NativeHandle, _part: NativeHandle,
+  ): NativeHandle { return this.unsupported("createInstancedRenderer"); }
+  public destroyInstancedRenderer(_renderer: NativeHandle): void {
+    return this.unsupported("destroyInstancedRenderer");
+  }
+  public setInstancedRendererInstances(
+    _renderer: NativeHandle, _transforms: readonly (readonly number[])[],
+  ): void { return this.unsupported("setInstancedRendererInstances"); }
+  public setInstancedRendererTints(
+    _renderer: NativeHandle, _tints: readonly ColorSnapshot[],
+  ): void { return this.unsupported("setInstancedRendererTints"); }
+  public getInstancedRendererTintsEnabled(_renderer: NativeHandle): boolean {
+    return this.unsupported("getInstancedRendererTintsEnabled");
+  }
+  public setInstancedRendererTintsEnabled(
+    _renderer: NativeHandle, _enabled: boolean,
+  ): void { return this.unsupported("setInstancedRendererTintsEnabled"); }
+  public drawInstancedRenderer(
+    _renderer: NativeHandle, _effect: NativeHandle,
+  ): void { return this.unsupported("drawInstancedRenderer"); }
+  public getInstancedRendererInstancingSupported(_renderer: NativeHandle): boolean {
+    return this.unsupported("getInstancedRendererInstancingSupported");
+  }
+  public getInstancedRendererFallbackEnabled(_renderer: NativeHandle): boolean {
+    return this.unsupported("getInstancedRendererFallbackEnabled");
+  }
+  public setInstancedRendererFallbackEnabled(
+    _renderer: NativeHandle, _enabled: boolean,
+  ): void { return this.unsupported("setInstancedRendererFallbackEnabled"); }
+  public getInstancedRendererInstanceCount(_renderer: NativeHandle): number {
+    return this.unsupported("getInstancedRendererInstanceCount");
+  }
+  public getInstancedRendererInstanceCapacity(_renderer: NativeHandle): number {
+    return this.unsupported("getInstancedRendererInstanceCapacity");
+  }
+  public getInstancedRendererLastDrawCallCount(_renderer: NativeHandle): number {
+    return this.unsupported("getInstancedRendererLastDrawCallCount");
+  }
+  public getInstancedRendererDidLastDrawInstance(_renderer: NativeHandle): boolean {
+    return this.unsupported("getInstancedRendererDidLastDrawInstance");
+  }
+}
+
 /** Refusing base for {@link CnaLodBackend}. */
 export abstract class CnaLodBackendBase implements CnaLodBackend {
   /** Refuses one member of this boundary, naming it. */
@@ -3892,7 +3983,12 @@ export abstract class CnaLodBackendBase implements CnaLodBackend {
   public addLodLevel(
     _group: NativeHandle,
     _maxDistance: number,
+    _part: NativeHandle | null,
   ): void { return this.unsupported("addLodLevel"); }
+  public selectLodPart(
+    _group: NativeHandle,
+    _distance: number,
+  ): NativeHandle | null { return this.unsupported("selectLodPart"); }
   public clearLodGroup(_group: NativeHandle): void { return this.unsupported("clearLodGroup"); }
   public copyLodLevels(_group: NativeHandle): readonly number[] { return this.unsupported("copyLodLevels"); }
   public selectLodIndex(
