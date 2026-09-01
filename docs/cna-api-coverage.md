@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=1706
+REACHABLE_NODE=1718
 REACHABLE_WASM=276
-REACHABLE_BY_ANY_BACKEND=1706
+REACHABLE_BY_ANY_BACKEND=1718
 REACHABLE_BY_EVERY_BACKEND=276
-REACHABLE_NODE_ONLY=1430
+REACHABLE_NODE_ONLY=1442
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -35,7 +35,7 @@ What each backend reaches, by what the routes are for:
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
 | `XNA_BACKING` | 1152 | 434 | 73 |
-| `CNA_EXTENSION_BACKING` | 1737 | 1256 | 189 |
+| `CNA_EXTENSION_BACKING` | 1737 | 1268 | 189 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 457 | 13 | 13 |
 | `TOOLING_ONLY` | 31 | 2 | 0 |
@@ -57,7 +57,7 @@ What each backend reaches, by what the routes are for:
 | `devices.h` | 29 | 0 | 0 | 61 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `display.h` | 14 | 0 | 0 | 22 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `effects.h` | 149 | 0 | 255 | 35 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `engine_layer.h` | 830 | 0 | 0 | 857 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `engine_layer.h` | 842 | 0 | 0 | 857 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `gamer_services.h` | 31 | 0 | 250 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `geometry.h` | 0 | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 | 0 |
 | `graphics_device.h` | 27 | 2 | 73 | 14 | 0 | 0 | 0 | 0 | 0 | 0 |

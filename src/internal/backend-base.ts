@@ -88,6 +88,7 @@ import type {
   GltfExtensionTexturesSnapshot,
   GltfMaterialSourceSnapshot,
   GltfMaterialTexturesSnapshot,
+  GpuCullableInstanceSnapshot,
   GraphicsAdapterInfoSnapshot,
   GraphicsFormatSelectionSnapshot,
   GraphicsManagerConfiguration,
@@ -95,6 +96,8 @@ import type {
   HapticCapabilitiesSnapshot,
   HostDeviceSnapshot,
   ImageBasedLightSnapshot,
+  IndirectDrawArgumentsSnapshot,
+  IndirectDrawIndexedArgumentsSnapshot,
   JoystickCapabilitiesSnapshot,
   JoystickInfoSnapshot,
   JoystickStateSnapshot,
@@ -2637,6 +2640,45 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
   public getEffectShadowMap(
     _effect: NativeHandle,
   ): NativeHandle { return this.unsupported("getEffectShadowMap"); }
+  public createDefaultIndirectDrawArguments(
+  ): IndirectDrawArgumentsSnapshot { return this.unsupported("createDefaultIndirectDrawArguments"); }
+  public createDefaultIndirectDrawIndexedArguments(
+  ): IndirectDrawIndexedArgumentsSnapshot { return this.unsupported("createDefaultIndirectDrawIndexedArguments"); }
+  public drawPrimitivesIndirect(
+    _graphicsDevice: NativeHandle,
+    _primitiveType: number,
+    _argumentBuffer: NativeHandle,
+    _argumentByteOffset: number,
+  ): void { return this.unsupported("drawPrimitivesIndirect"); }
+  public drawIndexedPrimitivesIndirect(
+    _graphicsDevice: NativeHandle,
+    _primitiveType: number,
+    _argumentBuffer: NativeHandle,
+    _argumentByteOffset: number,
+  ): void { return this.unsupported("drawIndexedPrimitivesIndirect"); }
+  public graphicsMemoryBarrierHas(
+    _mask: number,
+    _bit: number,
+  ): boolean { return this.unsupported("graphicsMemoryBarrierHas"); }
+  public createDefaultGpuCullableInstance(
+  ): GpuCullableInstanceSnapshot { return this.unsupported("createDefaultGpuCullableInstance"); }
+  public getPostProcessChainTargetPool(
+    _chain: NativeHandle,
+  ): NativeHandle { return this.unsupported("getPostProcessChainTargetPool"); }
+  public loadCubeLutFromFile(_path: string): NativeHandle { return this.unsupported("loadCubeLutFromFile"); }
+  public getEngineLayerVersion(): number { return this.unsupported("getEngineLayerVersion"); }
+  public getEngineLayerVersionString(): string { return this.unsupported("getEngineLayerVersionString"); }
+  public setRenderPipelineShadowScene(
+    _pipeline: NativeHandle,
+    _shadowMap: NativeHandle,
+    _light: DirectionalLightSnapshot,
+    _sceneBounds: ClusterBoundsSnapshot,
+    _drawCasters: (() => void) | null,
+  ): void { return this.unsupported("setRenderPipelineShadowScene"); }
+  public setRenderPipelineTransparentScene(
+    _pipeline: NativeHandle,
+    _draw: (() => void) | null,
+  ): void { return this.unsupported("setRenderPipelineTransparentScene"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,

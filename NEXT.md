@@ -2082,7 +2082,8 @@ npm test             332/332      native 41/41      windowed 16/16
 21  the OIT bracket's documented behaviour was corrected in the code,
     and its header and C shim still say the old thing                 NEW, measured
 22  a ShaderEffect's FIRST SpriteBatch draw produces nothing at all   NEW, measured
-23  two _init routes document identity transforms and write zeros     NEW, measured
+23  three _init routes document identity transforms and write zeros   NEW, measured
+24  a missing .cube and a malformed one are both NOT_SUPPORTED        NEW, measured
 ```
 
 Item 18 is the one to read first: it multiplies every leak finding in the document, and it was found
@@ -2090,25 +2091,31 @@ by noticing that a probe process died *after* printing everything it meant to pr
 
 ### Where the next session picks up
 
-`ACTIONABLE_LOCAL` is **27 unbound engine-layer routes**, of which 15 are deliberate non-bindings,
-so **12 are work** — and they are the last twelve:
+**`ACTIONABLE_LOCAL` is 0.** Every engine-layer route this package can honestly project is bound —
+1718 imported symbols, all compiler-verified against the real headers, no signature mismatches.
+
+The fifteen routes that remain unbound are the deliberate list, and binding them would be a
+regression rather than progress:
 
 ```text
-4  indirect draw (2 device routes + 2 init helpers)
-2  render_pipeline scene callbacks (shadow, transparent)
-2  engine_layer version (get, copy string)
-1  graphics_memory_barrier_has        1  gpu_cullable_instance_init
-1  post_process_chain_get_target_pool 1  cube_lut_load_from_file
+14  instanced_renderer_ext   needs CNA_ModelMeshPartHandle
+ 1  lod_group_ext_select     needs the same
 ```
 
-Bind those and `ACTIONABLE_LOCAL` reaches its floor of 15, which is the stop condition: the
-instanced renderer's fourteen routes and `cna_lod_group_ext_select` need handle types this package
-does not project, and binding them would offer routes that could only ever be handed zero. Both are
-recorded in the bridge beside the routes they belong to.
+This package's `ModelMeshPart` is a managed XNB projection with no native handle, so these routes
+could only ever be handed zero. Fourteen of them were bound once and *unbound again* rather than
+left counted as reachable in `docs/cna-api-coverage.md`. Both are recorded in comments in the bridge
+beside the routes they belong to. **Do not "fix" this by binding them.**
 
-After that the work is the final qualification suite and the handoff, not more binding.
+What is left is not more binding:
+
+- the final qualification suite and the handoff;
+- the two upstream findings that are documentation-only (21, 23) and the two that are behaviour
+  (22, 24) — each has a detector here that fails when the behaviour changes, which is how a repaired
+  upstream gets noticed;
+- `effects.h` and the other non-engine-layer headers, if the brief is ever widened.
 
 **Read finding 22 before writing anything that draws with a custom shader.** A fresh `ShaderEffect`
 loses its first `SpriteBatch` draw, and a custom-shader draw leaves a GL error pending that the next
 multiple-render-target bind refuses on. Both are asserted rather than worked around, and the
-accumulation test shows the shape a test has to take to live with them.
+weighted-blended accumulation test shows the shape a test has to take to live with them.

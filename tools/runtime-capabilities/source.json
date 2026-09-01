@@ -2154,6 +2154,27 @@
         "route:cna_effect_get_shadow_map_ext",
         "test:test/native-cna.integration.mjs"
       ]
+    },
+    {
+      "operation": "The last of the engine layer: indirect draws, the frame's two scenes, and the odds",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the indirect command format is the GPU's own, and it is pinned as bytes: four words for a draw and five for an indexed one, in the order the GPU reads them, with a SIGNED base vertex -- minus five packs to 0xFFFFFFFB and reads back as minus five, which a clamp to zero or an unsigned coercion cannot do. The defaults are all zero, which draws nothing, and a default cullable instance's world is a ZERO matrix rather than the identity its header promises (finding 23, in a third place) while the empty box beside it is exact. The memory-barrier membership test is checked across seven bits with three masks -- a mask of bits 0, 2 and 4 contains exactly those three, an empty mask contains nothing, a full one contains everything -- so a test that answered a constant or ignored its second argument fails. The frame's TWO scene callbacks are qualified as a sequence: both are off by default and neither runs however it was registered, because the pipeline skips a phase rather than drawing into nothing; with transparency and shadows switched on both run, and the ORDER is the frame's own -- casters inside Begin, transparent inside End, which is why they are two routes rather than one list. Clearing one leaves the other running. The scene bounds really cross: two boxes ten times apart produce two different light transforms on the shadow map that recorded them. A callback that throws stops the frame and its OWN exception object reaches the caller of End. The post-process chain lends its own render-target pool -- a target acquired through it appears in the chain's pool, and the chain refuses release while the borrowed view is out. The .cube loader reads a table this test wrote, at the size and title the file gave it, and both of its failure modes -- a path that does not exist and a file that is not a .cube -- come back as NOT_SUPPORTED, the code every other route uses for a missing engine layer (finding 24, diagnosed to a catch clause naming a sibling class). Ten planted binding defects fail and none survives",
+      "proof": [
+        "route:cna_indirect_draw_arguments_init",
+        "route:cna_indirect_draw_indexed_arguments_init",
+        "route:cna_graphics_device_draw_primitives_indirect_ext",
+        "route:cna_graphics_device_draw_indexed_primitives_indirect_ext",
+        "route:cna_graphics_memory_barrier_has",
+        "route:cna_gpu_cullable_instance_init",
+        "route:cna_post_process_chain_get_target_pool",
+        "route:cna_cube_lut_load_from_file",
+        "route:cna_engine_layer_get_version",
+        "route:cna_engine_layer_copy_version_string",
+        "route:cna_render_pipeline_set_shadow_scene",
+        "route:cna_render_pipeline_set_transparent_scene",
+        "test:test/native-cna.integration.mjs"
+      ]
     }
   ]
 }

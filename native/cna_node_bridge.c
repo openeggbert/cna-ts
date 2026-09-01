@@ -1050,6 +1050,16 @@ typedef CNA_Result (*EffectGetIblFn)(CNA_Handle, CNA_ImageBasedLightEXT*);
 typedef CNA_Result (*EffectSetMatrixPtrFn)(CNA_Handle, const CNA_Matrix*);
 typedef CNA_Result (*EffectGetMatrixPtrFn)(CNA_Handle, CNA_Matrix*);
 
+typedef CNA_Result (*IndirectArgsInitFn)(CNA_IndirectDrawArguments*);
+typedef CNA_Result (*IndirectIndexedArgsInitFn)(CNA_IndirectDrawIndexedArguments*);
+typedef CNA_Result (*IndirectDrawFn)(CNA_Handle, CNA_PrimitiveType, CNA_Handle, int32_t);
+typedef CNA_Result (*MemoryBarrierHasFn)(CNA_GraphicsMemoryBarrier, CNA_GraphicsMemoryBarrier, CNA_Bool*);
+typedef CNA_Result (*CullableInstanceInitFn)(CNA_GpuCullableInstance*);
+typedef CNA_Result (*CubeLutLoadFn)(CNA_StringView, CNA_Handle*);
+typedef CNA_Result (*EngineVersionFn)(int32_t*);
+typedef CNA_Result (*PipelineShadowSceneFn)(CNA_Handle, CNA_Handle, const CNA_DirectionalLightEXT*, const CNA_BoundingBox*, CNA_RenderPipelineDrawCallback, void*);
+typedef CNA_Result (*PipelineTransparentSceneFn)(CNA_Handle, CNA_RenderPipelineDrawCallback, void*);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2776,6 +2786,18 @@ typedef struct Api {
   HandleI32OutFn effect_get_shadow_filter_radius_ext;
   TwoHandleFn effect_set_shadow_map_ext;
   HandleHandleOutFn effect_get_shadow_map_ext;
+  IndirectArgsInitFn indirect_draw_arguments_init;
+  IndirectIndexedArgsInitFn indirect_draw_indexed_arguments_init;
+  IndirectDrawFn graphics_device_draw_primitives_indirect_ext;
+  IndirectDrawFn graphics_device_draw_indexed_primitives_indirect_ext;
+  MemoryBarrierHasFn graphics_memory_barrier_has;
+  CullableInstanceInitFn gpu_cullable_instance_init;
+  HandleHandleOutFn post_process_chain_get_target_pool;
+  CubeLutLoadFn cube_lut_load_from_file;
+  EngineVersionFn engine_layer_get_version;
+  GpuCullGlslFn engine_layer_copy_version_string;
+  PipelineShadowSceneFn render_pipeline_set_shadow_scene;
+  PipelineTransparentSceneFn render_pipeline_set_transparent_scene;
 } Api;
 
 typedef struct GameContext {
@@ -2841,6 +2863,9 @@ static napi_value copy_sized_text(
 static napi_value shadow_quality_to_i32(
   napi_env env, napi_callback_info info, ShadowQualityToI32Fn route, const char* name);
 static int read_matrix16(napi_env env, napi_value value, CNA_Matrix* out, const char* what);
+static napi_env g_transparent_env;
+static napi_ref g_transparent_exception;
+static int rethrow_scene_exception(napi_env env);
 static int get_named_handle(napi_env env, napi_value object, const char* name, CNA_Handle* out);
 
 static napi_value throw_message(napi_env env, const char* message) {
@@ -4789,6 +4814,18 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(effect_get_shadow_filter_radius_ext, HandleI32OutFn, "cna_effect_get_shadow_filter_radius_ext");
   LOAD_REQUIRED(effect_set_shadow_map_ext, TwoHandleFn, "cna_effect_set_shadow_map_ext");
   LOAD_REQUIRED(effect_get_shadow_map_ext, HandleHandleOutFn, "cna_effect_get_shadow_map_ext");
+  LOAD_REQUIRED(indirect_draw_arguments_init, IndirectArgsInitFn, "cna_indirect_draw_arguments_init");
+  LOAD_REQUIRED(indirect_draw_indexed_arguments_init, IndirectIndexedArgsInitFn, "cna_indirect_draw_indexed_arguments_init");
+  LOAD_REQUIRED(graphics_device_draw_primitives_indirect_ext, IndirectDrawFn, "cna_graphics_device_draw_primitives_indirect_ext");
+  LOAD_REQUIRED(graphics_device_draw_indexed_primitives_indirect_ext, IndirectDrawFn, "cna_graphics_device_draw_indexed_primitives_indirect_ext");
+  LOAD_REQUIRED(graphics_memory_barrier_has, MemoryBarrierHasFn, "cna_graphics_memory_barrier_has");
+  LOAD_REQUIRED(gpu_cullable_instance_init, CullableInstanceInitFn, "cna_gpu_cullable_instance_init");
+  LOAD_REQUIRED(post_process_chain_get_target_pool, HandleHandleOutFn, "cna_post_process_chain_get_target_pool");
+  LOAD_REQUIRED(cube_lut_load_from_file, CubeLutLoadFn, "cna_cube_lut_load_from_file");
+  LOAD_REQUIRED(engine_layer_get_version, EngineVersionFn, "cna_engine_layer_get_version");
+  LOAD_REQUIRED(engine_layer_copy_version_string, GpuCullGlslFn, "cna_engine_layer_copy_version_string");
+  LOAD_REQUIRED(render_pipeline_set_shadow_scene, PipelineShadowSceneFn, "cna_render_pipeline_set_shadow_scene");
+  LOAD_REQUIRED(render_pipeline_set_transparent_scene, PipelineTransparentSceneFn, "cna_render_pipeline_set_transparent_scene");
   LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
   LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
   LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
@@ -5004,7 +5041,21 @@ GAME_METHOD(begin_occlusion_query, occlusion_begin, "cna_occlusion_query_begin")
 GAME_METHOD(end_occlusion_query, occlusion_end, "cna_occlusion_query_end")
 GAME_METHOD(destroy_occlusion_query, occlusion_destroy, "cna_occlusion_query_destroy")
 GAME_METHOD(destroy_render_pipeline, render_pipeline_destroy, "cna_render_pipeline_destroy")
-GAME_METHOD(end_render_pipeline, render_pipeline_end, "cna_render_pipeline_end")
+static napi_value end_render_pipeline(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle pipeline = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &pipeline)) return NULL;
+  /* The transparent scene's callback runs from inside end, so its environment is published here
+     the same way begin publishes it. */
+  napi_env previous = g_transparent_env;
+  g_transparent_env = env;
+  const CNA_Result result = g_api.render_pipeline_end(pipeline);
+  g_transparent_env = previous;
+  if (rethrow_scene_exception(env)) return NULL;
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_render_pipeline_end", result);
+  return undefined_result(env, "cna_render_pipeline_end");
+}
 
 static napi_value destroy_game(napi_env env, napi_callback_info info) {
   if (!require_loaded(env)) return NULL;
@@ -10337,6 +10388,23 @@ static napi_value resize_render_pipeline(napi_env env, napi_callback_info info) 
   return undefined_result(env, "render pipeline resize result");
 }
 
+/**
+ * Rethrows the exception a frame's scene callback threw, once the CNA route has unwound.
+ *
+ * Shared with the transparent draw list, which captures into the same slot for the same reason:
+ * a JavaScript exception must not unwind through C++.
+ */
+static int rethrow_scene_exception(napi_env env) {
+  if (!g_transparent_exception) return 0;
+  napi_value pending;
+  if (napi_get_reference_value(env, g_transparent_exception, &pending) == napi_ok) {
+    napi_throw(env, pending);
+  }
+  napi_delete_reference(env, g_transparent_exception);
+  g_transparent_exception = NULL;
+  return 1;
+}
+
 static napi_value begin_render_pipeline(napi_env env, napi_callback_info info) {
   if (!require_loaded(env)) return NULL;
   napi_value args[2];
@@ -10348,7 +10416,13 @@ static napi_value begin_render_pipeline(napi_env env, napi_callback_info info) {
     (uint8_t) (packed & 0xFFu), (uint8_t) ((packed >> 8) & 0xFFu),
     (uint8_t) ((packed >> 16) & 0xFFu), (uint8_t) ((packed >> 24) & 0xFFu)
   };
+  /* The frame's scene callbacks run from inside begin and end, so the environment they need is
+     published for the duration of each and taken down again afterwards. */
+  napi_env previous = g_transparent_env;
+  g_transparent_env = env;
   CNA_Result result = g_api.render_pipeline_begin(pipeline, &clear);
+  g_transparent_env = previous;
+  if (rethrow_scene_exception(env)) return NULL;
   if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_render_pipeline_begin", result);
   return undefined_result(env, "render pipeline begin result");
 }
@@ -26829,10 +26903,10 @@ typedef struct TransparentEntry {
 
 static TransparentEntry* g_transparent_entries = NULL;
 
-/** Set only for the duration of one `draw_sorted`, which is the only route that calls back. */
+/** Set only for the duration of a route that calls back: a sorted draw, or a pipeline frame. */
 static napi_env g_transparent_env = NULL;
 
-/** The first exception a draw threw, rethrown once the route has unwound. */
+/** The first exception a callback threw, rethrown once the route has unwound. */
 static napi_ref g_transparent_exception = NULL;
 
 static CNA_Result on_transparent_draw(void* raw) {
@@ -28214,10 +28288,328 @@ static napi_value bridge_effect_set_shadow_map_ext(napi_env env, napi_callback_i
   return undefined_result(env, "cna_effect_set_shadow_map_ext");
 }
 
+/* ---- the last twelve: indirect draws, the frame's two scene callbacks, and the odds ------------
+   The indirect argument structures are the GPU's own command format rather than anything the
+   engine layer owns, so they are readable in every build. The two scene callbacks are the same
+   shape as the transparent draw list's and reuse its machinery. */
+
+static napi_value bridge_indirect_draw_arguments_init(napi_env env, napi_callback_info info) {
+  CNA_IndirectDrawArguments arguments;
+  napi_value output;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.indirect_draw_arguments_init(&arguments);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_indirect_draw_arguments_init", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "cna_indirect_draw_arguments_init");
+  if (!set_u32_property(env, output, "VertexCount", arguments.vertex_count) ||
+      !set_u32_property(env, output, "InstanceCount", arguments.instance_count) ||
+      !set_u32_property(env, output, "FirstVertex", arguments.first_vertex) ||
+      !set_u32_property(env, output, "BaseInstance", arguments.base_instance)) {
+    return throw_napi(env, "cna_indirect_draw_arguments_init");
+  }
+  return output;
+}
+
+static napi_value bridge_indirect_draw_indexed_arguments_init(
+  napi_env env, napi_callback_info info
+) {
+  CNA_IndirectDrawIndexedArguments arguments;
+  napi_value output;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.indirect_draw_indexed_arguments_init(&arguments);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_indirect_draw_indexed_arguments_init", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_create_object(env, &output), "cna_indirect_draw_indexed_arguments_init");
+  if (!set_u32_property(env, output, "IndexCount", arguments.index_count) ||
+      !set_u32_property(env, output, "InstanceCount", arguments.instance_count) ||
+      !set_u32_property(env, output, "FirstIndex", arguments.first_index) ||
+      !set_i32_property(env, output, "BaseVertex", arguments.base_vertex) ||
+      !set_u32_property(env, output, "BaseInstance", arguments.base_instance)) {
+    return throw_napi(env, "cna_indirect_draw_indexed_arguments_init");
+  }
+  return output;
+}
+
+/** The two indirect draws differ only in the route they call. */
+static napi_value graphics_device_draw_indirect(
+  napi_env env, napi_callback_info info, IndirectDrawFn route, const char* name
+) {
+  napi_value args[4];
+  CNA_Handle device = 0, buffer = 0;
+  int32_t primitiveType = 0, offset = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &device) ||
+      napi_get_value_int32(env, args[1], &primitiveType) != napi_ok ||
+      !read_handle(env, args[2], &buffer) ||
+      napi_get_value_int32(env, args[3], &offset) != napi_ok) {
+    return throw_message(env, "expected a device, a primitive type, a buffer and a byte offset");
+  }
+  const CNA_Result result =
+    route(device, (CNA_PrimitiveType) primitiveType, buffer, offset);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value bridge_graphics_device_draw_primitives_indirect_ext(
+  napi_env env, napi_callback_info info
+) {
+  return graphics_device_draw_indirect(
+    env, info, g_api.graphics_device_draw_primitives_indirect_ext,
+    "cna_graphics_device_draw_primitives_indirect_ext");
+}
+
+static napi_value bridge_graphics_device_draw_indexed_primitives_indirect_ext(
+  napi_env env, napi_callback_info info
+) {
+  return graphics_device_draw_indirect(
+    env, info, g_api.graphics_device_draw_indexed_primitives_indirect_ext,
+    "cna_graphics_device_draw_indexed_primitives_indirect_ext");
+}
+
+static napi_value bridge_graphics_memory_barrier_has(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  uint32_t mask = 0, bit = 0;
+  CNA_Bool contains = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      napi_get_value_uint32(env, args[0], &mask) != napi_ok ||
+      napi_get_value_uint32(env, args[1], &bit) != napi_ok) {
+    return throw_message(env, "expected a barrier mask and a bit");
+  }
+  const CNA_Result result = g_api.graphics_memory_barrier_has(
+    (CNA_GraphicsMemoryBarrier) mask, (CNA_GraphicsMemoryBarrier) bit, &contains);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_graphics_memory_barrier_has", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_get_boolean(env, contains != CNA_FALSE, &output),
+    "cna_graphics_memory_barrier_has");
+  return output;
+}
+
+static napi_value bridge_gpu_cullable_instance_init(napi_env env, napi_callback_info info) {
+  CNA_GpuCullableInstance instance;
+  napi_value output, value;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.gpu_cullable_instance_init(&instance);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_gpu_cullable_instance_init", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "cna_gpu_cullable_instance_init");
+  value = make_matrix16(env, &instance.world, "cna_gpu_cullable_instance_init");
+  if (!value || napi_set_named_property(env, output, "World", value) != napi_ok) {
+    return value ? throw_napi(env, "cna_gpu_cullable_instance_init") : NULL;
+  }
+  NAPI_OR_RETURN(env, napi_create_object(env, &value), "cna_gpu_cullable_instance_init");
+  if (!set_vector3(env, value, "Min", &instance.bounds.min) ||
+      !set_vector3(env, value, "Max", &instance.bounds.max) ||
+      napi_set_named_property(env, output, "Bounds", value) != napi_ok) {
+    return throw_napi(env, "cna_gpu_cullable_instance_init");
+  }
+  return output;
+}
+
+static napi_value bridge_cube_lut_load_from_file(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle lut = 0;
+  char* path = NULL;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_utf8(env, args[0], &path, &length)) return NULL;
+  const CNA_StringView view = {path, length};
+  const CNA_Result result = g_api.cube_lut_load_from_file(view, &lut);
+  free(path);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_cube_lut_load_from_file", result);
+  }
+  return make_handle(env, lut);
+}
+
+static napi_value bridge_engine_layer_get_version(napi_env env, napi_callback_info info) {
+  napi_value output;
+  int32_t version = 0;
+  (void) info;
+  if (!require_loaded(env)) return NULL;
+  const CNA_Result result = g_api.engine_layer_get_version(&version);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_engine_layer_get_version", result);
+  }
+  NAPI_OR_RETURN(env, napi_create_int32(env, version, &output), "cna_engine_layer_get_version");
+  return output;
+}
+
+static napi_value bridge_engine_layer_copy_version_string(napi_env env, napi_callback_info info) {
+  (void) info;
+  return copy_static_text(
+    env, g_api.engine_layer_copy_version_string, "cna_engine_layer_copy_version_string");
+}
+
+/**
+ * The frame's two scene callbacks, kept alive exactly the way the transparent draw list's are.
+ *
+ * CNA runs them from inside `begin` and `end`, so the JavaScript function must outlive the call
+ * that registered it. Each pipeline holds at most one of each, keyed by the pipeline's handle and a
+ * slot, so registering a second replaces the first rather than leaking it.
+ */
+typedef struct SceneCallback {
+  CNA_Handle pipeline;
+  int slot;
+  napi_ref callback;
+  struct SceneCallback* next;
+} SceneCallback;
+
+static SceneCallback* g_scene_callbacks = NULL;
+
+static CNA_Result on_scene_draw(void* raw) {
+  SceneCallback* entry = (SceneCallback*) raw;
+  napi_env env = g_transparent_env;
+  if (!entry || !env) return CNA_RESULT_CALLBACK;
+  napi_handle_scope scope;
+  if (napi_open_handle_scope(env, &scope) != napi_ok) return CNA_RESULT_CALLBACK;
+  napi_value callback, receiver, result;
+  CNA_Result outcome = CNA_RESULT_SUCCESS;
+  if (napi_get_reference_value(env, entry->callback, &callback) != napi_ok ||
+      napi_get_undefined(env, &receiver) != napi_ok ||
+      napi_call_function(env, receiver, callback, 0, NULL, &result) != napi_ok) {
+    napi_value pending;
+    outcome = CNA_RESULT_CALLBACK;
+    if (!g_transparent_exception &&
+        napi_get_and_clear_last_exception(env, &pending) == napi_ok) {
+      napi_create_reference(env, pending, 1, &g_transparent_exception);
+    }
+  }
+  napi_close_handle_scope(env, scope);
+  return outcome;
+}
+
+static void scene_callback_forget(napi_env env, CNA_Handle pipeline, int slot) {
+  SceneCallback** link = &g_scene_callbacks;
+  while (*link) {
+    SceneCallback* entry = *link;
+    if (entry->pipeline == pipeline && (slot < 0 || entry->slot == slot)) {
+      *link = entry->next;
+      napi_delete_reference(env, entry->callback);
+      free(entry);
+    } else {
+      link = &entry->next;
+    }
+  }
+}
+
+static SceneCallback* scene_callback_remember(
+  napi_env env, CNA_Handle pipeline, int slot, napi_value callback
+) {
+  SceneCallback* entry = (SceneCallback*) calloc(1, sizeof(SceneCallback));
+  if (!entry) {
+    throw_message(env, "a scene callback allocation failed");
+    return NULL;
+  }
+  entry->pipeline = pipeline;
+  entry->slot = slot;
+  if (napi_create_reference(env, callback, 1, &entry->callback) != napi_ok) {
+    free(entry);
+    throw_napi(env, "a scene callback reference");
+    return NULL;
+  }
+  scene_callback_forget(env, pipeline, slot);
+  entry->next = g_scene_callbacks;
+  g_scene_callbacks = entry;
+  return entry;
+}
+
+static napi_value bridge_render_pipeline_set_transparent_scene(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2];
+  CNA_Handle pipeline = 0;
+  napi_valuetype type = napi_undefined;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &pipeline)) return NULL;
+  if (napi_typeof(env, args[1], &type) != napi_ok) {
+    return throw_napi(env, "cna_render_pipeline_set_transparent_scene");
+  }
+  if (type == napi_undefined || type == napi_null) {
+    /* Clearing it: CNA is told to forget the callback first, so the reference is only released
+       once nothing can call it. */
+    const CNA_Result cleared = g_api.render_pipeline_set_transparent_scene(pipeline, NULL, NULL);
+    if (cleared != CNA_RESULT_SUCCESS) {
+      return throw_result(env, "cna_render_pipeline_set_transparent_scene", cleared);
+    }
+    scene_callback_forget(env, pipeline, 1);
+    return undefined_result(env, "cna_render_pipeline_set_transparent_scene");
+  }
+  if (type != napi_function) return throw_message(env, "the draw must be a function or null");
+  SceneCallback* entry = scene_callback_remember(env, pipeline, 1, args[1]);
+  if (!entry) return NULL;
+  const CNA_Result result =
+    g_api.render_pipeline_set_transparent_scene(pipeline, on_scene_draw, entry);
+  if (result != CNA_RESULT_SUCCESS) {
+    scene_callback_forget(env, pipeline, 1);
+    return throw_result(env, "cna_render_pipeline_set_transparent_scene", result);
+  }
+  return undefined_result(env, "cna_render_pipeline_set_transparent_scene");
+}
+
+static napi_value bridge_render_pipeline_set_shadow_scene(napi_env env, napi_callback_info info) {
+  napi_value args[5];
+  CNA_Handle pipeline = 0, shadowMap = 0;
+  CNA_DirectionalLightEXT light;
+  CNA_BoundingBox bounds;
+  napi_valuetype type = napi_undefined;
+  if (!require_loaded(env) || !get_args(env, info, 5, args) ||
+      !read_handle(env, args[0], &pipeline) ||
+      !read_handle_allow_zero(env, args[1], &shadowMap) ||
+      !read_directional_light(env, args[2], &light) ||
+      !read_bounding_box(env, args[3], &bounds)) return NULL;
+  if (napi_typeof(env, args[4], &type) != napi_ok) {
+    return throw_napi(env, "cna_render_pipeline_set_shadow_scene");
+  }
+  if (type == napi_undefined || type == napi_null) {
+    const CNA_Result cleared = g_api.render_pipeline_set_shadow_scene(
+      pipeline, shadowMap, &light, &bounds, NULL, NULL);
+    if (cleared != CNA_RESULT_SUCCESS) {
+      return throw_result(env, "cna_render_pipeline_set_shadow_scene", cleared);
+    }
+    scene_callback_forget(env, pipeline, 0);
+    return undefined_result(env, "cna_render_pipeline_set_shadow_scene");
+  }
+  if (type != napi_function) return throw_message(env, "the caster draw must be a function or null");
+  SceneCallback* entry = scene_callback_remember(env, pipeline, 0, args[4]);
+  if (!entry) return NULL;
+  const CNA_Result result = g_api.render_pipeline_set_shadow_scene(
+    pipeline, shadowMap, &light, &bounds, on_scene_draw, entry);
+  if (result != CNA_RESULT_SUCCESS) {
+    scene_callback_forget(env, pipeline, 0);
+    return throw_result(env, "cna_render_pipeline_set_shadow_scene", result);
+  }
+  return undefined_result(env, "cna_render_pipeline_set_shadow_scene");
+}
+
+static napi_value bridge_post_process_chain_get_target_pool(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.post_process_chain_get_target_pool, "cna_post_process_chain_get_target_pool");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "createDefaultIndirectDrawArguments", NULL, bridge_indirect_draw_arguments_init, NULL, NULL, NULL, napi_default, NULL },
+    { "createDefaultIndirectDrawIndexedArguments", NULL, bridge_indirect_draw_indexed_arguments_init, NULL, NULL, NULL, napi_default, NULL },
+    { "drawPrimitivesIndirect", NULL, bridge_graphics_device_draw_primitives_indirect_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "drawIndexedPrimitivesIndirect", NULL, bridge_graphics_device_draw_indexed_primitives_indirect_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "graphicsMemoryBarrierHas", NULL, bridge_graphics_memory_barrier_has, NULL, NULL, NULL, napi_default, NULL },
+    { "createDefaultGpuCullableInstance", NULL, bridge_gpu_cullable_instance_init, NULL, NULL, NULL, napi_default, NULL },
+    { "getPostProcessChainTargetPool", NULL, bridge_post_process_chain_get_target_pool, NULL, NULL, NULL, napi_default, NULL },
+    { "loadCubeLutFromFile", NULL, bridge_cube_lut_load_from_file, NULL, NULL, NULL, napi_default, NULL },
+    { "getEngineLayerVersion", NULL, bridge_engine_layer_get_version, NULL, NULL, NULL, napi_default, NULL },
+    { "getEngineLayerVersionString", NULL, bridge_engine_layer_copy_version_string, NULL, NULL, NULL, napi_default, NULL },
+    { "setRenderPipelineShadowScene", NULL, bridge_render_pipeline_set_shadow_scene, NULL, NULL, NULL, napi_default, NULL },
+    { "setRenderPipelineTransparentScene", NULL, bridge_render_pipeline_set_transparent_scene, NULL, NULL, NULL, napi_default, NULL },
     { "createDefaultPunctualLight", NULL, bridge_punctual_light_ext_init, NULL, NULL, NULL, napi_default, NULL },
     { "createDefaultShadowCascadeState", NULL, bridge_shadow_cascade_state_ext_init, NULL, NULL, NULL, napi_default, NULL },
     { "createDefaultImageBasedLight", NULL, bridge_image_based_light_ext_init, NULL, NULL, NULL, napi_default, NULL },

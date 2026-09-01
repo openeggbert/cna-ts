@@ -650,6 +650,22 @@ Electron, or mobile support.
   every other field of the same structure round-trips — an asymmetry the ABI documents and this
   pins. Eleven planted defects: ten fail, and the survivor is recorded as equivalent, with the
   reason to keep the code it replaces anyway.
+- [x] **The last of the engine layer.** The indirect command format is pinned as bytes — four words
+  for a draw, five for an indexed one, in the order the GPU reads them, with a **signed** base vertex
+  that a clamp or an unsigned coercion cannot reproduce. The frame's two scene callbacks are
+  qualified as a sequence: both are off by default and neither runs however it was registered, and
+  with transparency and shadows on both run in the frame's own order — casters inside `Begin`,
+  transparent inside `End`. The scene bounds really cross, shown by two boxes ten times apart
+  producing two different light transforms. A callback that throws stops the frame and its own
+  exception object reaches the caller. The post-process chain lends its own render-target pool and
+  refuses release while it is out. The `.cube` loader reads a table this test wrote, and both its
+  failure modes come back as `NOT_SUPPORTED` — finding 24, diagnosed to a `catch` clause naming a
+  sibling class. Ten planted defects fail; none survives.
+
+  With this, **every engine-layer route this package can honestly project is bound.** What remains
+  unbound is the deliberate list: the instanced renderer's fourteen routes and
+  `cna_lod_group_ext_select`, which need handle types this package does not project and could only
+  ever be handed zero.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a

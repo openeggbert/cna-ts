@@ -1526,6 +1526,19 @@ export interface CnaGraphicsExtensionBackend {
   getEffectShadowFilterRadius(effect: NativeHandle): number;
   setEffectShadowMap(effect: NativeHandle, shadowMap: NativeHandle): void;
   getEffectShadowMap(effect: NativeHandle): NativeHandle;
+  // --- the last of the engine layer: indirect draws, the frame's scenes, and the odds ------------
+  createDefaultIndirectDrawArguments(): IndirectDrawArgumentsSnapshot;
+  createDefaultIndirectDrawIndexedArguments(): IndirectDrawIndexedArgumentsSnapshot;
+  drawPrimitivesIndirect(graphicsDevice: NativeHandle, primitiveType: number, argumentBuffer: NativeHandle, argumentByteOffset: number): void;
+  drawIndexedPrimitivesIndirect(graphicsDevice: NativeHandle, primitiveType: number, argumentBuffer: NativeHandle, argumentByteOffset: number): void;
+  graphicsMemoryBarrierHas(mask: number, bit: number): boolean;
+  createDefaultGpuCullableInstance(): GpuCullableInstanceSnapshot;
+  getPostProcessChainTargetPool(chain: NativeHandle): NativeHandle;
+  loadCubeLutFromFile(path: string): NativeHandle;
+  getEngineLayerVersion(): number;
+  getEngineLayerVersionString(): string;
+  setRenderPipelineShadowScene(pipeline: NativeHandle, shadowMap: NativeHandle, light: DirectionalLightSnapshot, sceneBounds: ClusterBoundsSnapshot, drawCasters: (() => void) | null): void;
+  setRenderPipelineTransparentScene(pipeline: NativeHandle, draw: (() => void) | null): void;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
@@ -2226,6 +2239,29 @@ export interface ImageBasedLightSnapshot {
   readonly BrdfLut: NativeHandle;
   readonly PrefilteredMipCount: number;
   readonly Intensity: number;
+}
+
+/** The arguments of an indirect draw, in the exact layout the GPU reads: sixteen bytes, four words. */
+export interface IndirectDrawArgumentsSnapshot {
+  readonly VertexCount: number;
+  readonly InstanceCount: number;
+  readonly FirstVertex: number;
+  readonly BaseInstance: number;
+}
+
+/** The same, indexed: twenty bytes, five words. */
+export interface IndirectDrawIndexedArgumentsSnapshot {
+  readonly IndexCount: number;
+  readonly InstanceCount: number;
+  readonly FirstIndex: number;
+  readonly BaseVertex: number;
+  readonly BaseInstance: number;
+}
+
+/** One instance a GPU culler tests: a world transform and the bounds to test with it. */
+export interface GpuCullableInstanceSnapshot {
+  readonly World: readonly number[];
+  readonly Bounds: ClusterBoundsSnapshot;
 }
 
 export interface Vector4Snapshot {

@@ -22,6 +22,7 @@ import type {
   RasterizerStateSnapshot,
   PbrMaterialExtSnapshot,
   TextureTransformSnapshot, AreaLightSnapshot, PunctualLightSnapshot, ShadowCascadeStateSnapshot,
+  PipelineSettingsSnapshot,
   ImageBasedLightSnapshot, ClusteredContributionSnapshot, ClusteredLightSnapshot, CnaClusteredLightingBackend, CnaComputeBackend,
   CnaDecalBackend,
   CnaDepthNormalPrepassBackend,
@@ -309,6 +310,72 @@ export class RenderPipeline implements IDisposable {
 
   /** Ends a pipeline frame and resolves it to the backbuffer. */
   public End(): void { this.#backend.endRenderPipeline(this.#active()); }
+
+  /**
+   * The settings every pass in the layer reads, as a value.
+   *
+   * Reading answers a copy; writing sends one. So changing a field means reading, changing and
+   * writing back — a pipeline does not watch an object the caller kept.
+   */
+  public get Settings(): PipelineSettings {
+    return this.#backend.getPipelineSettings(this.#active()) as unknown as PipelineSettings;
+  }
+  public set Settings(value: PipelineSettings) {
+    if (value == null) throw new TypeError("value is required");
+    this.#backend.setPipelineSettings(
+      this.#active(), value as unknown as PipelineSettingsSnapshot);
+  }
+
+  /**
+   * Registers the callback that draws transparent geometry inside the frame.
+   *
+   * CNA runs it from inside {@link End}, at the point in the frame where the transparent pass
+   * belongs — after the opaque geometry and before the post-process chain. That is the whole reason
+   * it is a callback rather than a list: the pipeline decides *when*, and the game decides *what*.
+   *
+   * **It runs only when {@link Settings}' `TransparencyMode` is not `None`**, which is the default:
+   * a pipeline with transparency switched off skips the phase entirely rather than drawing into
+   * nothing. Measured, and the reason a registered callback that never fires is usually a settings
+   * question rather than a callback one.
+   *
+   * A callback that throws stops the frame there and its exception reaches whoever called
+   * {@link End}. Passing `null` clears it.
+   */
+  public SetTransparentScene(draw: (() => void) | null): void {
+    if (draw != null && typeof draw !== "function") {
+      throw new TypeError("draw must be a function or null");
+    }
+    this.#backend.setRenderPipelineTransparentScene(this.#active(), draw);
+  }
+
+  /**
+   * Registers the shadow map, the light and the caster callback for the frame's shadow pass.
+   *
+   * The shadow map is **borrowed**, never owned: the pipeline records it and the caller keeps it
+   * alive. The light and the scene bounds are what the pass builds its projection from, so they
+   * belong here beside the callback rather than being set separately — a caller cannot register
+   * half of them.
+   *
+   * CNA runs the callback from inside {@link Begin}. Passing `null` for the callback clears it
+   * while leaving the map, light and bounds as given.
+   */
+  public SetShadowScene(
+    shadowMap: ShadowMap | null, light: DirectionalLight, sceneBounds: BoundingBox,
+    drawCasters: (() => void) | null,
+  ): void {
+    if (drawCasters != null && typeof drawCasters !== "function") {
+      throw new TypeError("drawCasters must be a function or null");
+    }
+    this.#backend.setRenderPipelineShadowScene(
+      this.#active(),
+      shadowMap == null ? 0n : resolveShadowMapHandleForInternalUse(shadowMap),
+      {
+        Direction: vectorSnapshot(light.Direction, "light.Direction"),
+        Color: vectorSnapshot(light.Color, "light.Color"),
+        Intensity: finite(light.Intensity, "light.Intensity"),
+      },
+      boundsSnapshot(sceneBounds), drawCasters);
+  }
 
   /** What the last frame did. */
   public GetStatistics(): RenderPipelineStatistics {
@@ -758,10 +825,12 @@ export class SsrPass extends PostProcessPass {
  */
 export class PostProcessChain implements IDisposable {
   #handle: NativeHandle | null;
+  readonly #device: GraphicsDevice;
   readonly #owned: PostProcessPass[] = [];
   readonly #borrowed: PostProcessPass[] = [];
 
   public constructor(graphicsDevice: GraphicsDevice) {
+    this.#device = graphicsDevice;
     this.#handle = extensions().createPostProcessChain(postProcessDeviceHandle(graphicsDevice));
   }
 
@@ -776,6 +845,19 @@ export class PostProcessChain implements IDisposable {
   /** How many passes the chain holds. */
   public get PassCount(): number {
     return extensions().getPostProcessChainPassCount(this.#active());
+  }
+
+  /**
+   * The chain's own render-target pool, borrowed.
+   *
+   * A chain allocates the intermediate targets its passes ping-pong between, and this is where they
+   * live — so a game that wants one more target of the same shape should take it from here rather
+   * than allocate a second set. A borrow: dispose the returned pool to give it back, which does not
+   * dispose the chain's own.
+   */
+  public get TargetPool(): RenderTargetPool {
+    return adoptBorrowedRenderTargetPoolForInternalUse(
+      this.#device, extensions().getPostProcessChainTargetPool(this.#active()));
   }
 
   /** Appends a pass the caller keeps owning and must keep alive. */
@@ -2516,6 +2598,9 @@ export const ShadowMapMath = {
  */
 let handleOfShadowMapForVolumetricFog!: (map: ShadowMap) => NativeHandle;
 
+/** The same accessor, for the render pipeline's shadow scene, which borrows the map. */
+let resolveShadowMapHandleForInternalUse!: (map: ShadowMap) => NativeHandle;
+
 export class ShadowMap implements IDisposable {
   readonly #backend: CnaShadowBackend;
   readonly #device: GraphicsDevice;
@@ -2543,6 +2628,7 @@ export class ShadowMap implements IDisposable {
 
   static {
     handleOfShadowMapForVolumetricFog = (map: ShadowMap) => map.#active();
+    resolveShadowMapHandleForInternalUse = (map: ShadowMap) => map.#active();
   }
 
   /** Whether this renderer can actually render into it. */
@@ -5287,6 +5373,20 @@ export class CubeLut implements IDisposable {
   #handle: NativeHandle | null;
 
   private constructor(handle: NativeHandle) { this.#handle = handle; }
+
+  /**
+   * Loads a `.cube` file from disk, by path.
+   *
+   * The same table {@link Parse} would build from the file's text, read by CNA rather than by the
+   * caller — which is the difference that matters in a browser, where there is no path to give.
+   */
+  public static LoadFromFile(path: string): CubeLut {
+    if (typeof path !== "string" || path.length === 0) {
+      throw new TypeError("path must be a non-empty file path");
+    }
+    return new (CubeLut as unknown as new (handle: NativeHandle) => CubeLut)(
+      extensions().loadCubeLutFromFile(path));
+  }
 
   /** Parses the text of a `.cube` file. */
   public static Parse(text: string): CubeLut {
@@ -9474,9 +9574,13 @@ export class RenderTargetPool implements IDisposable {
   #handle: NativeHandle | null;
   readonly #device: GraphicsDevice;
 
-  public constructor(graphicsDevice: GraphicsDevice) {
+  public constructor(graphicsDevice: GraphicsDevice);
+  public constructor(graphicsDevice: GraphicsDevice, adoptedHandle?: NativeHandle) {
     this.#device = graphicsDevice;
-    this.#handle = extensions().createRenderTargetPool(postProcessDeviceHandle(graphicsDevice));
+    // The second argument is an implementation-only adoption channel, for the pool a post-process
+    // chain lends; the public overload is unchanged.
+    this.#handle = adoptedHandle
+      ?? extensions().createRenderTargetPool(postProcessDeviceHandle(graphicsDevice));
   }
 
   #active(): NativeHandle {
@@ -9617,6 +9721,22 @@ export class ShaderEffectFactory implements IDisposable {
       this.#active(), cacheKey(name), vertexSource, fragmentSource);
     return adoptNativeEffectForInternalUse(this.#device, effectsBackendFor(this.#device), handle);
   }
+}
+
+/**
+ * Wraps a pool handle CNA lends as a {@link RenderTargetPool}, without owning it.
+ *
+ * The post-process chain lends its own pool. The wrapper's `Dispose` returns the borrow through the
+ * pool-destroy route, which is what CNA expects for a lent view, and does not release the chain's
+ * pool.
+ */
+function adoptBorrowedRenderTargetPoolForInternalUse(
+  device: GraphicsDevice, handle: NativeHandle,
+): RenderTargetPool {
+  type BorrowedPool = new (
+    graphicsDevice: GraphicsDevice, adoptedHandle: NativeHandle,
+  ) => RenderTargetPool;
+  return new (RenderTargetPool as unknown as BorrowedPool)(device, handle);
 }
 
 function cacheKey(name: string): string {
@@ -9944,4 +10064,153 @@ function toImageBasedLight(snapshot: ImageBasedLightSnapshot): ImageBasedLight {
     PrefilteredMipCount: snapshot.PrefilteredMipCount,
     Intensity: snapshot.Intensity,
   };
+}
+
+/**
+ * The arguments of an indirect draw, in the exact layout the GPU reads: **sixteen bytes, four
+ * 32-bit words**.
+ *
+ * An indirect draw takes its counts from a buffer the GPU itself wrote, so the CPU never learns how
+ * many instances survived a culling pass — it just draws. This is the command format that buffer
+ * has to hold.
+ */
+export interface IndirectDrawArguments {
+  /** How many vertices to fetch. */
+  readonly VertexCount: number;
+  /** How many instances to draw; one for an ordinary draw, zero to draw nothing. */
+  readonly InstanceCount: number;
+  /** The first vertex, in elements of the bound stream. */
+  readonly FirstVertex: number;
+  /**
+   * The first instance.
+   *
+   * **Must be zero on GL ES.** ES 3.1 has no base-instance parameter and the word is required to be
+   * zero; a non-zero value there is undefined rather than diagnosed, and cannot be checked
+   * anywhere — by the time the draw runs the value lives in GPU memory.
+   */
+  readonly BaseInstance: number;
+}
+
+/** The same, indexed: **twenty bytes, five words**. */
+export interface IndirectDrawIndexedArguments {
+  /** How many indices to fetch. */
+  readonly IndexCount: number;
+  /** How many instances to draw. */
+  readonly InstanceCount: number;
+  /** The first index, in index elements. */
+  readonly FirstIndex: number;
+  /** Added to every decoded index, in vertex elements; signed, as the API is. */
+  readonly BaseVertex: number;
+  /** The first instance; must be zero on GL ES, for the reason above. */
+  readonly BaseInstance: number;
+}
+
+/** One instance a GPU culler tests: a world transform and the bounds to test with it. */
+export interface GpuCullableInstance {
+  /** The instance's world transform. */
+  readonly World: Matrix;
+  /** Its bounds, in the same space the culling frustum is built in. */
+  readonly Bounds: BoundingBox;
+}
+
+/**
+ * Draws whose counts and offsets the GPU reads from a buffer, rather than the CPU passing them.
+ *
+ * This is what makes GPU culling worth doing: a compute pass writes how many instances survived
+ * into a storage buffer, and the draw reads it there. The CPU never learns the number, so it never
+ * has to wait for it — which is the whole latency the readback would cost.
+ *
+ * The argument buffer must hold {@link IndirectDrawArguments} or
+ * {@link IndirectDrawIndexedArguments} at the byte offset given, in exactly the layout above.
+ */
+export const IndirectDraw = {
+  /** All-zero arguments, which draw nothing — CNA's own defaults. */
+  DefaultArguments(): IndirectDrawArguments {
+    return extensions().createDefaultIndirectDrawArguments();
+  },
+
+  /** The same for an indexed draw. */
+  DefaultIndexedArguments(): IndirectDrawIndexedArguments {
+    return extensions().createDefaultIndirectDrawIndexedArguments();
+  },
+
+  /** The four words of a non-indexed command, in the order the GPU reads them. */
+  PackArguments(value: IndirectDrawArguments): Uint32Array {
+    if (value == null) throw new TypeError("value is required");
+    return Uint32Array.from([
+      wholeNumber(value.VertexCount, "VertexCount"),
+      wholeNumber(value.InstanceCount, "InstanceCount"),
+      wholeNumber(value.FirstVertex, "FirstVertex"),
+      wholeNumber(value.BaseInstance, "BaseInstance"),
+    ]);
+  },
+
+  /**
+   * The five words of an indexed command.
+   *
+   * `BaseVertex` is **signed** — the API adds it to every decoded index and allows it to be
+   * negative — so it is written through an `Int32Array` view of the same buffer rather than
+   * coerced to unsigned.
+   */
+  PackIndexedArguments(value: IndirectDrawIndexedArguments): Uint32Array {
+    if (value == null) throw new TypeError("value is required");
+    const words = new Uint32Array(5);
+    words[0] = wholeNumber(value.IndexCount, "IndexCount");
+    words[1] = wholeNumber(value.InstanceCount, "InstanceCount");
+    words[2] = wholeNumber(value.FirstIndex, "FirstIndex");
+    new Int32Array(words.buffer)[3] = wholeNumber(value.BaseVertex, "BaseVertex");
+    words[4] = wholeNumber(value.BaseInstance, "BaseInstance");
+    return words;
+  },
+
+  /** Draws primitives whose count and offsets the GPU reads from `argumentBuffer`. */
+  DrawPrimitives(
+    graphicsDevice: GraphicsDevice, primitiveType: PrimitiveType,
+    argumentBuffer: StorageBuffer, argumentByteOffset = 0,
+  ): void {
+    extensions().drawPrimitivesIndirect(
+      postProcessDeviceHandle(graphicsDevice), wholeNumber(primitiveType, "primitiveType"),
+      storageBufferHandle(argumentBuffer), wholeNumber(argumentByteOffset, "argumentByteOffset"));
+  },
+
+  /** The same for indexed primitives. */
+  DrawIndexedPrimitives(
+    graphicsDevice: GraphicsDevice, primitiveType: PrimitiveType,
+    argumentBuffer: StorageBuffer, argumentByteOffset = 0,
+  ): void {
+    extensions().drawIndexedPrimitivesIndirect(
+      postProcessDeviceHandle(graphicsDevice), wholeNumber(primitiveType, "primitiveType"),
+      storageBufferHandle(argumentBuffer), wholeNumber(argumentByteOffset, "argumentByteOffset"));
+  },
+
+  /** One instance a GPU culler tests, with CNA's own defaults. */
+  DefaultCullableInstance(): GpuCullableInstance {
+    const snapshot = extensions().createDefaultGpuCullableInstance();
+    return {
+      World: toMatrix(snapshot.World),
+      Bounds: new BoundingBox(toVector3(snapshot.Bounds.Min), toVector3(snapshot.Bounds.Max)),
+    };
+  },
+} as const;
+
+/**
+ * Whether a memory-barrier mask contains a bit.
+ *
+ * A barrier mask is a set of flags, and this is the membership test CNA publishes for it rather
+ * than one written here — so a mask assembled by a caller and one CNA produced are read the same
+ * way.
+ */
+export function GraphicsMemoryBarrierHas(mask: number, bit: number): boolean {
+  return extensions().graphicsMemoryBarrierHas(
+    wholeNumber(mask, "mask"), wholeNumber(bit, "bit"));
+}
+
+/** Which revision of CNA's engine layer this library was built with, as a number. */
+export function GetEngineLayerVersion(): number {
+  return extensions().getEngineLayerVersion();
+}
+
+/** The same revision as CNA's own text. */
+export function GetEngineLayerVersionString(): string {
+  return extensions().getEngineLayerVersionString();
 }

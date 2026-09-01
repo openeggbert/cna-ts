@@ -11416,3 +11416,340 @@ test("the shadow-receiver contract asks the effect, and three effects give three
     `DEFAULT_TRANSFORMS=ZERO_NOT_IDENTITY CASCADES=FIXED_FOUR`,
   );
 });
+
+test("the last of the engine layer: indirect draws, the frame's two scenes, and the odds", async () => {
+  const graphics = computeExtensions;
+  const lutDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "cna-ts-cube-"));
+  const goodLut = path.join(lutDirectory, "identity.cube");
+  const badLut = path.join(lutDirectory, "not-a-lut.cube");
+  // A 2x2x2 identity cube, written here so the test owns its own fixture.
+  fs.writeFileSync(goodLut, [
+    'TITLE "identity"', "LUT_3D_SIZE 2",
+    "0.0 0.0 0.0", "1.0 0.0 0.0", "0.0 1.0 0.0", "1.0 1.0 0.0",
+    "0.0 0.0 1.0", "1.0 0.0 1.0", "0.0 1.0 1.0", "1.0 1.0 1.0", "",
+  ].join("\n"));
+  fs.writeFileSync(badLut, "this is not a colour lookup table\n");
+  after(() => fs.rmSync(lutDirectory, { recursive: true, force: true }));
+
+  class LastProbeGame extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+
+    LoadContent() {
+      const device = this.GraphicsDevice;
+      const record = (name, body) => {
+        try {
+          this.evidence[name] = body();
+        } catch (error) {
+          this.evidence[name] = `${error.constructor.name}(${error.cnaResult ?? "-"}): ` +
+            `${(error.message ?? "").slice(0, 160)}`;
+        }
+      };
+      const outcome = (body) => {
+        try {
+          body();
+          return "ok";
+        } catch (error) {
+          return `${error.constructor.name}(${error.cnaResult ?? "-"})`;
+        }
+      };
+
+      record("version", () => [
+        graphics.GetEngineLayerVersion(), graphics.GetEngineLayerVersionString(),
+      ]);
+
+      record("indirect", () => {
+        const instance = graphics.IndirectDraw.DefaultCullableInstance();
+        return {
+          arguments: graphics.IndirectDraw.DefaultArguments(),
+          indexed: graphics.IndirectDraw.DefaultIndexedArguments(),
+          instanceWorld: [
+            instance.World.M11, instance.World.M22, instance.World.M33, instance.World.M44,
+          ],
+          instanceBounds: [
+            instance.Bounds.Min.X, instance.Bounds.Min.Y, instance.Bounds.Min.Z,
+            instance.Bounds.Max.X, instance.Bounds.Max.Y, instance.Bounds.Max.Z,
+          ],
+          packed: [...graphics.IndirectDraw.PackArguments(
+            { VertexCount: 6, InstanceCount: 2, FirstVertex: 3, BaseInstance: 0 })],
+          packedIndexed: [...graphics.IndirectDraw.PackIndexedArguments(
+            { IndexCount: 12, InstanceCount: 4, FirstIndex: 6, BaseVertex: -5, BaseInstance: 0 })],
+        };
+      });
+
+      record("barrier", () => {
+        const bits = [1, 2, 4, 8, 16, 32, 64];
+        const mask = bits[0] | bits[2] | bits[4];
+        return {
+          present: bits.map((bit) => graphics.GraphicsMemoryBarrierHas(mask, bit)),
+          emptyMask: bits.map((bit) => graphics.GraphicsMemoryBarrierHas(0, bit)),
+          everything: bits.map(
+            (bit) => graphics.GraphicsMemoryBarrierHas(bits.reduce((a, b) => a | b, 0), bit)),
+        };
+      });
+
+      record("chainPool", () => {
+        const chain = new graphics.PostProcessChain(device);
+        const pool = chain.TargetPool;
+        try {
+          const empty = [pool.TargetCount, pool.EstimatedBytes];
+          const target = pool.Acquire(
+            8, 8, Graphics.SurfaceFormat.Color, Graphics.DepthFormat.None, 0);
+          const filled = [pool.TargetCount, pool.EstimatedBytes];
+          target.Dispose();
+          // The chain owns the pool: it refuses to be released while the borrowed view is out.
+          const refusedWhileLent = outcome(() => chain.Dispose());
+          pool.Dispose();
+          const releasedAfter = outcome(() => chain.Dispose());
+          return { empty, filled, refusedWhileLent, releasedAfter };
+        } catch (error) {
+          try { pool.Dispose(); } catch { /* already returned */ }
+          try { chain.Dispose(); } catch { /* already released */ }
+          throw error;
+        }
+      });
+
+      record("scenes", () => {
+        const pipeline = new graphics.RenderPipeline(device);
+        const map = new graphics.ShadowMap(device, graphics.ShadowQuality.Low);
+        const ran = [];
+        try {
+          pipeline.Resize(64, 64);
+          pipeline.SetTransparentScene(() => ran.push("transparent"));
+          pipeline.SetShadowScene(
+            map,
+            { Direction: new Vector3(0, -1, 0), Color: new Vector3(1, 1, 1), Intensity: 1 },
+            new BoundingBox(new Vector3(-5, -5, -5), new Vector3(5, 5, 5)),
+            () => ran.push("casters"),
+          );
+          const settings = pipeline.Settings;
+          const frame = () => {
+            ran.length = 0;
+            pipeline.Begin(new Color(0, 0, 0, 255));
+            pipeline.End();
+            return [...ran];
+          };
+          const result = {
+            defaultTransparencyMode: settings.TransparencyMode,
+            defaultShadowsEnabled: settings.ShadowsEnabled,
+            withDefaults: frame(),
+          };
+          pipeline.Settings = { ...settings, TransparencyMode: 1, ShadowsEnabled: true };
+          result.readBack = [
+            pipeline.Settings.TransparencyMode, pipeline.Settings.ShadowsEnabled,
+          ];
+          result.withBoth = frame();
+          pipeline.SetTransparentScene(null);
+          result.withoutTransparent = frame();
+          pipeline.SetShadowScene(
+            map,
+            { Direction: new Vector3(0, -1, 0), Color: new Vector3(1, 1, 1), Intensity: 1 },
+            new BoundingBox(new Vector3(-5, -5, -5), new Vector3(5, 5, 5)),
+            null,
+          );
+          result.withNeither = frame();
+          // The scene bounds really reach the shadow pass: the map records the light transform it
+          // last rendered with, and two different boxes produce two different transforms. Without
+          // this the bounds could be dropped on the way across and nothing here would notice.
+          const transformFor = (half) => {
+            pipeline.SetShadowScene(
+              map,
+              { Direction: new Vector3(0, -1, 0), Color: new Vector3(1, 1, 1), Intensity: 1 },
+              new BoundingBox(
+                new Vector3(-half, -half, -half), new Vector3(half, half, half)),
+              () => ran.push("casters"),
+            );
+            frame();
+            const transform = map.LightViewProjection;
+            return [transform.M11, transform.M22, transform.M33, transform.M41, transform.M42];
+          };
+          result.boundsSmall = transformFor(5);
+          result.boundsLarge = transformFor(50);
+          // A callback that throws: its own exception object reaches the caller of End.
+          const boom = new Error("the transparent scene failed");
+          pipeline.SetTransparentScene(() => { throw boom; });
+          try {
+            pipeline.Begin(new Color(0, 0, 0, 255));
+            pipeline.End();
+            result.throwing = "no throw";
+          } catch (error) {
+            result.throwing = error === boom ? "the callback's own error" : `${error.message}`;
+          }
+          pipeline.SetTransparentScene(null);
+          result.badCallback = outcome(() => pipeline.SetTransparentScene(3));
+          return result;
+        } finally {
+          map.Dispose();
+          pipeline.Dispose();
+        }
+      });
+
+      record("cubeLut", () => {
+        const result = {
+          missing: outcome(() => graphics.CubeLut.LoadFromFile("/nonexistent/none.cube")),
+          malformed: outcome(() => graphics.CubeLut.LoadFromFile(badLut)),
+          emptyPath: outcome(() => graphics.CubeLut.LoadFromFile("")),
+        };
+        const lut = graphics.CubeLut.LoadFromFile(goodLut);
+        result.size = lut.Size;
+        result.title = lut.Title;
+        lut.Dispose();
+        return result;
+      });
+
+      this.Exit();
+    }
+  }
+
+  const game = new LastProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  // --- the engine layer's own revision --------------------------------------------------------------
+  const version = evidence.version;
+  assert.equal(typeof version, "object", `the version probe failed: ${version}`);
+  assert.ok(Number.isInteger(version[0]) && version[0] >= 1, "the layer reports a real revision");
+  assert.ok(
+    version[1].includes(String(version[0])),
+    `the text and the number must name the same revision: ${version[1]} vs ${version[0]}`,
+  );
+  // And the text is CNA's own words rather than the number restated, which is the whole reason
+  // there are two routes instead of one.
+  assert.notEqual(version[1], String(version[0]), "the text is not just the number");
+  assert.match(version[1], /[A-Za-z]/, "it says something in words");
+
+  // --- the indirect command format ------------------------------------------------------------------
+  const indirect = evidence.indirect;
+  assert.equal(typeof indirect, "object", `the indirect probe failed: ${indirect}`);
+  assert.deepEqual(
+    indirect.arguments, { VertexCount: 0, InstanceCount: 0, FirstVertex: 0, BaseInstance: 0 },
+    "the default arguments are all zero, which draws nothing",
+  );
+  assert.deepEqual(
+    indirect.indexed,
+    { IndexCount: 0, InstanceCount: 0, FirstIndex: 0, BaseVertex: 0, BaseInstance: 0 },
+    "and so are the indexed ones, one word longer",
+  );
+  // Four words and five, in the order the GPU reads them. The packing is what a caller writes into
+  // a storage buffer, so getting the order or the width wrong is a draw that reads garbage.
+  assert.deepEqual(
+    indirect.packed, [6, 2, 3, 0],
+    "a non-indexed command is four words: vertices, instances, first vertex, base instance",
+  );
+  assert.deepEqual(
+    indirect.packedIndexed, [12, 4, 6, 0xffff_fffb, 0],
+    "and an indexed one is five, with a SIGNED base vertex -- -5 is 0xFFFFFFFB, not a clamp to zero",
+  );
+  assert.equal(
+    new Int32Array(graphics.IndirectDraw.PackIndexedArguments(
+      { IndexCount: 0, InstanceCount: 0, FirstIndex: 0, BaseVertex: -5, BaseInstance: 0 },
+    ).buffer)[3],
+    -5,
+    "read back as signed it is -5 again, which is what the API adds to every decoded index",
+  );
+  // Upstream finding 23 again, in a third place: the header says this init writes an identity
+  // world, and it writes a zero matrix. The empty box beside it is exact.
+  assert.deepEqual(
+    indirect.instanceWorld, [0, 0, 0, 0],
+    "a default cullable instance's world is a ZERO matrix, not the identity the header promises",
+  );
+  assert.deepEqual(
+    indirect.instanceBounds, [0, 0, 0, 0, 0, 0], "while its empty box is exactly as documented");
+
+  // --- the barrier mask -----------------------------------------------------------------------------
+  const barrier = evidence.barrier;
+  assert.equal(typeof barrier, "object", `the barrier probe failed: ${barrier}`);
+  assert.deepEqual(
+    barrier.present, [true, false, true, false, true, false, false],
+    "a mask of bits 0, 2 and 4 contains exactly those three -- a membership test that answered one " +
+    "constant, or that ignored its second argument, fails here",
+  );
+  assert.deepEqual(
+    barrier.emptyMask, new Array(7).fill(false), "an empty mask contains nothing");
+  assert.deepEqual(
+    barrier.everything, new Array(7).fill(true), "and a full one contains everything");
+
+  // --- the chain's own pool -------------------------------------------------------------------------
+  const chainPool = evidence.chainPool;
+  assert.equal(typeof chainPool, "object", `the chain-pool probe failed: ${chainPool}`);
+  assert.deepEqual(chainPool.empty, [0, 0], "a fresh chain's pool owns nothing");
+  assert.deepEqual(
+    chainPool.filled, [1, 256],
+    "and acquiring an 8x8 Color target through it puts one target and 256 bytes in the chain's own pool",
+  );
+  assert.equal(
+    chainPool.refusedWhileLent, "Error(3)",
+    "the chain refuses to be released while its pool is lent out",
+  );
+  assert.equal(chainPool.releasedAfter, "ok", "and releases once the borrow is back");
+
+  // --- the frame's two scene callbacks ---------------------------------------------------------------
+  const scenes = evidence.scenes;
+  assert.equal(typeof scenes, "object", `the scene probe failed: ${scenes}`);
+  // Both are off by default, and a registered callback that never fires is a settings question.
+  assert.equal(scenes.defaultTransparencyMode, 0, "transparency is off by default");
+  assert.equal(scenes.defaultShadowsEnabled, false, "and so are shadows");
+  assert.deepEqual(
+    scenes.withDefaults, [],
+    "so neither callback runs, however it was registered -- the pipeline skips the phase rather " +
+    "than drawing into nothing",
+  );
+  assert.deepEqual(scenes.readBack, [1, true], "the settings are a value that round-trips");
+  // With both on, both run -- and the ORDER is the frame's own: casters inside Begin, transparent
+  // inside End, which is why they are two routes rather than one list.
+  assert.deepEqual(
+    scenes.withBoth, ["casters", "transparent"],
+    "the shadow casters draw inside Begin and the transparent scene inside End, in that order",
+  );
+  assert.deepEqual(
+    scenes.withoutTransparent, ["casters"],
+    "clearing one callback leaves the other running",
+  );
+  assert.deepEqual(scenes.withNeither, [], "and clearing both leaves nothing");
+  // The bounds reach the pass, shown by the transform the map records for two different boxes.
+  assert.notDeepEqual(
+    scenes.boundsSmall, scenes.boundsLarge,
+    "a ten-times-larger scene box must produce a different light transform, or the bounds never " +
+    "reached the shadow pass",
+  );
+  assert.ok(
+    scenes.boundsSmall.every((value) => Number.isFinite(value)),
+    "and both are real transforms rather than a zeroed one",
+  );
+  assert.equal(
+    scenes.throwing, "the callback's own error",
+    "a callback that throws stops the frame and its own exception object reaches the caller",
+  );
+  assert.equal(scenes.badCallback, "TypeError(-)", "and something that is not a function is refused");
+
+  // --- the .cube loader ------------------------------------------------------------------------------
+  const cubeLut = evidence.cubeLut;
+  assert.equal(typeof cubeLut, "object", `the LUT probe failed: ${cubeLut}`);
+  assert.equal(cubeLut.size, 2, "a 2x2x2 table written by this test loads at that size");
+  assert.equal(cubeLut.title, "identity", "and carries the title the file gave it");
+  assert.equal(cubeLut.emptyPath, "TypeError(-)", "an empty path is refused here, by name");
+  // Upstream finding 24. Both failures come back as NOT_SUPPORTED -- the code every other route in
+  // this ABI uses for "this build has no engine layer" -- although the shim contains a branch that
+  // means to answer IO for an unreadable file and INVALID_ARGUMENT for a malformed one. It cannot:
+  // CubeLut throws EngineException, the branch catches CNAException, and the two are siblings, so
+  // the outer exception barrier's EngineException arm answers instead. Asserted as measured; when
+  // it is repaired these two lines fail and say so.
+  assert.equal(
+    cubeLut.missing, "Error(6)",
+    "a path that does not exist answers NOT_SUPPORTED rather than IO -- upstream finding 24",
+  );
+  assert.equal(
+    cubeLut.malformed, "Error(6)",
+    "and so does a file that is not a .cube, so a caller cannot tell a bad path from a build " +
+    "without the engine layer by the result code alone",
+  );
+
+  console.log(
+    `CNA_TS_NATIVE_ENGINE_TAIL=PASS LAYER=${version[0]} INDIRECT=SIGNED_BASE_VERTEX ` +
+    `SCENES=CASTERS_IN_BEGIN_TRANSPARENT_IN_END LUT_FAILURES=BOTH_NOT_SUPPORTED`,
+  );
+});

@@ -35,6 +35,9 @@ import type {
   Vector2Snapshot,
   Vector4Snapshot,
   PunctualLightSnapshot,
+  IndirectDrawArgumentsSnapshot,
+  IndirectDrawIndexedArgumentsSnapshot,
+  GpuCullableInstanceSnapshot,
   ShadowCascadeStateSnapshot,
   ImageBasedLightSnapshot,
   Vector3Snapshot,
@@ -1389,6 +1392,18 @@ interface NativeBridge {
   getEffectShadowFilterRadius(effect: bigint): number;
   setEffectShadowMap(effect: bigint, shadowMap: bigint): void;
   getEffectShadowMap(effect: bigint): bigint;
+  createDefaultIndirectDrawArguments(): IndirectDrawArgumentsSnapshot;
+  createDefaultIndirectDrawIndexedArguments(): IndirectDrawIndexedArgumentsSnapshot;
+  drawPrimitivesIndirect(graphicsDevice: bigint, primitiveType: number, argumentBuffer: bigint, argumentByteOffset: number): void;
+  drawIndexedPrimitivesIndirect(graphicsDevice: bigint, primitiveType: number, argumentBuffer: bigint, argumentByteOffset: number): void;
+  graphicsMemoryBarrierHas(mask: number, bit: number): boolean;
+  createDefaultGpuCullableInstance(): GpuCullableInstanceSnapshot;
+  getPostProcessChainTargetPool(chain: bigint): bigint;
+  loadCubeLutFromFile(path: string): bigint;
+  getEngineLayerVersion(): number;
+  getEngineLayerVersionString(): string;
+  setRenderPipelineShadowScene(pipeline: bigint, shadowMap: bigint, light: DirectionalLightSnapshot, sceneBounds: ClusterBoundsSnapshot, drawCasters: (() => void) | null): void;
+  setRenderPipelineTransparentScene(pipeline: bigint, draw: (() => void) | null): void;
   applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { Applied: number; Settings: PipelineSettingsSnapshot };
   getPipelinePassTiming(pipeline: bigint, index: number): { Milliseconds: number; SampleCount: number };
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -4047,6 +4062,18 @@ export class NodeNativeBackend
   public getEffectShadowFilterRadius(effect: NativeHandle): number { return this.#bridge.getEffectShadowFilterRadius(effect); }
   public setEffectShadowMap(effect: NativeHandle, shadowMap: NativeHandle): void { this.#bridge.setEffectShadowMap(effect, shadowMap); }
   public getEffectShadowMap(effect: NativeHandle): NativeHandle { return this.#bridge.getEffectShadowMap(effect); }
+  public createDefaultIndirectDrawArguments(): IndirectDrawArgumentsSnapshot { return this.#bridge.createDefaultIndirectDrawArguments(); }
+  public createDefaultIndirectDrawIndexedArguments(): IndirectDrawIndexedArgumentsSnapshot { return this.#bridge.createDefaultIndirectDrawIndexedArguments(); }
+  public drawPrimitivesIndirect(graphicsDevice: NativeHandle, primitiveType: number, argumentBuffer: NativeHandle, argumentByteOffset: number): void { this.#bridge.drawPrimitivesIndirect(graphicsDevice, primitiveType, argumentBuffer, argumentByteOffset); }
+  public drawIndexedPrimitivesIndirect(graphicsDevice: NativeHandle, primitiveType: number, argumentBuffer: NativeHandle, argumentByteOffset: number): void { this.#bridge.drawIndexedPrimitivesIndirect(graphicsDevice, primitiveType, argumentBuffer, argumentByteOffset); }
+  public graphicsMemoryBarrierHas(mask: number, bit: number): boolean { return this.#bridge.graphicsMemoryBarrierHas(mask, bit); }
+  public createDefaultGpuCullableInstance(): GpuCullableInstanceSnapshot { return this.#bridge.createDefaultGpuCullableInstance(); }
+  public getPostProcessChainTargetPool(chain: NativeHandle): NativeHandle { return this.#bridge.getPostProcessChainTargetPool(chain); }
+  public loadCubeLutFromFile(path: string): NativeHandle { return this.#bridge.loadCubeLutFromFile(path); }
+  public getEngineLayerVersion(): number { return this.#bridge.getEngineLayerVersion(); }
+  public getEngineLayerVersionString(): string { return this.#bridge.getEngineLayerVersionString(); }
+  public setRenderPipelineShadowScene(pipeline: NativeHandle, shadowMap: NativeHandle, light: DirectionalLightSnapshot, sceneBounds: ClusterBoundsSnapshot, drawCasters: (() => void) | null): void { this.#bridge.setRenderPipelineShadowScene(pipeline, shadowMap, light, sceneBounds, drawCasters); }
+  public setRenderPipelineTransparentScene(pipeline: NativeHandle, draw: (() => void) | null): void { this.#bridge.setRenderPipelineTransparentScene(pipeline, draw); }
   public applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { readonly Applied: number; readonly Settings: PipelineSettingsSnapshot } { return this.#bridge.applyPipelineSettingsFromString(settings, text); }
   public getPipelinePassTiming(pipeline: NativeHandle, index: number): { readonly Milliseconds: number; readonly SampleCount: number } { return this.#bridge.getPipelinePassTiming(pipeline, index); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }

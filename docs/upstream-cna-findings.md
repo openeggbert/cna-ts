@@ -20,12 +20,12 @@ decal projector that reads it, item 15 while projecting the atmosphere, item 16 
 projecting the cascaded, spot and cube shadow passes, items 17 and 18 while projecting the
 post-process passes, item 19 while projecting the physically-based materials, item 20 while
 projecting the culling families, and items 21 and 22 while projecting the transparency
-families and the custom shader effects they need, and item 23 while projecting the
-shadow-receiver contract.
+families and the custom shader effects they need, and items 23 and 24 while projecting the
+shadow-receiver contract and the last of the engine layer.
 
 **Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
 library. Both were found by this package, both were *asserted* rather than worked around, and both
-detectors fired the moment the repair landed. Four of the twenty-three findings are now closed.
+detectors fired the moment the repair landed. Four of the twenty-four findings are now closed.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -1045,7 +1045,7 @@ asserts every row, including the blank first draw. When this is repaired the "no
 fails, which is the point. The weighted-blended accumulation test beside it applies its effect once
 before the bracket opens and says why.
 
-## 23. Two `_init` routes document identity transforms and write zero matrices
+## 23. Three `_init` routes document identity transforms and write zero matrices
 
 **Severity:** documentation, and the implementation is the half that is right.
 **Reproduced on:** HEADLESS, CNA C ABI 0.21.0, 2026-09-01. Both routes are pure functions of their
@@ -1070,6 +1070,11 @@ and the absent debug tint all match to the bit. The transforms do not:
 | `world_to_atlas[0..3]` identity | all sixteen floats zero, in all four |
 | `camera_view` (unstated) | all sixteen floats zero |
 | `shadow_view_projection` identity | all sixteen floats zero |
+| `cna_gpu_cullable_instance_init`'s `world` identity | all sixteen floats zero |
+
+The third is `cna_gpu_cullable_instance_init`, whose header says it "receives an instance with an
+**identity world** and an empty box". The empty box is exact; the world is zero. Same wording, same
+cause, same one-word correction.
 
 The implementation is deliberate and says so in its own words, which is what makes this a
 documentation defect rather than a behaviour one. `cna_shadow_cascade_state_ext_init`:
@@ -1099,7 +1104,61 @@ keep the implementation comments' reasoning where a reader will find it — that
 matches a defaulted C++ one, and that no transform past `count` is read. The word to remove is
 "identity", in both places.
 
-**Detector in cna-ts:** `test/native-cna.integration.mjs`, "the shadow-receiver contract", asserts
-every documented default including these, so the table above is checked field by field. The two
-transform rows assert **zero**; if the routes are ever changed to write identity — that is, if the
-documentation is made true by moving the code — those two assertions fail and say so.
+**Detector in cna-ts:** `test/native-cna.integration.mjs`, "the shadow-receiver contract" and "the
+last of the engine layer", assert every documented default including these, so the table above is
+checked field by field. The transform rows assert **zero**; if the routes are ever changed to write
+identity — that is, if the documentation is made true by moving the code — those assertions fail and
+say so.
+
+## 24. A missing `.cube` file and a malformed one both come back as `NOT_SUPPORTED`
+
+**Severity:** a caller cannot tell "your build has no engine layer" from "your file has a typo".
+**Reproduced on:** HEADLESS, CNA C ABI 0.21.0, 2026-09-01, with the engine layer present — the same
+call loads a valid file successfully in the same process.
+
+`cna_cube_lut_load_from_file` answers `CNA_RESULT_NOT_SUPPORTED` for every failure:
+
+| what was loaded | result | message |
+| --- | --- | --- |
+| a path that does not exist | **6** `NOT_SUPPORTED` | `CNA::Graphics::CubeLut: cannot open '…'` |
+| a file that is not a `.cube` | **6** `NOT_SUPPORTED` | `…the document declares no LUT_3D_SIZE…` |
+| a valid 2×2×2 `.cube` | 0 `SUCCESS` | — |
+
+That is not what the shim intends. It contains a branch written precisely to tell the two apart:
+
+```cpp
+} catch (const CNA::CNAException& failure) {
+    // "cannot open" is an IO failure the caller can act on; anything else is malformed content.
+    const std::string what = failure.what();
+    if (what.find("cannot open") != std::string::npos) {
+        return Fail(CNA_RESULT_IO, CNA_ERROR_CATEGORY_IO, "The LUT file cannot be read.");
+    }
+    return Fail(CNA_RESULT_INVALID_ARGUMENT, …, "The file is not a well-formed .cube LUT.");
+}
+```
+
+Neither `CNA_RESULT_IO` nor `CNA_RESULT_INVALID_ARGUMENT` ever comes out, and neither of those two
+messages does either — the message that arrives is `CubeLut`'s own.
+
+**The cause, read from the source rather than guessed.** `CubeLut::loadFromFile` throws
+`CNA::Graphics::EngineException`, and `EngineException` and `CNA::CNAException` are **siblings**:
+both derive from `System::Exception` and neither derives from the other. So the `catch` above cannot
+match, the exception leaves the lambda, and `CallWithExceptionBarrier`'s own
+`catch (const CNA::Graphics::EngineException&)` arm — which maps to `NOT_SUPPORTED` because that arm
+exists for capability refusals — is what answers.
+
+**What it costs.** `NOT_SUPPORTED` is load-bearing in this ABI: every engine-layer route returns it
+for "this build has no engine layer", and callers branch on it to decide whether a whole feature is
+available. A bad file path now produces the same code, so a game that checks the result — rather
+than parsing the message — concludes the engine layer is missing and disables colour grading
+entirely, because one LUT path had a typo.
+
+**Proposed change.** Catch `CNA::Graphics::EngineException` in the shim instead of
+`CNA::CNAException` — one identifier. The message-sniffing branch inside it then works as written,
+and the two failures separate into `CNA_RESULT_IO` and `CNA_RESULT_INVALID_ARGUMENT` as intended.
+Worth a look at the other shims that catch `CNAException` around an engine-layer call for the same
+reason.
+
+**Detector in cna-ts:** `test/native-cna.integration.mjs`, "the last of the engine layer", loads a
+missing path, a malformed file and a valid one written by the test, and asserts all three results.
+When this is repaired the first two rows fail, which is the point.
