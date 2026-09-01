@@ -18,6 +18,7 @@ import {
   assertParticleEvidence, assertParticleSimulationOracle,
 } from "./support/particle-oracle.mjs";
 import { assertPostProcessEvidence } from "./support/post-process-oracle.mjs";
+import { assertShadowVariantEvidence } from "./support/shadow-variant-oracle.mjs";
 import {
   assertDecalState, assertPrepassMaths, assertPrepassState, multipleRenderTargetsDraw,
 } from "./support/prepass-decal-oracle.mjs";
@@ -582,6 +583,25 @@ test("the depth/normal prepass answers, or says the layer is absent", { skip }, 
   console.log(
     `CNA_TS_WASM_PREPASS=PRESENT MULTIPLE_TARGET_DRAW=${draws ? "YES" : "NO_FINDING_30"} ` +
     `RASTERISED=${prepass.rasterised.count} PREPASS_OCCUPIED=${prepass.prepassOccupied.count}`,
+  );
+  assert.deepEqual(consoleErrors, []);
+});
+
+test("the spot, cube and cascaded shadow maps answer, or say the layer is absent", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const variants = result.shadowVariants;
+  assert.ok(variants, "no shadow-variant evidence was produced");
+  assert.equal(typeof variants.layerAbsent, "boolean");
+  if (variants.layerAbsent) {
+    assert.equal(variants.cnaResult, 6, `CNA's own NOT_SUPPORTED: ${variants.error}`);
+    console.log("CNA_TS_WASM_SHADOW_VARIANTS=ABSENT_FROM_ARTIFACT");
+    assert.deepEqual(consoleErrors, []);
+    return;
+  }
+  assertShadowVariantEvidence(variants);
+  console.log(
+    `CNA_TS_WASM_SHADOW_VARIANTS=PRESENT CASCADES=${variants.sizes.cascadeCount} CUBE_FACES=6`,
   );
   assert.deepEqual(consoleErrors, []);
 });

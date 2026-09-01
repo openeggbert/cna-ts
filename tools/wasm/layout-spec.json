@@ -638,6 +638,27 @@
       "emission_rate",
       "start_size",
       "end_size"
+    ],
+    "CNA_PointLightEXT": [
+      "struct_size",
+      "struct_version",
+      "position",
+      "color",
+      "intensity",
+      "range",
+      "casts_shadows"
+    ],
+    "CNA_SpotLightEXT": [
+      "struct_size",
+      "struct_version",
+      "position",
+      "direction",
+      "color",
+      "intensity",
+      "range",
+      "inner_angle",
+      "outer_angle",
+      "casts_shadows"
     ]
   },
   "callbacks": {

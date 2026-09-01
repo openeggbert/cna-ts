@@ -745,6 +745,9 @@ try {
       // --- shadow maps: what this device says, and the maths that is the same everywhere -------
       result.shadows = this.#shadowEvidence();
 
+      // --- the spot, cube and cascaded shadow maps ----------------------------------------------
+      result.shadowVariants = this.#shadowVariantEvidence();
+
       // --- level of detail: arithmetic, and the one engine family bound whole ------------------
       result.lod = this.#lodEvidence();
 
@@ -2192,6 +2195,265 @@ try {
         release();
       }
       return result;
+    }
+
+    /**
+     * The three shadow maps that are not a directional one, and the transforms behind them.
+     *
+     * A spot light's shadow is one perspective map, a point light's is six of them, and a
+     * directional light over a large scene wants several over nested slices of its frustum. All
+     * three were asked -- `..._is_supported`, of the running artifact -- and all three said yes on
+     * WebGL 2.0.
+     *
+     * Every claim below is checked against arithmetic rather than against a picture taken earlier:
+     *
+     * - the cascade splits against the practical-split formula, recomputed here;
+     * - `SelectCascade` against those same splits;
+     * - the spot map's own light view-projection against the **product** of the two pure routes
+     *   that compute its halves, so three CNA routes have to agree;
+     * - each cube face's view against what that view must do to a point on its own axis;
+     * - the texel snap against the quantisation it is named for.
+     */
+    #shadowVariantEvidence() {
+      const device = this.GraphicsDevice;
+      const { CascadedShadowMap, CubeShadowMap, ShadowMapMath, ShadowQuality, SpotShadowMap } =
+        PostProcess;
+      const owned = [];
+      const release = () => {
+        for (const item of owned.reverse()) { try { item.Dispose(); } catch { /* reported */ } }
+      };
+      let cascaded;
+      try {
+        cascaded = new CascadedShadowMap(device, ShadowQuality.Low, 4);
+      } catch (error) {
+        release();
+        return {
+          layerAbsent: true,
+          cnaResult: error?.cnaResult ?? null,
+          error: `${error?.constructor?.name}: ${error?.message}`,
+        };
+      }
+      owned.push(cascaded);
+      const evidence = { layerAbsent: false };
+      try {
+        const spot = new SpotShadowMap(device, ShadowQuality.Low);
+        owned.push(spot);
+        const cube = new CubeShadowMap(device, ShadowQuality.Low);
+        owned.push(cube);
+        evidence.supported = {
+          cascaded: cascaded.IsSupported, spot: spot.IsSupported, cube: cube.IsSupported,
+        };
+        evidence.sizes = {
+          cascade: cascaded.CascadeSize, cascadeCount: cascaded.CascadeCount,
+          spot: spot.Size, cube: cube.Size,
+          cubeForQuality: [0, 1, 2, 3].map((q) => ShadowMapMath.CubeSizeForQuality(q)),
+          sizeForQuality: [0, 1, 2, 3].map((q) => ShadowMapMath.SizeForQuality(q)),
+        };
+
+        // --- the cascade splits, against the formula they are named for ------------------------
+        const NEAR = 1, FAR = 200, COUNT = 4;
+        evidence.splits = [0, 0.5, 1].map((lambda) => [
+          lambda, [...ShadowMapMath.ComputeCascadeSplitDistances(NEAR, FAR, COUNT, lambda)],
+        ]);
+        // Deliberately not CNA's own default, which is 0.5: a setter wired to a neighbour would
+        // leave the default in place and every split computed from it would still agree.
+        evidence.defaultSplitLambda = cascaded.SplitLambda;
+        cascaded.SplitLambda = 0.25;
+        evidence.splitLambda = cascaded.SplitLambda;
+        evidence.defaultBlendBand = cascaded.BlendBand;
+        cascaded.BlendBand = 0.125;
+        evidence.blendBand = cascaded.BlendBand;
+        evidence.debugTint = (() => {
+          const before = cascaded.IsDebugTintEnabled;
+          cascaded.IsDebugTintEnabled = true;
+          const after = cascaded.IsDebugTintEnabled;
+          cascaded.IsDebugTintEnabled = false;
+          return { before, after, restored: cascaded.IsDebugTintEnabled };
+        })();
+
+        const cameraView = Matrix.CreateLookAt(new Vector3(0, 6, 18), Vector3.Zero, Vector3.Up);
+        const cameraProjection =
+          Matrix.CreatePerspectiveFieldOfView(Math.PI / 3, 4 / 3, NEAR, FAR);
+        cascaded.Update(
+          {
+            Direction: new Vector3(0.3, -1, 0.2),
+            Color: new Vector3(1, 1, 1),
+            Intensity: 1,
+            CastsShadows: true,
+          },
+          cameraView, cameraProjection,
+        );
+        evidence.cascade = {
+          splitDistances: Array.from(
+            { length: cascaded.CascadeCount }, (_, i) => cascaded.GetSplitDistance(i)),
+          matrices: Array.from(
+            { length: cascaded.CascadeCount }, (_, i) => matrixRow(cascaded.GetCascadeMatrix(i))),
+          // Selection over depths straddling every split, which is what says the selector reads
+          // the same table `GetSplitDistance` reports.
+          selection: [0.5, 2, 8, 20, 45, 90, 150, 199, 250].map(
+            (depth) => [depth, cascaded.SelectCascade(depth)]),
+        };
+        // The frustum this camera describes, and the sphere around it -- CNA's own corners, so a
+        // bounding sphere computed here from them is a second route into one answer.
+        evidence.frustum = {
+          corners: ShadowMapMath.ComputeFrustumCorners(cameraView, cameraProjection)
+            .map((c) => [c.X, c.Y, c.Z]),
+        };
+        const sphere = ShadowMapMath.ComputeCascadeBoundingSphere(
+          ShadowMapMath.ComputeFrustumCorners(cameraView, cameraProjection));
+        evidence.frustum.sphere = {
+          centre: [sphere.Center.X, sphere.Center.Y, sphere.Center.Z], radius: sphere.Radius,
+        };
+        // The texel snap, at a size where the quantum is large enough to see.
+        evidence.snap = [
+          [new Vector3(1.234, -5.678, 9.012), 10, 64],
+          [new Vector3(1.234, -5.678, 9.012), 10, 128],
+          [new Vector3(0, 0, 0), 10, 64],
+        ].map(([centre, radius, size]) => {
+          const snapped = CascadedShadowMap.SnapToTexelGrid(centre, radius, size);
+          return {
+            centre: [centre.X, centre.Y, centre.Z], radius, size,
+            snapped: [snapped.X, snapped.Y, snapped.Z],
+          };
+        });
+
+        // --- the spot map: three routes that have to agree -------------------------------------
+        // `ShadowMapMath.ComputeSpotLightView` takes a `ClusteredLight`, which carries a `Type`,
+        // while `SpotShadowMap.Begin` takes a `SpotLight`, which does not. The same numbers are
+        // used for both so the three routes below are being asked about one light.
+        const spotLight = {
+          Type: PostProcess.ClusteredLightType.Spot,
+          Position: new Vector3(4, 9, -3),
+          Direction: new Vector3(-0.4, -1, 0.25),
+          Color: new Vector3(1, 0.9, 0.8),
+          Intensity: 2,
+          Range: 40,
+          InnerAngle: 0.35,
+          OuterAngle: 0.6,
+          CastsShadows: true,
+        };
+        evidence.spot = {
+          quality: spot.Quality,
+          depthBias: (() => {
+            const before = spot.DepthBias;
+            spot.DepthBias = 0.00390625;
+            const set = spot.DepthBias;
+            return { before, set };
+          })(),
+          computedView: matrixRow(ShadowMapMath.ComputeSpotLightView(spotLight)),
+          computedProjection: matrixRow(ShadowMapMath.ComputeSpotLightProjection(spotLight)),
+        };
+        spot.Begin(spotLight);
+        try {
+          evidence.spot.lightViewProjection = matrixRow(spot.LightViewProjection);
+          evidence.spot.lightPosition = (() => {
+            const p = spot.LightPosition;
+            return [p.X, p.Y, p.Z];
+          })();
+          evidence.spot.lightRange = spot.LightRange;
+        } finally {
+          spot.End();
+        }
+        // The same light with a wider cone, so the projection's field of view can be told from the
+        // rest of the transform: only the outer angle should move it.
+        evidence.spot.widerConeProjection = matrixRow(ShadowMapMath.ComputeSpotLightProjection({
+          ...spotLight, OuterAngle: 0.9,
+        }));
+        evidence.spot.innerOnlyProjection = matrixRow(ShadowMapMath.ComputeSpotLightProjection({
+          ...spotLight, InnerAngle: 0.15,
+        }));
+        // What a bone palette does at its edges, which is the only thing that can see a count the
+        // caller supplies: CNA is asked with an empty palette and with an implausibly large one.
+        evidence.spot.bonePalettes = (() => {
+          const plain = new PostProcess.ShadowMap(device, ShadowQuality.Low);
+          owned.push(plain);
+          const identity = matrixRow(Matrix.Identity);
+          // Inside a pass: the caster is what a shadow draw applies, so outside the bracket
+          // every one of these is CNA's own "no pass is open" and says nothing about the palette.
+          const attempt = (count, weights) => {
+            try {
+              plain.ApplySkinnedCaster(
+                Array.from({ length: count }, () => Matrix.Identity), weights);
+              return "accepted";
+            } catch (error) {
+              return `${error?.constructor?.name}:${error?.cnaResult ?? ""}`;
+            }
+          };
+          void identity;
+          plain.Begin(
+            {
+              Direction: new Vector3(0, -1, 0), Color: new Vector3(1, 1, 1), Intensity: 1,
+              CastsShadows: true,
+            },
+            new BoundingBox(new Vector3(-8, -8, -8), new Vector3(8, 8, 8)),
+          );
+          try {
+            return {
+              outsidePass: "measured inside the bracket",
+              empty: attempt(0, 4),
+              one: attempt(1, 4),
+              many: attempt(72, 4),
+              tooMany: attempt(4096, 4),
+              zeroWeights: attempt(4, 0),
+              fiveWeights: attempt(4, 5),
+            };
+          } finally {
+            plain.End();
+          }
+        })();
+
+        // A draw outside the bracket must be refused, and the refusal is CNA's own code.
+        evidence.spot.outsideBracket = (() => {
+          try { spot.End(); return "no error"; } catch (error) { return error?.cnaResult ?? "threw"; }
+        })();
+
+        // --- the cube map: six faces, each with its own axis -----------------------------------
+        const pointLight = {
+          Position: new Vector3(2, 5, -7),
+          Color: new Vector3(1, 1, 1),
+          Intensity: 3,
+          Range: 25,
+          CastsShadows: true,
+        };
+        cube.Update(pointLight);
+        evidence.cube = {
+          quality: cube.Quality,
+          lightPosition: (() => { const p = cube.LightPosition; return [p.X, p.Y, p.Z]; })(),
+          lightRange: cube.LightRange,
+          faceViews: [0, 1, 2, 3, 4, 5].map(
+            (face) => matrixRow(ShadowMapMath.ComputeCubeFaceView(face, pointLight.Position))),
+          faceProjection: matrixRow(ShadowMapMath.ComputeCubeFaceProjection(pointLight.Range)),
+          // A second range, so the depth terms can be told from the ninety-degree ones: the first
+          // two elements must not move and the last two must.
+          halfRangeProjection:
+            matrixRow(ShadowMapMath.ComputeCubeFaceProjection(pointLight.Range / 2)),
+          depthBias: (() => {
+            const before = cube.DepthBias;
+            cube.DepthBias = 0.005859375;
+            return { before, set: cube.DepthBias };
+          })(),
+        };
+        // Each face opened and closed in turn: six brackets, and a seventh index refused.
+        evidence.cube.faces = [0, 1, 2, 3, 4, 5].map((face) => {
+          try {
+            cube.Begin(face);
+            cube.End();
+            return "ok";
+          } catch (error) {
+            return `${error?.constructor?.name}: ${error?.cnaResult ?? ""}`;
+          }
+        });
+        evidence.cube.seventhFace = (() => {
+          try { cube.Begin(6); cube.End(); return "accepted"; }
+          catch (error) { return error?.constructor?.name ?? "threw"; }
+        })();
+      } catch (error) {
+        evidence.evidenceError = `${error?.constructor?.name}: ${error?.message}`;
+        evidence.evidenceStack = String(error?.stack ?? "");
+      } finally {
+        release();
+      }
+      return evidence;
     }
 
     #colourGradeEvidence() {

@@ -45,6 +45,7 @@ import {
   assertDecalState, assertPrepassMaths, assertPrepassState, multipleRenderTargetsDraw,
 } from "./support/prepass-decal-oracle.mjs";
 import { assertShadowPassEvidence } from "./support/shadow-oracle.mjs";
+import { assertShadowVariantEvidence } from "./support/shadow-variant-oracle.mjs";
 import { assertCompiledEffectEvidence } from "./support/compiled-effect-oracle.mjs";
 import { requiredSuite } from "./support/required-suite.mjs";
 import { strongArtifactBlocked } from "./support/strong-artifact-gate.mjs";
@@ -273,6 +274,22 @@ test("the engine layer casts a shadow map, and its depths are the light transfor
     `STRONG_WASM_SHADOWS=CAST SIZE=${shadows.size} SAMPLING=${shadows.sampling} ` +
     `OCCLUDED=${shadows.high.occluded} HIGH=${shadows.high.low.toFixed(6)} ` +
     `LOW=${shadows.low.low.toFixed(6)}`,
+  );
+});
+
+test("the spot, cube and cascaded shadow maps agree with the transforms behind them", () => {
+  const variants = evidence.result.shadowVariants;
+  assert.ok(variants, "no shadow-variant evidence was produced");
+  assert.equal(
+    variants.layerAbsent, false,
+    `the artifact reports CNAEXT available and then refused a CascadedShadowMap: ${variants.error}`,
+  );
+  assertShadowVariantEvidence(variants);
+  console.log(
+    `STRONG_WASM_SHADOW_VARIANTS=cascaded,spot,cube SUPPORTED=3/3 ` +
+    `CASCADES=${variants.sizes.cascadeCount}@${variants.sizes.cascade} ` +
+    `SPLITS=${variants.cascade.splitDistances.map((d) => d.toFixed(1)).join(",")} ` +
+    `CUBE_FACES=6 SPOT=${variants.sizes.spot} CUBE=${variants.sizes.cube}`,
   );
 });
 

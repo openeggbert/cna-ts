@@ -1,0 +1,107 @@
+{
+  "name": "the spot, cube and cascaded shadow maps in a browser",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
+  "environment": "CNA_WASM_ARTIFACT_DIR must point at a CNA wasm artifact built with -DCNA_EASYGL_COMPILED_EFFECTS=ON -DCNA_CNAEXT=ON, and CNA_SOURCE_PATH at a cnanext checkout. Three families behind fifty-nine near-identical routes, so the mutants are the mistakes that shape of code makes: a create or a getter wired to a sibling map, a cube face index dropped, a light structure written without its initializer, a matrix read at the wrong route, and an argument order reversed in a pure transform.",
+  "mutants": [
+    {
+      "id": "cube-face-index-dropped",
+      "why": "every cube face opened as face zero, and every face view computed for face zero. The light still sits at the origin of that one view, so only asking each face about its *own* axis catches it",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "    return this.#mem.withVector3(position, (pointer) =>\n      this.#mem.matrix(\"cna_cube_shadow_map_compute_face_view\", face, pointer));",
+      "replace": "    void face;\n    return this.#mem.withVector3(position, (pointer) =>\n      this.#mem.matrix(\"cna_cube_shadow_map_compute_face_view\", 0, pointer));"
+    },
+    {
+      "id": "cube-face-projection-takes-a-range-of-one",
+      "why": "the light's range dropped from the face projection, which changes only the two depth terms. The ninety-degree check on the first two elements passes unchanged",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "    return this.#mem.matrix(\"cna_cube_shadow_map_compute_face_projection\", range);",
+      "replace": "    void range;\n    return this.#mem.matrix(\"cna_cube_shadow_map_compute_face_projection\", 1);"
+    },
+    {
+      "id": "spot-light-structure-not-initialised",
+      "why": "the growable CNA_SpotLightEXT zeroed rather than filled by CNA's own initializer, so struct_size is zero and CNA reads a light of no size",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "    this.#routes.invoke(\"cna_spot_light_ext_init\", structure.pointer);\n    structure\n      .setF32Array(\"position\", [light.Position.X, light.Position.Y, light.Position.Z])\n      .setF32Array(\"direction\",",
+      "replace": "    structure\n      .setF32Array(\"position\", [light.Position.X, light.Position.Y, light.Position.Z])\n      .setF32Array(\"direction\","
+    },
+    {
+      "id": "spot-light-position-and-direction-exchanged",
+      "why": "two adjacent CNA_Vector3 fields written to each other's offsets. Both are three floats, both are accepted, and the map still produces a plausible perspective transform from somewhere",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "      .setF32Array(\"position\", [light.Position.X, light.Position.Y, light.Position.Z])\n      .setF32Array(\"direction\", [light.Direction.X, light.Direction.Y, light.Direction.Z])\n      .setF32Array(\"color\", [light.Color.X, light.Color.Y, light.Color.Z])\n      .setF32(\"intensity\", light.Intensity)\n      .setF32(\"range\", light.Range)\n      .setF32(\"inner_angle\", light.InnerAngle)",
+      "replace": "      .setF32Array(\"position\", [light.Direction.X, light.Direction.Y, light.Direction.Z])\n      .setF32Array(\"direction\", [light.Position.X, light.Position.Y, light.Position.Z])\n      .setF32Array(\"color\", [light.Color.X, light.Color.Y, light.Color.Z])\n      .setF32(\"intensity\", light.Intensity)\n      .setF32(\"range\", light.Range)\n      .setF32(\"inner_angle\", light.InnerAngle)"
+    },
+    {
+      "id": "spot-inner-and-outer-angle-exchanged",
+      "why": "the cone's two angles swapped, which changes the projection's field of view and nothing else. Only comparing the map's own transform against the product of the two pure routes -- which would both change together -- leaves this visible, so it is here to find out whether that comparison is doing any work",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "      .setF32(\"inner_angle\", light.InnerAngle)\n      .setF32(\"outer_angle\", light.OuterAngle)",
+      "replace": "      .setF32(\"inner_angle\", light.OuterAngle)\n      .setF32(\"outer_angle\", light.InnerAngle)"
+    },
+    {
+      "id": "spot-view-projection-read-from-the-cascade",
+      "why": "a matrix getter wired to a sibling family's route, which answers a perfectly well-formed matrix that is not this map's",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "    return this.#mem.matrix(\"cna_spot_shadow_map_get_light_view_projection\", map);",
+      "replace": "    return this.#mem.matrix(\"cna_spot_shadow_map_compute_light_projection\", map);"
+    },
+    {
+      "id": "cascade-split-lambda-and-blend-band-exchanged",
+      "why": "two float setters on the same object wired to each other. Both accept a unit fraction and both read back through their own getter, so only splits computed from the lambda catch it",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "  public override setCascadeSplitLambda(map: NativeHandle, lambda: number): void {\n    this.#routes.invoke(\"cna_cascaded_shadow_map_set_split_lambda\", map, lambda);\n  }",
+      "replace": "  public override setCascadeSplitLambda(map: NativeHandle, lambda: number): void {\n    this.#routes.invoke(\"cna_cascaded_shadow_map_set_blend_band\", map, lambda);\n  }"
+    },
+    {
+      "id": "cascade-matrix-index-dropped",
+      "why": "every cascade's matrix read from cascade zero, so four cascades share one transform. Nothing about a single matrix is wrong; only that no two of them differ",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "    return this.#mem.matrix(\n      \"cna_cascaded_shadow_map_get_cascade_matrix\", map, Math.trunc(cascadeIndex));",
+      "replace": "    void cascadeIndex;\n    return this.#mem.matrix(\"cna_cascaded_shadow_map_get_cascade_matrix\", map, 0);"
+    },
+    {
+      "id": "split-distances-near-and-far-exchanged",
+      "why": "the two planes reversed in the pure split routine, which still produces four increasing distances -- of a frustum nobody asked about",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "      [nearPlane, farPlane, Math.trunc(cascadeCount), lambda], 4,",
+      "replace": "      [farPlane, nearPlane, Math.trunc(cascadeCount), lambda], 4,"
+    },
+    {
+      "id": "texel-snap-drops-its-cascade-size",
+      "why": "the map size dropped from the snap, so every cascade quantises to the same grid. The coarse case still snaps and the fine one stops being finer",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "      \"cna_cascaded_shadow_map_snap_to_texel_grid\", pointer, radius, Math.trunc(cascadeSize)));",
+      "replace": "      \"cna_cascaded_shadow_map_snap_to_texel_grid\", pointer, radius, 64));"
+    },
+    {
+      "id": "frustum-corners-read-at-a-vector4-stride",
+      "why": "eight CNA_Vector3s walked as if they were sixteen bytes apart, so every corner after the first reads across a boundary. They are still eight distinct points, and the sphere around them is still a sphere",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "      const stride = WASM_STRUCT_LAYOUTS.CNA_Vector3.size;\n      const corners = scope.allocate(stride * 8);",
+      "replace": "      const stride = 16;\n      const corners = scope.allocate(stride * 8);"
+    },
+    {
+      "id": "bounding-sphere-radius-not-read",
+      "why": "the radius output left as the poison this binding wrote rather than read back from CNA. With an unpoisoned buffer it would have been a plausible zero, and a sphere of radius zero containing nothing is what the containment check is for",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "        Radius: after.getFloat32(radius, true),",
+      "replace": "        Radius: after.getFloat32(radius, true) * 4,"
+    },
+    {
+      "id": "point-light-range-and-intensity-exchanged",
+      "why": "two adjacent floats in the point light structure swapped, so the cube map's range is the light's brightness. Both are accepted and both read back through their own getters",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "      .setF32Array(\"color\", [light.Color.X, light.Color.Y, light.Color.Z])\n      .setF32(\"intensity\", light.Intensity)\n      .setF32(\"range\", light.Range)\n      .setU8(\"casts_shadows\", light.CastsShadows ? 1 : 0);\n    return structure.pointer;",
+      "replace": "      .setF32Array(\"color\", [light.Color.X, light.Color.Y, light.Color.Z])\n      .setF32(\"intensity\", light.Range)\n      .setF32(\"range\", light.Intensity)\n      .setU8(\"casts_shadows\", light.CastsShadows ? 1 : 0);\n    return structure.pointer;"
+    },
+    {
+      "id": "skinned-bone-palette-count-dropped",
+      "why": "the palette's length replaced with one, so only the first bone reaches CNA. The call still succeeds, which is the whole problem with a count a caller supplies",
+      "file": "src/internal/wasm/shadows.ts",
+      "find": "        \"cna_shadow_map_apply_skinned_caster\", map, buffer, BigInt(bones.length),",
+      "replace": "        \"cna_shadow_map_apply_skinned_caster\", map, buffer, 1n,"
+    }
+  ]
+}

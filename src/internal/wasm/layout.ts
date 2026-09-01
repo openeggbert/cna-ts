@@ -961,4 +961,33 @@ export const WASM_STRUCT_LAYOUTS = {
       end_size: { offset: 108, size: 4 },
     },
   },
+  CNA_PointLightEXT: {
+    size: 44,
+    align: 4,
+    fields: {
+      struct_size: { offset: 0, size: 4 },
+      struct_version: { offset: 4, size: 4 },
+      position: { offset: 8, size: 12 },
+      color: { offset: 20, size: 12 },
+      intensity: { offset: 32, size: 4 },
+      range: { offset: 36, size: 4 },
+      casts_shadows: { offset: 40, size: 1 },
+    },
+  },
+  CNA_SpotLightEXT: {
+    size: 64,
+    align: 4,
+    fields: {
+      struct_size: { offset: 0, size: 4 },
+      struct_version: { offset: 4, size: 4 },
+      position: { offset: 8, size: 12 },
+      direction: { offset: 20, size: 12 },
+      color: { offset: 32, size: 12 },
+      intensity: { offset: 44, size: 4 },
+      range: { offset: 48, size: 4 },
+      inner_angle: { offset: 52, size: 4 },
+      outer_angle: { offset: 56, size: 4 },
+      casts_shadows: { offset: 60, size: 1 },
+    },
+  },
 } as const satisfies Readonly<Record<string, WasmStructLayout>>;

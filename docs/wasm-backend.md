@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=687
+WASM_BACKEND_ROUTES=748
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 687 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 748 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
@@ -620,6 +620,42 @@ softness to the same zero a binding-side floor would, and the depth input's far 
 while finding 12 holds. A third survivor was a real gap: dropping `Update`'s elapsed time changed no
 count, no position and no texel, because `Reset` fills the pool. The particles' own age is the only
 thing that can tell, and asserting it is what the mutant asked for.
+
+### The three shadow maps that are not a directional one
+
+A spot light's shadow is one perspective map, a point light's is six, and a directional light over a
+large scene wants several over nested slices of its frustum. All three answered `..._is_supported`
+with true here, and the shadow family is now bound whole — 78 of 78 members.
+
+Each ships the transforms behind it as pure routes, so the browser suite checks what a map *holds*
+against what those say it should hold. Nothing below is a number read off a run:
+
+| claim | checked against |
+| --- | --- |
+| the cascade splits | the practical-split blend, recomputed: `λ·near·(far/near)^(i/n) + (1−λ)·(near + (far−near)·i/n)` |
+| `SelectCascade` | the map's own splits, at depths straddling every one of them |
+| the texel snap | the quantum a cascade of that radius and that size has, `2r/s`, on the two axes it rasterises across and not on depth |
+| the spot map's transform | the **product** of the two pure routes that compute its halves — three CNA routes that have to agree, none of which shares state with another |
+| the spot frustum | `1 / tan(outerAngle)`, so the field of view is twice the cone's outer angle; the inner angle is a falloff and must move nothing |
+| each cube face's view | what that view must do to a point one unit along **its own** axis: centred across, centred down, and one unit at −Z |
+| the cube projection | exactly ninety degrees, which is the only angle whose frustums tile a cube |
+| the frustum sphere | it contains all eight corners CNA computed, and is tight around them |
+
+The cube-face table is the one that cannot be satisfied by a permutation: each face is asked about a
+*different* axis, and only its own view puts that axis in front of the camera.
+
+Fourteen planted defects, fourteen killed — but only after four of them found real gaps in the
+tests. The cascade lambda was being set to CNA's own default, so a setter wired to a neighbour left
+it in place and every split still agreed. The cube face projection was checked only on its
+angle terms, so dropping the light's range changed nothing asserted. The spot cone's two angles
+moved the projection together, so the product comparison could not tell them apart. And the bone
+palette's count could not be observed at all until CNA was asked at the two edges only a
+caller-supplied count has — an empty palette and an implausibly large one, both refused with
+`INVALID_ARGUMENT`, where one bone and seventy-two are accepted.
+
+The skinned caster is bound with the rest, and the reason it was once thought unreachable is worth
+recording: it takes a bone palette from the *caller*, not from a model. What needs a native content
+manager is drawing a skinned `ModelMeshPart`, which is a different thing and stays out of reach.
 
 **And the chain, which is what makes the family usable.** A game applies several passes in order,
 so `PostProcessChain` is the API a consumer actually reaches for, and its pass order is what a
