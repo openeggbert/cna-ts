@@ -31,6 +31,7 @@
 import { getBackend } from "../../internal/backend.js";
 import type {
   CnaContentBackend,
+  CnaContentSurveyBackend,
   CnbCurveSnapshot,
 } from "../../internal/backend.js";
 
@@ -54,6 +55,8 @@ import { Rectangle } from "../../Microsoft/Xna/Framework/Rectangle.js";
 import { Vector3 } from "../../Microsoft/Xna/Framework/Vector3.js";
 import { Vector4 } from "../../Microsoft/Xna/Framework/Vector4.js";
 import type { GraphicsDevice } from "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
+import { resolveGraphicsDeviceHandleForInternalUse } from
+  "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
 import { SurfaceFormat } from "../../Microsoft/Xna/Framework/Graphics/DeviceEnums.js";
 import {
   setTexture2DLevelBytesForInternalUse,
@@ -2097,5 +2100,206 @@ export class CnbWriter implements IDisposable {
     if (handle == null) return;
     this.#handle = null;
     this.#backend.cnbWriterDestroy(handle);
+  }
+}
+
+
+/* ================================================================================================
+ * The content survey
+ * ==============================================================================================*/
+
+/** One asset found under a content root. */
+export interface ContentSurveyEntry {
+  /**
+   * The asset name a `ContentManager.Load` call would use — the path relative to the root, with
+   * the extension removed, which is exactly the key XNA addresses content by.
+   */
+  readonly AssetName: string;
+  /** Whether a compiled `.xnb` exists for it. */
+  readonly HasXnb: boolean;
+  /** Whether a `.cnj` document exists for it. */
+  readonly HasCnj: boolean;
+  /** Loose-file extensions found for the same asset name, such as `.png` beside the `.xnb`. */
+  readonly NativeExtensions: readonly string[];
+  /**
+   * The CLR reader names the `.xnb` header lists, in file order.
+   *
+   * **Empty for a compressed `.xnb`.** The reader table lives inside the compressed payload and
+   * the survey reads headers without decompressing, so a compressed asset is found and named but
+   * its readers are not reported. An empty list therefore means "not known from here", never
+   * "needs no readers" — measured, and asserted by the test rather than assumed.
+   */
+  readonly XnbReaderNames: readonly string[];
+}
+
+/** One distinct XNB reader name, counted across the whole root. */
+export interface ContentSurveyReaderUsage {
+  /** The CLR name as the `.xnb` files spell it. */
+  readonly ReaderName: string;
+  /** Whether CNA itself has a reader registered for it. */
+  readonly IsRegisteredWithCna: boolean;
+  /** How many scanned files reference it. */
+  readonly FileCount: number;
+}
+
+function survey(operation: string): CnaContentSurveyBackend {
+  const backend = getBackend().ContentSurvey;
+  if (!backend) {
+    throw new NativeUnavailableError(
+      `${operation} requires a CNA backend with the content-survey routes; ` +
+      "load the Node-API backend with LoadNodeNativeBackend",
+    );
+  }
+  return backend;
+}
+
+/**
+ * Whether CNA has a reader registered for a CLR reader name.
+ *
+ * This is CNA's registry, not this package's. The two are separate on purpose: a name CNA cannot
+ * read may still be readable here through {@link RegisterContentTypeReader}, and the useful
+ * question — "can *anything* read this?" — is answered by asking both.
+ */
+export function IsContentTypeReaderRegisteredWithCna(readerName: string): boolean {
+  if (typeof readerName !== "string") throw new TypeError("readerName must be a string");
+  return survey("IsContentTypeReaderRegisteredWithCna")
+    .isContentTypeReaderRegisteredWithCna(readerName);
+}
+
+/**
+ * What is under a content root, and which XNB readers it needs — without loading any of it.
+ *
+ * ### Why this is not a ContentManager
+ *
+ * `Microsoft.Xna.Framework.Content.ContentManager` in this package is the managed XNB reader
+ * stack, and it owns loading, the asset cache and asset identity. CNA has a content manager of its
+ * own with its own cache, and routing loads through it would give one asset two owners, two
+ * identities and two lifetimes. So none of CNA's `load` routes is projected and none ever will be
+ * from here.
+ *
+ * What CNA *can* answer that the managed stack cannot is a survey: scan a directory once and
+ * report what is in it. Nothing is loaded, nothing is cached, and no asset gains a second owner.
+ *
+ * ### What it is for
+ *
+ * ```ts
+ * using found = new ContentSurvey(GraphicsDevice, "Content");
+ * for (const usage of found.ReaderUsage) {
+ *   if (!usage.IsRegisteredWithCna && !IsContentTypeReaderRegistered(usage.ReaderName)) {
+ *     console.warn(`${usage.FileCount} asset(s) need ${usage.ReaderName}, and nothing reads it`);
+ *   }
+ * }
+ * ```
+ *
+ * A content pipeline can emit an XNB whose reader nobody has, and today that is discovered when a
+ * `Load` throws at runtime. The survey turns it into a question that can be asked up front.
+ *
+ * ### What it cannot see
+ *
+ * Reader names come from the `.xnb` header, which the survey reads without decompressing. A
+ * compressed asset is found, named and reported as having an `.xnb`, but its
+ * {@link ContentSurveyEntry.XnbReaderNames} is empty. Treat an empty list as unknown rather than
+ * as "needs nothing".
+ *
+ * ### The snapshot
+ *
+ * The manifest is a point-in-time scan. A file added afterwards is invisible until
+ * {@link Refresh} is called again; {@link Root} setting also invalidates it, so the entries always
+ * describe the root they were read from.
+ */
+export class ContentSurvey implements IDisposable {
+  readonly #backend: CnaContentSurveyBackend;
+  #handle: NativeHandle | null;
+
+  /**
+   * @param graphicsDevice The device whose game owns the survey. It must be destroyed before that
+   * game, which `Dispose` here does.
+   * @param rootDirectory The directory to scan, absolute or relative to the process.
+   */
+  public constructor(graphicsDevice: GraphicsDevice, rootDirectory: string) {
+    if (graphicsDevice == null) throw new ArgumentNullException("graphicsDevice");
+    if (typeof rootDirectory !== "string") {
+      throw new TypeError("rootDirectory must be a string");
+    }
+    this.#backend = survey("new ContentSurvey()");
+    this.#handle = this.#backend.createContentSurvey(
+      resolveGraphicsDeviceHandleForInternalUse(graphicsDevice), rootDirectory,
+    );
+  }
+
+  /** Whether the survey has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new ObjectDisposedException("ContentSurvey");
+    return this.#handle;
+  }
+
+  /** The directory being scanned. Setting it invalidates the manifest until {@link Refresh}. */
+  public get Root(): string {
+    return this.#backend.getContentSurveyRoot(this.#active());
+  }
+  public set Root(value: string) {
+    if (typeof value !== "string") throw new TypeError("Root must be a string");
+    this.#backend.setContentSurveyRoot(this.#active(), value);
+  }
+
+  /** Rescans the root. The manifest is built lazily, so this is only needed to pick up changes. */
+  public Refresh(): this {
+    this.#backend.refreshContentSurvey(this.#active());
+    return this;
+  }
+
+  /** How many assets the scan found. */
+  public get Count(): number {
+    return this.#backend.getContentSurveyEntryCount(this.#active());
+  }
+
+  /** One asset, by index. */
+  public Get(index: number): ContentSurveyEntry {
+    const handle = this.#active();
+    if (!Number.isInteger(index) || index < 0 || index >= this.Count) {
+      throw new ArgumentException(`index ${index} is outside the survey`);
+    }
+    const entry = this.#backend.getContentSurveyEntry(handle, index);
+    return Object.freeze({
+      AssetName: entry.AssetName,
+      HasXnb: entry.HasXnb,
+      HasCnj: entry.HasCnj,
+      NativeExtensions: Object.freeze([...entry.NativeExtensions]),
+      XnbReaderNames: Object.freeze([...entry.XnbReaderNames]),
+    });
+  }
+
+  /** Every asset the scan found, in the order CNA reports them. */
+  public get Entries(): readonly ContentSurveyEntry[] {
+    const count = this.Count;
+    const result: ContentSurveyEntry[] = [];
+    for (let index = 0; index < count; index += 1) result.push(this.Get(index));
+    return Object.freeze(result);
+  }
+
+  /** Every distinct XNB reader name the scanned files need, with how many want it. */
+  public get ReaderUsage(): readonly ContentSurveyReaderUsage[] {
+    const handle = this.#active();
+    const count = this.#backend.getContentSurveyReaderUsageCount(handle);
+    const result: ContentSurveyReaderUsage[] = [];
+    for (let index = 0; index < count; index += 1) {
+      const usage = this.#backend.getContentSurveyReaderUsage(handle, index);
+      result.push(Object.freeze({
+        ReaderName: usage.ReaderName,
+        IsRegisteredWithCna: usage.IsRegisteredWithCna,
+        FileCount: usage.FileCount,
+      }));
+    }
+    return Object.freeze(result);
+  }
+
+  /** Releases the survey. Disposing twice is harmless. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    this.#handle = null;
+    this.#backend.destroyContentSurvey(handle);
   }
 }

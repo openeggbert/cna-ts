@@ -2677,6 +2677,43 @@ export interface CnaLodBackend {
   getLodProjectedRadiusPixels(group: NativeHandle, distance: number): number;
 }
 
+/** One row of CNA's content survey: a file found under the content root. */
+export interface ContentSurveyEntrySnapshot {
+  readonly AssetName: string;
+  readonly HasXnb: boolean;
+  readonly HasCnj: boolean;
+  readonly NativeExtensions: readonly string[];
+  readonly XnbReaderNames: readonly string[];
+}
+
+/** One distinct XNB reader name found across the whole root. */
+export interface ContentSurveyReaderUsageSnapshot {
+  readonly ReaderName: string;
+  readonly IsRegisteredWithCna: boolean;
+  readonly FileCount: number;
+}
+
+/**
+ * CNA's content *survey*: what is under a content root, and which XNB readers it needs.
+ *
+ * Deliberately no `load` of any kind. The strict `ContentManager` owns loading, its cache and its
+ * asset identity; a second loader here would give one asset two owners. A survey gives it none.
+ */
+export interface CnaContentSurveyBackend {
+  createContentSurvey(device: NativeHandle, rootDirectory: string): NativeHandle;
+  destroyContentSurvey(survey: NativeHandle): void;
+  getContentSurveyRoot(survey: NativeHandle): string;
+  setContentSurveyRoot(survey: NativeHandle, rootDirectory: string): void;
+  refreshContentSurvey(survey: NativeHandle): void;
+  getContentSurveyEntryCount(survey: NativeHandle): number;
+  getContentSurveyEntry(survey: NativeHandle, index: number): ContentSurveyEntrySnapshot;
+  getContentSurveyReaderUsageCount(survey: NativeHandle): number;
+  getContentSurveyReaderUsage(
+    survey: NativeHandle, index: number,
+  ): ContentSurveyReaderUsageSnapshot;
+  isContentTypeReaderRegisteredWithCna(readerName: string): boolean;
+}
+
 /**
  * The native model-mesh-part side-car: a `CNA_ModelMeshPartHandle` built over the vertex and index
  * buffers a managed `ModelMeshPart` already owns. `createNativeMeshPart` retains those buffers
@@ -3318,6 +3355,7 @@ export interface CnaBackend {
   readonly ClusteredLighting?: CnaClusteredLightingBackend;
   readonly Lod?: CnaLodBackend;
   readonly NativeMeshParts?: CnaNativeMeshPartBackend;
+  readonly ContentSurvey?: CnaContentSurveyBackend;
   readonly InstancedRenderer?: CnaInstancedRendererBackend;
   readonly Shadows?: CnaShadowBackend;
   readonly DepthNormalPrepass?: CnaDepthNormalPrepassBackend;

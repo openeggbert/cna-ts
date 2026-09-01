@@ -8,12 +8,12 @@ C source and the WebAssembly backend's route table rather than declared.
 ```text
 TOTAL_C_API_FUNCTIONS=4054
 PUBLIC_HEADERS=57
-XNA_BACKING=1234
-CNA_EXTENSION_BACKING=1816
+XNA_BACKING=1292
+CNA_EXTENSION_BACKING=1847
 INTERNAL_RUNTIME_ONLY=1
 MANAGED_BY_DESIGN=457
 TOOLING_ONLY=31
-INTENTIONALLY_DEFERRED=515
+INTENTIONALLY_DEFERRED=426
 UPSTREAM_RUNTIME_UNAVAILABLE=0
 UNEXPLAINED=0
 ```
@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=1743
+REACHABLE_NODE=1758
 REACHABLE_WASM=276
-REACHABLE_BY_ANY_BACKEND=1743
+REACHABLE_BY_ANY_BACKEND=1758
 REACHABLE_BY_EVERY_BACKEND=276
-REACHABLE_NODE_ONLY=1467
+REACHABLE_NODE_ONLY=1482
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -34,12 +34,12 @@ What each backend reaches, by what the routes are for:
 
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
-| `XNA_BACKING` | 1234 | 444 | 73 |
-| `CNA_EXTENSION_BACKING` | 1816 | 1283 | 189 |
+| `XNA_BACKING` | 1292 | 444 | 73 |
+| `CNA_EXTENSION_BACKING` | 1847 | 1298 | 189 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 457 | 13 | 13 |
 | `TOOLING_ONLY` | 31 | 2 | 0 |
-| `INTENTIONALLY_DEFERRED` | 515 | 0 | 0 |
+| `INTENTIONALLY_DEFERRED` | 426 | 0 | 0 |
 
 ## By header
 
@@ -49,8 +49,8 @@ What each backend reaches, by what the routes are for:
 | `audio.h` | 43 | 20 | 63 | 11 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `cnb.h` | 169 | 149 | 0 | 272 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `color.h` | 0 | 0 | 0 | 0 | 0 | 24 | 0 | 0 | 0 | 0 |
-| `content_readers.h` | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 61 | 0 | 0 |
-| `content.h` | 0 | 0 | 0 | 4 | 0 | 0 | 0 | 28 | 0 | 0 |
+| `content_readers.h` | 1 | 0 | 45 | 17 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `content.h` | 14 | 0 | 13 | 19 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `core_ext.h` | 36 | 36 | 0 | 56 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `core.h` | 2 | 2 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `curve.h` | 13 | 13 | 0 | 0 | 0 | 45 | 0 | 0 | 0 | 0 |

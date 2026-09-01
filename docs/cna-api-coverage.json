@@ -6,23 +6,23 @@
   ],
   "totalFunctions": 4054,
   "totals": {
-    "XNA_BACKING": 1234,
-    "CNA_EXTENSION_BACKING": 1816,
+    "XNA_BACKING": 1292,
+    "CNA_EXTENSION_BACKING": 1847,
     "INTERNAL_RUNTIME_ONLY": 1,
     "MANAGED_BY_DESIGN": 457,
     "TOOLING_ONLY": 31,
-    "INTENTIONALLY_DEFERRED": 515,
+    "INTENTIONALLY_DEFERRED": 426,
     "UPSTREAM_RUNTIME_UNAVAILABLE": 0,
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 1743,
+    "NODE": 1758,
     "WASM": 276
   },
-  "reachableByAny": 1743,
+  "reachableByAny": 1758,
   "reachableByAll": 276,
   "reachableExclusively": {
-    "NODE": 1467,
+    "NODE": 1482,
     "WASM": 0
   },
   "reachabilityByCategory": {
@@ -31,7 +31,7 @@
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 1283,
+      "NODE": 1298,
       "WASM": 189
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -80,12 +80,14 @@
       "MANAGED_BY_DESIGN": 24
     },
     "content_readers.h": {
-      "CNA_EXTENSION_BACKING": 1,
-      "INTENTIONALLY_DEFERRED": 61
+      "CNA_EXTENSION_BACKING": 17,
+      "XNA_BACKING": 45,
+      "REACHABLE_NODE": 1
     },
     "content.h": {
-      "INTENTIONALLY_DEFERRED": 28,
-      "CNA_EXTENSION_BACKING": 4
+      "XNA_BACKING": 13,
+      "CNA_EXTENSION_BACKING": 19,
+      "REACHABLE_NODE": 14
     },
     "core_ext.h": {
       "CNA_EXTENSION_BACKING": 56,
@@ -7870,135 +7872,159 @@
     {
       "name": "cna_content_manager_copy_asset_path",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "the rest of CNA's ContentManager surface -- asset-path and normalized-key arithmetic, the service provider, the graphics device and the built-in loader registration. Each backs a ContentManager member this package implements managed, against its own cache; none can be adopted piecemeal without the native manager the load routes are deferred for",
       "backends": []
     },
     {
       "name": "cna_content_manager_copy_manifest_native_extension",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_copy_manifest_relative_path",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_copy_manifest_xnb_reader_name",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_copy_normalized_key",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "the rest of CNA's ContentManager surface -- asset-path and normalized-key arithmetic, the service provider, the graphics device and the built-in loader registration. Each backs a ContentManager member this package implements managed, against its own cache; none can be adopted piecemeal without the native manager the load routes are deferred for",
       "backends": []
     },
     {
       "name": "cna_content_manager_copy_root_directory",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_copy_xnb_reader_usage_name",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_create",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_create_resource",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
       "backends": []
     },
     {
       "name": "cna_content_manager_destroy",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_get_asset_path_size",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "the rest of CNA's ContentManager surface -- asset-path and normalized-key arithmetic, the service provider, the graphics device and the built-in loader registration. Each backs a ContentManager member this package implements managed, against its own cache; none can be adopted piecemeal without the native manager the load routes are deferred for",
       "backends": []
     },
     {
       "name": "cna_content_manager_get_graphics_device",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "the rest of CNA's ContentManager surface -- asset-path and normalized-key arithmetic, the service provider, the graphics device and the built-in loader registration. Each backs a ContentManager member this package implements managed, against its own cache; none can be adopted piecemeal without the native manager the load routes are deferred for",
       "backends": []
     },
     {
       "name": "cna_content_manager_get_has_service_provider",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "the rest of CNA's ContentManager surface -- asset-path and normalized-key arithmetic, the service provider, the graphics device and the built-in loader registration. Each backs a ContentManager member this package implements managed, against its own cache; none can be adopted piecemeal without the native manager the load routes are deferred for",
       "backends": []
     },
     {
       "name": "cna_content_manager_get_manifest_entry",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_get_manifest_entry_count",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_get_normalized_key_size",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "the rest of CNA's ContentManager surface -- asset-path and normalized-key arithmetic, the service provider, the graphics device and the built-in loader registration. Each backs a ContentManager member this package implements managed, against its own cache; none can be adopted piecemeal without the native manager the load routes are deferred for",
       "backends": []
     },
     {
       "name": "cna_content_manager_get_root_directory_size",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_get_xnb_reader_usage",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_get_xnb_reader_usage_count",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_load_effect",
@@ -8031,43 +8057,45 @@
     {
       "name": "cna_content_manager_load_sound_effect",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs ContentManager.Load and Unload, which this package implements as a managed XNB reader stack with its own cache. Deliberately not projected: CNA's content manager has a cache and an asset identity of its own, so routing loads through it would give one asset two owners, two identities and two lifetimes, and Load returning the same reference for the same key -- which XNA guarantees and this package's tests pin -- could no longer be stated about either. The architecture decision is written up in docs/native-content-survey.md",
       "backends": []
     },
     {
       "name": "cna_content_manager_load_sprite_font",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs ContentManager.Load and Unload, which this package implements as a managed XNB reader stack with its own cache. Deliberately not projected: CNA's content manager has a cache and an asset identity of its own, so routing loads through it would give one asset two owners, two identities and two lifetimes, and Load returning the same reference for the same key -- which XNA guarantees and this package's tests pin -- could no longer be stated about either. The architecture decision is written up in docs/native-content-survey.md",
       "backends": []
     },
     {
       "name": "cna_content_manager_load_texture_cube",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs ContentManager.Load and Unload, which this package implements as a managed XNB reader stack with its own cache. Deliberately not projected: CNA's content manager has a cache and an asset identity of its own, so routing loads through it would give one asset two owners, two identities and two lifetimes, and Load returning the same reference for the same key -- which XNA guarantees and this package's tests pin -- could no longer be stated about either. The architecture decision is written up in docs/native-content-survey.md",
       "backends": []
     },
     {
       "name": "cna_content_manager_load_texture2d",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs ContentManager.Load and Unload, which this package implements as a managed XNB reader stack with its own cache. Deliberately not projected: CNA's content manager has a cache and an asset identity of its own, so routing loads through it would give one asset two owners, two identities and two lifetimes, and Load returning the same reference for the same key -- which XNA guarantees and this package's tests pin -- could no longer be stated about either. The architecture decision is written up in docs/native-content-survey.md",
       "backends": []
     },
     {
       "name": "cna_content_manager_refresh_content_manifest",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_register_builtin_loaders",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "the rest of CNA's ContentManager surface -- asset-path and normalized-key arithmetic, the service provider, the graphics device and the built-in loader registration. Each backs a ContentManager member this package implements managed, against its own cache; none can be adopted piecemeal without the native manager the load routes are deferred for",
       "backends": []
     },
     {
@@ -8080,260 +8108,264 @@
     {
       "name": "cna_content_manager_set_graphics_device",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "the rest of CNA's ContentManager surface -- asset-path and normalized-key arithmetic, the service provider, the graphics device and the built-in loader registration. Each backs a ContentManager member this package implements managed, against its own cache; none can be adopted piecemeal without the native manager the load routes are deferred for",
       "backends": []
     },
     {
       "name": "cna_content_manager_set_root_directory",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_manager_unload",
       "header": "content.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "backs ContentManager.Load and Unload, which this package implements as a managed XNB reader stack with its own cache. Deliberately not projected: CNA's content manager has a cache and an asset identity of its own, so routing loads through it would give one asset two owners, two identities and two lifetimes, and Load returning the same reference for the same key -- which XNA guarantees and this package's tests pin -- could no longer be stated about either. The architecture decision is written up in docs/native-content-survey.md",
       "backends": []
     },
     {
       "name": "cna_content_reader_check_collection_element_count",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_check_decoded_byte_size",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_copy_asset_name",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_create",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_destroy",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_get_asset_name_size",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_get_content_manager",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_get_platform",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_get_version",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_initialize_type_readers",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_read_bounding_sphere",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_read_bytes_exact",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_read_color",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_read_matrix",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_read_object_tag",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_read_quaternion",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_read_shared_resources",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_read_vector2",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_read_vector3",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_reader_read_vector4",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_register_known_unsupported_xnb_readers",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_copy_target_type_name",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_destroy",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_get_can_deserialize_into_existing_object",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_get_target_type_name_size",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_get_type_version",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_initialize",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_manager_clear_type_creators",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_manager_create_reader",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_manager_get_is_registered",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "asks CNA's reader registry whether it can read a CLR reader name. Imported, because the content survey's whole value is answering \"does anything read this?\" and CNA's registry is one of the two answers -- this package's own reader registrations are the other",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_content_type_reader_manager_register",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_manager_unregister",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_read_untyped",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_content_type_reader_supports_version",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
@@ -11289,15 +11321,15 @@
     {
       "name": "cna_enum_type_reader_copy_canonical_name",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_enum_type_reader_get_canonical_name_size",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
@@ -17540,8 +17572,8 @@
     {
       "name": "cna_known_unsupported_content_type_reader_create",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
@@ -22283,106 +22315,106 @@
     {
       "name": "cna_object_dictionary_ext_contains_key",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_copy_array",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_copy_key_at",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_copy_runtime_type_name",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_copy_string",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_copy_type_name",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_copy_value",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_destroy",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_get_count",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_get_entry",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_get_foreign_object",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_get_key_size_at",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_get_runtime_type_name_size",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_get_string_size",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
       "name": "cna_object_dictionary_ext_get_type_name_size",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart",
       "backends": []
     },
     {
@@ -25519,64 +25551,64 @@
     {
       "name": "cna_reflective_type_reader_builder_add_custom",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_reflective_type_reader_builder_add_enum_field",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_reflective_type_reader_builder_add_field",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_reflective_type_reader_builder_create",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_reflective_type_reader_builder_destroy",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_reflective_type_reader_builder_register",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_reflective_type_reader_builder_register_shared",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_reflective_type_reader_copy_canonical_name",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {
       "name": "cna_reflective_type_reader_get_canonical_name_size",
       "header": "content_readers.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them",
       "backends": []
     },
     {

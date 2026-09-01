@@ -133,12 +133,67 @@
     },
     {
       "headers": [
+        "content.h"
+      ],
+      "namePattern": "^cna_content_manager_(create|destroy|get_root_directory_size|copy_root_directory|set_root_directory|refresh_content_manifest|get_manifest_entry_count|get_manifest_entry|copy_manifest_|get_xnb_reader_usage|copy_xnb_reader_usage_name)",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's content *survey*: scan a content root and report which assets are there and which XNB readers each one needs. XNA has no manifest of any kind, so this is extension surface rather than backing for a Microsoft.Xna.Framework member, and it is projected as cna-ts/extensions/content ContentSurvey. It creates no asset, no cache and no second owner -- which is exactly why it can be projected while the load routes below cannot"
+    },
+    {
+      "headers": [
+        "content.h"
+      ],
+      "namePattern": "^cna_content_manager_(load_|create_resource|unload)",
+      "category": "XNA_BACKING",
+      "reason": "backs ContentManager.Load and Unload, which this package implements as a managed XNB reader stack with its own cache. Deliberately not projected: CNA's content manager has a cache and an asset identity of its own, so routing loads through it would give one asset two owners, two identities and two lifetimes, and Load returning the same reference for the same key -- which XNA guarantees and this package's tests pin -- could no longer be stated about either. The architecture decision is written up in docs/native-content-survey.md"
+    },
+    {
+      "headers": [
+        "content.h"
+      ],
+      "namePattern": "_ext(_|$)",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's own content extensions -- foreign asset loading, the .cnj loader registry and the game's native content-manager slot. The loader registry only pays off once assets are retrieved *through* the native manager, which is the second cache the load routes are deferred for; it is deferred with them rather than projected as a registration nothing can then load"
+    },
+    {
+      "headers": [
+        "content.h"
+      ],
+      "namePattern": "^cna_content_manager_",
+      "category": "XNA_BACKING",
+      "reason": "the rest of CNA's ContentManager surface -- asset-path and normalized-key arithmetic, the service provider, the graphics device and the built-in loader registration. Each backs a ContentManager member this package implements managed, against its own cache; none can be adopted piecemeal without the native manager the load routes are deferred for"
+    },
+    {
+      "headers": [
+        "content_readers.h"
+      ],
+      "namePattern": "^cna_content_type_reader_manager_get_is_registered$",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "asks CNA's reader registry whether it can read a CLR reader name. Imported, because the content survey's whole value is answering \"does anything read this?\" and CNA's registry is one of the two answers -- this package's own reader registrations are the other"
+    },
+    {
+      "headers": [
+        "content_readers.h"
+      ],
+      "namePattern": "^cna_object_dictionary_ext_|_ext(_|$)",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "CNA's reflective object dictionary and its extensions to the reader stack; no XNA 4.0 counterpart"
+    },
+    {
+      "headers": [
+        "content_readers.h"
+      ],
+      "namePattern": "^cna_",
+      "category": "XNA_BACKING",
+      "reason": "CNA's own XNB reader stack -- ContentReader, ContentTypeReaderManager, the reflective and enum readers, and the known-unsupported registry. This package reads XNB in TypeScript and exposes its own reader registration point, so these are a *parallel* implementation of the same format rather than the backing of this one. Adopting them would mean one asset decoded by two stacks, and would need the native ContentManager that content.h's load routes are deferred for. The survey deliberately reads only headers, never payloads, so it needs none of them"
+    },
+    {
+      "headers": [
         "core.h",
         "runtime.h",
         "runtime_components.h",
         "runtime_graphics_manager.h",
         "runtime_window.h",
-        "content_readers.h",
         "effects.h",
         "media_library.h",
         "media_player.h",
@@ -147,7 +202,6 @@
         "xact.h",
         "audio.h",
         "storage.h",
-        "content.h",
         "graphics.h",
         "graphics_device.h",
         "graphics_resource.h",

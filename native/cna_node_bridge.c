@@ -189,6 +189,22 @@ typedef CNA_Result (*HandleU64OutFn)(CNA_Handle, uint64_t*);
 typedef CNA_Result (*HandleCopyStringFn)(CNA_Handle, char*, uint64_t, uint64_t*);
 typedef CNA_Result (*ShadowQualityToI32Fn)(CNA_ShadowQuality, int32_t*);
 typedef CNA_Result (*HandleStringViewFn)(CNA_Handle, CNA_StringView);
+
+/* CNA's content *survey*: it scans a content root and reports what is there and which XNB readers
+   it needs. Deliberately none of `cna_content_manager_load_*` is imported -- loading through a
+   second cache would give one asset two owners and two identities, and the strict ContentManager
+   already owns that job. See docs/native-content-survey.md. */
+typedef CNA_Result (*ContentManagerCreateFn)(
+  CNA_Handle, const CNA_ContentManagerCreateInfo*, CNA_Handle*);
+typedef CNA_Result (*ContentManifestEntryFn)(
+  CNA_Handle, uint64_t, CNA_ContentManifestEntryInfo*);
+typedef CNA_Result (*ContentManifestTextFn)(
+  CNA_Handle, uint64_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*ContentManifestIndexedTextFn)(
+  CNA_Handle, uint64_t, uint64_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*ContentReaderUsageFn)(
+  CNA_Handle, uint64_t, CNA_ContentReaderUsageInfo*);
+typedef CNA_Result (*ContentReaderIsRegisteredFn)(CNA_StringView, CNA_Bool*);
 typedef CNA_Result (*HandleHandleOutFn)(CNA_Handle, CNA_Handle*);
 typedef CNA_Result (*SoundEffectPlaySettingsFn)(CNA_Handle, float, float, float, CNA_Bool*);
 typedef CNA_Result (*HandleFloatOutFn)(CNA_Handle, float*);
@@ -2569,6 +2585,21 @@ typedef struct Api {
   HandleI32OutFn model_mesh_part_get_primitive_count;
   HandleI32OutFn model_mesh_part_get_start_index;
   HandleI32OutFn model_mesh_part_get_vertex_offset;
+  ContentManagerCreateFn content_manager_create;
+  GameHandleFn content_manager_destroy;
+  HandleU64OutFn content_manager_get_root_directory_size;
+  HandleCopyStringFn content_manager_copy_root_directory;
+  HandleStringViewFn content_manager_set_root_directory;
+  GameHandleFn content_manager_refresh_content_manifest;
+  HandleU64OutFn content_manager_get_manifest_entry_count;
+  ContentManifestEntryFn content_manager_get_manifest_entry;
+  ContentManifestTextFn content_manager_copy_manifest_relative_path;
+  ContentManifestIndexedTextFn content_manager_copy_manifest_native_extension;
+  ContentManifestIndexedTextFn content_manager_copy_manifest_xnb_reader_name;
+  HandleU64OutFn content_manager_get_xnb_reader_usage_count;
+  ContentReaderUsageFn content_manager_get_xnb_reader_usage;
+  ContentManifestTextFn content_manager_copy_xnb_reader_usage_name;
+  ContentReaderIsRegisteredFn content_type_reader_manager_get_is_registered;
   FrustumCullerCreateFn frustum_culler_ext_create;
   GameHandleFn frustum_culler_ext_destroy;
   CullerMatrixFn frustum_culler_ext_set_view_projection;
@@ -4642,6 +4673,21 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(model_mesh_part_get_primitive_count, HandleI32OutFn, "cna_model_mesh_part_get_primitive_count");
   LOAD_REQUIRED(model_mesh_part_get_start_index, HandleI32OutFn, "cna_model_mesh_part_get_start_index");
   LOAD_REQUIRED(model_mesh_part_get_vertex_offset, HandleI32OutFn, "cna_model_mesh_part_get_vertex_offset");
+  LOAD_REQUIRED(content_manager_create, ContentManagerCreateFn, "cna_content_manager_create");
+  LOAD_REQUIRED(content_manager_destroy, GameHandleFn, "cna_content_manager_destroy");
+  LOAD_REQUIRED(content_manager_get_root_directory_size, HandleU64OutFn, "cna_content_manager_get_root_directory_size");
+  LOAD_REQUIRED(content_manager_copy_root_directory, HandleCopyStringFn, "cna_content_manager_copy_root_directory");
+  LOAD_REQUIRED(content_manager_set_root_directory, HandleStringViewFn, "cna_content_manager_set_root_directory");
+  LOAD_REQUIRED(content_manager_refresh_content_manifest, GameHandleFn, "cna_content_manager_refresh_content_manifest");
+  LOAD_REQUIRED(content_manager_get_manifest_entry_count, HandleU64OutFn, "cna_content_manager_get_manifest_entry_count");
+  LOAD_REQUIRED(content_manager_get_manifest_entry, ContentManifestEntryFn, "cna_content_manager_get_manifest_entry");
+  LOAD_REQUIRED(content_manager_copy_manifest_relative_path, ContentManifestTextFn, "cna_content_manager_copy_manifest_relative_path");
+  LOAD_REQUIRED(content_manager_copy_manifest_native_extension, ContentManifestIndexedTextFn, "cna_content_manager_copy_manifest_native_extension");
+  LOAD_REQUIRED(content_manager_copy_manifest_xnb_reader_name, ContentManifestIndexedTextFn, "cna_content_manager_copy_manifest_xnb_reader_name");
+  LOAD_REQUIRED(content_manager_get_xnb_reader_usage_count, HandleU64OutFn, "cna_content_manager_get_xnb_reader_usage_count");
+  LOAD_REQUIRED(content_manager_get_xnb_reader_usage, ContentReaderUsageFn, "cna_content_manager_get_xnb_reader_usage");
+  LOAD_REQUIRED(content_manager_copy_xnb_reader_usage_name, ContentManifestTextFn, "cna_content_manager_copy_xnb_reader_usage_name");
+  LOAD_REQUIRED(content_type_reader_manager_get_is_registered, ContentReaderIsRegisteredFn, "cna_content_type_reader_manager_get_is_registered");
   LOAD_REQUIRED(debug_draw_create, PostProcessPassCreateFn, "cna_debug_draw_create");
   LOAD_REQUIRED(debug_draw_destroy, GameHandleFn, "cna_debug_draw_destroy");
   LOAD_REQUIRED(debug_draw_begin, DebugDrawBeginFn, "cna_debug_draw_begin");
@@ -25256,6 +25302,257 @@ static napi_value bridge_model_mesh_part_get_vertex_offset(napi_env env, napi_ca
     "cna_model_mesh_part_get_vertex_offset");
 }
 
+/* ---- CNA's content survey ----------------------------------------------------------------------
+ *
+ * `Microsoft.Xna.Framework.Content.ContentManager` in this package is the managed XNB reader stack,
+ * with its own cache and its own asset identity, and it stays that way. What CNA has that the
+ * managed stack cannot answer without loading everything is a *survey*: scan a content root once
+ * and report which assets are there, which XNB readers each one needs, and whether anything is
+ * registered to read them.
+ *
+ * So exactly the survey is bound. None of `cna_content_manager_load_*` is, and that is the whole
+ * architecture decision: a second loader would mean a second cache, and one asset with two owners
+ * and two identities. A survey creates neither. See docs/native-content-survey.md.
+ */
+
+static napi_value bridge_content_manager_create(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle device = 0;
+  char* root = NULL;
+  size_t length = 0;
+  CNA_Handle manager = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &device) ||
+      !read_utf8(env, args[1], &root, &length)) return NULL;
+  CNA_ContentManagerCreateInfo create_info;
+  memset(&create_info, 0, sizeof(create_info));
+  create_info.struct_size = sizeof(create_info);
+  create_info.struct_version = 1;
+  create_info.root_directory.data = root;
+  create_info.root_directory.byte_length = (uint64_t) length;
+  const CNA_Result result = g_api.content_manager_create(device, &create_info, &manager);
+  free(root);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_content_manager_create", result);
+  }
+  return make_handle(env, manager);
+}
+
+static napi_value bridge_content_manager_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.content_manager_destroy, "cna_content_manager_destroy");
+}
+
+static napi_value bridge_content_manager_get_root_directory(
+  napi_env env, napi_callback_info info
+) {
+  return copy_sized_text(env, info, g_api.content_manager_copy_root_directory,
+    "cna_content_manager_copy_root_directory");
+}
+
+static napi_value bridge_content_manager_set_root_directory(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2];
+  CNA_Handle manager = 0;
+  char* root = NULL;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &manager) ||
+      !read_utf8(env, args[1], &root, &length)) return NULL;
+  const CNA_StringView view = {root, (uint64_t) length};
+  const CNA_Result result = g_api.content_manager_set_root_directory(manager, view);
+  free(root);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_content_manager_set_root_directory", result);
+  }
+  return undefined_result(env, "cna_content_manager_set_root_directory");
+}
+
+static napi_value bridge_content_manager_refresh_manifest(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.content_manager_refresh_content_manifest,
+    "cna_content_manager_refresh_content_manifest");
+}
+
+static napi_value bridge_content_manager_get_manifest_entry_count(
+  napi_env env, napi_callback_info info
+) {
+  return storage_buffer_u64(env, info, g_api.content_manager_get_manifest_entry_count,
+    "cna_content_manager_get_manifest_entry_count");
+}
+
+static napi_value bridge_content_manager_get_xnb_reader_usage_count(
+  napi_env env, napi_callback_info info
+) {
+  return storage_buffer_u64(env, info, g_api.content_manager_get_xnb_reader_usage_count,
+    "cna_content_manager_get_xnb_reader_usage_count");
+}
+
+/* Copies one two-call sized string out of a manifest row. */
+static napi_value manifest_text(
+  napi_env env, CNA_Handle manager, uint64_t index, ContentManifestTextFn route, const char* name
+) {
+  napi_value output;
+  uint64_t length = 0, copied = 0;
+  CNA_Result result = route(manager, index, NULL, 0, &length);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, name, result);
+  }
+  if (length > SIZE_MAX) return throw_message(env, "a manifest string exceeds the address space");
+  char* value = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !value) return throw_message(env, "manifest string allocation failed");
+  result = route(manager, index, value, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(value);
+    return throw_result(env, name, result);
+  }
+  const napi_status status =
+    napi_create_string_utf8(env, value ? value : "", (size_t) length, &output);
+  free(value);
+  if (status != napi_ok) return throw_napi(env, name);
+  return output;
+}
+
+/* The same, for the routes that address a name *within* a row. */
+static napi_value manifest_indexed_text(
+  napi_env env, CNA_Handle manager, uint64_t row, uint64_t item,
+  ContentManifestIndexedTextFn route, const char* name
+) {
+  napi_value output;
+  uint64_t length = 0, copied = 0;
+  CNA_Result result = route(manager, row, item, NULL, 0, &length);
+  if (result != CNA_RESULT_SUCCESS && result != CNA_RESULT_BUFFER_TOO_SMALL) {
+    return throw_result(env, name, result);
+  }
+  if (length > SIZE_MAX) return throw_message(env, "a manifest string exceeds the address space");
+  char* value = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !value) return throw_message(env, "manifest string allocation failed");
+  result = route(manager, row, item, value, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(value);
+    return throw_result(env, name, result);
+  }
+  const napi_status status =
+    napi_create_string_utf8(env, value ? value : "", (size_t) length, &output);
+  free(value);
+  if (status != napi_ok) return throw_napi(env, name);
+  return output;
+}
+
+/* One manifest row, complete: what the file is, and every reader name it carries. */
+static napi_value bridge_content_manager_get_manifest_entry(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output, list, item;
+  CNA_Handle manager = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &manager) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a content manager and an entry index");
+  }
+  CNA_ContentManifestEntryInfo entry;
+  memset(&entry, 0, sizeof(entry));
+  entry.struct_size = sizeof(entry);
+  entry.struct_version = 1;
+  const CNA_Result result =
+    g_api.content_manager_get_manifest_entry(manager, index, &entry);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_content_manager_get_manifest_entry", result);
+  }
+  napi_value path = manifest_text(env, manager, index,
+    g_api.content_manager_copy_manifest_relative_path,
+    "cna_content_manager_copy_manifest_relative_path");
+  if (!path) return NULL;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "manifest entry");
+  if (napi_set_named_property(env, output, "AssetName", path) != napi_ok ||
+      !set_bool_property(env, output, "HasXnb", entry.has_xnb) ||
+      !set_bool_property(env, output, "HasCnj", entry.has_cnj)) {
+    return throw_napi(env, "manifest entry");
+  }
+  NAPI_OR_RETURN(env,
+    napi_create_array_with_length(env, (size_t) entry.native_extension_count, &list),
+    "manifest extensions");
+  for (uint64_t i = 0; i < entry.native_extension_count; i += 1) {
+    item = manifest_indexed_text(env, manager, index, i,
+      g_api.content_manager_copy_manifest_native_extension,
+      "cna_content_manager_copy_manifest_native_extension");
+    if (!item || napi_set_element(env, list, (uint32_t) i, item) != napi_ok) {
+      return item ? throw_napi(env, "manifest extensions") : NULL;
+    }
+  }
+  NAPI_OR_RETURN(env, napi_set_named_property(env, output, "NativeExtensions", list),
+    "manifest entry");
+  NAPI_OR_RETURN(env,
+    napi_create_array_with_length(env, (size_t) entry.xnb_reader_name_count, &list),
+    "manifest readers");
+  for (uint64_t i = 0; i < entry.xnb_reader_name_count; i += 1) {
+    item = manifest_indexed_text(env, manager, index, i,
+      g_api.content_manager_copy_manifest_xnb_reader_name,
+      "cna_content_manager_copy_manifest_xnb_reader_name");
+    if (!item || napi_set_element(env, list, (uint32_t) i, item) != napi_ok) {
+      return item ? throw_napi(env, "manifest readers") : NULL;
+    }
+  }
+  NAPI_OR_RETURN(env, napi_set_named_property(env, output, "XnbReaderNames", list),
+    "manifest entry");
+  return output;
+}
+
+/* One distinct reader name across the whole root: how many files want it, and whether CNA has it. */
+static napi_value bridge_content_manager_get_xnb_reader_usage(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[2], output;
+  CNA_Handle manager = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &manager) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a content manager and a usage index");
+  }
+  CNA_ContentReaderUsageInfo usage;
+  memset(&usage, 0, sizeof(usage));
+  usage.struct_size = sizeof(usage);
+  usage.struct_version = 1;
+  const CNA_Result result =
+    g_api.content_manager_get_xnb_reader_usage(manager, index, &usage);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_content_manager_get_xnb_reader_usage", result);
+  }
+  napi_value name = manifest_text(env, manager, index,
+    g_api.content_manager_copy_xnb_reader_usage_name,
+    "cna_content_manager_copy_xnb_reader_usage_name");
+  if (!name) return NULL;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "reader usage");
+  if (napi_set_named_property(env, output, "ReaderName", name) != napi_ok ||
+      !set_bool_property(env, output, "IsRegisteredWithCna", usage.is_registered) ||
+      !set_u32_property(env, output, "FileCount", (uint32_t) usage.file_count)) {
+    return throw_napi(env, "reader usage");
+  }
+  return output;
+}
+
+static napi_value bridge_content_type_reader_is_registered(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[1], output;
+  char* name = NULL;
+  size_t length = 0;
+  CNA_Bool registered = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_utf8(env, args[0], &name, &length)) return NULL;
+  const CNA_StringView view = {name, (uint64_t) length};
+  const CNA_Result result =
+    g_api.content_type_reader_manager_get_is_registered(view, &registered);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_content_type_reader_manager_get_is_registered", result);
+  }
+  NAPI_OR_RETURN(env, napi_get_boolean(env, registered == CNA_TRUE, &output),
+    "cna_content_type_reader_manager_get_is_registered");
+  return output;
+}
+
 
 
 
@@ -29240,6 +29537,16 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getNativeMeshPartPrimitiveCount", NULL, bridge_model_mesh_part_get_primitive_count, NULL, NULL, NULL, napi_default, NULL },
     { "getNativeMeshPartStartIndex", NULL, bridge_model_mesh_part_get_start_index, NULL, NULL, NULL, napi_default, NULL },
     { "getNativeMeshPartVertexOffset", NULL, bridge_model_mesh_part_get_vertex_offset, NULL, NULL, NULL, napi_default, NULL },
+    { "createContentSurvey", NULL, bridge_content_manager_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyContentSurvey", NULL, bridge_content_manager_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "getContentSurveyRoot", NULL, bridge_content_manager_get_root_directory, NULL, NULL, NULL, napi_default, NULL },
+    { "setContentSurveyRoot", NULL, bridge_content_manager_set_root_directory, NULL, NULL, NULL, napi_default, NULL },
+    { "refreshContentSurvey", NULL, bridge_content_manager_refresh_manifest, NULL, NULL, NULL, napi_default, NULL },
+    { "getContentSurveyEntryCount", NULL, bridge_content_manager_get_manifest_entry_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getContentSurveyEntry", NULL, bridge_content_manager_get_manifest_entry, NULL, NULL, NULL, napi_default, NULL },
+    { "getContentSurveyReaderUsageCount", NULL, bridge_content_manager_get_xnb_reader_usage_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getContentSurveyReaderUsage", NULL, bridge_content_manager_get_xnb_reader_usage, NULL, NULL, NULL, napi_default, NULL },
+    { "isContentTypeReaderRegisteredWithCna", NULL, bridge_content_type_reader_is_registered, NULL, NULL, NULL, napi_default, NULL },
     { "createFrustumCuller", NULL, bridge_frustum_culler_ext_create, NULL, NULL, NULL, napi_default, NULL },
     { "destroyFrustumCuller", NULL, bridge_frustum_culler_ext_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "setFrustumCullerViewProjection", NULL, bridge_frustum_culler_ext_set_view_projection, NULL, NULL, NULL, napi_default, NULL },

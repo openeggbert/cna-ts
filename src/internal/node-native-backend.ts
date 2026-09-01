@@ -18,6 +18,9 @@ import type {
   CnaComputeBackend,
   CnaLodBackend,
   CnaNativeMeshPartBackend,
+  CnaContentSurveyBackend,
+  ContentSurveyEntrySnapshot,
+  ContentSurveyReaderUsageSnapshot,
   CnaInstancedRendererBackend,
   CnaParticleBackend,
   CnaShadowBackend,
@@ -823,6 +826,16 @@ interface NativeBridge {
   destroyLodGroup(group: bigint): void;
   addLodLevel(group: bigint, maxDistance: number, part: bigint | null): void;
   selectLodPart(group: bigint, distance: number): bigint | null;
+  createContentSurvey(device: bigint, rootDirectory: string): bigint;
+  destroyContentSurvey(survey: bigint): void;
+  getContentSurveyRoot(survey: bigint): string;
+  setContentSurveyRoot(survey: bigint, rootDirectory: string): void;
+  refreshContentSurvey(survey: bigint): void;
+  getContentSurveyEntryCount(survey: bigint): number;
+  getContentSurveyEntry(survey: bigint, index: number): ContentSurveyEntrySnapshot;
+  getContentSurveyReaderUsageCount(survey: bigint): number;
+  getContentSurveyReaderUsage(survey: bigint, index: number): ContentSurveyReaderUsageSnapshot;
+  isContentTypeReaderRegisteredWithCna(readerName: string): boolean;
   createNativeMeshPart(
     vertexBuffer: bigint, indexBuffer: bigint, numVertices: number, primitiveCount: number,
     startIndex: number, vertexOffset: number,
@@ -1893,6 +1906,7 @@ export class NodeNativeBackend
   public readonly ClusteredLighting: CnaClusteredLightingBackend = this;
   public readonly Lod: CnaLodBackend = this;
   public readonly NativeMeshParts: CnaNativeMeshPartBackend = this;
+  public readonly ContentSurvey: CnaContentSurveyBackend = this;
   public readonly InstancedRenderer: CnaInstancedRendererBackend = this;
   public readonly Shadows: CnaShadowBackend = this;
   public readonly DepthNormalPrepass: CnaDepthNormalPrepassBackend = this;
@@ -3257,6 +3271,40 @@ export class NodeNativeBackend
   }
   public selectLodPart(group: NativeHandle, distance: number): NativeHandle | null {
     return this.#bridge.selectLodPart(group, distance);
+  }
+  public createContentSurvey(device: NativeHandle, rootDirectory: string): NativeHandle {
+    return this.#bridge.createContentSurvey(device, rootDirectory);
+  }
+  public destroyContentSurvey(survey: NativeHandle): void {
+    this.#bridge.destroyContentSurvey(survey);
+  }
+  public getContentSurveyRoot(survey: NativeHandle): string {
+    return this.#bridge.getContentSurveyRoot(survey);
+  }
+  public setContentSurveyRoot(survey: NativeHandle, rootDirectory: string): void {
+    this.#bridge.setContentSurveyRoot(survey, rootDirectory);
+  }
+  public refreshContentSurvey(survey: NativeHandle): void {
+    this.#bridge.refreshContentSurvey(survey);
+  }
+  public getContentSurveyEntryCount(survey: NativeHandle): number {
+    return this.#bridge.getContentSurveyEntryCount(survey);
+  }
+  public getContentSurveyEntry(
+    survey: NativeHandle, index: number,
+  ): ContentSurveyEntrySnapshot {
+    return this.#bridge.getContentSurveyEntry(survey, index);
+  }
+  public getContentSurveyReaderUsageCount(survey: NativeHandle): number {
+    return this.#bridge.getContentSurveyReaderUsageCount(survey);
+  }
+  public getContentSurveyReaderUsage(
+    survey: NativeHandle, index: number,
+  ): ContentSurveyReaderUsageSnapshot {
+    return this.#bridge.getContentSurveyReaderUsage(survey, index);
+  }
+  public isContentTypeReaderRegisteredWithCna(readerName: string): boolean {
+    return this.#bridge.isContentTypeReaderRegisteredWithCna(readerName);
   }
   public createNativeMeshPart(
     vertexBuffer: NativeHandle, indexBuffer: NativeHandle, numVertices: number,

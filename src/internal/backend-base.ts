@@ -53,6 +53,9 @@ import type {
   CnaLightProbeBackend,
   CnaLodBackend,
   CnaNativeMeshPartBackend,
+  CnaContentSurveyBackend,
+  ContentSurveyEntrySnapshot,
+  ContentSurveyReaderUsageSnapshot,
   CnaInstancedRendererBackend,
   CnaMediaBackend,
   CnaParticleBackend,
@@ -3883,6 +3886,44 @@ export abstract class CnaShadowBackendBase implements CnaShadowBackend {
   public cubeShadowMapSizeForQuality(
     _quality: number,
   ): number { return this.unsupported("cubeShadowMapSizeForQuality"); }
+}
+
+/** Refusing base for {@link CnaContentSurveyBackend}. */
+export abstract class CnaContentSurveyBackendBase implements CnaContentSurveyBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createContentSurvey(
+    _device: NativeHandle, _rootDirectory: string,
+  ): NativeHandle { return this.unsupported("createContentSurvey"); }
+  public destroyContentSurvey(_survey: NativeHandle): void {
+    return this.unsupported("destroyContentSurvey");
+  }
+  public getContentSurveyRoot(_survey: NativeHandle): string {
+    return this.unsupported("getContentSurveyRoot");
+  }
+  public setContentSurveyRoot(_survey: NativeHandle, _rootDirectory: string): void {
+    return this.unsupported("setContentSurveyRoot");
+  }
+  public refreshContentSurvey(_survey: NativeHandle): void {
+    return this.unsupported("refreshContentSurvey");
+  }
+  public getContentSurveyEntryCount(_survey: NativeHandle): number {
+    return this.unsupported("getContentSurveyEntryCount");
+  }
+  public getContentSurveyEntry(
+    _survey: NativeHandle, _index: number,
+  ): ContentSurveyEntrySnapshot { return this.unsupported("getContentSurveyEntry"); }
+  public getContentSurveyReaderUsageCount(_survey: NativeHandle): number {
+    return this.unsupported("getContentSurveyReaderUsageCount");
+  }
+  public getContentSurveyReaderUsage(
+    _survey: NativeHandle, _index: number,
+  ): ContentSurveyReaderUsageSnapshot {
+    return this.unsupported("getContentSurveyReaderUsage");
+  }
+  public isContentTypeReaderRegisteredWithCna(_readerName: string): boolean {
+    return this.unsupported("isContentTypeReaderRegisteredWithCna");
+  }
 }
 
 /** Refusing base for {@link CnaNativeMeshPartBackend}. */
