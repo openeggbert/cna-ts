@@ -1019,3 +1019,50 @@ The scene was wrong, not the backend: XNA culls counter-clockwise by default and
 wound that way. Running the identical code on the Node backend, which is long proven, is what
 separated "my slice is broken" from "my triangle is inside out" in one step. It is the reason the
 test now sets `RasterizerState.CullNone` and says why in a comment.
+
+## The frontier, and what is on the far side of it
+
+Every backend interface this package declares is now either implemented whole by the WebAssembly
+backend or absent from it: **18 interfaces, 1252 methods bound, none partial**. The engine layer is
+the whole of the first number — `GraphicsExtension` 603, `Content` 126, `Shadow` 78, and so on down
+to `NativeMeshPart` 10.
+
+Fifteen interfaces are absent, 267 methods in all, and none of them is engine-layer: `Sensor` 45,
+`ExtendedInput` 41, `Xact` 39, `GamerServices` 27, `Media` 16, `Storage` 16, `Device` 14,
+`GameWindow` 12, `GraphicsAdapter` 11, `InputDeviceInventory` 11, `Video` 11, `ContentSurvey` 10,
+`MediaLibrary` 8, `SpriteFontOracle` 4, `Avatar` 2.
+
+**"Absent" is not one condition, and the family name never says which it is.** CNA may refuse these
+routes on this build, or CNA may answer them perfectly well and nobody has bound them yet — opposite
+findings that call for opposite decisions. `tools/wasm/report-frontier.mjs` asks rather than infers:
+it calls all 156 routes on the strong artifact with null handles and zeroed buffers, so
+`INVALID_HANDLE` and `INVALID_ARGUMENT` are the expected answers and mean CNA reached its own
+validation. The answer that matters is `NOT_SUPPORTED`, because that is CNA saying this build
+cannot, however the binding is written.
+
+```text
+WASM_BOUND_INTERFACES=18 WASM_BOUND_METHODS=1252
+WASM_ABSENT_INTERFACES=15
+ABSENT_FAMILY_ROUTES_ASKED=156
+ANSWERED_NOT_SUPPORTED=27
+ANSWERED_SOMETHING_ELSE=129
+```
+
+So the far side of the frontier splits in three, on evidence:
+
+- **`Device` is CNA-blocked.** 27 of its 29 routes answer `NOT_SUPPORTED`: the device extension
+  layer is not in this artifact. Binding it would produce a family that refuses every call.
+- **`ExtendedInput` (41) and `GraphicsAdapter` (11) have no CNA routes at all.** The Node backend
+  implements them without reaching the C ABI, so there is nothing here for a route table to bind and
+  the work, if it is wanted, is a different kind of work.
+- **The remaining twelve are simply unbound.** Their 129 routes answer with CNA's own argument
+  validation, which means CNA can do them in a browser and only the binding is missing. That is a
+  real and reportable fact, and it is deliberately *not* acted on here: this backend's scope is the
+  engine layer, and binding a sensor or an XACT engine to raise a count is the thing this package
+  does not do.
+
+One caution about reading that last group as a to-do list. A route that validates its arguments has
+not promised to work — `cna_video_player_create` answering `INVALID_HANDLE` for a null game says
+nothing about whether SwiftShader can decode video. The distinction this report draws is between
+*CNA refusing* and *CNA answering*, which is the question that decides whether binding is even
+possible; whether it is worth it is a question for whoever needs the family.
