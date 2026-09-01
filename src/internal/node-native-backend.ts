@@ -33,6 +33,7 @@ import type {
   SizeSnapshot,
   TextureTransformSnapshot,
   Vector2Snapshot,
+  Vector4Snapshot,
   Vector3Snapshot,
   ColorSnapshot,
   PackedDepthSnapshot,
@@ -1329,6 +1330,30 @@ interface NativeBridge {
   getWeightedBlendedRevealageTexture(transparency: bigint): bigint;
   getWeightedBlendedAccumulationGlsl(): string;
   getWeightedBlendedWeight(viewDepth: number, alpha: number, farPlane: number): number;
+  createShaderEffect(graphicsDevice: bigint, vertexSource: string, fragmentSource: string): bigint;
+  isShaderEffectValid(effect: bigint): boolean;
+  shaderEffectHasRenderer(effect: bigint): boolean;
+  getShaderEffectCompileError(effect: bigint): string;
+  setShaderEffectUniformMatrix(effect: bigint, name: string, value: readonly number[]): void;
+  setShaderEffectUniformVector4(effect: bigint, name: string, value: Vector4Snapshot): void;
+  setShaderEffectUniformVector3(effect: bigint, name: string, value: Vector3Snapshot): void;
+  setShaderEffectUniformVector2(effect: bigint, name: string, value: Vector2Snapshot): void;
+  setShaderEffectUniformFloat(effect: bigint, name: string, value: number): void;
+  setShaderEffectUniformInt32(effect: bigint, name: string, value: number): void;
+  declareShaderEffectUniformBlock(effect: bigint, blockSizeBytes: number, names: readonly string[], offsets: readonly number[]): void;
+  setShaderEffectUniformFloatArray(effect: bigint, name: string, values: readonly number[]): void;
+  setShaderEffectUniformVector2Array(effect: bigint, name: string, values: readonly Vector2Snapshot[]): void;
+  setShaderEffectUniformVec3Array(effect: bigint, name: string, values: readonly number[]): void;
+  setShaderEffectUniformMat4Array(effect: bigint, name: string, values: readonly number[]): void;
+  setShaderEffectTexture2D(effect: bigint, unit: number, texture: bigint): void;
+  setShaderEffectTextureCube(effect: bigint, unit: number, texture: bigint): void;
+  setShaderEffectTexture3D(effect: bigint, unit: number, texture: bigint): void;
+  getShaderEffectWorld(effect: bigint): readonly number[];
+  setShaderEffectWorld(effect: bigint, value: readonly number[]): void;
+  getShaderEffectView(effect: bigint): readonly number[];
+  setShaderEffectView(effect: bigint, value: readonly number[]): void;
+  getShaderEffectProjection(effect: bigint): readonly number[];
+  setShaderEffectProjection(effect: bigint, value: readonly number[]): void;
   applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { Applied: number; Settings: PipelineSettingsSnapshot };
   getPipelinePassTiming(pipeline: bigint, index: number): { Milliseconds: number; SampleCount: number };
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -3931,6 +3956,30 @@ export class NodeNativeBackend
   public getWeightedBlendedRevealageTexture(transparency: NativeHandle): NativeHandle { return this.#bridge.getWeightedBlendedRevealageTexture(transparency); }
   public getWeightedBlendedAccumulationGlsl(): string { return this.#bridge.getWeightedBlendedAccumulationGlsl(); }
   public getWeightedBlendedWeight(viewDepth: number, alpha: number, farPlane: number): number { return this.#bridge.getWeightedBlendedWeight(viewDepth, alpha, farPlane); }
+  public createShaderEffect(graphicsDevice: NativeHandle, vertexSource: string, fragmentSource: string): NativeHandle { return this.#bridge.createShaderEffect(graphicsDevice, vertexSource, fragmentSource); }
+  public isShaderEffectValid(effect: NativeHandle): boolean { return this.#bridge.isShaderEffectValid(effect); }
+  public shaderEffectHasRenderer(effect: NativeHandle): boolean { return this.#bridge.shaderEffectHasRenderer(effect); }
+  public getShaderEffectCompileError(effect: NativeHandle): string { return this.#bridge.getShaderEffectCompileError(effect); }
+  public setShaderEffectUniformMatrix(effect: NativeHandle, name: string, value: readonly number[]): void { this.#bridge.setShaderEffectUniformMatrix(effect, name, value); }
+  public setShaderEffectUniformVector4(effect: NativeHandle, name: string, value: Vector4Snapshot): void { this.#bridge.setShaderEffectUniformVector4(effect, name, value); }
+  public setShaderEffectUniformVector3(effect: NativeHandle, name: string, value: Vector3Snapshot): void { this.#bridge.setShaderEffectUniformVector3(effect, name, value); }
+  public setShaderEffectUniformVector2(effect: NativeHandle, name: string, value: Vector2Snapshot): void { this.#bridge.setShaderEffectUniformVector2(effect, name, value); }
+  public setShaderEffectUniformFloat(effect: NativeHandle, name: string, value: number): void { this.#bridge.setShaderEffectUniformFloat(effect, name, value); }
+  public setShaderEffectUniformInt32(effect: NativeHandle, name: string, value: number): void { this.#bridge.setShaderEffectUniformInt32(effect, name, value); }
+  public declareShaderEffectUniformBlock(effect: NativeHandle, blockSizeBytes: number, names: readonly string[], offsets: readonly number[]): void { this.#bridge.declareShaderEffectUniformBlock(effect, blockSizeBytes, names, offsets); }
+  public setShaderEffectUniformFloatArray(effect: NativeHandle, name: string, values: readonly number[]): void { this.#bridge.setShaderEffectUniformFloatArray(effect, name, values); }
+  public setShaderEffectUniformVector2Array(effect: NativeHandle, name: string, values: readonly Vector2Snapshot[]): void { this.#bridge.setShaderEffectUniformVector2Array(effect, name, values); }
+  public setShaderEffectUniformVec3Array(effect: NativeHandle, name: string, values: readonly number[]): void { this.#bridge.setShaderEffectUniformVec3Array(effect, name, values); }
+  public setShaderEffectUniformMat4Array(effect: NativeHandle, name: string, values: readonly number[]): void { this.#bridge.setShaderEffectUniformMat4Array(effect, name, values); }
+  public setShaderEffectTexture2D(effect: NativeHandle, unit: number, texture: NativeHandle): void { this.#bridge.setShaderEffectTexture2D(effect, unit, texture); }
+  public setShaderEffectTextureCube(effect: NativeHandle, unit: number, texture: NativeHandle): void { this.#bridge.setShaderEffectTextureCube(effect, unit, texture); }
+  public setShaderEffectTexture3D(effect: NativeHandle, unit: number, texture: NativeHandle): void { this.#bridge.setShaderEffectTexture3D(effect, unit, texture); }
+  public getShaderEffectWorld(effect: NativeHandle): readonly number[] { return this.#bridge.getShaderEffectWorld(effect); }
+  public setShaderEffectWorld(effect: NativeHandle, value: readonly number[]): void { this.#bridge.setShaderEffectWorld(effect, value); }
+  public getShaderEffectView(effect: NativeHandle): readonly number[] { return this.#bridge.getShaderEffectView(effect); }
+  public setShaderEffectView(effect: NativeHandle, value: readonly number[]): void { this.#bridge.setShaderEffectView(effect, value); }
+  public getShaderEffectProjection(effect: NativeHandle): readonly number[] { return this.#bridge.getShaderEffectProjection(effect); }
+  public setShaderEffectProjection(effect: NativeHandle, value: readonly number[]): void { this.#bridge.setShaderEffectProjection(effect, value); }
   public applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { readonly Applied: number; readonly Settings: PipelineSettingsSnapshot } { return this.#bridge.applyPipelineSettingsFromString(settings, text); }
   public getPipelinePassTiming(pipeline: NativeHandle, index: number): { readonly Milliseconds: number; readonly SampleCount: number } { return this.#bridge.getPipelinePassTiming(pipeline, index); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }

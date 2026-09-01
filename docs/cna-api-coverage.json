@@ -16,22 +16,22 @@
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 1650,
+    "NODE": 1674,
     "WASM": 276
   },
-  "reachableByAny": 1650,
+  "reachableByAny": 1674,
   "reachableByAll": 276,
   "reachableExclusively": {
-    "NODE": 1374,
+    "NODE": 1398,
     "WASM": 0
   },
   "reachabilityByCategory": {
     "XNA_BACKING": {
-      "NODE": 412,
+      "NODE": 434,
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 1222,
+      "NODE": 1224,
       "WASM": 189
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -114,7 +114,7 @@
     },
     "effects.h": {
       "XNA_BACKING": 255,
-      "REACHABLE_NODE": 125,
+      "REACHABLE_NODE": 149,
       "CNA_EXTENSION_BACKING": 35
     },
     "engine_layer.h": {
@@ -26024,21 +26024,27 @@
       "header": "effects.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "an _ext route is CNA surface beyond XNA 4.0 by the ABI's own naming rule",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_create",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_declare_uniform_block_ext",
       "header": "effects.h",
       "category": "CNA_EXTENSION_BACKING",
       "reason": "an _ext route is CNA surface beyond XNA 4.0 by the ABI's own naming rule",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_factory_acquire",
@@ -26087,147 +26093,189 @@
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_get_view",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_get_world",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_has_renderer",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_is_valid",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_projection",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_texture_cube",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_texture2d",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_texture3d",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_uniform_float",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_uniform_float_array",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_uniform_int32",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_uniform_mat4_array",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_uniform_matrix",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_uniform_vec3_array",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_uniform_vector2",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_uniform_vector2_array",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_uniform_vector3",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_uniform_vector4",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_view",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shader_effect_set_world",
       "header": "effects.h",
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",
-      "backends": []
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_shadow_cascade_state_ext_init",

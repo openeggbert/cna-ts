@@ -3208,6 +3208,245 @@ class WindowedProbeGame extends Game {
       }
     });
 
+    record("shaderEffect", () => {
+      const { ShaderEffect, WeightedBlendedTransparency, IsGraphicsExtensionLayerAvailable } =
+        computeModule;
+      const N = 4;
+      const FAR = 100;
+      // Two overlapping half-transparent layers at very different depths. Every channel of every
+      // colour is different from every other, and neither colour is a permutation of the other, so
+      // a component dropped or rotated on the way to the shader changes the answer. The weights
+      // differ by four orders of magnitude, so the near layer almost entirely decides the result --
+      // which a shader that ignored depth cannot reproduce.
+      const LAYERS = [
+        { Colour: [0.25, 0.5, 1], Alpha: 0.5, Depth: 5 },
+        { Colour: [1, 0.5, 0], Alpha: 0.5, Depth: 80 },
+      ];
+      const VERTEX = `#version 300 es
+precision highp float;
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aTexCoord;
+layout(location = 2) in vec4 aColor;
+out vec2 TexCoord;
+uniform mat4 projection;
+void main() { gl_Position = projection * vec4(aPos, 0.0, 1.0); TexCoord = aTexCoord; }
+`;
+      const owned = [];
+      try {
+        let probe;
+        try {
+          probe = new ShaderEffect(device, VERTEX, `#version 300 es
+precision highp float;
+in vec2 TexCoord;
+out vec4 FragColor;
+uniform float uValue;
+void main() { FragColor = vec4(uValue, 0.0, 0.0, 1.0); }
+`);
+        } catch (error) {
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(probe);
+        const result = { valid: probe.IsEffectValid, compileError: probe.CompileError.slice(0, 200) };
+        if (!result.valid) return result;
+
+        const white = new Graphics.Texture2D(device, 1, 1);
+        owned.push(white);
+        white.SetData([new Color(255, 255, 255, 255)]);
+        const batch = new Graphics.SpriteBatch(device);
+        owned.push(batch);
+        const target = new Graphics.RenderTarget2D(device, N, N);
+        owned.push(target);
+
+        const runFindingTwentyTwo = (result) => {
+          // --- finding 22 -------------------------------------------------------------------------
+          // How many Begin/Draw/End pairs an effect has had decides whether its draw appears. The
+          // target is rebound and cleared before every run, so nothing carries over but the effect.
+          const runFlat = (effect, value) => {
+            device.SetRenderTarget(target);
+            device.Clear(new Color(0, 0, 0, 255));
+            batch.Begin(
+              Graphics.SpriteSortMode.Immediate, Graphics.BlendState.Opaque, null,
+              Graphics.DepthStencilState.None, null, effect);
+            effect.SetUniformFloat("uValue", value);
+            batch.Draw(white, new Rectangle(0, 0, N, N), Color.White);
+            batch.End();
+            device.SetRenderTarget(null);
+            const pixels = new Array(N * N);
+            target.GetData(pixels);
+            return [pixels[0].R, pixels[0].G, pixels[0].B, pixels[0].A];
+          };
+            // A texture bound to sampler unit 1, sampled by a shader that reads only unit 1. Unit 0
+          // is SpriteBatch's own texture, so a binding that went there instead leaves unit 1
+          // unbound and the shader samples nothing.
+          const sampler = new ShaderEffect(device, VERTEX, `#version 300 es
+precision highp float;
+in vec2 TexCoord;
+out vec4 FragColor;
+uniform sampler2D uExtra;
+void main() { FragColor = texture(uExtra, TexCoord); }
+`);
+          const extra = new Graphics.Texture2D(device, 1, 1);
+          extra.SetData([new Color(10, 200, 60, 255)]);
+          // Pushed before the effect that will borrow it: the cleanup below disposes in reverse, so
+          // the effect goes first and gives the borrow back before the texture is asked to go.
+          owned.push(extra);
+          owned.push(sampler);
+          sampler.SetUniformInt("uExtra", 1);
+          sampler.SetTexture(1, extra);
+          const sampleOnce = () => {
+            device.SetRenderTarget(target);
+            device.Clear(new Color(0, 0, 0, 255));
+            batch.Begin(
+              Graphics.SpriteSortMode.Immediate, Graphics.BlendState.Opaque, null,
+              Graphics.DepthStencilState.None, null, sampler);
+            sampler.SetUniformInt("uExtra", 1);
+            batch.Draw(white, new Rectangle(0, 0, N, N), Color.White);
+            batch.End();
+            device.SetRenderTarget(null);
+            const pixels = new Array(N * N);
+            target.GetData(pixels);
+            return [pixels[0].R, pixels[0].G, pixels[0].B, pixels[0].A];
+          };
+          sampleOnce();  // finding 22: the first draw of a fresh effect is lost
+          result.sampledUnitOne = sampleOnce();
+
+        result.firstDraw = runFlat(probe, 0.125);
+          result.secondDraw = runFlat(probe, 0.125);
+          result.thirdDraw = runFlat(probe, 0.125);
+          const second = new ShaderEffect(device, VERTEX, `#version 300 es
+  precision highp float;
+  in vec2 TexCoord;
+  out vec4 FragColor;
+  uniform float uValue;
+  void main() { FragColor = vec4(uValue, 0.0, 0.0, 1.0); }
+  `);
+          owned.push(second);
+          result.freshEffectFirstDraw = runFlat(second, 0.125);
+          result.freshEffectSecondDraw = runFlat(second, 0.125);
+          // And the same batch with no custom effect at all, which draws correctly the first time.
+          device.SetRenderTarget(target);
+          device.Clear(new Color(0, 0, 0, 255));
+          batch.Begin(Graphics.SpriteSortMode.Immediate, Graphics.BlendState.Opaque);
+          batch.Draw(white, new Rectangle(0, 0, N, N), new Color(40, 80, 120, 255));
+          batch.End();
+          device.SetRenderTarget(null);
+          const plain = new Array(N * N);
+          target.GetData(plain);
+          result.plainFirstDraw = [plain[0].R, plain[0].G, plain[0].B, plain[0].A];
+          // The workaround, which is also the diagnosis: one Apply outside any batch is enough.
+          const applied = new ShaderEffect(device, VERTEX, `#version 300 es
+  precision highp float;
+  in vec2 TexCoord;
+  out vec4 FragColor;
+  uniform float uValue;
+  void main() { FragColor = vec4(uValue, 0.0, 0.0, 1.0); }
+  `);
+          owned.push(applied);
+          applied.CurrentTechnique.Passes.Get(0).Apply();
+          result.preAppliedFirstDraw = runFlat(applied, 0.125);
+          return result;
+        };
+
+        // The multiple-render-target work runs FIRST, because the bare Apply at the end of the
+        // finding-22 experiments leaves a GL error pending that an MRT bind then refuses on.
+        // --- the weighted-blended accumulation, to the pixels -------------------------------------
+        const oit = new WeightedBlendedTransparency(device, N, N);
+        owned.push(oit);
+        result.oitSupported = oit.IsSupported;
+        if (!oit.IsSupported) return runFindingTwentyTwo(result);
+
+        const emit = new ShaderEffect(device, VERTEX, `#version 300 es
+precision highp float;
+in vec2 TexCoord;
+${WeightedBlendedTransparency.AccumulationGlsl}
+uniform vec3 uColour;
+uniform float uAlpha;
+uniform float uDepth;
+void main() { cnaOitEmit(uColour, uAlpha, uDepth); }
+`);
+        owned.push(emit);
+        result.emitValid = emit.IsEffectValid;
+        result.emitError = emit.CompileError.slice(0, 300);
+        if (!emit.IsEffectValid) return runFindingTwentyTwo(result);
+
+        try {
+          oit.Begin(FAR);
+        } catch (error) {
+          result.beginError = `${error.constructor.name}(${error.cnaResult ?? "-"}): ${(error.message ?? "").slice(0, 300)}`;
+          return runFindingTwentyTwo(result);
+        }
+        result.accumulating = oit.IsAccumulating;
+        // Finding 22's workaround, spent INSIDE the bracket on a layer with zero alpha: a zero
+        // alpha contributes colour * 0 * w = 0 to the accumulation and log(1 - 0) = 0 to the
+        // revealage, so the arithmetic below is the same whether this draw was lost or landed.
+        // Inside rather than before, because a custom-shader draw leaves a GL error pending and the
+        // multiple-render-target bind that Begin performs refuses while one is -- measured here,
+        // and recorded beside finding 22. A bare Apply outside a batch leaves the same error.
+        // One/One on both channels, which is what accumulation means. SpriteBatch's own blend
+        // state is the one that reaches the target -- it overrides the One/One the bracket bound --
+        // so asking for Opaque here would make each layer REPLACE the last and leave only the
+        // final one in the buffer. Measured: that is exactly what it does.
+        const accumulate = new Graphics.BlendState();
+        accumulate.ColorSourceBlend = Graphics.Blend.One;
+        accumulate.ColorDestinationBlend = Graphics.Blend.One;
+        accumulate.AlphaSourceBlend = Graphics.Blend.One;
+        accumulate.AlphaDestinationBlend = Graphics.Blend.One;
+        accumulate.ColorBlendFunction = Graphics.BlendFunction.Add;
+        accumulate.AlphaBlendFunction = Graphics.BlendFunction.Add;
+        for (const layer of [{ Colour: [0, 0, 0], Alpha: 0, Depth: 0 }, ...LAYERS]) {
+          batch.Begin(
+            Graphics.SpriteSortMode.Immediate, accumulate, null,
+            Graphics.DepthStencilState.None, null, emit);
+          // Set inside the batch, after the effect is applied. A uniform written before the effect
+          // is applied does not reach the program -- measured, by watching the far plane fall back
+          // to its guarded zero and every layer clamp to the far distance.
+          emit.SetUniformFloat("uCnaOitFarPlane", FAR);
+          emit.SetUniformVec3("uColour", new Vector3(...layer.Colour));
+          emit.SetUniformFloat("uAlpha", layer.Alpha);
+          emit.SetUniformFloat("uDepth", layer.Depth);
+          batch.Draw(white, new Rectangle(0, 0, N, N), Color.White);
+          batch.End();
+        }
+        oit.End();
+
+        const readHalf = (texture) => {
+          const pixels = new Array(N * N);
+          texture.GetData(pixels);
+          texture.Dispose();
+          return pixels.map((value) => {
+            const vector = value.ToVector4();
+            return [vector.X, vector.Y, vector.Z, vector.W];
+          });
+        };
+        result.accumulation = readHalf(oit.AccumulationTexture);
+        result.revealage = readHalf(oit.RevealageTexture);
+
+        device.SetRenderTarget(target);
+        device.Clear(CLEAR);
+        oit.Resolve(N, N);
+        device.SetRenderTarget(null);
+        const resolved = new Array(N * N);
+        target.GetData(resolved);
+        result.resolved = resolved.map((c) => [c.R, c.G, c.B, c.A]);
+        return runFindingTwentyTwo(result);
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch (error) {
+            (this.evidence.shaderEffectCleanup ??= []).push(
+              `${error.constructor.name}: ${(error.message ?? "").slice(0, 90)}`,
+            );
+          }
+        }
+      }
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -6212,20 +6451,179 @@ test("a windowed CNA renderer resolves an empty weighted-blended pass to no chan
   // vacuous: transparent black is not CLEAR on any channel but the ones CLEAR happens to share.
   assert.notDeepEqual(cleared, [0, 0, 0, 0], "CLEAR must differ from what a missing discard writes");
 
-  // Two planted defects survive this file and are recorded rather than hidden, because both have
-  // the same cause and neither can be closed from TypeScript today:
-  //
-  //   * the revealage getter wired to the accumulation route. Each borrow mints a fresh handle
-  //     (measured), so handle identity cannot tell the two apart, and with an empty accumulation
-  //     both targets hold the same zeros.
-  //   * Resolve(1, 1) instead of Resolve(4, 4). Every texel discards, so the viewport it was given
-  //     changes nothing.
-  //
-  // Both become observable the moment something can write distinguishable values into the two
-  // targets -- which needs a shader calling cnaOitEmit, and CNA's ShaderEffect is not bound by this
-  // package yet. Recorded in NEXT.md as the reason to bind it.
+  // Two planted defects used to survive this file -- the revealage getter wired to the accumulation
+  // route, and Resolve(1, 1) in place of Resolve(4, 4) -- because with an empty accumulation both
+  // targets hold the same zeros and every texel discards whatever viewport it was given. Both are
+  // now killed by "a windowed CNA renderer runs a custom shader", which fills the two targets with
+  // different values through a shader calling cnaOitEmit. That test is the other half of this one.
   console.log(
     `CNA_TS_WINDOWED_OIT=PASS RENDERER=${evidence.renderer.name} TARGETS=HDR_BLENDABLE_4x4 ` +
-    `RESIZE=8x5 EMPTY_RESOLVE=DISCARDS_EXACTLY SURVIVING_MUTANTS=2_PENDING_SHADER_EFFECT`,
+    `RESIZE=8x5 EMPTY_RESOLVE=DISCARDS_EXACTLY`,
+  );
+});
+
+test("a windowed CNA renderer runs a custom shader, and loses its first draw", { skip }, async () => {
+  const game = new WindowedProbeGame(6);
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const fx = evidence.shaderEffect;
+  assert.equal(typeof fx, "object", `the shader-effect block did not run: ${fx}`);
+  if (fx.layerAbsent) {
+    assert.equal(fx.extensionLayer, false, "a layer that is present must not refuse to make one");
+    console.log(`CNA_TS_WINDOWED_SHADER_EFFECT=SKIPPED_NO_LAYER RESULT=${fx.cnaResult}`);
+    return;
+  }
+  assert.equal(
+    evidence.shaderEffectCleanup, undefined, `cleanup failed: ${evidence.shaderEffectCleanup}`);
+
+  if (!fx.valid) {
+    // An honest boundary: this renderer would not compile the source and said why.
+    assert.ok(fx.compileError.length > 0, "a renderer that rejected the source must say why");
+    console.log(
+      `CNA_TS_WINDOWED_SHADER_EFFECT=NOT_COMPILED RENDERER=${evidence.renderer.name} ` +
+      `ERROR=${JSON.stringify(fx.compileError.slice(0, 80))}`,
+    );
+    return;
+  }
+  assert.equal(fx.compileError, "", "a shader that compiled has an empty log");
+
+  // --- upstream finding 22 ------------------------------------------------------------------------
+  // A fresh ShaderEffect's FIRST SpriteBatch draw produces nothing. Asserted as it is, not worked
+  // around, so the day it is repaired this file says so. Every run below rebinds and clears the
+  // same 4x4 target first, so nothing carries over from one to the next except the effect itself.
+  const drawn = [32, 0, 0, 255];   // 0.125 * 255 = 31.875, which lands on 32
+  const nothing = [0, 0, 0, 255];  // the opaque black the target was cleared to
+  assert.deepEqual(
+    fx.firstDraw, nothing,
+    "a fresh ShaderEffect's first SpriteBatch draw produces nothing -- upstream finding 22; when " +
+    "it is fixed this assertion is the one that fails",
+  );
+  assert.deepEqual(fx.secondDraw, drawn, "and its second draw is correct");
+  assert.deepEqual(fx.thirdDraw, drawn, "as is every one after that");
+  assert.deepEqual(
+    fx.freshEffectFirstDraw, nothing,
+    "a second, separately created effect loses its own first draw too, so it is once per effect " +
+    "rather than once per process",
+  );
+  assert.deepEqual(fx.freshEffectSecondDraw, drawn);
+  assert.deepEqual(
+    fx.plainFirstDraw, [40, 80, 120, 255],
+    "while the same SpriteBatch with no custom effect draws correctly the first time, so it is " +
+    "the effect and not the batch",
+  );
+  // A texture bound to sampler unit 1 and sampled there, which is the unit the caller asked for
+  // rather than the one SpriteBatch drives.
+  assert.deepEqual(
+    fx.sampledUnitOne, [10, 200, 60, 255],
+    "a texture bound to unit 1 must be the one a shader sampling unit 1 reads -- a binding that " +
+    "went to unit 0 instead leaves unit 1 unbound and the shader samples nothing",
+  );
+
+  assert.deepEqual(
+    fx.preAppliedFirstDraw, drawn,
+    "and one Apply outside any batch is enough to fix it -- which is the diagnosis as well as the " +
+    "workaround: the first Apply does something the draw beside it needs and does it too late",
+  );
+
+  if (!fx.oitSupported) {
+    console.log(
+      `CNA_TS_WINDOWED_SHADER_EFFECT=PASS_NO_OIT RENDERER=${evidence.renderer.name} ` +
+      `FIRST_DRAW_LOST=yes`,
+    );
+    return;
+  }
+  assert.equal(fx.beginError, undefined, `the bracket refused to open: ${fx.beginError}`);
+  assert.equal(fx.emitValid, true, `the accumulation shader did not compile: ${fx.emitError}`);
+  assert.equal(fx.accumulating, true, "the bracket really was open while the layers were drawn");
+
+  // --- the accumulation, predicted from the published weight ---------------------------------------
+  // Two half-transparent layers, near red and far blue. Everything below is computed here from
+  // McGuire and Bavoil's weight -- the same closed form the headless suite checks CNA's own CPU
+  // route against -- so this is the shader checked against the model, not against itself.
+  const LAYERS = [
+    { Colour: [0.25, 0.5, 1], Alpha: 0.5, Depth: 5 },
+    { Colour: [1, 0.5, 0], Alpha: 0.5, Depth: 80 },
+  ];
+  const FAR = 100;
+  const weight = (depth, alpha) => {
+    const z = Math.min(1, Math.max(0, depth / Math.max(FAR, 1e-4)));
+    return alpha * Math.min(Math.max(0.03 / (1e-5 + z ** 4), 1e-2), 3e3);
+  };
+  const accumulation = [0, 0, 0];
+  let accumulatedAlpha = 0;
+  let logs = 0;
+  for (const layer of LAYERS) {
+    const w = weight(layer.Depth, layer.Alpha);
+    for (let channel = 0; channel < 3; channel += 1) {
+      accumulation[channel] += layer.Colour[channel] * layer.Alpha * w;
+    }
+    accumulatedAlpha += layer.Alpha * w;
+    logs += Math.log(Math.max(1 - layer.Alpha, 1e-4));
+  }
+  // The near layer counts for four orders of magnitude more than the far one, which is the whole
+  // point of a depth weight and is what a shader ignoring depth cannot produce.
+  assert.ok(
+    weight(5, 0.5) / weight(80, 0.5) > 1000,
+    "the two layers must be weighted very differently, or the ratio below proves nothing",
+  );
+
+  // Half float carries about three decimal digits, so the tolerance is relative and generous; what
+  // it cannot absorb is a missing layer, a dropped premultiply, or a weight that ignored depth.
+  const near = (actual, expected, tolerance, what) => assert.ok(
+    Math.abs(actual - expected) <= Math.max(tolerance, Math.abs(expected) * 0.01),
+    `${what}: ${actual} vs ${expected}`,
+  );
+  assert.equal(fx.accumulation.length, 16);
+  for (const [index, texel] of fx.accumulation.entries()) {
+    for (let channel = 0; channel < 3; channel += 1) {
+      near(
+        texel[channel], accumulation[channel], 0.005,
+        `accumulation texel ${index} channel ${channel}`,
+      );
+    }
+    near(texel[3], accumulatedAlpha, 0.005, `accumulation texel ${index} alpha`);
+  }
+  // The revealage target holds the SUM of the logs, not the product of the transmissions. Two
+  // layers at alpha 0.5 sum to 2 * log(0.5); a target holding the product would read 0.25.
+  for (const [index, texel] of fx.revealage.entries()) {
+    near(texel[0], logs, 0.01, `revealage texel ${index}`);
+  }
+  assert.ok(Math.abs(logs - Math.exp(logs)) > 1, "the sum and the product are different numbers");
+
+  // --- the resolve ---------------------------------------------------------------------------------
+  // The weights cancel: the colour is the alpha-and-weight-weighted average of the two layers, so
+  // the near red almost entirely wins. The alpha is one minus the product of the transmissions.
+  const colour = accumulation.map((value) => value / Math.max(accumulatedAlpha, 1e-5));
+  const revealage = Math.min(1, Math.max(0, Math.exp(logs)));
+  const expected = [
+    ...colour.map((value) => Math.round(Math.min(1, Math.max(0, value)) * 255)),
+    Math.round((1 - revealage) * 255),
+  ];
+  assert.deepEqual(
+    expected.slice(0, 3), [64, 128, 255],
+    "the prediction is the near layer's own colour, all three channels different from each other",
+  );
+  assert.equal(expected[3], 191, "at three quarters coverage: 1 - 0.5 * 0.5");
+  for (const [index, texel] of fx.resolved.entries()) {
+    for (let channel = 0; channel < 4; channel += 1) {
+      assert.ok(
+        Math.abs(texel[channel] - expected[channel]) <= 2,
+        `resolved texel ${index} channel ${channel}: ${texel[channel]} vs ${expected[channel]}`,
+      );
+    }
+  }
+  // And it is genuinely different from the two answers a broken resolve would give: the unweighted
+  // midpoint of the two colours, and the frame left as it was cleared.
+  // The two answers a broken resolve gives, both genuinely different pictures: the unweighted
+  // midpoint of the two colours, and the far layer's colour instead of the near one's.
+  assert.notDeepEqual(fx.resolved[0], [159, 128, 128, 191], "not the unweighted average");
+  assert.notDeepEqual(fx.resolved[0], [255, 128, 0, 191], "and not the far layer's colour");
+  assert.notDeepEqual(fx.resolved[0], [CLEAR.R, CLEAR.G, CLEAR.B, CLEAR.A], "and not a no-op");
+
+  console.log(
+    `CNA_TS_WINDOWED_SHADER_EFFECT=PASS RENDERER=${evidence.renderer.name} FIRST_DRAW_LOST=yes ` +
+    `OIT_ACCUMULATION=PREDICTED OIT_RESOLVE=${fx.resolved[0].join(",")} EXPECTED=${expected.join(",")}`,
   );
 });

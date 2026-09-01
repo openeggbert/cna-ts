@@ -10554,3 +10554,248 @@ test("the weighted-blended bracket opens on every renderer, including one that c
     `REASON=${JSON.stringify(bracket.reason)}`,
   );
 });
+
+test("a shader effect is an Effect, and says whether the renderer looked at its source", async () => {
+  const graphics = computeExtensions;
+
+  const VERTEX = `#version 300 es
+precision highp float;
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aTexCoord;
+out vec2 TexCoord;
+uniform mat4 projection;
+void main() { gl_Position = projection * vec4(aPos, 0.0, 1.0); TexCoord = aTexCoord; }
+`;
+  const FRAGMENT = `#version 300 es
+precision highp float;
+in vec2 TexCoord;
+out vec4 FragColor;
+uniform vec3 uTint;
+uniform float uScale;
+void main() { FragColor = vec4(uTint * uScale, 1.0); }
+`;
+
+  class ShaderProbeGame extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+
+    LoadContent() {
+      const device = this.GraphicsDevice;
+      const record = (name, body) => {
+        try {
+          this.evidence[name] = body();
+        } catch (error) {
+          this.evidence[name] = `${error.constructor.name}(${error.cnaResult ?? "-"}): ` +
+            `${(error.message ?? "").slice(0, 160)}`;
+        }
+      };
+      const outcome = (body) => {
+        try {
+          body();
+          return "ok";
+        } catch (error) {
+          return `${error.constructor.name}(${error.cnaResult ?? "-"})`;
+        }
+      };
+
+      record("effect", () => {
+        const effect = new graphics.ShaderEffect(device, VERTEX, FRAGMENT);
+        try {
+          const shape = {
+            isEffect: effect instanceof Graphics.Effect,
+            techniques: effect.Techniques.Count,
+            passes: effect.CurrentTechnique.Passes.Count,
+            valid: effect.IsEffectValid,
+            hasRenderer: effect.HasRenderer,
+            compileError: effect.CompileError,
+          };
+          // The three IEffectMatrices properties, each a value that survives the round trip and
+          // each different from the other two, so a getter wired to the wrong field is caught.
+          effect.World = Matrix.CreateTranslation(new Vector3(1, 2, 3));
+          effect.View = Matrix.CreateScale(2, 3, 4);
+          effect.Projection = Matrix.CreateOrthographic(8, 6, 1, 100);
+          const matrices = {
+            world: [effect.World.M41, effect.World.M42, effect.World.M43],
+            view: [effect.View.M11, effect.View.M22, effect.View.M33],
+            projection: [effect.Projection.M11, effect.Projection.M22],
+          };
+          const uniforms = {
+            mat4: outcome(() => effect.SetUniformMat4("uTransform", Matrix.Identity)),
+            vec4: outcome(() => effect.SetUniformVec4("uColour", new Vector4(1, 2, 3, 4))),
+            vec3: outcome(() => effect.SetUniformVec3("uTint", new Vector3(1, 0.5, 0.25))),
+            vec2: outcome(() => effect.SetUniformVec2("uOffset", new Vector2(1, 2))),
+            float: outcome(() => effect.SetUniformFloat("uScale", 0.5)),
+            int: outcome(() => effect.SetUniformInt("uMode", 1)),
+            floats: outcome(() => effect.SetUniformFloatArray("uWeights", [1, 2, 3])),
+            vec2s: outcome(
+              () => effect.SetUniformVec2Array("uTaps", [new Vector2(0, 1), new Vector2(2, 3)])),
+            vec3s: outcome(() => effect.SetUniformVec3Array("uProbes", [new Vector3(1, 2, 3)])),
+            mat4s: outcome(
+              () => effect.SetUniformMat4Array("uBones", [Matrix.Identity, Matrix.Identity])),
+            block: outcome(() => effect.DeclareUniformBlock(64, ["uTint", "uScale"], [0, 16])),
+            blockCleared: outcome(() => effect.DeclareUniformBlock(0, [], [])),
+          };
+          const refusals = {
+            emptyName: outcome(() => effect.SetUniformFloat("", 1)),
+            missingName: outcome(() => effect.SetUniformFloat(null, 1)),
+            infiniteValue: outcome(() => effect.SetUniformFloat("uScale", Number.NaN)),
+            mismatchedBlock: outcome(() => effect.DeclareUniformBlock(16, ["a", "b"], [0])),
+            notAnArray: outcome(() => effect.SetUniformFloatArray("uWeights", 3)),
+          };
+          // Read again, after every uniform setter has run. A setter wired to one of the three
+          // transform routes instead of to its own would show up here and nowhere above.
+          const matricesAfter = {
+            world: [effect.World.M41, effect.World.M42, effect.World.M43],
+            view: [effect.View.M11, effect.View.M22, effect.View.M33],
+            projection: [effect.Projection.M11, effect.Projection.M22],
+          };
+          return { shape, matrices, matricesAfter, uniforms, refusals };
+        } finally {
+          effect.Dispose();
+        }
+      });
+
+      // A texture bound to an effect is lent to it, so the texture refuses to be disposed while the
+      // effect can still sample it. Recorded as measured rather than asserted from the header.
+      record("boundTexture", () => {
+        const effect = new graphics.ShaderEffect(device, VERTEX, FRAGMENT);
+        const texture = new Graphics.Texture2D(device, 2, 2);
+        texture.SetData(new Array(4).fill(0).map(() => new Color(10, 20, 30, 40)));
+        const bound = outcome(() => effect.SetTexture(1, texture));
+        const disposedWhileBound = outcome(() => texture.Dispose());
+        effect.Dispose();
+        const disposedAfterEffect = outcome(() => texture.Dispose());
+        return { bound, disposedWhileBound, disposedAfterEffect };
+      });
+
+      // Nonsense source. CNA is explicit that a successful create says the object exists and not
+      // that anything compiled, and that renderers differ; this records which kind this one is.
+      record("nonsense", () => {
+        const effect = new graphics.ShaderEffect(device, "not glsl at all", "nor is this");
+        const answer = {
+          valid: effect.IsEffectValid,
+          hasRenderer: effect.HasRenderer,
+          compileError: effect.CompileError,
+        };
+        effect.Dispose();
+        return answer;
+      });
+
+      record("bothEmpty", () => outcome(() => new graphics.ShaderEffect(device, "", "").Dispose()));
+      record("oneEmpty", () => {
+        const effect = new graphics.ShaderEffect(device, VERTEX, "");
+        const valid = effect.IsEffectValid;
+        effect.Dispose();
+        return { created: true, valid };
+      });
+      record("badArguments", () => ({
+        nullDevice: outcome(() => new graphics.ShaderEffect(null, VERTEX, FRAGMENT)),
+        numberSource: outcome(() => new graphics.ShaderEffect(device, 3, FRAGMENT)),
+      }));
+
+      this.Exit();
+    }
+  }
+
+  const game = new ShaderProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const effect = evidence.effect;
+  assert.equal(typeof effect, "object", `the shader-effect probe failed: ${effect}`);
+
+  // It is an Effect. That is the point of the class: SpriteBatch.Begin and the device's draw calls
+  // take an Effect, and a custom shader is only useful where the stock ones go.
+  assert.equal(effect.shape.isEffect, true, "a ShaderEffect must be an Effect");
+  assert.equal(effect.shape.techniques, 1, "with one technique");
+  assert.equal(effect.shape.passes, 1, "and one pass");
+  assert.equal(typeof effect.shape.valid, "boolean");
+  assert.equal(effect.shape.hasRenderer, true, "and a live renderer behind it");
+
+  // The three matrices every stock effect exposes, each round-tripped and each distinct.
+  assert.deepEqual(effect.matrices.world, [1, 2, 3], "World keeps the translation it was given");
+  assert.deepEqual(effect.matrices.view, [2, 3, 4], "View keeps its scale");
+  assert.deepEqual(
+    effect.matrices.projection, [Math.fround(2 / 8), Math.fround(2 / 6)],
+    "and Projection keeps an orthographic matrix's own two scales -- in float, which is what CNA " +
+    "stores, so 2/6 comes back as the nearest float rather than the double this test computed",
+  );
+  assert.notDeepEqual(
+    effect.matrices.world, effect.matrices.view,
+    "the three are separate fields, not one repeated",
+  );
+
+  assert.deepEqual(
+    effect.matricesAfter, effect.matrices,
+    "and none of the uniform setters below writes into one of them: setting a mat4 uniform named " +
+    "something else must not move World, View or Projection",
+  );
+
+  // Every uniform shape CNA offers, each reaching the renderer without complaint.
+  for (const [name, answer] of Object.entries(effect.uniforms)) {
+    assert.equal(answer, "ok", `setting a ${name} uniform failed: ${answer}`);
+  }
+
+  // The refusals, each a different mistake and each named by this binding rather than by a result
+  // code from deep inside CNA.
+  assert.equal(effect.refusals.emptyName, "TypeError(-)", "an empty uniform name is refused here");
+  assert.equal(effect.refusals.missingName, "TypeError(-)");
+  assert.equal(effect.refusals.infiniteValue, "TypeError(-)", "and so is a value that is not finite");
+  assert.equal(
+    effect.refusals.mismatchedBlock, "TypeError(-)",
+    "a uniform block whose names and offsets differ in length is refused before CNA sees it",
+  );
+  assert.equal(effect.refusals.notAnArray, "TypeError(-)");
+
+  // A bound texture is lent to the effect: it refuses to be disposed while the effect can sample
+  // it, and disposes cleanly once the effect is gone. Measured, not assumed.
+  const bound = evidence.boundTexture;
+  assert.equal(typeof bound, "object", `the texture probe failed: ${bound}`);
+  assert.equal(bound.bound, "ok", "binding a texture to a sampler unit succeeds");
+  assert.equal(
+    bound.disposedWhileBound, "AggregateError(-)",
+    "and the texture then refuses to be disposed while the effect still holds it",
+  );
+  assert.equal(
+    bound.disposedAfterEffect, "ok",
+    "while disposing the effect first releases it, so the order is the only thing that matters",
+  );
+
+  // Nonsense source. CNA's header says in as many words that success here means the object exists,
+  // that whether a renderer compiles at construction is renderer-specific, and that "the same
+  // nonsense text is accepted by both, and afterwards one reports it valid while the other reports
+  // it invalid". Both halves of that are asserted, each against the renderer this suite runs on.
+  const nonsense = evidence.nonsense;
+  assert.equal(typeof nonsense, "object", `the nonsense probe failed: ${nonsense}`);
+  assert.equal(nonsense.hasRenderer, true, "the object exists whatever the renderer thought");
+  if (nonsense.valid) {
+    // HEADLESS: accepts the source and never compiles it, so it has nothing to report.
+    assert.equal(
+      nonsense.compileError, "",
+      "a renderer that reports nonsense valid never compiled it, so it has no log",
+    );
+  } else {
+    assert.ok(
+      nonsense.compileError.length > 0,
+      "a renderer that rejected the source must say why",
+    );
+  }
+  // The one thing settled everywhere: two empty sources are refused identically, rather than left
+  // to the renderer.
+  assert.equal(evidence.bothEmpty, "Error(1)", "two empty sources are INVALID_ARGUMENT");
+  assert.equal(
+    evidence.oneEmpty.created, true,
+    "while one empty source is not refused -- only both together are",
+  );
+  assert.equal(evidence.badArguments.nullDevice, "TypeError(-)");
+  assert.equal(evidence.badArguments.numberSource, "TypeError(-)");
+
+  console.log(
+    `CNA_TS_NATIVE_SHADER_EFFECT=PASS IS_EFFECT=true UNIFORM_SHAPES=${Object.keys(effect.uniforms).length} ` +
+    `NONSENSE_VALID=${nonsense.valid} TEXTURE_BORROW=REFUSES_WHILE_BOUND`,
+  );
+});

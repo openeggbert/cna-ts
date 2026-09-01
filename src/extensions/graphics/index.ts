@@ -53,7 +53,7 @@ import { resolveGraphicsDeviceHandleForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
 import { graphicsDeviceBackendForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
-import { adoptNativeEffectForInternalUse, type Effect } from
+import { adoptNativeEffectForInternalUse, Effect } from
   "../../Microsoft/Xna/Framework/Graphics/Effect.js";
 import { resolveEffectHandleForInternalUse, markEffectTransferredForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/Effect.js";
@@ -9194,4 +9194,255 @@ export class WeightedBlendedTransparency implements IDisposable {
   public static get AccumulationGlsl(): string {
     return extensions().getWeightedBlendedAccumulationGlsl();
   }
+}
+
+/**
+ * The adoption channel `Effect` keeps for a handle CNA already made.
+ *
+ * `ShaderEffect` is an `Effect` — that is the whole point of it, because `SpriteBatch.Begin` and
+ * `GraphicsDevice`'s draw calls take an `Effect` and a custom shader is only useful if it can go
+ * where the stock ones go. The cast reaches the same implementation-only constructor
+ * {@link adoptNativeEffectForInternalUse} uses; the public overloads are unchanged.
+ */
+const AdoptedEffect = Effect as unknown as new (
+  graphicsDevice: GraphicsDevice,
+  effectCode: undefined,
+  adoptedDescription: undefined,
+  adoptedNative: { readonly Backend: CnaEffectBackend; readonly Handle: NativeHandle },
+) => Effect;
+
+function effectsBackendFor(device: GraphicsDevice): CnaEffectBackend {
+  const backend = graphicsDeviceBackendForInternalUse(device).Effects;
+  if (backend == null) throw new NativeUnavailableError("CNA effect routes are unavailable");
+  return backend;
+}
+
+/**
+ * An `Effect` built from GLSL source the game wrote itself.
+ *
+ * Everywhere a stock effect goes this goes: `SpriteBatch.Begin(…, shaderEffect)` and the device's
+ * own draw calls both take it, because it *is* an `Effect`. {@link World}, {@link View} and
+ * {@link Projection} are the same three matrices every stock effect exposes and are forwarded to
+ * the compiled program under those names, so a shader written against an original XNA sample's
+ * uniform names works unchanged.
+ *
+ * **Constructing one does not mean it compiled.** CNA is explicit that success here means the
+ * object exists, and that whether a renderer compiles at construction — or looks at the source at
+ * all — is renderer-specific and deliberately not normalised. Ask {@link IsEffectValid}, and read
+ * {@link CompileError} for why when it says no. A failed compile is not an exception, because on
+ * several renderers `GraphicsCapability.CustomEffects` is true while GLSL is never compiled at all
+ * (HEADLESS and SOFTWARE accept and ignore it; Vulkan wants SPIR-V), and throwing would turn a
+ * documented capability boundary into a crash.
+ *
+ * The one thing settled everywhere is that two empty sources are refused.
+ */
+export class ShaderEffect extends AdoptedEffect {
+  public constructor(
+    graphicsDevice: GraphicsDevice, vertexSource: string, fragmentSource: string,
+  ) {
+    if (graphicsDevice == null) throw new TypeError("graphicsDevice is required");
+    if (typeof vertexSource !== "string" || typeof fragmentSource !== "string") {
+      throw new TypeError("both shader sources must be strings");
+    }
+    const backend = effectsBackendFor(graphicsDevice);
+    const handle = extensions().createShaderEffect(
+      postProcessDeviceHandle(graphicsDevice), vertexSource, fragmentSource);
+    super(graphicsDevice, undefined, undefined, { Backend: backend, Handle: handle });
+  }
+
+  #handle(): NativeHandle { return resolveEffectHandleForInternalUse(this); }
+
+  /** Whether the renderer compiled and linked the program. */
+  public get IsEffectValid(): boolean {
+    return extensions().isShaderEffectValid(this.#handle());
+  }
+
+  /** Whether the native compiled-program renderer behind it is still alive. */
+  public get HasRenderer(): boolean {
+    return extensions().shaderEffectHasRenderer(this.#handle());
+  }
+
+  /**
+   * The compiler's log from a failed compile, or `""` when it linked — or when the renderer keeps
+   * no log, which is a different thing from having nothing to say. {@link IsEffectValid} says
+   * *whether*; this says *why*.
+   */
+  public get CompileError(): string {
+    return extensions().getShaderEffectCompileError(this.#handle());
+  }
+
+  /** The world matrix, forwarded to the program as `World`. */
+  public get World(): Matrix { return toMatrix(extensions().getShaderEffectWorld(this.#handle())); }
+  public set World(value: Matrix) {
+    extensions().setShaderEffectWorld(this.#handle(), matrixValues(value, "World"));
+  }
+
+  /** The view matrix, forwarded to the program as `View`. */
+  public get View(): Matrix { return toMatrix(extensions().getShaderEffectView(this.#handle())); }
+  public set View(value: Matrix) {
+    extensions().setShaderEffectView(this.#handle(), matrixValues(value, "View"));
+  }
+
+  /** The projection matrix, forwarded to the program as `Projection`. */
+  public get Projection(): Matrix {
+    return toMatrix(extensions().getShaderEffectProjection(this.#handle()));
+  }
+  public set Projection(value: Matrix) {
+    extensions().setShaderEffectProjection(this.#handle(), matrixValues(value, "Projection"));
+  }
+
+  /** Sets a `mat4` uniform. One matrix, whatever size the uniform declares — see {@link SetUniformMat4Array}. */
+  public SetUniformMat4(name: string, value: Matrix): void {
+    extensions().setShaderEffectUniformMatrix(
+      this.#handle(), uniformName(name), matrixValues(value, "value"));
+  }
+
+  /** Sets a `vec4` uniform. */
+  public SetUniformVec4(name: string, value: Vector4): void {
+    if (value == null) throw new TypeError("value is required");
+    extensions().setShaderEffectUniformVector4(this.#handle(), uniformName(name), {
+      X: finite(value.X, "value.X"), Y: finite(value.Y, "value.Y"),
+      Z: finite(value.Z, "value.Z"), W: finite(value.W, "value.W"),
+    });
+  }
+
+  /** Sets a `vec3` uniform. */
+  public SetUniformVec3(name: string, value: Vector3): void {
+    extensions().setShaderEffectUniformVector3(
+      this.#handle(), uniformName(name), vectorSnapshot(value, "value"));
+  }
+
+  /** Sets a `vec2` uniform. */
+  public SetUniformVec2(name: string, value: Vector2): void {
+    if (value == null) throw new TypeError("value is required");
+    extensions().setShaderEffectUniformVector2(this.#handle(), uniformName(name), {
+      X: finite(value.X, "value.X"), Y: finite(value.Y, "value.Y"),
+    });
+  }
+
+  /** Sets a scalar `float` uniform. */
+  public SetUniformFloat(name: string, value: number): void {
+    extensions().setShaderEffectUniformFloat(this.#handle(), uniformName(name), finite(value, "value"));
+  }
+
+  /** Sets a scalar `int` uniform — which is also how a sampler is pointed at a unit. */
+  public SetUniformInt(name: string, value: number): void {
+    extensions().setShaderEffectUniformInt32(
+      this.#handle(), uniformName(name), wholeNumber(value, "value"));
+  }
+
+  /** Sets a `float[]` uniform. The count is the number of scalars. */
+  public SetUniformFloatArray(name: string, values: readonly number[]): void {
+    extensions().setShaderEffectUniformFloatArray(
+      this.#handle(), uniformName(name), numberList(values, "values"));
+  }
+
+  /** Sets a `vec2[]` uniform. */
+  public SetUniformVec2Array(name: string, values: readonly Vector2[]): void {
+    if (!Array.isArray(values)) throw new TypeError("values must be an array");
+    extensions().setShaderEffectUniformVector2Array(
+      this.#handle(), uniformName(name),
+      values.map((value, index) => {
+        if (value == null) throw new TypeError(`values[${index}] is required`);
+        return { X: finite(value.X, `values[${index}].X`), Y: finite(value.Y, `values[${index}].Y`) };
+      }));
+  }
+
+  /**
+   * Sets a `vec3[]` uniform, from three floats per element.
+   *
+   * Separate from {@link SetUniformFloatArray} for a reason worth stating: GL rejects filling a
+   * `vec3[]` from a float array as a type mismatch, leaves the uniform at its default, and reports
+   * nothing the caller sees.
+   */
+  public SetUniformVec3Array(name: string, values: readonly Vector3[]): void {
+    if (!Array.isArray(values)) throw new TypeError("values must be an array");
+    const flat: number[] = [];
+    for (const [index, value] of values.entries()) {
+      if (value == null) throw new TypeError(`values[${index}] is required`);
+      flat.push(
+        finite(value.X, `values[${index}].X`), finite(value.Y, `values[${index}].Y`),
+        finite(value.Z, `values[${index}].Z`));
+    }
+    extensions().setShaderEffectUniformVec3Array(this.#handle(), uniformName(name), flat);
+  }
+
+  /**
+   * Sets a `mat4[]` uniform — a skinning palette, typically.
+   *
+   * Separate from {@link SetUniformMat4}, which uploads exactly one matrix however large the
+   * uniform is: filling a palette with it leaves every element past the first at its default. The
+   * `name[0]` spelling GLSL uses for the first element is tried too, so either form works.
+   */
+  public SetUniformMat4Array(name: string, values: readonly Matrix[]): void {
+    if (!Array.isArray(values)) throw new TypeError("values must be an array");
+    const flat: number[] = [];
+    for (const [index, value] of values.entries()) {
+      flat.push(...matrixValues(value, `values[${index}]`));
+    }
+    extensions().setShaderEffectUniformMat4Array(this.#handle(), uniformName(name), flat);
+  }
+
+  /**
+   * Declares the std140 uniform block this effect's parameters live in.
+   *
+   * Required on a renderer whose shading dialect has no loose uniforms — every SPIR-V target — and
+   * harmlessly ignored everywhere else, so the call can sit unconditionally beside the
+   * construction. An empty `names` clears any previous declaration.
+   */
+  public DeclareUniformBlock(
+    blockSizeBytes: number, names: readonly string[], offsets: readonly number[],
+  ): void {
+    if (!Array.isArray(names) || !Array.isArray(offsets)) {
+      throw new TypeError("names and offsets must be arrays");
+    }
+    if (names.length !== offsets.length) {
+      throw new TypeError("names and offsets must be the same length");
+    }
+    extensions().declareShaderEffectUniformBlock(
+      this.#handle(), wholeNumber(blockSizeBytes, "blockSizeBytes"),
+      names.map((value, index) => uniformName(value, `names[${index}]`)),
+      offsets.map((value, index) => wholeNumber(value, `offsets[${index}]`)));
+  }
+
+  /**
+   * Binds a texture to one of this effect's sampler units.
+   *
+   * Unit 0 is normally driven by the caller — `SpriteBatch` binds its own texture there — so this
+   * is for the extra units a custom shader samples directly, the way real XNA's
+   * `GraphicsDevice.Textures[unit]` is.
+   */
+  public SetTexture(unit: number, texture: Texture2D): void;
+  /** The same, for a `samplerCube`. */
+  public SetTexture(unit: number, texture: TextureCube): void;
+  /** The same, for a `sampler3D`. */
+  public SetTexture(unit: number, texture: Texture3D): void;
+  public SetTexture(unit: number, texture: Texture2D | TextureCube | Texture3D): void {
+    if (texture == null) throw new TypeError("texture is required");
+    const slot = wholeNumber(unit, "unit");
+    if (texture instanceof Texture3D) {
+      extensions().setShaderEffectTexture3D(
+        this.#handle(), slot, resolveTexture3DHandleForInternalUse(texture));
+      return;
+    }
+    if (texture instanceof TextureCube) {
+      extensions().setShaderEffectTextureCube(
+        this.#handle(), slot, resolveTextureCubeHandleForInternalUse(texture));
+      return;
+    }
+    extensions().setShaderEffectTexture2D(
+      this.#handle(), slot, resolveTexture2DHandleForInternalUse(texture));
+  }
+}
+
+function uniformName(value: string, what = "name"): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new TypeError(`${what} must be a non-empty uniform name`);
+  }
+  return value;
+}
+
+function numberList(values: readonly number[], what: string): number[] {
+  if (!Array.isArray(values)) throw new TypeError(`${what} must be an array`);
+  return values.map((value, index) => finite(value, `${what}[${index}]`));
 }

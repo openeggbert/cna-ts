@@ -2081,6 +2081,7 @@ npm test             332/332      native 41/41      windowed 16/16
 20  the GPU instance culler runs, reports success and culls nothing   NEW, measured
 21  the OIT bracket's documented behaviour was corrected in the code,
     and its header and C shim still say the old thing                 NEW, measured
+22  a ShaderEffect's FIRST SpriteBatch draw produces nothing at all   NEW, measured
 ```
 
 Item 18 is the one to read first: it multiplies every leak finding in the document, and it was found
@@ -2097,6 +2098,11 @@ non-binding below, so **45 are work**:
  6  render_target_pool             2  indirect               ~11 singles
 ```
 
+`shader_effect` from `effects.h` is now bound in full (24 routes), and with it the weighted-blended
+accumulation is qualified to the pixel. `shader_effect_factory` (4) is the natural next step, then
+`effect` get/set extras (16) and `render_target_pool` (6), which are the two largest remaining
+engine-layer families.
+
 Two are deliberate non-bindings rather than work, and both are recorded in the bridge beside the
 routes they belong to: the **instanced renderer's object** and
 `cna_debug_draw_add_cluster_slice_gizmo` need a `CNA_ModelMeshPartHandle` and a
@@ -2105,17 +2111,7 @@ projection with no native handle while the clustered light *grid* is not project
 either would offer routes that could only ever be handed zero — the same reason
 `cna_lod_group_ext_select` is unbound.
 
-**Bind `ShaderEffect` next**, from `effects.h` rather than the engine layer (23 routes, none of them
-bound). It is not on the list above because it is a different header, but it is the highest-value
-thing left, for a reason this session measured rather than guessed: two planted defects in the
-weighted-blended binding survive the whole qualification — the revealage getter wired to the
-accumulation route, and `Resolve(1, 1)` in place of `Resolve(4, 4)` — and both survive for the same
-cause. Nothing in this package can write into the two OIT targets, because doing so needs a fragment
-shader calling `cnaOitEmit`, and a custom shader needs `ShaderEffect`. With it, the accumulation
-half of the technique becomes checkable to the pixel against the weight this session already pinned
-on the CPU: two overlapping layers at different depths resolve to a weighted average whose ratio is
-`w1 : w2`, which no defect in either getter survives. It also unlocks `shader_effect_factory` (4)
-above.
-
-After that, `effect` get/set extras (16) and `render_target_pool` (6) are the two largest remaining
-engine-layer families.
+**Read finding 22 before writing anything that draws with a custom shader.** A fresh `ShaderEffect`
+loses its first `SpriteBatch` draw, and a custom-shader draw leaves a GL error pending that the next
+multiple-render-target bind refuses on. Both are asserted rather than worked around, and the
+accumulation test shows the shape a test has to take to live with them.

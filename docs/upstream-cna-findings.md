@@ -19,11 +19,12 @@ particle draw. Items 13 and 14 are new, found while projecting the depth/normal 
 decal projector that reads it, item 15 while projecting the atmosphere, item 16 while
 projecting the cascaded, spot and cube shadow passes, items 17 and 18 while projecting the
 post-process passes, item 19 while projecting the physically-based materials, item 20 while
-projecting the culling families, and item 21 while projecting the transparency families.
+projecting the culling families, and items 21 and 22 while projecting the transparency
+families and the custom shader effects they need.
 
 **Items 7 and 9 are now fixed upstream**, in `48ab0de7f`, and verified here against the rebuilt
 library. Both were found by this package, both were *asserted* rather than worked around, and both
-detectors fired the moment the repair landed. Four of the twenty-one findings are now closed.
+detectors fired the moment the repair landed. Four of the twenty-two findings are now closed.
 
 ## 1. `cna_post_process_chain_add_owned_pass` leaks the owned-resource count
 
@@ -972,3 +973,73 @@ MOD-1697 rather than at the behaviour MOD-1697 removed.
 every renderer, including one that cannot resolve", asserts the measured column on whichever
 renderer it runs against. If the header is ever made true again — that is, if the code regresses to
 what it documents — that test fails, which is what it is for.
+
+## 22. A `ShaderEffect`'s first draw through `SpriteBatch` produces nothing at all
+
+**Severity:** a silent wrong picture, and the frame it eats is the first one.
+**Reproduced on:** OPENGLES3 (EasyGL, Mesa 25.0.7, OpenGL ES 3.2), CNA C ABI 0.21.0, 2026-09-01.
+
+A freshly created `ShaderEffect` drawn through `SpriteBatch` draws **nothing** the first time. Every
+later draw with the same effect is correct. Measured with a 4×4 render target cleared to opaque
+black, a 1×1 white sprite stretched over it, `BlendState.Opaque`, and a fragment shader whose only
+output is `vec4(uValue, 0, 0, 1)` with `uValue = 0.125`:
+
+| what was run | pixel (0,0) |
+| --- | --- |
+| a new effect's first `Begin`/`Draw`/`End` | `0, 0, 0, 255` — **nothing was drawn** |
+| the same effect, second run | `32, 0, 0, 255` — correct (`0.125 × 255 = 31.875`) |
+| the same effect, third run | `32, 0, 0, 255` |
+| a *second* new effect, first run | `0, 0, 0, 255` — **nothing again** |
+| that second effect, second run | `32, 0, 0, 255` |
+| `SpriteBatch` with **no** custom effect, first run | `40, 80, 120, 255` — correct |
+
+So it is once per effect, not once per render target, per batch or per frame: the target is rebound
+and cleared before each run above, and a batch with no custom effect draws correctly the first time.
+
+**It is the first `Apply` that matters, and that is the whole diagnosis.** Applying the effect's
+pass once *outside* any batch, immediately after construction, makes its first batch draw correctly:
+
+| what was run | pixel (0,0) |
+| --- | --- |
+| a new effect, `CurrentTechnique.Passes[0].Apply()`, then its first run | `32, 0, 0, 255` — correct |
+
+So the first `Apply` of a `ShaderEffect` has a side effect the draw depends on — the program being
+made current, its attribute bindings resolved, or its uniform locations looked up — and when that
+first `Apply` is the one `SpriteBatch.Begin` performs, the draw that follows it still goes out
+without it. A second `Apply` finds the work already done and the draw is correct.
+
+The effect itself is fine before the lost draw: `IsEffectValid` is already `true` and
+`GetCompileErrorEXT` is already empty, so nothing in the public state says a draw is about to be
+discarded.
+
+**What it costs.** A game that draws many frames loses one and never notices. A game that draws
+*once* with a fresh effect gets nothing at all and no error: a thumbnail, a lightmap or impostor
+bake, an offline render, a test. It also makes a custom shader impossible to qualify from a single
+frame, which is how this was found — the accumulation half of `WeightedBlendedTransparency` needs a
+shader calling `cnaOitEmit`, and with one batch per layer the first layer never reaches the buffer.
+
+**Proposed change.** Make the first `Apply` complete before the draw that follows it, rather than
+alongside it — whatever `Apply` does lazily on first use (program link, attribute or uniform-location
+resolution) should happen at construction or at the top of `Apply`, before `SpriteBatch` records the
+draw. The `Apply`-then-draw table above localises it: whatever the second `Apply` finds already done
+is what the first one does too late.
+
+**Workaround, with one caveat.** Apply the effect once immediately after constructing it: one line,
+no draw call, and it costs nothing on a renderer where the defect is absent. The caveat is that the
+bare `Apply` leaves a GL error pending — `cna_weighted_blended_transparency_begin` immediately after
+one fails with `CNA_RESULT_INTERNAL` and "EasyGL SetRenderTargets: native GL errors were pending
+before MRT setup: InvalidOperation(0x502)". So does a custom-shader *draw*: a
+`SpriteBatch.Begin`/`Draw`/`End` with a `ShaderEffect` leaves the same error pending, and the next
+multiple-render-target bind refuses on it while a bind with no custom-shader draw before it
+succeeds. Both were measured here. Where a multiple-render-target bind follows, spend the lost draw
+*inside* the bracket instead — a fragment that contributes nothing is enough, and that is what this
+package's own accumulation test does.
+
+The pending error is worth repairing on its own: `SetRenderTargets` is refusing over an error some
+earlier, unrelated call left behind, which makes the first `SetRenderTargets` after any custom
+shader unreliable.
+
+**Detector in cna-ts:** `test/windowed-renderer.integration.mjs` runs the first table above and
+asserts every row, including the blank first draw. When this is repaired the "nothing was drawn" row
+fails, which is the point. The weighted-blended accumulation test beside it applies its effect once
+before the bracket opens and says why.

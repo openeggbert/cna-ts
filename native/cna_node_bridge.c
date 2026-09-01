@@ -1017,6 +1017,22 @@ typedef CNA_Result (*WeightedResizeFn)(CNA_Handle, int32_t, int32_t);
 typedef CNA_Result (*WeightedBeginFn)(CNA_Handle, float);
 typedef CNA_Result (*WeightedWeightFn)(float, float, float, float*);
 
+typedef CNA_Result (*ShaderEffectCreateFn)(CNA_Handle, CNA_StringView, CNA_StringView, CNA_Handle*);
+typedef CNA_Result (*ShaderUniformMatrixFn)(CNA_Handle, CNA_StringView, CNA_Matrix);
+typedef CNA_Result (*ShaderUniformVector4Fn)(CNA_Handle, CNA_StringView, CNA_Vector4);
+typedef CNA_Result (*ShaderUniformVector3Fn)(CNA_Handle, CNA_StringView, CNA_Vector3);
+typedef CNA_Result (*ShaderUniformVector2Fn)(CNA_Handle, CNA_StringView, CNA_Vector2);
+typedef CNA_Result (*ShaderUniformFloatFn)(CNA_Handle, CNA_StringView, float);
+typedef CNA_Result (*ShaderUniformInt32Fn)(CNA_Handle, CNA_StringView, int32_t);
+typedef CNA_Result (*ShaderUniformBlockFn)(CNA_Handle, int32_t, const CNA_StringView*, const int32_t*, uint64_t);
+typedef CNA_Result (*ShaderUniformFloatArrayFn)(CNA_Handle, CNA_StringView, const float*, uint64_t);
+typedef CNA_Result (*ShaderUniformVector2ArrayFn)(CNA_Handle, CNA_StringView, const CNA_Vector2*, uint64_t);
+typedef CNA_Result (*ShaderUniformVec3ArrayFn)(CNA_Handle, CNA_StringView, const float*, int32_t);
+typedef CNA_Result (*ShaderUniformMat4ArrayFn)(CNA_Handle, CNA_StringView, const float*, int32_t);
+typedef CNA_Result (*ShaderTextureFn)(CNA_Handle, int32_t, CNA_Handle);
+typedef CNA_Result (*ShaderMatrixOutFn)(CNA_Handle, CNA_Matrix*);
+typedef CNA_Result (*ShaderMatrixInFn)(CNA_Handle, CNA_Matrix);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2687,6 +2703,30 @@ typedef struct Api {
   HandleHandleOutFn weighted_blended_transparency_get_revealage_texture_ext;
   GpuCullGlslFn weighted_blended_transparency_copy_accumulation_glsl;
   WeightedWeightFn weighted_blended_transparency_weight;
+  ShaderEffectCreateFn shader_effect_create;
+  BoolGetFn shader_effect_is_valid;
+  BoolGetFn shader_effect_has_renderer;
+  HandleCopyStringFn shader_effect_copy_compile_error_ext;
+  ShaderUniformMatrixFn shader_effect_set_uniform_matrix;
+  ShaderUniformVector4Fn shader_effect_set_uniform_vector4;
+  ShaderUniformVector3Fn shader_effect_set_uniform_vector3;
+  ShaderUniformVector2Fn shader_effect_set_uniform_vector2;
+  ShaderUniformFloatFn shader_effect_set_uniform_float;
+  ShaderUniformInt32Fn shader_effect_set_uniform_int32;
+  ShaderUniformBlockFn shader_effect_declare_uniform_block_ext;
+  ShaderUniformFloatArrayFn shader_effect_set_uniform_float_array;
+  ShaderUniformVector2ArrayFn shader_effect_set_uniform_vector2_array;
+  ShaderUniformVec3ArrayFn shader_effect_set_uniform_vec3_array;
+  ShaderUniformMat4ArrayFn shader_effect_set_uniform_mat4_array;
+  ShaderTextureFn shader_effect_set_texture2d;
+  ShaderTextureFn shader_effect_set_texture_cube;
+  ShaderTextureFn shader_effect_set_texture3d;
+  ShaderMatrixOutFn shader_effect_get_world;
+  ShaderMatrixInFn shader_effect_set_world;
+  ShaderMatrixOutFn shader_effect_get_view;
+  ShaderMatrixInFn shader_effect_set_view;
+  ShaderMatrixOutFn shader_effect_get_projection;
+  ShaderMatrixInFn shader_effect_set_projection;
 } Api;
 
 typedef struct GameContext {
@@ -4644,6 +4684,30 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(weighted_blended_transparency_get_revealage_texture_ext, HandleHandleOutFn, "cna_weighted_blended_transparency_get_revealage_texture_ext");
   LOAD_REQUIRED(weighted_blended_transparency_copy_accumulation_glsl, GpuCullGlslFn, "cna_weighted_blended_transparency_copy_accumulation_glsl");
   LOAD_REQUIRED(weighted_blended_transparency_weight, WeightedWeightFn, "cna_weighted_blended_transparency_weight");
+  LOAD_REQUIRED(shader_effect_create, ShaderEffectCreateFn, "cna_shader_effect_create");
+  LOAD_REQUIRED(shader_effect_is_valid, BoolGetFn, "cna_shader_effect_is_valid");
+  LOAD_REQUIRED(shader_effect_has_renderer, BoolGetFn, "cna_shader_effect_has_renderer");
+  LOAD_REQUIRED(shader_effect_copy_compile_error_ext, HandleCopyStringFn, "cna_shader_effect_copy_compile_error_ext");
+  LOAD_REQUIRED(shader_effect_set_uniform_matrix, ShaderUniformMatrixFn, "cna_shader_effect_set_uniform_matrix");
+  LOAD_REQUIRED(shader_effect_set_uniform_vector4, ShaderUniformVector4Fn, "cna_shader_effect_set_uniform_vector4");
+  LOAD_REQUIRED(shader_effect_set_uniform_vector3, ShaderUniformVector3Fn, "cna_shader_effect_set_uniform_vector3");
+  LOAD_REQUIRED(shader_effect_set_uniform_vector2, ShaderUniformVector2Fn, "cna_shader_effect_set_uniform_vector2");
+  LOAD_REQUIRED(shader_effect_set_uniform_float, ShaderUniformFloatFn, "cna_shader_effect_set_uniform_float");
+  LOAD_REQUIRED(shader_effect_set_uniform_int32, ShaderUniformInt32Fn, "cna_shader_effect_set_uniform_int32");
+  LOAD_REQUIRED(shader_effect_declare_uniform_block_ext, ShaderUniformBlockFn, "cna_shader_effect_declare_uniform_block_ext");
+  LOAD_REQUIRED(shader_effect_set_uniform_float_array, ShaderUniformFloatArrayFn, "cna_shader_effect_set_uniform_float_array");
+  LOAD_REQUIRED(shader_effect_set_uniform_vector2_array, ShaderUniformVector2ArrayFn, "cna_shader_effect_set_uniform_vector2_array");
+  LOAD_REQUIRED(shader_effect_set_uniform_vec3_array, ShaderUniformVec3ArrayFn, "cna_shader_effect_set_uniform_vec3_array");
+  LOAD_REQUIRED(shader_effect_set_uniform_mat4_array, ShaderUniformMat4ArrayFn, "cna_shader_effect_set_uniform_mat4_array");
+  LOAD_REQUIRED(shader_effect_set_texture2d, ShaderTextureFn, "cna_shader_effect_set_texture2d");
+  LOAD_REQUIRED(shader_effect_set_texture_cube, ShaderTextureFn, "cna_shader_effect_set_texture_cube");
+  LOAD_REQUIRED(shader_effect_set_texture3d, ShaderTextureFn, "cna_shader_effect_set_texture3d");
+  LOAD_REQUIRED(shader_effect_get_world, ShaderMatrixOutFn, "cna_shader_effect_get_world");
+  LOAD_REQUIRED(shader_effect_set_world, ShaderMatrixInFn, "cna_shader_effect_set_world");
+  LOAD_REQUIRED(shader_effect_get_view, ShaderMatrixOutFn, "cna_shader_effect_get_view");
+  LOAD_REQUIRED(shader_effect_set_view, ShaderMatrixInFn, "cna_shader_effect_set_view");
+  LOAD_REQUIRED(shader_effect_get_projection, ShaderMatrixOutFn, "cna_shader_effect_get_projection");
+  LOAD_REQUIRED(shader_effect_set_projection, ShaderMatrixInFn, "cna_shader_effect_set_projection");
   LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
   LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
   LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
@@ -27037,10 +27101,522 @@ static napi_value bridge_weighted_blended_transparency_copy_accumulation_glsl(
     "cna_weighted_blended_transparency_copy_accumulation_glsl");
 }
 
+/* ---- shader effects: an Effect whose two shader sources the game wrote itself -----------------
+   Every uniform setter takes the name by CNA_StringView, so each one reads the name, calls, and
+   frees. The generic string helper is not reused because a failed call must still free the name
+   before it throws. */
+
+
+static int get_named_float(napi_env env, napi_value object, const char* name, float* out) {
+  double value = 0;
+  if (!get_named_double(env, object, name, &value)) return 0;
+  *out = (float) value;
+  return 1;
+}
+
+/**
+ * Reads a uniform name and its effect, shared by the eight setters below.
+ *
+ * Returns 1 with @p out_name owned by the caller, or 0 with an exception already thrown.
+ */
+static int shader_uniform_target(
+  napi_env env, napi_value handleValue, napi_value nameValue,
+  CNA_Handle* out_effect, char** out_name, size_t* out_length
+) {
+  if (!read_handle(env, handleValue, out_effect)) return 0;
+  if (!read_utf8(env, nameValue, out_name, out_length)) return 0;
+  return 1;
+}
+
+static napi_value shader_uniform_result(
+  napi_env env, char* name, CNA_Result result, const char* route
+) {
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, route, result);
+  return undefined_result(env, route);
+}
+
+static napi_value bridge_shader_effect_create(napi_env env, napi_callback_info info) {
+  napi_value args[3], output;
+  CNA_Handle device = 0, effect = 0;
+  char* vertex = NULL;
+  char* fragment = NULL;
+  size_t vertexLength = 0, fragmentLength = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &device) ||
+      !read_utf8(env, args[1], &vertex, &vertexLength)) return NULL;
+  if (!read_utf8(env, args[2], &fragment, &fragmentLength)) {
+    free(vertex);
+    return NULL;
+  }
+  const CNA_StringView vertexView = {vertex, vertexLength};
+  const CNA_StringView fragmentView = {fragment, fragmentLength};
+  const CNA_Result result =
+    g_api.shader_effect_create(device, vertexView, fragmentView, &effect);
+  free(vertex);
+  free(fragment);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_shader_effect_create", result);
+  }
+  output = make_handle(env, effect);
+  return output;
+}
+
+static napi_value bridge_shader_effect_set_uniform_matrix(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  char* name = NULL;
+  size_t length = 0;
+  CNA_Matrix value;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !shader_uniform_target(env, args[0], args[1], &effect, &name, &length)) return NULL;
+  if (!read_matrix16(env, args[2], &value, "a uniform matrix")) {
+    free(name);
+    return NULL;
+  }
+  const CNA_StringView view = {name, length};
+  return shader_uniform_result(
+    env, name, g_api.shader_effect_set_uniform_matrix(effect, view, value),
+    "cna_shader_effect_set_uniform_matrix");
+}
+
+static napi_value bridge_shader_effect_set_uniform_vector4(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  char* name = NULL;
+  size_t length = 0;
+  CNA_Vector4 value = {0, 0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !shader_uniform_target(env, args[0], args[1], &effect, &name, &length)) return NULL;
+  if (!get_named_float(env, args[2], "X", &value.x) ||
+      !get_named_float(env, args[2], "Y", &value.y) ||
+      !get_named_float(env, args[2], "Z", &value.z) ||
+      !get_named_float(env, args[2], "W", &value.w)) {
+    free(name);
+    return NULL;
+  }
+  const CNA_StringView view = {name, length};
+  return shader_uniform_result(
+    env, name, g_api.shader_effect_set_uniform_vector4(effect, view, value),
+    "cna_shader_effect_set_uniform_vector4");
+}
+
+static napi_value bridge_shader_effect_set_uniform_vector3(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  char* name = NULL;
+  size_t length = 0;
+  CNA_Vector3 value = {0, 0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !shader_uniform_target(env, args[0], args[1], &effect, &name, &length)) return NULL;
+  if (!read_vector3_fields(env, args[2], &value)) {
+    free(name);
+    return NULL;
+  }
+  const CNA_StringView view = {name, length};
+  return shader_uniform_result(
+    env, name, g_api.shader_effect_set_uniform_vector3(effect, view, value),
+    "cna_shader_effect_set_uniform_vector3");
+}
+
+static napi_value bridge_shader_effect_set_uniform_vector2(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  char* name = NULL;
+  size_t length = 0;
+  CNA_Vector2 value = {0, 0};
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !shader_uniform_target(env, args[0], args[1], &effect, &name, &length)) return NULL;
+  if (!get_named_float(env, args[2], "X", &value.x) ||
+      !get_named_float(env, args[2], "Y", &value.y)) {
+    free(name);
+    return NULL;
+  }
+  const CNA_StringView view = {name, length};
+  return shader_uniform_result(
+    env, name, g_api.shader_effect_set_uniform_vector2(effect, view, value),
+    "cna_shader_effect_set_uniform_vector2");
+}
+
+static napi_value bridge_shader_effect_set_uniform_float(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  char* name = NULL;
+  size_t length = 0;
+  double value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !shader_uniform_target(env, args[0], args[1], &effect, &name, &length)) return NULL;
+  if (napi_get_value_double(env, args[2], &value) != napi_ok) {
+    free(name);
+    return throw_message(env, "expected a uniform value");
+  }
+  const CNA_StringView view = {name, length};
+  return shader_uniform_result(
+    env, name, g_api.shader_effect_set_uniform_float(effect, view, (float) value),
+    "cna_shader_effect_set_uniform_float");
+}
+
+static napi_value bridge_shader_effect_set_uniform_int32(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  char* name = NULL;
+  size_t length = 0;
+  int32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !shader_uniform_target(env, args[0], args[1], &effect, &name, &length)) return NULL;
+  if (napi_get_value_int32(env, args[2], &value) != napi_ok) {
+    free(name);
+    return throw_message(env, "expected a uniform integer");
+  }
+  const CNA_StringView view = {name, length};
+  return shader_uniform_result(
+    env, name, g_api.shader_effect_set_uniform_int32(effect, view, value),
+    "cna_shader_effect_set_uniform_int32");
+}
+
+/** Reads a JavaScript array of numbers into a freshly allocated float array of its own length. */
+static int read_float_list(
+  napi_env env, napi_value value, float** out_values, uint32_t* out_count, const char* what
+) {
+  bool is_array = false;
+  uint32_t length = 0;
+  if (napi_is_array(env, value, &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, value, &length) != napi_ok) {
+    throw_message(env, what);
+    return 0;
+  }
+  if (length > (1u << 22)) {
+    throw_message(env, "an implausible uniform array length");
+    return 0;
+  }
+  float* values = length == 0 ? NULL : (float*) calloc(length, sizeof(float));
+  if (length != 0 && !values) {
+    throw_message(env, "uniform array allocation failed");
+    return 0;
+  }
+  for (uint32_t index = 0; index < length; index += 1) {
+    napi_value entry;
+    double number = 0;
+    if (napi_get_element(env, value, index, &entry) != napi_ok ||
+        napi_get_value_double(env, entry, &number) != napi_ok) {
+      free(values);
+      throw_message(env, what);
+      return 0;
+    }
+    values[index] = (float) number;
+  }
+  *out_values = values;
+  *out_count = length;
+  return 1;
+}
+
+static napi_value bridge_shader_effect_set_uniform_float_array(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  char* name = NULL;
+  size_t length = 0;
+  float* values = NULL;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !shader_uniform_target(env, args[0], args[1], &effect, &name, &length)) return NULL;
+  if (!read_float_list(env, args[2], &values, &count, "expected an array of uniform floats")) {
+    free(name);
+    return NULL;
+  }
+  const CNA_StringView view = {name, length};
+  const CNA_Result result =
+    g_api.shader_effect_set_uniform_float_array(effect, view, values, count);
+  free(values);
+  return shader_uniform_result(
+    env, name, result, "cna_shader_effect_set_uniform_float_array");
+}
+
+static napi_value bridge_shader_effect_set_uniform_vector2_array(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  char* name = NULL;
+  size_t length = 0;
+  bool is_array = false;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !shader_uniform_target(env, args[0], args[1], &effect, &name, &length)) return NULL;
+  if (napi_is_array(env, args[2], &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, args[2], &count) != napi_ok || count > (1u << 20)) {
+    free(name);
+    return throw_message(env, "expected an array of Vector2 values");
+  }
+  CNA_Vector2* values = count == 0 ? NULL : (CNA_Vector2*) calloc(count, sizeof(CNA_Vector2));
+  if (count != 0 && !values) {
+    free(name);
+    return throw_message(env, "uniform array allocation failed");
+  }
+  for (uint32_t index = 0; index < count; index += 1) {
+    napi_value entry;
+    if (napi_get_element(env, args[2], index, &entry) != napi_ok ||
+        !get_named_float(env, entry, "X", &values[index].x) ||
+        !get_named_float(env, entry, "Y", &values[index].y)) {
+      free(values);
+      free(name);
+      return NULL;
+    }
+  }
+  const CNA_StringView view = {name, length};
+  const CNA_Result result =
+    g_api.shader_effect_set_uniform_vector2_array(effect, view, values, count);
+  free(values);
+  return shader_uniform_result(
+    env, name, result, "cna_shader_effect_set_uniform_vector2_array");
+}
+
+static napi_value bridge_shader_effect_set_uniform_vec3_array(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  char* name = NULL;
+  size_t length = 0;
+  float* values = NULL;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !shader_uniform_target(env, args[0], args[1], &effect, &name, &length)) return NULL;
+  /* Flat floats, three per vector: the route counts vectors, not floats. */
+  if (!read_float_list(env, args[2], &values, &count, "expected a flat array of vec3 floats")) {
+    free(name);
+    return NULL;
+  }
+  if (count % 3 != 0) {
+    free(values);
+    free(name);
+    return throw_message(env, "a vec3 array must hold three floats per vector");
+  }
+  const CNA_StringView view = {name, length};
+  const CNA_Result result =
+    g_api.shader_effect_set_uniform_vec3_array(effect, view, values, (int32_t) (count / 3));
+  free(values);
+  return shader_uniform_result(env, name, result, "cna_shader_effect_set_uniform_vec3_array");
+}
+
+static napi_value bridge_shader_effect_set_uniform_mat4_array(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[3];
+  CNA_Handle effect = 0;
+  char* name = NULL;
+  size_t length = 0;
+  float* values = NULL;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !shader_uniform_target(env, args[0], args[1], &effect, &name, &length)) return NULL;
+  if (!read_float_list(env, args[2], &values, &count, "expected a flat array of mat4 floats")) {
+    free(name);
+    return NULL;
+  }
+  if (count % 16 != 0) {
+    free(values);
+    free(name);
+    return throw_message(env, "a mat4 array must hold sixteen floats per matrix");
+  }
+  const CNA_StringView view = {name, length};
+  const CNA_Result result =
+    g_api.shader_effect_set_uniform_mat4_array(effect, view, values, (int32_t) (count / 16));
+  free(values);
+  return shader_uniform_result(env, name, result, "cna_shader_effect_set_uniform_mat4_array");
+}
+
+static napi_value bridge_shader_effect_declare_uniform_block_ext(
+  napi_env env, napi_callback_info info
+) {
+  napi_value args[4];
+  CNA_Handle effect = 0;
+  int32_t blockSize = 0;
+  bool is_array = false;
+  uint32_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &effect) ||
+      napi_get_value_int32(env, args[1], &blockSize) != napi_ok) {
+    return throw_message(env, "expected an effect and a block size");
+  }
+  if (napi_is_array(env, args[2], &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, args[2], &count) != napi_ok || count > 4096) {
+    return throw_message(env, "expected an array of uniform names");
+  }
+  uint32_t offsetCount = 0;
+  if (napi_is_array(env, args[3], &is_array) != napi_ok || !is_array ||
+      napi_get_array_length(env, args[3], &offsetCount) != napi_ok || offsetCount != count) {
+    return throw_message(env, "the names and the offsets must be the same length");
+  }
+  CNA_StringView* names = count == 0 ? NULL : (CNA_StringView*) calloc(count, sizeof(CNA_StringView));
+  int32_t* offsets = count == 0 ? NULL : (int32_t*) calloc(count, sizeof(int32_t));
+  char** owned = count == 0 ? NULL : (char**) calloc(count, sizeof(char*));
+  if (count != 0 && (!names || !offsets || !owned)) {
+    free(names); free(offsets); free(owned);
+    return throw_message(env, "uniform block allocation failed");
+  }
+  int failed = 0;
+  for (uint32_t index = 0; index < count && !failed; index += 1) {
+    napi_value nameValue, offsetValue;
+    size_t nameLength = 0;
+    if (napi_get_element(env, args[2], index, &nameValue) != napi_ok ||
+        !read_utf8(env, nameValue, &owned[index], &nameLength) ||
+        napi_get_element(env, args[3], index, &offsetValue) != napi_ok ||
+        napi_get_value_int32(env, offsetValue, &offsets[index]) != napi_ok) {
+      failed = 1;
+      break;
+    }
+    names[index].data = owned[index];
+    names[index].byte_length = nameLength;
+  }
+  CNA_Result result = CNA_RESULT_SUCCESS;
+  if (!failed) {
+    result = g_api.shader_effect_declare_uniform_block_ext(
+      effect, blockSize, names, offsets, count);
+  }
+  for (uint32_t index = 0; index < count; index += 1) free(owned[index]);
+  free(owned);
+  free(names);
+  free(offsets);
+  if (failed) return NULL;
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_shader_effect_declare_uniform_block_ext", result);
+  }
+  return undefined_result(env, "cna_shader_effect_declare_uniform_block_ext");
+}
+
+/** The three texture binders differ only in the route they call. */
+static napi_value shader_effect_set_texture(
+  napi_env env, napi_callback_info info, ShaderTextureFn route, const char* name
+) {
+  napi_value args[3];
+  CNA_Handle effect = 0, texture = 0;
+  int32_t unit = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &effect) ||
+      napi_get_value_int32(env, args[1], &unit) != napi_ok ||
+      !read_handle_allow_zero(env, args[2], &texture)) {
+    return throw_message(env, "expected an effect, a unit and a texture");
+  }
+  const CNA_Result result = route(effect, unit, texture);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value bridge_shader_effect_set_texture2d(napi_env env, napi_callback_info info) {
+  return shader_effect_set_texture(
+    env, info, g_api.shader_effect_set_texture2d, "cna_shader_effect_set_texture2d");
+}
+
+static napi_value bridge_shader_effect_set_texture_cube(napi_env env, napi_callback_info info) {
+  return shader_effect_set_texture(
+    env, info, g_api.shader_effect_set_texture_cube, "cna_shader_effect_set_texture_cube");
+}
+
+static napi_value bridge_shader_effect_set_texture3d(napi_env env, napi_callback_info info) {
+  return shader_effect_set_texture(
+    env, info, g_api.shader_effect_set_texture3d, "cna_shader_effect_set_texture3d");
+}
+
+/** The three transform pairs, which take and return a matrix by value. */
+static napi_value shader_effect_get_matrix(
+  napi_env env, napi_callback_info info, ShaderMatrixOutFn route, const char* name
+) {
+  napi_value args[1];
+  CNA_Handle effect = 0;
+  CNA_Matrix value;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &effect)) return NULL;
+  const CNA_Result result = route(effect, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return make_matrix16(env, &value, name);
+}
+
+static napi_value shader_effect_set_matrix(
+  napi_env env, napi_callback_info info, ShaderMatrixInFn route, const char* name
+) {
+  napi_value args[2];
+  CNA_Handle effect = 0;
+  CNA_Matrix value;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &effect) ||
+      !read_matrix16(env, args[1], &value, "a transform")) return NULL;
+  const CNA_Result result = route(effect, value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  return undefined_result(env, name);
+}
+
+static napi_value bridge_shader_effect_get_world(napi_env env, napi_callback_info info) {
+  return shader_effect_get_matrix(
+    env, info, g_api.shader_effect_get_world, "cna_shader_effect_get_world");
+}
+
+static napi_value bridge_shader_effect_set_world(napi_env env, napi_callback_info info) {
+  return shader_effect_set_matrix(
+    env, info, g_api.shader_effect_set_world, "cna_shader_effect_set_world");
+}
+
+static napi_value bridge_shader_effect_get_view(napi_env env, napi_callback_info info) {
+  return shader_effect_get_matrix(
+    env, info, g_api.shader_effect_get_view, "cna_shader_effect_get_view");
+}
+
+static napi_value bridge_shader_effect_set_view(napi_env env, napi_callback_info info) {
+  return shader_effect_set_matrix(
+    env, info, g_api.shader_effect_set_view, "cna_shader_effect_set_view");
+}
+
+static napi_value bridge_shader_effect_get_projection(napi_env env, napi_callback_info info) {
+  return shader_effect_get_matrix(
+    env, info, g_api.shader_effect_get_projection, "cna_shader_effect_get_projection");
+}
+
+static napi_value bridge_shader_effect_set_projection(napi_env env, napi_callback_info info) {
+  return shader_effect_set_matrix(
+    env, info, g_api.shader_effect_set_projection, "cna_shader_effect_set_projection");
+}
+
+static napi_value bridge_shader_effect_is_valid(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.shader_effect_is_valid, "cna_shader_effect_is_valid");
+}
+
+static napi_value bridge_shader_effect_has_renderer(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.shader_effect_has_renderer, "cna_shader_effect_has_renderer");
+}
+
+static napi_value bridge_shader_effect_copy_compile_error_ext(napi_env env, napi_callback_info info) {
+  return copy_sized_text(env, info, g_api.shader_effect_copy_compile_error_ext, "cna_shader_effect_copy_compile_error_ext");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "createShaderEffect", NULL, bridge_shader_effect_create, NULL, NULL, NULL, napi_default, NULL },
+    { "isShaderEffectValid", NULL, bridge_shader_effect_is_valid, NULL, NULL, NULL, napi_default, NULL },
+    { "shaderEffectHasRenderer", NULL, bridge_shader_effect_has_renderer, NULL, NULL, NULL, napi_default, NULL },
+    { "getShaderEffectCompileError", NULL, bridge_shader_effect_copy_compile_error_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectUniformMatrix", NULL, bridge_shader_effect_set_uniform_matrix, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectUniformVector4", NULL, bridge_shader_effect_set_uniform_vector4, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectUniformVector3", NULL, bridge_shader_effect_set_uniform_vector3, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectUniformVector2", NULL, bridge_shader_effect_set_uniform_vector2, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectUniformFloat", NULL, bridge_shader_effect_set_uniform_float, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectUniformInt32", NULL, bridge_shader_effect_set_uniform_int32, NULL, NULL, NULL, napi_default, NULL },
+    { "declareShaderEffectUniformBlock", NULL, bridge_shader_effect_declare_uniform_block_ext, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectUniformFloatArray", NULL, bridge_shader_effect_set_uniform_float_array, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectUniformVector2Array", NULL, bridge_shader_effect_set_uniform_vector2_array, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectUniformVec3Array", NULL, bridge_shader_effect_set_uniform_vec3_array, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectUniformMat4Array", NULL, bridge_shader_effect_set_uniform_mat4_array, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectTexture2D", NULL, bridge_shader_effect_set_texture2d, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectTextureCube", NULL, bridge_shader_effect_set_texture_cube, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectTexture3D", NULL, bridge_shader_effect_set_texture3d, NULL, NULL, NULL, napi_default, NULL },
+    { "getShaderEffectWorld", NULL, bridge_shader_effect_get_world, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectWorld", NULL, bridge_shader_effect_set_world, NULL, NULL, NULL, napi_default, NULL },
+    { "getShaderEffectView", NULL, bridge_shader_effect_get_view, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectView", NULL, bridge_shader_effect_set_view, NULL, NULL, NULL, napi_default, NULL },
+    { "getShaderEffectProjection", NULL, bridge_shader_effect_get_projection, NULL, NULL, NULL, napi_default, NULL },
+    { "setShaderEffectProjection", NULL, bridge_shader_effect_set_projection, NULL, NULL, NULL, napi_default, NULL },
     { "createTransparentDrawList", NULL, bridge_transparent_draw_list_create, NULL, NULL, NULL, napi_default, NULL },
     { "destroyTransparentDrawList", NULL, bridge_transparent_draw_list_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "clearTransparentDrawList", NULL, bridge_transparent_draw_list_clear, NULL, NULL, NULL, napi_default, NULL },

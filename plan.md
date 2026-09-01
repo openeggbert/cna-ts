@@ -609,9 +609,22 @@ Electron, or mobile support.
   which is the opposite of what CNA's header still documents (finding 21). On a windowed renderer
   both lent targets are half-float and read back as `HalfVector4` zeros, and an empty resolve
   **discards** rather than blending a zero contribution, leaving the target exactly as cleared.
-  Eleven planted defects were run: nine fail, and the two that survive are recorded rather than
-  hidden — both need something able to write distinguishable values into the two targets, which
-  waits on binding CNA's `ShaderEffect`.
+  The accumulation half is qualified to the pixel through a custom shader calling `cnaOitEmit`: two
+  overlapping layers at very different depths accumulate exactly what the weight predicts on the
+  CPU, the revealage target holds the **sum of the logs** rather than the product of the
+  transmissions, and the resolve divides them into the near layer's own colour at three quarters
+  coverage — `64,128,255,191`, predicted channel by channel and matched exactly. Seventeen planted
+  defects were run across this family and the shader effects it needs; none survives.
+- [x] **Custom shader effects**, which is what made the paragraph above possible. A `ShaderEffect`
+  *is* an `Effect`, so it goes wherever a stock one goes; all three `IEffectMatrices` transforms
+  round-trip and are re-read after every uniform setter, so a setter wired into one of them is
+  caught; every uniform shape CNA offers is exercised, including the std140 block declaration and
+  its clearing form. A bound texture is **lent** to the effect — the texture refuses disposal while
+  the effect can sample it, and a texture bound to unit 1 is what a shader sampling unit 1 reads.
+  Nonsense source behaves the way CNA's header insists it must: success means the object exists and
+  not that anything compiled, and the two renderers here disagree exactly as the header predicts —
+  HEADLESS reports it valid with an empty log, OPENGLES3 reports it invalid with the compiler's own
+  words. Two empty sources are the one case refused identically everywhere.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a

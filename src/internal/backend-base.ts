@@ -2418,6 +2418,112 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
     _alpha: number,
     _farPlane: number,
   ): number { return this.unsupported("getWeightedBlendedWeight"); }
+  public createShaderEffect(
+    _graphicsDevice: NativeHandle,
+    _vertexSource: string,
+    _fragmentSource: string,
+  ): NativeHandle { return this.unsupported("createShaderEffect"); }
+  public isShaderEffectValid(
+    _effect: NativeHandle,
+  ): boolean { return this.unsupported("isShaderEffectValid"); }
+  public shaderEffectHasRenderer(
+    _effect: NativeHandle,
+  ): boolean { return this.unsupported("shaderEffectHasRenderer"); }
+  public getShaderEffectCompileError(
+    _effect: NativeHandle,
+  ): string { return this.unsupported("getShaderEffectCompileError"); }
+  public setShaderEffectUniformMatrix(
+    _effect: NativeHandle,
+    _name: string,
+    _value: readonly number[],
+  ): void { return this.unsupported("setShaderEffectUniformMatrix"); }
+  public setShaderEffectUniformVector4(
+    _effect: NativeHandle,
+    _name: string,
+    _value: Vector4Snapshot,
+  ): void { return this.unsupported("setShaderEffectUniformVector4"); }
+  public setShaderEffectUniformVector3(
+    _effect: NativeHandle,
+    _name: string,
+    _value: Vector3Snapshot,
+  ): void { return this.unsupported("setShaderEffectUniformVector3"); }
+  public setShaderEffectUniformVector2(
+    _effect: NativeHandle,
+    _name: string,
+    _value: Vector2Snapshot,
+  ): void { return this.unsupported("setShaderEffectUniformVector2"); }
+  public setShaderEffectUniformFloat(
+    _effect: NativeHandle,
+    _name: string,
+    _value: number,
+  ): void { return this.unsupported("setShaderEffectUniformFloat"); }
+  public setShaderEffectUniformInt32(
+    _effect: NativeHandle,
+    _name: string,
+    _value: number,
+  ): void { return this.unsupported("setShaderEffectUniformInt32"); }
+  public declareShaderEffectUniformBlock(
+    _effect: NativeHandle,
+    _blockSizeBytes: number,
+    _names: readonly string[],
+    _offsets: readonly number[],
+  ): void { return this.unsupported("declareShaderEffectUniformBlock"); }
+  public setShaderEffectUniformFloatArray(
+    _effect: NativeHandle,
+    _name: string,
+    _values: readonly number[],
+  ): void { return this.unsupported("setShaderEffectUniformFloatArray"); }
+  public setShaderEffectUniformVector2Array(
+    _effect: NativeHandle,
+    _name: string,
+    _values: readonly Vector2Snapshot[],
+  ): void { return this.unsupported("setShaderEffectUniformVector2Array"); }
+  public setShaderEffectUniformVec3Array(
+    _effect: NativeHandle,
+    _name: string,
+    _values: readonly number[],
+  ): void { return this.unsupported("setShaderEffectUniformVec3Array"); }
+  public setShaderEffectUniformMat4Array(
+    _effect: NativeHandle,
+    _name: string,
+    _values: readonly number[],
+  ): void { return this.unsupported("setShaderEffectUniformMat4Array"); }
+  public setShaderEffectTexture2D(
+    _effect: NativeHandle,
+    _unit: number,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setShaderEffectTexture2D"); }
+  public setShaderEffectTextureCube(
+    _effect: NativeHandle,
+    _unit: number,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setShaderEffectTextureCube"); }
+  public setShaderEffectTexture3D(
+    _effect: NativeHandle,
+    _unit: number,
+    _texture: NativeHandle,
+  ): void { return this.unsupported("setShaderEffectTexture3D"); }
+  public getShaderEffectWorld(
+    _effect: NativeHandle,
+  ): readonly number[] { return this.unsupported("getShaderEffectWorld"); }
+  public setShaderEffectWorld(
+    _effect: NativeHandle,
+    _value: readonly number[],
+  ): void { return this.unsupported("setShaderEffectWorld"); }
+  public getShaderEffectView(
+    _effect: NativeHandle,
+  ): readonly number[] { return this.unsupported("getShaderEffectView"); }
+  public setShaderEffectView(
+    _effect: NativeHandle,
+    _value: readonly number[],
+  ): void { return this.unsupported("setShaderEffectView"); }
+  public getShaderEffectProjection(
+    _effect: NativeHandle,
+  ): readonly number[] { return this.unsupported("getShaderEffectProjection"); }
+  public setShaderEffectProjection(
+    _effect: NativeHandle,
+    _value: readonly number[],
+  ): void { return this.unsupported("setShaderEffectProjection"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,
