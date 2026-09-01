@@ -8,12 +8,12 @@ C source and the WebAssembly backend's route table rather than declared.
 ```text
 TOTAL_C_API_FUNCTIONS=4054
 PUBLIC_HEADERS=57
-XNA_BACKING=1292
+XNA_BACKING=1587
 CNA_EXTENSION_BACKING=1870
 INTERNAL_RUNTIME_ONLY=1
-MANAGED_BY_DESIGN=461
+MANAGED_BY_DESIGN=556
 TOOLING_ONLY=31
-INTENTIONALLY_DEFERRED=399
+INTENTIONALLY_DEFERRED=9
 UPSTREAM_RUNTIME_UNAVAILABLE=0
 UNEXPLAINED=0
 ```
@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=1775
+REACHABLE_NODE=1843
 REACHABLE_WASM=276
-REACHABLE_BY_ANY_BACKEND=1775
+REACHABLE_BY_ANY_BACKEND=1843
 REACHABLE_BY_EVERY_BACKEND=276
-REACHABLE_NODE_ONLY=1499
+REACHABLE_NODE_ONLY=1567
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -34,12 +34,12 @@ What each backend reaches, by what the routes are for:
 
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
-| `XNA_BACKING` | 1292 | 444 | 73 |
-| `CNA_EXTENSION_BACKING` | 1870 | 1315 | 189 |
+| `XNA_BACKING` | 1587 | 508 | 73 |
+| `CNA_EXTENSION_BACKING` | 1870 | 1319 | 189 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
-| `MANAGED_BY_DESIGN` | 461 | 13 | 13 |
+| `MANAGED_BY_DESIGN` | 556 | 13 | 13 |
 | `TOOLING_ONLY` | 31 | 2 | 0 |
-| `INTENTIONALLY_DEFERRED` | 399 | 0 | 0 |
+| `INTENTIONALLY_DEFERRED` | 9 | 0 | 0 |
 
 ## By header
 
@@ -62,7 +62,7 @@ What each backend reaches, by what the routes are for:
 | `geometry.h` | 0 | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 | 0 |
 | `graphics_device.h` | 27 | 2 | 73 | 14 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `graphics_ext.h` | 28 | 1 | 0 | 28 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `graphics_resource.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 12 | 0 | 0 |
+| `graphics_resource.h` | 0 | 0 | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `graphics_state.h` | 8 | 0 | 14 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `graphics.h` | 12 | 11 | 21 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `index_resources.h` | 8 | 0 | 10 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -71,24 +71,24 @@ What each backend reaches, by what the routes are for:
 | `input_gamepad.h` | 2 | 2 | 40 | 23 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_haptics.h` | 18 | 0 | 0 | 36 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_joystick.h` | 21 | 0 | 0 | 29 | 0 | 0 | 1 | 0 | 0 | 0 |
-| `input_keyboard.h` | 0 | 0 | 0 | 8 | 0 | 0 | 0 | 9 | 0 | 0 |
+| `input_keyboard.h` | 0 | 0 | 1 | 8 | 0 | 8 | 0 | 0 | 0 | 0 |
 | `input_mouse.h` | 3 | 0 | 10 | 9 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `input_text.h` | 14 | 0 | 0 | 16 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `input_touch.h` | 4 | 4 | 33 | 13 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `input.h` | 5 | 5 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `math.h` | 0 | 0 | 0 | 0 | 0 | 52 | 0 | 0 | 0 | 0 |
 | `matrix.h` | 0 | 0 | 0 | 0 | 0 | 57 | 0 | 0 | 0 | 0 |
-| `media_library.h` | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 146 | 0 | 0 |
+| `media_library.h` | 56 | 0 | 108 | 2 | 0 | 38 | 0 | 0 | 0 | 0 |
 | `media_player.h` | 15 | 0 | 33 | 8 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `media.h` | 8 | 0 | 37 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `media.h` | 20 | 0 | 37 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `models.h` | 10 | 0 | 82 | 134 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `net_gamers.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 33 | 0 | 0 |
-| `net_sessions.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 103 | 0 | 0 |
-| `net.h` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 50 | 0 | 0 |
+| `net_gamers.h` | 0 | 0 | 33 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `net_sessions.h` | 0 | 0 | 103 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `net.h` | 0 | 0 | 1 | 0 | 0 | 49 | 0 | 0 | 0 | 0 |
 | `packed_vectors.h` | 0 | 0 | 0 | 0 | 0 | 7 | 0 | 0 | 0 | 0 |
 | `quaternion.h` | 0 | 0 | 0 | 0 | 0 | 28 | 0 | 0 | 0 | 0 |
 | `render_target.h` | 7 | 5 | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `runtime_components.h` | 0 | 0 | 0 | 2 | 0 | 0 | 0 | 37 | 0 | 0 |
+| `runtime_components.h` | 0 | 0 | 37 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `runtime_graphics_manager.h` | 17 | 16 | 35 | 3 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `runtime_window.h` | 12 | 0 | 14 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `runtime.h` | 10 | 6 | 33 | 9 | 0 | 0 | 0 | 0 | 0 | 0 |

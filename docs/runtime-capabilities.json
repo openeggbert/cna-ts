@@ -13,11 +13,11 @@
   },
   "counts": {
     "VERIFIED_MANAGED": 21,
-    "VERIFIED_NATIVE": 109,
+    "VERIFIED_NATIVE": 110,
     "VERIFIED_WEBASSEMBLY": 13,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 5,
     "UPSTREAM_CNA_BLOCKED": 5,
-    "FIXTURE_PENDING": 3,
+    "FIXTURE_PENDING": 2,
     "HARDWARE_PENDING": 6,
     "PLATFORM_PENDING": 3,
     "UNIMPLEMENTED_CNA_TS": 2,
@@ -60,12 +60,6 @@
       "category": "FIXTURE_PENDING",
       "owner": "qualification fixtures",
       "evidence": "native routes and invalid/missing-bank behavior verified; no legal redistributable XGS/XSB/XWB corpus"
-    },
-    {
-      "operation": "MediaLibrary albums/artists/genres/playlists and picture streams",
-      "category": "FIXTURE_PENDING",
-      "owner": "qualification fixtures",
-      "evidence": "strict shape exists but no deterministic populated media-library fixture"
     },
     {
       "operation": "VideoPlayer.Play decode, duration and frame progression",
@@ -1241,6 +1235,34 @@
         "route:cna_light_probe_volume_ext_sample_probe",
         "route:cna_light_probe_volume_ext_irradiance",
         "test:test/native-cna.integration.mjs"
+      ]
+    },
+    {
+      "operation": "MediaLibrary over CNA's index of the user's Music and Pictures folders",
+      "category": "VERIFIED_NATIVE",
+      "owner": "CNA-TS + CNA",
+      "evidence": "The library was projected with empty collections; it is not empty. The test builds the folders it then reads, so every expected value is known independently of what the library reports: a WAV of exactly 4000 frames at 8000Hz reports exactly 500ms -- a duration read from the file rather than defaulted, which a zero would have passed a weaker test with -- its containing folder becomes the album, a cover.png beside it becomes real album art returned byte for byte, and a 1x1 PNG in the picture root comes back measured 1x1 with its exact pixels. Object identity across the graph is asserted separately because it is not free: CNA's own handles are minted per call and never compare equal -- two calls for one song differ, and a song's album handle never equals the album collection's -- so relationships arrive as names and the managed graph interns them. song.Album is the object in library.Albums, album.Songs.Get(0) is the object in library.Songs, and the cycle closes. Art and pixels are fetched when asked for, not when the library is opened, because XNA asks for them with a method for that reason. SavePicture writes a picture that a re-opened library finds, and the token CNA gives it resolves through the public GetPictureFromToken to that very object. No CNA handle other than the library's own crosses the boundary, so a consumer has no media lifetime to get wrong",
+      "proof": [
+        "route:cna_media_library_create",
+        "route:cna_media_library_destroy",
+        "route:cna_media_library_get_songs",
+        "route:cna_media_library_get_albums",
+        "route:cna_media_library_get_artists",
+        "route:cna_media_library_get_genres",
+        "route:cna_media_library_get_playlists",
+        "route:cna_media_library_get_pictures",
+        "route:cna_media_library_get_saved_pictures",
+        "route:cna_song_get_duration",
+        "route:cna_song_get_album",
+        "route:cna_song_get_artist",
+        "route:cna_song_copy_handle_text_ext",
+        "route:cna_album_get_has_art",
+        "route:cna_album_copy_art",
+        "route:cna_picture_copy_image",
+        "route:cna_picture_get_width",
+        "route:cna_media_library_save_picture",
+        "route:cna_media_library_get_picture_from_token",
+        "test:test/media-library.integration.mjs"
       ]
     },
     {

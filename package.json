@@ -76,6 +76,7 @@
     "test:model-part": "npm run build:native-bridge && npm run build && node --test test/native-model-part.integration.mjs",
     "test:content-survey": "npm run build:native-bridge && npm run build && node --test test/content-survey.integration.mjs",
     "test:input-devices": "npm run build:native-bridge && npm run build && node --test test/input-devices.integration.mjs",
+    "test:media-library": "npm run build:native-bridge && npm run build && node --test test/media-library.integration.mjs",
     "test:windowed": "npm run build && node --test test/windowed-renderer.integration.mjs",
     "test:wasm-browser": "npm run build && node --test test/wasm-browser.mjs",
     "test:wasm-browser-input": "npm run build && node --test test/wasm-browser-input.mjs",

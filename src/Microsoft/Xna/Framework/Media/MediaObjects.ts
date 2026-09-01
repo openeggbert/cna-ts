@@ -43,6 +43,14 @@ type ObjectState = {
   PlayCount: number;
   TrackNumber: number;
   Uri: URL | null;
+  /**
+   * Bytes CNA holds but has not been asked for yet. A media library can be thousands of
+   * photographs, and XNA asks for the pixels with a *method* rather than a property precisely so
+   * that opening the library does not read them all. A resolver keeps that true.
+   */
+  ResolveAlbumArt: (() => Uint8Array) | null;
+  ResolveThumbnail: (() => Uint8Array) | null;
+  ResolveImage: (() => Uint8Array) | null;
 };
 
 const states = new WeakMap<object, ObjectState>();
@@ -64,9 +72,14 @@ function equals(left: object, right: unknown, type: Function): boolean {
   return right instanceof type && stateOf(left, false).Id === stateOf(right, false).Id;
 }
 
-function bytes(value: Uint8Array | null, operation: string): Uint8Array {
-  if (!value) throw new NativeUnavailableError(`${operation} is unavailable for this media object`);
-  return new Uint8Array(value);
+function bytes(
+  value: Uint8Array | null, operation: string, resolve: (() => Uint8Array) | null = null,
+): Uint8Array {
+  const resolved = value ?? resolve?.() ?? null;
+  if (!resolved) {
+    throw new NativeUnavailableError(`${operation} is unavailable for this media object`);
+  }
+  return new Uint8Array(resolved);
 }
 
 function dispose(value: object): void { const state = states.get(value); if (state) state.Disposed = true; }
@@ -80,8 +93,14 @@ export class Album implements IDisposable, IEquatable<Album> {
   public get Genre(): Genre { return stateOf(this).Genre as Genre; }
   public get Duration(): TimeSpan { return TimeSpan.FromTicks(stateOf(this).Duration.Ticks); }
   public get HasArt(): boolean { return stateOf(this).HasArt; }
-  public GetAlbumArt(): Uint8Array { return bytes(stateOf(this).AlbumArt, "Album art"); }
-  public GetThumbnail(): Uint8Array { return bytes(stateOf(this).Thumbnail, "Album thumbnail"); }
+  public GetAlbumArt(): Uint8Array {
+    const state = stateOf(this);
+    return bytes(state.AlbumArt, "Album art", state.ResolveAlbumArt);
+  }
+  public GetThumbnail(): Uint8Array {
+    const state = stateOf(this);
+    return bytes(state.Thumbnail, "Album thumbnail", state.ResolveThumbnail);
+  }
   public Dispose(): void { dispose(this); }
   public Equals(obj: unknown): boolean;
   public Equals(other: Album): boolean;
@@ -166,8 +185,14 @@ export class Picture implements IDisposable, IEquatable<Picture> {
   public get Width(): number { return stateOf(this).Width; }
   public get Height(): number { return stateOf(this).Height; }
   public get Date(): Date { return new Date(stateOf(this).Date.getTime()); }
-  public GetImage(): Uint8Array { return bytes(stateOf(this).Image, "Picture image"); }
-  public GetThumbnail(): Uint8Array { return bytes(stateOf(this).Thumbnail, "Picture thumbnail"); }
+  public GetImage(): Uint8Array {
+    const state = stateOf(this);
+    return bytes(state.Image, "Picture image", state.ResolveImage);
+  }
+  public GetThumbnail(): Uint8Array {
+    const state = stateOf(this);
+    return bytes(state.Thumbnail, "Picture thumbnail", state.ResolveThumbnail);
+  }
   public Dispose(): void { dispose(this); }
   public Equals(obj: unknown): boolean;
   public Equals(other: Picture): boolean;
@@ -222,11 +247,25 @@ function initialize<T extends object>(prototype: object, kind: ObjectKind, optio
     PlayCount: options.PlayCount ?? 0,
     TrackNumber: options.TrackNumber ?? 0,
     Uri: options.Uri ? new URL(options.Uri.href) : null,
+    ResolveAlbumArt: options.ResolveAlbumArt ?? null,
+    ResolveThumbnail: options.ResolveThumbnail ?? null,
+    ResolveImage: options.ResolveImage ?? null,
   });
   return result;
 }
 
 export const createAlbumForInternalUse = (options: MediaObjectOptions): Album => initialize(Album.prototype, "Album", options);
+/**
+ * Internal: fills in the songs of an album, artist, genre or playlist after construction.
+ *
+ * The graph is cyclic — a song names its album and an album lists its songs — so the songs cannot
+ * be supplied when the album is built. Everything is created first, then linked.
+ */
+export function setSongsForInternalUse(target: object, songs: SongCollection): void {
+  const state = states.get(target);
+  if (state) state.Songs = songs;
+}
+
 export const createArtistForInternalUse = (options: MediaObjectOptions): Artist => initialize(Artist.prototype, "Artist", options);
 export const createGenreForInternalUse = (options: MediaObjectOptions): Genre => initialize(Genre.prototype, "Genre", options);
 export const createPlaylistForInternalUse = (options: MediaObjectOptions): Playlist => initialize(Playlist.prototype, "Playlist", options);

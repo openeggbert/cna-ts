@@ -67,21 +67,37 @@ test("a route no rule claims is reported as UNEXPLAINED", () => {
 });
 
 test("a deferred route a backend imports is reported rather than absorbed", () => {
-  // net_sessions.h is ruled INTENTIONALLY_DEFERRED as a whole family. Importing one of its routes
-  // without moving the rule would publish reachable surface as unbound -- which is exactly what
-  // happened to gamer_services.h when the dispatcher was bound, and exactly what this caught.
-  const declarations = new Map([["cna_network_session_create", "net_sessions.h"]]);
-  const deferred = classify(declarations, rules, { NODE: new Set(), WASM: new Set() });
+  // The contradiction this catches: a route a backend imports while its family is still ruled
+  // deferred, which publishes reachable surface as unbound. It happened to gamer_services.h when
+  // the dispatcher was bound, and this is what caught it.
+  //
+  // The rule is written here rather than borrowed from the real set on purpose. Pointing at
+  // whichever header happens to be deferred today makes the test fail when that header is
+  // *classified better* -- which is progress, not a regression, and is exactly what happened when
+  // net_sessions.h stopped being a blanket deferral.
+  const deferredRules = {
+    categories: rules.categories,
+    rules: [{
+      headers: ["synthetic_deferred.h"],
+      category: "INTENTIONALLY_DEFERRED",
+      reason: "a family this test defers so it can then import one of its routes",
+    }],
+  };
+  const declarations = new Map([["cna_synthetic_deferred_route", "synthetic_deferred.h"]]);
+  const deferred = classify(declarations, deferredRules, { NODE: new Set(), WASM: new Set() });
   assert.equal(deferred[0].category, "INTENTIONALLY_DEFERRED");
   assert.deepEqual(findReachableButDeferred(deferred), []);
 
-  const imported = classify(declarations, rules, {
-    NODE: new Set(["cna_network_session_create"]),
+  const imported = classify(declarations, deferredRules, {
+    NODE: new Set(["cna_synthetic_deferred_route"]),
     WASM: new Set(),
   });
   assert.equal(imported[0].category, "INTENTIONALLY_DEFERRED");
   assert.deepEqual(imported[0].backends, ["NODE"]);
-  assert.deepEqual(findReachableButDeferred(imported), ["net_sessions.h:cna_network_session_create"]);
+  assert.deepEqual(
+    findReachableButDeferred(imported),
+    ["synthetic_deferred.h:cna_synthetic_deferred_route"],
+  );
 });
 
 test("a header no backend reaches defers its whole family, and one imported route lifts it", () => {

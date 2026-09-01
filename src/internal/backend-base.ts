@@ -55,6 +55,10 @@ import type {
   CnaNativeMeshPartBackend,
   CnaContentSurveyBackend,
   CnaInputDeviceInventoryBackend,
+  CnaMediaLibraryBackend,
+  MediaLibrarySnapshot,
+  MediaSongSnapshot,
+  MediaPictureSnapshot,
   AttachedInputDeviceSnapshot,
   HostPowerSnapshot,
   ContentSurveyEntrySnapshot,
@@ -3889,6 +3893,38 @@ export abstract class CnaShadowBackendBase implements CnaShadowBackend {
   public cubeShadowMapSizeForQuality(
     _quality: number,
   ): number { return this.unsupported("cubeShadowMapSizeForQuality"); }
+}
+
+/** Refusing base for {@link CnaMediaLibraryBackend}. */
+export abstract class CnaMediaLibraryBackendBase implements CnaMediaLibraryBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public createMediaLibrary(): NativeHandle { return this.unsupported("createMediaLibrary"); }
+  public destroyMediaLibrary(_library: NativeHandle): void {
+    return this.unsupported("destroyMediaLibrary");
+  }
+  public getMediaLibrarySnapshot(_library: NativeHandle): MediaLibrarySnapshot {
+    return this.unsupported("getMediaLibrarySnapshot");
+  }
+  public getMediaLibraryPlaylistSongs(
+    _library: NativeHandle, _index: number,
+  ): readonly MediaSongSnapshot[] {
+    return this.unsupported("getMediaLibraryPlaylistSongs");
+  }
+  public getMediaLibraryAlbumBytes(
+    _library: NativeHandle, _index: number, _thumbnail: boolean,
+  ): Uint8Array { return this.unsupported("getMediaLibraryAlbumBytes"); }
+  public getMediaLibraryPictureBytes(
+    _library: NativeHandle, _saved: boolean, _index: number, _thumbnail: boolean,
+  ): Uint8Array { return this.unsupported("getMediaLibraryPictureBytes"); }
+  public saveMediaLibraryPicture(
+    _library: NativeHandle, _name: string, _image: Uint8Array,
+  ): MediaPictureSnapshot { return this.unsupported("saveMediaLibraryPicture"); }
+  public getMediaLibraryPictureFromToken(
+    _library: NativeHandle, _token: string,
+  ): MediaPictureSnapshot | null {
+    return this.unsupported("getMediaLibraryPictureFromToken");
+  }
 }
 
 /** Refusing base for {@link CnaInputDeviceInventoryBackend}. */

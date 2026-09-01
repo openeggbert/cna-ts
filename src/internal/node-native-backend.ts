@@ -20,6 +20,10 @@ import type {
   CnaNativeMeshPartBackend,
   CnaContentSurveyBackend,
   CnaInputDeviceInventoryBackend,
+  CnaMediaLibraryBackend,
+  MediaLibrarySnapshot,
+  MediaSongSnapshot,
+  MediaPictureSnapshot,
   AttachedInputDeviceSnapshot,
   HostPowerSnapshot,
   ContentSurveyEntrySnapshot,
@@ -829,6 +833,16 @@ interface NativeBridge {
   destroyLodGroup(group: bigint): void;
   addLodLevel(group: bigint, maxDistance: number, part: bigint | null): void;
   selectLodPart(group: bigint, distance: number): bigint | null;
+  createMediaLibrary(game: bigint): bigint;
+  destroyMediaLibrary(library: bigint): void;
+  getMediaLibrarySnapshot(library: bigint): MediaLibrarySnapshot;
+  getMediaLibraryPlaylistSongs(library: bigint, index: number): readonly MediaSongSnapshot[];
+  getMediaLibraryAlbumBytes(library: bigint, index: number, thumbnail: boolean): Uint8Array;
+  getMediaLibraryPictureBytes(
+    library: bigint, saved: boolean, index: number, thumbnail: boolean,
+  ): Uint8Array;
+  saveMediaLibraryPicture(library: bigint, name: string, image: Uint8Array): MediaPictureSnapshot;
+  getMediaLibraryPictureFromToken(library: bigint, token: string): MediaPictureSnapshot | null;
   getClipboardText(game: bigint): string;
   getClipboardTextSize(game: bigint): number;
   getClipboardHasText(game: bigint): boolean;
@@ -1922,6 +1936,7 @@ export class NodeNativeBackend
   public readonly NativeMeshParts: CnaNativeMeshPartBackend = this;
   public readonly ContentSurvey: CnaContentSurveyBackend = this;
   public readonly InputDeviceInventory: CnaInputDeviceInventoryBackend = this;
+  public readonly MediaLibrary: CnaMediaLibraryBackend = this;
   public readonly InstancedRenderer: CnaInstancedRendererBackend = this;
   public readonly Shadows: CnaShadowBackend = this;
   public readonly DepthNormalPrepass: CnaDepthNormalPrepassBackend = this;
@@ -3286,6 +3301,40 @@ export class NodeNativeBackend
   }
   public selectLodPart(group: NativeHandle, distance: number): NativeHandle | null {
     return this.#bridge.selectLodPart(group, distance);
+  }
+  public createMediaLibrary(): NativeHandle {
+    return this.#bridge.createMediaLibrary(this.#game());
+  }
+  public destroyMediaLibrary(library: NativeHandle): void {
+    this.#bridge.destroyMediaLibrary(library);
+  }
+  public getMediaLibrarySnapshot(library: NativeHandle): MediaLibrarySnapshot {
+    return this.#bridge.getMediaLibrarySnapshot(library);
+  }
+  public getMediaLibraryPlaylistSongs(
+    library: NativeHandle, index: number,
+  ): readonly MediaSongSnapshot[] {
+    return this.#bridge.getMediaLibraryPlaylistSongs(library, index);
+  }
+  public getMediaLibraryAlbumBytes(
+    library: NativeHandle, index: number, thumbnail: boolean,
+  ): Uint8Array {
+    return this.#bridge.getMediaLibraryAlbumBytes(library, index, thumbnail);
+  }
+  public getMediaLibraryPictureBytes(
+    library: NativeHandle, saved: boolean, index: number, thumbnail: boolean,
+  ): Uint8Array {
+    return this.#bridge.getMediaLibraryPictureBytes(library, saved, index, thumbnail);
+  }
+  public saveMediaLibraryPicture(
+    library: NativeHandle, name: string, image: Uint8Array,
+  ): MediaPictureSnapshot {
+    return this.#bridge.saveMediaLibraryPicture(library, name, image);
+  }
+  public getMediaLibraryPictureFromToken(
+    library: NativeHandle, token: string,
+  ): MediaPictureSnapshot | null {
+    return this.#bridge.getMediaLibraryPictureFromToken(library, token);
   }
   public getClipboardText(): string { return this.#bridge.getClipboardText(this.#game()); }
   public getClipboardTextSize(): number {

@@ -2677,6 +2677,74 @@ export interface CnaLodBackend {
   getLodProjectedRadiusPixels(group: NativeHandle, distance: number): number;
 }
 
+/** One song as CNA's media index describes it. Relationships are names, not handles. */
+export interface MediaSongSnapshot {
+  readonly Name: string;
+  /** The file path CNA indexed it from — the only stable identity a song has. */
+  readonly Handle: string;
+  readonly AlbumName: string;
+  readonly ArtistName: string;
+  readonly GenreName: string;
+  readonly DurationTicks: bigint;
+  readonly TrackNumber: number;
+  readonly PlayCount: number;
+  readonly Rating: number;
+  readonly IsProtected: boolean;
+  readonly IsRated: boolean;
+}
+
+/** An album, artist, genre or playlist row. The optional fields are present per collection. */
+export interface MediaNamedSnapshot {
+  readonly Name: string;
+  readonly DurationTicks?: bigint;
+  readonly ArtistName?: string;
+  readonly GenreName?: string;
+  readonly HasArt?: boolean;
+}
+
+/** One picture; its bytes are deliberately absent and fetched on demand. */
+export interface MediaPictureSnapshot {
+  readonly Name: string;
+  readonly Token: string;
+  readonly AlbumName: string;
+  readonly DateUnixTicks: bigint;
+  readonly Width: number;
+  readonly Height: number;
+}
+
+/** Everything CNA's media index holds, read in one call. No handle is included by design. */
+export interface MediaLibrarySnapshot {
+  readonly Songs: readonly MediaSongSnapshot[];
+  readonly Albums: readonly MediaNamedSnapshot[];
+  readonly Artists: readonly MediaNamedSnapshot[];
+  readonly Genres: readonly MediaNamedSnapshot[];
+  readonly Playlists: readonly MediaNamedSnapshot[];
+  readonly Pictures: readonly MediaPictureSnapshot[];
+  readonly SavedPictures: readonly MediaPictureSnapshot[];
+}
+
+/** CNA's index of the user's Music and Pictures folders. */
+export interface CnaMediaLibraryBackend {
+  createMediaLibrary(): NativeHandle;
+  destroyMediaLibrary(library: NativeHandle): void;
+  getMediaLibrarySnapshot(library: NativeHandle): MediaLibrarySnapshot;
+  getMediaLibraryPlaylistSongs(
+    library: NativeHandle, index: number,
+  ): readonly MediaSongSnapshot[];
+  getMediaLibraryAlbumBytes(
+    library: NativeHandle, index: number, thumbnail: boolean,
+  ): Uint8Array;
+  getMediaLibraryPictureBytes(
+    library: NativeHandle, saved: boolean, index: number, thumbnail: boolean,
+  ): Uint8Array;
+  saveMediaLibraryPicture(
+    library: NativeHandle, name: string, image: Uint8Array,
+  ): MediaPictureSnapshot;
+  getMediaLibraryPictureFromToken(
+    library: NativeHandle, token: string,
+  ): MediaPictureSnapshot | null;
+}
+
 /** One mouse, keyboard or touch device the platform currently enumerates. */
 export interface AttachedInputDeviceSnapshot {
   readonly Id: bigint;
@@ -3389,6 +3457,7 @@ export interface CnaBackend {
   readonly NativeMeshParts?: CnaNativeMeshPartBackend;
   readonly ContentSurvey?: CnaContentSurveyBackend;
   readonly InputDeviceInventory?: CnaInputDeviceInventoryBackend;
+  readonly MediaLibrary?: CnaMediaLibraryBackend;
   readonly InstancedRenderer?: CnaInstancedRendererBackend;
   readonly Shadows?: CnaShadowBackend;
   readonly DepthNormalPrepass?: CnaDepthNormalPrepassBackend;

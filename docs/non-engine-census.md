@@ -1,0 +1,140 @@
+# The non-engine headers, measured
+
+Eleven headers used to carry one reason between them:
+
+> the adapter imports nothing from this header, so the whole family is measured and deferred rather
+> than partially covered
+
+That describes **history, not architecture**, and it was doing real damage: it hid three working
+capabilities behind a sentence about what had not been done yet. This document replaces it. Every
+row below was measured against `cnanext` at CNA C ABI **0.21.0** (revision `e5ae0820e`) on
+2026-09-01, with pure-C probes under `build-probe/cbind_*_probe.c`.
+
+## What the census found
+
+Three families were **not blocked at all** — CNA answers, and this package was reporting empty:
+
+| Family | What was reported | What CNA actually does |
+| --- | --- | --- |
+| `MediaLibrary` | empty collections, `SavePicture` refuses | indexes the user's Music and Pictures folders; one WAV in `XDG_MUSIC_DIR` gives one song, one album, one artist |
+| the clipboard | writable, not readable | reads round-trip exactly, non-ASCII included |
+| attached input devices | nothing projected | one mouse and one keyboard, by the platform's own names |
+
+A fourth is the same shape and is recorded below rather than fixed here:
+`AvatarDescription.CreateRandom()` refuses, while `cna_avatar_description_create_random` succeeds
+with no platform service and produces a different 1021-byte description each time.
+
+Two families were **confirmed blocked**, with better reasons than before:
+
+| Family | The old reason | The measured reason |
+| --- | --- | --- |
+| `NetworkSession` | no platform service | CNA creates Local **and** SystemLink sessions on this host. What it cannot do is produce a signed-in gamer, and the only route that makes one is CNA's hook for a *platform layer* to publish one. Calling it from the binding would be inventing the player. |
+| CNA's XNB reader stack | the adapter imports nothing | a parallel decoder for a format this package already decodes; adopting it needs the native `ContentManager` that would be a second asset cache |
+
+## Header by header
+
+### `media_library.h` — 146 routes, adopted
+
+Bound: the library, its five music collections, both picture collections, album art, picture pixels,
+`SavePicture` and token lookup. See the `MediaLibrary` entry in `docs/runtime-capabilities.md`.
+
+Deferred, with reasons rather than a blanket:
+
+- `*_get_hash_code`, `*_get_type_name`, `*_equals` → **MANAGED_BY_DESIGN**. `GetHashCode` and
+  `Equals` are implemented over the identity this binding assigns — a song's file path, an album's
+  name — and routing them through native would make two objects that are the same media item hash
+  differently depending on which side answered.
+- `*_dispose`, `*_destroy`, `*_get_is_disposed` → the handles never leave the bridge. The snapshot
+  walks CNA's whole graph in one call and hands JavaScript copied values, so a consumer owns
+  nothing. That also settles an ownership split CNA's own headers describe two ways: a song out of
+  a collection is "a new handle" to release, an album out of one is "borrowed" and must not be.
+
+**A measured property worth knowing:** CNA generates no separate thumbnail. `GetThumbnail()`
+returns the same bytes as `GetAlbumArt()`, and CNA's header calls that canonical behaviour rather
+than a limitation. The test asserts it, so a CNA that starts generating one is noticed.
+
+### `input_devices.h` — 46 routes
+
+Bound: the clipboard's reads and its ungated write, the mouse/keyboard/touch inventory, and
+`cna_power_get_info`. None of these is gated on CNA's extended device layer, which is exactly what
+makes them worth having — measured on a CNA built `CNA_DEVICES=OFF`, the power route reports a real
+79% battery while all three `cna_power_get_*_ext` routes answer `NOT_SUPPORTED`.
+
+Deferred: the sensor enumeration (reached through `sensors.h` instead), the POD initialisers and
+comparators (the binding hands JavaScript objects across, not C structs), and the hot-plug
+subscribe/raise plumbing — whose only consumer would be the polling the inventory already provides.
+
+### `content.h` and `content_readers.h` — 94 routes
+
+The architecture decision is written up in `docs/native-content-survey.md`. Loading stays managed;
+the survey is adopted.
+
+### `graphics_resource.h` — 12 routes, all working, none bound
+
+Measured on a real `Texture2D` handle: `set_name` succeeds, the name reads back, `is_disposed`
+answers, and `get_graphics_device` returns the device the texture was made on. They are not bound
+because this package's `GraphicsResource` state is authoritative and in TypeScript, so binding them
+would give one resource two `Name`s and two `Tag`s with nothing to reconcile them — and XNA's `Tag`
+is a managed object of any type where CNA's is a `uint64`, so the two cannot even hold the same
+value. Deferred for that, not for want of a working route.
+
+### `runtime_components.h` — 39 routes
+
+CNA's header states that **a game owns exactly one component collection**. Binding these would put
+a second collection on the same game and make `Game.Components.Count` and
+`cna_game_components_get_count` two counts of one thing. Adopting CNA's instead is not an
+alternative either: a component is a class the consumer subclasses in TypeScript and CNA's takes C
+callbacks, so every `Update` and `Draw` would cross the boundary twice and the ordering semantics
+would move to CNA — for no capability the managed collection lacks, which its unit suite already
+covers over ordering, mutation, filtering, services and disposal.
+
+### `input_keyboard.h` — 17 routes
+
+`cna_keyboard_get_state_for_player` returns a **bit-identical** snapshot to the plain route —
+measured, not assumed, and CNA's header says why: there is one keyboard and every slot reports it.
+The only thing the overload adds is refusing an out-of-range slot, which XNA does not do. The
+`KeyboardState` value routes are managed by design, for the reason the math types are. The scancode
+and key-name translations are CNA extensions with no XNA counterpart.
+
+### `net.h` — 50 routes, managed by design
+
+`PacketReader`, `PacketWriter`, `NetworkSessionProperties` and `QualityOfService` are value types
+with no network in them, and all four are implemented here exactly — the packet types extend this
+package's own `BinaryReader`/`BinaryWriter`, and the property bag is XNA's eight slots where `null`
+means "do not match". Nothing in this header is blocked by the absence of a network.
+
+### `net_sessions.h` and `net_gamers.h` — 136 routes, blocked
+
+Not by CNA. A session is created successfully on this host, both `Local` and `SystemLink`, and
+reports its state and that it is the host. It is blocked by what a session needs first: at least one
+signed-in gamer. This host has none, and the only route that produces one —
+`cna_signed_in_gamer_create_ext` — is described by CNA's own header as the hook for a *platform
+layer* to publish a gamer. A binding calling it would be inventing the player, and every session
+claim built on that would be false. The strict surface keeps refusing with
+`GamerServicesNotAvailableException`, which is what XNA raises where there is no service.
+
+A synthetic-gamer *test hook*, in the style of the existing `CnaCamera.OpenForTests`, is the one
+honest way this could become locally exercisable. It is recorded as a possibility, not done.
+
+### `sprite_font.h` — 9 routes
+
+CNA can build a `SpriteFont` from a texture and a glyph table — the same data this package's XNB
+reader produces — and measure a string with it. That makes it usable as an *independent oracle* for
+`SpriteFont.MeasureString`, which is otherwise checked against hand-written numbers. Recorded as
+the strongest remaining candidate of its kind.
+
+## The method that mattered
+
+Two readings in this census were **wrong on the first measurement**, and both were caught before
+anything was written down:
+
+- the media library's collection getters appeared to return `SUCCESS` with the invalid handle;
+- an avatar description appeared to report zero bytes while declaring 1021.
+
+Both were the same defect in the *probe*, not in CNA: C leaves argument evaluation order
+unspecified, and reading an out-parameter inside the same call expression that fills it measures the
+value from before the call. Sequencing the call first turned both into ordinary correct answers.
+
+The rule that saved them is the one this package already follows: measure, then predict from
+something independent, and never file a finding from a single reading of a program you wrote five
+minutes ago.

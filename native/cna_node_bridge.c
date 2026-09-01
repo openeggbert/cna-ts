@@ -216,6 +216,29 @@ typedef CNA_Result (*InputDeviceNameSizeAtFn)(CNA_Handle, uint32_t, uint64_t*);
 typedef CNA_Result (*InputDeviceCopyNameAtFn)(
   CNA_Handle, uint32_t, char*, uint64_t, uint64_t*);
 typedef CNA_Result (*PowerInfoFn)(CNA_Handle, CNA_PowerState*, int32_t*, int32_t*);
+
+/* The media library. CNA scans the user's Music and Pictures folders and indexes what it finds;
+   measured, with one WAV planted in XDG_MUSIC_DIR it reports one song, one album and one artist.
+   Every handle below stays inside this file: the snapshot walks the whole graph in C and hands
+   JavaScript plain copied values, so no media handle ever needs an owner on the other side. That
+   also side-steps an ownership split in CNA's own headers -- a song from a collection is "a new
+   handle" the caller releases, an album from a collection is "borrowed" and must not be. */
+typedef CNA_Result (*MediaLibraryCreateFn)(CNA_Handle, CNA_MediaLibraryHandle*);
+typedef CNA_Result (*MediaLibraryCollectionFn)(CNA_MediaLibraryHandle, CNA_Handle*);
+typedef CNA_Result (*MediaCountFn)(CNA_Handle, int32_t*);
+typedef CNA_Result (*MediaItemAtFn)(CNA_Handle, int32_t, CNA_Handle*);
+typedef CNA_Result (*MediaTextSizeFn)(CNA_Handle, uint64_t*);
+typedef CNA_Result (*MediaCopyTextFn)(CNA_Handle, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*MediaTicksFn)(CNA_Handle, int64_t*);
+typedef CNA_Result (*MediaI32Fn)(CNA_Handle, int32_t*);
+typedef CNA_Result (*MediaBoolFn)(CNA_Handle, CNA_Bool*);
+typedef CNA_Result (*MediaRelationFn)(CNA_Handle, CNA_Handle*, CNA_Bool*);
+typedef CNA_Result (*MediaCopyBytesFn)(CNA_Handle, uint8_t*, uint64_t, uint64_t*);
+typedef CNA_Result (*MediaSavePictureFn)(
+  CNA_MediaLibraryHandle, CNA_StringView, const uint8_t*, uint64_t, CNA_PictureHandle*);
+typedef CNA_Result (*MediaPictureFromTokenFn)(
+  CNA_MediaLibraryHandle, CNA_StringView, CNA_PictureHandle*, CNA_Bool*);
+typedef CNA_Result (*MediaPictureAlbumRelationFn)(CNA_Handle, CNA_Handle*, CNA_Bool*);
 typedef CNA_Result (*HandleHandleOutFn)(CNA_Handle, CNA_Handle*);
 typedef CNA_Result (*SoundEffectPlaySettingsFn)(CNA_Handle, float, float, float, CNA_Bool*);
 typedef CNA_Result (*HandleFloatOutFn)(CNA_Handle, float*);
@@ -1452,7 +1475,6 @@ typedef struct Api {
   GameIndexU32U64OutFn media_source_get_name_size;
   GameIndexU32CopyStringFn media_source_copy_name;
   SongCreateUriFn song_create_uri;
-  GameHandleFn song_destroy;
   SongCollectionCreateFn song_collection_create;
   GameHandleFn song_collection_destroy;
   MediaPlayCollectionFromFn media_player_play_collection_from;
@@ -2628,6 +2650,75 @@ typedef struct Api {
   InputDeviceNameSizeAtFn input_devices_get_touch_device_name_size_at;
   InputDeviceCopyNameAtFn input_devices_copy_touch_device_name_at;
   PowerInfoFn power_get_info;
+  MediaLibraryCreateFn media_library_create;
+  GameHandleFn media_library_destroy;
+  MediaLibraryCollectionFn media_library_get_songs;
+  MediaLibraryCollectionFn media_library_get_albums;
+  MediaLibraryCollectionFn media_library_get_artists;
+  MediaLibraryCollectionFn media_library_get_genres;
+  MediaLibraryCollectionFn media_library_get_playlists;
+  MediaLibraryCollectionFn media_library_get_pictures;
+  MediaLibraryCollectionFn media_library_get_saved_pictures;
+  MediaCountFn song_collection_get_count;
+  MediaItemAtFn song_collection_get_at;
+  MediaTextSizeFn song_get_name_size;
+  MediaCopyTextFn song_copy_name;
+  MediaTextSizeFn song_get_handle_text_size_ext;
+  MediaCopyTextFn song_copy_handle_text_ext;
+  MediaTicksFn song_get_duration;
+  MediaBoolFn song_get_is_protected;
+  MediaBoolFn song_get_is_rated;
+  MediaI32Fn song_get_play_count;
+  MediaI32Fn song_get_rating;
+  MediaI32Fn song_get_track_number;
+  MediaRelationFn song_get_album;
+  MediaRelationFn song_get_artist;
+  MediaRelationFn song_get_genre;
+  MediaCountFn album_collection_get_count;
+  MediaItemAtFn album_collection_get_at;
+  MediaTextSizeFn album_get_name_size;
+  MediaCopyTextFn album_copy_name;
+  MediaTicksFn album_get_duration;
+  MediaBoolFn album_get_has_art;
+  MediaTextSizeFn album_get_art_size;
+  MediaCopyBytesFn album_copy_art;
+  MediaTextSizeFn album_get_thumbnail_size;
+  MediaCopyBytesFn album_copy_thumbnail;
+  MediaRelationFn album_get_artist;
+  MediaRelationFn album_get_genre;
+  MediaCountFn artist_collection_get_count;
+  MediaItemAtFn artist_collection_get_at;
+  MediaTextSizeFn artist_get_name_size;
+  MediaCopyTextFn artist_copy_name;
+  MediaCountFn genre_collection_get_count;
+  MediaItemAtFn genre_collection_get_at;
+  MediaTextSizeFn genre_get_name_size;
+  MediaCopyTextFn genre_copy_name;
+  MediaCountFn playlist_collection_get_count;
+  MediaItemAtFn playlist_collection_get_at;
+  MediaTextSizeFn playlist_get_name_size;
+  MediaCopyTextFn playlist_copy_name;
+  MediaTicksFn playlist_get_duration;
+  MediaLibraryCollectionFn playlist_get_songs;
+  MediaCountFn picture_collection_get_count;
+  MediaItemAtFn picture_collection_get_at;
+  MediaTextSizeFn picture_get_name_size;
+  MediaCopyTextFn picture_copy_name;
+  MediaTextSizeFn picture_get_token_size_ext;
+  MediaCopyTextFn picture_copy_token_ext;
+  MediaTicksFn picture_get_date_unix_ticks;
+  MediaI32Fn picture_get_width;
+  MediaI32Fn picture_get_height;
+  MediaTextSizeFn picture_get_image_size;
+  MediaCopyBytesFn picture_copy_image;
+  MediaTextSizeFn picture_get_thumbnail_size;
+  MediaCopyBytesFn picture_copy_thumbnail;
+  MediaPictureAlbumRelationFn picture_get_album;
+  MediaTextSizeFn picture_album_get_name_size;
+  MediaCopyTextFn picture_album_copy_name;
+  MediaSavePictureFn media_library_save_picture;
+  MediaPictureFromTokenFn media_library_get_picture_from_token;
+  GameHandleFn song_destroy;
   FrustumCullerCreateFn frustum_culler_ext_create;
   GameHandleFn frustum_culler_ext_destroy;
   CullerMatrixFn frustum_culler_ext_set_view_projection;
@@ -4733,6 +4824,74 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(input_devices_get_touch_device_name_size_at, InputDeviceNameSizeAtFn, "cna_input_devices_get_touch_device_name_size_at");
   LOAD_REQUIRED(input_devices_copy_touch_device_name_at, InputDeviceCopyNameAtFn, "cna_input_devices_copy_touch_device_name_at");
   LOAD_REQUIRED(power_get_info, PowerInfoFn, "cna_power_get_info");
+  LOAD_REQUIRED(media_library_create, MediaLibraryCreateFn, "cna_media_library_create");
+  LOAD_REQUIRED(media_library_destroy, GameHandleFn, "cna_media_library_destroy");
+  LOAD_REQUIRED(media_library_get_songs, MediaLibraryCollectionFn, "cna_media_library_get_songs");
+  LOAD_REQUIRED(media_library_get_albums, MediaLibraryCollectionFn, "cna_media_library_get_albums");
+  LOAD_REQUIRED(media_library_get_artists, MediaLibraryCollectionFn, "cna_media_library_get_artists");
+  LOAD_REQUIRED(media_library_get_genres, MediaLibraryCollectionFn, "cna_media_library_get_genres");
+  LOAD_REQUIRED(media_library_get_playlists, MediaLibraryCollectionFn, "cna_media_library_get_playlists");
+  LOAD_REQUIRED(media_library_get_pictures, MediaLibraryCollectionFn, "cna_media_library_get_pictures");
+  LOAD_REQUIRED(media_library_get_saved_pictures, MediaLibraryCollectionFn, "cna_media_library_get_saved_pictures");
+  LOAD_REQUIRED(song_collection_get_count, MediaCountFn, "cna_song_collection_get_count");
+  LOAD_REQUIRED(song_collection_get_at, MediaItemAtFn, "cna_song_collection_get_at");
+  LOAD_REQUIRED(song_get_name_size, MediaTextSizeFn, "cna_song_get_name_size");
+  LOAD_REQUIRED(song_copy_name, MediaCopyTextFn, "cna_song_copy_name");
+  LOAD_REQUIRED(song_get_handle_text_size_ext, MediaTextSizeFn, "cna_song_get_handle_text_size_ext");
+  LOAD_REQUIRED(song_copy_handle_text_ext, MediaCopyTextFn, "cna_song_copy_handle_text_ext");
+  LOAD_REQUIRED(song_get_duration, MediaTicksFn, "cna_song_get_duration");
+  LOAD_REQUIRED(song_get_is_protected, MediaBoolFn, "cna_song_get_is_protected");
+  LOAD_REQUIRED(song_get_is_rated, MediaBoolFn, "cna_song_get_is_rated");
+  LOAD_REQUIRED(song_get_play_count, MediaI32Fn, "cna_song_get_play_count");
+  LOAD_REQUIRED(song_get_rating, MediaI32Fn, "cna_song_get_rating");
+  LOAD_REQUIRED(song_get_track_number, MediaI32Fn, "cna_song_get_track_number");
+  LOAD_REQUIRED(song_get_album, MediaRelationFn, "cna_song_get_album");
+  LOAD_REQUIRED(song_get_artist, MediaRelationFn, "cna_song_get_artist");
+  LOAD_REQUIRED(song_get_genre, MediaRelationFn, "cna_song_get_genre");
+  LOAD_REQUIRED(album_collection_get_count, MediaCountFn, "cna_album_collection_get_count");
+  LOAD_REQUIRED(album_collection_get_at, MediaItemAtFn, "cna_album_collection_get_at");
+  LOAD_REQUIRED(album_get_name_size, MediaTextSizeFn, "cna_album_get_name_size");
+  LOAD_REQUIRED(album_copy_name, MediaCopyTextFn, "cna_album_copy_name");
+  LOAD_REQUIRED(album_get_duration, MediaTicksFn, "cna_album_get_duration");
+  LOAD_REQUIRED(album_get_has_art, MediaBoolFn, "cna_album_get_has_art");
+  LOAD_REQUIRED(album_get_art_size, MediaTextSizeFn, "cna_album_get_art_size");
+  LOAD_REQUIRED(album_copy_art, MediaCopyBytesFn, "cna_album_copy_art");
+  LOAD_REQUIRED(album_get_thumbnail_size, MediaTextSizeFn, "cna_album_get_thumbnail_size");
+  LOAD_REQUIRED(album_copy_thumbnail, MediaCopyBytesFn, "cna_album_copy_thumbnail");
+  LOAD_REQUIRED(album_get_artist, MediaRelationFn, "cna_album_get_artist");
+  LOAD_REQUIRED(album_get_genre, MediaRelationFn, "cna_album_get_genre");
+  LOAD_REQUIRED(artist_collection_get_count, MediaCountFn, "cna_artist_collection_get_count");
+  LOAD_REQUIRED(artist_collection_get_at, MediaItemAtFn, "cna_artist_collection_get_at");
+  LOAD_REQUIRED(artist_get_name_size, MediaTextSizeFn, "cna_artist_get_name_size");
+  LOAD_REQUIRED(artist_copy_name, MediaCopyTextFn, "cna_artist_copy_name");
+  LOAD_REQUIRED(genre_collection_get_count, MediaCountFn, "cna_genre_collection_get_count");
+  LOAD_REQUIRED(genre_collection_get_at, MediaItemAtFn, "cna_genre_collection_get_at");
+  LOAD_REQUIRED(genre_get_name_size, MediaTextSizeFn, "cna_genre_get_name_size");
+  LOAD_REQUIRED(genre_copy_name, MediaCopyTextFn, "cna_genre_copy_name");
+  LOAD_REQUIRED(playlist_collection_get_count, MediaCountFn, "cna_playlist_collection_get_count");
+  LOAD_REQUIRED(playlist_collection_get_at, MediaItemAtFn, "cna_playlist_collection_get_at");
+  LOAD_REQUIRED(playlist_get_name_size, MediaTextSizeFn, "cna_playlist_get_name_size");
+  LOAD_REQUIRED(playlist_copy_name, MediaCopyTextFn, "cna_playlist_copy_name");
+  LOAD_REQUIRED(playlist_get_duration, MediaTicksFn, "cna_playlist_get_duration");
+  LOAD_REQUIRED(playlist_get_songs, MediaLibraryCollectionFn, "cna_playlist_get_songs");
+  LOAD_REQUIRED(picture_collection_get_count, MediaCountFn, "cna_picture_collection_get_count");
+  LOAD_REQUIRED(picture_collection_get_at, MediaItemAtFn, "cna_picture_collection_get_at");
+  LOAD_REQUIRED(picture_get_name_size, MediaTextSizeFn, "cna_picture_get_name_size");
+  LOAD_REQUIRED(picture_copy_name, MediaCopyTextFn, "cna_picture_copy_name");
+  LOAD_REQUIRED(picture_get_token_size_ext, MediaTextSizeFn, "cna_picture_get_token_size_ext");
+  LOAD_REQUIRED(picture_copy_token_ext, MediaCopyTextFn, "cna_picture_copy_token_ext");
+  LOAD_REQUIRED(picture_get_date_unix_ticks, MediaTicksFn, "cna_picture_get_date_unix_ticks");
+  LOAD_REQUIRED(picture_get_width, MediaI32Fn, "cna_picture_get_width");
+  LOAD_REQUIRED(picture_get_height, MediaI32Fn, "cna_picture_get_height");
+  LOAD_REQUIRED(picture_get_image_size, MediaTextSizeFn, "cna_picture_get_image_size");
+  LOAD_REQUIRED(picture_copy_image, MediaCopyBytesFn, "cna_picture_copy_image");
+  LOAD_REQUIRED(picture_get_thumbnail_size, MediaTextSizeFn, "cna_picture_get_thumbnail_size");
+  LOAD_REQUIRED(picture_copy_thumbnail, MediaCopyBytesFn, "cna_picture_copy_thumbnail");
+  LOAD_REQUIRED(picture_get_album, MediaPictureAlbumRelationFn, "cna_picture_get_album");
+  LOAD_REQUIRED(picture_album_get_name_size, MediaTextSizeFn, "cna_picture_album_get_name_size");
+  LOAD_REQUIRED(picture_album_copy_name, MediaCopyTextFn, "cna_picture_album_copy_name");
+  LOAD_REQUIRED(media_library_save_picture, MediaSavePictureFn, "cna_media_library_save_picture");
+  LOAD_REQUIRED(media_library_get_picture_from_token, MediaPictureFromTokenFn, "cna_media_library_get_picture_from_token");
   LOAD_REQUIRED(debug_draw_create, PostProcessPassCreateFn, "cna_debug_draw_create");
   LOAD_REQUIRED(debug_draw_destroy, GameHandleFn, "cna_debug_draw_destroy");
   LOAD_REQUIRED(debug_draw_begin, DebugDrawBeginFn, "cna_debug_draw_begin");
@@ -25714,6 +25873,455 @@ static napi_value bridge_input_devices_get_touch_at(napi_env env, napi_callback_
     "cna_input_devices_get_touch_device_info_at");
 }
 
+/* ---- the media library ------------------------------------------------------------------------
+ *
+ * `Microsoft.Xna.Framework.Media.MediaLibrary` was projected here with empty collections. It is not
+ * empty: CNA indexes the user's Music and Pictures folders, and with one WAV planted in
+ * XDG_MUSIC_DIR it reports one song, one album and one artist. What follows makes the managed type
+ * report what CNA found.
+ *
+ * **No media handle crosses into JavaScript.** The snapshot walks the entire graph here and hands
+ * back copied values, so a consumer owns nothing and can get no lifetime wrong. That also settles
+ * an ownership split CNA's own headers describe differently -- a song out of a collection is "a new
+ * handle" the caller releases, an album out of one is "borrowed" and must not be -- by keeping both
+ * on this side of the boundary, where each is obeyed exactly once.
+ *
+ * Relationships are expressed **by name, not by handle**. Measured: two calls to
+ * `cna_song_collection_get_at(c, 0)` return different handles, and a song's album handle never
+ * equals the one the library's album collection hands back for the same album. Handle equality is
+ * therefore not identity here, and the names are -- CNA groups its own index by them.
+ */
+
+static napi_value media_text(
+  napi_env env, CNA_Handle item, MediaTextSizeFn size_route, MediaCopyTextFn copy_route
+) {
+  napi_value output;
+  uint64_t length = 0, copied = 0;
+  CNA_Result result = size_route(item, &length);
+  if (result != CNA_RESULT_SUCCESS) length = 0;
+  if (length > SIZE_MAX) return throw_message(env, "a media string exceeds the address space");
+  char* text = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !text) return throw_message(env, "media string allocation failed");
+  if (length != 0) {
+    result = copy_route(item, text, length, &copied);
+    if (result != CNA_RESULT_SUCCESS || copied != length) {
+      free(text);
+      return throw_message(env, "a media string could not be copied");
+    }
+  }
+  const napi_status status =
+    napi_create_string_utf8(env, text ? text : "", (size_t) length, &output);
+  free(text);
+  if (status != napi_ok) return throw_napi(env, "media string");
+  return output;
+}
+
+/* The name of a related item, or an empty string when the relation is absent. */
+static napi_value media_relation_name(
+  napi_env env, CNA_Handle item, MediaRelationFn relation,
+  MediaTextSizeFn size_route, MediaCopyTextFn copy_route
+) {
+  napi_value output;
+  CNA_Handle related = CNA_INVALID_HANDLE;
+  CNA_Bool available = CNA_FALSE;
+  if (relation(item, &related, &available) != CNA_RESULT_SUCCESS || available != CNA_TRUE ||
+      related == CNA_INVALID_HANDLE) {
+    NAPI_OR_RETURN(env, napi_create_string_utf8(env, "", 0, &output), "media relation");
+    return output;
+  }
+  return media_text(env, related, size_route, copy_route);
+}
+
+static int set_ticks_property(
+  napi_env env, napi_value object, const char* name, int64_t ticks
+) {
+  napi_value value;
+  /* A TimeSpan is 64-bit; a double would round a long library. */
+  if (napi_create_bigint_int64(env, ticks, &value) != napi_ok) return 0;
+  return napi_set_named_property(env, object, name, value) == napi_ok;
+}
+
+static napi_value media_song_row(napi_env env, CNA_Handle song) {
+  napi_value output, value;
+  int64_t ticks = 0;
+  int32_t track = 0, plays = 0, rating = 0;
+  CNA_Bool guarded = CNA_FALSE, rated = CNA_FALSE;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "song row");
+  value = media_text(env, song, g_api.song_get_name_size, g_api.song_copy_name);
+  if (!value || napi_set_named_property(env, output, "Name", value) != napi_ok) return NULL;
+  /* The file path, which is the only stable identity a song has: two handles for one song differ. */
+  value = media_text(env, song,
+    g_api.song_get_handle_text_size_ext, g_api.song_copy_handle_text_ext);
+  if (!value || napi_set_named_property(env, output, "Handle", value) != napi_ok) return NULL;
+  value = media_relation_name(env, song, g_api.song_get_album,
+    g_api.album_get_name_size, g_api.album_copy_name);
+  if (!value || napi_set_named_property(env, output, "AlbumName", value) != napi_ok) return NULL;
+  value = media_relation_name(env, song, g_api.song_get_artist,
+    g_api.artist_get_name_size, g_api.artist_copy_name);
+  if (!value || napi_set_named_property(env, output, "ArtistName", value) != napi_ok) return NULL;
+  value = media_relation_name(env, song, g_api.song_get_genre,
+    g_api.genre_get_name_size, g_api.genre_copy_name);
+  if (!value || napi_set_named_property(env, output, "GenreName", value) != napi_ok) return NULL;
+  (void) g_api.song_get_duration(song, &ticks);
+  (void) g_api.song_get_track_number(song, &track);
+  (void) g_api.song_get_play_count(song, &plays);
+  (void) g_api.song_get_rating(song, &rating);
+  (void) g_api.song_get_is_protected(song, &guarded);
+  (void) g_api.song_get_is_rated(song, &rated);
+  if (!set_ticks_property(env, output, "DurationTicks", ticks) ||
+      !set_i32_property(env, output, "TrackNumber", track) ||
+      !set_i32_property(env, output, "PlayCount", plays) ||
+      !set_i32_property(env, output, "Rating", rating) ||
+      !set_bool_property(env, output, "IsProtected", guarded) ||
+      !set_bool_property(env, output, "IsRated", rated)) {
+    return throw_napi(env, "song row");
+  }
+  return output;
+}
+
+/* Every song in a collection, as rows. The song handles are released here, as media.h requires. */
+static napi_value media_song_rows(napi_env env, CNA_Handle collection) {
+  napi_value list, row;
+  int32_t count = 0;
+  if (g_api.song_collection_get_count(collection, &count) != CNA_RESULT_SUCCESS || count < 0) {
+    count = 0;
+  }
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, (size_t) count, &list), "song list");
+  for (int32_t index = 0; index < count; index += 1) {
+    CNA_Handle song = CNA_INVALID_HANDLE;
+    if (g_api.song_collection_get_at(collection, index, &song) != CNA_RESULT_SUCCESS) continue;
+    row = media_song_row(env, song);
+    (void) g_api.song_destroy(song);
+    if (!row || napi_set_element(env, list, (uint32_t) index, row) != napi_ok) return NULL;
+  }
+  return list;
+}
+
+/* A named row with an optional duration: albums, artists, genres and playlists share the shape. */
+static napi_value media_named_rows(
+  napi_env env, CNA_Handle collection, MediaCountFn count_route, MediaItemAtFn at_route,
+  MediaTextSizeFn size_route, MediaCopyTextFn copy_route, MediaTicksFn duration_route,
+  MediaRelationFn artist_route, MediaRelationFn genre_route, MediaBoolFn has_art_route
+) {
+  napi_value list, row, value;
+  int32_t count = 0;
+  if (count_route(collection, &count) != CNA_RESULT_SUCCESS || count < 0) count = 0;
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, (size_t) count, &list), "media list");
+  for (int32_t index = 0; index < count; index += 1) {
+    CNA_Handle item = CNA_INVALID_HANDLE;
+    if (at_route(collection, index, &item) != CNA_RESULT_SUCCESS) continue;
+    NAPI_OR_RETURN(env, napi_create_object(env, &row), "media row");
+    value = media_text(env, item, size_route, copy_route);
+    if (!value || napi_set_named_property(env, row, "Name", value) != napi_ok) return NULL;
+    if (duration_route) {
+      int64_t ticks = 0;
+      (void) duration_route(item, &ticks);
+      if (!set_ticks_property(env, row, "DurationTicks", ticks)) return throw_napi(env, "media row");
+    }
+    if (artist_route) {
+      value = media_relation_name(env, item, artist_route,
+        g_api.artist_get_name_size, g_api.artist_copy_name);
+      if (!value || napi_set_named_property(env, row, "ArtistName", value) != napi_ok) return NULL;
+    }
+    if (genre_route) {
+      value = media_relation_name(env, item, genre_route,
+        g_api.genre_get_name_size, g_api.genre_copy_name);
+      if (!value || napi_set_named_property(env, row, "GenreName", value) != napi_ok) return NULL;
+    }
+    if (has_art_route) {
+      CNA_Bool has_art = CNA_FALSE;
+      (void) has_art_route(item, &has_art);
+      if (!set_bool_property(env, row, "HasArt", has_art)) return throw_napi(env, "media row");
+    }
+    if (napi_set_element(env, list, (uint32_t) index, row) != napi_ok) {
+      return throw_napi(env, "media list");
+    }
+  }
+  return list;
+}
+
+static napi_value media_picture_rows(napi_env env, CNA_Handle collection) {
+  napi_value list, row, value;
+  int32_t count = 0;
+  if (g_api.picture_collection_get_count(collection, &count) != CNA_RESULT_SUCCESS || count < 0) {
+    count = 0;
+  }
+  NAPI_OR_RETURN(env, napi_create_array_with_length(env, (size_t) count, &list), "picture list");
+  for (int32_t index = 0; index < count; index += 1) {
+    CNA_Handle picture = CNA_INVALID_HANDLE;
+    int64_t unix_ticks = 0;
+    int32_t width = 0, height = 0;
+    if (g_api.picture_collection_get_at(collection, index, &picture) != CNA_RESULT_SUCCESS) {
+      continue;
+    }
+    NAPI_OR_RETURN(env, napi_create_object(env, &row), "picture row");
+    value = media_text(env, picture, g_api.picture_get_name_size, g_api.picture_copy_name);
+    if (!value || napi_set_named_property(env, row, "Name", value) != napi_ok) return NULL;
+    value = media_text(env, picture,
+      g_api.picture_get_token_size_ext, g_api.picture_copy_token_ext);
+    if (!value || napi_set_named_property(env, row, "Token", value) != napi_ok) return NULL;
+    value = media_relation_name(env, picture, g_api.picture_get_album,
+      g_api.picture_album_get_name_size, g_api.picture_album_copy_name);
+    if (!value || napi_set_named_property(env, row, "AlbumName", value) != napi_ok) return NULL;
+    (void) g_api.picture_get_date_unix_ticks(picture, &unix_ticks);
+    (void) g_api.picture_get_width(picture, &width);
+    (void) g_api.picture_get_height(picture, &height);
+    if (!set_ticks_property(env, row, "DateUnixTicks", unix_ticks) ||
+        !set_i32_property(env, row, "Width", width) ||
+        !set_i32_property(env, row, "Height", height) ||
+        napi_set_element(env, list, (uint32_t) index, row) != napi_ok) {
+      return throw_napi(env, "picture row");
+    }
+  }
+  return list;
+}
+
+static napi_value bridge_media_library_create(napi_env env, napi_callback_info info) {
+  napi_value args[1];
+  CNA_Handle game = 0;
+  CNA_MediaLibraryHandle library = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.media_library_create(game, &library);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_media_library_create", result);
+  }
+  return make_handle(env, library);
+}
+
+static napi_value bridge_media_library_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.media_library_destroy, "cna_media_library_destroy");
+}
+
+/* The whole graph, in one call. Songs, albums, artists, genres, playlists and both picture
+   collections; art and image *bytes* are deliberately not here, because XNA asks for those with a
+   method and a library of photographs would otherwise be read into memory to open it. */
+static napi_value bridge_media_library_snapshot(napi_env env, napi_callback_info info) {
+  napi_value args[1], output, value;
+  CNA_Handle library = 0;
+  CNA_Handle collection = CNA_INVALID_HANDLE;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &library)) return NULL;
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "media snapshot");
+  /* The media *source* is deliberately absent: MediaLibrary.MediaSource already comes from
+     cna_media_source_*, which this package has projected and tested for some time, and reporting
+     it twice would be a second answer to one question. */
+
+#define MEDIA_LIST(getter, builder, property) \
+  do { \
+    collection = CNA_INVALID_HANDLE; \
+    if (g_api.getter(library, &collection) != CNA_RESULT_SUCCESS) { \
+      NAPI_OR_RETURN(env, napi_create_array_with_length(env, 0, &value), property); \
+    } else { \
+      value = builder; \
+      if (!value) return NULL; \
+    } \
+    NAPI_OR_RETURN(env, napi_set_named_property(env, output, property, value), property); \
+  } while (0)
+
+  MEDIA_LIST(media_library_get_songs, media_song_rows(env, collection), "Songs");
+  MEDIA_LIST(media_library_get_albums,
+    media_named_rows(env, collection, g_api.album_collection_get_count,
+      g_api.album_collection_get_at, g_api.album_get_name_size, g_api.album_copy_name,
+      g_api.album_get_duration, g_api.album_get_artist, g_api.album_get_genre,
+      g_api.album_get_has_art), "Albums");
+  MEDIA_LIST(media_library_get_artists,
+    media_named_rows(env, collection, g_api.artist_collection_get_count,
+      g_api.artist_collection_get_at, g_api.artist_get_name_size, g_api.artist_copy_name,
+      NULL, NULL, NULL, NULL), "Artists");
+  MEDIA_LIST(media_library_get_genres,
+    media_named_rows(env, collection, g_api.genre_collection_get_count,
+      g_api.genre_collection_get_at, g_api.genre_get_name_size, g_api.genre_copy_name,
+      NULL, NULL, NULL, NULL), "Genres");
+  MEDIA_LIST(media_library_get_playlists,
+    media_named_rows(env, collection, g_api.playlist_collection_get_count,
+      g_api.playlist_collection_get_at, g_api.playlist_get_name_size, g_api.playlist_copy_name,
+      g_api.playlist_get_duration, NULL, NULL, NULL), "Playlists");
+  MEDIA_LIST(media_library_get_pictures, media_picture_rows(env, collection), "Pictures");
+  MEDIA_LIST(media_library_get_saved_pictures,
+    media_picture_rows(env, collection), "SavedPictures");
+#undef MEDIA_LIST
+
+  return output;
+}
+
+/* A playlist's songs, by playlist index. Separate from the snapshot because a playlist's contents
+   are the one relation that cannot be expressed by name: two playlists may hold the same song. */
+static napi_value bridge_media_library_playlist_songs(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle library = 0, playlists = CNA_INVALID_HANDLE, playlist = CNA_INVALID_HANDLE;
+  CNA_Handle songs = CNA_INVALID_HANDLE;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &library) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a media library and a playlist index");
+  }
+  CNA_Result result = g_api.media_library_get_playlists(library, &playlists);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_media_library_get_playlists", result);
+  }
+  result = g_api.playlist_collection_get_at(playlists, (int32_t) index, &playlist);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_playlist_collection_get_at", result);
+  }
+  result = g_api.playlist_get_songs(playlist, &songs);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_playlist_get_songs", result);
+  }
+  return media_song_rows(env, songs);
+}
+
+/* Copies a sized byte payload -- album art, a thumbnail, a picture -- into a fresh Uint8Array. */
+static napi_value media_bytes(
+  napi_env env, CNA_Handle item, MediaTextSizeFn size_route, MediaCopyBytesFn copy_route,
+  const char* name
+) {
+  napi_value output;
+  void* data = NULL;
+  uint64_t length = 0, copied = 0;
+  CNA_Result result = size_route(item, &length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  if (length > SIZE_MAX) return throw_message(env, "a media payload exceeds the address space");
+  NAPI_OR_RETURN(env, napi_create_buffer(env, (size_t) length, &data, &output), name);
+  if (length != 0) {
+    result = copy_route(item, (uint8_t*) data, length, &copied);
+    if (result != CNA_RESULT_SUCCESS || copied != length) {
+      return throw_result(env, name, result);
+    }
+  }
+  return output;
+}
+
+static napi_value bridge_media_library_album_bytes(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle library = 0, albums = CNA_INVALID_HANDLE, album = CNA_INVALID_HANDLE;
+  uint32_t index = 0;
+  bool thumbnail = false;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &library) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok ||
+      napi_get_value_bool(env, args[2], &thumbnail) != napi_ok) {
+    return throw_message(env, "expected a media library, an album index and a thumbnail flag");
+  }
+  CNA_Result result = g_api.media_library_get_albums(library, &albums);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_media_library_get_albums", result);
+  }
+  result = g_api.album_collection_get_at(albums, (int32_t) index, &album);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_album_collection_get_at", result);
+  }
+  return thumbnail
+    ? media_bytes(env, album, g_api.album_get_thumbnail_size, g_api.album_copy_thumbnail,
+        "cna_album_copy_thumbnail")
+    : media_bytes(env, album, g_api.album_get_art_size, g_api.album_copy_art,
+        "cna_album_copy_art");
+}
+
+static napi_value bridge_media_library_picture_bytes(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle library = 0, pictures = CNA_INVALID_HANDLE, picture = CNA_INVALID_HANDLE;
+  uint32_t index = 0;
+  bool saved = false, thumbnail = false;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &library) ||
+      napi_get_value_bool(env, args[1], &saved) != napi_ok ||
+      napi_get_value_uint32(env, args[2], &index) != napi_ok ||
+      napi_get_value_bool(env, args[3], &thumbnail) != napi_ok) {
+    return throw_message(env, "expected a media library, a collection flag, an index and a flag");
+  }
+  CNA_Result result = saved
+    ? g_api.media_library_get_saved_pictures(library, &pictures)
+    : g_api.media_library_get_pictures(library, &pictures);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_media_library_get_pictures", result);
+  }
+  result = g_api.picture_collection_get_at(pictures, (int32_t) index, &picture);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_picture_collection_get_at", result);
+  }
+  return thumbnail
+    ? media_bytes(env, picture, g_api.picture_get_thumbnail_size, g_api.picture_copy_thumbnail,
+        "cna_picture_copy_thumbnail")
+    : media_bytes(env, picture, g_api.picture_get_image_size, g_api.picture_copy_image,
+        "cna_picture_copy_image");
+}
+
+/* One picture row, for the two routes that produce a single picture rather than a collection. */
+static napi_value media_single_picture(napi_env env, CNA_Handle picture) {
+  napi_value row, value;
+  int64_t unix_ticks = 0;
+  int32_t width = 0, height = 0;
+  NAPI_OR_RETURN(env, napi_create_object(env, &row), "picture");
+  value = media_text(env, picture, g_api.picture_get_name_size, g_api.picture_copy_name);
+  if (!value || napi_set_named_property(env, row, "Name", value) != napi_ok) return NULL;
+  value = media_text(env, picture, g_api.picture_get_token_size_ext, g_api.picture_copy_token_ext);
+  if (!value || napi_set_named_property(env, row, "Token", value) != napi_ok) return NULL;
+  value = media_relation_name(env, picture, g_api.picture_get_album,
+    g_api.picture_album_get_name_size, g_api.picture_album_copy_name);
+  if (!value || napi_set_named_property(env, row, "AlbumName", value) != napi_ok) return NULL;
+  (void) g_api.picture_get_date_unix_ticks(picture, &unix_ticks);
+  (void) g_api.picture_get_width(picture, &width);
+  (void) g_api.picture_get_height(picture, &height);
+  if (!set_ticks_property(env, row, "DateUnixTicks", unix_ticks) ||
+      !set_i32_property(env, row, "Width", width) ||
+      !set_i32_property(env, row, "Height", height)) {
+    return throw_napi(env, "picture");
+  }
+  return row;
+}
+
+static napi_value bridge_media_library_save_picture(napi_env env, napi_callback_info info) {
+  napi_value args[3];
+  CNA_Handle library = 0;
+  CNA_PictureHandle picture = CNA_INVALID_HANDLE;
+  char* name = NULL;
+  size_t name_length = 0;
+  void* data = NULL;
+  size_t byte_count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 3, args) ||
+      !read_handle(env, args[0], &library) ||
+      !read_utf8(env, args[1], &name, &name_length)) return NULL;
+  if (napi_get_buffer_info(env, args[2], &data, &byte_count) != napi_ok) {
+    free(name);
+    return throw_message(env, "expected image bytes");
+  }
+  const CNA_StringView view = {name, (uint64_t) name_length};
+  const CNA_Result result = g_api.media_library_save_picture(
+    library, view, (const uint8_t*) data, (uint64_t) byte_count, &picture);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_media_library_save_picture", result);
+  }
+  return media_single_picture(env, picture);
+}
+
+static napi_value bridge_media_library_picture_from_token(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle library = 0;
+  CNA_PictureHandle picture = CNA_INVALID_HANDLE;
+  CNA_Bool available = CNA_FALSE;
+  char* token = NULL;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &library) ||
+      !read_utf8(env, args[1], &token, &length)) return NULL;
+  const CNA_StringView view = {token, (uint64_t) length};
+  const CNA_Result result =
+    g_api.media_library_get_picture_from_token(library, view, &picture, &available);
+  free(token);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_media_library_get_picture_from_token", result);
+  }
+  /* An unknown token is an ordinary answer, which CNA's header says explicitly. */
+  if (available != CNA_TRUE || picture == CNA_INVALID_HANDLE) {
+    NAPI_OR_RETURN(env, napi_get_null(env, &output), "picture from token");
+    return output;
+  }
+  return media_single_picture(env, picture);
+}
+
 /* -1 means "the platform does not report this", not "none left", so both are handed over as null. */
 static napi_value bridge_power_get_info(napi_env env, napi_callback_info info) {
   napi_value args[1], output, value;
@@ -29763,6 +30371,14 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getAttachedTouchDeviceCount", NULL, bridge_input_devices_get_touch_count, NULL, NULL, NULL, napi_default, NULL },
     { "getAttachedTouchDeviceAt", NULL, bridge_input_devices_get_touch_at, NULL, NULL, NULL, napi_default, NULL },
     { "getHostPowerInfo", NULL, bridge_power_get_info, NULL, NULL, NULL, napi_default, NULL },
+    { "createMediaLibrary", NULL, bridge_media_library_create, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyMediaLibrary", NULL, bridge_media_library_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "getMediaLibrarySnapshot", NULL, bridge_media_library_snapshot, NULL, NULL, NULL, napi_default, NULL },
+    { "getMediaLibraryPlaylistSongs", NULL, bridge_media_library_playlist_songs, NULL, NULL, NULL, napi_default, NULL },
+    { "getMediaLibraryAlbumBytes", NULL, bridge_media_library_album_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "getMediaLibraryPictureBytes", NULL, bridge_media_library_picture_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "saveMediaLibraryPicture", NULL, bridge_media_library_save_picture, NULL, NULL, NULL, napi_default, NULL },
+    { "getMediaLibraryPictureFromToken", NULL, bridge_media_library_picture_from_token, NULL, NULL, NULL, napi_default, NULL },
     { "createFrustumCuller", NULL, bridge_frustum_culler_ext_create, NULL, NULL, NULL, napi_default, NULL },
     { "destroyFrustumCuller", NULL, bridge_frustum_culler_ext_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "setFrustumCullerViewProjection", NULL, bridge_frustum_culler_ext_set_view_projection, NULL, NULL, NULL, napi_default, NULL },
