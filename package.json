@@ -91,7 +91,7 @@
     "audit:cna-abi": "node tools/audit-cna-abi.mjs",
     "report:cna-abi": "node tools/audit-cna-abi.mjs --portable --format json --output docs/cna-abi-report.json && node tools/cna-abi/verify-contract.mjs --portable --format json --output docs/cna-abi-contract-report.json && node tools/api-compat/verify-runtime.mjs --format json --output docs/runtime-symbol-report.json && node tools/api-compat/verify.mjs --leak-only --format json --output docs/internal-leak-report.json",
     "verify:cna-contract": "node tools/cna-abi/verify-contract.mjs",
-    "verify:wasm": "node tools/wasm/sync-routes.mjs --check && node tools/wasm/verify-route-calls.mjs && node tools/wasm/verify-struct-fields.mjs",
+    "verify:wasm": "node tools/wasm/sync-routes.mjs --check && node tools/wasm/verify-route-calls.mjs && node tools/wasm/verify-struct-fields.mjs && node tools/mutation-plans/check-anchors.mjs",
     "coverage:cna-abi": "node tools/cna-abi/coverage.mjs --output docs/cna-api-coverage.md --json-output docs/cna-api-coverage.json",
     "api:report": "node tools/api-compat/verify.mjs --report-only --summary-only",
     "api:inventory": "node tools/api-compat/missing-type-inventory.mjs --output docs/missing-type-inventory.md --json-output docs/missing-type-inventory.json",

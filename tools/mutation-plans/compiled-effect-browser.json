@@ -72,29 +72,29 @@
       "id": "zeroed-post-process-context",
       "why": "the context is populated without CNA's own initializer, so struct_size and struct_version are zero and its four camera matrices are singular rather than the identity -- the shape a binding that treated a growable descriptor as a plain struct would have",
       "file": "src/internal/wasm/graphics-ext.ts",
-      "find": "      this.#routes.invoke(\"cna_post_process_context_init\", context.pointer);",
+      "find": "      this.routes.invoke(\"cna_post_process_context_init\", context.pointer);",
       "replace": "      void context;"
     },
     {
       "id": "colour-grade-ignores-strength",
       "why": "Strength is stored managed and never sent, so the half-strength and zero-strength draws both come back fully graded -- a defect the full-strength assertion alone cannot see",
       "file": "src/internal/wasm/graphics-ext.ts",
-      "find": "    this.#routes.invoke(\"cna_color_grade_pass_set_strength\", pass, strength);",
+      "find": "    this.routes.invoke(\"cna_color_grade_pass_set_strength\", pass, strength);",
       "replace": "    void pass; void strength;"
     },
     {
       "id": "colour-grade-ignores-lut",
       "why": "the table is never bound, so every grade returns the source and the pass looks like a working blit",
       "file": "src/internal/wasm/graphics-ext.ts",
-      "find": "    this.#routes.invoke(\"cna_color_grade_pass_set_lut\", pass, lut);",
+      "find": "    this.routes.invoke(\"cna_color_grade_pass_set_lut\", pass, lut);",
       "replace": "    void pass; void lut;"
     },
     {
       "id": "vector3-components-out-of-order",
       "why": "a CNA_Vector3 read back as (Y,X,Z): the cube's entries come out permuted, which the read-back-before-any-pixel assertion catches and no pixel assertion would, because the table CNA holds is still right",
-      "file": "src/internal/wasm/graphics-ext.ts",
-      "find": "      return { X: view.getFloat32(out, true), Y: view.getFloat32(out + 4, true), Z: view.getFloat32(out + 8, true) };",
-      "replace": "      return { X: view.getFloat32(out + 4, true), Y: view.getFloat32(out, true), Z: view.getFloat32(out + 8, true) };"
+      "file": "src/internal/wasm/graphics-ext-core.ts",
+      "find": "      X: view.getFloat32(out, true),\n      Y: view.getFloat32(out + 4, true),\n      Z: view.getFloat32(out + 8, true),",
+      "replace": "      X: view.getFloat32(out + 4, true),\n      Y: view.getFloat32(out, true),\n      Z: view.getFloat32(out + 8, true),"
     },
     {
       "id": "blit-draws-to-the-back-buffer",
@@ -107,15 +107,15 @@
       "id": "chain-add-is-a-no-op",
       "why": "the chain accepts a pass and holds none, so its pass count stays zero and applying it produces whatever an empty chain does rather than the composed grade",
       "file": "src/internal/wasm/graphics-ext.ts",
-      "find": "    this.#routes.invoke(\"cna_post_process_chain_add_pass\", chain, pass);",
+      "find": "    this.routes.invoke(\"cna_post_process_chain_add_pass\", chain, pass);",
       "replace": "    void chain; void pass;"
     },
     {
       "id": "chain-applied-through-the-single-pass-route",
       "why": "a chain handle sent to cna_post_process_pass_apply: the two routes take the same context and differ only in what the first argument is, which is exactly the confusion a route table makes easy",
       "file": "src/internal/wasm/graphics-ext.ts",
-      "find": "      this.#routes.invoke(\"cna_post_process_chain_apply\", chain, pointer);",
-      "replace": "      this.#routes.invoke(\"cna_post_process_pass_apply\", chain, pointer);"
+      "find": "      this.routes.invoke(\"cna_post_process_chain_apply\", chain, pointer);",
+      "replace": "      this.routes.invoke(\"cna_post_process_pass_apply\", chain, pointer);"
     },
     {
       "id": "post-process-context-drops-the-destination",
@@ -128,15 +128,15 @@
       "id": "vertex-elements-read-at-the-wrong-stride",
       "why": "CNA_VertexElement strided by twelve bytes instead of its measured sixteen: the first element still reads correctly and every later one is misaligned, which is the shape of a layout copied from a header rather than measured",
       "file": "src/internal/wasm/graphics-ext.ts",
-      "find": "          this.#routes.module, \"CNA_VertexElement\", buffer + layout.size * index,",
-      "replace": "          this.#routes.module, \"CNA_VertexElement\", buffer + 12 * index,"
+      "find": "          this.routes.module, \"CNA_VertexElement\", base + layout.size * index,",
+      "replace": "          this.routes.module, \"CNA_VertexElement\", base + (layout.size + 4) * index,"
     },
     {
       "id": "instance-stride-read-from-the-tint-route",
       "why": "the transform stream's stride answered by the tint stream's route: both are int32 outputs with identical signatures, so nothing but the value distinguishes them -- 64 against 4",
       "file": "src/internal/wasm/graphics-ext.ts",
-      "find": "    return this.#int(\"cna_instanced_renderer_ext_get_instance_stride\");",
-      "replace": "    return this.#int(\"cna_instanced_renderer_ext_get_tint_stride\");"
+      "find": "    return this.mem.int(\"cna_instanced_renderer_ext_get_instance_stride\");",
+      "replace": "    return this.mem.int(\"cna_instanced_renderer_ext_get_tint_stride\");"
     },
     {
       "id": "light-direction-read-from-its-colour",
@@ -148,7 +148,7 @@
     {
       "id": "scene-bounds-min-and-max-swapped",
       "why": "EQUIVALENT, and kept because finding that out is the point. Swapping a scene box's min and max looks like it must move the shadow, and it cannot: ShadowMap.cpp's computeLightView takes the box's centre -- symmetric under the swap -- and a radius from the sum of squared extents, whose signs cancel; computeLightProjection enumerates all eight corners and takes their min and max in light space, and the eight corners of a swapped box are the same eight points. There is nothing here for a test to catch, so this survives and is reported as surviving rather than reclassified or deleted.",
-      "file": "src/internal/wasm/shadows.ts",
+      "file": "src/internal/wasm/graphics-ext-core.ts",
       "find": "    for (const [field, value] of [[\"min\", bounds.Min], [\"max\", bounds.Max]] as const) {",
       "replace": "    for (const [field, value] of [[\"min\", bounds.Max], [\"max\", bounds.Min]] as const) {"
     },
@@ -170,21 +170,21 @@
       "id": "tonemap-exposure-never-sent",
       "why": "the tonemapper's exposure is stored managed and never written, so the shader tones a differently exposed image than CNA's own scalar says it should -- and the scalar, which takes exposure as an argument, still answers correctly",
       "file": "src/internal/wasm/graphics-ext.ts",
-      "find": "    this.#routes.invoke(\"cna_tonemap_pass_set_exposure\", pass, exposure);",
+      "find": "    this.routes.invoke(\"cna_tonemap_pass_set_exposure\", pass, exposure);",
       "replace": "    void pass; void exposure;"
     },
     {
       "id": "tonemap-scalar-ignores-its-mode",
       "why": "CNA's own tone-curve scalar always asked for mode zero: the None branch still agrees with its shader and the Reinhard one no longer does, which is exactly the half-right shape a shared-oracle test has to catch",
       "file": "src/internal/wasm/graphics-ext.ts",
-      "find": "    return this.#float(\"cna_tonemap_pass_tonemap_channel\", mode, value, exposure, gamma);",
-      "replace": "    void mode;\n    return this.#float(\"cna_tonemap_pass_tonemap_channel\", 0, value, exposure, gamma);"
+      "find": "    return this.mem.float(\"cna_tonemap_pass_tonemap_channel\", mode, value, exposure, gamma);",
+      "replace": "    void mode;\n    return this.mem.float(\"cna_tonemap_pass_tonemap_channel\", 0, value, exposure, gamma);"
     },
     {
       "id": "bloom-threshold-never-sent",
       "why": "bloom keeps its default threshold whatever the caller asks for, so a pass tuned to pick out highlights picks out something else",
       "file": "src/internal/wasm/graphics-ext.ts",
-      "find": "    this.#routes.invoke(\"cna_bloom_pass_set_threshold\", pass, threshold);",
+      "find": "    this.routes.invoke(\"cna_bloom_pass_set_threshold\", pass, threshold);",
       "replace": "    void pass; void threshold;"
     },
     {

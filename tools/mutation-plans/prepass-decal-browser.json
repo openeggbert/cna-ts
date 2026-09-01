@@ -37,8 +37,8 @@
       "id": "depth-decode-glsl-ignores-its-dialect",
       "why": "the packed flag dropped, so both dialects come back as the half-float one. Every 'is it non-empty' check passes; only asking which of the two carries cnaUnpackDepth catches it",
       "file": "src/internal/wasm/prepass.ts",
-      "find": "    return this.#mem.probedString(\"cna_depth_normal_prepass_copy_depth_decode_glsl\", packed ? 1 : 0);",
-      "replace": "    return this.#mem.probedString(\"cna_depth_normal_prepass_copy_depth_decode_glsl\", 0);"
+      "find": "    return this.#mem.probedString(\n      \"cna_depth_normal_prepass_copy_depth_decode_glsl\",\n      packed ? 1 : 0,\n    );",
+      "replace": "    return this.#mem.probedString(\n      \"cna_depth_normal_prepass_copy_depth_decode_glsl\",\n      0,\n    );"
     },
     {
       "id": "matrix-written-transposed",
@@ -56,10 +56,11 @@
     },
     {
       "id": "prepass-begin-loses-its-pass-index",
-      "why": "every pass of a two-pass prepass opened as pass zero. On a renderer with multiple render targets there is only one pass and this is invisible; the ordering probe, which opens pass zero twice, is what still sees it",
+      "why": "every pass of a two-pass prepass opened as pass zero. Survives, and nothing today can kill it: upstream finding 30 means the WEBGL2 multiple-render-target draw reaches no target, so the prepass produces no pixels whose ordering could differ -- and the windowed suite cannot stand in, because it exercises the Node-API backend and never loads this file at all. Measured on 2026-09-02 by planting it and running the windowed suite, which passed 25 of 25. It is killable the day finding 30 is repaired, and not before",
       "file": "src/internal/wasm/prepass.ts",
       "find": "        \"cna_depth_normal_prepass_begin\", prepass, Math.trunc(passIndex),",
-      "replace": "        \"cna_depth_normal_prepass_begin\", prepass, 0,"
+      "replace": "        \"cna_depth_normal_prepass_begin\", prepass, 0,",
+      "expect": "survives"
     },
     {
       "id": "prepass-planes-swapped",
@@ -98,10 +99,11 @@
     },
     {
       "id": "prepass-texture-getters-swapped",
-      "why": "the depth and normal borrows exchanged. Both are the same size and both are real textures, so only something that reads their contents or their identity separates them",
+      "why": "the depth and normal borrows exchanged. Survives for the same reason and with the same proof: with finding 30 stopping any draw, the two are indistinguishable through the public API -- same size, same surface format, same level count, same clear (both white, asserted in the oracle), and object identity cannot see it because the two accessors memoise separately and so are two objects whichever handle each holds. The windowed suite does not load this file",
       "file": "src/internal/wasm/prepass.ts",
       "find": "  public override getDepthNormalPrepassDepthTexture(prepass: NativeHandle): NativeHandle {\n    return this.#routes.outHandle(\"cna_depth_normal_prepass_get_depth_texture\", prepass);\n  }",
-      "replace": "  public override getDepthNormalPrepassDepthTexture(prepass: NativeHandle): NativeHandle {\n    return this.#routes.outHandle(\"cna_depth_normal_prepass_get_normal_texture\", prepass);\n  }"
+      "replace": "  public override getDepthNormalPrepassDepthTexture(prepass: NativeHandle): NativeHandle {\n    return this.#routes.outHandle(\"cna_depth_normal_prepass_get_normal_texture\", prepass);\n  }",
+      "expect": "survives"
     },
     {
       "id": "velocity-texture-returned-for-a-disabled-prepass",

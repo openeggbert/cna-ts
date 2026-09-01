@@ -9,15 +9,15 @@
       "id": "ssr-create-is-really-ssao",
       "why": "createSsrPass resolves the SSAO pass's create route. Every SSR parameter would then be set on an SSAO pass and read back from it -- so every round-trip still passes -- and only the pass's own name disagrees",
       "file": "src/internal/wasm/post-process.ts",
-      "find": "  public override createSsrPass(device: NativeHandle): NativeHandle {\n    return this.create(\"cna_ssr_pass_create\", device);\n  }",
-      "replace": "  public override createSsrPass(device: NativeHandle): NativeHandle {\n    return this.create(\"cna_ssao_pass_create\", device);\n  }"
+      "find": "    return this.mem.create(\"cna_ssr_pass_create\", device);",
+      "replace": "    return this.mem.create(\"cna_ssao_pass_create\", device);"
     },
     {
       "id": "light-shaft-and-motion-blur-swapped",
       "why": "two creates exchanged, which is what a copy-paste through eleven near-identical passes produces; both objects still take every setter their public class calls",
       "file": "src/internal/wasm/post-process.ts",
-      "find": "  public override createMotionBlurPass(device: NativeHandle): NativeHandle {\n    return this.create(\"cna_motion_blur_pass_create\", device);\n  }",
-      "replace": "  public override createMotionBlurPass(device: NativeHandle): NativeHandle {\n    return this.create(\"cna_light_shaft_pass_create\", device);\n  }"
+      "find": "    return this.mem.create(\"cna_motion_blur_pass_create\", device);",
+      "replace": "    return this.mem.create(\"cna_light_shaft_pass_create\", device);"
     },
     {
       "id": "ssao-radius-writes-intensity",
@@ -51,15 +51,15 @@
       "id": "ssao-kernel-read-at-a-vector4-stride",
       "why": "the kernel copied as if CNA_Vector3 were sixteen bytes, which reads every fourth sample's components out of the next sample -- and still produces 64 plausible unit-ish vectors",
       "file": "src/internal/wasm/post-process.ts",
-      "find": "    const stride = WASM_STRUCT_LAYOUTS.CNA_Vector3.size;\n    return this.probedArray(\"cna_ssao_pass_copy_kernel\", [pass], stride, (base, written) => {",
-      "replace": "    const stride = 16;\n    return this.probedArray(\"cna_ssao_pass_copy_kernel\", [pass], stride, (base, written) => {"
+      "find": "    const stride = WASM_STRUCT_LAYOUTS.CNA_Vector3.size;\n    return this.mem.probedArray(\"cna_ssao_pass_copy_kernel\", [pass], stride, (base, written) => {",
+      "replace": "    const stride = WASM_STRUCT_LAYOUTS.CNA_Vector4.size;\n    return this.mem.probedArray(\"cna_ssao_pass_copy_kernel\", [pass], stride, (base, written) => {"
     },
     {
       "id": "packed-glsl-flag-ignored",
       "why": "the packed/unpacked selector is dropped, so both forms of the occlusion GLSL come back as the unpacked one -- a defect no length check and no 'is it non-empty' check would see",
       "file": "src/internal/wasm/post-process.ts",
-      "find": "    return this.probedString(\"cna_ssao_pass_copy_occlusion_glsl\", packed ? 1 : 0);",
-      "replace": "    return this.probedString(\"cna_ssao_pass_copy_occlusion_glsl\", 0);"
+      "find": "    return this.mem.probedString(\"cna_ssao_pass_copy_occlusion_glsl\", packed ? 1 : 0);",
+      "replace": "    return this.mem.probedString(\"cna_ssao_pass_copy_occlusion_glsl\", 0);"
     },
     {
       "id": "ascii-cell-size-height-follows-width",

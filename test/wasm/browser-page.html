@@ -1620,6 +1620,34 @@ try {
           normal: [prepass.NormalTexture.Width, prepass.NormalTexture.Height],
           velocity: prepass.VelocityTexture === null ? "null" : "present",
         };
+        // What each target holds after Begin/End with nothing drawn.
+        //
+        // This is the measurement behind a survivor that is classified rather than killed. On this
+        // renderer nothing can be drawn into either target at all (upstream finding 30), so the
+        // clear is the only content there is -- and both clear to the same white, so a binding that
+        // exchanged the depth and normal borrows cannot be caught here. Neither can it be caught by
+        // size, by surface format, by level count, or by object identity: the two accessors memoise
+        // separately, so they are two objects whichever handle each holds. In a browser these
+        // borrows are indistinguishable -- and the windowed suite cannot stand in, because it
+        // exercises the Node-API backend and never loads this backend at all.
+        try {
+          const clearView = Matrix.CreateLookAt(new Vector3(0, 0, 4), Vector3.Zero, Vector3.Up);
+          const clearProjection =
+            Matrix.CreatePerspectiveFieldOfView(Math.PI / 2, 80 / 48, 0.1, 100);
+          prepass.Begin(0, clearView, clearProjection, 0.1, 100);
+          prepass.End();
+          const cleared = (texture) => {
+            const pixels = new Array(texture.Width * texture.Height);
+            texture.GetData(pixels);
+            const first = pixels[0];
+            return [first.R, first.G, first.B, first.A];
+          };
+          evidence.prepass.clearedDepth = cleared(prepass.DepthTexture);
+          evidence.prepass.clearedNormal = cleared(prepass.NormalTexture);
+        } catch (error) {
+          evidence.prepass.clearedError = `${error?.constructor?.name}: ${error?.message}`;
+        }
+
         evidence.prepass.effects = [
           prepass.PrepassEffect.CurrentTechnique.Name,
           prepass.SkinnedPrepassEffect.CurrentTechnique.Name,

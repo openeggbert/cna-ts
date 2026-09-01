@@ -803,9 +803,32 @@ leaves the artifact byte-identical and the harness rightly refuses to score it.
 exactly one thing wrong — a field that never reached CNA, a handle array walked at a pointer's
 stride, a class refused by the binding rather than by CNA — and requiring it to say so.
 
+**A seventh of the mutation suite was measuring nothing.** A mutation plan is evidence only while
+its anchors match, and when code moves under one the harness reports `ANCHOR x0` — the correct
+refusal, but only to whoever runs the plan, and plans are slow enough that nobody runs them often.
+One refactor here left 12 of 29 anchors stale in a single plan and 5 more across two others: 17
+mutants that the plans still claimed to cover and that tested nothing at all. All 17 are repaired,
+and `tools/mutation-plans/check-anchors.mjs` now checks all 114 in a second rather than in an hour —
+each anchor matching its file exactly once, and each replacement differing from its anchor, because
+a replacement identical to the anchor plants nothing and reads as a survivor.
+
+With the anchors repaired the compiled-effect plan kills 29 of 29.
+
+The four survivors of the prepass plan are worth reading as a group, because two of them nearly
+shipped with a false classification. A survivor was written up as "the windowed suite is where this
+one can be killed" — and it cannot: the windowed suite exercises the **Node-API** backend and never
+loads the WebAssembly one, so no mutation of this backend can ever reach it. Planting the mutant and
+running that suite is what showed it, 25 of 25 passing with the defect in place. The honest statement
+is that both are blocked by upstream finding 30, which stops the browser prepass drawing anything,
+and neither is killable anywhere today. Exchanging the depth and normal borrows is invisible through
+size, surface format, level count, clear value (both white — asserted, so the claim is measured) and
+object identity, since the two accessors memoise separately and are two objects whichever handle
+each holds.
+
 The three static wasm gates now run as one command, `npm run verify:wasm`, and CI runs it: the route
 table matching the routes actually called, every call's arity and BigInt-ness against its C
-declaration, and every structure field against the measured layout. None of them had been wired into
+declaration, every structure field against the measured layout, and every mutation anchor against
+the code it claims to name. None of them had been wired into
 anything before, which is its own answer to how three structures shipped broken.
 
 The census also records what CNA refuses and why. On the strong artifact **exactly three** classes

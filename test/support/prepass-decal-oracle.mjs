@@ -192,6 +192,23 @@ export function assertPrepassState(prepass, { width, height }) {
   );
   assert.deepEqual(prepass.textures.normal, [width, height], "and so is the normal buffer");
   assert.equal(prepass.textures.depthCached, true, "the borrow is taken once, not once per read");
+  // What the two borrows hold with nothing drawn, which on this renderer is all they ever hold.
+  assert.equal(
+    prepass.clearedError ?? null, null, `reading the cleared targets failed: ${prepass.clearedError}`,
+  );
+  assert.deepEqual(
+    prepass.clearedDepth, [255, 255, 255, 255],
+    "the depth target clears to white -- far, in a buffer where 1.0 is the far plane",
+  );
+  assert.deepEqual(
+    prepass.clearedNormal, [255, 255, 255, 255],
+    "and so does the normal target. This is measured rather than assumed because it is why a " +
+    "binding that exchanged the two borrows survives here: upstream finding 30 stops anything " +
+    "being drawn into either, and the clear is identical, as are the size, the surface format, " +
+    "the level count, and object identity. These two are indistinguishable here, and the windowed " +
+    "suite cannot stand in for the browser: it exercises the Node-API backend and never loads the " +
+    "WebAssembly one. That mutant is killable the day finding 30 is repaired, and not before",
+  );
   assert.equal(
     prepass.textures.velocity, "null",
     "velocity is off, so there is no buffer -- not an empty one",
