@@ -92,7 +92,23 @@ compiledEffectTest("the artifact reports GraphicsCapability::CompiledEffects as 
   // suite exists to distinguish itself from: the same bytes through the same public constructor
   // give CNA result 6 there and a live effect here, and the difference is one CMake option.
   assert.equal(compiled.cnaResult ?? null, null, "nothing refused these bytes");
-  console.log("STRONG_WASM_COMPILED_EFFECTS=true");
+
+  // The same answer by a second route, and one that never touches the Effect constructor: CNA's
+  // own capability query, through the public `GraphicsDeviceCapabilities`. Two independent paths
+  // to one fact is what separates "the constructor happened to work" from "the device says it
+  // supports this" -- and on the default artifact this reads false while every other capability
+  // below reads the same, so it is the build option and nothing else that moved.
+  const caps = evidence.result.deviceCapabilities;
+  assert.equal(
+    caps.supported.CompiledEffects, true,
+    "GraphicsCapability.CompiledEffects, asked of the device rather than inferred from the draw",
+  );
+  // Two that no build option can change, because they are facts about WebGL 2.0 rather than about
+  // CNA: there is no compute stage and no indirect draw in the specification at all. Asserted so
+  // that a future context which does have them fails here and gets classified rather than assumed.
+  assert.equal(caps.supported.ComputeShaders, false, "WebGL 2.0 has no compute stage");
+  assert.equal(caps.supported.IndirectDraw, false, "and no indirect draw");
+  console.log("STRONG_WASM_COMPILED_EFFECTS=true (constructor and capability query agree)");
 });
 
 compiledEffectTest("a compiled effect reflects, writes through to CNA and draws predicted pixels", () => {

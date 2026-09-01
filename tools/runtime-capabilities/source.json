@@ -2412,6 +2412,19 @@
       ]
     },
     {
+      "operation": "Device capability and compute work-group limit queries over WebAssembly",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "All nineteen GraphicsCapability identities and the three compute work-group limits, asked of a live WebGL2 device through the public GraphicsDeviceCapabilities. Sixteen of nineteen are on for the default artifact and seventeen for one built with CNA_EASYGL_COMPILED_EFFECTS=ON -- CompiledEffects is the only one that moves, which is a second and independent confirmation of the compiled-effect capability, reached without touching the Effect constructor. ComputeShaders and IndirectDraw are off on both and no CNA build option changes them: WebGL 2.0 has no compute stage and no indirect draw, so every engine family needing either is renderer-blocked rather than unbound. This slice dispatches nothing; compute shaders, storage buffers, image bindings, barriers and GPU timers all refuse by name.",
+      "proof": [
+        "wasmRoute:cna_graphics_device_supports_capability",
+        "wasmRoute:cna_graphics_device_get_max_compute_work_group_count_ext",
+        "wasmRoute:cna_graphics_device_get_max_compute_work_group_size_ext",
+        "wasmRoute:cna_graphics_device_get_max_compute_work_group_invocations_ext",
+        "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
       "operation": "Compiled-effect parameter reflection and shader write-through",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS + CNA",

@@ -711,6 +711,15 @@ try {
       // and graded pixels where it was not.
       result.colourGrade = this.#colourGradeEvidence();
 
+      // --- what this device can be asked ------------------------------------------------------
+      //
+      // Nineteen capability identities and three compute work-group limits, through the public
+      // GraphicsDeviceCapabilities. This is what a page branches on before reaching for anything
+      // in the engine layer, and until the compute slice existed a browser could not ask it at
+      // all -- the only way to learn a context has no compute shaders was to build something that
+      // needed them and read the exception.
+      result.deviceCapabilities = this.#deviceCapabilityEvidence();
+
       super.LoadContent();
     }
 
@@ -872,6 +881,31 @@ try {
         target.Dispose();
       }
       return evidence;
+    }
+
+    /** Every `GraphicsCapability` this device answers, and the compute limits beside them. */
+    #deviceCapabilityEvidence() {
+      const device = this.GraphicsDevice;
+      const caps = PostProcess.GraphicsDeviceCapabilities;
+      const named = Object.entries(PostProcess.GraphicsCapability)
+        .filter(([, value]) => typeof value === "number");
+      const supported = {};
+      for (const [name, value] of named) {
+        try { supported[name] = caps.Supports(device, value); }
+        catch (error) { supported[name] = `${error?.constructor?.name}: ${error?.message}`; }
+      }
+      const limit = (body) => {
+        try { return body(); }
+        catch (error) { return `${error?.constructor?.name}: ${error?.message}`; }
+      };
+      return {
+        supported,
+        maxWorkGroupCount: [0, 1, 2].map((axis) =>
+          limit(() => caps.MaxComputeWorkGroupCount(device, axis))),
+        maxWorkGroupSize: [0, 1, 2].map((axis) =>
+          limit(() => caps.MaxComputeWorkGroupSize(device, axis))),
+        maxWorkGroupInvocations: limit(() => caps.MaxComputeWorkGroupInvocations(device)),
+      };
     }
 
     /**

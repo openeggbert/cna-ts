@@ -22,12 +22,12 @@ BROWSER=headless Chromium via Playwright, SwiftShader
 CONTEXT=WebGL 2.0 (OpenGL ES 3.0)
 CNA_RENDERER=WEBGL2 through EasyGL
 ABI=0.21.0
-WASM_BACKEND_ROUTES=429
+WASM_BACKEND_ROUTES=433
 MISSING_WASM_BACKEND_EXPORTS=0
 UNCAUGHT_PAGE_ERRORS=0
 ```
 
-Every one of those 429 routes is resolved when the backend is constructed, so a module missing any of
+Every one of those 433 routes is resolved when the backend is constructed, so a module missing any of
 them fails at load rather than mid-frame; `npm run audit:cna-abi` checks the same list against the
 artifact's loader before a browser is started. The count is accounting, not the capability: what a
 browser consumer can now do is the subject of the sections below.
@@ -457,6 +457,32 @@ suite reads the value back and takes the branch it finds rather than asserting t
 `RuntimeState::ownedGraphicsResourceCount`, so every later `cna_game_destroy` in the runtime refuses
 (finding 1). In a page, a game that cannot be destroyed is a worse outcome than a refusal that says
 so, and `Add` does everything the chain needs. When CNA repairs it this becomes two lines.
+
+### What this device can be asked, and what that settles
+
+A page decides what to reach for by asking, and until now it could not: `backend.Compute` was
+absent, so `GraphicsDeviceCapabilities.Supports` failed with a message about the binding and the
+only way to learn a context has no compute shaders was to build something that needed them and read
+the exception. All nineteen identities and the three compute work-group limits are now pure queries
+against the device CNA already has. Measured in headless Chromium on WebGL2:
+
+```text
+default artifact   16/19    strong artifact   17/19
+on both:  ThreeD DepthStencilBuffer MultiSampleAntiAliasing MultipleRenderTargets
+          AnisotropicFiltering WireFrame OcclusionQuery CustomEffects Texture3D
+          MultiStreamVertexInput Instancing StencilBuffer AdditiveBlending
+          FloatRenderTargets HalfFloatRenderTargets HalfFloatTextureLinearFiltering
+only with -DCNA_EASYGL_COMPILED_EFFECTS=ON:  CompiledEffects
+off on both:  ComputeShaders  IndirectDraw
+```
+
+Two things follow, and both are measurements rather than judgements. `CompiledEffects` is **the
+only identity that moves** between the two artifacts, which confirms the compiled-effect capability
+by a second route that never touches the `Effect` constructor. And `ComputeShaders` and
+`IndirectDraw` are off on both and no CNA build option changes them, because WebGL 2.0 has no
+compute stage and no indirect draw in its specification at all -- so every engine family that needs
+either is **renderer-blocked** on this context rather than merely unbound, and the compute slice
+that answers these questions deliberately dispatches nothing.
 
 Everything else in the 603-member interface still refuses **by name** through
 `CnaGraphicsExtensionBackendBase`. The object being present rather than absent is the point: a

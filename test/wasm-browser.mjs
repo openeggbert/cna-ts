@@ -503,3 +503,37 @@ test("the browser artifact is asked whether it has CNA's engine layer, and answe
   }
   assert.deepEqual(consoleErrors, []);
 });
+
+test("a browser can ask its device what it supports, and the answers are the device's", { skip }, async () => {
+  const { result, consoleErrors } = await runFrames(60);
+  assert.equal(result.status, "ok", result.error ?? "");
+  const caps = result.deviceCapabilities;
+  assert.ok(caps, "no device-capability evidence was produced");
+
+  // Every identity answers a boolean rather than throwing. This is the assertion the slice exists
+  // for: before it, `GraphicsDeviceCapabilities.Supports` failed in a browser with a message about
+  // the binding, so a page had no cheap way to branch on what its context can do.
+  for (const [name, value] of Object.entries(caps.supported)) {
+    assert.equal(typeof value, "boolean", `${name} answered ${value}`);
+  }
+
+  // Four whose answer a WebGL 2.0 context settles, and which would be wrong if the capability
+  // identities were being renumbered on the way through.
+  assert.equal(caps.supported.ThreeD, true, "WebGL2 draws 3D");
+  assert.equal(caps.supported.MultipleRenderTargets, true, "and binds several targets at once");
+  assert.equal(caps.supported.Texture3D, true, "and has 3D textures -- the volume LUT needs them");
+  assert.equal(
+    caps.supported.ComputeShaders, false,
+    "and has no compute shaders: WebGL 2.0 has no compute stage at all, which is a fact about " +
+    "the context rather than about how the artifact was built",
+  );
+
+  // The work-group limits agree with that: a context with no compute stage reports no room in it.
+  for (const axis of caps.maxWorkGroupCount) assert.equal(typeof axis, "number");
+  for (const axis of caps.maxWorkGroupSize) assert.equal(typeof axis, "number");
+  assert.equal(typeof caps.maxWorkGroupInvocations, "number");
+
+  const on = Object.entries(caps.supported).filter(([, value]) => value).map(([name]) => name);
+  console.log(`CNA_TS_WASM_DEVICE_CAPABILITIES=${on.length}/19 ON=${on.join(",")}`);
+  assert.deepEqual(consoleErrors, []);
+});

@@ -18,6 +18,7 @@ import type {
   CnaAudioBackend,
   CnaContentBackend,
   CnaGraphicsBackend,
+  CnaComputeBackend,
   CnaGraphicsExtensionBackend,
   CnaRuntimeServicesBackend,
   PlatformSnapshot,
@@ -75,6 +76,7 @@ import { WasmAudioBackend } from "./audio.js";
 import { WasmContentBackend } from "./content.js";
 import { WasmGraphicsBackend } from "./graphics.js";
 import { WasmEffectBackend } from "./effects.js";
+import { WasmComputeBackend } from "./compute.js";
 import { WasmGraphicsExtensionBackend } from "./graphics-ext.js";
 
 const CNA_RESULT_SUCCESS = CnaResult.Success;
@@ -204,6 +206,12 @@ const ROUTES = [
   // colour lookup table handed out by the engine layer. Creating and uploading one is not here.
   "cna_texture3d_get_info",
   "cna_texture3d_destroy",
+  // What the device can be asked. Pure queries, and the ones a page branches on: nineteen
+  // capability identities and three compute work-group limits. Nothing here dispatches.
+  "cna_graphics_device_supports_capability",
+  "cna_graphics_device_get_max_compute_work_group_count_ext",
+  "cna_graphics_device_get_max_compute_work_group_size_ext",
+  "cna_graphics_device_get_max_compute_work_group_invocations_ext",
   // --- extended graphics: the fullscreen blit and colour grading -------------------------------
   // One family of CNA's 857-route engine layer, not the layer. Every route here answers
   // NOT_SUPPORTED on an artifact built CNA_CNAEXT=OFF, which is the artifact's answer to give and
@@ -570,6 +578,14 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
    * was compiled out.
    */
   public readonly GraphicsExtensions: CnaGraphicsExtensionBackend;
+  /**
+   * What the device can be asked, which is how a page decides what to reach for.
+   *
+   * No compute is dispatched here. The object exists because `GraphicsDeviceCapabilities.Supports`
+   * hangs off it, and without it a browser had no way to find out what its context supports short
+   * of constructing something that needs a capability and reading the exception.
+   */
+  public readonly Compute: CnaComputeBackend;
   /** Sound effects, so a browser game can make a noise. */
   public readonly Audio: CnaAudioBackend;
   /**
@@ -592,6 +608,7 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
     this.Graphics = new WasmGraphicsBackend(this.#routes);
     this.Effects = new WasmEffectBackend(this.#routes);
     this.GraphicsExtensions = new WasmGraphicsExtensionBackend(this.#routes);
+    this.Compute = new WasmComputeBackend(this.#routes);
     this.Audio = new WasmAudioBackend(
       this.#routes, () => this.#requireGame(), () => this.#requireGameLifetime(),
     );
