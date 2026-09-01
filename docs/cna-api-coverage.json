@@ -7,22 +7,22 @@
   "totalFunctions": 4054,
   "totals": {
     "XNA_BACKING": 1292,
-    "CNA_EXTENSION_BACKING": 1847,
+    "CNA_EXTENSION_BACKING": 1870,
     "INTERNAL_RUNTIME_ONLY": 1,
-    "MANAGED_BY_DESIGN": 457,
+    "MANAGED_BY_DESIGN": 461,
     "TOOLING_ONLY": 31,
-    "INTENTIONALLY_DEFERRED": 426,
+    "INTENTIONALLY_DEFERRED": 399,
     "UPSTREAM_RUNTIME_UNAVAILABLE": 0,
     "UNEXPLAINED": 0
   },
   "reachable": {
-    "NODE": 1758,
+    "NODE": 1775,
     "WASM": 276
   },
-  "reachableByAny": 1758,
+  "reachableByAny": 1775,
   "reachableByAll": 276,
   "reachableExclusively": {
-    "NODE": 1482,
+    "NODE": 1499,
     "WASM": 0
   },
   "reachabilityByCategory": {
@@ -31,7 +31,7 @@
       "WASM": 73
     },
     "CNA_EXTENSION_BACKING": {
-      "NODE": 1298,
+      "NODE": 1315,
       "WASM": 189
     },
     "INTERNAL_RUNTIME_ONLY": {
@@ -163,8 +163,9 @@
       "REACHABLE_NODE": 5
     },
     "input_devices.h": {
-      "INTENTIONALLY_DEFERRED": 27,
-      "CNA_EXTENSION_BACKING": 9,
+      "CNA_EXTENSION_BACKING": 32,
+      "REACHABLE_NODE": 17,
+      "MANAGED_BY_DESIGN": 4,
       "TOOLING_ONLY": 1
     },
     "input_gamepad.h": {
@@ -3748,30 +3749,38 @@
     {
       "name": "cna_clipboard_copy_text",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_clipboard_get_has_text",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_clipboard_get_text_size",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_clipboard_set_text",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_clustered_forward_effect_begin",
@@ -16826,100 +16835,124 @@
     {
       "name": "cna_input_device_info_equals",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "POD initialisers and comparators for two descriptor structs the binding never hands across the boundary: it builds frozen JavaScript objects from the fields instead, so there is no C structure to zero and none to compare. Calling native to decide whether two JavaScript objects are equal would add a handle and an error path to an operation with neither",
       "backends": []
     },
     {
       "name": "cna_input_device_info_init",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "POD initialisers and comparators for two descriptor structs the binding never hands across the boundary: it builds frozen JavaScript objects from the fields instead, so there is no C structure to zero and none to compare. Calling native to decide whether two JavaScript objects are equal would add a handle and an error path to an operation with neither",
       "backends": []
     },
     {
       "name": "cna_input_devices_copy_keyboard_name_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_copy_mouse_name_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_copy_touch_device_name_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_get_keyboard_count",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_get_keyboard_info_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_get_keyboard_name_size_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_get_mouse_count",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_get_mouse_info_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_get_mouse_name_size_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_get_touch_device_count",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_get_touch_device_info_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_get_touch_device_name_size_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_input_devices_raise_keyboard_connected_ext",
@@ -24822,9 +24855,11 @@
     {
       "name": "cna_power_get_info",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
-      "backends": []
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was",
+      "backends": [
+        "NODE"
+      ]
     },
     {
       "name": "cna_power_get_seconds_remaining_ext",
@@ -26109,15 +26144,15 @@
     {
       "name": "cna_sensor_info_equals",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "POD initialisers and comparators for two descriptor structs the binding never hands across the boundary: it builds frozen JavaScript objects from the fields instead, so there is no C structure to zero and none to compare. Calling native to decide whether two JavaScript objects are equal would add a handle and an error path to an operation with neither",
       "backends": []
     },
     {
       "name": "cna_sensor_info_init",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "POD initialisers and comparators for two descriptor structs the binding never hands across the boundary: it builds frozen JavaScript objects from the fields instead, so there is no C structure to zero and none to compare. Calling native to decide whether two JavaScript objects are equal would add a handle and an error path to an operation with neither",
       "backends": []
     },
     {
@@ -26130,36 +26165,36 @@
     {
       "name": "cna_sensors_copy_name_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "sensor enumeration, reached through sensors.h's own routes instead -- this package projects accelerometer and gyroscope there, and a second enumeration of the same devices would answer the same thing by a different name",
       "backends": []
     },
     {
       "name": "cna_sensors_get_accelerometer",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "sensor enumeration, reached through sensors.h's own routes instead -- this package projects accelerometer and gyroscope there, and a second enumeration of the same devices would answer the same thing by a different name",
       "backends": []
     },
     {
       "name": "cna_sensors_get_count",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "sensor enumeration, reached through sensors.h's own routes instead -- this package projects accelerometer and gyroscope there, and a second enumeration of the same devices would answer the same thing by a different name",
       "backends": []
     },
     {
       "name": "cna_sensors_get_gyroscope",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "sensor enumeration, reached through sensors.h's own routes instead -- this package projects accelerometer and gyroscope there, and a second enumeration of the same devices would answer the same thing by a different name",
       "backends": []
     },
     {
       "name": "cna_sensors_get_info_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "sensor enumeration, reached through sensors.h's own routes instead -- this package projects accelerometer and gyroscope there, and a second enumeration of the same devices would answer the same thing by a different name",
       "backends": []
     },
     {
@@ -26172,8 +26207,8 @@
     {
       "name": "cna_sensors_get_name_size_at",
       "header": "input_devices.h",
-      "category": "INTENTIONALLY_DEFERRED",
-      "reason": "backs projected or projectable XNA surface in a header the adapter imports nothing from, so the whole family is measured and deferred rather than partially covered",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "sensor enumeration, reached through sensors.h's own routes instead -- this package projects accelerometer and gyroscope there, and a second enumeration of the same devices would answer the same thing by a different name",
       "backends": []
     },
     {

@@ -9,11 +9,11 @@ C source and the WebAssembly backend's route table rather than declared.
 TOTAL_C_API_FUNCTIONS=4054
 PUBLIC_HEADERS=57
 XNA_BACKING=1292
-CNA_EXTENSION_BACKING=1847
+CNA_EXTENSION_BACKING=1870
 INTERNAL_RUNTIME_ONLY=1
-MANAGED_BY_DESIGN=457
+MANAGED_BY_DESIGN=461
 TOOLING_ONLY=31
-INTENTIONALLY_DEFERRED=426
+INTENTIONALLY_DEFERRED=399
 UPSTREAM_RUNTIME_UNAVAILABLE=0
 UNEXPLAINED=0
 ```
@@ -21,11 +21,11 @@ UNEXPLAINED=0
 ## Backend reach
 
 ```text
-REACHABLE_NODE=1758
+REACHABLE_NODE=1775
 REACHABLE_WASM=276
-REACHABLE_BY_ANY_BACKEND=1758
+REACHABLE_BY_ANY_BACKEND=1775
 REACHABLE_BY_EVERY_BACKEND=276
-REACHABLE_NODE_ONLY=1482
+REACHABLE_NODE_ONLY=1499
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -35,11 +35,11 @@ What each backend reaches, by what the routes are for:
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
 | `XNA_BACKING` | 1292 | 444 | 73 |
-| `CNA_EXTENSION_BACKING` | 1847 | 1298 | 189 |
+| `CNA_EXTENSION_BACKING` | 1870 | 1315 | 189 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
-| `MANAGED_BY_DESIGN` | 457 | 13 | 13 |
+| `MANAGED_BY_DESIGN` | 461 | 13 | 13 |
 | `TOOLING_ONLY` | 31 | 2 | 0 |
-| `INTENTIONALLY_DEFERRED` | 426 | 0 | 0 |
+| `INTENTIONALLY_DEFERRED` | 399 | 0 | 0 |
 
 ## By header
 
@@ -67,7 +67,7 @@ What each backend reaches, by what the routes are for:
 | `graphics.h` | 12 | 11 | 21 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `index_resources.h` | 8 | 0 | 10 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_cursor.h` | 5 | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `input_devices.h` | 0 | 0 | 0 | 9 | 0 | 0 | 1 | 27 | 0 | 0 |
+| `input_devices.h` | 17 | 0 | 0 | 32 | 0 | 4 | 1 | 0 | 0 | 0 |
 | `input_gamepad.h` | 2 | 2 | 40 | 23 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_haptics.h` | 18 | 0 | 0 | 36 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `input_joystick.h` | 21 | 0 | 0 | 29 | 0 | 0 | 1 | 0 | 0 | 0 |

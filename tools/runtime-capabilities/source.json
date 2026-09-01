@@ -1906,6 +1906,29 @@
       ]
     },
     {
+      "operation": "The clipboard's reads, the attached-device inventory and an ungated power reading",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/devices",
+      "evidence": "Run against both renderers, asserting a different thing about each, because the interesting claim differs. On OPENGLES3/SDL3 under Xvfb the clipboard round-trips exactly -- including non-ASCII, written and read back byte for byte -- one mouse and one keyboard are enumerated with the platform's own names and distinct identifiers, and the power route reports a state rather than an error. On HEADLESS every one of them answers *emptily and successfully*: the clipboard reads an empty string, nothing is enumerated, and the power state is Unknown -- which is the evidence that nothing here fabricates a device. The reason this family is worth having is that CNA does not gate it on the extended device layer: the windowed library used here is built with CNA_DEVICES=OFF, so cna_power_get_*_ext answers NOT_SUPPORTED on it while cna_power_get_info reports a real 79% battery, and the clipboard reads work where the extension's own write refuses. SetClipboardText now prefers the extension's write for its acceptance flag and falls back to the ungated one, so a build without the layer can write the clipboard it can already read; both routes wrap one platform clipboard, which CNA's header states. Neither answer claims the clipboard changed -- that is what the reads are for",
+      "proof": [
+        "route:cna_clipboard_get_text_size",
+        "route:cna_clipboard_copy_text",
+        "route:cna_clipboard_get_has_text",
+        "route:cna_clipboard_set_text",
+        "route:cna_input_devices_get_mouse_count",
+        "route:cna_input_devices_get_mouse_info_at",
+        "route:cna_input_devices_copy_mouse_name_at",
+        "route:cna_input_devices_get_keyboard_count",
+        "route:cna_input_devices_get_keyboard_info_at",
+        "route:cna_input_devices_copy_keyboard_name_at",
+        "route:cna_input_devices_get_touch_device_count",
+        "route:cna_input_devices_get_touch_device_info_at",
+        "route:cna_input_devices_copy_touch_device_name_at",
+        "route:cna_power_get_info",
+        "test:test/input-devices.integration.mjs"
+      ]
+    },
+    {
       "operation": "GPU instance culling",
       "category": "UPSTREAM_CNA_BLOCKED",
       "owner": "CNA",

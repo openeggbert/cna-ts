@@ -189,6 +189,38 @@
     },
     {
       "headers": [
+        "input_devices.h"
+      ],
+      "namePattern": "^cna_(clipboard_|input_devices_(get|copy)_(mouse|keyboard|touch)|power_get_info)",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "the clipboard, the attached-device inventory and a combined power reading. XNA 4.0 has none of these -- no clipboard type, no device enumeration, and no power API outside Windows Phone -- so they are extension surface. What makes them worth binding rather than leaving to devices.h is that CNA does *not* gate them on its extended device layer: measured on a CNA built with CNA_DEVICES=OFF, the clipboard round-trips exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real battery percentage while all three cna_power_get_*_ext routes answer NOT_SUPPORTED. CNA's own header states that it deliberately does not duplicate the clipboard *reads* into the extension layer, which is why writing was reachable here before reading was"
+    },
+    {
+      "headers": [
+        "input_devices.h"
+      ],
+      "namePattern": "^cna_sensors_",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "sensor enumeration, reached through sensors.h's own routes instead -- this package projects accelerometer and gyroscope there, and a second enumeration of the same devices would answer the same thing by a different name"
+    },
+    {
+      "headers": [
+        "input_devices.h"
+      ],
+      "namePattern": "^cna_(sensor_info_|input_device_info_)",
+      "category": "MANAGED_BY_DESIGN",
+      "reason": "POD initialisers and comparators for two descriptor structs the binding never hands across the boundary: it builds frozen JavaScript objects from the fields instead, so there is no C structure to zero and none to compare. Calling native to decide whether two JavaScript objects are equal would add a handle and an error path to an operation with neither"
+    },
+    {
+      "headers": [
+        "input_devices.h"
+      ],
+      "namePattern": "_ext(_|$)",
+      "category": "CNA_EXTENSION_BACKING",
+      "reason": "hot-plug subscription, the synthetic raise routes that drive it, and the test reset. The events would need a native callback rooted for the game's life to deliver into JavaScript, and CNA offers no way to enumerate devices *as they change* other than re-reading the inventory above -- which a consumer can already do each frame at no cost. Deferred as plumbing whose only consumer would be the polling this package already exposes"
+    },
+    {
+      "headers": [
         "core.h",
         "runtime.h",
         "runtime_components.h",
@@ -216,8 +248,7 @@
         "input_keyboard.h",
         "input_mouse.h",
         "input_gamepad.h",
-        "input_touch.h",
-        "input_devices.h"
+        "input_touch.h"
       ],
       "category": "XNA_BACKING",
       "reason": "backs a projected Microsoft.Xna.Framework member; the adapter already reaches this header's family through at least one imported route, so the remaining declarations are further overloads, accessors and finer-grained spellings of surface the binding covers",

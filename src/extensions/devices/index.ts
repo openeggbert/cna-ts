@@ -42,7 +42,11 @@
  */
 
 import { getBackend } from "../../internal/backend.js";
-import type { CnaDeviceBackend } from "../../internal/backend.js";
+import type {
+  CnaDeviceBackend,
+  CnaInputDeviceInventoryBackend,
+} from "../../internal/backend.js";
+import { CnaResult } from "../../internal/cna-results.js";
 import { NativeUnavailableError } from "../../internal/native-error.js";
 import { InvalidOperationException } from "../../internal/exceptions.js";
 import { Rectangle } from "../../Microsoft/Xna/Framework/Rectangle.js";
@@ -116,6 +120,14 @@ export interface HostInfo {
   readonly Display: HostDisplay;
 }
 
+/** One mouse, keyboard or touch device the platform currently enumerates. */
+export interface AttachedInputDevice {
+  /** The identifier CNA tracks the device by. Stable while the device stays attached. */
+  readonly Id: bigint;
+  /** The platform's own name for it, such as `"Virtual core pointer (seat0)"`. */
+  readonly Name: string;
+}
+
 /** One entry of the user's preferred-locale list, in the platform's own preference order. */
 export interface PreferredLocale {
   /** An ISO 639 language code, such as `"en"`. */
@@ -142,6 +154,24 @@ export interface CameraInventory {
   readonly Devices: readonly CameraDevice[];
 }
 
+/**
+ * The `input_devices.h` boundary, which CNA's *extended* device layer does not gate.
+ *
+ * Kept separate from {@link devices} on purpose: the clipboard's reads, the attached-device
+ * inventory and {@link CnaDevices.GetHostPower} all answer on a CNA built without the extension
+ * layer, and gating them behind {@link CnaDevices.IsAvailable} would refuse where CNA does not.
+ */
+function inventory(operation: string): CnaInputDeviceInventoryBackend {
+  const backend = getBackend().InputDeviceInventory;
+  if (!backend) {
+    throw new NativeUnavailableError(
+      `${operation} requires a CNA backend with the input-device routes; ` +
+      "load the Node-API backend with LoadNodeNativeBackend",
+    );
+  }
+  return backend;
+}
+
 function devices(operation: string): CnaDeviceBackend {
   const backend = getBackend().Devices;
   if (!backend) {
@@ -151,6 +181,18 @@ function devices(operation: string): CnaDeviceBackend {
     );
   }
   return backend;
+}
+
+function readInventory(
+  count: number,
+  at: (index: number) => { readonly Id: bigint; readonly Name: string },
+): readonly AttachedInputDevice[] {
+  const result: AttachedInputDevice[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const device = at(index);
+    result.push(Object.freeze({ Id: device.Id, Name: device.Name }));
+  }
+  return Object.freeze(result);
 }
 
 /** Readers for the host CNA is running on. Every one is a snapshot; none owns anything. */
@@ -188,6 +230,82 @@ export const CnaDevices = {
     });
   },
 
+  /**
+   * The host's power supply, without needing the extended device layer.
+   *
+   * {@link GetHostInfo} reports the same three values, but only where {@link IsAvailable} is true.
+   * This route is not gated on that layer, and the difference is real rather than theoretical:
+   * measured on a CNA built with `CNA_DEVICES=OFF`, this answers a 79% battery while all three of
+   * the extension's power readers refuse with `NOT_SUPPORTED`.
+   *
+   * A `null` charge or time means the platform reports none — the ordinary answer on a desktop
+   * with no battery — and is deliberately not `-1`, which a threshold comparison would read as
+   * "nearly flat".
+   */
+  GetHostPower(): HostPower {
+    const power = inventory("CnaDevices.GetHostPower").getHostPowerInfo();
+    return Object.freeze({
+      State: power.State as PowerState,
+      BatteryPercent: power.BatteryPercent,
+      SecondsRemaining: power.SecondsRemaining,
+    });
+  },
+
+  /**
+   * The system clipboard's current text, or an empty string when it holds none.
+   *
+   * The clipboard is process-external state: another application can change it between any two
+   * calls, so this is a read of *now* rather than of anything this program put there.
+   *
+   * Unlike {@link SetClipboardText} this does not need the extended device layer — CNA deliberately
+   * does not duplicate the clipboard reads into that layer, because both canonical types wrap one
+   * platform clipboard.
+   */
+  GetClipboardText(): string {
+    return inventory("CnaDevices.GetClipboardText").getClipboardText();
+  },
+
+  /**
+   * Whether the clipboard currently holds non-empty text.
+   *
+   * Cheaper than reading it when the answer is all that is needed, and the honest way to check
+   * whether a {@link SetClipboardText} took: that call reports whether the platform *accepted* the
+   * request, not whether the clipboard changed.
+   */
+  HasClipboardText(): boolean {
+    return inventory("CnaDevices.HasClipboardText").getClipboardHasText();
+  },
+
+  /**
+   * Every mouse the platform currently enumerates, with the name it knows each by.
+   *
+   * This is the *inventory*, not input: `Microsoft.Xna.Framework.Input.Mouse` reads the one
+   * logical cursor XNA has, and this says what hardware is behind it. A headless session
+   * enumerates nothing, which is an answer rather than a failure.
+   */
+  GetAttachedMice(): readonly AttachedInputDevice[] {
+    const backend = inventory("CnaDevices.GetAttachedMice");
+    return readInventory(
+      backend.getAttachedMouseCount(), (index) => backend.getAttachedMouseAt(index),
+    );
+  },
+
+  /** Every keyboard the platform currently enumerates. */
+  GetAttachedKeyboards(): readonly AttachedInputDevice[] {
+    const backend = inventory("CnaDevices.GetAttachedKeyboards");
+    return readInventory(
+      backend.getAttachedKeyboardCount(), (index) => backend.getAttachedKeyboardAt(index),
+    );
+  },
+
+  /** Every touch device the platform currently enumerates. */
+  GetAttachedTouchDevices(): readonly AttachedInputDevice[] {
+    const backend = inventory("CnaDevices.GetAttachedTouchDevices");
+    return readInventory(
+      backend.getAttachedTouchDeviceCount(), (index) => backend.getAttachedTouchDeviceAt(index),
+    );
+  },
+
   /** The user's preferred languages, most preferred first. */
   GetPreferredLocales(): readonly PreferredLocale[] {
     return Object.freeze(
@@ -199,15 +317,35 @@ export const CnaDevices = {
   /**
    * Puts text on the system clipboard.
    *
-   * Returns whether the platform accepted it. A platform with no clipboard answers `false`, which
-   * is a state rather than an error — this is not a call worth wrapping in a try.
+   * Returns whether the platform took the request. That is **not** the same as the clipboard
+   * having changed — a headless session with no clipboard, or a browser awaiting a user gesture,
+   * takes the request and leaves the clipboard alone. {@link GetClipboardText} and
+   * {@link HasClipboardText} are how the outcome is checked, and CNA's own documentation says to
+   * check it if it matters.
+   *
+   * Two CNA routes write one platform clipboard. The extended device layer's carries an explicit
+   * acceptance flag and is used where that layer is present; the ungated one is used otherwise, so
+   * that a CNA built without the layer can write the clipboard it can already read. Both mean the
+   * same thing by their answer.
    */
   SetClipboardText(text: string): boolean {
     if (typeof text !== "string") throw new TypeError("text must be a string");
-    return devices("CnaDevices.SetClipboardText").setClipboardText(text);
+    const extended = getBackend().Devices;
+    if (extended != null) {
+      try {
+        return extended.setClipboardText(text);
+      } catch (error) {
+        // NOT_SUPPORTED here means the layer is declared but built out; fall through to the
+        // ungated route rather than refusing a write CNA can still perform.
+        if ((error as { cnaResult?: number } | null)?.cnaResult !== CnaResult.NotSupported) {
+          throw error;
+        }
+      }
+    }
+    inventory("CnaDevices.SetClipboardText").setClipboardTextUngated(text);
+    return true;
   },
 
-  /** The cameras attached to the host, and whether the platform supports any. */
   GetCameras(): CameraInventory {
     const inventory = devices("CnaDevices.GetCameras").getCameras();
     return Object.freeze({

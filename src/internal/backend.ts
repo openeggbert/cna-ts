@@ -2677,6 +2677,38 @@ export interface CnaLodBackend {
   getLodProjectedRadiusPixels(group: NativeHandle, distance: number): number;
 }
 
+/** One mouse, keyboard or touch device the platform currently enumerates. */
+export interface AttachedInputDeviceSnapshot {
+  readonly Id: bigint;
+  readonly Name: string;
+}
+
+/** The host's power supply as `cna_power_get_info` reports it; -1 arrives as null. */
+export interface HostPowerSnapshot {
+  readonly State: number;
+  readonly BatteryPercent: number | null;
+  readonly SecondsRemaining: number | null;
+}
+
+/**
+ * The parts of `input_devices.h` that CNA's extended device layer does not gate: the clipboard's
+ * *reads*, the attached-device inventory, and a power reading that answers where
+ * `cna_power_get_*_ext` refuses because the layer was built out.
+ */
+export interface CnaInputDeviceInventoryBackend {
+  getClipboardText(): string;
+  getClipboardTextSize(): number;
+  getClipboardHasText(): boolean;
+  setClipboardTextUngated(text: string): void;
+  getAttachedMouseCount(): number;
+  getAttachedMouseAt(index: number): AttachedInputDeviceSnapshot;
+  getAttachedKeyboardCount(): number;
+  getAttachedKeyboardAt(index: number): AttachedInputDeviceSnapshot;
+  getAttachedTouchDeviceCount(): number;
+  getAttachedTouchDeviceAt(index: number): AttachedInputDeviceSnapshot;
+  getHostPowerInfo(): HostPowerSnapshot;
+}
+
 /** One row of CNA's content survey: a file found under the content root. */
 export interface ContentSurveyEntrySnapshot {
   readonly AssetName: string;
@@ -3356,6 +3388,7 @@ export interface CnaBackend {
   readonly Lod?: CnaLodBackend;
   readonly NativeMeshParts?: CnaNativeMeshPartBackend;
   readonly ContentSurvey?: CnaContentSurveyBackend;
+  readonly InputDeviceInventory?: CnaInputDeviceInventoryBackend;
   readonly InstancedRenderer?: CnaInstancedRendererBackend;
   readonly Shadows?: CnaShadowBackend;
   readonly DepthNormalPrepass?: CnaDepthNormalPrepassBackend;

@@ -19,6 +19,9 @@ import type {
   CnaLodBackend,
   CnaNativeMeshPartBackend,
   CnaContentSurveyBackend,
+  CnaInputDeviceInventoryBackend,
+  AttachedInputDeviceSnapshot,
+  HostPowerSnapshot,
   ContentSurveyEntrySnapshot,
   ContentSurveyReaderUsageSnapshot,
   CnaInstancedRendererBackend,
@@ -826,6 +829,17 @@ interface NativeBridge {
   destroyLodGroup(group: bigint): void;
   addLodLevel(group: bigint, maxDistance: number, part: bigint | null): void;
   selectLodPart(group: bigint, distance: number): bigint | null;
+  getClipboardText(game: bigint): string;
+  getClipboardTextSize(game: bigint): number;
+  getClipboardHasText(game: bigint): boolean;
+  setClipboardTextUngated(game: bigint, text: string): void;
+  getAttachedMouseCount(game: bigint): number;
+  getAttachedMouseAt(game: bigint, index: number): AttachedInputDeviceSnapshot;
+  getAttachedKeyboardCount(game: bigint): number;
+  getAttachedKeyboardAt(game: bigint, index: number): AttachedInputDeviceSnapshot;
+  getAttachedTouchDeviceCount(game: bigint): number;
+  getAttachedTouchDeviceAt(game: bigint, index: number): AttachedInputDeviceSnapshot;
+  getHostPowerInfo(game: bigint): HostPowerSnapshot;
   createContentSurvey(device: bigint, rootDirectory: string): bigint;
   destroyContentSurvey(survey: bigint): void;
   getContentSurveyRoot(survey: bigint): string;
@@ -1907,6 +1921,7 @@ export class NodeNativeBackend
   public readonly Lod: CnaLodBackend = this;
   public readonly NativeMeshParts: CnaNativeMeshPartBackend = this;
   public readonly ContentSurvey: CnaContentSurveyBackend = this;
+  public readonly InputDeviceInventory: CnaInputDeviceInventoryBackend = this;
   public readonly InstancedRenderer: CnaInstancedRendererBackend = this;
   public readonly Shadows: CnaShadowBackend = this;
   public readonly DepthNormalPrepass: CnaDepthNormalPrepassBackend = this;
@@ -3271,6 +3286,37 @@ export class NodeNativeBackend
   }
   public selectLodPart(group: NativeHandle, distance: number): NativeHandle | null {
     return this.#bridge.selectLodPart(group, distance);
+  }
+  public getClipboardText(): string { return this.#bridge.getClipboardText(this.#game()); }
+  public getClipboardTextSize(): number {
+    return this.#bridge.getClipboardTextSize(this.#game());
+  }
+  public getClipboardHasText(): boolean {
+    return this.#bridge.getClipboardHasText(this.#game());
+  }
+  public setClipboardTextUngated(text: string): void {
+    this.#bridge.setClipboardTextUngated(this.#game(), text);
+  }
+  public getAttachedMouseCount(): number {
+    return this.#bridge.getAttachedMouseCount(this.#game());
+  }
+  public getAttachedMouseAt(index: number): AttachedInputDeviceSnapshot {
+    return this.#bridge.getAttachedMouseAt(this.#game(), index);
+  }
+  public getAttachedKeyboardCount(): number {
+    return this.#bridge.getAttachedKeyboardCount(this.#game());
+  }
+  public getAttachedKeyboardAt(index: number): AttachedInputDeviceSnapshot {
+    return this.#bridge.getAttachedKeyboardAt(this.#game(), index);
+  }
+  public getAttachedTouchDeviceCount(): number {
+    return this.#bridge.getAttachedTouchDeviceCount(this.#game());
+  }
+  public getAttachedTouchDeviceAt(index: number): AttachedInputDeviceSnapshot {
+    return this.#bridge.getAttachedTouchDeviceAt(this.#game(), index);
+  }
+  public getHostPowerInfo(): HostPowerSnapshot {
+    return this.#bridge.getHostPowerInfo(this.#game());
   }
   public createContentSurvey(device: NativeHandle, rootDirectory: string): NativeHandle {
     return this.#bridge.createContentSurvey(device, rootDirectory);

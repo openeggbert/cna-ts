@@ -54,6 +54,9 @@ import type {
   CnaLodBackend,
   CnaNativeMeshPartBackend,
   CnaContentSurveyBackend,
+  CnaInputDeviceInventoryBackend,
+  AttachedInputDeviceSnapshot,
+  HostPowerSnapshot,
   ContentSurveyEntrySnapshot,
   ContentSurveyReaderUsageSnapshot,
   CnaInstancedRendererBackend,
@@ -3886,6 +3889,36 @@ export abstract class CnaShadowBackendBase implements CnaShadowBackend {
   public cubeShadowMapSizeForQuality(
     _quality: number,
   ): number { return this.unsupported("cubeShadowMapSizeForQuality"); }
+}
+
+/** Refusing base for {@link CnaInputDeviceInventoryBackend}. */
+export abstract class CnaInputDeviceInventoryBackendBase
+implements CnaInputDeviceInventoryBackend {
+  /** Refuses one member of this boundary, naming it. */
+  protected abstract unsupported(member: string): never;
+  public getClipboardText(): string { return this.unsupported("getClipboardText"); }
+  public getClipboardTextSize(): number { return this.unsupported("getClipboardTextSize"); }
+  public getClipboardHasText(): boolean { return this.unsupported("getClipboardHasText"); }
+  public setClipboardTextUngated(_text: string): void {
+    return this.unsupported("setClipboardTextUngated");
+  }
+  public getAttachedMouseCount(): number { return this.unsupported("getAttachedMouseCount"); }
+  public getAttachedMouseAt(_index: number): AttachedInputDeviceSnapshot {
+    return this.unsupported("getAttachedMouseAt");
+  }
+  public getAttachedKeyboardCount(): number {
+    return this.unsupported("getAttachedKeyboardCount");
+  }
+  public getAttachedKeyboardAt(_index: number): AttachedInputDeviceSnapshot {
+    return this.unsupported("getAttachedKeyboardAt");
+  }
+  public getAttachedTouchDeviceCount(): number {
+    return this.unsupported("getAttachedTouchDeviceCount");
+  }
+  public getAttachedTouchDeviceAt(_index: number): AttachedInputDeviceSnapshot {
+    return this.unsupported("getAttachedTouchDeviceAt");
+  }
+  public getHostPowerInfo(): HostPowerSnapshot { return this.unsupported("getHostPowerInfo"); }
 }
 
 /** Refusing base for {@link CnaContentSurveyBackend}. */

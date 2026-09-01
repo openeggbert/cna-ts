@@ -205,6 +205,17 @@ typedef CNA_Result (*ContentManifestIndexedTextFn)(
 typedef CNA_Result (*ContentReaderUsageFn)(
   CNA_Handle, uint64_t, CNA_ContentReaderUsageInfo*);
 typedef CNA_Result (*ContentReaderIsRegisteredFn)(CNA_StringView, CNA_Bool*);
+
+/* input_devices.h. Three capabilities the extended device layer does *not* gate, which is why they
+   are worth having on their own: the clipboard *reads* (CNA deliberately does not duplicate them
+   into devices.h -- its header says so), the attached mouse/keyboard/touch inventory, and a power
+   reading that answers where cna_power_get_*_ext refuses because the layer was built out. */
+typedef CNA_Result (*GameU32OutFn)(CNA_Handle, uint32_t*);
+typedef CNA_Result (*InputDeviceInfoAtFn)(CNA_Handle, uint32_t, CNA_InputDeviceInfo*);
+typedef CNA_Result (*InputDeviceNameSizeAtFn)(CNA_Handle, uint32_t, uint64_t*);
+typedef CNA_Result (*InputDeviceCopyNameAtFn)(
+  CNA_Handle, uint32_t, char*, uint64_t, uint64_t*);
+typedef CNA_Result (*PowerInfoFn)(CNA_Handle, CNA_PowerState*, int32_t*, int32_t*);
 typedef CNA_Result (*HandleHandleOutFn)(CNA_Handle, CNA_Handle*);
 typedef CNA_Result (*SoundEffectPlaySettingsFn)(CNA_Handle, float, float, float, CNA_Bool*);
 typedef CNA_Result (*HandleFloatOutFn)(CNA_Handle, float*);
@@ -2600,6 +2611,23 @@ typedef struct Api {
   ContentReaderUsageFn content_manager_get_xnb_reader_usage;
   ContentManifestTextFn content_manager_copy_xnb_reader_usage_name;
   ContentReaderIsRegisteredFn content_type_reader_manager_get_is_registered;
+  HandleU64OutFn clipboard_get_text_size;
+  HandleCopyStringFn clipboard_copy_text;
+  BoolGetFn clipboard_get_has_text;
+  HandleStringViewFn clipboard_set_text;
+  GameU32OutFn input_devices_get_mouse_count;
+  InputDeviceInfoAtFn input_devices_get_mouse_info_at;
+  InputDeviceNameSizeAtFn input_devices_get_mouse_name_size_at;
+  InputDeviceCopyNameAtFn input_devices_copy_mouse_name_at;
+  GameU32OutFn input_devices_get_keyboard_count;
+  InputDeviceInfoAtFn input_devices_get_keyboard_info_at;
+  InputDeviceNameSizeAtFn input_devices_get_keyboard_name_size_at;
+  InputDeviceCopyNameAtFn input_devices_copy_keyboard_name_at;
+  GameU32OutFn input_devices_get_touch_device_count;
+  InputDeviceInfoAtFn input_devices_get_touch_device_info_at;
+  InputDeviceNameSizeAtFn input_devices_get_touch_device_name_size_at;
+  InputDeviceCopyNameAtFn input_devices_copy_touch_device_name_at;
+  PowerInfoFn power_get_info;
   FrustumCullerCreateFn frustum_culler_ext_create;
   GameHandleFn frustum_culler_ext_destroy;
   CullerMatrixFn frustum_culler_ext_set_view_projection;
@@ -4688,6 +4716,23 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(content_manager_get_xnb_reader_usage, ContentReaderUsageFn, "cna_content_manager_get_xnb_reader_usage");
   LOAD_REQUIRED(content_manager_copy_xnb_reader_usage_name, ContentManifestTextFn, "cna_content_manager_copy_xnb_reader_usage_name");
   LOAD_REQUIRED(content_type_reader_manager_get_is_registered, ContentReaderIsRegisteredFn, "cna_content_type_reader_manager_get_is_registered");
+  LOAD_REQUIRED(clipboard_get_text_size, HandleU64OutFn, "cna_clipboard_get_text_size");
+  LOAD_REQUIRED(clipboard_copy_text, HandleCopyStringFn, "cna_clipboard_copy_text");
+  LOAD_REQUIRED(clipboard_get_has_text, BoolGetFn, "cna_clipboard_get_has_text");
+  LOAD_REQUIRED(clipboard_set_text, HandleStringViewFn, "cna_clipboard_set_text");
+  LOAD_REQUIRED(input_devices_get_mouse_count, GameU32OutFn, "cna_input_devices_get_mouse_count");
+  LOAD_REQUIRED(input_devices_get_mouse_info_at, InputDeviceInfoAtFn, "cna_input_devices_get_mouse_info_at");
+  LOAD_REQUIRED(input_devices_get_mouse_name_size_at, InputDeviceNameSizeAtFn, "cna_input_devices_get_mouse_name_size_at");
+  LOAD_REQUIRED(input_devices_copy_mouse_name_at, InputDeviceCopyNameAtFn, "cna_input_devices_copy_mouse_name_at");
+  LOAD_REQUIRED(input_devices_get_keyboard_count, GameU32OutFn, "cna_input_devices_get_keyboard_count");
+  LOAD_REQUIRED(input_devices_get_keyboard_info_at, InputDeviceInfoAtFn, "cna_input_devices_get_keyboard_info_at");
+  LOAD_REQUIRED(input_devices_get_keyboard_name_size_at, InputDeviceNameSizeAtFn, "cna_input_devices_get_keyboard_name_size_at");
+  LOAD_REQUIRED(input_devices_copy_keyboard_name_at, InputDeviceCopyNameAtFn, "cna_input_devices_copy_keyboard_name_at");
+  LOAD_REQUIRED(input_devices_get_touch_device_count, GameU32OutFn, "cna_input_devices_get_touch_device_count");
+  LOAD_REQUIRED(input_devices_get_touch_device_info_at, InputDeviceInfoAtFn, "cna_input_devices_get_touch_device_info_at");
+  LOAD_REQUIRED(input_devices_get_touch_device_name_size_at, InputDeviceNameSizeAtFn, "cna_input_devices_get_touch_device_name_size_at");
+  LOAD_REQUIRED(input_devices_copy_touch_device_name_at, InputDeviceCopyNameAtFn, "cna_input_devices_copy_touch_device_name_at");
+  LOAD_REQUIRED(power_get_info, PowerInfoFn, "cna_power_get_info");
   LOAD_REQUIRED(debug_draw_create, PostProcessPassCreateFn, "cna_debug_draw_create");
   LOAD_REQUIRED(debug_draw_destroy, GameHandleFn, "cna_debug_draw_destroy");
   LOAD_REQUIRED(debug_draw_begin, DebugDrawBeginFn, "cna_debug_draw_begin");
@@ -25532,6 +25577,166 @@ static napi_value bridge_content_manager_get_xnb_reader_usage(
   return output;
 }
 
+/* ---- the clipboard's reads, the device inventory, and a power reading ---------------------------
+ *
+ * All three are in input_devices.h, and none of them is gated on CNA's extended device layer --
+ * which is exactly why they earn their place. The clipboard *write* is already reached through
+ * `cna_devices_clipboard_set_text_ext`, whose acceptance flag carries strictly more than the
+ * plain write, and CNA's own header says the reads are deliberately not duplicated there. So the
+ * reads are the missing half of a feature this package could previously only write to.
+ *
+ * Measured on OPENGLES3/SDL3 with the device layer built OUT: the clipboard round-trips 27 bytes
+ * exactly, one mouse and one keyboard are enumerated by name, and the power route reports a real
+ * 79% battery where all three `cna_power_get_*_ext` routes answer NOT_SUPPORTED.
+ */
+
+static napi_value bridge_clipboard_get_text_size(napi_env env, napi_callback_info info) {
+  return storage_buffer_u64(env, info, g_api.clipboard_get_text_size,
+    "cna_clipboard_get_text_size");
+}
+
+static napi_value bridge_clipboard_copy_text(napi_env env, napi_callback_info info) {
+  return copy_sized_text(env, info, g_api.clipboard_copy_text, "cna_clipboard_copy_text");
+}
+
+static napi_value bridge_clipboard_get_has_text(napi_env env, napi_callback_info info) {
+  return pp_get_bool(env, info, g_api.clipboard_get_has_text, "cna_clipboard_get_has_text");
+}
+
+/*
+ * The ungated write. `cna_devices_clipboard_set_text_ext` is also bound and carries an acceptance
+ * flag this one discards -- but it needs the extended device layer, and a CNA built without that
+ * layer could otherwise read the clipboard and not write it. Both wrap one platform clipboard;
+ * CNA's own header says so.
+ */
+static napi_value bridge_clipboard_set_text(napi_env env, napi_callback_info info) {
+  napi_value args[2];
+  CNA_Handle game = 0;
+  char* text = NULL;
+  size_t length = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      !read_utf8(env, args[1], &text, &length)) return NULL;
+  const CNA_StringView view = {text, (uint64_t) length};
+  const CNA_Result result = g_api.clipboard_set_text(game, view);
+  free(text);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_clipboard_set_text", result);
+  }
+  return undefined_result(env, "cna_clipboard_set_text");
+}
+
+static napi_value game_u32(
+  napi_env env, napi_callback_info info, GameU32OutFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle game = 0;
+  uint32_t value = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = route(game, &value);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  NAPI_OR_RETURN(env, napi_create_uint32(env, value, &output), name);
+  return output;
+}
+
+/* One enumerated device: the identifier CNA tracks it by, and the platform's own name for it. */
+static napi_value input_device_at(
+  napi_env env, napi_callback_info info,
+  InputDeviceInfoAtFn info_at, InputDeviceNameSizeAtFn size_at, InputDeviceCopyNameAtFn copy_at,
+  const char* name
+) {
+  napi_value args[2], output, name_value;
+  CNA_Handle game = 0;
+  uint32_t index = 0;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &game) ||
+      napi_get_value_uint32(env, args[1], &index) != napi_ok) {
+    return throw_message(env, "expected a game and a device index");
+  }
+  CNA_InputDeviceInfo device;
+  memset(&device, 0, sizeof(device));
+  device.struct_size = sizeof(device);
+  device.struct_version = 1;
+  CNA_Result result = info_at(game, index, &device);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  uint64_t length = 0, copied = 0;
+  result = size_at(game, index, &length);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  if (length > SIZE_MAX) return throw_message(env, "a device name exceeds the address space");
+  char* text = length == 0 ? NULL : (char*) malloc((size_t) length);
+  if (length != 0 && !text) return throw_message(env, "device name allocation failed");
+  result = copy_at(game, index, text, length, &copied);
+  if (result != CNA_RESULT_SUCCESS || copied != length) {
+    free(text);
+    return throw_result(env, name, result);
+  }
+  const napi_status status =
+    napi_create_string_utf8(env, text ? text : "", (size_t) length, &name_value);
+  free(text);
+  if (status != napi_ok) return throw_napi(env, name);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), name);
+  napi_value id_value = make_handle(env, device.id);
+  if (!id_value ||
+      napi_set_named_property(env, output, "Id", id_value) != napi_ok ||
+      napi_set_named_property(env, output, "Name", name_value) != napi_ok) {
+    return throw_napi(env, name);
+  }
+  return output;
+}
+
+static napi_value bridge_input_devices_get_mouse_count(napi_env env, napi_callback_info info) {
+  return game_u32(env, info, g_api.input_devices_get_mouse_count,
+    "cna_input_devices_get_mouse_count");
+}
+static napi_value bridge_input_devices_get_keyboard_count(napi_env env, napi_callback_info info) {
+  return game_u32(env, info, g_api.input_devices_get_keyboard_count,
+    "cna_input_devices_get_keyboard_count");
+}
+static napi_value bridge_input_devices_get_touch_count(napi_env env, napi_callback_info info) {
+  return game_u32(env, info, g_api.input_devices_get_touch_device_count,
+    "cna_input_devices_get_touch_device_count");
+}
+static napi_value bridge_input_devices_get_mouse_at(napi_env env, napi_callback_info info) {
+  return input_device_at(env, info, g_api.input_devices_get_mouse_info_at,
+    g_api.input_devices_get_mouse_name_size_at, g_api.input_devices_copy_mouse_name_at,
+    "cna_input_devices_get_mouse_info_at");
+}
+static napi_value bridge_input_devices_get_keyboard_at(napi_env env, napi_callback_info info) {
+  return input_device_at(env, info, g_api.input_devices_get_keyboard_info_at,
+    g_api.input_devices_get_keyboard_name_size_at, g_api.input_devices_copy_keyboard_name_at,
+    "cna_input_devices_get_keyboard_info_at");
+}
+static napi_value bridge_input_devices_get_touch_at(napi_env env, napi_callback_info info) {
+  return input_device_at(env, info, g_api.input_devices_get_touch_device_info_at,
+    g_api.input_devices_get_touch_device_name_size_at,
+    g_api.input_devices_copy_touch_device_name_at,
+    "cna_input_devices_get_touch_device_info_at");
+}
+
+/* -1 means "the platform does not report this", not "none left", so both are handed over as null. */
+static napi_value bridge_power_get_info(napi_env env, napi_callback_info info) {
+  napi_value args[1], output, value;
+  CNA_Handle game = 0;
+  CNA_PowerState state = 0;
+  int32_t seconds = -1, percent = -1;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &game)) return NULL;
+  const CNA_Result result = g_api.power_get_info(game, &state, &seconds, &percent);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, "cna_power_get_info", result);
+  NAPI_OR_RETURN(env, napi_create_object(env, &output), "cna_power_get_info");
+  if (!set_u32_property(env, output, "State", state)) return NULL;
+  if (percent < 0) NAPI_OR_RETURN(env, napi_get_null(env, &value), "cna_power_get_info");
+  else NAPI_OR_RETURN(env, napi_create_int32(env, percent, &value), "cna_power_get_info");
+  NAPI_OR_RETURN(env, napi_set_named_property(env, output, "BatteryPercent", value),
+    "cna_power_get_info");
+  if (seconds < 0) NAPI_OR_RETURN(env, napi_get_null(env, &value), "cna_power_get_info");
+  else NAPI_OR_RETURN(env, napi_create_int32(env, seconds, &value), "cna_power_get_info");
+  NAPI_OR_RETURN(env, napi_set_named_property(env, output, "SecondsRemaining", value),
+    "cna_power_get_info");
+  return output;
+}
+
 static napi_value bridge_content_type_reader_is_registered(
   napi_env env, napi_callback_info info
 ) {
@@ -29547,6 +29752,17 @@ static napi_value initialize(napi_env env, napi_value exports) {
     { "getContentSurveyReaderUsageCount", NULL, bridge_content_manager_get_xnb_reader_usage_count, NULL, NULL, NULL, napi_default, NULL },
     { "getContentSurveyReaderUsage", NULL, bridge_content_manager_get_xnb_reader_usage, NULL, NULL, NULL, napi_default, NULL },
     { "isContentTypeReaderRegisteredWithCna", NULL, bridge_content_type_reader_is_registered, NULL, NULL, NULL, napi_default, NULL },
+    { "getClipboardTextSize", NULL, bridge_clipboard_get_text_size, NULL, NULL, NULL, napi_default, NULL },
+    { "getClipboardText", NULL, bridge_clipboard_copy_text, NULL, NULL, NULL, napi_default, NULL },
+    { "getClipboardHasText", NULL, bridge_clipboard_get_has_text, NULL, NULL, NULL, napi_default, NULL },
+    { "setClipboardTextUngated", NULL, bridge_clipboard_set_text, NULL, NULL, NULL, napi_default, NULL },
+    { "getAttachedMouseCount", NULL, bridge_input_devices_get_mouse_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getAttachedMouseAt", NULL, bridge_input_devices_get_mouse_at, NULL, NULL, NULL, napi_default, NULL },
+    { "getAttachedKeyboardCount", NULL, bridge_input_devices_get_keyboard_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getAttachedKeyboardAt", NULL, bridge_input_devices_get_keyboard_at, NULL, NULL, NULL, napi_default, NULL },
+    { "getAttachedTouchDeviceCount", NULL, bridge_input_devices_get_touch_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getAttachedTouchDeviceAt", NULL, bridge_input_devices_get_touch_at, NULL, NULL, NULL, napi_default, NULL },
+    { "getHostPowerInfo", NULL, bridge_power_get_info, NULL, NULL, NULL, napi_default, NULL },
     { "createFrustumCuller", NULL, bridge_frustum_culler_ext_create, NULL, NULL, NULL, napi_default, NULL },
     { "destroyFrustumCuller", NULL, bridge_frustum_culler_ext_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "setFrustumCullerViewProjection", NULL, bridge_frustum_culler_ext_set_view_projection, NULL, NULL, NULL, napi_default, NULL },
