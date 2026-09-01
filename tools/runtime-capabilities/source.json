@@ -668,7 +668,7 @@
       "operation": "Physical keyboard/mouse/gamepad/touch behavior",
       "category": "HARDWARE_PENDING",
       "owner": "qualification hardware",
-      "evidence": "HEADLESS route execution is deterministic but not physical-device evidence"
+      "evidence": "HEADLESS route execution is deterministic but not physical-device evidence. Asked of the windowed SDL3 build as well on 2026-09-01 -- because that question caught two stale audio rows the same day -- and it answers identically: no keys pressed, the mouse at the origin, no gamepad and no touch panel connected. That is the honest answer for a machine driving an Xvfb display with nobody at it, so this row is a property of the host rather than of the backend, and both backends now say so"
     },
     {
       "operation": "GPU custom-effect and rendering output qualification, by renderer",

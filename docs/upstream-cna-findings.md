@@ -10,7 +10,27 @@ silently outgrowing its workaround.
 build configuration rather than runtime behaviour. **Both of those are now fixed upstream and
 verified here** — see items 3 and 4 below.
 
-Re-checked against `cnanext` 7712534d (CNA C ABI 0.21.0) on 2026-09-01. Item 28 is new, found by asking the two audio capability rows which backend they had been measured on -- both said HEADLESS, whose audio platform is `NULL`. Items 5 and 6 are new,
+Re-checked on 2026-09-01, and the artifact is named separately from the source because they are not
+the same revision. `cnanext` HEAD is `7712534d`. The libraries every measurement below was made
+against were built earlier the same day and are therefore older, by a bound their timestamps give
+rather than by a revision either of them records:
+
+| artifact | built | carries at most | behind HEAD by |
+| --- | --- | --- | --- |
+| windowed OPENGLES3, `cmake-build-debug` (EasyGL, Mesa 25.0.7, OpenGL ES 3.2) | 15:55 | `c195fe8ce` | `7712534d` |
+| HEADLESS, `cmake-build-tsnext` | 12:51 | `e5ae0820e` | `c195fe8ce`, `7712534d` |
+
+Both of those commits are `modules/net` and `net_sessions.h` only -- no graphics, audio, effect,
+content or renderer file between them -- so no finding below depends on the gap. It is stated rather
+than papered over because the two are genuinely different revisions and a later session should not
+have to re-derive that. Every detector was re-run and every one still fires: windowed 25,
+native 52, extensions 10, CNB 39, model-part 9, content-survey 8, input-devices 3, media-library 6,
+avatars 8, sprite-font-oracle 5, compiled effects 10, browser 13 -- all passing, which for a
+detector means the behaviour it pins has not changed.
+
+Item 28 is new, found by asking the two audio capability rows which backend they had been measured
+on -- both said HEADLESS, whose audio platform is `NULL`. Item 29 is new, and is a testability
+request rather than a defect. Items 5 and 6 are new,
 found while projecting the sensor families; item 7 is new, found while widening the windowed
 qualification to three renderers; items 8 and 9 are new, found while projecting the engine
 layer's compute path, item 10 while projecting its clustered lighting, item 11 -- a
