@@ -73,6 +73,7 @@
     "build:content": "node content/tools/clean.mjs && tsc -p content/tsconfig.json",
     "check:content": "npm run build:content && tsc -p content/tsconfig.types.json",
     "test:content": "npm run build && npm run build:content && node --test content/test/*.test.mjs",
+    "test:content:required": "npm run build && npm run build:content && CNA_REQUIRE_CONTENT_TESTS=1 node --test content/test/*.test.mjs",
     "test:model-part": "npm run build:native-bridge && npm run build && node --test test/native-model-part.integration.mjs",
     "test:content-survey": "npm run build:native-bridge && npm run build && node --test test/content-survey.integration.mjs",
     "test:input-devices": "npm run build:native-bridge && npm run build && node --test test/input-devices.integration.mjs",

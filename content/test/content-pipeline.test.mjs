@@ -45,6 +45,17 @@ const blocked = !library
     : !fs.existsSync(RUNTIME)
       ? "build the cna-ts runtime package first"
       : null;
+// Skipping is right for a developer who has no native library to hand, and wrong for a
+// qualification run: `node --test` reports a suite that ran nothing exactly like a suite that
+// passed -- ten skipped, zero failed, exit zero. `CNA_REQUIRE_CONTENT_TESTS=1` turns the skip into
+// a failure, so a CI or handoff run has to say how many tests actually executed rather than
+// inheriting a green tick from an absent environment variable.
+const required = process.env.CNA_REQUIRE_CONTENT_TESTS === "1";
+if (blocked && required) {
+  throw new Error(
+    `CNA_REQUIRE_CONTENT_TESTS=1 but the content suite cannot run: ${blocked}`,
+  );
+}
 const skip = blocked ?? false;
 
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), "cna-ts-content-"));
