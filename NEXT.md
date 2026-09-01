@@ -2089,19 +2089,20 @@ by noticing that a probe process died *after* printing everything it meant to pr
 
 ### Where the next session picks up
 
-`ACTIONABLE_LOCAL` is **59 unbound engine-layer routes**, of which 14 are the deliberate
-non-binding below, so **45 are work**:
+`ACTIONABLE_LOCAL` is **47 unbound engine-layer routes**, of which 14 are the deliberate
+non-binding below, so **33 are work**:
 
 ```text
-16  effect (get/set extras)        4  shader_effect_factory   2  image_based_light_ext
-14  instanced_renderer_ext (NO)    2  render_pipeline (draw)  2  graphics_device
- 6  render_target_pool             2  indirect               ~11 singles
+16  effect (get/set extras)        2  indirect               2  graphics_device
+14  instanced_renderer_ext (NO)    2  image_based_light_ext  2  engine_layer
+ 2  render_pipeline (draw)                                  ~9  singles
 ```
 
-`shader_effect` from `effects.h` is now bound in full (24 routes), and with it the weighted-blended
-accumulation is qualified to the pixel. `shader_effect_factory` (4) is the natural next step, then
-`effect` get/set extras (16) and `render_target_pool` (6), which are the two largest remaining
-engine-layer families.
+`shader_effect` from `effects.h` is bound in full (24 routes), and with it the weighted-blended
+accumulation is qualified to the pixel. `render_target_pool` and `shader_effect_factory` are done.
+**`effect` get/set extras (16)** is the largest family left and the obvious next batch; after it
+only singles and pairs remain, and `ACTIONABLE_LOCAL` reaches its floor of 14 — the deliberate
+non-binding.
 
 Two are deliberate non-bindings rather than work, and both are recorded in the bridge beside the
 routes they belong to: the **instanced renderer's object** and

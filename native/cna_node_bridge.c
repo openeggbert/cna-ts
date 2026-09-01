@@ -1033,6 +1033,10 @@ typedef CNA_Result (*ShaderTextureFn)(CNA_Handle, int32_t, CNA_Handle);
 typedef CNA_Result (*ShaderMatrixOutFn)(CNA_Handle, CNA_Matrix*);
 typedef CNA_Result (*ShaderMatrixInFn)(CNA_Handle, CNA_Matrix);
 
+typedef CNA_Result (*PoolAcquireFn)(CNA_Handle, int32_t, int32_t, CNA_SurfaceFormat, CNA_DepthFormat, int32_t, CNA_Handle*);
+typedef CNA_Result (*FactoryAcquireFn)(CNA_Handle, CNA_StringView, CNA_StringView, CNA_StringView, CNA_Handle*);
+typedef CNA_Result (*FactoryContainsFn)(CNA_Handle, CNA_StringView, CNA_Bool*);
+
 typedef struct Api {
   GetAbiVersionFn get_abi_version;
   PbrMaterialInitFn pbr_material_init;
@@ -2727,6 +2731,18 @@ typedef struct Api {
   ShaderMatrixInFn shader_effect_set_view;
   ShaderMatrixOutFn shader_effect_get_projection;
   ShaderMatrixInFn shader_effect_set_projection;
+  HandleHandleOutFn render_target_pool_create;
+  PoolAcquireFn render_target_pool_acquire;
+  GameHandleFn render_target_pool_reset;
+  HandleU64OutFn render_target_pool_get_target_count;
+  HandleU64OutFn render_target_pool_get_estimated_bytes;
+  GameHandleFn render_target_pool_destroy;
+  HandleHandleOutFn shader_effect_factory_create;
+  FactoryAcquireFn shader_effect_factory_acquire;
+  FactoryContainsFn shader_effect_factory_contains;
+  HandleU64OutFn shader_effect_factory_get_compile_count;
+  GameHandleFn shader_effect_factory_clear;
+  GameHandleFn shader_effect_factory_destroy;
 } Api;
 
 typedef struct GameContext {
@@ -4708,6 +4724,18 @@ static napi_value load_library(napi_env env, napi_callback_info info) {
   LOAD_REQUIRED(shader_effect_set_view, ShaderMatrixInFn, "cna_shader_effect_set_view");
   LOAD_REQUIRED(shader_effect_get_projection, ShaderMatrixOutFn, "cna_shader_effect_get_projection");
   LOAD_REQUIRED(shader_effect_set_projection, ShaderMatrixInFn, "cna_shader_effect_set_projection");
+  LOAD_REQUIRED(render_target_pool_create, HandleHandleOutFn, "cna_render_target_pool_create");
+  LOAD_REQUIRED(render_target_pool_acquire, PoolAcquireFn, "cna_render_target_pool_acquire");
+  LOAD_REQUIRED(render_target_pool_reset, GameHandleFn, "cna_render_target_pool_reset");
+  LOAD_REQUIRED(render_target_pool_get_target_count, HandleU64OutFn, "cna_render_target_pool_get_target_count");
+  LOAD_REQUIRED(render_target_pool_get_estimated_bytes, HandleU64OutFn, "cna_render_target_pool_get_estimated_bytes");
+  LOAD_REQUIRED(render_target_pool_destroy, GameHandleFn, "cna_render_target_pool_destroy");
+  LOAD_REQUIRED(shader_effect_factory_create, HandleHandleOutFn, "cna_shader_effect_factory_create");
+  LOAD_REQUIRED(shader_effect_factory_acquire, FactoryAcquireFn, "cna_shader_effect_factory_acquire");
+  LOAD_REQUIRED(shader_effect_factory_contains, FactoryContainsFn, "cna_shader_effect_factory_contains");
+  LOAD_REQUIRED(shader_effect_factory_get_compile_count, HandleU64OutFn, "cna_shader_effect_factory_get_compile_count");
+  LOAD_REQUIRED(shader_effect_factory_clear, GameHandleFn, "cna_shader_effect_factory_clear");
+  LOAD_REQUIRED(shader_effect_factory_destroy, GameHandleFn, "cna_shader_effect_factory_destroy");
   LOAD_REQUIRED(frustum_culler_ext_create, FrustumCullerCreateFn, "cna_frustum_culler_ext_create");
   LOAD_REQUIRED(frustum_culler_ext_destroy, GameHandleFn, "cna_frustum_culler_ext_destroy");
   LOAD_REQUIRED(frustum_culler_ext_set_view_projection, CullerMatrixFn, "cna_frustum_culler_ext_set_view_projection");
@@ -27589,10 +27617,168 @@ static napi_value bridge_shader_effect_copy_compile_error_ext(napi_env env, napi
   return copy_sized_text(env, info, g_api.shader_effect_copy_compile_error_ext, "cna_shader_effect_copy_compile_error_ext");
 }
 
+/* ---- the two engine-layer caches, and the borrows that keep them alive -----------------------
+   A pool caches render targets by shape and a factory caches shader effects by name. Both lend
+   what they hold and both refuse to be cleared or destroyed while a borrow is outstanding, so the
+   ownership is the interesting part rather than the caching. */
+
+/** The count-shaped getters both caches expose. */
+static napi_value cache_count(
+  napi_env env, napi_callback_info info, HandleU64OutFn route, const char* name
+) {
+  napi_value args[1], output;
+  CNA_Handle handle = 0;
+  uint64_t count = 0;
+  if (!require_loaded(env) || !get_args(env, info, 1, args) ||
+      !read_handle(env, args[0], &handle)) return NULL;
+  const CNA_Result result = route(handle, &count);
+  if (result != CNA_RESULT_SUCCESS) return throw_result(env, name, result);
+  if (count > (uint64_t) 1 << 53) {
+    return throw_message(env, "the count exceeds an exact JavaScript integer");
+  }
+  NAPI_OR_RETURN(env, napi_create_double(env, (double) count, &output), name);
+  return output;
+}
+
+static napi_value bridge_render_target_pool_get_target_count(
+  napi_env env, napi_callback_info info
+) {
+  return cache_count(
+    env, info, g_api.render_target_pool_get_target_count,
+    "cna_render_target_pool_get_target_count");
+}
+
+static napi_value bridge_render_target_pool_get_estimated_bytes(
+  napi_env env, napi_callback_info info
+) {
+  return cache_count(
+    env, info, g_api.render_target_pool_get_estimated_bytes,
+    "cna_render_target_pool_get_estimated_bytes");
+}
+
+static napi_value bridge_shader_effect_factory_get_compile_count(
+  napi_env env, napi_callback_info info
+) {
+  return cache_count(
+    env, info, g_api.shader_effect_factory_get_compile_count,
+    "cna_shader_effect_factory_get_compile_count");
+}
+
+static napi_value bridge_render_target_pool_acquire(napi_env env, napi_callback_info info) {
+  napi_value args[6];
+  CNA_Handle pool = 0, target = 0;
+  int32_t width = 0, height = 0, format = 0, depthFormat = 0, slot = 0;
+  if (!require_loaded(env) || !get_args(env, info, 6, args) ||
+      !read_handle(env, args[0], &pool) ||
+      napi_get_value_int32(env, args[1], &width) != napi_ok ||
+      napi_get_value_int32(env, args[2], &height) != napi_ok ||
+      napi_get_value_int32(env, args[3], &format) != napi_ok ||
+      napi_get_value_int32(env, args[4], &depthFormat) != napi_ok ||
+      napi_get_value_int32(env, args[5], &slot) != napi_ok) {
+    return throw_message(env, "expected a pool, a size, two formats and a slot");
+  }
+  const CNA_Result result = g_api.render_target_pool_acquire(
+    pool, width, height, (CNA_SurfaceFormat) format, (CNA_DepthFormat) depthFormat, slot, &target);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_render_target_pool_acquire", result);
+  }
+  return make_handle(env, target);
+}
+
+static napi_value bridge_shader_effect_factory_acquire(napi_env env, napi_callback_info info) {
+  napi_value args[4];
+  CNA_Handle factory = 0, effect = 0;
+  char* name = NULL;
+  char* vertex = NULL;
+  char* fragment = NULL;
+  size_t nameLength = 0, vertexLength = 0, fragmentLength = 0;
+  if (!require_loaded(env) || !get_args(env, info, 4, args) ||
+      !read_handle(env, args[0], &factory) ||
+      !read_utf8(env, args[1], &name, &nameLength)) return NULL;
+  if (!read_utf8(env, args[2], &vertex, &vertexLength)) {
+    free(name);
+    return NULL;
+  }
+  if (!read_utf8(env, args[3], &fragment, &fragmentLength)) {
+    free(name);
+    free(vertex);
+    return NULL;
+  }
+  const CNA_StringView nameView = {name, nameLength};
+  const CNA_StringView vertexView = {vertex, vertexLength};
+  const CNA_StringView fragmentView = {fragment, fragmentLength};
+  const CNA_Result result =
+    g_api.shader_effect_factory_acquire(factory, nameView, vertexView, fragmentView, &effect);
+  free(name);
+  free(vertex);
+  free(fragment);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_shader_effect_factory_acquire", result);
+  }
+  return make_handle(env, effect);
+}
+
+static napi_value bridge_shader_effect_factory_contains(napi_env env, napi_callback_info info) {
+  napi_value args[2], output;
+  CNA_Handle factory = 0;
+  char* name = NULL;
+  size_t length = 0;
+  CNA_Bool contains = CNA_FALSE;
+  if (!require_loaded(env) || !get_args(env, info, 2, args) ||
+      !read_handle(env, args[0], &factory) ||
+      !read_utf8(env, args[1], &name, &length)) return NULL;
+  const CNA_StringView view = {name, length};
+  const CNA_Result result = g_api.shader_effect_factory_contains(factory, view, &contains);
+  free(name);
+  if (result != CNA_RESULT_SUCCESS) {
+    return throw_result(env, "cna_shader_effect_factory_contains", result);
+  }
+  NAPI_OR_RETURN(
+    env, napi_get_boolean(env, contains != CNA_FALSE, &output),
+    "cna_shader_effect_factory_contains");
+  return output;
+}
+
+static napi_value bridge_render_target_pool_create(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.render_target_pool_create, "cna_render_target_pool_create");
+}
+
+static napi_value bridge_render_target_pool_reset(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.render_target_pool_reset, "cna_render_target_pool_reset");
+}
+
+static napi_value bridge_render_target_pool_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.render_target_pool_destroy, "cna_render_target_pool_destroy");
+}
+
+static napi_value bridge_shader_effect_factory_create(napi_env env, napi_callback_info info) {
+  return prepass_borrow(env, info, g_api.shader_effect_factory_create, "cna_shader_effect_factory_create");
+}
+
+static napi_value bridge_shader_effect_factory_clear(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.shader_effect_factory_clear, "cna_shader_effect_factory_clear");
+}
+
+static napi_value bridge_shader_effect_factory_destroy(napi_env env, napi_callback_info info) {
+  return pp_handle_only(env, info, g_api.shader_effect_factory_destroy, "cna_shader_effect_factory_destroy");
+}
+
 static napi_value initialize(napi_env env, napi_value exports) {
   const napi_property_descriptor properties[] = {
     { "loadLibrary", NULL, load_library, NULL, NULL, NULL, napi_default, NULL },
     { "abiVersion", NULL, abi_version, NULL, NULL, NULL, napi_default, NULL },
+    { "createRenderTargetPool", NULL, bridge_render_target_pool_create, NULL, NULL, NULL, napi_default, NULL },
+    { "acquirePooledRenderTarget", NULL, bridge_render_target_pool_acquire, NULL, NULL, NULL, napi_default, NULL },
+    { "resetRenderTargetPool", NULL, bridge_render_target_pool_reset, NULL, NULL, NULL, napi_default, NULL },
+    { "getRenderTargetPoolTargetCount", NULL, bridge_render_target_pool_get_target_count, NULL, NULL, NULL, napi_default, NULL },
+    { "getRenderTargetPoolEstimatedBytes", NULL, bridge_render_target_pool_get_estimated_bytes, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyRenderTargetPool", NULL, bridge_render_target_pool_destroy, NULL, NULL, NULL, napi_default, NULL },
+    { "createShaderEffectFactory", NULL, bridge_shader_effect_factory_create, NULL, NULL, NULL, napi_default, NULL },
+    { "acquireFactoryShaderEffect", NULL, bridge_shader_effect_factory_acquire, NULL, NULL, NULL, napi_default, NULL },
+    { "shaderEffectFactoryContains", NULL, bridge_shader_effect_factory_contains, NULL, NULL, NULL, napi_default, NULL },
+    { "getShaderEffectFactoryCompileCount", NULL, bridge_shader_effect_factory_get_compile_count, NULL, NULL, NULL, napi_default, NULL },
+    { "clearShaderEffectFactory", NULL, bridge_shader_effect_factory_clear, NULL, NULL, NULL, napi_default, NULL },
+    { "destroyShaderEffectFactory", NULL, bridge_shader_effect_factory_destroy, NULL, NULL, NULL, napi_default, NULL },
     { "createShaderEffect", NULL, bridge_shader_effect_create, NULL, NULL, NULL, napi_default, NULL },
     { "isShaderEffectValid", NULL, bridge_shader_effect_is_valid, NULL, NULL, NULL, napi_default, NULL },
     { "shaderEffectHasRenderer", NULL, bridge_shader_effect_has_renderer, NULL, NULL, NULL, napi_default, NULL },

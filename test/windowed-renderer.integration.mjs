@@ -3447,6 +3447,124 @@ void main() { cnaOitEmit(uColour, uAlpha, uDepth); }
       }
     });
 
+    record("caches", () => {
+      const { RenderTargetPool, ShaderEffectFactory, IsGraphicsExtensionLayerAvailable } =
+        computeModule;
+      const { SurfaceFormat, DepthFormat } = Graphics;
+      const N = 4;
+      const VERTEX = `#version 300 es
+precision highp float;
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aTexCoord;
+layout(location = 2) in vec4 aColor;
+out vec2 TexCoord;
+uniform mat4 projection;
+void main() { gl_Position = projection * vec4(aPos, 0.0, 1.0); TexCoord = aTexCoord; }
+`;
+      const fragment = (colour) => `#version 300 es
+precision highp float;
+in vec2 TexCoord;
+out vec4 FragColor;
+void main() { FragColor = vec4(${colour}); }
+`;
+      const owned = [];
+      try {
+        let pool;
+        try {
+          pool = new RenderTargetPool(device);
+        } catch (error) {
+          return {
+            layerAbsent: true,
+            cnaResult: error.cnaResult,
+            extensionLayer: IsGraphicsExtensionLayerAvailable(),
+          };
+        }
+        owned.push(pool);
+        const result = {};
+
+        // --- the pool's identity, proved by pixels ------------------------------------------------
+        // Two borrows of the SAME key must be one target, and two borrows differing only in slot
+        // must be two. Written through one and read through the other: a pool that returned a new
+        // target for every acquire fails the first, and one that ignored the slot fails the second.
+        const readAll = (target) => {
+          const pixels = new Array(N * N);
+          target.GetData(pixels);
+          return [pixels[0].R, pixels[0].G, pixels[0].B, pixels[0].A];
+        };
+        const paint = (target, colour) => {
+          device.SetRenderTarget(target);
+          device.Clear(colour);
+          device.SetRenderTarget(null);
+        };
+        const sameA = pool.Acquire(N, N, SurfaceFormat.Color, DepthFormat.None, 0);
+        const sameB = pool.Acquire(N, N, SurfaceFormat.Color, DepthFormat.None, 0);
+        const otherSlot = pool.Acquire(N, N, SurfaceFormat.Color, DepthFormat.None, 1);
+        owned.push(sameA, sameB, otherSlot);
+        result.countForThree = pool.TargetCount;
+        paint(sameA, new Color(200, 30, 40, 255));
+        paint(otherSlot, new Color(20, 180, 90, 255));
+        result.readThroughSecondBorrow = readAll(sameB);
+        result.readThroughOtherSlot = readAll(otherSlot);
+        // And a different surface format is a different target, which is the half of the key the
+        // headless suite cannot show: that renderer has only one render-target format.
+        const halfFloat = pool.Acquire(N, N, SurfaceFormat.HdrBlendable, DepthFormat.None, 0);
+        owned.push(halfFloat);
+        result.formatIsPartOfTheKey = [pool.TargetCount, pool.EstimatedBytes, halfFloat.Format];
+
+        // --- the factory's identity, proved by pixels ---------------------------------------------
+        const factory = new ShaderEffectFactory(device);
+        owned.push(factory);
+        const white = new Graphics.Texture2D(device, 1, 1);
+        white.SetData([new Color(255, 255, 255, 255)]);
+        const batch = new Graphics.SpriteBatch(device);
+        // Pushed before the effects that borrow nothing from them, but after the factory, so the
+        // reverse-order cleanup below returns every borrow before its lender is asked to go.
+        owned.push(white, batch);
+        const scratch = new Graphics.RenderTarget2D(device, N, N);
+        owned.push(scratch);
+        const drawWith = (effect) => {
+          device.SetRenderTarget(scratch);
+          device.Clear(new Color(0, 0, 0, 255));
+          batch.Begin(
+            Graphics.SpriteSortMode.Immediate, Graphics.BlendState.Opaque, null,
+            Graphics.DepthStencilState.None, null, effect);
+          batch.Draw(white, new Rectangle(0, 0, N, N), Color.White);
+          batch.End();
+          device.SetRenderTarget(null);
+          return readAll(scratch);
+        };
+        const red = factory.Acquire("shader", VERTEX, fragment("1.0, 0.0, 0.0, 1.0"));
+        // Finding 22: a fresh effect loses its first draw, so the first result is discarded.
+        drawWith(red);
+        result.firstAcquireDraws = drawWith(red);
+        // The same NAME with green source. The factory returns what it cached and never looks at
+        // the source, so this must still draw red -- which is the trap the class documents.
+        const green = factory.Acquire("shader", VERTEX, fragment("0.0, 1.0, 0.0, 1.0"));
+        result.sameNameOtherSourceDraws = drawWith(green);
+        result.compileCount = factory.CompileCount;
+        red.Dispose();
+        green.Dispose();
+        // Under a new name the green source really does compile and really does draw green, so the
+        // assertion above is about the cache and not about the source never working.
+        const reallyGreen = factory.Acquire("other", VERTEX, fragment("0.0, 1.0, 0.0, 1.0"));
+        drawWith(reallyGreen);
+        result.newNameDraws = drawWith(reallyGreen);
+        result.compileCountAfter = factory.CompileCount;
+        reallyGreen.Dispose();
+        return result;
+      } finally {
+        for (const resource of owned.reverse()) {
+          try {
+            resource.Dispose();
+          } catch (error) {
+            (this.evidence.cachesCleanup ??= []).push(
+              `${error.constructor.name}: ${(error.message ?? "").slice(0, 90)}`,
+            );
+          }
+        }
+      }
+    });
+
     // A stock effect on a renderer that has real shaders. HEADLESS constructs one and refuses to
     // execute it, so this is a branch the default qualification cannot reach.
     const basic = new Graphics.BasicEffect(device);
@@ -6625,5 +6743,76 @@ test("a windowed CNA renderer runs a custom shader, and loses its first draw", {
   console.log(
     `CNA_TS_WINDOWED_SHADER_EFFECT=PASS RENDERER=${evidence.renderer.name} FIRST_DRAW_LOST=yes ` +
     `OIT_ACCUMULATION=PREDICTED OIT_RESOLVE=${fx.resolved[0].join(",")} EXPECTED=${expected.join(",")}`,
+  );
+});
+
+test("a windowed CNA renderer's two engine caches hand back the same thing they cached", { skip }, async () => {
+  const game = new WindowedProbeGame(6);
+  await game.Run();
+  const evidence = game.evidence;
+  game.Dispose();
+
+  const caches = evidence.caches;
+  assert.equal(typeof caches, "object", `the cache block did not run: ${caches}`);
+  if (caches.layerAbsent) {
+    assert.equal(caches.extensionLayer, false, "a layer that is present must not refuse to make one");
+    console.log(`CNA_TS_WINDOWED_CACHES=SKIPPED_NO_LAYER RESULT=${caches.cnaResult}`);
+    return;
+  }
+  assert.equal(evidence.cachesCleanup, undefined, `cleanup failed: ${evidence.cachesCleanup}`);
+
+  // --- the pool, proved by pixels rather than by counting -------------------------------------------
+  // Three acquires, two of them the same key, so the pool owns two targets.
+  assert.equal(caches.countForThree, 2, "two acquires of one key and one of another own two targets");
+  // Painted through the first borrow, read through the second. A pool that made a new target for
+  // every acquire reads black here instead.
+  assert.deepEqual(
+    caches.readThroughSecondBorrow, [200, 30, 40, 255],
+    "two borrows of the same key are ONE target: what was painted through the first is what the " +
+    "second reads",
+  );
+  // And the neighbouring slot is genuinely somewhere else, painted after it and holding its own
+  // colour. A pool that ignored the slot would read the second colour through both.
+  assert.deepEqual(
+    caches.readThroughOtherSlot, [20, 180, 90, 255],
+    "while a different slot is a different target, holding its own pixels",
+  );
+  assert.notDeepEqual(
+    caches.readThroughSecondBorrow, caches.readThroughOtherSlot,
+    "the two colours must differ, or neither assertion above means anything",
+  );
+  // The format half of the key, which the headless suite cannot show: that renderer has one
+  // render-target format. Two 4 x 4 Color targets are 64 bytes each and the 4 x 4 HdrBlendable is
+  // 128, so 256 in all -- which is the estimate reading each entry's own format rather than
+  // assuming one, since a pool that assumed Color would say 192.
+  assert.deepEqual(
+    caches.formatIsPartOfTheKey, [3, 256, Graphics.SurfaceFormat.HdrBlendable],
+    "a different surface format is a different target, and the byte estimate reads the format",
+  );
+
+  // --- the factory, proved by pixels ----------------------------------------------------------------
+  assert.deepEqual(
+    caches.firstAcquireDraws, [255, 0, 0, 255],
+    "the first acquire compiles the source it was given and draws it",
+  );
+  // The trap, shown rather than described: the same name with green source draws RED, because the
+  // name is the whole key and the cache never looks at the source again.
+  assert.deepEqual(
+    caches.sameNameOtherSourceDraws, [255, 0, 0, 255],
+    "the same name with different source draws the CACHED shader -- a caller who edits a shader " +
+    "and keeps the name silently keeps the old one",
+  );
+  assert.equal(caches.compileCount, 1, "and nothing was compiled the second time");
+  // The green source is not broken: under a new name it compiles and draws green. So the assertion
+  // above is about the cache rather than about a shader that never worked.
+  assert.deepEqual(
+    caches.newNameDraws, [0, 255, 0, 255],
+    "the same green source under a new name really does draw green",
+  );
+  assert.equal(caches.compileCountAfter, 2, "which is a second compile");
+
+  console.log(
+    `CNA_TS_WINDOWED_CACHES=PASS RENDERER=${evidence.renderer.name} ` +
+    `POOL_SAME_KEY=ONE_TARGET POOL_SLOT=SEPARATE FACTORY_NAME_WINS_OVER_SOURCE=yes`,
   );
 });

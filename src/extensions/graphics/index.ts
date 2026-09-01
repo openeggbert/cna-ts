@@ -45,7 +45,10 @@ import { Vector2 } from "../../Microsoft/Xna/Framework/Vector2.js";
 import { Vector3 } from "../../Microsoft/Xna/Framework/Vector3.js";
 import { Vector4 } from "../../Microsoft/Xna/Framework/Vector4.js";
 import type { CubeMapFace } from "../../Microsoft/Xna/Framework/Graphics/TextureEnums.js";
-import type { SurfaceFormat } from "../../Microsoft/Xna/Framework/Graphics/DeviceEnums.js";
+import type {
+  DepthFormat,
+  SurfaceFormat,
+} from "../../Microsoft/Xna/Framework/Graphics/DeviceEnums.js";
 import { NativeUnavailableError } from "../../internal/native-error.js";
 import { Color } from "../../Microsoft/Xna/Framework/Color.js";
 import type { GraphicsDevice } from "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
@@ -59,7 +62,10 @@ import { resolveEffectHandleForInternalUse, markEffectTransferredForInternalUse 
   "../../Microsoft/Xna/Framework/Graphics/Effect.js";
 import type { IDisposable } from "../../Microsoft/Xna/Framework/Contracts.js";
 import type { PassTimingSnapshot, PostProcessFrameSnapshot } from "../../internal/backend.js";
-import type { RenderTarget2D } from "../../Microsoft/Xna/Framework/Graphics/RenderTargets.js";
+import {
+  adoptBorrowedRenderTarget2DForInternalUse,
+  type RenderTarget2D,
+} from "../../Microsoft/Xna/Framework/Graphics/RenderTargets.js";
 import { Texture2D } from "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
 import { resolveTexture2DHandleForInternalUse } from
   "../../Microsoft/Xna/Framework/Graphics/Texture2D.js";
@@ -9445,4 +9451,176 @@ function uniformName(value: string, what = "name"): string {
 function numberList(values: readonly number[], what: string): number[] {
   if (!Array.isArray(values)) throw new TypeError(`${what} must be an array`);
   return values.map((value, index) => finite(value, `${what}[${index}]`));
+}
+
+/**
+ * A cache of render targets, keyed by their shape.
+ *
+ * A frame that runs several passes wants the same handful of intermediate targets every frame, and
+ * allocating them per frame is the expensive way to get them. {@link Acquire} returns the pool's
+ * target for a shape, creating it the first time and handing back the same one after that.
+ *
+ * **The key is all five arguments**, not just the size: two acquires that differ in format, depth
+ * format or slot are two different targets. The `slot` exists precisely so two passes that want the
+ * same *shape* at the same time can each have their own — without it they would share one target
+ * and the second pass would read what the first had just overwritten.
+ *
+ * What {@link Acquire} returns is a **borrow**. Disposing it gives the borrow back and does not
+ * dispose the pool's target; the pool refuses {@link Reset} and {@link Dispose} until every borrow
+ * has been given back.
+ */
+export class RenderTargetPool implements IDisposable {
+  #handle: NativeHandle | null;
+  readonly #device: GraphicsDevice;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    this.#device = graphicsDevice;
+    this.#handle = extensions().createRenderTargetPool(postProcessDeviceHandle(graphicsDevice));
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) throw new NativeUnavailableError("the render-target pool is disposed");
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /**
+   * Releases the pool and every target it owns.
+   *
+   * Refused while a borrow is outstanding, and the handle is given up only once the release has
+   * succeeded — a pool that refused is still a pool, and something has to be able to release it.
+   */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    extensions().destroyRenderTargetPool(handle);
+    this.#handle = null;
+  }
+
+  /** How many targets the pool owns. */
+  public get TargetCount(): number {
+    return extensions().getRenderTargetPoolTargetCount(this.#active());
+  }
+
+  /**
+   * The pool's estimated colour storage, in bytes.
+   *
+   * Colour only: width × height × the format's bytes per texel, summed. The depth buffers the
+   * targets also carry are not counted, so this is a floor on what the pool costs rather than the
+   * whole of it.
+   */
+  public get EstimatedBytes(): number {
+    return extensions().getRenderTargetPoolEstimatedBytes(this.#active());
+  }
+
+  /** Releases every pooled target. Refused while a borrow is outstanding. */
+  public Reset(): void {
+    extensions().resetRenderTargetPool(this.#active());
+  }
+
+  /**
+   * The pool's target for one shape, created on the first request and reused after it.
+   *
+   * The returned `RenderTarget2D` is a **borrow**: dispose it to give it back, which does not
+   * dispose the pool's own target.
+   */
+  public Acquire(
+    width: number, height: number, format: SurfaceFormat, depthFormat: DepthFormat, slot = 0,
+  ): RenderTarget2D {
+    const handle = extensions().acquirePooledRenderTarget(
+      this.#active(), wholeNumber(width, "width"), wholeNumber(height, "height"),
+      wholeNumber(format, "format"), wholeNumber(depthFormat, "depthFormat"),
+      wholeNumber(slot, "slot"));
+    return adoptBorrowedRenderTarget2DForInternalUse(
+      this.#device, handle, "RenderTargetPool.Acquire");
+  }
+}
+
+/**
+ * A cache of compiled shader effects, keyed by name.
+ *
+ * Compiling GLSL is the expensive part of a custom shader, and a game that wants the same shader in
+ * three places should compile it once. {@link Acquire} compiles on the first request for a name and
+ * returns the same effect for every request after it.
+ *
+ * **The name is the whole key.** A second acquire under a name already in the cache returns what is
+ * cached and does not look at the source it was given — so passing different source under the same
+ * name silently gets the first shader, not the second. That is the cache doing its job, and it is
+ * the mistake worth naming: the name has to change when the source does.
+ *
+ * What {@link Acquire} returns is a **borrow**. Disposing it gives the borrow back and does not
+ * dispose the cached effect; the factory refuses {@link Clear} and {@link Dispose} until every
+ * borrow — and every technique or pass view taken from one — has been given back.
+ */
+export class ShaderEffectFactory implements IDisposable {
+  #handle: NativeHandle | null;
+  readonly #device: GraphicsDevice;
+
+  public constructor(graphicsDevice: GraphicsDevice) {
+    this.#device = graphicsDevice;
+    this.#handle = extensions().createShaderEffectFactory(postProcessDeviceHandle(graphicsDevice));
+  }
+
+  #active(): NativeHandle {
+    if (this.#handle == null) {
+      throw new NativeUnavailableError("the shader-effect factory is disposed");
+    }
+    return this.#handle;
+  }
+
+  /** Whether it has been released. */
+  public get IsDisposed(): boolean { return this.#handle == null; }
+
+  /** Releases the factory and every effect it cached. Refused while a borrow is outstanding. */
+  public Dispose(): void {
+    const handle = this.#handle;
+    if (handle == null) return;
+    extensions().destroyShaderEffectFactory(handle);
+    this.#handle = null;
+  }
+
+  /**
+   * How many distinct shaders the factory has compiled since it was made.
+   *
+   * {@link Clear} does **not** reset it: it counts compiles, not entries, so a cache cleared and
+   * refilled has compiled twice and says so. That is what makes it useful for noticing a name that
+   * is being rebuilt every frame.
+   */
+  public get CompileCount(): number {
+    return extensions().getShaderEffectFactoryCompileCount(this.#active());
+  }
+
+  /** Whether a name is in the cache. */
+  public Contains(name: string): boolean {
+    return extensions().shaderEffectFactoryContains(this.#active(), cacheKey(name));
+  }
+
+  /** Releases every cached effect. Refused while a borrow is outstanding. */
+  public Clear(): void {
+    extensions().clearShaderEffectFactory(this.#active());
+  }
+
+  /**
+   * The effect cached under a name, compiled on the first request.
+   *
+   * The returned `Effect` is a **borrow** — dispose it to give it back, which does not dispose the
+   * cached effect.
+   */
+  public Acquire(name: string, vertexSource: string, fragmentSource: string): Effect {
+    if (typeof vertexSource !== "string" || typeof fragmentSource !== "string") {
+      throw new TypeError("both shader sources must be strings");
+    }
+    const handle = extensions().acquireFactoryShaderEffect(
+      this.#active(), cacheKey(name), vertexSource, fragmentSource);
+    return adoptNativeEffectForInternalUse(this.#device, effectsBackendFor(this.#device), handle);
+  }
+}
+
+function cacheKey(name: string): string {
+  if (typeof name !== "string" || name.length === 0) {
+    throw new TypeError("name must be a non-empty cache key -- the name is the key");
+  }
+  return name;
 }

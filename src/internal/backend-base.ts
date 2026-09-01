@@ -2524,6 +2524,51 @@ export abstract class CnaGraphicsExtensionBackendBase implements CnaGraphicsExte
     _effect: NativeHandle,
     _value: readonly number[],
   ): void { return this.unsupported("setShaderEffectProjection"); }
+  public createRenderTargetPool(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createRenderTargetPool"); }
+  public acquirePooledRenderTarget(
+    _pool: NativeHandle,
+    _width: number,
+    _height: number,
+    _format: number,
+    _depthFormat: number,
+    _slot: number,
+  ): NativeHandle { return this.unsupported("acquirePooledRenderTarget"); }
+  public resetRenderTargetPool(
+    _pool: NativeHandle,
+  ): void { return this.unsupported("resetRenderTargetPool"); }
+  public getRenderTargetPoolTargetCount(
+    _pool: NativeHandle,
+  ): number { return this.unsupported("getRenderTargetPoolTargetCount"); }
+  public getRenderTargetPoolEstimatedBytes(
+    _pool: NativeHandle,
+  ): number { return this.unsupported("getRenderTargetPoolEstimatedBytes"); }
+  public destroyRenderTargetPool(
+    _pool: NativeHandle,
+  ): void { return this.unsupported("destroyRenderTargetPool"); }
+  public createShaderEffectFactory(
+    _graphicsDevice: NativeHandle,
+  ): NativeHandle { return this.unsupported("createShaderEffectFactory"); }
+  public acquireFactoryShaderEffect(
+    _factory: NativeHandle,
+    _name: string,
+    _vertexSource: string,
+    _fragmentSource: string,
+  ): NativeHandle { return this.unsupported("acquireFactoryShaderEffect"); }
+  public shaderEffectFactoryContains(
+    _factory: NativeHandle,
+    _name: string,
+  ): boolean { return this.unsupported("shaderEffectFactoryContains"); }
+  public getShaderEffectFactoryCompileCount(
+    _factory: NativeHandle,
+  ): number { return this.unsupported("getShaderEffectFactoryCompileCount"); }
+  public clearShaderEffectFactory(
+    _factory: NativeHandle,
+  ): void { return this.unsupported("clearShaderEffectFactory"); }
+  public destroyShaderEffectFactory(
+    _factory: NativeHandle,
+  ): void { return this.unsupported("destroyShaderEffectFactory"); }
   public applyPbrEffectMaterial(
     _effect: NativeHandle,
     _material: PbrMaterialExtSnapshot,

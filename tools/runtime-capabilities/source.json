@@ -2103,6 +2103,28 @@
         "test:test/native-cna.integration.mjs",
         "test:test/windowed-renderer.integration.mjs"
       ]
+    },
+    {
+      "operation": "The two engine-layer caches: render targets by shape, shader effects by name",
+      "category": "VERIFIED_NATIVE",
+      "owner": "cna-ts/extensions/graphics",
+      "evidence": "the pool's key is all FIVE arguments, each shown on its own to make a different target: size, surface format, depth format and slot, with the same five returning the one target the pool already holds. The non-square case is asked for deliberately, because a pool handed its size the wrong way round returns a transposed target that costs exactly the same bytes. The byte estimate is COLOUR ONLY -- 8x8 Color is 256 bytes, and adding a half-float target of the same size costs 512, so the estimate reads each entry's own format rather than assuming one; the depth buffers the targets also carry are not counted, which makes it a floor rather than the whole cost. On a windowed renderer the identity is proved by PIXELS rather than by counting: painted through one borrow and read back through a second borrow of the same key, while the neighbouring slot holds its own different colour. The factory's key is the NAME ALONE, and that is shown rather than described -- a second acquire under a cached name draws the CACHED shader even when handed different source, so a caller who edits a shader and keeps the name silently keeps the old one; the same edited source under a NEW name really does compile and really does draw, so the assertion is about the cache and not about a shader that never worked. The compile count survives Clear, because it counts compiles rather than entries, which is what makes it useful for noticing a name rebuilt every frame. Both caches LEND what they hold: reset, clear and destroy are all refused with INVALID_STATE while a borrow is outstanding and all succeed once every borrow is back, and the probe game destroying cleanly is itself the proof that every borrow was returned. A non-positive size is INVALID_ARGUMENT rather than INVALID_STATE, and an empty cache key is refused by this binding before CNA sees it. Ten planted binding defects fail and none survives",
+      "proof": [
+        "route:cna_render_target_pool_create",
+        "route:cna_render_target_pool_acquire",
+        "route:cna_render_target_pool_reset",
+        "route:cna_render_target_pool_get_target_count",
+        "route:cna_render_target_pool_get_estimated_bytes",
+        "route:cna_render_target_pool_destroy",
+        "route:cna_shader_effect_factory_create",
+        "route:cna_shader_effect_factory_acquire",
+        "route:cna_shader_effect_factory_contains",
+        "route:cna_shader_effect_factory_get_compile_count",
+        "route:cna_shader_effect_factory_clear",
+        "route:cna_shader_effect_factory_destroy",
+        "test:test/native-cna.integration.mjs",
+        "test:test/windowed-renderer.integration.mjs"
+      ]
     }
   ]
 }

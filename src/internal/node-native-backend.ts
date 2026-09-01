@@ -1354,6 +1354,18 @@ interface NativeBridge {
   setShaderEffectView(effect: bigint, value: readonly number[]): void;
   getShaderEffectProjection(effect: bigint): readonly number[];
   setShaderEffectProjection(effect: bigint, value: readonly number[]): void;
+  createRenderTargetPool(graphicsDevice: bigint): bigint;
+  acquirePooledRenderTarget(pool: bigint, width: number, height: number, format: number, depthFormat: number, slot: number): bigint;
+  resetRenderTargetPool(pool: bigint): void;
+  getRenderTargetPoolTargetCount(pool: bigint): number;
+  getRenderTargetPoolEstimatedBytes(pool: bigint): number;
+  destroyRenderTargetPool(pool: bigint): void;
+  createShaderEffectFactory(graphicsDevice: bigint): bigint;
+  acquireFactoryShaderEffect(factory: bigint, name: string, vertexSource: string, fragmentSource: string): bigint;
+  shaderEffectFactoryContains(factory: bigint, name: string): boolean;
+  getShaderEffectFactoryCompileCount(factory: bigint): number;
+  clearShaderEffectFactory(factory: bigint): void;
+  destroyShaderEffectFactory(factory: bigint): void;
   applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { Applied: number; Settings: PipelineSettingsSnapshot };
   getPipelinePassTiming(pipeline: bigint, index: number): { Milliseconds: number; SampleCount: number };
   applyPbrEffectMaterial(effect: bigint, material: PbrMaterialExtSnapshot): void;
@@ -3980,6 +3992,18 @@ export class NodeNativeBackend
   public setShaderEffectView(effect: NativeHandle, value: readonly number[]): void { this.#bridge.setShaderEffectView(effect, value); }
   public getShaderEffectProjection(effect: NativeHandle): readonly number[] { return this.#bridge.getShaderEffectProjection(effect); }
   public setShaderEffectProjection(effect: NativeHandle, value: readonly number[]): void { this.#bridge.setShaderEffectProjection(effect, value); }
+  public createRenderTargetPool(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createRenderTargetPool(graphicsDevice); }
+  public acquirePooledRenderTarget(pool: NativeHandle, width: number, height: number, format: number, depthFormat: number, slot: number): NativeHandle { return this.#bridge.acquirePooledRenderTarget(pool, width, height, format, depthFormat, slot); }
+  public resetRenderTargetPool(pool: NativeHandle): void { this.#bridge.resetRenderTargetPool(pool); }
+  public getRenderTargetPoolTargetCount(pool: NativeHandle): number { return this.#bridge.getRenderTargetPoolTargetCount(pool); }
+  public getRenderTargetPoolEstimatedBytes(pool: NativeHandle): number { return this.#bridge.getRenderTargetPoolEstimatedBytes(pool); }
+  public destroyRenderTargetPool(pool: NativeHandle): void { this.#bridge.destroyRenderTargetPool(pool); }
+  public createShaderEffectFactory(graphicsDevice: NativeHandle): NativeHandle { return this.#bridge.createShaderEffectFactory(graphicsDevice); }
+  public acquireFactoryShaderEffect(factory: NativeHandle, name: string, vertexSource: string, fragmentSource: string): NativeHandle { return this.#bridge.acquireFactoryShaderEffect(factory, name, vertexSource, fragmentSource); }
+  public shaderEffectFactoryContains(factory: NativeHandle, name: string): boolean { return this.#bridge.shaderEffectFactoryContains(factory, name); }
+  public getShaderEffectFactoryCompileCount(factory: NativeHandle): number { return this.#bridge.getShaderEffectFactoryCompileCount(factory); }
+  public clearShaderEffectFactory(factory: NativeHandle): void { this.#bridge.clearShaderEffectFactory(factory); }
+  public destroyShaderEffectFactory(factory: NativeHandle): void { this.#bridge.destroyShaderEffectFactory(factory); }
   public applyPipelineSettingsFromString(settings: PipelineSettingsSnapshot, text: string): { readonly Applied: number; readonly Settings: PipelineSettingsSnapshot } { return this.#bridge.applyPipelineSettingsFromString(settings, text); }
   public getPipelinePassTiming(pipeline: NativeHandle, index: number): { readonly Milliseconds: number; readonly SampleCount: number } { return this.#bridge.getPipelinePassTiming(pipeline, index); }
   public applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void { this.#bridge.applyPbrEffectMaterial(effect, material); }

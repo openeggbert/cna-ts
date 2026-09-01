@@ -10799,3 +10799,256 @@ void main() { FragColor = vec4(uTint * uScale, 1.0); }
     `NONSENSE_VALID=${nonsense.valid} TEXTURE_BORROW=REFUSES_WHILE_BOUND`,
   );
 });
+
+test("the two engine-layer caches key on everything they say they key on, and refuse to let go while lending", async () => {
+  const graphics = computeExtensions;
+
+  const VERTEX = `#version 300 es
+precision highp float;
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aTexCoord;
+out vec2 TexCoord;
+uniform mat4 projection;
+void main() { gl_Position = projection * vec4(aPos, 0.0, 1.0); TexCoord = aTexCoord; }
+`;
+  const fragment = (colour) => `#version 300 es
+precision highp float;
+in vec2 TexCoord;
+out vec4 FragColor;
+void main() { FragColor = vec4(${colour}); }
+`;
+
+  class CacheProbeGame extends Game {
+    constructor() {
+      super();
+      this.manager = new GraphicsDeviceManager(this);
+      this.evidence = Object.create(null);
+    }
+
+    LoadContent() {
+      const device = this.GraphicsDevice;
+      const record = (name, body) => {
+        try {
+          this.evidence[name] = body();
+        } catch (error) {
+          this.evidence[name] = `${error.constructor.name}(${error.cnaResult ?? "-"}): ` +
+            `${(error.message ?? "").slice(0, 160)}`;
+        }
+      };
+      const outcome = (body) => {
+        try {
+          body();
+          return "ok";
+        } catch (error) {
+          return `${error.constructor.name}(${error.cnaResult ?? "-"})`;
+        }
+      };
+
+      record("pool", () => {
+        const { SurfaceFormat, DepthFormat } = Graphics;
+        const pool = new graphics.RenderTargetPool(device);
+        const borrowed = [];
+        try {
+          const state = () => [pool.TargetCount, pool.EstimatedBytes];
+          const result = { empty: state() };
+          const acquire = (w, h, format, depth, slot) => {
+            const target = pool.Acquire(w, h, format, depth, slot);
+            borrowed.push(target);
+            return target;
+          };
+          const first = acquire(8, 8, SurfaceFormat.Color, DepthFormat.None, 0);
+          result.shape = [
+            first.Width, first.Height, first.Format, first.DepthStencilFormat, first.LevelCount,
+          ];
+          result.afterFirst = state();
+          // The same five arguments again: one target, not two.
+          acquire(8, 8, SurfaceFormat.Color, DepthFormat.None, 0);
+          result.sameKey = state();
+          // Each of the other four key components on its own.
+          acquire(8, 8, SurfaceFormat.Color, DepthFormat.None, 1);
+          result.otherSlot = state();
+          acquire(8, 8, SurfaceFormat.Color, DepthFormat.Depth24, 0);
+          result.otherDepth = state();
+          // A different surface format, where the renderer has a second one to offer. HEADLESS has
+          // exactly one render-target format, so this is the branch the windowed suite reaches and
+          // this one records the refusal instead.
+          result.otherFormatOutcome = outcome(
+            () => acquire(8, 8, SurfaceFormat.HdrBlendable, DepthFormat.None, 0));
+          result.otherFormat = state();
+          // Deliberately not square: a pool that passed the size through in the wrong order would
+          // return a 4 x 16 target and cost exactly the same number of bytes.
+          const oblong = acquire(16, 4, SurfaceFormat.Color, DepthFormat.None, 0);
+          result.oblongShape = [oblong.Width, oblong.Height];
+          result.otherSize = state();
+          result.resetWhileLending = outcome(() => pool.Reset());
+          result.disposeWhileLending = outcome(() => pool.Dispose());
+          for (const target of borrowed.splice(0)) target.Dispose();
+          result.resetOnceReturned = outcome(() => pool.Reset());
+          result.afterReset = state();
+          result.badSize = outcome(
+            () => pool.Acquire(0, 8, SurfaceFormat.Color, DepthFormat.None, 0));
+          result.disposeOnceReturned = outcome(() => pool.Dispose());
+          result.disposedRefuses = outcome(() => pool.TargetCount);
+          return result;
+        } finally {
+          for (const target of borrowed) {
+            try { target.Dispose(); } catch { /* already returned */ }
+          }
+          try { pool.Dispose(); } catch { /* already released */ }
+        }
+      });
+
+      record("factory", () => {
+        const factory = new graphics.ShaderEffectFactory(device);
+        const borrowed = [];
+        try {
+          const result = { empty: [factory.CompileCount, factory.Contains("red")] };
+          const acquire = (name, colour) => {
+            const effect = factory.Acquire(name, VERTEX, fragment(colour));
+            borrowed.push(effect);
+            return effect;
+          };
+          acquire("red", "1.0, 0.0, 0.0, 1.0");
+          result.afterFirst = [
+            factory.CompileCount, factory.Contains("red"), factory.Contains("green"),
+          ];
+          // The name is the whole key: the same name with different source compiles nothing.
+          acquire("red", "0.0, 1.0, 0.0, 1.0");
+          result.sameNameOtherSource = factory.CompileCount;
+          acquire("green", "0.0, 1.0, 0.0, 1.0");
+          result.secondName = [factory.CompileCount, factory.Contains("green")];
+          result.clearWhileLending = outcome(() => factory.Clear());
+          result.disposeWhileLending = outcome(() => factory.Dispose());
+          for (const effect of borrowed.splice(0)) effect.Dispose();
+          result.clearOnceReturned = outcome(() => factory.Clear());
+          // Clearing empties the cache but does not reset the compile count.
+          result.afterClear = [
+            factory.CompileCount, factory.Contains("red"), factory.Contains("green"),
+          ];
+          acquire("red", "1.0, 0.0, 0.0, 1.0");
+          result.afterRecompile = [factory.CompileCount, factory.Contains("red")];
+          for (const effect of borrowed.splice(0)) effect.Dispose();
+          result.emptyName = outcome(() => factory.Acquire("", VERTEX, fragment("1.0")));
+          result.missingName = outcome(() => factory.Acquire(null, VERTEX, fragment("1.0")));
+          result.numberSource = outcome(() => factory.Acquire("x", 3, fragment("1.0")));
+          result.disposeOnceReturned = outcome(() => factory.Dispose());
+          result.disposedRefuses = outcome(() => factory.CompileCount);
+          return result;
+        } finally {
+          for (const effect of borrowed) {
+            try { effect.Dispose(); } catch { /* already returned */ }
+          }
+          try { factory.Dispose(); } catch { /* already released */ }
+        }
+      });
+
+      this.Exit();
+    }
+  }
+
+  const game = new CacheProbeGame();
+  await game.Run();
+  const evidence = game.evidence;
+  // A borrow left outstanding makes cna_game_destroy refuse, so this also proves every one above
+  // was given back.
+  game.Dispose();
+
+  // --- the render-target pool ---------------------------------------------------------------------
+  const pool = evidence.pool;
+  assert.equal(typeof pool, "object", `the pool probe failed: ${pool}`);
+  assert.deepEqual(pool.empty, [0, 0], "an empty pool owns nothing and costs nothing");
+  assert.deepEqual(
+    pool.shape.slice(0, 4),
+    [8, 8, Graphics.SurfaceFormat.Color, Graphics.DepthFormat.None],
+    "an acquired target has exactly the shape it was asked for",
+  );
+  assert.equal(pool.shape[4], 1, "with no mip chain");
+  assert.deepEqual(
+    pool.oblongShape, [16, 4],
+    "and a non-square target comes back the way round it was asked for -- a pool handed the size " +
+    "in the wrong order returns a 4 x 16 target that costs exactly the same bytes",
+  );
+  // 8 x 8 x 4 bytes per Color texel. Colour only: the depth buffer each target also carries is not
+  // counted, so this is a floor on what the pool costs rather than the whole of it.
+  assert.deepEqual(pool.afterFirst, [1, 256], "one 8x8 Color target is 256 bytes of colour");
+  assert.deepEqual(
+    pool.sameKey, [1, 256],
+    "the same five arguments return the same target -- which is the entire point of a pool",
+  );
+  // Each of the other four key components alone makes a different target. Four separate
+  // assertions, because a pool that keyed on size alone would pass the first three of them.
+  assert.deepEqual(pool.otherSlot, [2, 512], "a different slot is a different target");
+  assert.deepEqual(pool.otherDepth, [3, 768], "and so is a different depth format");
+  if (pool.otherFormatOutcome === "ok") {
+    assert.deepEqual(
+      pool.otherFormat, [4, 1280],
+      "and a different surface format -- which costs 512 bytes here, so HdrBlendable is eight " +
+      "bytes a texel against Color's four, and the estimate reads the format rather than assuming one",
+    );
+    assert.deepEqual(pool.otherSize, [5, 1536], "and a different size, at 16 x 4 x 4 = 256 more");
+  } else {
+    // An honest boundary: this renderer has one render-target format, so the format half of the
+    // key cannot be shown here. The windowed suite shows it on a renderer that has two.
+    assert.equal(
+      pool.otherFormatOutcome, "Error(12)",
+      "a renderer with one render-target format refuses the second by name rather than silently " +
+      "returning the first",
+    );
+    assert.deepEqual(pool.otherFormat, [3, 768], "and the pool is unchanged by the refusal");
+    assert.deepEqual(pool.otherSize, [4, 1024], "while a different size is still a different target");
+  }
+  // The borrows. Both refusals are INVALID_STATE -- a sequencing mistake, not an argument one.
+  assert.equal(
+    pool.resetWhileLending, "Error(3)",
+    "a pool refuses to reset while a target it lent is still out",
+  );
+  assert.equal(pool.disposeWhileLending, "Error(3)", "and refuses to be disposed");
+  assert.equal(pool.resetOnceReturned, "ok", "once every borrow is back, it resets");
+  assert.deepEqual(pool.afterReset, [0, 0], "and owns nothing again");
+  assert.equal(pool.badSize, "Error(1)", "a non-positive size is an argument mistake: INVALID_ARGUMENT");
+  assert.equal(pool.disposeOnceReturned, "ok");
+  assert.equal(pool.disposedRefuses, "NativeUnavailableError(-)", "a disposed pool refuses by name");
+
+  // --- the shader-effect factory ------------------------------------------------------------------
+  const factory = evidence.factory;
+  assert.equal(typeof factory, "object", `the factory probe failed: ${factory}`);
+  assert.deepEqual(factory.empty, [0, false], "a new factory has compiled nothing and holds nothing");
+  assert.deepEqual(
+    factory.afterFirst, [1, true, false],
+    "the first acquire compiles once and the cache then holds that name and no other",
+  );
+  // The trap this class exists to name. The cache key is the NAME; a second acquire under a name
+  // already present returns what is cached and never looks at the source it was handed. A caller
+  // who edits the shader and keeps the name silently keeps the old one.
+  assert.equal(
+    factory.sameNameOtherSource, 1,
+    "the same name with different source compiles nothing -- the name is the whole key",
+  );
+  assert.deepEqual(factory.secondName, [2, true], "a new name compiles again");
+  assert.equal(
+    factory.clearWhileLending, "Error(3)",
+    "a factory refuses to clear while an effect it lent is still out",
+  );
+  assert.equal(factory.disposeWhileLending, "Error(3)", "and refuses to be disposed");
+  assert.equal(factory.clearOnceReturned, "ok", "once every borrow is back, it clears");
+  assert.deepEqual(
+    factory.afterClear, [2, false, false],
+    "clearing empties the cache and does NOT reset the compile count: it counts compiles, not " +
+    "entries, which is what makes it useful for noticing a name rebuilt every frame",
+  );
+  assert.deepEqual(
+    factory.afterRecompile, [3, true],
+    "so re-acquiring a cleared name compiles a third time and says so",
+  );
+  assert.equal(factory.emptyName, "TypeError(-)", "an empty cache key is refused here, by name");
+  assert.equal(factory.missingName, "TypeError(-)");
+  assert.equal(factory.numberSource, "TypeError(-)");
+  assert.equal(factory.disposeOnceReturned, "ok");
+  assert.equal(
+    factory.disposedRefuses, "NativeUnavailableError(-)", "a disposed factory refuses by name");
+
+  console.log(
+    `CNA_TS_NATIVE_ENGINE_CACHES=PASS POOL_KEY=SIZE_FORMAT_DEPTH_SLOT POOL_BYTES=COLOUR_ONLY ` +
+    `FACTORY_KEY=NAME_ALONE COMPILE_COUNT=SURVIVES_CLEAR BORROWS=REFUSE_RESET_AND_DESTROY`,
+  );
+});

@@ -39,6 +39,14 @@ type RenderTargetState = {
 const twoDimensionalStates = new WeakMap<RenderTarget2D, RenderTargetState>();
 const cubeStates = new WeakMap<RenderTargetCube, RenderTargetState>();
 
+/** What the constructor's implementation-only adoption channel takes. */
+type AdoptedRenderTarget2DState = {
+  readonly Handle: NativeHandle;
+  readonly LevelCount: number;
+  readonly Release: (value: NativeHandle) => void;
+  readonly Label: string;
+};
+
 export class RenderTarget2D extends Texture2D {
   readonly #contentLost = new EventDispatcher<unknown, EventArgs>();
   public readonly ContentLost: XnaEvent<unknown, EventArgs> = this.#contentLost;
@@ -57,10 +65,11 @@ export class RenderTarget2D extends Texture2D {
     graphicsDevice: GraphicsDevice, width: number, height: number, mipMap = false,
     preferredFormat = SurfaceFormat.Color, preferredDepthFormat = DepthFormat.None,
     preferredMultiSampleCount = 0, usage = RenderTargetUsage.DiscardContents,
+    adoptedNative?: AdoptedRenderTarget2DState,
   ) {
     // The sixth argument is an implementation-only adoption channel; public overloads remain unchanged.
     // @ts-expect-error Intentionally calling the non-exported implementation signature.
-    super(graphicsDevice, width, height, mipMap, preferredFormat, createRenderTarget2D(
+    super(graphicsDevice, width, height, mipMap, preferredFormat, adoptedNative ?? createRenderTarget2D(
       graphicsDevice, width, height, mipMap, preferredFormat, preferredDepthFormat,
       preferredMultiSampleCount, usage,
     ));
@@ -313,4 +322,44 @@ function validateCreatedInfo(
       info.Format !== format || info.LevelCount <= 0) {
     throw new NativeUnavailableError("CNA render-target creation returned inconsistent metadata");
   }
+}
+
+/**
+ * Wraps a render-target handle CNA already owns as a `RenderTarget2D`, without owning it.
+ *
+ * The engine layer's render-target pool lends its targets: the borrow has to be bindable, which is
+ * what a plain `Texture2D` borrow cannot be, and giving it back must not dispose what the pool
+ * owns. The size and format are read from CNA rather than assumed, and a failure to read them
+ * returns the borrow before it propagates -- an unreturned borrow is what stops the lender being
+ * released later.
+ */
+export function adoptBorrowedRenderTarget2DForInternalUse(
+  graphicsDevice: GraphicsDevice, handle: NativeHandle, label: string,
+): RenderTarget2D {
+  const backend = requireGraphicsBackend(graphicsDevice);
+  let info;
+  try {
+    info = backend.getRenderTargetInfo(handle);
+  } catch (error) {
+    backend.destroyRenderTarget(handle);
+    throw error;
+  }
+  type InternalRenderTarget2D = new (
+    graphicsDevice: GraphicsDevice, width: number, height: number, mipMap: boolean,
+    preferredFormat: SurfaceFormat, preferredDepthFormat: DepthFormat,
+    preferredMultiSampleCount: number, usage: RenderTargetUsage,
+    adoptedNative: AdoptedRenderTarget2DState,
+  ) => RenderTarget2D;
+  return new (RenderTarget2D as unknown as InternalRenderTarget2D)(
+    graphicsDevice, info.Width, info.Height, info.LevelCount > 1,
+    info.Format as SurfaceFormat, info.DepthFormat as DepthFormat,
+    info.MultiSampleCount, info.Usage as RenderTargetUsage,
+    {
+      Handle: handle,
+      LevelCount: info.LevelCount,
+      // A borrow, not a target of our own: this is the route that gives it back.
+      Release: (value: NativeHandle) => backend.destroyRenderTarget(value),
+      Label: label,
+    },
+  );
 }

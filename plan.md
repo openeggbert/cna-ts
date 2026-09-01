@@ -625,6 +625,18 @@ Electron, or mobile support.
   not that anything compiled, and the two renderers here disagree exactly as the header predicts —
   HEADLESS reports it valid with an empty log, OPENGLES3 reports it invalid with the compiler's own
   words. Two empty sources are the one case refused identically everywhere.
+- [x] **The two engine-layer caches**, which are both really about ownership. The render-target
+  pool's key is all five arguments — size, surface format, depth format and slot — each shown on its
+  own to make a different target, with the non-square case asked for deliberately because a pool
+  handed its size the wrong way round returns a transposed target costing exactly the same bytes.
+  Its byte estimate is **colour only** and reads each entry's own format. On a windowed renderer the
+  identity is proved by pixels: painted through one borrow and read back through a second borrow of
+  the same key, while the neighbouring slot holds its own colour. The shader-effect factory's key is
+  the **name alone**, and that is shown rather than described — a second acquire under a cached name
+  draws the *cached* shader even when handed different source, while the same edited source under a
+  new name compiles and draws, so the assertion is about the cache rather than about a shader that
+  never worked. The compile count survives `Clear`. Both caches lend what they hold and refuse
+  reset, clear and destruction while a borrow is out. Ten planted defects fail; none survives.
 - [x] The CNB API is backend-neutral and proved so: a browser gets the same `CnbDocument`,
   `CnbModelData` and `CreateTexture2DFromCnb` a Node consumer gets, and the browser tests make the
   same exact-texel and exact-model assertions. The model is the strongest form of that claim: a

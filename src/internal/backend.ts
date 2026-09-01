@@ -1492,6 +1492,19 @@ export interface CnaGraphicsExtensionBackend {
   setShaderEffectView(effect: NativeHandle, value: readonly number[]): void;
   getShaderEffectProjection(effect: NativeHandle): readonly number[];
   setShaderEffectProjection(effect: NativeHandle, value: readonly number[]): void;
+  // --- the two engine-layer caches, and the borrows that keep them alive ------------------------
+  createRenderTargetPool(graphicsDevice: NativeHandle): NativeHandle;
+  acquirePooledRenderTarget(pool: NativeHandle, width: number, height: number, format: number, depthFormat: number, slot: number): NativeHandle;
+  resetRenderTargetPool(pool: NativeHandle): void;
+  getRenderTargetPoolTargetCount(pool: NativeHandle): number;
+  getRenderTargetPoolEstimatedBytes(pool: NativeHandle): number;
+  destroyRenderTargetPool(pool: NativeHandle): void;
+  createShaderEffectFactory(graphicsDevice: NativeHandle): NativeHandle;
+  acquireFactoryShaderEffect(factory: NativeHandle, name: string, vertexSource: string, fragmentSource: string): NativeHandle;
+  shaderEffectFactoryContains(factory: NativeHandle, name: string): boolean;
+  getShaderEffectFactoryCompileCount(factory: NativeHandle): number;
+  clearShaderEffectFactory(factory: NativeHandle): void;
+  destroyShaderEffectFactory(factory: NativeHandle): void;
   applyPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
   extractPbrEffectMaterial(effect: NativeHandle): PbrMaterialExtSnapshot;
   applySkinnedPbrEffectMaterial(effect: NativeHandle, material: PbrMaterialExtSnapshot): void;
