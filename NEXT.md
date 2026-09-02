@@ -3207,3 +3207,175 @@ every gate is green. What remains is not local:
 3. **The twelve unbound non-engine families**, if they are wanted. `report-frontier.mjs` says which
    are possible; whether they are worth it is a product question, not a binding one. A route that
    validates its arguments has not promised to work.
+
+## 2026-09-02: the non-engine backend in a browser, and a duplicate pump nobody was paying for
+
+### Where this started
+
+The previous session bound CNA's engine layer whole on the WebAssembly artifact and left fifteen
+non-engine interfaces — 267 methods — outside it. The brief for this one was to implement every one
+that can be represented **truthfully** on a browser artifact and to classify the rest with measured
+evidence, stopping only when `ACTIONABLE_LOCAL = 0` *and* `UNCLASSIFIED_WASM_BACKEND_GAP = 0`.
+
+`cna-ts` started clean at `9b7daac`, `cna-ts-template` at `8a806d8`, read-only `cnanext` at
+`5347b52ea` and `sharp-runtimenext` at `9cc96cd5`. Both dependencies end with **zero modified
+tracked files**. Five commits, none pushed.
+
+### 1. Fifteen families, bound and driven
+
+| before | after |
+| --- | --- |
+| 18 interfaces, 1252 methods | **33** interfaces (32 bound, 1 partial), **1525** methods |
+| `WASM_BACKEND_ROUTES=1403` | **1864**, against the Node adapter's 1889 |
+| 15 absent interfaces | **0** absent interfaces, 2 absent methods, both classified |
+
+Avatars, the sprite-font oracle, the game window, storage, the input-device inventory, four sensors,
+the content survey, the media player, the media library, gamer services, XACT, the video player's
+control surface, extended input, graphics adapters and CNA's device layer. `REACHABLE_NODE_ONLY=25`
+and every one of the 25 carries a blocker: the CNB content pipeline takes filesystem paths, the
+signed-in gamer is finding 29, the standalone `GraphicsDevice` is finding 32.
+
+Binding is not evidence, so each family is driven through the public API in a browser and checked by
+`test/support/non-engine-oracle.mjs` — **the same oracle the Node backend's evidence is checked
+by**, so a browser and a desktop disagreeing is a failure rather than two green suites.
+
+### 2. Four kinds of gap a member count cannot see
+
+`tools/wasm/backend-gap.mjs` resolves each boundary method through the *Node backend's own*
+`this.#bridge.X` call and the bridge's loader table into CNA routes, so a family cannot be written
+off because two names differ. Every widening of it found something real:
+
+1. **A facade that exists and is never constructed** counts as bound to a prototype walk. It must
+   now be reachable from `WasmBackend`.
+2. **A prototype walk that reaches the refusing base** picks up the base's own members, so any
+   family with *any* facade looks complete. The walk stops at the base.
+3. **Getters and optional (`?(`) members** are invisible to `typeof descriptor.value === "function"`
+   and have no refusing base. Eight real gaps hid there: `mouseWindowHandle`, five microphone
+   members, and both halves of standalone `GraphicsDevice` construction.
+4. **A method that refuses most of its input.** `createStockEffect` covered `BasicEffect` and threw
+   by name for the other four. The gate is now route parity *per method*.
+
+The previous session's family-level probe had been wrong about two of its three conclusions, and
+both errors were the tool: `Device` was blocked by `CNA_DEVICES`, a CMake option defaulting `OFF`
+that neither of this repo's wasm recipes set, and `ExtendedInput`/`GraphicsAdapter` were reported as
+reaching no CNA routes at all when they reach sixty and fifteen — the probe had matched boundary
+methods to bridge exports *of the same name*, and this family renames them
+(`getJoystickCount` → `joysticksGetCount`).
+
+### 3. XACT was not fixture-blocked
+
+`test/fixtures/xact.mjs` writes a settings file, a wave bank and a sound bank from scratch, in CNA's
+own binary formats, following its parser and its demo's generator. Nothing is downloaded and nothing
+proprietary is used. A cue runs prepared → playing → paused → playing → stopped in a browser.
+
+Watch the accessibility byte: CNA's demo comment calls `0x03` "global + settable" and it is
+PUBLIC|**READONLY** (finding 31), so the fixture defines one variable of each kind and a write that
+lands and a write that is ignored are two separate assertions.
+
+### 4. A standalone GraphicsDevice, implemented and then withdrawn
+
+It works — the device is created, its viewport is the 64×48 its presentation parameters asked for
+rather than the game's 800×480, and destroying it succeeds. Then `cna_game_destroy` throws an
+Emscripten `ErrnoError` with errno 44 instead of returning a result, with CNA's last-error message
+empty, reproduced in plain C with no binding involved. A public XNA constructor that silently costs
+the consumer their `Game.Dispose` is worse than one that refuses by name, so the implementation was
+withdrawn, classified `BLOCKED_UPSTREAM`, recorded as finding 32 — and the refusal is asserted, so a
+repaired CNA fails the assertion and asks for the implementation back.
+
+### 5. The duplicate pump, which the WebAssembly backend exposed by working
+
+Implementing `updateFrameworkDispatcher` broke `test/wasm-browser-input.mjs`. That was the useful
+kind of breakage: the defect was already there, and only the Node backend had been paying for it.
+
+`Game` pumped the dispatcher from its managed `update` callback, and CNA's own `Game::Update` ends
+with `FrameworkDispatcher::Update()` — which the C API's game shim runs the moment that callback
+returns. Two pumps a frame, invisible while the WebAssembly implementation did nothing.
+
+It is not invisible, because CNA ages the touch state machine inside the dispatcher and
+`TouchPanel::GetState()` deliberately does not:
+
+```text
+one pump    frame 1: Pressed, no previous   frame 2: Moved, previous Pressed
+two pumps   frame 1: Pressed, no previous   frame 2: Moved, previous MOVED
+```
+
+The pinned XNA assemblies settle which is right rather than memory:
+`TouchPanel::GetState()` calls `TouchCollection::Update`, so XNA ages on the *read*, and
+`FrameworkDispatcher::Update()` polls events and drains pending managed calls without mentioning the
+panel. XNA's dispatcher is idempotent within a frame; CNA's is not, which is **finding 33** — worth
+reporting because a game calling `FrameworkDispatcher.Update()` itself is doing an ordinary XNA
+thing and will lose the same transition.
+
+### 6. The hazard that nearly recurred
+
+`test:effect-reflection:required` was started without the Xvfb wrapper while this host has a real
+`DISPLAY=:0` **and** `WAYLAND_DISPLAY=wayland-0`. That is exactly the accident the brief forbids. It
+was killed before it created a window (`S`, 0:00 CPU), and the battery now runs both windowed
+sections as `env -u WAYLAND_DISPLAY SDL_VIDEODRIVER=x11 xvfb-run -a`. `xvfb-run` alone is not
+enough: SDL3 prefers Wayland whenever `WAYLAND_DISPLAY` is set.
+
+### 7. Gates, and what they measure
+
+```text
+WASM_ROUTES_LISTED=1864          WASM_ROUTE_CALLS_CHECKED=1420
+WASM_STRUCT_FIELD_ACCESSES_CHECKED=1259   WASM_STRUCT_FIELD_UNMEASURED=0
+MUTATION_PLANS=9  MUTATION_PLAN_MUTANTS=145  MUTATION_PLAN_STALE_ANCHORS=0
+ORACLES_EXPORTED=33  ORACLES_UNWATCHED=0
+ACTIONABLE_LOCAL=0  UNCLASSIFIED_WASM_BACKEND_GAP=0  STALE_CLASSIFICATIONS=0
+UNWIRED_WASM_FACADES=0  WASM_PARTIAL_METHODS=8  UNCLASSIFIED_PARTIAL_METHODS=0
+```
+
+`tools/wasm/verify-oracles.mjs` is new, and it exists for the thing the mutation harness structurally
+cannot see: an oracle lives in `test/support`, which `dist` does not contain, so mutating one leaves
+the artifact byte-identical and the harness scores nothing. An oracle is watched by a rejection case
+or by a mutation plan whose command runs a suite importing it — and three oracles in
+`post-process-oracle.mjs` were watched by neither.
+
+`tools/mutation-harness.mjs` had been scoring a killed mutant as `REFUSED`: `execSync`'s default
+1 MiB buffer truncated the TAP summary when an assertion message carried megabytes of wasm heap.
+
+### 8. Mutation evidence
+
+31 mutants planted in the browser backend, all marshalling defects rather than logic ones — an axis
+pair swapped, a flag read from its neighbour, an array walked at a pointer's stride, a count taken in
+the wrong unit, a rooted callback released too early. **24 killed, 7 survived, 0 unscored**, source
+and artifact both restored.
+
+Every survivor is recorded with the reason it cannot be killed *here*: two avatar fields that are
+both zero for the only description this host can make; a battery percentage this host reports as 0
+rather than -1; two adjacent 1024-byte visualisation arrays that are both silent; a media relation an
+empty library has none of (killed by the Node suite, where the library has a song); two adapter flags
+that are both true on a single-adapter host; and the dispatcher itself, because CNA completes every
+asynchronous operation this host can start synchronously.
+
+### 9. Qualification
+
+Every suite, executed and skipped, with **0 skipped anywhere**:
+
+```text
+unit 430   differential 182   native 52   extensions 10   cnb 39   content 10
+model-part 9   content-survey 8   input-devices 3   media-library 6   avatars 9
+sprite-font-oracle 6   compiled effects 10   windowed 25
+browser default 24   browser strong 24   browser strong:required 14
+browser input 7 + 7 (both artifacts)   non-engine 17 + 17 (both artifacts)
+TOTAL_DIFFERENCES=0  ALLOWLIST_SIZE=0  RUNTIME_DIFFERENCES=0  INTERNAL_LEAK=0
+UNEXPLAINED=0  MISSING_WASM_BACKEND_EXPORTS=0  DIAGNOSTICS=0
+RUNTIME_CAPABILITY_ENTRIES=200  CONSISTENCY_GATE=PASS
+DIST_BYTE_IDENTICAL=PASS  TAR_PAYLOAD_IDENTICAL=PASS
+```
+
+### Where the next session picks up
+
+`ACTIONABLE_LOCAL = 0` and `UNCLASSIFIED_WASM_BACKEND_GAP = 0`. What remains is external:
+
+1. **Finding 32** — the standalone `GraphicsDevice` that makes a WebAssembly game undestroyable. It
+   is the only *implemented and withdrawn* item in the package, so repairing it upstream turns an
+   existing implementation back on rather than starting one.
+2. **Finding 30** (WEBGL2 multiple-render-target draw) still gates the browser prepass, and
+   **finding 29** (no test-only signed-in gamer) still gates avatars-with-a-gamer, net sessions and
+   anything that would make the dispatcher mutant killable.
+3. **Video decoding** needs `CNA_ENABLE_VIDEO` to stop being a configure-time fatal error on
+   Emscripten — a CNA build-system decision, not a binding one.
+4. **Physical hardware** — sensors, joysticks, haptics, cameras, a microphone — is the only thing
+   separating `SYNTHETIC_BACKEND_VERIFIED` from a physical claim, and no amount of local work
+   substitutes for it.
