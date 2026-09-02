@@ -52,7 +52,8 @@
       "why": "a short matrix accepted and zero-filled, which leaves M44 at zero -- and several of these routes read that as 'no camera was supplied' and silently fall back rather than failing",
       "file": "src/internal/wasm/graphics-ext-core.ts",
       "find": "    if (values.length !== 16) {\n      throw new RangeError(`a CNA_Matrix is sixteen floats, not ${values.length}`);\n    }",
-      "replace": "    if (values.length > 16) {\n      throw new RangeError(`a CNA_Matrix is sixteen floats, not ${values.length}`);\n    }"
+      "replace": "    if (values.length > 16) {\n      throw new RangeError(`a CNA_Matrix is sixteen floats, not ${values.length}`);\n    }",
+      "expect": "survives"
     },
     {
       "id": "prepass-begin-loses-its-pass-index",
@@ -81,7 +82,8 @@
       "why": "the binding clamping roughness before CNA sees it. The round-trip and both clamp probes still answer correctly, so this survives everything except the fact that the clamp is CNA's -- included to find out whether that distinction is actually tested",
       "file": "src/internal/wasm/prepass.ts",
       "find": "    this.#routes.invoke(\"cna_depth_normal_prepass_set_roughness\", prepass, roughness);",
-      "replace": "    this.#routes.invoke(\n      \"cna_depth_normal_prepass_set_roughness\", prepass, Math.min(1, Math.max(0, roughness)));"
+      "replace": "    this.#routes.invoke(\n      \"cna_depth_normal_prepass_set_roughness\", prepass, Math.min(1, Math.max(0, roughness)));",
+      "expect": "survives"
     },
     {
       "id": "decal-tint-read-from-the-opacity-route",

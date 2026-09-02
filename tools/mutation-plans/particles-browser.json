@@ -87,14 +87,16 @@
       "why": "the binding flooring softness instead of letting CNA do it. Behaviourally identical to CNA's own floor, so this is here to find out whether the test can tell whose clamp it is -- and it cannot, which is the honest answer",
       "file": "src/internal/wasm/particles.ts",
       "find": "    this.#routes.invoke(\"cna_particle_system_set_softness_ext\", system, softness);",
-      "replace": "    this.#routes.invoke(\"cna_particle_system_set_softness_ext\", system, Math.max(0, softness));"
+      "replace": "    this.#routes.invoke(\"cna_particle_system_set_softness_ext\", system, Math.max(0, softness));",
+      "expect": "survives"
     },
     {
       "id": "depth-input-far-plane-dropped",
       "why": "the far plane the stored depth was normalised by replaced with zero, which is how CNA decides there is no usable depth at all. Invisible while finding 12 holds -- the fade changes nothing either way -- and it is recorded here so the day the fade works this is already planted",
       "file": "src/internal/wasm/particles.ts",
       "find": "    this.#routes.invoke(\"cna_particle_system_set_depth_input_ext\", system, depth, farPlane);",
-      "replace": "    this.#routes.invoke(\"cna_particle_system_set_depth_input_ext\", system, depth, 0);"
+      "replace": "    this.#routes.invoke(\"cna_particle_system_set_depth_input_ext\", system, depth, 0);",
+      "expect": "survives"
     },
     {
       "id": "copy-particles-reads-at-a-vector3-stride",

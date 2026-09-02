@@ -16,7 +16,8 @@
       "why": "FIXTURE-LIMITED, and expected to survive: how many capture devices this host has is only knowable from the routine under test, so a truncated enumeration is indistinguishable from a host with one fewer device. Killing it would need a second call to the same C route presented as an oracle, which would raise the score without adding evidence",
       "file": "src/internal/node-native-backend.ts",
       "find": "    return Object.freeze(this.#bridge.getMicrophones(this.#game()).map((value) => Object.freeze(value)));",
-      "replace": "    return Object.freeze(this.#bridge.getMicrophones(this.#game()).slice(0, -1).map((value) => Object.freeze(value)));"
+      "replace": "    return Object.freeze(this.#bridge.getMicrophones(this.#game()).slice(0, -1).map((value) => Object.freeze(value)));",
+      "expect": "survives"
     },
     {
       "id": "buffer-duration-never-written",
