@@ -3523,7 +3523,15 @@ before any permission question is reached — so the run asks for the full `chro
 and skips with a reason where it is absent, rather than degrading to something that cannot capture.
 And SDL3's Emscripten recording backend **writes zeroes on a timer** until its own `getUserMedia`
 resolves, so a capture that stopped at the first buffer would collect that silence and read it as a
-microphone that delivered nothing; the page waits for sound and the suite asserts the wait was real.
+microphone that delivered nothing; the page waits for sound and drops the silent buffers rather
+than averaging them into the signal.
+
+How many silent buffers it saw is deliberately *not* asserted, and that was a correction rather
+than a choice. The first version required the count to be positive, which is requiring a promise to
+lose a race against a timer — it did on four runs and did not on the fifth, and the suite failed
+once in the qualification battery for no reason connected to CNA. Asserting a race is how a suite
+becomes flaky without becoming wrong, so the count is now reported (`1` or `2` on this host) and
+only the properties are asserted.
 
 ### 6. The camera, which was never hardware-pending
 

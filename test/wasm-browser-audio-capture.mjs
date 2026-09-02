@@ -81,16 +81,22 @@ test("the capture device is synthetic and the samples are the authored ones", ()
 });
 
 test("SDL's silence stands in until the capture stream is live, and is not mistaken for it", () => {
-  // Worth asserting rather than tolerating. SDL3's Emscripten recording backend writes zeroes on
-  // a timer until its own `getUserMedia` resolves, and a run that stopped at the first buffer
-  // would collect that silence and read it as a microphone that delivered nothing. This run waits
-  // for sound, and the count says the wait was real.
-  assert.ok(evidence.capture.silentChunksBeforeSound > 0,
-    "no silent buffers preceded the audio, so nothing here shows the wait was needed");
+  // SDL3's Emscripten recording backend writes zeroes on a timer until its own `getUserMedia`
+  // resolves, and a run that stopped at the first buffer would collect that silence and read it as
+  // a microphone that delivered nothing. So the page waits for sound and drops the silent buffers
+  // rather than averaging them into the signal.
+  //
+  // How many silent buffers it saw is deliberately NOT asserted. That number is the outcome of a
+  // race between the timer and a promise, and requiring it to be positive is requiring the promise
+  // to lose -- which it did on four runs out of five and not on the fifth. Asserting a race is how
+  // a suite becomes flaky without becoming wrong, so the count is reported and the properties are
+  // asserted.
   assert.ok(evidence.capture.firstSoundedAt !== null,
     "the capture never sounded at all");
   assert.ok(evidence.capture.chunks > 1,
     "one buffer is not a capture stream");
+  console.log(`SDL_SILENT_BUFFERS_BEFORE_SOUND=${evidence.capture.silentChunksBeforeSound}`);
+  console.log(`CAPTURE_FIRST_SOUNDED_AT_READ=${evidence.capture.firstSoundedAt}`);
 });
 
 test("the same fake device offers a camera, and CNA enumerates none of it", () => {
