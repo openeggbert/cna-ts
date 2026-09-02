@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CNA-TS non-engine WebAssembly evidence</title>
+</head>
+<body>
+<canvas id="canvas" width="320" height="240"></canvas>
+<script type="module">
+// The non-engine families, asked in a real browser.
+//
+// This page is a consumer: it imports the public package and the two published extension
+// subpaths, and reaches `internal/backend.js` only for the boundaries XNA has no public type for
+// (the sensor test backends, the Guide's pending-dialog state, CNA's device layer). Everything it
+// records is what CNA answered, and the assertions live in `test/support/non-engine-oracle.mjs` so
+// the same shapes can be checked against the Node backend's answers.
+const result = { status: "running", frames: 0, errors: [] };
+globalThis.__cnaHarness = result;
+window.onerror = (message, source, line, column, error) => {
+  result.errors.push(`error: ${error && error.stack ? error.stack : `${message} @${source}:${line}:${column}`}`);
+  return false;
+};
+window.addEventListener("unhandledrejection", (event) => result.errors.push(
+  `rejection: ${event.reason && event.reason.stack ? event.reason.stack : String(event.reason)}`,
+));
+
+/** Runs one probe, recording either its evidence or the exception it raised, never both. */
+function record(into, name, body) {
+  try {
+    into[name] = body();
+  } catch (error) {
+    into[name] = {
+      failed: `${error?.constructor?.name}: ${error?.message}`,
+      // The stack is kept because a family is a dozen routes and "it threw" names none of them.
+      at: String(error?.stack ?? "").split("\n").slice(0, 6).join(" | "),
+    };
+  }
+}
+
+/** A `bigint` is not JSON; every one that crosses back to Node crosses as a decimal string. */
+const big = (value) => String(value);
+
+try {
+  const {
+    Game, GamerServices, GraphicsDeviceManager, Graphics, LoadWasmBackend, Rectangle, Vector3,
+  } = await import("/cna-ts/index.js");
+  const content = await import("/cna-ts/extensions/content/index.js");
+  const { createSpriteFontForInternalUse } =
+    await import("/cna-ts/Microsoft/Xna/Framework/Graphics/SpriteFont.js");
+  const { SpriteFontOracle } = await import("/cna-ts/internal/sprite-font-oracle.js");
+  const { SPRITE_FONT_FIXTURE, SPRITE_FONT_STRINGS } =
+    await import("/fixture-modules/sprite-font.mjs");
+  const xact = await import("/fixture-modules/xact.mjs");
+  const createCnaCApi = (await import("/wasm/cna_c_api.mjs")).default;
+
+  const canvas = document.getElementById("canvas");
+  const module = await createCnaCApi({ canvas });
+
+  // The content root and the XACT banks are written before CNA is asked about either, which is the
+  // ordinary browser shape: the module owns a POSIX filesystem and a page fills it.
+  module.FS.mkdir("/survey");
+  module.FS.mkdir("/survey/nested");
+  module.FS.writeFile("/survey/Atlas.xnb", new Uint8Array([88, 78, 66, 119, 5, 0]));
+  module.FS.writeFile("/survey/Notes.txt", new TextEncoder().encode("a loose asset"));
+  module.FS.writeFile("/survey/nested/Tile.png", new Uint8Array([137, 80, 78, 71]));
+  module.FS.mkdir("/xact");
+  const xactFiles = xact.xactFixture();
+  for (const [name, bytes] of Object.entries(xactFiles)) {
+    module.FS.writeFile(`/xact/${name}`, bytes);
+  }
+
+  const status = await LoadWasmBackend({ Module: module });
+  result.abiVersion = status.AbiVersion;
+  const { getBackend } = await import("/cna-ts/internal/backend.js");
+  const backend = getBackend();
+
+  const evidence = {};
+  result.evidence = evidence;
+
+  // ---- Avatar: no device, no game, no gamer ------------------------------------------------
+  record(evidence, "avatar", () => {
+    const random = GamerServices.AvatarDescription.CreateRandom();
+    const female = GamerServices.AvatarDescription.CreateRandom(
+      GamerServices.AvatarBodyType.Female);
+    const male = GamerServices.AvatarDescription.CreateRandom(GamerServices.AvatarBodyType.Male);
+    const rebuilt = new GamerServices.AvatarDescription(random.Description);
+    let shortRefused = "ACCEPTED";
+    try { new GamerServices.AvatarDescription(new Array(10).fill(0)); }
+    catch (error) { shortRefused = error?.constructor?.name ?? "unknown"; }
+    let badBodyType = "ACCEPTED";
+    try { GamerServices.AvatarDescription.CreateRandom(99); }
+    catch (error) { badBodyType = error?.constructor?.name ?? "unknown"; }
+    return {
+      length: random.Description.length,
+      allZero: random.Description.every((byte) => byte === 0),
+      isValid: random.IsValid,
+      bodyType: random.BodyType,
+      height: random.Height,
+      twoCallsAgree: female.Description.every((b, i) => b === male.Description[i]),
+      bodyTypesAgree: female.BodyType === male.BodyType,
+      roundTrip: rebuilt.Description.every((b, i) => b === random.Description[i]),
+      rebuiltValid: rebuilt.IsValid,
+      rebuiltBodyType: rebuilt.BodyType,
+      shortRefused,
+      badBodyType,
+    };
+  });
+
+  let started = false;
+
+  class NonEngineGame extends Game {
+    constructor() {
+      super();
+      this.graphics = new GraphicsDeviceManager(this);
+      this.IsFixedTimeStep = false;
+    }
+
+    Draw() {
+      if (started) return;
+      started = true;
+      const device = this.GraphicsDevice;
+
+      // ---- the sprite-font oracle ------------------------------------------------------------
+      record(evidence, "spriteFont", () => {
+        const texture = new Graphics.Texture2D(device, 64, 16, false, Graphics.SurfaceFormat.Color);
+        const font = createSpriteFontForInternalUse({
+          Texture: texture,
+          GlyphBounds: SPRITE_FONT_FIXTURE.Glyphs.map((g) => new Rectangle(...g.Bounds)),
+          Cropping: SPRITE_FONT_FIXTURE.Glyphs.map((g) => new Rectangle(...g.Cropping)),
+          Characters: SPRITE_FONT_FIXTURE.Glyphs.map((g) => g.Character),
+          Kerning: SPRITE_FONT_FIXTURE.Glyphs.map((g) => new Vector3(...g.Kerning)),
+          LineSpacing: SPRITE_FONT_FIXTURE.LineSpacing,
+          Spacing: SPRITE_FONT_FIXTURE.Spacing,
+          DefaultCharacter: SPRITE_FONT_FIXTURE.DefaultCharacter,
+        });
+        const oracle = new SpriteFontOracle(font);
+        try {
+          return {
+            info: oracle.Info,
+            rows: SPRITE_FONT_STRINGS.map((text) => {
+              const managed = font.MeasureString(text);
+              const native = oracle.Measure(text);
+              return { text, managed: [managed.X, managed.Y], native: [native.X, native.Y] };
+            }),
+          };
+        } finally {
+          oracle.Dispose();
+          texture.Dispose();
+        }
+      });
+
+      // ---- GameWindow -------------------------------------------------------------------------
+      record(evidence, "window", () => {
+        const window_ = this.Window;
+        const before = window_.Title;
+        window_.Title = "cna-ts browser window";
+        const after = window_.Title;
+        const bounds = window_.ClientBounds;
+        let sizeChanged = 0;
+        const handler = () => { sizeChanged += 1; };
+        window_.ClientSizeChanged.Add(handler);
+        // A real device change, through the public API rather than the route: the manager is asked
+        // for a different back buffer and the window is expected to follow it.
+        this.graphics.PreferredBackBufferWidth = bounds.Width + 64;
+        this.graphics.PreferredBackBufferHeight = bounds.Height + 32;
+        this.graphics.ApplyChanges();
+        const resized = window_.ClientBounds;
+        const seenInEvent = { width: resized.Width, height: resized.Height };
+        window_.ClientSizeChanged.Remove(handler);
+        this.graphics.PreferredBackBufferWidth = bounds.Width;
+        this.graphics.PreferredBackBufferHeight = bounds.Height;
+        this.graphics.ApplyChanges();
+        const restored = window_.ClientBounds;
+        return {
+          titleBefore: before,
+          titleAfter: after,
+          bounds: { X: bounds.X, Y: bounds.Y, Width: bounds.Width, Height: bounds.Height },
+          resized: { Width: resized.Width, Height: resized.Height },
+          restored: { Width: restored.Width, Height: restored.Height },
+          seenInEvent,
+          sizeChanged,
+          orientation: window_.CurrentOrientation,
+          screenDeviceName: window_.ScreenDeviceName,
+          handle: big(window_.Handle),
+          allowUserResizing: window_.AllowUserResizing,
+        };
+      });
+
+      // ---- the input-device inventory ---------------------------------------------------------
+      record(evidence, "inputDevices", () => {
+        const inventory = backend.InputDeviceInventory;
+        const before = inventory.getClipboardHasText();
+        inventory.setClipboardTextUngated("cna-ts clipboard round trip");
+        const named = (count, at) => Array.from({ length: count }, (_, index) => {
+          const device = at(index);
+          return { Id: big(device.Id), Name: device.Name };
+        });
+        const mouseCount = inventory.getAttachedMouseCount();
+        const keyboardCount = inventory.getAttachedKeyboardCount();
+        const touchCount = inventory.getAttachedTouchDeviceCount();
+        let outOfRange = "ACCEPTED";
+        try { inventory.getAttachedTouchDeviceAt(touchCount); }
+        catch (error) { outOfRange = `${error?.constructor?.name}`; }
+        return {
+          clipboardBefore: before,
+          clipboardAfter: inventory.getClipboardHasText(),
+          clipboardText: inventory.getClipboardText(),
+          clipboardSize: inventory.getClipboardTextSize(),
+          mice: named(mouseCount, (i) => inventory.getAttachedMouseAt(i)),
+          keyboards: named(keyboardCount, (i) => inventory.getAttachedKeyboardAt(i)),
+          touchCount,
+          outOfRange,
+          power: inventory.getHostPowerInfo(),
+        };
+      });
+
+      // ---- sensors ----------------------------------------------------------------------------
+      record(evidence, "sensors", () => {
+        const sensors = backend.Sensors;
+        const support = sensors.getSensorSupport();
+        const accelerometer = (() => {
+          const handle = sensors.createAccelerometer();
+          try {
+            const initial = sensors.getAccelerometerState(handle);
+            sensors.setAccelerometerInterval(handle, 200000n);
+            const updated = sensors.getAccelerometerState(handle);
+            let unsupportedRead = "ANSWERED";
+            try { sensors.getAccelerometerReading(handle); }
+            catch (error) { unsupportedRead = String(error?.cnaResult ?? error?.message); }
+            return {
+              initialTicks: big(initial.TimeBetweenUpdatesTicks),
+              updatedTicks: big(updated.TimeBetweenUpdatesTicks),
+              initialValid: initial.IsDataValid,
+              unsupportedRead,
+            };
+          } finally { sensors.destroyAccelerometer(handle); }
+        })();
+        const compass = (() => {
+          const handle = sensors.createCompass();
+          try {
+            sensors.setCompassTestBackend(handle, true, true);
+            sensors.startCompass(handle);
+            const injected = {
+              HeadingAccuracy: 1.5,
+              MagneticHeading: 42.25,
+              TrueHeading: 43.5,
+              MagnetometerReading: { X: 1.25, Y: -2.5, Z: 3.75 },
+              // Deliberately not a round number: 638000000000000000 survives a JavaScript double
+              // and 638000000000000123 does not, so this value is what makes the 64-bit claim.
+              TimestampTicks: 638000000000000123n,
+              TimestampOffsetTicks: 36000000000n,
+            };
+            sensors.injectCompassReading(handle, injected);
+            const read = sensors.getCompassReading(handle);
+            return {
+              state: sensors.getCompassState(handle),
+              valid: sensors.getCompassIsDataValid(handle),
+              interval: big(sensors.getCompassInterval(handle)),
+              reading: {
+                HeadingAccuracy: read.HeadingAccuracy,
+                MagneticHeading: read.MagneticHeading,
+                TrueHeading: read.TrueHeading,
+                MagnetometerReading: read.MagnetometerReading,
+                TimestampTicks: big(read.TimestampTicks),
+                TimestampOffsetTicks: big(read.TimestampOffsetTicks),
+              },
+            };
+          } finally {
+            sensors.stopCompass(handle);
+            sensors.destroyCompass(handle);
+          }
+        })();
+        const gyroscope = (() => {
+          const handle = sensors.createGyroscope();
+          try {
+            sensors.setGyroscopeSupported(handle, true);
+            sensors.startGyroscope(handle);
+            sensors.injectGyroscopeReading(handle, 0.5, 1.5, -2.5);
+            const read = sensors.getGyroscopeReading(handle);
+            return {
+              state: sensors.getGyroscopeState(handle),
+              valid: sensors.getGyroscopeIsDataValid(handle),
+              rate: read.RotationRate,
+            };
+          } finally {
+            sensors.stopGyroscope(handle);
+            sensors.destroyGyroscope(handle);
+          }
+        })();
+        const motion = (() => {
+          const handle = sensors.createMotion();
+          try {
+            sensors.setMotionTestBackend(handle, true, true, true);
+            sensors.startMotion(handle);
+            // A `CNA_DateTimeOffset` is a real `DateTimeOffset` and CNA validates it as one: the
+            // offset must be a whole number of minutes, and the UTC instant the pair describes has
+            // to be a representable date. A one-tick offset is refused, and so is a one-hour offset
+            // on a timestamp near year one -- both measured, and both the reason these are real
+            // instants rather than small integers.
+            sensors.injectMotionReading(handle, {
+              Attitude: {
+                Pitch: 0.25, Roll: -0.5, Yaw: 1.25,
+                Quaternion: [0.1, 0.2, 0.3, 0.4],
+                RotationMatrix: Array.from({ length: 16 }, (_, i) => i + 1),
+                TimestampTicks: 638000000000000011n, TimestampOffsetTicks: 36000000000n,
+              },
+              DeviceAcceleration: { X: 1, Y: 2, Z: 3 },
+              DeviceRotationRate: { X: 4, Y: 5, Z: 6 },
+              Gravity: { X: 0, Y: -9.75, Z: 0 },
+              TimestampTicks: 638000000000000033n, TimestampOffsetTicks: 36000000000n,
+            });
+            const read = sensors.getMotionReading(handle);
+            let subMinuteOffset = "ACCEPTED";
+            try {
+              sensors.injectMotionReading(handle, {
+                Attitude: {
+                  Pitch: 0, Roll: 0, Yaw: 0,
+                  Quaternion: [0, 0, 0, 1],
+                  RotationMatrix: Array.from({ length: 16 }, () => 0),
+                  TimestampTicks: 638000000000000011n, TimestampOffsetTicks: 44n,
+                },
+                DeviceAcceleration: { X: 0, Y: 0, Z: 0 },
+                DeviceRotationRate: { X: 0, Y: 0, Z: 0 },
+                Gravity: { X: 0, Y: 0, Z: 0 },
+                TimestampTicks: 638000000000000033n, TimestampOffsetTicks: 44n,
+              });
+            } catch (error) { subMinuteOffset = String(error?.cnaResult ?? error?.message); }
+            return {
+              subMinuteOffset,
+              northReferenced: sensors.getMotionIsNorthReferenced(handle),
+              valid: sensors.getMotionIsDataValid(handle),
+              attitude: {
+                Pitch: read.Attitude.Pitch, Roll: read.Attitude.Roll, Yaw: read.Attitude.Yaw,
+                Quaternion: read.Attitude.Quaternion,
+                RotationMatrix: read.Attitude.RotationMatrix,
+                TimestampTicks: big(read.Attitude.TimestampTicks),
+              },
+              deviceAcceleration: read.DeviceAcceleration,
+              deviceRotationRate: read.DeviceRotationRate,
+              gravity: read.Gravity,
+              timestampTicks: big(read.TimestampTicks),
+              timestampOffsetTicks: big(read.TimestampOffsetTicks),
+            };
+          } finally {
+            sensors.stopMotion(handle);
+            sensors.destroyMotion(handle);
+          }
+        })();
+        return { support, accelerometer, compass, gyroscope, motion };
+      });
+
+      // ---- storage ------------------------------------------------------------------------------
+      record(evidence, "storage", () => {
+        const storage = backend.Storage;
+        const device = storage.selectStorageDevice(null, null, null);
+        try {
+          const info = storage.getStorageDeviceInfo(device);
+          const container = storage.openStorageContainer(device, "cna-ts-browser");
+          try {
+            storage.createStorageDirectory(container, "saves");
+            storage.createStorageFile(container, "slot0.sav");
+            storage.createStorageFile(container, "slot1.sav");
+            const listing = {
+              directories: [...storage.getStorageDirectoryNames(container, "*")].sort(),
+              files: [...storage.getStorageFileNames(container, "*")].sort(),
+              filtered: [...storage.getStorageFileNames(container, "slot0*")].sort(),
+            };
+            const opened = storage.openStorageFile(container, "slot0.sav", 3, 1, 0);
+            storage.deleteStorageFile(container, "slot1.sav");
+            storage.deleteStorageDirectory(container, "saves");
+            let missing = "ACCEPTED";
+            try { storage.openStorageFile(container, "absent.sav", 3, 1, 0); }
+            catch (error) { missing = String(error?.cnaResult ?? error?.message); }
+            return {
+              displayName: storage.getStorageContainerDisplayName(container),
+              isConnected: info.IsConnected,
+              freeSpace: big(info.FreeSpace),
+              totalSpace: big(info.TotalSpace),
+              listing,
+              openedLength: opened.length,
+              fileExists: storage.storageFileExists(container, "slot0.sav"),
+              deletedFileExists: storage.storageFileExists(container, "slot1.sav"),
+              deletedDirectoryExists: storage.storageDirectoryExists(container, "saves"),
+              missing,
+            };
+          } finally {
+            storage.destroyStorageContainer(container);
+          }
+        } finally {
+          storage.destroyStorageDevice(device);
+        }
+      });
+
+      // ---- the content survey -------------------------------------------------------------------
+      record(evidence, "contentSurvey", () => {
+        const survey = new content.ContentSurvey(device, "/survey");
+        try {
+          survey.Refresh();
+          const entries = [];
+          for (let index = 0; index < survey.Count; index += 1) {
+            const entry = survey.Get(index);
+            entries.push({
+              AssetName: entry.AssetName,
+              HasXnb: entry.HasXnb,
+              HasCnj: entry.HasCnj,
+              NativeExtensions: [...entry.NativeExtensions],
+            });
+          }
+          entries.sort((left, right) => left.AssetName.localeCompare(right.AssetName));
+          return {
+            root: survey.Root,
+            entries,
+            textureReaderRegistered: content.IsContentTypeReaderRegisteredWithCna(
+              "Microsoft.Xna.Framework.Content.Texture2DReader"),
+            nonsenseReaderRegistered:
+              content.IsContentTypeReaderRegisteredWithCna("No.Such.Reader"),
+          };
+        } finally {
+          survey.Dispose();
+        }
+      });
+
+      // ---- the media player and the media library -----------------------------------------------
+      record(evidence, "media", () => {
+        const media = backend.Media;
+        media.setMuted(true);
+        media.setRepeating(true);
+        media.setShuffled(true);
+        media.setVolume(0.375);
+        media.setVisualizationEnabled(true);
+        media.update();
+        const visualization = media.getVisualizationData();
+        return {
+          sources: media.getAvailableMediaSources(),
+          gameHasControl: media.getGameHasControl(),
+          playPositionTicks: big(media.getPlayPositionTicks()),
+          frequencyCount: visualization.Frequencies.length,
+          sampleCount: visualization.Samples.length,
+          frequenciesAllZero: visualization.Frequencies.every((value) => value === 0),
+        };
+      });
+
+      record(evidence, "mediaLibrary", () => {
+        const library = backend.MediaLibrary;
+        const handle = library.createMediaLibrary();
+        try {
+          const snapshot = library.getMediaLibrarySnapshot(handle);
+          let outOfRange = "ACCEPTED";
+          try { library.getMediaLibraryPlaylistSongs(handle, 0); }
+          catch (error) { outOfRange = String(error?.cnaResult ?? error?.message); }
+          return {
+            counts: Object.fromEntries(
+              Object.entries(snapshot).map(([name, rows]) => [name, rows.length])),
+            outOfRange,
+          };
+        } finally {
+          library.destroyMediaLibrary(handle);
+        }
+      });
+
+      // ---- gamer services -----------------------------------------------------------------------
+      record(evidence, "gamerServices", () => {
+        const services = backend.GamerServices;
+        services.initializeGamerServices();
+        services.updateGamerServices();
+        const screenSaverBefore = services.getGuideIsScreenSaverEnabled();
+        services.setGuideIsScreenSaverEnabled(!screenSaverBefore);
+        const screenSaverAfter = services.getGuideIsScreenSaverEnabled();
+        services.setGuideIsScreenSaverEnabled(screenSaverBefore);
+        // XNA's own IL keeps `IsTrialMode` and `SimulateTrialMode` in two independent static
+        // fields -- `get_IsTrialMode` reads `isTrialMode`, which only the platform's licensing
+        // writes -- so setting one must not move the other. CNA reproduces that, and this records
+        // both halves rather than the guess that simulating trial mode simulates it.
+        const trialBefore = services.getGuideIsTrialMode();
+        services.setGuideSimulateTrialMode(true);
+        const simulateWhileSet = services.getGuideSimulateTrialMode();
+        const trialWhileSimulated = services.getGuideIsTrialMode();
+        services.setGuideSimulateTrialMode(false);
+        const simulateAfterReset = services.getGuideSimulateTrialMode();
+
+        let completions = 0;
+        const token = services.guideBeginShowMessageBox(
+          0, "Save?", "Overwrite slot 0?", ["Overwrite", "Cancel"], 1, 0,
+          () => { completions += 1; },
+        );
+        const pending = services.guideHasPendingMessageBox();
+        const focus = services.guidePendingMessageBoxFocusButton();
+        services.guideSimulateMessageBoxClick(1);
+        const chosen = services.guideEndShowMessageBox(token);
+        let doubleEnd = "ACCEPTED";
+        try { services.guideEndShowMessageBox(token); }
+        catch (error) { doubleEnd = error?.message ?? "unknown"; }
+
+        let keyboardCompletions = 0;
+        const keyboardToken = services.guideBeginShowKeyboardInput(
+          0, "Gamertag", "Choose a name", "Player One", false,
+          () => { keyboardCompletions += 1; },
+        );
+        const keyboardPending = services.guideHasPendingKeyboardInput();
+        const prompt = {
+          title: services.guidePendingKeyboardInputTitle(),
+          description: services.guidePendingKeyboardInputDescription(),
+          displayText: services.guidePendingKeyboardInputDisplayText(),
+        };
+        services.guideSimulateKeyboardInputCancel();
+        const cancelledText = services.guideEndShowKeyboardInput(keyboardToken);
+
+        return {
+          initialized: services.getGamerServicesIsInitialized(),
+          visible: services.getGuideIsVisible(),
+          notificationPosition: services.getGuideNotificationPosition(),
+          screenSaverBefore, screenSaverAfter,
+          trialBefore, simulateWhileSet, trialWhileSimulated, simulateAfterReset,
+          messageBox: {
+            pending, focus, chosen, completions, doubleEnd,
+            pendingAfterEnd: services.guideHasPendingMessageBox(),
+          },
+          keyboard: {
+            pending: keyboardPending, ...prompt,
+            cancelledText,
+            wasCancelled: services.guideWasKeyboardInputCanceled(),
+            completions: keyboardCompletions,
+          },
+        };
+      });
+
+      // ---- XACT --------------------------------------------------------------------------------
+      record(evidence, "xact", () => {
+        const family = backend.Xact;
+        const engine = family.createAudioEngine("/xact/cna-ts.xgs");
+        try {
+          const writableBefore = family.getAudioEngineGlobalVariable(engine, "SpeedOfSound");
+          family.setAudioEngineGlobalVariable(engine, "SpeedOfSound", 500);
+          const writableAfter = family.getAudioEngineGlobalVariable(engine, "SpeedOfSound");
+          const readOnlyBefore = family.getAudioEngineGlobalVariable(engine, "Ceiling");
+          family.setAudioEngineGlobalVariable(engine, "Ceiling", 99);
+          const readOnlyAfter = family.getAudioEngineGlobalVariable(engine, "Ceiling");
+          family.updateAudioEngine(engine);
+
+          const music = family.getAudioCategory(engine, "Music");
+          const musicAgain = family.getAudioCategory(engine, "Music");
+          const sfx = family.getAudioCategory(engine, "SFX");
+          const categories = {
+            name: family.getAudioCategoryName(music),
+            handlesDiffer: music !== musicAgain,
+            sameEquals: family.audioCategoriesEqual(music, musicAgain),
+            differentEquals: family.audioCategoriesEqual(music, sfx),
+            hashesAgree:
+              family.getAudioCategoryHashCode(music) === family.getAudioCategoryHashCode(musicAgain),
+          };
+          family.setAudioCategoryVolume(music, 0.5);
+          family.pauseAudioCategory(music);
+          family.resumeAudioCategory(music);
+          family.stopAudioCategory(music, 0);
+          for (const handle of [music, musicAgain, sfx]) family.destroyAudioCategory(handle);
+
+          const waveBank = family.createWaveBank(engine, "/xact/cna-ts.xwb");
+          const soundBank = family.createSoundBank(engine, "/xact/cna-ts.xsb");
+          const cue = family.getCue(soundBank, "Tone261");
+          const states = { created: family.getCueInfo(cue) };
+          family.playCueHandle(cue);
+          states.playing = family.getCueInfo(cue);
+          family.pauseCue(cue);
+          states.paused = family.getCueInfo(cue);
+          family.resumeCue(cue);
+          states.resumed = family.getCueInfo(cue);
+          family.stopCue(cue, 1);
+          states.stopped = family.getCueInfo(cue);
+          const cueName = family.getCueName(cue);
+          family.destroyCue(cue);
+          let missingCue = "ACCEPTED";
+          try { family.getCue(soundBank, "NoSuchCue"); }
+          catch (error) { missingCue = String(error?.cnaResult ?? error?.message); }
+          family.playCue(soundBank, "Tone392");
+          const banks = {
+            wavePrepared: family.getWaveBankIsPrepared(waveBank),
+            waveDisposed: family.getWaveBankIsDisposed(waveBank),
+            soundDisposed: family.getSoundBankIsDisposed(soundBank),
+          };
+          family.destroySoundBank(soundBank);
+          family.destroyWaveBank(waveBank);
+          return {
+            writableBefore, writableAfter, readOnlyBefore, readOnlyAfter,
+            renderers: family.getAudioEngineRendererDetails(engine),
+            categories, banks, cueName, states, missingCue,
+            engineDisposed: family.getAudioEngineIsDisposed(engine),
+          };
+        } finally {
+          family.destroyAudioEngine(engine);
+        }
+      });
+
+      // ---- video --------------------------------------------------------------------------------
+      record(evidence, "video", () => {
+        const video = backend.Video;
+        const player = video.createVideoPlayer();
+        try {
+          video.setVideoPlayerLooped(player, true);
+          video.setVideoPlayerMuted(player, true);
+          video.setVideoPlayerVolume(player, 0.25);
+          const info = video.getVideoPlayerInfo(player);
+          const frame = video.getVideoPlayerFrame(player);
+          let playedNothing = "ACCEPTED";
+          try { video.playVideo(player, 0n); }
+          catch (error) { playedNothing = String(error?.cnaResult ?? error?.message); }
+          return {
+            state: info.State,
+            positionTicks: big(info.PlayPositionTicks),
+            frame: {
+              texture: big(frame.Texture),
+              generation: big(frame.Generation),
+              presentationTimeSeconds: frame.PresentationTimeSeconds,
+              isAvailable: frame.IsAvailable,
+            },
+            playedNothing,
+          };
+        } finally {
+          video.destroyVideoPlayer(player);
+        }
+      });
+
+      // ---- extended input -------------------------------------------------------------------------
+      record(evidence, "extendedInput", () => {
+        const input = backend.ExtendedInput;
+        const committed = [];
+        const editing = [];
+        const candidates = [];
+        const textRegistration = input.subscribeTextInput((character) => committed.push(character));
+        const editRegistration = input.subscribeTextEditing((update) => editing.push(update));
+        const candidateRegistration =
+          input.subscribeTextEditingCandidates((update) => candidates.push(update));
+        input.startTextInput();
+        const active = input.isTextInputActive();
+        input.setTextInputRectangle(4, 8, 120, 24);
+        input.raiseTextInput(0x41);
+        input.raiseTextInput(0x263a);
+        input.raiseTextEditing("compose", 2, 3);
+        input.raiseTextEditingCandidates(["one", "two", "three"], 1, true);
+        input.stopTextInput();
+        const inactive = input.isTextInputActive();
+        input.unsubscribeTextInput(textRegistration);
+        input.raiseTextInput(0x42);
+        const afterUnsubscribe = committed.length;
+        input.unsubscribeTextInput(editRegistration);
+        input.unsubscribeTextInput(candidateRegistration);
+        input.resetTextInputForTests();
+        let outOfRange = "ACCEPTED";
+        try { input.getJoystickInfoAt(input.getJoystickCount()); }
+        catch (error) { outOfRange = `${error?.constructor?.name}`; }
+        return {
+          joystickCount: input.getJoystickCount(),
+          hapticCount: input.getHapticCount(),
+          outOfRange,
+          screenKeyboardShown: input.isScreenKeyboardShown(),
+          active, inactive,
+          committed, afterUnsubscribe,
+          editing, candidates,
+        };
+      });
+
+      // ---- graphics adapters ----------------------------------------------------------------------
+      record(evidence, "graphicsAdapters", () => {
+        const adapters = [...Graphics.GraphicsAdapter.Adapters].map((adapter) => ({
+          Description: adapter.Description,
+          DeviceName: adapter.DeviceName,
+          IsDefaultAdapter: adapter.IsDefaultAdapter,
+          IsWideScreen: adapter.IsWideScreen,
+          MonitorHandle: big(adapter.MonitorHandle),
+          CurrentDisplayMode: {
+            Width: adapter.CurrentDisplayMode.Width,
+            Height: adapter.CurrentDisplayMode.Height,
+            AspectRatio: adapter.CurrentDisplayMode.AspectRatio,
+            Format: adapter.CurrentDisplayMode.Format,
+          },
+          SupportedModeCount: [...adapter.SupportedDisplayModes].length,
+          ReachSupported: adapter.IsProfileSupported(Graphics.GraphicsProfile.Reach),
+          HiDefSupported: adapter.IsProfileSupported(Graphics.GraphicsProfile.HiDef),
+        }));
+        return {
+          adapters,
+          defaultIsFirst:
+            Graphics.GraphicsAdapter.DefaultAdapter?.DeviceName === adapters[0]?.DeviceName,
+          deviceAdapterName: device.Adapter?.DeviceName ?? null,
+        };
+      });
+
+      // ---- CNA's device layer ------------------------------------------------------------------
+      record(evidence, "devices", () => {
+        const devices = backend.Devices;
+        // Each route is named before it runs. A family is a dozen calls, and "the family threw"
+        // names none of them -- which cost a full browser round trip the first time this page had
+        // a failure in here.
+        const reached = [];
+        const at = (name, body) => { reached.push(name); return body(); };
+        evidence.deviceTrace = reached;
+        const available = at("isAvailable", () => devices.isDeviceExtensionLayerAvailable());
+        if (!available) {
+          // The default artifact is built without the layer. Every route refuses, which is the
+          // branch this records rather than skips.
+          let refusal = "ANSWERED";
+          try { devices.getHostDeviceInfo(); }
+          catch (error) { refusal = String(error?.cnaResult ?? error?.message); }
+          return { available, refusal };
+        }
+        const host = at("host", () => devices.getHostDeviceInfo());
+        const locales = at("locales", () => devices.getPreferredLocales());
+        const cameras = at("cameras", () => devices.getCameras());
+        const clipboardAccepted =
+          at("clipboard", () => devices.setClipboardText("cna-ts device clipboard"));
+        const camera = at("createTestCamera", () => devices.createTestCamera());
+        let cameraEvidence;
+        try {
+          const pixels = new Uint8Array(4 * 2 * 4);
+          for (let index = 0; index < pixels.length; index += 4) {
+            pixels[index] = 10; pixels[index + 1] = 20;
+            pixels[index + 2] = 30; pixels[index + 3] = 255;
+          }
+          at("setTestFrame", () => devices.setTestCameraFrame(camera, 4, 2, pixels));
+          const states = {};
+          for (const state of [2, 3, 4]) {
+            at(`setTestState${state}`, () => devices.setTestCameraState(camera, state));
+            states[state] = devices.getCameraState(camera);
+          }
+          let closedRefused = "ACCEPTED";
+          try { at("setClosedState", () => devices.setTestCameraState(camera, 0)); }
+          catch (error) { closedRefused = String(error?.cnaResult ?? error?.message); }
+          cameraEvidence = {
+            width: at("frameWidth", () => devices.getCameraFrameWidth(camera)),
+            height: at("frameHeight", () => devices.getCameraFrameHeight(camera)),
+            states, closedRefused,
+          };
+        } finally {
+          at("destroyCamera", () => devices.destroyCamera(camera));
+        }
+        // Upstream finding 11, captured rather than tripped over. Destroying a test-backend camera
+        // leaves CNA's process-wide platform override holding a freed provider, so the next camera
+        // enumeration calls through it. On a native build that is a use-after-free; under
+        // WebAssembly the indirect call lands outside the function table and traps, which is why
+        // every route above runs *before* the camera and this one is the last thing here.
+        let afterDestroy = "SURVIVED";
+        try { at("camerasAfterDestroy", () => devices.getCameras()); }
+        catch (error) { afterDestroy = `${error?.constructor?.name}: ${error?.message}`; }
+        return {
+          available, host, locales, cameras, clipboardAccepted, camera: cameraEvidence,
+          afterDestroy,
+        };
+      });
+
+      this.Exit();
+    }
+  }
+
+  const game = new NonEngineGame();
+  await new Promise((resolve, reject) => {
+    const pump = () => {
+      try {
+        game.RunOneFrame();
+        result.frames += 1;
+        if (started || result.frames >= 8) { resolve(); return; }
+        requestAnimationFrame(pump);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    requestAnimationFrame(pump);
+  });
+  game.Exit();
+  game.Dispose();
+  result.disposed = game.IsDisposed !== false;
+  result.status = "ok";
+} catch (error) {
+  result.status = "failed";
+  result.error = String(error && error.stack ? error.stack : error);
+  if (error && error.cause) result.error += `\ncaused by: ${error.cause.stack ?? error.cause}`;
+}
+</script>
+</body>
+</html>

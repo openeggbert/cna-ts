@@ -1,0 +1,185 @@
+{
+  "GeneratedFrom": {
+    "Artifact": "/rv/data/development/github.com/openeggbert/cnanext/cmake-build-tswasm-fx/modules/c-api",
+    "CnaHeaders": "/rv/data/development/github.com/openeggbert/cnanext/modules/c-api/include/CNA/C"
+  },
+  "Totals": {
+    "WASM_BOUND_INTERFACES": 33,
+    "WASM_PARTIAL_INTERFACES": 0,
+    "WASM_ABSENT_INTERFACES": 0,
+    "WASM_BOUND_METHODS": 1519,
+    "WASM_ABSENT_METHODS": 0,
+    "ACTIONABLE_LOCAL": 0,
+    "UNCLASSIFIED_WASM_BACKEND_GAP": 0,
+    "STALE_CLASSIFICATIONS": 0,
+    "UNWIRED_WASM_FACADES": 0
+  },
+  "Interfaces": {
+    "Atmosphere": {
+      "total": 41,
+      "bound": 41,
+      "absent": 0
+    },
+    "Audio": {
+      "total": 30,
+      "bound": 30,
+      "absent": 0
+    },
+    "Avatar": {
+      "total": 2,
+      "bound": 2,
+      "absent": 0
+    },
+    "Backend": {
+      "total": 52,
+      "bound": 52,
+      "absent": 0
+    },
+    "ClusteredLighting": {
+      "total": 54,
+      "bound": 54,
+      "absent": 0
+    },
+    "Compute": {
+      "total": 37,
+      "bound": 37,
+      "absent": 0
+    },
+    "Content": {
+      "total": 126,
+      "bound": 126,
+      "absent": 0
+    },
+    "ContentSurvey": {
+      "total": 10,
+      "bound": 10,
+      "absent": 0
+    },
+    "Decal": {
+      "total": 12,
+      "bound": 12,
+      "absent": 0
+    },
+    "DepthNormalPrepass": {
+      "total": 27,
+      "bound": 27,
+      "absent": 0
+    },
+    "Device": {
+      "total": 14,
+      "bound": 14,
+      "absent": 0
+    },
+    "Effect": {
+      "total": 21,
+      "bound": 21,
+      "absent": 0
+    },
+    "ExtendedInput": {
+      "total": 41,
+      "bound": 41,
+      "absent": 0
+    },
+    "GamerServices": {
+      "total": 27,
+      "bound": 27,
+      "absent": 0
+    },
+    "GameWindow": {
+      "total": 12,
+      "bound": 12,
+      "absent": 0
+    },
+    "Graphics": {
+      "total": 48,
+      "bound": 48,
+      "absent": 0
+    },
+    "GraphicsAdapter": {
+      "total": 11,
+      "bound": 11,
+      "absent": 0
+    },
+    "GraphicsExtension": {
+      "total": 603,
+      "bound": 603,
+      "absent": 0
+    },
+    "InputDeviceInventory": {
+      "total": 11,
+      "bound": 11,
+      "absent": 0
+    },
+    "InstancedRenderer": {
+      "total": 14,
+      "bound": 14,
+      "absent": 0
+    },
+    "LightProbe": {
+      "total": 46,
+      "bound": 46,
+      "absent": 0
+    },
+    "Lod": {
+      "total": 14,
+      "bound": 14,
+      "absent": 0
+    },
+    "Media": {
+      "total": 16,
+      "bound": 16,
+      "absent": 0
+    },
+    "MediaLibrary": {
+      "total": 8,
+      "bound": 8,
+      "absent": 0
+    },
+    "NativeMeshPart": {
+      "total": 10,
+      "bound": 10,
+      "absent": 0
+    },
+    "Particle": {
+      "total": 24,
+      "bound": 24,
+      "absent": 0
+    },
+    "RuntimeServices": {
+      "total": 15,
+      "bound": 15,
+      "absent": 0
+    },
+    "Sensor": {
+      "total": 45,
+      "bound": 45,
+      "absent": 0
+    },
+    "Shadow": {
+      "total": 78,
+      "bound": 78,
+      "absent": 0
+    },
+    "SpriteFontOracle": {
+      "total": 4,
+      "bound": 4,
+      "absent": 0
+    },
+    "Storage": {
+      "total": 16,
+      "bound": 16,
+      "absent": 0
+    },
+    "Video": {
+      "total": 11,
+      "bound": 11,
+      "absent": 0
+    },
+    "Xact": {
+      "total": 39,
+      "bound": 39,
+      "absent": 0
+    }
+  },
+  "Methods": []
+}

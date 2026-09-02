@@ -215,7 +215,13 @@ export function assertPostProcessEvidence(evidence, { expectSupported = true } =
  * that kept these values in JavaScript and never reached CNA would hand every one of them back
  * unchanged**, and every assertion here would fail.
  */
-export function assertClampEvidence(clamps) {
+/**
+ * Not exported, and deliberately: this and its two siblings below are halves of
+ * `assertPostProcessEvidence` and were never called from outside this module. An oracle exported
+ * with no caller is watched by nothing -- `tools/wasm/verify-oracles.mjs` is what found these
+ * three -- and an export nothing uses is the same defect magnet a structure writer nothing calls is.
+ */
+function assertClampEvidence(clamps) {
   const clamped = (key, attempt, expected) => {
     assert.equal(clamps[key][0], attempt, `${key} wrote ${attempt}`);
     near(clamps[key][1], expected, `${key} came back clamped`);
@@ -237,7 +243,7 @@ export function assertClampEvidence(clamps) {
 }
 
 /** CNA's pure scalars against the same arithmetic computed here. */
-export function assertPostProcessScalars(scalars) {
+function assertPostProcessScalars(scalars) {
   // Depth of field. Zero exactly at the focus distance, and the thin-lens value everywhere else.
   for (const [depth, value] of scalars.circleOfConfusion) {
     near(
@@ -348,7 +354,7 @@ export function assertPostProcessScalars(scalars) {
  * background and a single colour covers all sixteen texels. The white quadrant is the only one
  * with two colours in it, and both are named.
  */
-export function assertAsciiEvidence(ascii) {
+function assertAsciiEvidence(ascii) {
   const N = 8;
   const cells = ascii.source.map(asciiCell);
   // The premise the per-texel expectations rest on, asserted rather than assumed: if CNA ever

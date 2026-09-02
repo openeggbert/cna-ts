@@ -23,7 +23,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 export const WASM_DIR = process.env.CNA_WASM_ARTIFACT_DIR
   ? path.resolve(process.env.CNA_WASM_ARTIFACT_DIR)
   : path.join(ROOT, "../../cnanext/cmake-build-tswasm/modules/c-api");
-const PAGE = path.join(ROOT, "test/wasm/browser-page.html");
+const PAGE_DIRECTORY = path.join(ROOT, "test/wasm");
 const DIST = path.join(ROOT, "dist");
 
 const TYPES = new Map(Object.entries({
@@ -93,11 +93,18 @@ const COMPILED_EFFECT = (() => {
 })();
 if (COMPILED_EFFECT) FIXTURES.set("CnaConformanceEffect.fxb", COMPILED_EFFECT);
 
-function serve() {
+function serve(page) {
   const server = http.createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
     let file = null;
-    if (url.pathname === "/" || url.pathname === "/index.html") file = PAGE;
+    if (url.pathname === "/" || url.pathname === "/index.html") file = page;
+    // The fixture *generators*, served as modules so a page can build its own assets rather than
+    // fetch bytes somebody else produced. `xact.mjs` is the reason: an XACT bank is three files
+    // whose offsets depend on each other, and generating them in the page keeps that arithmetic
+    // in one place for both backends.
+    else if (url.pathname.startsWith("/fixture-modules/")) {
+      file = path.join(ROOT, "test/fixtures", url.pathname.slice("/fixture-modules/".length));
+    }
     else if (url.pathname.startsWith("/cna-ts/")) file = path.join(DIST, url.pathname.slice("/cna-ts/".length));
     else if (url.pathname.startsWith("/wasm/")) file = path.join(WASM_DIR, url.pathname.slice("/wasm/".length));
     else if (url.pathname.startsWith("/fixtures/")) {
@@ -129,9 +136,17 @@ const playwright = blocked ? null : await importPlaywright();
 /** Why neither suite can run, or `false`. */
 export const browserBlocked = blocked ?? (playwright ? false : "playwright is not installed");
 
-/** Runs the harness page for `frames` frames and returns its result object and console errors. */
-export async function runFrames(frames) {
-  const { server, port } = await serve();
+/**
+ * Runs a harness page for `frames` frames and returns its result object and console errors.
+ *
+ * `page` names a file in `test/wasm`; the default is the engine-layer page every existing suite
+ * uses. The non-engine families have their own page because they need a different game -- one that
+ * writes XACT banks and a content root into the module filesystem before CNA is asked about them
+ * -- and because one page collecting both would make a failure in either read as a failure of the
+ * whole run.
+ */
+export async function runFrames(frames, pageFile = "browser-page.html") {
+  const { server, port } = await serve(path.join(PAGE_DIRECTORY, pageFile));
   const browser = await playwright.chromium.launch({
     args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader", "--disable-gpu-sandbox"],
   });
@@ -148,10 +163,23 @@ export async function runFrames(frames) {
     // by its exact shape rather than by widening the rule above -- and recorded upstream in
     // docs/upstream-cna-findings.md, because a browser consumer collecting console errors sees it.
     const mixerNotice = /^\[AudioMixer\] Requested format=0x[0-9a-f]+ channels=\d+ freq=\d+; /;
+    // Nor does CNA's PCM plausibility advisory, which is a *warning about the audio* rather than a
+    // failure and is written straight to stderr. It fires on this package's own synthesised XACT
+    // tones: CNA flags raw PCM16 whose byte histogram exceeds 7.9 bits of entropy as probably not
+    // being PCM at all, and a clean high-amplitude sine has a very nearly uniform low byte -- three
+    // of the four fixture tones measure 7.90 and one measures 7.71. Recorded upstream rather than
+    // dodged by making the fixture quieter, which would have hidden a real false positive.
+    const pcmAdvisory = /^\[SoundEffect\] Warning: raw PCM buffer has implausibly high byte-level entropy/;
+    // And three more of the same shape: XACT's loaders each announce a *successful* load on
+    // stderr with no level, so a page that opens an audio engine reports three console errors on a
+    // path where nothing went wrong. Same defect and same fix as the mixer notice above; recorded
+    // together as upstream finding 2.
+    const xactNotice = /^\[(AudioEngine|WaveBank|SoundBank)\] Loaded (XGS|XWB|XSB): /;
     page.on("console", (message) => {
       if (message.type() !== "error") return;
       const text = message.text();
-      if (runtimeLog.test(text) || mixerNotice.test(text)) return;
+      if (runtimeLog.test(text) || mixerNotice.test(text) || pcmAdvisory.test(text)
+        || xactNotice.test(text)) return;
       consoleErrors.push(text);
     });
     page.on("pageerror", (error) => consoleErrors.push(String(error)));

@@ -279,7 +279,8 @@ const rows = [];
 const families = new Map();
 for (const [name, constructor] of Object.entries(base)) {
   if (typeof constructor !== "function" || !/BackendBase$/.test(name)) continue;
-  const family = name.replace(/^Cna|BackendBase$/g, "");
+  // `CnaBackendBase` strips to nothing, and an interface called "" reads as a bug in the report.
+  const family = name.replace(/^Cna|BackendBase$/g, "") || "Backend";
   const all = boundaryMethods(constructor);
   if (all.length === 0) continue;
   const own = implemented.get(name);
