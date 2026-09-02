@@ -131,7 +131,13 @@ for (const entry of fs.readdirSync(WASM_DIR).sort()) {
     ].map((match) => match[1]).filter((name) => layouts.has(name));
     const accesses = [
       // `structure.getF32("field")` -- the field named on the structure itself.
-      ...region.text.matchAll(/\.(?:get|set)(?:F32|U32|I32|U8|U64)(?:Array)?\("([a-z_0-9]+)"/g),
+      // Every accessor `WasmStruct` declares, plus `nested` and `element`, which name a field as
+      // surely as a getter does. The first version listed five of them, so `setPointer`,
+      // `getI64` and every nested-structure field were silently unchecked -- and the whole point
+      // of this file is that an unmeasured field is invisible until something reads it.
+      ...region.text.matchAll(
+        /\.(?:get|set)(?:F32|F64|U32|I32|U8|U16|I64|U64|Pointer)(?:Array|Element)?\("([a-z_0-9]+)"/g),
+      ...region.text.matchAll(/\.(?:nested|element)\("([a-z_0-9]+)"/g),
       // `readVector4(structure, "field")` -- the field named to a helper that reads it. These are
       // most of the interesting ones: a `CNA_Vector4`, a `CNA_BoundingBox` and a nested array all
       // reach their bytes through a helper, and the field name is an argument rather than a

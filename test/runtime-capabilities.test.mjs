@@ -68,12 +68,16 @@ test("a verified-managed row naming a test that does not exist is refused", () =
 });
 
 test("a WebAssembly row naming a route that backend does not import is refused", () => {
+  // `cna_signed_in_gamer_create_ext` is the example on purpose: upstream finding 29 records that
+  // it belongs to a platform layer this package does not have, so it is a route the WebAssembly
+  // backend is *never* going to import. This case previously named `cna_audio_engine_create`,
+  // which stopped being an example of anything the moment the XACT family was bound.
   const result = generate((source) => {
     entry(source, "Browser/Wasm CNA runtime").proof =
-      ["wasmRoute:cna_audio_engine_create", "test:test/wasm-browser.mjs"];
+      ["wasmRoute:cna_signed_in_gamer_create_ext", "test:test/wasm-browser.mjs"];
   });
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /WebAssembly backend does not import cna_audio_engine_create/);
+  assert.match(result.stderr, /WebAssembly backend does not import cna_signed_in_gamer_create_ext/);
 });
 
 test("claiming something is unimplemented while a backend imports it is refused", () => {

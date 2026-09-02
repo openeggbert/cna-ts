@@ -116,6 +116,16 @@ export class WasmStruct {
     return this;
   }
 
+  /**
+   * A `uint16_t` field. Narrow on purpose: `CNA_SpriteFontCreateInfo` puts `default_character`
+   * two bytes before `has_default_character`, so writing it as a `uint32_t` clears the flag that
+   * follows it -- correct only while the two are written in one particular order.
+   */
+  public setU16(field: string, value: number): this {
+    this.#view().setUint16(this.#offset(field), value & 0xffff, true);
+    return this;
+  }
+
   public setF32(field: string, value: number): this {
     this.#view().setFloat32(this.#offset(field), value, true);
     return this;
@@ -146,6 +156,7 @@ export class WasmStruct {
   public getU32(field: string): number { return this.#view().getUint32(this.#offset(field), true); }
   public getI32(field: string): number { return this.#view().getInt32(this.#offset(field), true); }
   public getU8(field: string): number { return this.#view().getUint8(this.#offset(field)); }
+  public getU16(field: string): number { return this.#view().getUint16(this.#offset(field), true); }
   public getF32(field: string): number { return this.#view().getFloat32(this.#offset(field), true); }
   public getF64(field: string): number { return this.#view().getFloat64(this.#offset(field), true); }
   public getI64(field: string): bigint { return this.#view().getBigInt64(this.#offset(field), true); }
@@ -304,6 +315,9 @@ export class WasmCnaError extends Error {
 
 const CNA_RESULT_SUCCESS = 0;
 
+/** `CNA_RESULT_BUFFER_TOO_SMALL`, which a capacity probe answers with rather than fails on. */
+const CNA_RESULT_BUFFER_TOO_SMALL = 14;
+
 /**
  * The resolved routes of one module, and the four call shapes every CNA route reduces to.
  *
@@ -392,6 +406,35 @@ export class WasmRouteTable {
     try {
       const sizePointer = scope.allocate(8);
       this.invoke(sizeRoute, ...args, sizePointer);
+      const byteLength = Number(this.view().getBigUint64(sizePointer, true));
+      if (byteLength === 0) return "";
+      const buffer = scope.allocate(byteLength);
+      const writtenPointer = scope.allocate(8);
+      this.invoke(copyRoute, ...args, buffer, BigInt(byteLength), writtenPointer);
+      const written = Number(this.view().getBigUint64(writtenPointer, true));
+      return readUtf8(this.module, buffer, written);
+    } finally {
+      scope.dispose();
+    }
+  }
+
+  /**
+   * Reads a string from a *single* copy route that reports its own length.
+   *
+   * Most of this ABI answers a string with a size route and a copy route, which `copyString`
+   * handles. The content manifest does not: `cna_content_manager_copy_manifest_relative_path`
+   * called with a null destination and zero capacity writes the length and answers `SUCCESS` or
+   * `BUFFER_TOO_SMALL`, and there is no separate size route to call instead. Treating that refusal
+   * as a failure is how a manifest entry comes back empty rather than named.
+   */
+  public copyStringProbed(copyRoute: string, ...args: readonly (number | bigint)[]): string {
+    const scope = this.scope();
+    try {
+      const sizePointer = scope.allocate(8);
+      const probe = this.call(copyRoute, ...args, 0, 0n, sizePointer);
+      if (probe !== CNA_RESULT_SUCCESS && probe !== CNA_RESULT_BUFFER_TOO_SMALL) {
+        throw new WasmCnaError(copyRoute, probe, this.lastError());
+      }
       const byteLength = Number(this.view().getBigUint64(sizePointer, true));
       if (byteLength === 0) return "";
       const buffer = scope.allocate(byteLength);
