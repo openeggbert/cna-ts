@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CNA-TS browser audio, behind a real user activation</title>
+</head>
+<body>
+<canvas id="canvas" width="320" height="240"></canvas>
+<!--
+  The control the harness actually clicks. It exists so the activation can be a genuine browser
+  input event rather than a claim: `page.locator("#activate").click()` is `isTrusted: true`, and
+  the page presses this same button itself first to show what an untrusted one is worth.
+-->
+<button id="activate" type="button" style="width:220px;height:88px">start audio</button>
+<script type="module">
+// CNA's audio path in a browser, measured rather than assumed.
+//
+// The claim this page replaces was "audibility is not proved because a browser will not start
+// WebAudio without a user gesture". Half of that is true and the other half was never tested, so
+// this page separates them:
+//
+//   * whether the browser's AudioContext can leave `suspended` -- which really does need a
+//     trusted gesture, and which a page-initiated `element.click()` cannot supply;
+//   * whether CNA is CONSUMING samples -- which is a different question with a different answer,
+//     because SDL3's Emscripten backend pumps the audio callback from a timer while the context
+//     is suspended, so the mixer runs and the samples are discarded rather than never produced.
+//
+// Everything about the first question is posted on the harness's HTTP channel, before the harness
+// has run a single line of script in this page. That is not fastidiousness: Playwright's CDP
+// evaluate carries `userGesture: true`, so `page.evaluate` and `page.waitForFunction` GRANT an
+// activation, and a pre-gesture measurement read that way would be measuring the question.
+//
+// The second question is answered through the media player's visualization, which taps CNA's
+// mixer post-mix -- the whole mixer, not the media player's own track -- so an XACT cue, a
+// SoundEffect and a DynamicSoundEffectInstance all reach it. The oracle predicts which FFT bin
+// each authored tone must land in from arithmetic, so a spectrum that is merely non-zero fails.
+const result = { status: "running", frames: 0, errors: [] };
+globalThis.__cnaHarness = result;
+window.onerror = (message, source, line, column, error) => {
+  result.errors.push(`error: ${error && error.stack ? error.stack : `${message} @${source}:${line}:${column}`}`);
+  return false;
+};
+window.addEventListener("unhandledrejection", (event) => result.errors.push(
+  `rejection: ${event.reason && event.reason.stack ? event.reason.stack : String(event.reason)}`,
+));
+
+/** Posts one labelled fact to the harness without going anywhere near CDP. */
+const report = (label, data) => fetch("/harness/report", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ label, ...data }),
+});
+
+/** This page's own view of the browser's user-activation state. */
+const activation = () => ({
+  hasBeenActive: navigator.userActivation?.hasBeenActive ?? null,
+  isActive: navigator.userActivation?.isActive ?? null,
+});
+
+/**
+ * What a *fresh* AudioContext does right now.
+ *
+ * The browser's autoplay policy is asked with a context of this page's own rather than by poking
+ * at the one SDL owns: reading it is a public platform question, and closing it again leaves CNA's
+ * audio exactly as it was.
+ */
+const autoplayPolicy = () => {
+  const context = new AudioContext();
+  const state = context.state;
+  context.close();
+  return state;
+};
+
+const button = document.getElementById("activate");
+let onTrustedClick;
+const trustedClick = new Promise((resolve) => { onTrustedClick = resolve; });
+const clicks = [];
+button.addEventListener("click", (event) => {
+  // Recorded inside the handler, because transient activation is what gates WebAudio and it is
+  // only observable while the event is being dispatched.
+  clicks.push({ isTrusted: event.isTrusted, ...activation() });
+  if (event.isTrusted) onTrustedClick();
+});
+
+try {
+  const { Audio, Game, GraphicsDeviceManager, LoadWasmBackend } = await import("/cna-ts/index.js");
+  const xact = await import("/fixture-modules/xact.mjs");
+  const createCnaCApi = (await import("/wasm/cna_c_api.mjs")).default;
+
+  const canvas = document.getElementById("canvas");
+  const module = await createCnaCApi({ canvas });
+
+  // Two seconds rather than the fixture's default quarter: a 512-point transform needs 11.6 ms of
+  // audio and the measurement loop wants many frames of it, so a tone that ends mid-run would
+  // make the peak depend on scheduling.
+  const TONE_SECONDS = 2;
+  module.FS.mkdir("/xact");
+  for (const [name, bytes] of Object.entries(xact.xactFixture({ seconds: TONE_SECONDS }))) {
+    module.FS.writeFile(`/xact/${name}`, bytes);
+  }
+
+  const status = await LoadWasmBackend({ Module: module });
+  result.abiVersion = status.AbiVersion;
+  const { getBackend } = await import("/cna-ts/internal/backend.js");
+  const backend = getBackend();
+
+  const evidence = {};
+  result.evidence = evidence;
+
+  /** SDL's own context, which is the one CNA plays through. */
+  const sdlContext = () => {
+    const context = module.SDL3 && module.SDL3.audioContext;
+    return context ? { state: context.state, sampleRate: context.sampleRate } : null;
+  };
+
+  let drew = false;
+  class AudioGame extends Game {
+    constructor() {
+      super();
+      this.graphics = new GraphicsDeviceManager(this);
+      this.IsFixedTimeStep = false;
+    }
+    Draw() { drew = true; }
+  }
+  const game = new AudioGame();
+
+  /** Runs `count` real frames, one per animation frame, so CNA's own update path drives them. */
+  const pump = (count) => new Promise((resolve, reject) => {
+    let done = 0;
+    const step = () => {
+      try {
+        game.RunOneFrame();
+        done += 1;
+        result.frames += 1;
+        if (done >= count) { resolve(); return; }
+        requestAnimationFrame(step);
+      } catch (error) { reject(error); }
+    };
+    requestAnimationFrame(step);
+  });
+
+  await pump(4);
+  result.drew = drew;
+
+  // ---- what this page has BEFORE anything is clicked ----------------------------------------
+  await report("boot", {
+    activation: activation(), autoplay: autoplayPolicy(), sdl: sdlContext(),
+  });
+
+  // The negative control, and it must come first: user activation is sticky, so a synthetic click
+  // measured after a real one proves nothing at all.
+  button.click();
+  const syntheticClick = clicks.at(-1) ?? null;
+  await report("synthetic-click", {
+    click: syntheticClick, activation: activation(), autoplay: autoplayPolicy(),
+  });
+
+  // ---- the mixer tap ------------------------------------------------------------------------
+  backend.Media.setVisualizationEnabled(true);
+
+  /**
+   * One measurement: the loudest frame seen while `play` is sounding.
+   *
+   * The loudest rather than the last, because the capture is a ring the mixer fills at its own
+   * pace and a frame sampled between refills is a window of whatever was there before.
+   */
+  const listen = async (frames) => {
+    let best = null;
+    for (let index = 0; index < frames; index += 1) {
+      await pump(2);
+      const data = backend.Media.getVisualizationData();
+      const frequencies = Array.from(data.Frequencies);
+      const samples = Array.from(data.Samples);
+      let peakBin = 0;
+      for (let bin = 1; bin < frequencies.length; bin += 1) {
+        if (frequencies[bin] > frequencies[peakBin]) peakBin = bin;
+      }
+      let samplePeak = 0;
+      let sumOfSquares = 0;
+      for (const value of samples) {
+        samplePeak = Math.max(samplePeak, Math.abs(value));
+        sumOfSquares += value * value;
+      }
+      if (best === null || frequencies[peakBin] > best.magnitude) {
+        best = {
+          peakBin, magnitude: frequencies[peakBin], samplePeak,
+          sampleRms: Math.sqrt(sumOfSquares / samples.length),
+          spectrum: frequencies,
+        };
+      }
+    }
+    return best;
+  };
+
+  /** The spectrum with nothing playing, which is what "silence" has to look like. */
+  const silence = async () => {
+    await pump(20);
+    const measured = await listen(3);
+    return { magnitude: measured.magnitude, peakBin: measured.peakBin,
+             samplePeak: measured.samplePeak };
+  };
+
+  const engine = backend.Xact.createAudioEngine("/xact/cna-ts.xgs");
+  const waveBank = backend.Xact.createWaveBank(engine, "/xact/cna-ts.xwb");
+  const soundBank = backend.Xact.createSoundBank(engine, "/xact/cna-ts.xsb");
+
+  /** One authored XACT cue, played and listened to. */
+  const listenToCue = async (cueName, frames) => {
+    const before = await silence();
+    const cue = backend.Xact.getCue(soundBank, cueName);
+    backend.Xact.playCueHandle(cue);
+    const measured = await listen(frames);
+    const playing = backend.Xact.getCueInfo(cue).IsPlaying;
+    backend.Xact.stopCue(cue, 1);
+    const after = await silence();
+    backend.Xact.destroyCue(cue);
+    const authored = xact.XACT_CUES.find((entry) => entry.Name === cueName);
+    return {
+      cueName, frequencyHz: authored.FrequencyHz, amplitude: xact.XACT_TONE_AMPLITUDE,
+      playing, before, after, ...measured,
+    };
+  };
+
+  // ---- XACT with NO activation --------------------------------------------------------------
+  //
+  // The interesting case. If CNA needed the gesture to mix at all, this is where it would answer
+  // silence; it does not, and saying so precisely is the point of running it here.
+  const beforeActivation = await listenToCue("Tone261", 30);
+  evidence.xactBeforeActivation = beforeActivation;
+  await report("xact-before-activation", {
+    peakBin: beforeActivation.peakBin, magnitude: beforeActivation.magnitude,
+    samplePeak: beforeActivation.samplePeak, silenceMagnitude: beforeActivation.before.magnitude,
+    activation: activation(), autoplay: autoplayPolicy(), sdl: sdlContext(),
+  });
+
+  // ---- ask for a real one -------------------------------------------------------------------
+  result.status = "waiting-for-user-activation";
+  await report("waiting-for-user-activation", { activation: activation(), sdl: sdlContext() });
+  await trustedClick;
+  result.status = "running";
+  const trusted = clicks.at(-1) ?? null;
+  // SDL resumes the context from its own silence timer once `hasBeenActive` turns true, so the
+  // transition is not instant; a few frames is the whole of the wait.
+  await pump(10);
+  await report("trusted-click", {
+    click: trusted, activation: activation(), autoplay: autoplayPolicy(), sdl: sdlContext(),
+  });
+  evidence.clicks = { synthetic: syntheticClick, trusted };
+  evidence.contextAfterActivation = sdlContext();
+
+  // ---- XACT with activation, at two authored frequencies -------------------------------------
+  evidence.xactTones = [
+    await listenToCue("Tone261", 30),
+    await listenToCue("Tone523", 30),
+  ];
+
+  // ---- the same tap, reached by a different CNA audio object ----------------------------------
+  //
+  // The visualization is a *mixer* post-mix rather than a media-player one, so a SoundEffect this
+  // page authors reaches it too. That matters twice: it shows the tap is not XACT-specific, and it
+  // frees the frequency, so these two tones sit exactly on a bin centre where the window's
+  // scalloping loss is zero and the amplitude prediction is exact.
+  const SOUND_RATE = 44100;
+  const SOUND_AMPLITUDE = 0.8;
+  const pcmTone = (frequencyHz, seconds) => {
+    const frames = Math.round(SOUND_RATE * seconds);
+    const view = new DataView(new ArrayBuffer(frames * 2));
+    const fade = 0.02 * SOUND_RATE;
+    for (let index = 0; index < frames; index += 1) {
+      let envelope = 1;
+      if (index < fade) envelope = index / fade;
+      else if (index > frames - fade) envelope = (frames - index) / fade;
+      view.setInt16(index * 2, Math.round(
+        Math.sin(2 * Math.PI * frequencyHz * index / SOUND_RATE) * envelope * SOUND_AMPLITUDE * 32767,
+      ), true);
+    }
+    return [...new Uint8Array(view.buffer)];
+  };
+
+  evidence.soundEffectTones = [];
+  // Whole numbers of cycles per 512-sample window at the mixer's rate, which the oracle checks
+  // against the rate CNA itself announced rather than against this constant.
+  for (const binsWanted of [16, 32]) {
+    const frequencyHz = binsWanted * SOUND_RATE / 512;
+    const before = await silence();
+    const sound = new Audio.SoundEffect(pcmTone(frequencyHz, 1.5), SOUND_RATE,
+      Audio.AudioChannels.Mono);
+    const instance = sound.CreateInstance();
+    instance.Play();
+    const measured = await listen(25);
+    const state = instance.State;
+    instance.Stop();
+    const after = await silence();
+    evidence.soundEffectTones.push({
+      frequencyHz, amplitude: SOUND_AMPLITUDE, sourceSampleRate: SOUND_RATE,
+      durationMilliseconds: sound.Duration.TotalMilliseconds,
+      expectedDurationMilliseconds: 1500,
+      state, before, after, ...measured,
+    });
+  }
+
+  // ---- a counter CNA advances itself ---------------------------------------------------------
+  //
+  // The spectrum is one observable and it is this package's own arithmetic over CNA's array. A
+  // second, entirely independent one: a DynamicSoundEffectInstance's pending-buffer count is CNA
+  // counting what its own mixer has drained, so it advancing is sample consumption stated by CNA
+  // rather than inferred by a test.
+  const dynamic = new Audio.DynamicSoundEffectInstance(SOUND_RATE, Audio.AudioChannels.Mono);
+  const chunk = pcmTone(32 * SOUND_RATE / 512, 0.1);
+  const submitted = 6;
+  for (let index = 0; index < submitted; index += 1) dynamic.SubmitBuffer(chunk);
+  const pending = [dynamic.PendingBufferCount];
+  dynamic.Play();
+  let whilePlaying = null;
+  for (let index = 0; index < 14; index += 1) {
+    await pump(4);
+    pending.push(dynamic.PendingBufferCount);
+    if (whilePlaying === null && pending.at(-1) > 0 && pending.at(-1) < submitted) {
+      const measured = await listen(2);
+      whilePlaying = { peakBin: measured.peakBin, magnitude: measured.magnitude,
+                       samplePeak: measured.samplePeak, binCount: measured.spectrum.length };
+    }
+  }
+  const drainedState = dynamic.State;
+  dynamic.Stop();
+  evidence.dynamicBuffers = {
+    submitted, pending, drainedState, whilePlaying,
+    frequencyHz: 32 * SOUND_RATE / 512, amplitude: SOUND_AMPLITUDE,
+  };
+
+  backend.Xact.destroySoundBank(soundBank);
+  backend.Xact.destroyWaveBank(waveBank);
+  backend.Xact.destroyAudioEngine(engine);
+  backend.Media.setVisualizationEnabled(false);
+
+  game.Exit();
+  game.Dispose();
+  result.disposed = game.IsDisposed !== false;
+  result.status = "ok";
+} catch (error) {
+  result.status = "failed";
+  result.error = String(error && error.stack ? error.stack : error);
+  if (error && error.cause) result.error += `\ncaused by: ${error.cause.stack ?? error.cause}`;
+  // The harness is waiting on the channel, not on the DOM, so a failure before the activation
+  // request has to say so there or the run hangs until Playwright's timeout.
+  await report("waiting-for-user-activation", { failed: result.error.slice(0, 400) });
+}
+</script>
+</body>
+</html>

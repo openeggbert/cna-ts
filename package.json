@@ -89,6 +89,8 @@
     "test:wasm-browser:non-engine": "npm run build && node --test test/wasm-browser-non-engine.mjs",
     "test:wasm-browser:non-engine:required": "npm run build && CNA_REQUIRE_NON_ENGINE_WASM_TESTS=1 node --test test/wasm-browser-non-engine.mjs",
     "test:wasm-browser:strong:required": "npm run build && CNA_REQUIRE_STRONG_WASM_TESTS=1 node --test test/wasm-browser-strong.mjs",
+    "test:wasm-browser:audio": "npm run build && node --test test/wasm-browser-audio.mjs",
+    "test:wasm-browser:audio:required": "npm run build && CNA_REQUIRE_AUDIO_WASM_TESTS=1 node --test test/wasm-browser-audio.mjs",
     "test:wasm-browser-input": "npm run build && node --test test/wasm-browser-input.mjs",
     "audit:cna-abi": "node tools/audit-cna-abi.mjs",
     "report:cna-abi": "node tools/audit-cna-abi.mjs --portable --format json --output docs/cna-abi-report.json && node tools/cna-abi/verify-contract.mjs --portable --format json --output docs/cna-abi-contract-report.json && node tools/api-compat/verify-runtime.mjs --format json --output docs/runtime-symbol-report.json && node tools/api-compat/verify.mjs --leak-only --format json --output docs/internal-leak-report.json",

@@ -100,6 +100,16 @@ class Writer {
  * The fade is not decoration: a tone that starts and ends at full amplitude clicks, and a click is
  * a broadband transient that would make any spectrum assertion about this audio meaningless.
  */
+/**
+ * The peak amplitude every authored tone reaches, as a fraction of full scale.
+ *
+ * Exported because a spectrum assertion needs it: CNA's visualization FFT scales by 2/N and leaves
+ * the Hann window's own 0.5 coherent gain uncompensated, so a tone of amplitude A reads A/2 in its
+ * bin -- a prediction, and only a prediction if the amplitude comes from the generator rather than
+ * from a number written twice.
+ */
+export const XACT_TONE_AMPLITUDE = 28000 / 32768;
+
 export function sineWave(frequencyHz, seconds, sampleRate = SAMPLE_RATE) {
   const count = Math.round(sampleRate * seconds);
   const bytes = new Uint8Array(count * 2);
@@ -111,7 +121,9 @@ export function sineWave(frequencyHz, seconds, sampleRate = SAMPLE_RATE) {
     if (index < fade) envelope = index / fade;
     else if (index > count - fade) envelope = (count - index) / fade;
     view.setInt16(
-      index * 2, Math.trunc(Math.sin(2 * Math.PI * frequencyHz * time) * envelope * 28000), true,
+      index * 2,
+      Math.trunc(Math.sin(2 * Math.PI * frequencyHz * time) * envelope * XACT_TONE_AMPLITUDE * 32768),
+      true,
     );
   }
   return bytes;
@@ -203,9 +215,19 @@ export function xwbWaveBank(bankName, waves) {
   out.u32(0);            // compactFormat
   out.u32(0).u32(0);     // buildTime
 
-  // The format bitfield: fmtTag 0 (PCM), channels-1 = 0 (mono), the sample rate, block align 0
+  // The format bitfield -- `FACTWaveBankMiniWaveFormat`: fmtTag 0 (PCM) in bits 0-1, the CHANNEL
+  // COUNT in bits 2-4, the sample rate in bits 5-22, block align (derived for PCM) in bits 23-30
   // and bits-per-sample 1 (16-bit) in the top bit.
-  const format = ((SAMPLE_RATE << 5) | 0x80000000) >>> 0;
+  //
+  // `nChannels` is the count itself, not the count minus one, and this field used to be written as
+  // zero on the belief that it was. Nothing noticed, because nothing had ever measured the PITCH:
+  // CNA reads it as `(entry.channels == 1) ? Mono : Stereo`, so a zero made every mono wave here
+  // play as interleaved stereo -- through in half the time, at exactly DOUBLE the authored
+  // frequency. It was found the first time a browser ran a cue into the media player's
+  // visualization and asked which FFT bin the peak landed in: 261.6 Hz answered bin 6, and bin 6
+  // is 523 Hz. FAudio's `FACT.h` settles it -- `nChannels : 3` is multiplied directly.
+  const CHANNELS = 1;
+  const format = ((CHANNELS << 2) | (SAMPLE_RATE << 5) | 0x80000000) >>> 0;
   waves.forEach((wave, index) => {
     out.u32(0);                    // flagsAndDuration
     out.u32(format);

@@ -93,10 +93,31 @@ const COMPILED_EFFECT = (() => {
 })();
 if (COMPILED_EFFECT) FIXTURES.set("CnaConformanceEffect.fxb", COMPILED_EFFECT);
 
-function serve(page) {
+function serve(page, reports) {
   const server = http.createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
     let file = null;
+    // The page-to-harness channel, and the reason it is HTTP rather than `page.evaluate`.
+    //
+    // Playwright issues CDP `Runtime.evaluate`/`callFunctionOn` with `userGesture: true`, so
+    // `page.evaluate`, `page.waitForFunction` and `page.title()` all hand the page a *user
+    // activation* as a side effect: measured here, `navigator.userActivation.hasBeenActive` is
+    // false at parse and true inside the very first `page.evaluate`. That is harmless for
+    // everything this package asserts through the DOM and fatal for anything asserting what a
+    // browser does BEFORE a gesture, because the act of asking would supply the answer.
+    //
+    // So a page that has something to say about its own pre-gesture state says it over this
+    // route instead, and the harness learns it without touching CDP at all.
+    if (url.pathname === "/harness/report") {
+      let body = "";
+      request.on("data", (chunk) => { body += chunk; });
+      request.on("end", () => {
+        try { reports.push(JSON.parse(body)); }
+        catch { reports.push({ label: "unparseable", body: body.slice(0, 200) }); }
+        response.writeHead(204).end();
+      });
+      return;
+    }
     if (url.pathname === "/" || url.pathname === "/index.html") file = page;
     // The fixture *generators*, served as modules so a page can build its own assets rather than
     // fetch bytes somebody else produced. `xact.mjs` is the reason: an XACT bank is three files
@@ -137,6 +158,28 @@ const playwright = blocked ? null : await importPlaywright();
 export const browserBlocked = blocked ?? (playwright ? false : "playwright is not installed");
 
 /**
+ * Waits for a page to post `label` on the harness channel, polling the array the server fills.
+ *
+ * A plain interval rather than an event, because the point is to reach this without Playwright:
+ * every Playwright wait helper runs a polling function *in the page*, and running a function in
+ * the page is what grants the activation this is waiting to be asked for.
+ */
+function waitForReport(reports, label, timeoutMs = 180_000) {
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      const found = reports.find((report) => report.label === label);
+      if (found) { clearInterval(timer); resolve(found); return; }
+      if (Date.now() - started > timeoutMs) {
+        clearInterval(timer);
+        reject(new Error(`the page never reported ${JSON.stringify(label)}; it reported ` +
+          `${JSON.stringify(reports.map((report) => report.label))}`));
+      }
+    }, 25);
+  });
+}
+
+/**
  * Runs a harness page for `frames` frames and returns its result object and console errors.
  *
  * `page` names a file in `test/wasm`; the default is the engine-layer page every existing suite
@@ -144,9 +187,22 @@ export const browserBlocked = blocked ?? (playwright ? false : "playwright is no
  * writes XACT banks and a content root into the module filesystem before CNA is asked about them
  * -- and because one page collecting both would make a failure in either read as a failure of the
  * whole run.
+ *
+ * `options.activate` opts the run into a **browser-trusted user activation**: the page renders a
+ * control, reports `waiting-for-user-activation` on the harness channel, and this sends a real
+ * Playwright click to `options.activate` when it is a selector (`#activate` when it is `true`).
+ * It is opt-in because most pages have nothing to say about gestures and a click before their
+ * first frame would be a different run; the audio page needs it, because a browser will not let a
+ * WebAudio context leave `suspended` without one.
+ *
+ * The returned `reports` are what the page posted on that channel, and `mixerFormat` is the
+ * channel count and sample rate CNA's own mixer notice announced, or `null` if no audio was opened.
  */
-export async function runFrames(frames, pageFile = "browser-page.html") {
-  const { server, port } = await serve(path.join(PAGE_DIRECTORY, pageFile));
+export async function runFrames(frames, pageFile = "browser-page.html", options = {}) {
+  const { activate = false } = options;
+  const activationSelector = typeof activate === "string" ? activate : "#activate";
+  const reports = [];
+  const { server, port } = await serve(path.join(PAGE_DIRECTORY, pageFile), reports);
   const browser = await playwright.chromium.launch({
     args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader", "--disable-gpu-sandbox"],
   });
@@ -163,6 +219,14 @@ export async function runFrames(frames, pageFile = "browser-page.html") {
     // by its exact shape rather than by widening the rule above -- and recorded upstream in
     // docs/upstream-cna-findings.md, because a browser consumer collecting console errors sees it.
     const mixerNotice = /^\[AudioMixer\] Requested format=0x[0-9a-f]+ channels=\d+ freq=\d+; /;
+    // That same notice is the only place CNA states the format its mixer actually negotiated:
+    // there is no C ABI route for it (`GetMixerSampleRate` is internal), and the browser's own
+    // `AudioContext.sampleRate` is a different number -- 48000 here, where the mixer runs at
+    // 44100 and SDL resamples between them. A page reading `VisualizationData.Frequencies` needs
+    // the mixer's rate to know what a bin is worth in Hz, so it is captured rather than assumed.
+    let mixerFormat = null;
+    const applicationFormat =
+      /application format=0x[0-9a-f]+ channels=(\d+) freq=(\d+)/;
     // Nor does CNA's PCM plausibility advisory, which is a *warning about the audio* rather than a
     // failure and is written straight to stderr. It fires on this package's own synthesised XACT
     // tones: CNA flags raw PCM16 whose byte histogram exceeds 7.9 bits of entropy as probably not
@@ -178,19 +242,34 @@ export async function runFrames(frames, pageFile = "browser-page.html") {
     page.on("console", (message) => {
       if (message.type() !== "error") return;
       const text = message.text();
-      if (runtimeLog.test(text) || mixerNotice.test(text) || pcmAdvisory.test(text)
-        || xactNotice.test(text)) return;
+      if (mixerNotice.test(text)) {
+        const format = applicationFormat.exec(text);
+        if (format) mixerFormat = { channels: Number(format[1]), freq: Number(format[2]) };
+        return;
+      }
+      if (runtimeLog.test(text) || pcmAdvisory.test(text) || xactNotice.test(text)) return;
       consoleErrors.push(text);
     });
     page.on("pageerror", (error) => consoleErrors.push(String(error)));
     await page.goto(`http://127.0.0.1:${port}/?frames=${frames}`, { waitUntil: "load" });
+    if (activate) {
+      // The page says it is ready over the HTTP channel above, so nothing has touched CDP yet and
+      // the click below is the FIRST user activation the page has ever had. Waiting with
+      // `page.waitForFunction` instead would grant one before the button was ever pressed, and the
+      // suite would be asserting Playwright's polling rather than its own gesture.
+      await waitForReport(reports, "waiting-for-user-activation");
+      // A real Playwright input action. Not `element.click()`, not `dispatchEvent`, not
+      // `page.evaluate` -- those are `isTrusted: false` and the page's own negative control proves
+      // they grant no activation.
+      await page.locator(activationSelector).click();
+    }
     await page.waitForFunction(
       () => globalThis.__cnaHarness && globalThis.__cnaHarness.status !== "running",
       undefined,
       { timeout: 180_000 },
     );
     const result = await page.evaluate(() => globalThis.__cnaHarness);
-    return { result, consoleErrors };
+    return { result, consoleErrors, reports, mixerFormat };
   } finally {
     await browser.close();
     server.close();
