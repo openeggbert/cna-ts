@@ -59,7 +59,20 @@ const { test, skip } = requiredSuite({
   counter: "NON_ENGINE_WASM_TESTS",
   blocked: browserBlocked,
 });
-const run = skip ? null : await runFrames(1, "non-engine-page.html");
+/**
+ * The one run every test reads.
+ *
+ * The harness failure is caught rather than allowed to reject a top-level await, because a
+ * rejected module registers *no tests at all* -- and `node --test` then reports zero passes and
+ * zero failures, which the mutation harness correctly refuses to score and a human reads as a
+ * green run. A mutant that walked a string array at the wrong stride made the page hang until
+ * Playwright's timeout, and that is exactly how it was found: `REFUSED`, not `KILLED`.
+ */
+const run = skip ? null : await runFrames(1, "non-engine-page.html")
+  .catch((error) => ({
+    result: { status: "failed", error: String(error?.stack ?? error), errors: [], frames: 0 },
+    consoleErrors: [],
+  }));
 const evidence = run?.result?.evidence ?? {};
 
 /**

@@ -190,7 +190,9 @@ try {
       record(evidence, "inputDevices", () => {
         const inventory = backend.InputDeviceInventory;
         const before = inventory.getClipboardHasText();
-        inventory.setClipboardTextUngated("cna-ts clipboard round trip");
+        // Deliberately not ASCII: the size route answers UTF-8 *bytes*, and a managed reader that
+        // answered the string's length would agree with it for every ASCII string ever tested.
+        inventory.setClipboardTextUngated("cna-ts clipboard round trip \u00e9\u263a");
         const named = (count, at) => Array.from({ length: count }, (_, index) => {
           const device = at(index);
           return { Id: big(device.Id), Name: device.Name };

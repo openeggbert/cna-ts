@@ -30,6 +30,10 @@ import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../dist/internal/abi.js";
 import { createSpriteFontForInternalUse } from
   "../dist/Microsoft/Xna/Framework/Graphics/SpriteFont.js";
 import { SpriteFontOracle } from "../dist/internal/sprite-font-oracle.js";
+import {
+  SPRITE_FONT_FIXTURE, SPRITE_FONT_STRINGS,
+} from "./fixtures/sprite-font.mjs";
+import { assertSpriteFontEvidence } from "./support/non-engine-oracle.mjs";
 
 const library = process.env.CNA_NATIVE_LIBRARY;
 if (!library) {
@@ -44,22 +48,19 @@ await LoadNodeNativeBackend({
 });
 
 /**
- * A font whose glyphs make the awkward cases matter.
+ * The font and the strings live in `test/fixtures/sprite-font.mjs`, shared with the browser suite.
  *
- * `A` has a negative left bearing and a positive right one; `j` has a negative *right* bearing, so
- * the clamped-width-versus-raw-advance distinction changes the answer; `.` is narrow with a tall
+ * They were here, which meant the browser could not use them -- and a font whose exact bearings
+ * *are* the point of the test is the worst possible thing to keep two copies of. `A` has a
+ * negative left bearing and a positive right one; `j` has a negative *right* bearing, so the
+ * clamped-width-versus-raw-advance distinction changes the answer; `.` is narrow with a tall
  * cropping box, so the line height cannot come from `LineSpacing` alone; `W` is wide.
  */
-const GLYPHS = [
-  { char: "A", bounds: [0, 0, 10, 12], crop: [0, 0, 10, 12], kern: [-2, 10, 3] },
-  { char: "j", bounds: [10, 0, 6, 12], crop: [0, 2, 6, 16], kern: [1, 6, -3] },
-  { char: ".", bounds: [16, 0, 3, 12], crop: [0, 0, 3, 20], kern: [0, 3, 0] },
-  { char: "W", bounds: [19, 0, 18, 12], crop: [0, 0, 18, 12], kern: [0, 18, 0] },
-  { char: " ", bounds: [37, 0, 5, 12], crop: [0, 0, 5, 4], kern: [0, 5, 0] },
-  { char: "?", bounds: [42, 0, 8, 12], crop: [0, 0, 8, 12], kern: [2, 8, 2] },
-];
-const LINE_SPACING = 14;
-const SPACING = 1.5;
+const GLYPHS = SPRITE_FONT_FIXTURE.Glyphs.map((glyph) => ({
+  char: glyph.Character, bounds: glyph.Bounds, crop: glyph.Cropping, kern: glyph.Kerning,
+}));
+const LINE_SPACING = SPRITE_FONT_FIXTURE.LineSpacing;
+const SPACING = SPRITE_FONT_FIXTURE.Spacing;
 
 const evidence = Object.create(null);
 
@@ -84,33 +85,10 @@ class OracleProbeGame extends Game {
     });
     const oracle = new SpriteFontOracle(font);
     try {
-      const strings = [
-        "",
-        "A",
-        "j",
-        ".",
-        "W",
-        "AA",
-        "Aj",
-        "jA",
-        "jj",
-        "A.j",
-        "W W",
-        "AjW.",
-        "A\nj",
-        "A\n\nW",
-        "A\r\nj",
-        "AjW.AjW.AjW.",
-        " ",
-        "  ",
-        " A ",
-        "\n",
-        "\n\n",
-        "?",            // the fallback itself
-        "Z",            // absent, so the fallback stands in
-        "AZj",
-      ];
-      const rows = strings.map((text) => {
+      // The same strings the browser suite measures, in the same order: empty, single glyphs,
+      // pairs both ways round, several lines, a `\r\n`, runs of spaces, the fallback itself and an
+      // absent character the fallback stands in for.
+      const rows = SPRITE_FONT_STRINGS.map((text) => {
         const managed = font.MeasureString(text);
         const native = oracle.Measure(text);
         return {
@@ -153,6 +131,15 @@ class OracleProbeGame extends Game {
   await game.Run();
   game.Dispose();
 }
+
+test("the Node backend's sprite-font evidence satisfies the shared oracle", () => {
+  assert.equal(evidence.failed, undefined, `the probe failed: ${evidence.failed}`);
+  // The same function the browser suite applies to its own run: the font's configuration
+  // round-tripping, nineteen strings on which the two implementations agree exactly, and five on
+  // which they differ by exactly the trailing bearing of upstream finding 27. Two backends, one
+  // set of expectations.
+  assertSpriteFontEvidence({ info: evidence.info, rows: evidence.rows });
+});
 
 test("the oracle was built from the managed font's own configuration", () => {
   assert.equal(evidence.failed, undefined, `the probe failed: ${evidence.failed}`);

@@ -22,6 +22,7 @@ import test from "node:test";
 
 import { GamerServices, LoadNodeNativeBackend } from "../dist/index.js";
 import { CNA_ABI_MAJOR, CNA_ABI_MINOR } from "../dist/internal/abi.js";
+import { assertAvatarEvidence } from "./support/non-engine-oracle.mjs";
 
 const library = process.env.CNA_NATIVE_LIBRARY;
 if (!library) {
@@ -39,6 +40,44 @@ const { AvatarBodyType, AvatarDescription } = GamerServices;
 
 /** CNA's own constant, and the length the canonical constructor requires. */
 const DESCRIPTION_BYTES = 1021;
+
+/**
+ * The same evidence shape the browser page produces, so both backends face one oracle.
+ *
+ * The point is not to save lines. An avatar description is 1021 zero bytes and a verdict on them
+ * whether CNA is reached through a Node-API bridge or an Emscripten module, and two suites with
+ * their own copies of that expectation is how they come to disagree about it and both stay green.
+ */
+function avatarEvidence() {
+  const random = AvatarDescription.CreateRandom();
+  const female = AvatarDescription.CreateRandom(AvatarBodyType.Female);
+  const male = AvatarDescription.CreateRandom(AvatarBodyType.Male);
+  const rebuilt = new AvatarDescription(random.Description);
+  let shortRefused = "ACCEPTED";
+  try { new AvatarDescription(new Array(10).fill(0)); }
+  catch (error) { shortRefused = error?.constructor?.name ?? "unknown"; }
+  let badBodyType = "ACCEPTED";
+  try { AvatarDescription.CreateRandom(99); }
+  catch (error) { badBodyType = error?.constructor?.name ?? "unknown"; }
+  return {
+    length: random.Description.length,
+    allZero: random.Description.every((byte) => byte === 0),
+    isValid: random.IsValid,
+    bodyType: random.BodyType,
+    height: random.Height,
+    twoCallsAgree: female.Description.every((byte, at) => byte === male.Description[at]),
+    bodyTypesAgree: female.BodyType === male.BodyType,
+    roundTrip: rebuilt.Description.every((byte, at) => byte === random.Description[at]),
+    rebuiltValid: rebuilt.IsValid,
+    rebuiltBodyType: rebuilt.BodyType,
+    shortRefused,
+    badBodyType,
+  };
+}
+
+test("the Node backend's avatar evidence satisfies the shared oracle", () => {
+  assertAvatarEvidence(avatarEvidence());
+});
 
 test("CreateRandom returns XNA's all-zero description, every time", () => {
   const first = AvatarDescription.CreateRandom();

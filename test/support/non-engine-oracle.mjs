@@ -169,11 +169,13 @@ export function assertInputDeviceEvidence(evidence) {
   present(evidence, "inputDevices");
   assert.equal(evidence.clipboardAfter, true,
     "text written to the clipboard is text the clipboard has");
-  assert.equal(evidence.clipboardText, "cna-ts clipboard round trip",
-    "and reading it back gives the same string, byte for byte through UTF-8");
-  assert.equal(evidence.clipboardSize,
-    new TextEncoder().encode("cna-ts clipboard round trip").length,
-    "the reported size is the string's UTF-8 byte length rather than its character count");
+  const written = "cna-ts clipboard round trip \u00e9\u263a";
+  assert.equal(evidence.clipboardText, written,
+    "and reading it back gives the same string, byte for byte through UTF-8 -- including the " +
+    "two characters that are not one byte each");
+  assert.equal(evidence.clipboardSize, new TextEncoder().encode(written).length,
+    `the reported size is the string's UTF-8 byte length (${new TextEncoder().encode(written).length}) ` +
+    `rather than its character count (${written.length})`);
   for (const [family, devices] of [["mice", evidence.mice], ["keyboards", evidence.keyboards]]) {
     for (const device of devices) {
       assert.match(device.Id, /^\d+$/, `${family} carry a numeric identifier`);

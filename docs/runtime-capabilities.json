@@ -14,12 +14,12 @@
   "counts": {
     "VERIFIED_MANAGED": 22,
     "VERIFIED_NATIVE": 120,
-    "VERIFIED_WEBASSEMBLY": 19,
+    "VERIFIED_WEBASSEMBLY": 33,
     "EXPLICITLY_UNAVAILABLE_WITH_CURRENT_BACKEND": 1,
     "UPSTREAM_CNA_BLOCKED": 5,
     "FIXTURE_PENDING": 2,
-    "HARDWARE_PENDING": 3,
-    "PLATFORM_PENDING": 3,
+    "HARDWARE_PENDING": 4,
+    "PLATFORM_PENDING": 4,
     "UNIMPLEMENTED_CNA_TS": 2,
     "LANGUAGE_MAPPING_LIMITATION": 3,
     "NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT": 0
@@ -57,6 +57,15 @@
       "evidence": "HEADLESS route execution is deterministic but not physical-device evidence. Asked of the windowed SDL3 build as well on 2026-09-01 -- because that question caught two stale audio rows the same day -- and it answers identically: no keys pressed, the mouse at the origin, no gamepad and no touch panel connected. That is the honest answer for a machine driving an Xvfb display with nobody at it, so this row is a property of the host rather than of the backend, and both backends now say so"
     },
     {
+      "operation": "Physical sensors, joysticks and haptics in a browser",
+      "category": "HARDWARE_PENDING",
+      "owner": "CNA-TS",
+      "evidence": "PHYSICAL_HARDWARE_NOT_VERIFIED. Headless Chromium reports no accelerometer, compass, gyroscope or motion sensor, no joystick and no haptic device, and every one of those is a true statement about the host rather than a gap in the binding: the counts are read from CNA, the enumerations refuse every index, and nothing is manufactured. The marshalling those families exist to do is verified instead through CNA own synthetic backends, and labelled as synthetic wherever it is recorded",
+      "proof": [
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
       "operation": "The gyroscope's reading path, and physical compass/motion hardware",
       "category": "HARDWARE_PENDING",
       "owner": "cna-ts/extensions/sensors",
@@ -92,6 +101,15 @@
       "category": "PLATFORM_PENDING",
       "owner": "platform qualification",
       "evidence": "not attempted; no Electron main/renderer job exists. The old row also gave 'no windowed artifact' as a reason, which is no longer true -- a windowed OPENGLES3 build is qualified on this host -- so the remaining blocker is the Electron harness alone"
+    },
+    {
+      "operation": "Video decoding on the Emscripten toolchain",
+      "category": "PLATFORM_PENDING",
+      "owner": "CNA-TS",
+      "evidence": "Not a fixture problem and not a binding one. CNA video backend is FFmpeg, and modules/CMakeLists.txt lists EMSCRIPTEN among the targets deliberately outside that integration: CNA_ENABLE_VIDEO=ON is a configure-time FATAL_ERROR on this toolchain, so no artifact this package can build decodes a frame and no video asset would change that. The player control surface is bound and verified separately; only decode and frame output are blocked",
+      "proof": [
+        "source:tools/wasm/backend-gap.mjs"
+      ]
     },
     {
       "operation": "Windows and macOS Node/native runtime",
@@ -2248,6 +2266,43 @@
       ]
     },
     {
+      "operation": "Avatar descriptions over WebAssembly",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "AvatarDescription.CreateRandom and the byte constructor in headless Chromium: 1021 bytes, every one of them zero, IsValid false and BodyType Female read out of those bytes rather than defaulted, the description round-tripping through the constructor, a wrong length refused by CNA and a body type that is not one refused as ArgumentOutOfRangeException. The body-type overload validates its argument and then ignores it, which is XNA behaviour CNA reproduces and this asserts rather than smooths over. No native handle escapes: the description is copied out and released inside the call",
+      "proof": [
+        "wasmRoute:cna_avatar_description_create",
+        "wasmRoute:cna_avatar_description_create_random",
+        "wasmRoute:cna_avatar_description_copy_description",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
+      "operation": "Browser clipboard, attached-device inventory and host power",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "Text written to the clipboard is text the clipboard has, and reading it back gives the same string with its size reported in UTF-8 bytes rather than characters. Headless Chromium enumerates one mouse and one keyboard, each with an identifier and a name, and no touch device; an index past the end of any of the three is refused, which is what separates an empty inventory from a broken enumeration. CNA -1 for an unknown battery percentage or time remaining is projected as null rather than handed on as a number",
+      "proof": [
+        "wasmRoute:cna_clipboard_set_text",
+        "wasmRoute:cna_clipboard_copy_text",
+        "wasmRoute:cna_input_devices_get_mouse_count",
+        "wasmRoute:cna_power_get_info",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
+      "operation": "Browser content survey: what is under a root and which readers it needs",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "A content root written into the module filesystem and surveyed: three assets found across a nested directory, named root-relative and without their extensions, the compiled .xnb reported as compiled and the loose .png and .txt reported by their extensions. CNA own reader registry answers true for its Texture2DReader and false for a name that does not exist. Nothing is loaded: the strict ContentManager owns loading and a survey deliberately gives an asset no second owner",
+      "proof": [
+        "wasmRoute:cna_content_manager_create",
+        "wasmRoute:cna_content_manager_refresh_content_manifest",
+        "wasmRoute:cna_content_manager_get_manifest_entry",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
       "operation": "Browser GamePad: connection, capabilities, buttons, thumbsticks and triggers",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "CNA-TS",
@@ -2257,6 +2312,56 @@
         "wasmRoute:cna_gamepad_get_state_with_dead_zone",
         "wasmRoute:cna_gamepad_set_vibration",
         "test:test/wasm-browser-input.mjs"
+      ]
+    },
+    {
+      "operation": "Browser GameWindow: title, client bounds and the resize event",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "The XNA GameWindow over the canvas CNA presents to. The title round-trips through CNA, the orientation and screen device name answer, and Window.Handle is CNA own native-window token passed through unchanged rather than a fabricated pointer. A device change through GraphicsDeviceManager.ApplyChanges of a known delta moves ClientBounds by exactly that delta, raises ClientSizeChanged once, and a handler attached at the time reads the new bounds; restoring the preferred size restores them",
+      "proof": [
+        "wasmRoute:cna_game_window_get_client_bounds",
+        "wasmRoute:cna_game_set_window_title",
+        "wasmRoute:cna_game_window_subscribe",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
+      "operation": "Browser GraphicsAdapter read through a live device",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "GraphicsAdapter.Adapters, DefaultAdapter and GraphicsDevice.Adapter all answer in a browser, filled from CNA own adapter routes rather than invented. Nothing here manufactures a display name: what the Emscripten platform calls its adapter is what a consumer gets. What is asserted is consistency -- the current display mode has a positive size, its aspect ratio is its own width over its own height, the wide-screen flag agrees with that ratio rather than with a neighbouring field, the adapter reports at least the mode it is in as supported, and the device adapter is the first listed one",
+      "proof": [
+        "wasmRoute:cna_graphics_adapter_get_count",
+        "wasmRoute:cna_graphics_adapter_get_info",
+        "wasmRoute:cna_graphics_adapter_get_current_display_mode",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
+      "operation": "Browser Guide: message box and keyboard input, with exactly-once completion",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "No modal opens anywhere: CNA holds its own pending dialog and draws it itself, which is what makes the asynchronous contract checkable in headless Chromium. A message box is begun, reports itself pending with the focus button it was given, is clicked through CNA simulate route, and its End reports that button with the completion handler having run exactly once; ending the same token twice is refused as the Node bridge refuses it. A keyboard prompt carries its title, description and default text to CNA, is cancelled, and its End answers null rather than the empty string a game would read as a deliberately blank name. Guide.SimulateTrialMode round-trips and does not move IsTrialMode, which the pinned XNA IL confirms is correct: they are two independent static fields",
+      "proof": [
+        "wasmRoute:cna_guide_begin_show_message_box",
+        "wasmRoute:cna_guide_simulate_message_box_click_ext",
+        "wasmRoute:cna_guide_begin_show_keyboard_input",
+        "wasmRoute:cna_gamer_services_dispatcher_initialize",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
+      "operation": "Browser media player state and an empty media library",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "The media player mute, repeat, shuffle, volume and visualisation flags all reach CNA, the platform reports its local media source by name, and the game has control. The visualisation buffers are read at their measured length -- 256 floats each -- and are zero, which is recorded as silence rather than dressed up as a spectrum. The media library opens and reports zero of all seven collections, which on a host with no music or pictures folder is the correct answer; an index into an empty collection is refused, which is what separates a library that is empty from one that could not be read",
+      "proof": [
+        "wasmRoute:cna_media_player_set_is_muted",
+        "wasmRoute:cna_media_player_get_visualization_data",
+        "wasmRoute:cna_media_library_create",
+        "wasmRoute:cna_media_library_get_songs",
+        "test:test/wasm-browser-non-engine.mjs"
       ]
     },
     {
@@ -2273,6 +2378,19 @@
       ]
     },
     {
+      "operation": "Browser sensors driven through CNA synthetic backends",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "SYNTHETIC_BACKEND_VERIFIED, not PHYSICAL_SENSOR_VERIFIED. All four sensors report unsupported on headless Chromium and a reading from an unsupported sensor is refused rather than answered with zeroes. Each is then driven through CNA own test backend: an accelerometer interval written and read back as a 64-bit tick count, a compass reading injected and returned with its three doubles distinct, its magnetometer axes and signs intact and a timestamp that a JavaScript double could not hold, a gyroscope rate keeping its signs, and a fused motion reading whose attitude quaternion, sixteen-float rotation matrix, three vectors and own nested timestamp all survive. CNA validates the timestamp pair as a real DateTimeOffset: an offset that is not a whole number of minutes is refused",
+      "proof": [
+        "wasmRoute:cna_compass_set_test_backend_ext",
+        "wasmRoute:cna_compass_inject_synthetic_update_ext",
+        "wasmRoute:cna_motion_inject_synthetic_update_ext",
+        "wasmRoute:cna_gyroscope_inject_synthetic_update_ext",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
       "operation": "Browser sound effects: PCM construction, exact duration and the instance state machine",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "CNA-TS",
@@ -2282,6 +2400,32 @@
         "wasmRoute:cna_sound_effect_get_duration_ticks",
         "wasmRoute:cna_sound_effect_instance_get_info",
         "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "Browser storage: containers, directories, files and pattern listing",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "StorageDevice selection, a container opened by name and answering with it, a directory and two files created, both listed, a search pattern that reaches CNA and returns one of the two, a file read back, and a file and a directory that stop existing when deleted. Opening a file that is not there is refused rather than answered with empty bytes. The filesystem is the module own: in-session behaviour is what is verified here and persistence across a page reload is not claimed, because that is the host page IDBFS decision rather than this binding",
+      "proof": [
+        "wasmRoute:cna_storage_container_open",
+        "wasmRoute:cna_storage_container_create_file",
+        "wasmRoute:cna_storage_container_get_file_name_count",
+        "wasmRoute:cna_storage_stream_read",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
+      "operation": "Browser text composition and the extended input inventory",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "A committed UTF-16 code unit raised through CNA arrives at a subscription as its character, including U+263A which a byte mask would truncate; a composition update keeps its text and selection; a candidate list keeps its order, selection and orientation; and an unsubscribed handler stops being called, which is the module function-table entry actually being released. Headless Chromium reports zero joysticks and zero haptic devices and refuses an index past the end of either",
+      "proof": [
+        "wasmRoute:cna_text_input_subscribe_text_input_ext",
+        "wasmRoute:cna_text_input_raise_text_editing_candidates_ext",
+        "wasmRoute:cna_joysticks_get_count",
+        "wasmRoute:cna_haptics_get_count",
+        "test:test/wasm-browser-non-engine.mjs"
       ]
     },
     {
@@ -2308,6 +2452,18 @@
       ]
     },
     {
+      "operation": "Browser VideoPlayer control surface",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "A player is created, holds looping, mute and volume, reports its state and position, and is destroyed. Its frame reports itself unavailable with CNA invalid handle and a zero generation, and playing a null video is refused -- claiming a frame with no decoder is the one thing this family must not do. Decoding itself is not available on this toolchain at all and is recorded separately",
+      "proof": [
+        "wasmRoute:cna_video_player_create",
+        "wasmRoute:cna_video_player_get_state",
+        "wasmRoute:cna_video_player_get_frame_ext",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
       "operation": "Browser/Wasm CNA runtime",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "CNA-TS",
@@ -2317,6 +2473,19 @@
         "wasmRoute:cna_game_run_one_frame",
         "wasmRoute:cna_game_destroy",
         "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "CNA device layer over WebAssembly: host, locales, clipboard and a synthetic camera",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "Present on an artifact built CNA_DEVICES=ON and reporting itself absent on one that is not, with both branches asserted. Where present: logical cores, system memory, power state, content scale and the display safe area all answer; the preferred-locale list answers with a language tag that is one; the device-layer clipboard write reports whether the platform accepted it. The camera is CNA own test backend and is labelled SYNTHETIC_BACKEND_VERIFIED -- a 4x2 frame keeps both of its dimensions, each state the backend accepts is the state it then reports, and CNA refuses to be told a camera it opened is closed",
+      "proof": [
+        "wasmRoute:cna_devices_ext_is_available",
+        "wasmRoute:cna_system_info_get_logical_cpu_core_count_ext",
+        "wasmRoute:cna_locale_get_preferred_count_ext",
+        "wasmRoute:cna_camera_create_with_test_backend_ext",
+        "test:test/wasm-browser-non-engine.mjs"
       ]
     },
     {
@@ -2482,6 +2651,18 @@
       ]
     },
     {
+      "operation": "SpriteFont measurement checked against CNA over WebAssembly",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "CNA SpriteFont built in a browser over the same texture and the same glyph table the managed font holds, and asked for twenty-four strings. The two implementations share no code and agree exactly on nineteen; the five whose widest line ends in a glyph with a negative right side bearing differ by exactly that bearing, which is upstream finding 27 reproducing in a browser as it does in Node. The oracle is shared with the Node suite, so a browser answering differently is a failure rather than a second green suite",
+      "proof": [
+        "wasmRoute:cna_sprite_font_create",
+        "wasmRoute:cna_sprite_font_measure_utf8",
+        "wasmRoute:cna_sprite_font_get_info",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
       "operation": "WebAssembly game lifecycle, device creation, Clear, Texture2D transfer, SpriteBatch and input snapshots",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "CNA-TS",
@@ -2493,6 +2674,19 @@
         "wasmRoute:cna_sprite_batch_submit_scaled_many",
         "wasmRoute:cna_keyboard_get_state",
         "test:test/wasm-browser.mjs"
+      ]
+    },
+    {
+      "operation": "XACT in a browser over repository-authored banks",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "The settings file, wave bank and sound bank are written from scratch by test/fixtures/xact.mjs rather than downloaded, so the family is not fixture-blocked: CNA parses real XACT bytes. An engine loads two categories and two global variables, the writable one takes a new value and the READONLY one does not, the renderer list answers, two fetches of one category are two handles that CNA own comparison and hash agree are equal, and a cue runs prepared then playing then paused-while-playing then playing then stopped. A cue name that is not in the bank is refused. Audibility is not claimed: a browser will not start WebAudio without a user gesture",
+      "proof": [
+        "wasmRoute:cna_audio_engine_create",
+        "wasmRoute:cna_sound_bank_create",
+        "wasmRoute:cna_wave_bank_create",
+        "wasmRoute:cna_cue_get_info",
+        "test:test/wasm-browser-non-engine.mjs"
       ]
     }
   ]

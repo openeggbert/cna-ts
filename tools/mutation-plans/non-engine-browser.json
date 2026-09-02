@@ -1,0 +1,190 @@
+{
+  "name": "the non-engine backend in a browser: fifteen families, and the defects a binding to them actually makes",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "CNA_REQUIRE_NON_ENGINE_WASM_TESTS=1 node --test test/wasm-browser-non-engine.mjs",
+  "environment": "CNA_WASM_ARTIFACT_DIR must point at a CNA wasm artifact; the device-layer mutants need one built with -DCNA_DEVICES=ON, which is the strong build. Every mutant here is a marshalling defect rather than a logic one, because that is what a binding of this shape gets wrong: an axis pair swapped, a flag read from its neighbour, an array walked at the wrong stride, a count taken in the wrong unit, a rooted callback released too early or not at all. None of them is a type error and none of them fails to build -- which is precisely why the suite has to be the thing that notices.",
+  "mutants": [
+    {
+      "id": "avatar-validity-read-from-the-body-type",
+      "why": "the two fields sit eight bytes apart in CNA_AvatarDescriptionInfo and both are zero for a random description, so a reader that confused them would answer correctly for the only description this host can make. The suite plants a *valid* expectation on neither -- it asserts IsValid false for an all-zero description and BodyType Female, which is what tells the two apart",
+      "file": "src/internal/wasm/avatars.ts",
+      "find": "        IsValid: info.getU8(\"is_valid\") !== 0,",
+      "replace": "        IsValid: info.getU32(\"body_type\") !== 0,",
+      "expect": "survives"
+    },
+    {
+      "id": "avatar-description-length-from-the-request",
+      "why": "the copy route writes how many bytes it produced, and taking the requested capacity instead is the classic count/copy mistake. Here they are equal, so this is here to find out whether the suite can tell -- and it cannot",
+      "file": "src/internal/wasm/avatars.ts",
+      "find": "        const length = Number(this.#routes.view().getBigUint64(written, true));",
+      "replace": "        const length = byteCount;",
+      "expect": "survives"
+    },
+    {
+      "id": "sprite-font-kerning-left-and-width-swapped",
+      "why": "a glyph's kerning is a Vector3 of left bearing, width and right bearing, and writing the first two in the wrong order changes every measured string that has more than one glyph on a line",
+      "file": "src/internal/wasm/sprite-font.ts",
+      "find": "        kerning.setF32(\"x\", glyph.KerningLeft);\n        kerning.setF32(\"y\", glyph.KerningWidth);",
+      "replace": "        kerning.setF32(\"x\", glyph.KerningWidth);\n        kerning.setF32(\"y\", glyph.KerningLeft);"
+    },
+    {
+      "id": "sprite-font-spacing-never-written",
+      "why": "the fixture's Spacing is 1.5 and is added between glyphs, so a font built without it measures narrower for every multi-glyph string. The oracle checks the round trip through get_info as well, so this fails twice",
+      "file": "src/internal/wasm/sprite-font.ts",
+      "find": "      info.setF32(\"spacing\", spacing);",
+      "replace": "      void spacing;"
+    },
+    {
+      "id": "window-bounds-width-and-height-swapped",
+      "why": "a CNA_Rectangle's last two fields are adjacent int32s, and the browser canvas is not square -- so a swap is visible in the bounds and again in what the resize moved",
+      "file": "src/internal/wasm/window.ts",
+      "find": "        Width: bounds.getI32(\"width\"),\n        Height: bounds.getI32(\"height\"),",
+      "replace": "        Width: bounds.getI32(\"height\"),\n        Height: bounds.getI32(\"width\"),"
+    },
+    {
+      "id": "window-event-handler-released-while-registered",
+      "why": "releasing the function-table entry at subscription time rather than at unsubscription. CNA still holds the pointer, so the next raised event calls a freed slot -- which under WebAssembly traps rather than being ignored",
+      "file": "src/internal/wasm/window.ts",
+      "find": "      this.#handlers.set(registration, pointer);\n      return registration;",
+      "replace": "      this.#handlers.set(registration, pointer);\n      this.#routes.module.removeFunction(pointer);\n      return registration;"
+    },
+    {
+      "id": "clipboard-size-counted-in-characters",
+      "why": "the size route answers UTF-8 bytes and a managed reader is tempted to answer string length. The suite writes a string containing U+00E9 and U+263A precisely so the two differ -- 30 characters, 33 bytes",
+      "file": "src/internal/wasm/input-devices.ts",
+      "find": "    return Number(this.#routes.outU64(\"cna_clipboard_get_text_size\", this.#game()));",
+      "replace": "    return this.getClipboardText().length;"
+    },
+    {
+      "id": "host-power-minus-one-handed-on",
+      "why": "CNA answers -1 for a battery percentage it does not know, and passing that through as a number gives a game minus one percent charge to do arithmetic with. Headless Chromium answers 0 for both power fields rather than -1, so there is nothing here for the projection to mangle -- killable only on a host that reports an unknown battery, and not worth manufacturing one",
+      "file": "src/internal/wasm/input-devices.ts",
+      "find": "        BatteryPercent: percentValue < 0 ? null : percentValue,",
+      "replace": "        BatteryPercent: percentValue,",
+      "expect": "survives"
+    },
+    {
+      "id": "sensor-vector-axes-rotated",
+      "why": "every sensor vector goes through one reader, so an axis rotation here is one edit and shows up in the compass magnetometer, the gyroscope rate and three separate vectors of a motion reading",
+      "file": "src/internal/wasm/sensors.ts",
+      "find": "    return { X: vector.getF32(\"x\"), Y: vector.getF32(\"y\"), Z: vector.getF32(\"z\") };",
+      "replace": "    return { X: vector.getF32(\"y\"), Y: vector.getF32(\"z\"), Z: vector.getF32(\"x\") };"
+    },
+    {
+      "id": "sensor-timestamp-through-a-double",
+      "why": "a DateTimeOffset's ticks are 64 bits and the injected value is deliberately one a double cannot hold. Taking it through Number loses the last two digits",
+      "file": "src/internal/wasm/sensors.ts",
+      "find": "      TimestampTicks: timestamp.getI64(\"ticks\"),",
+      "replace": "      TimestampTicks: BigInt(Number(timestamp.getI64(\"ticks\"))),"
+    },
+    {
+      "id": "sensor-attitude-read-from-the-reading",
+      "why": "a motion reading and the attitude nested inside it each carry their own timestamp, and reading the outer one for both is what a flattened structure reader does",
+      "file": "src/internal/wasm/sensors.ts",
+      "find": "          ...this.#timestamp(attitude),",
+      "replace": "          ...this.#timestamp(reading),"
+    },
+    {
+      "id": "storage-pattern-never-reaches-cna",
+      "why": "a listing that ignores its search pattern returns everything, which is right for the unfiltered call and wrong for the filtered one -- so only a suite that asks both notices",
+      "file": "src/internal/wasm/storage.ts",
+      "find": "    return withStringView(this.#routes, pattern, (view) => {",
+      "replace": "    void pattern;\n    return withStringView(this.#routes, \"*\", (view) => {"
+    },
+    {
+      "id": "content-survey-xnb-and-cnj-swapped",
+      "why": "two CNA_Bool fields one byte apart, both false for a loose asset. Only the compiled one separates them, which is why the survey root has an .xnb in it",
+      "file": "src/internal/wasm/content-survey.ts",
+      "find": "        HasXnb: entry.getU8(\"has_xnb\") !== 0,\n        HasCnj: entry.getU8(\"has_cnj\") !== 0,",
+      "replace": "        HasXnb: entry.getU8(\"has_cnj\") !== 0,\n        HasCnj: entry.getU8(\"has_xnb\") !== 0,"
+    },
+    {
+      "id": "visualization-samples-read-from-the-frequencies",
+      "why": "two 1024-byte arrays adjacent in one structure, both zero in silence. The suite reads their measured lengths rather than their contents, so this survives -- and the plan records that a spectrum assertion needs audio the browser will not start without a gesture",
+      "file": "src/internal/wasm/media.ts",
+      "find": "        Samples: data.getF32Array(\"samples\"),",
+      "replace": "        Samples: data.getF32Array(\"frequencies\"),",
+      "expect": "survives"
+    },
+    {
+      "id": "media-relation-presence-flag-ignored",
+      "why": "CNA answers a relation with a handle and a presence flag, and reading the handle without the flag is the defect the engine layer already found once in a texture slot. An empty library has no relations to read, so this survives here and is killed by the Node suite, where the library has a song",
+      "file": "src/internal/wasm/media.ts",
+      "find": "      if (view.getUint8(available) === 0) return \"\";",
+      "replace": "      void available;",
+      "expect": "survives"
+    },
+    {
+      "id": "guide-continuation-released-at-begin",
+      "why": "the completion callback is rooted for the operation's lifetime, and releasing it when the operation starts means CNA calls a freed table entry when the dialog completes -- or, worse, one a later Begin has reused",
+      "file": "src/internal/wasm/gamer-services.ts",
+      "find": "    this.#live.add(continuation);\n    return continuation;",
+      "replace": "    this.#live.add(continuation);\n    this.#routes.module.removeFunction(continuation.FunctionPointer);\n    return continuation;"
+    },
+    {
+      "id": "guide-token-accepted-after-release",
+      "why": "ending an operation twice must be refused, as the Node bridge refuses it. There are two guards and each masks the other -- the token is removed from the live set when it is released, and it is separately flagged as ended -- so a mutant that drops one survives. This drops the whole check, which is what a binding written without either would look like: the second End answers CNA's stale result, which a game would act on.",
+      "file": "src/internal/wasm/gamer-services.ts",
+      "find": "    if (continuation === null || typeof continuation !== \"object\" || !this.#live.has(continuation)) {\n      throw new TypeError(\"expected a Guide continuation token\");\n    }\n    if (continuation.Ended) {\n      throw new Error(\"this Guide operation has already been completed\");\n    }",
+      "replace": "    if (continuation === null || typeof continuation !== \"object\") {\n      throw new TypeError(\"expected a Guide continuation token\");\n    }"
+    },
+    {
+      "id": "xact-cue-paused-read-from-playing",
+      "why": "eight CNA_Bool flags in one structure, one byte apart. A cue that is paused is still playing in XACT's model, so IsPaused and IsPlaying are true together -- which is exactly the pair a neighbouring read gets away with unless the suite asks in all five states",
+      "file": "src/internal/wasm/xact.ts",
+      "find": "        IsPaused: info.getU8(\"is_paused\") !== 0,",
+      "replace": "        IsPaused: info.getU8(\"is_playing\") !== 0,"
+    },
+    {
+      "id": "xact-category-equality-by-handle",
+      "why": "two fetches of one category are two handles, so comparing them instead of asking CNA answers false for a category compared with itself",
+      "file": "src/internal/wasm/xact.ts",
+      "find": "    return outBool(this.#routes, \"cna_audio_category_equals\", left, right);",
+      "replace": "    return left === right;"
+    },
+    {
+      "id": "video-frame-availability-ignored",
+      "why": "a player with no video has no frame, and claiming one is the single worst thing this family could do: a consumer would draw a texture handle CNA never issued",
+      "file": "src/internal/wasm/video.ts",
+      "find": "        IsAvailable: frame.getU8(\"available\") !== 0,",
+      "replace": "        IsAvailable: true,"
+    },
+    {
+      "id": "candidate-list-walked-at-a-pointer-stride",
+      "why": "a CNA_StringView is sixteen bytes under wasm32 and a pointer is four, so a list walked at the wrong stride reads the second candidate out of the first one's length field. It hung the page rather than failing it the first time it ran, which is how the suite came to catch a harness rejection instead of registering no tests at all",
+      "file": "src/internal/wasm/extended-input.ts",
+      "find": "        const stride = WASM_STRUCT_LAYOUTS.CNA_StringView.size;\n        handler({",
+      "replace": "        const stride = 4;\n        handler({"
+    },
+    {
+      "id": "text-input-code-unit-truncated",
+      "why": "a committed UTF-16 code unit above 0xFF, masked to a byte. The suite raises U+263A for exactly this reason",
+      "file": "src/internal/wasm/extended-input.ts",
+      "find": "      (codeUnit: number) => handler(String.fromCharCode(codeUnit & 0xffff)),",
+      "replace": "      (codeUnit: number) => handler(String.fromCharCode(codeUnit & 0xff)),"
+    },
+    {
+      "id": "adapter-widescreen-read-from-default",
+      "why": "four CNA_Bool fields in a row. On this host there is one adapter and it is both the default one and wide-screen, so the two flags are indistinguishable; the oracle checks the wide-screen flag against the display mode's own aspect ratio rather than against its neighbour, which is what would catch this anywhere with a second adapter or a square display. Measured: a square back buffer does not change the adapter, because the adapter list is read once from the device and cached",
+      "file": "src/internal/wasm/graphics-adapters.ts",
+      "find": "        IsWideScreen: info.getU8(\"is_wide_screen\") !== 0,",
+      "replace": "        IsWideScreen: info.getU8(\"is_default_adapter\") !== 0,",
+      "expect": "survives"
+    },
+    {
+      "id": "camera-frame-width-and-height-swapped",
+      "why": "two int32 outputs from two routes, distinguishable only because the synthetic frame is 4 by 2 rather than square",
+      "file": "src/internal/wasm/devices.ts",
+      "find": "    return outI32(this.#routes, \"cna_camera_get_frame_width_ext\", camera);",
+      "replace": "    return outI32(this.#routes, \"cna_camera_get_frame_height_ext\", camera);"
+    },
+    {
+      "id": "camera-test-frame-pixel-count-in-bytes",
+      "why": "CNA takes a pixel count and the caller has bytes; dividing by the measured CNA_Color size is what turns one into the other. Passing bytes says there are four times as many pixels as were sent",
+      "file": "src/internal/wasm/devices.ts",
+      "find": "      const count = pixels === null ? 0 : Math.floor(pixels.byteLength / stride);",
+      "replace": "      const count = pixels === null ? 0 : pixels.byteLength;"
+    }
+  ]
+}

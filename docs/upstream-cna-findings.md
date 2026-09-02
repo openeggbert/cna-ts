@@ -37,6 +37,11 @@ native 52, extensions 10, CNB 39, model-part 9, content-survey 8, input-devices 
 avatars 8, sprite-font-oracle 5, compiled effects 10, browser 13 -- all passing, which for a
 detector means the behaviour it pins has not changed.
 
+Item 31 is new. Items 2 and 11 gained WebAssembly measurements: four more of CNA's own notices
+arrive on `stderr` with no level and one of them fires on a clean sine tone, and the dangling
+camera provider of item 11 turns out to be reachable through `cna_camera_get_count_ext` as well as
+through `cna_camera_create` — which under WebAssembly traps by name rather than taking a signal.
+
 Item 30 is new, and is the first finding in this document measured on the **WEBGL2** renderer
 rather than on OPENGLES3 or HEADLESS. It was found by asking why a depth/normal prepass that
 reported itself supported, began, drew and ended without a single failure had written nothing at
@@ -142,6 +147,42 @@ so it carries a level a consumer can filter on.
 **Consequence here:** `test/wasm-browser.mjs` classifies that exact line out by shape rather than
 widening its "not an error" rule, and still fails on any other console error. When CNA routes it
 through the logger the existing `[INFO][...]` rule covers it and the special case can go.
+
+**Four more of the same shape, found while binding XACT and measured at ABI 0.21.0.** Every one is
+written straight to `stderr` with no level, so a browser consumer collecting page errors sees them
+as errors:
+
+```text
+[AudioEngine] Loaded XGS: /xact/cna-ts.xgs (2 categories, 2 variables)
+[WaveBank] Loaded XWB: /xact/cna-ts.xwb bank="cna-ts" entries=4
+[SoundBank] Loaded XSB: /xact/cna-ts.xsb cues=4 sounds=4
+[SoundEffect] Warning: raw PCM buffer has implausibly high byte-level entropy for real 16-bit audio ...
+```
+
+The three loader lines are success notices and belong at INFO with the rest. The fourth is
+different and worth its own note: `SoundEffect.cpp:120` flags raw PCM16 whose byte histogram
+exceeds **7.9 bits of entropy** as probably not being PCM at all, and a clean high-amplitude sine
+tone crosses that line, because the low byte of a smooth loud sinusoid is very nearly uniform.
+Measured on this package's own synthesised XACT tones at 44100 Hz, amplitude 28000, 0.25 s:
+
+| tone | byte entropy |
+| --- | ---: |
+| 261.6 Hz | 7.9071 |
+| 329.6 Hz | 7.9036 |
+| 523.3 Hz | 7.9026 |
+| 392.0 Hz | 7.7146 |
+
+Three of the four exceed the threshold. The heuristic's own comment says it is "deliberately
+conservative to avoid flagging genuinely loud/noisy game audio", and a pure tone is the case it did
+not consider. The fixture was deliberately *not* made quieter to dodge it: shaping test content to
+avoid a diagnostic hides the observation.
+
+**Proposed fix:** route all four through CNA's logger — the three notices at INFO and the advisory
+at WARN — and, for the advisory, consider whether a periodic signal should be excluded before the
+entropy test, since a compressed bitstream is aperiodic and a tone is not.
+
+**Consequence here:** `test/support/browser-harness.mjs` classifies all four out by exact shape,
+beside the mixer notice, and still fails on any other console error.
 
 ## 3. `cna_c_api_wasm` did not pin its renderer's WebGL version — FIXED in 0.21.0
 
@@ -523,6 +564,33 @@ process through `test/fixtures/camera-test-backend-then-platform.mjs` and assert
 dies with `SIGSEGV`. The child prints `SURVIVED` if CNA is repaired, and the assertion then fails
 and says so. Every probe in this package that opens the platform camera runs before the first
 test-backend one, and `CnaCamera.OpenForTests` documents the hazard on itself.
+
+**Also reproduced on WebAssembly, through a shorter sequence and with a louder failure.** Measured
+on `cmake-build-tswasm-fx` built `CNA_DEVICES=ON`, ABI 0.21.0, headless Chromium, in plain C calls
+with no binding involved:
+
+```text
+cna_camera_get_is_supported_ext      0     (before any camera)
+cna_camera_get_count_ext             0
+cna_camera_create_with_test_backend_ext  0
+cna_camera_get_count_ext             0     (while the test camera is alive)
+cna_camera_destroy                   0
+cna_camera_get_is_supported_ext      0     (still fine: it reads a capability, not the provider)
+cna_camera_get_count_ext             *** RuntimeError: table index is out of bounds ***
+```
+
+Two things this adds. First, `cna_camera_create` is not the only route that dereferences the freed
+provider — `cna_camera_get_count_ext` reaches `Camera::getAvailableCamerasProperty()`, which calls
+`provider->GetCameras()` through the same dangling pointer, so merely *enumerating* cameras after a
+test camera has been destroyed is enough. Second, the failure mode differs by target and the
+WebAssembly one is the better diagnostic: a virtual call through freed memory lands on a function
+index outside the module's table and traps immediately with a named error, where the native build
+takes a signal with nothing to say. `cna_camera_get_is_supported_ext` keeps working throughout,
+which is what localises the fault to the provider rather than to the platform.
+
+`test/wasm-browser-non-engine.mjs` asserts the trap, so a repaired CNA fails that assertion and
+says which one. Every other device-layer route in that page runs *before* the camera for the same
+reason the native suite orders its probes that way.
 
 ## 12. Soft particles never fade: the depth input reaches CNA and changes nothing it draws
 
@@ -1619,3 +1687,40 @@ moment a two-target draw lands, `multipleRenderTargetsDraw` returns true and the
 prepass pixels instead — so a repair fails here and asks for the geometric predictions the windowed
 suite already makes. `tools/upstream-repro/webgl2-multiple-render-targets.mjs` is the probe on its
 own, runnable against any artifact.
+
+## 31. CNA's XACT example describes its variable accessibility byte as "settable", and 0x2 is READONLY
+
+**Measured:** CNA ABI 0.21.0, revision 5347b52e, on the WebAssembly artifact in headless Chromium,
+and it is a documentation defect rather than a runtime one — which is why it cost an hour instead
+of being caught by a test.
+
+`modules/audio/examples/demo_xact/src/XactFileGen.hpp` writes an `.xgs` settings file for the XACT
+demo, and its one global variable carries:
+
+```cpp
+        w8(out,  0x03);    // accessibility: global + settable
+```
+
+The bit values are `PUBLIC = 0x1`, `READONLY = 0x2`, `CUE = 0x4` — CNA's own
+`AudioEngineTests.cpp` says so, in a comment written after an earlier version of *that* fixture
+made the same mistake:
+
+> P12-VAR-001: PUBLIC only (0x1) ... this variable must be plain engine-global (PUBLIC set, CUE
+> clear) and writable (READONLY clear) ... Previously 0x03 (PUBLIC|READONLY), an arbitrary nonzero
+> byte chosen before this project enforced accessibility semantics at all — silently made
+> SetGlobalVariableValidUpdatesValue test a no-op-writable variable by accident.
+
+So `0x03` is PUBLIC **and READONLY**, and the demo's comment says the opposite of what the byte
+means. A binding author following the example writes a settings file whose variable silently
+ignores every write, and what they see is `SetGlobalVariable(500)` followed by
+`GetGlobalVariable() == 343` — which reads exactly like a marshalling bug in their own float
+argument. That is where this was found.
+
+**Proposed fix:** correct the comment to `// accessibility: PUBLIC | READONLY`, or change the byte
+to `0x01` if the demo meant its variable to be writable. The test fixture in the same repository
+already carries the explanation; the example is the copy people read.
+
+**Consequence here:** `test/fixtures/xact.mjs` defines **two** global variables rather than one —
+`SpeedOfSound` at `0x01` and `Ceiling` at `0x03` — so a write that lands and a write that is
+ignored are two separate assertions instead of one ambiguous result. `test/support/non-engine-oracle.mjs`
+asserts both, and would fail if CNA started honouring a write to a READONLY variable.

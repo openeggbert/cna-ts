@@ -59,9 +59,20 @@ function artifactHash(root) {
   return hash.digest("hex").slice(0, 16);
 }
 
+/**
+ * A suite's whole output, which has to include its TAP summary or the verdict is unreadable.
+ *
+ * `maxBuffer` is 64 MiB rather than Node's 1 MiB default for a measured reason: a mutant that made
+ * the backend read a string array at the wrong stride produced assertion messages carrying
+ * megabytes of misread WebAssembly heap, `execSync` truncated the pipe at 1 MiB, the `# pass` line
+ * was cut off with it, and the harness scored a plainly-killed mutant as `REFUSED -- no test
+ * executed`. Losing a verdict to an output limit is the same failure as losing it to a suite that
+ * skipped: a number nobody can justify.
+ */
 function run(command) {
+  const options = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 };
   try {
-    return { ok: true, output: execSync(command, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }) };
+    return { ok: true, output: execSync(command, options) };
   } catch (error) {
     return { ok: false, output: `${error.stdout ?? ""}${error.stderr ?? ""}` };
   }

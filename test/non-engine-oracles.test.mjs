@@ -64,7 +64,7 @@ const WORKING = {
   },
   inputDevices: {
     clipboardBefore: false, clipboardAfter: true,
-    clipboardText: "cna-ts clipboard round trip", clipboardSize: 27,
+    clipboardText: "cna-ts clipboard round trip \u00e9\u263a", clipboardSize: 33,
     mice: [{ Id: "1", Name: "Mouse" }],
     keyboards: [{ Id: "1", Name: "Keyboard" }],
     touchCount: 0, outOfRange: "WasmCnaError",
@@ -333,7 +333,6 @@ const CASES = [
   }],
   ["a clipboard size counted in characters rather than UTF-8 bytes", () => {
     const broken = clone(WORKING.inputDevices);
-    broken.clipboardText = "café round trip";
     broken.clipboardSize = broken.clipboardText.length;
     return () => assertInputDeviceEvidence(broken);
   }],

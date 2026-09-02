@@ -1071,21 +1071,59 @@ ANSWERED_NOT_SUPPORTED=27
 ANSWERED_SOMETHING_ELSE=129
 ```
 
-So the far side of the frontier splits in three, on evidence:
+So the far side of the frontier appeared to split in three — and **two of those three splits were
+wrong**, which is worth keeping here rather than editing away, because both were wrong in the same
+way: a family-level probe answered a family-level question and was read as a method-level one.
 
-- **`Device` is CNA-blocked.** 27 of its 29 routes answer `NOT_SUPPORTED`: the device extension
-  layer is not in this artifact. Binding it would produce a family that refuses every call.
-- **`ExtendedInput` (41) and `GraphicsAdapter` (11) have no CNA routes at all.** The Node backend
-  implements them without reaching the C ABI, so there is nothing here for a route table to bind and
-  the work, if it is wanted, is a different kind of work.
-- **The remaining twelve are simply unbound.** Their 129 routes answer with CNA's own argument
-  validation, which means CNA can do them in a browser and only the binding is missing. That is a
-  real and reportable fact, and it is deliberately *not* acted on here: this backend's scope is the
-  engine layer, and binding a sensor or an XACT engine to raise a count is the thing this package
-  does not do.
+- **`Device` looked CNA-blocked.** 27 of its 29 routes answered `NOT_SUPPORTED`, which reads as
+  "the device layer is not in this artifact" and is true — but the cause was `CNA_DEVICES`, a CMake
+  option that defaults `OFF` and that *this repository's own* two wasm build recipes did not set.
+  It is not an upstream blocker and never was. The strong artifact is now built `CNA_DEVICES=ON`
+  and every one of those routes reaches validation.
+- **`ExtendedInput` (41) and `GraphicsAdapter` (11) looked like they reached no CNA routes at all.**
+  They reach sixty and fifteen. `report-frontier.mjs` matched a boundary method to a bridge export
+  *of the same name*, and this family's exports are named differently: `getJoystickCount` calls
+  `joysticksGetCount`. Nothing about the C ABI was missing; the tool was.
+- **The remaining twelve were unbound and that part was right.**
 
-One caution about reading that last group as a to-do list. A route that validates its arguments has
-not promised to work — `cna_video_player_create` answering `INVALID_HANDLE` for a null game says
-nothing about whether SwiftShader can decode video. The distinction this report draws is between
-*CNA refusing* and *CNA answering*, which is the question that decides whether binding is even
-possible; whether it is worth it is a question for whoever needs the family.
+All fifteen are now bound. `tools/wasm/backend-gap.mjs` is what replaced the family probe: it
+resolves each boundary method through the *Node backend's own call*, then through the bridge's
+loader table into CNA routes, so a family cannot be written off because two names differ. It
+reports per method rather than per family, which is what "partial" needs — an engine interface was
+implemented whole or absent whole, and a browser cannot have all of `Storage` or all of `XACT`.
+
+```text
+WASM_BOUND_INTERFACES=33   WASM_BOUND_METHODS=1519
+WASM_ABSENT_INTERFACES=0   WASM_ABSENT_METHODS=0
+ACTIONABLE_LOCAL=0         UNCLASSIFIED_WASM_BACKEND_GAP=0
+```
+
+## The fifteen non-engine families, and what a browser actually gets
+
+Binding is not evidence. A route that validates its arguments has not promised to work, so each
+family below is driven with real arguments through the public API and checked by a shared oracle —
+`test/support/non-engine-oracle.mjs`, the same one the Node backend's evidence is checked by.
+`test/wasm-browser-non-engine.mjs` runs it on both artifacts.
+
+| family | what is verified in a browser | what is not |
+| --- | --- | --- |
+| `Avatar` | 1021 zero bytes, `IsValid` false and `BodyType` read out of them, a byte round trip, a wrong length refused | a *valid* description: only a signed-in gamer has one |
+| `SpriteFontOracle` | CNA's own SpriteFont over the same glyph table, agreeing on 19 strings and diverging on 5 by exactly finding 27's bearing | — |
+| `GameWindow` | title round trip, client bounds following `ApplyChanges` by an exact delta, `ClientSizeChanged` firing once with the new bounds | a native OS window handle: CNA's token is passed through unchanged rather than faked |
+| `Storage` | a container, a directory, two files, pattern listing, read-back, deletion, and an absent file refused | persistence across a page reload — that is the host page's IDBFS decision, not this binding's |
+| `InputDeviceInventory` | clipboard round trip in UTF-8 bytes, one mouse and one keyboard enumerated, an index past the end refused | a host with an unknown battery: this one answers 0 rather than -1 |
+| `Sensor` | all four unsupported *and refusing to read*, then all four driven through CNA's synthetic backends with axes, signs, 64-bit timestamps and nested attitude intact | physical sensors — `PHYSICAL_HARDWARE_NOT_VERIFIED` |
+| `ContentSurvey` | three assets across a nested root, compiled and loose told apart, CNA's reader registry answering both ways | — |
+| `Media` | mute, repeat, shuffle, volume, visualisation flags, the local media source, and 256+256 visualisation floats that are zero | a spectrum: silence is recorded as silence |
+| `MediaLibrary` | the library opens, reports zero of all seven collections, and refuses an index | album or picture payloads: there is no music folder to index |
+| `GamerServices` | dispatcher, Guide state, and both dialogs — pending, exactly-once completion, the simulated click, a cancelled entry answering null, a token refused twice | the signed-in gamer, which is finding 29 |
+| `Xact` | an engine, two categories, two global variables (one writable, one READONLY), two banks and a cue through five states | audibility: a browser will not start WebAudio without a user gesture |
+| `Video` | the whole control surface, and a frame that reports itself unavailable | decoding — `CNA_ENABLE_VIDEO=ON` is a **fatal error** on Emscripten in CNA's own CMake |
+| `ExtendedInput` | a committed code unit, a composition update, a candidate list, and an unsubscribed handler that stops being called | joysticks and haptics: this host has none |
+| `GraphicsAdapter` | the adapter list, its display mode, and every flag checked against the mode rather than its neighbour | a second adapter, which is what would separate two flags that are both true here |
+| `Device` | host, locales, clipboard acceptance, and a synthetic camera frame — on the strong artifact; the default one reports the layer absent and every route refuses | a real camera, and finding 11's dangling provider, which is asserted rather than avoided |
+
+Everything labelled synthetic is labelled synthetic in `docs/runtime-capabilities.md` too. The rule
+this table follows is the one the sensor family makes plainest: **a device that is not there is not
+a device reading zero**, and a count of zero is only evidence once the enumeration also refuses an
+index.
