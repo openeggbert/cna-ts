@@ -1164,32 +1164,6 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     };
   }
 
-  /**
-   * Writes one, after CNA's own initializer has filled it.
-   *
-   * The initializer runs first because these structures are growable: `struct_size` selects which
-   * fields CNA reads, and a zeroed one asks it to read a structure of no size.
-   */
-  #withRenderPipelineStatistics<T>(
-    values: RenderPipelineStatisticsSnapshot, body: (pointer: number) => T,
-  ): T {
-    const scope = this.routes.scope();
-    try {
-      const structure = allocateStruct(
-        this.routes.module, scope, "CNA_RenderPipelineFrameStatisticsEXT");
-    structure
-      .setI32("passes_run", Math.trunc(values.PassesRun))
-      .setI32("target_switches", Math.trunc(values.TargetSwitches))
-      .setI32("passes_run", Math.trunc(values.LastFramePassCount))
-      .setU8("used_scene_target", values.UsedSceneTarget ? 1 : 0)
-      .setU8("drew_skybox", values.DrewSkybox ? 1 : 0)
-      .setU64("gpu_memory_estimate_bytes", values.GpuMemoryEstimateBytes);
-      return body(structure.pointer);
-    } finally {
-      scope.dispose();
-    }
-  }
-
   /** Allocates one, initialised, for a route that fills it. */
   #allocRenderPipelineStatistics(scope: WasmScope): WasmStruct {
     const structure = allocateStruct(
@@ -1239,32 +1213,32 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     try {
       const structure = allocateStruct(this.routes.module, scope, "CNA_PbrMaterialEXT");
       this.routes.invoke("cna_pbr_material_ext_init", structure.pointer);
-    structure
-      .setU64("albedo_texture", values.AlbedoTexture)
-      .setU64("normal_texture", values.NormalTexture)
-      .setU64("metallic_roughness_texture", values.MetallicRoughnessTexture)
-      .setU64("ambient_occlusion_texture", values.AmbientOcclusionTexture)
-      .setU64("emissive_texture", values.EmissiveTexture)
-      .setU64("specular_texture", values.SpecularTexture)
-      .setU64("specular_color_texture", values.SpecularColorTexture)
-      .setU32("albedo_color", values.AlbedoColor >>> 0)
-      .setF32("metallic_factor", values.MetallicFactor)
-      .setF32("roughness_factor", values.RoughnessFactor)
-      .setF32("normal_scale", values.NormalScale)
-      .setF32("occlusion_strength", values.OcclusionStrength)
-      .setF32("ior", values.Ior)
-      .setF32("specular_factor", values.SpecularFactor)
-      .setF32("alpha_cutoff", values.AlphaCutoff)
-      .setU32("alpha_mode", values.AlphaMode)
-      .setU8("double_sided", values.DoubleSided ? 1 : 0)
-      .setU8("base_color_texture_srgb", values.BaseColorTextureSrgb ? 1 : 0)
-      .setU8("emissive_texture_srgb", values.EmissiveTextureSrgb ? 1 : 0)
-      .setU8("specular_color_texture_srgb", values.SpecularColorTextureSrgb ? 1 : 0)
-      .setU8("output_encoded_to_srgb", values.OutputEncodedToSrgb ? 1 : 0);
-    writeVector3(structure, "emissive_factor", values.EmissiveFactor);
-    writeVector3(structure, "specular_color_factor", values.SpecularColorFactor);
-    structure.setI32Array("texture_coordinate_sets", values.TextureCoordinateSets);
-    this.#writeTextureTransformArray(structure, "texture_transforms", values.TextureTransforms);
+      structure
+        .setU64("albedo_texture", values.AlbedoTexture)
+        .setU64("normal_texture", values.NormalTexture)
+        .setU64("metallic_roughness_texture", values.MetallicRoughnessTexture)
+        .setU64("ambient_occlusion_texture", values.AmbientOcclusionTexture)
+        .setU64("emissive_texture", values.EmissiveTexture)
+        .setU64("specular_texture", values.SpecularTexture)
+        .setU64("specular_color_texture", values.SpecularColorTexture)
+        .setU32("albedo_color", values.AlbedoColor >>> 0)
+        .setF32("metallic_factor", values.MetallicFactor)
+        .setF32("roughness_factor", values.RoughnessFactor)
+        .setF32("normal_scale", values.NormalScale)
+        .setF32("occlusion_strength", values.OcclusionStrength)
+        .setF32("ior", values.Ior)
+        .setF32("specular_factor", values.SpecularFactor)
+        .setF32("alpha_cutoff", values.AlphaCutoff)
+        .setU32("alpha_mode", values.AlphaMode)
+        .setU8("double_sided", values.DoubleSided ? 1 : 0)
+        .setU8("base_color_texture_srgb", values.BaseColorTextureSrgb ? 1 : 0)
+        .setU8("emissive_texture_srgb", values.EmissiveTextureSrgb ? 1 : 0)
+        .setU8("specular_color_texture_srgb", values.SpecularColorTextureSrgb ? 1 : 0)
+        .setU8("output_encoded_to_srgb", values.OutputEncodedToSrgb ? 1 : 0);
+      writeVector3(structure, "emissive_factor", values.EmissiveFactor);
+      writeVector3(structure, "specular_color_factor", values.SpecularColorFactor);
+      structure.setI32Array("texture_coordinate_sets", values.TextureCoordinateSets);
+      this.#writeTextureTransformArray(structure, "texture_transforms", values.TextureTransforms);
       return body(structure.pointer);
     } finally {
       scope.dispose();
@@ -1290,32 +1264,6 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
       AlbedoColor: structure.getU32("albedo_color"),
       EmissiveColor: structure.getU32("emissive_color"),
     };
-  }
-
-  /**
-   * Writes one, after CNA's own initializer has filled it.
-   *
-   * The initializer runs first because these structures are growable: `struct_size` selects which
-   * fields CNA reads, and a zeroed one asks it to read a structure of no size.
-   */
-  #withPbrMaterialDefaults<T>(values: PbrMaterialDefaults, body: (pointer: number) => T): T {
-    const scope = this.routes.scope();
-    try {
-      const structure = allocateStruct(this.routes.module, scope, "CNA_PbrMaterial");
-      this.routes.invoke("cna_pbr_material_init", structure.pointer);
-    structure
-      .setF32("metallic_factor", values.MetallicFactor)
-      .setF32("roughness_factor", values.RoughnessFactor)
-      .setF32("normal_scale", values.NormalScale)
-      .setF32("occlusion_strength", values.OcclusionStrength)
-      .setF32("alpha_cutoff", values.AlphaCutoff)
-      .setU8("alpha_blend_enabled", values.AlphaBlendEnabled ? 1 : 0)
-      .setU32("albedo_color", values.AlbedoColor >>> 0)
-      .setU32("emissive_color", values.EmissiveColor >>> 0);
-      return body(structure.pointer);
-    } finally {
-      scope.dispose();
-    }
   }
 
   /** Allocates one, initialised, for a route that fills it. */
@@ -1345,10 +1293,10 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     try {
       const structure = allocateStruct(this.routes.module, scope, "CNA_TextureTransformEXT");
       this.routes.invoke("cna_texture_transform_ext_init", structure.pointer);
-    structure
-      .setF32("rotation", values.Rotation);
-    writeVector2(structure, "offset", values.Offset);
-    writeVector2(structure, "scale", values.Scale);
+      structure
+        .setF32("rotation", values.Rotation);
+      writeVector2(structure, "offset", values.Offset);
+      writeVector2(structure, "scale", values.Scale);
       return body(structure.pointer);
     } finally {
       scope.dispose();
@@ -1426,54 +1374,54 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     try {
       const structure = allocateStruct(this.routes.module, scope, "CNA_RenderPipelineSettingsEXT");
       this.routes.invoke("cna_render_pipeline_settings_ext_init", structure.pointer);
-    structure
-      .setU8("hdr_enabled", values.HdrEnabled ? 1 : 0)
-      .setF32("exposure", values.Exposure)
-      .setF32("gamma", values.Gamma)
-      .setU32("tonemapping_mode", values.TonemappingMode)
-      .setU8("bloom_enabled", values.BloomEnabled ? 1 : 0)
-      .setF32("bloom_intensity", values.BloomIntensity)
-      .setF32("bloom_threshold", values.BloomThreshold)
-      .setI32("bloom_iterations", Math.trunc(values.BloomIterations))
-      .setU8("ssao_enabled", values.SsaoEnabled ? 1 : 0)
-      .setU32("transparency_mode", values.TransparencyMode)
-      .setF32("ssao_radius", values.SsaoRadius)
-      .setF32("ssao_intensity", values.SsaoIntensity)
-      .setI32("ssao_sample_count", Math.trunc(values.SsaoSampleCount))
-      .setU8("ssr_enabled", values.SsrEnabled ? 1 : 0)
-      .setF32("ssr_max_distance", values.SsrMaxDistance)
-      .setI32("ssr_step_count", Math.trunc(values.SsrStepCount))
-      .setF32("ssr_thickness", values.SsrThickness)
-      .setF32("ssr_depth_bias", values.SsrDepthBias)
-      .setF32("ssr_edge_fade", values.SsrEdgeFade)
-      .setF32("volumetric_fog_density", values.VolumetricFogDensity)
-      .setF32("light_shaft_threshold", values.LightShaftThreshold)
-      .setF32("light_shaft_intensity", values.LightShaftIntensity)
-      .setF32("light_shaft_decay", values.LightShaftDecay)
-      .setF32("height_fog_density", values.HeightFogDensity)
-      .setF32("height_fog_falloff", values.HeightFogFalloff)
-      .setF32("height_fog_base_height", values.HeightFogBaseHeight)
-      .setF32("motion_blur_strength", values.MotionBlurStrength)
-      .setF32("motion_blur_max_distance", values.MotionBlurMaxDistance)
-      .setF32("chromatic_aberration_strength", values.ChromaticAberrationStrength)
-      .setF32("film_grain_intensity", values.FilmGrainIntensity)
-      .setF32("lens_flare_threshold", values.LensFlareThreshold)
-      .setF32("lens_flare_intensity", values.LensFlareIntensity)
-      .setF32("lens_flare_dispersal", values.LensFlareDispersal)
-      .setU8("color_grade_enabled", values.ColorGradeEnabled ? 1 : 0)
-      .setF32("color_grade_strength", values.ColorGradeStrength)
-      .setU8("dof_enabled", values.DofEnabled ? 1 : 0)
-      .setF32("dof_focus_distance", values.DofFocusDistance)
-      .setF32("dof_focal_length", values.DofFocalLength)
-      .setF32("doff_number", values.DofFNumber)
-      .setF32("dof_max_radius", values.DofMaxRadius)
-      .setF32("ssr_roughness_blur", values.SsrRoughnessBlur)
-      .setF32("ssr_intensity", values.SsrIntensity)
-      .setU8("fxaa_enabled", values.FxaaEnabled ? 1 : 0)
-      .setF32("fxaa_edge_threshold_ext", values.FxaaEdgeThresholdExt)
-      .setU32("render_quality", values.RenderQuality)
-      .setU32("shadow_quality", values.ShadowQuality)
-      .setU8("shadows_enabled", values.ShadowsEnabled ? 1 : 0);
+      structure
+        .setU8("hdr_enabled", values.HdrEnabled ? 1 : 0)
+        .setF32("exposure", values.Exposure)
+        .setF32("gamma", values.Gamma)
+        .setU32("tonemapping_mode", values.TonemappingMode)
+        .setU8("bloom_enabled", values.BloomEnabled ? 1 : 0)
+        .setF32("bloom_intensity", values.BloomIntensity)
+        .setF32("bloom_threshold", values.BloomThreshold)
+        .setI32("bloom_iterations", Math.trunc(values.BloomIterations))
+        .setU8("ssao_enabled", values.SsaoEnabled ? 1 : 0)
+        .setU32("transparency_mode", values.TransparencyMode)
+        .setF32("ssao_radius", values.SsaoRadius)
+        .setF32("ssao_intensity", values.SsaoIntensity)
+        .setI32("ssao_sample_count", Math.trunc(values.SsaoSampleCount))
+        .setU8("ssr_enabled", values.SsrEnabled ? 1 : 0)
+        .setF32("ssr_max_distance", values.SsrMaxDistance)
+        .setI32("ssr_step_count", Math.trunc(values.SsrStepCount))
+        .setF32("ssr_thickness", values.SsrThickness)
+        .setF32("ssr_depth_bias", values.SsrDepthBias)
+        .setF32("ssr_edge_fade", values.SsrEdgeFade)
+        .setF32("volumetric_fog_density", values.VolumetricFogDensity)
+        .setF32("light_shaft_threshold", values.LightShaftThreshold)
+        .setF32("light_shaft_intensity", values.LightShaftIntensity)
+        .setF32("light_shaft_decay", values.LightShaftDecay)
+        .setF32("height_fog_density", values.HeightFogDensity)
+        .setF32("height_fog_falloff", values.HeightFogFalloff)
+        .setF32("height_fog_base_height", values.HeightFogBaseHeight)
+        .setF32("motion_blur_strength", values.MotionBlurStrength)
+        .setF32("motion_blur_max_distance", values.MotionBlurMaxDistance)
+        .setF32("chromatic_aberration_strength", values.ChromaticAberrationStrength)
+        .setF32("film_grain_intensity", values.FilmGrainIntensity)
+        .setF32("lens_flare_threshold", values.LensFlareThreshold)
+        .setF32("lens_flare_intensity", values.LensFlareIntensity)
+        .setF32("lens_flare_dispersal", values.LensFlareDispersal)
+        .setU8("color_grade_enabled", values.ColorGradeEnabled ? 1 : 0)
+        .setF32("color_grade_strength", values.ColorGradeStrength)
+        .setU8("dof_enabled", values.DofEnabled ? 1 : 0)
+        .setF32("dof_focus_distance", values.DofFocusDistance)
+        .setF32("dof_focal_length", values.DofFocalLength)
+        .setF32("doff_number", values.DofFNumber)
+        .setF32("dof_max_radius", values.DofMaxRadius)
+        .setF32("ssr_roughness_blur", values.SsrRoughnessBlur)
+        .setF32("ssr_intensity", values.SsrIntensity)
+        .setU8("fxaa_enabled", values.FxaaEnabled ? 1 : 0)
+        .setF32("fxaa_edge_threshold_ext", values.FxaaEdgeThresholdExt)
+        .setU32("render_quality", values.RenderQuality)
+        .setU32("shadow_quality", values.ShadowQuality)
+        .setU8("shadows_enabled", values.ShadowsEnabled ? 1 : 0);
       return body(structure.pointer);
     } finally {
       scope.dispose();
@@ -1501,37 +1449,6 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
       SsaoEnabled: structure.getU8("ssao_enabled") !== 0,
       ShadowsEnabled: structure.getU8("shadows_enabled") !== 0,
     };
-  }
-
-  /**
-   * Writes one, after CNA's own initializer has filled it.
-   *
-   * The initializer runs first because these structures are growable: `struct_size` selects which
-   * fields CNA reads, and a zeroed one asks it to read a structure of no size.
-   */
-  #withRenderPipelineSettingsDefaults<T>(
-    values: RenderPipelineSettingsDefaults,
-    body: (pointer: number) => T,
-  ): T {
-    const scope = this.routes.scope();
-    try {
-      const structure = allocateStruct(this.routes.module, scope, "CNA_RenderPipelineSettings");
-      this.routes.invoke("cna_render_pipeline_settings_init", structure.pointer);
-    structure
-      .setF32("exposure", values.Exposure)
-      .setF32("gamma", values.Gamma)
-      .setF32("bloom_intensity", values.BloomIntensity)
-      .setU32("tonemapping_mode", values.TonemappingMode)
-      .setU32("render_quality", values.RenderQuality)
-      .setU32("shadow_quality", values.ShadowQuality)
-      .setU8("hdr_enabled", values.HdrEnabled ? 1 : 0)
-      .setU8("bloom_enabled", values.BloomEnabled ? 1 : 0)
-      .setU8("ssao_enabled", values.SsaoEnabled ? 1 : 0)
-      .setU8("shadows_enabled", values.ShadowsEnabled ? 1 : 0);
-      return body(structure.pointer);
-    } finally {
-      scope.dispose();
-    }
   }
 
   /** Allocates one, initialised, for a route that fills it. */
@@ -1569,18 +1486,18 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     try {
       const structure = allocateStruct(this.routes.module, scope, "CNA_PunctualLightEXT");
       this.routes.invoke("cna_punctual_light_ext_init", structure.pointer);
-    structure
-      .setU32("kind", values.Kind)
-      .setF32("range", values.Range)
-      .setF32("inner_angle", values.InnerAngle)
-      .setF32("outer_angle", values.OuterAngle)
-      .setF32("shadow_depth_bias", values.ShadowDepthBias)
-      .setU64("shadow_cube", values.ShadowCube)
-      .setU64("shadow_map", values.ShadowMap);
-    writeVector3(structure, "position", values.Position);
-    writeVector3(structure, "direction", values.Direction);
-    writeVector3(structure, "diffuse_color", values.DiffuseColor);
-    structure.setF32Array("shadow_view_projection", values.ShadowViewProjection);
+      structure
+        .setU32("kind", values.Kind)
+        .setF32("range", values.Range)
+        .setF32("inner_angle", values.InnerAngle)
+        .setF32("outer_angle", values.OuterAngle)
+        .setF32("shadow_depth_bias", values.ShadowDepthBias)
+        .setU64("shadow_cube", values.ShadowCube)
+        .setU64("shadow_map", values.ShadowMap);
+      writeVector3(structure, "position", values.Position);
+      writeVector3(structure, "direction", values.Direction);
+      writeVector3(structure, "diffuse_color", values.DiffuseColor);
+      structure.setF32Array("shadow_view_projection", values.ShadowViewProjection);
       return body(structure.pointer);
     } finally {
       scope.dispose();
@@ -1617,13 +1534,13 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     try {
       const structure = allocateStruct(this.routes.module, scope, "CNA_ShadowCascadeStateEXT");
       this.routes.invoke("cna_shadow_cascade_state_ext_init", structure.pointer);
-    structure
-      .setI32("count", Math.trunc(values.Count))
-      .setF32("blend_band", values.BlendBand)
-      .setU8("debug_tint", values.DebugTint ? 1 : 0);
-    this.#writeMatrixArray(structure, "world_to_atlas", values.WorldToAtlas);
-    structure.setF32Array("split_distance", values.SplitDistance);
-    structure.setF32Array("camera_view", values.CameraView);
+      structure
+        .setI32("count", Math.trunc(values.Count))
+        .setF32("blend_band", values.BlendBand)
+        .setU8("debug_tint", values.DebugTint ? 1 : 0);
+      this.#writeMatrixArray(structure, "world_to_atlas", values.WorldToAtlas);
+      structure.setF32Array("split_distance", values.SplitDistance);
+      structure.setF32Array("camera_view", values.CameraView);
       return body(structure.pointer);
     } finally {
       scope.dispose();
@@ -1659,12 +1576,12 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     try {
       const structure = allocateStruct(this.routes.module, scope, "CNA_ImageBasedLightEXT");
       this.routes.invoke("cna_image_based_light_ext_init", structure.pointer);
-    structure
-      .setU64("irradiance", values.Irradiance)
-      .setU64("prefiltered_specular", values.PrefilteredSpecular)
-      .setU64("brdf_lut", values.BrdfLut)
-      .setI32("prefiltered_mip_count", Math.trunc(values.PrefilteredMipCount))
-      .setF32("intensity", values.Intensity);
+      structure
+        .setU64("irradiance", values.Irradiance)
+        .setU64("prefiltered_specular", values.PrefilteredSpecular)
+        .setU64("brdf_lut", values.BrdfLut)
+        .setI32("prefiltered_mip_count", Math.trunc(values.PrefilteredMipCount))
+        .setF32("intensity", values.Intensity);
       return body(structure.pointer);
     } finally {
       scope.dispose();
@@ -1703,15 +1620,15 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     try {
       const structure = allocateStruct(this.routes.module, scope, "CNA_AreaLightEXT");
       this.routes.invoke("cna_area_light_ext_init", structure.pointer);
-    structure
-      .setU32("shape", values.Shape)
-      .setU8("two_sided", values.TwoSided ? 1 : 0)
-      .setF32("intensity", values.Intensity)
-      .setF32("range", values.Range);
-    writeVector3(structure, "position", values.Position);
-    writeVector3(structure, "right_axis", values.RightAxis);
-    writeVector3(structure, "up_axis", values.UpAxis);
-    writeVector3(structure, "color", values.Color);
+      structure
+        .setU32("shape", values.Shape)
+        .setU8("two_sided", values.TwoSided ? 1 : 0)
+        .setF32("intensity", values.Intensity)
+        .setF32("range", values.Range);
+      writeVector3(structure, "position", values.Position);
+      writeVector3(structure, "right_axis", values.RightAxis);
+      writeVector3(structure, "up_axis", values.UpAxis);
+      writeVector3(structure, "color", values.Color);
       return body(structure.pointer);
     } finally {
       scope.dispose();
@@ -1733,27 +1650,6 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
       AverageTangent: structure.getF32("average_tangent"),
       AverageNormal: structure.getF32("average_normal"),
     };
-  }
-
-  /**
-   * Writes one, after CNA's own initializer has filled it.
-   *
-   * The initializer runs first because these structures are growable: `struct_size` selects which
-   * fields CNA reads, and a zeroed one asks it to read a structure of no size.
-   */
-  #withAreaLightBrdfTerms<T>(values: AreaLightBrdfTermsSnapshot, body: (pointer: number) => T): T {
-    const scope = this.routes.scope();
-    try {
-      const structure = allocateStruct(this.routes.module, scope, "CNA_AreaLightBrdfTerms");
-    structure
-      .setF32("magnitude", values.Magnitude)
-      .setF32("fresnel", values.Fresnel)
-      .setF32("average_tangent", values.AverageTangent)
-      .setF32("average_normal", values.AverageNormal);
-      return body(structure.pointer);
-    } finally {
-      scope.dispose();
-    }
   }
 
   /** Allocates one, initialised, for a route that fills it. */
@@ -1793,21 +1689,21 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     try {
       const structure = allocateStruct(this.routes.module, scope, "CNA_GltfMaterialSourceEXT");
       this.routes.invoke("cna_gltf_material_source_ext_init", structure.pointer);
-    structure
-      .setF32("metallic_factor", values.MetallicFactor)
-      .setF32("roughness_factor", values.RoughnessFactor)
-      .setF32("normal_scale", values.NormalScale)
-      .setF32("occlusion_strength", values.OcclusionStrength)
-      .setF32("ior_ext", values.Ior)
-      .setF32("specular_factor_ext", values.SpecularFactor)
-      .setU32("alpha_mode", values.AlphaMode)
-      .setF32("alpha_cutoff", values.AlphaCutoff)
-      .setU8("double_sided", values.DoubleSided ? 1 : 0);
-    writeVector4(structure, "base_color_factor", values.BaseColorFactor);
-    writeVector3(structure, "emissive_factor", values.EmissiveFactor);
-    writeVector3(structure, "specular_color_factor_ext", values.SpecularColorFactor);
-    structure.setI32Array("texture_coordinate_sets_ext", values.TextureCoordinateSets);
-    this.#writeTextureTransformArray(structure, "texture_transforms_ext", values.TextureTransforms);
+      structure
+        .setF32("metallic_factor", values.MetallicFactor)
+        .setF32("roughness_factor", values.RoughnessFactor)
+        .setF32("normal_scale", values.NormalScale)
+        .setF32("occlusion_strength", values.OcclusionStrength)
+        .setF32("ior_ext", values.Ior)
+        .setF32("specular_factor_ext", values.SpecularFactor)
+        .setU32("alpha_mode", values.AlphaMode)
+        .setF32("alpha_cutoff", values.AlphaCutoff)
+        .setU8("double_sided", values.DoubleSided ? 1 : 0);
+      writeVector4(structure, "base_color_factor", values.BaseColorFactor);
+      writeVector3(structure, "emissive_factor", values.EmissiveFactor);
+      writeVector3(structure, "specular_color_factor_ext", values.SpecularColorFactor);
+      structure.setI32Array("texture_coordinate_sets_ext", values.TextureCoordinateSets);
+      this.#writeTextureTransformArray(structure, "texture_transforms_ext", values.TextureTransforms);
       return body(structure.pointer);
     } finally {
       scope.dispose();
@@ -1842,7 +1738,7 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     try {
       const structure = allocateStruct(this.routes.module, scope, "CNA_GltfMaterialTexturesEXT");
       this.routes.invoke("cna_gltf_material_textures_ext_init", structure.pointer);
-    structure.setU64Array("slots", values.Slots);
+      structure.setU64Array("slots", values.Slots);
       return body(structure.pointer);
     } finally {
       scope.dispose();
@@ -1890,19 +1786,19 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
         this.routes.module, scope, "CNA_GltfMaterialExtensionSourceEXT",
       );
       this.routes.invoke("cna_gltf_material_extension_source_ext_init", structure.pointer);
-    structure
-      .setF32("clearcoat_factor_ext", values.ClearcoatFactor)
-      .setF32("clearcoat_roughness_factor_ext", values.ClearcoatRoughnessFactor)
-      .setF32("sheen_roughness_factor_ext", values.SheenRoughnessFactor)
-      .setF32("transmission_factor_ext", values.TransmissionFactor)
-      .setF32("thickness_factor_ext", values.ThicknessFactor)
-      .setF32("attenuation_distance_ext", values.AttenuationDistance)
-      .setF32("iridescence_factor_ext", values.IridescenceFactor)
-      .setF32("iridescence_ior_ext", values.IridescenceIor)
-      .setF32("iridescence_thickness_minimum_ext", values.IridescenceThicknessMinimum)
-      .setF32("iridescence_thickness_maximum_ext", values.IridescenceThicknessMaximum);
-    writeVector3(structure, "sheen_color_factor_ext", values.SheenColorFactor);
-    writeVector3(structure, "attenuation_color_ext", values.AttenuationColor);
+      structure
+        .setF32("clearcoat_factor_ext", values.ClearcoatFactor)
+        .setF32("clearcoat_roughness_factor_ext", values.ClearcoatRoughnessFactor)
+        .setF32("sheen_roughness_factor_ext", values.SheenRoughnessFactor)
+        .setF32("transmission_factor_ext", values.TransmissionFactor)
+        .setF32("thickness_factor_ext", values.ThicknessFactor)
+        .setF32("attenuation_distance_ext", values.AttenuationDistance)
+        .setF32("iridescence_factor_ext", values.IridescenceFactor)
+        .setF32("iridescence_ior_ext", values.IridescenceIor)
+        .setF32("iridescence_thickness_minimum_ext", values.IridescenceThicknessMinimum)
+        .setF32("iridescence_thickness_maximum_ext", values.IridescenceThicknessMaximum);
+      writeVector3(structure, "sheen_color_factor_ext", values.SheenColorFactor);
+      writeVector3(structure, "attenuation_color_ext", values.AttenuationColor);
       return body(structure.pointer);
     } finally {
       scope.dispose();
@@ -1949,16 +1845,16 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
         this.routes.module, scope, "CNA_GltfMaterialExtensionTexturesEXT",
       );
       this.routes.invoke("cna_gltf_material_extension_textures_ext_init", structure.pointer);
-    structure
-      .setU64("clearcoat", values.Clearcoat)
-      .setU64("clearcoat_roughness", values.ClearcoatRoughness)
-      .setU64("clearcoat_normal", values.ClearcoatNormal)
-      .setU64("sheen_color", values.SheenColor)
-      .setU64("sheen_roughness", values.SheenRoughness)
-      .setU64("transmission", values.Transmission)
-      .setU64("thickness", values.Thickness)
-      .setU64("iridescence", values.Iridescence)
-      .setU64("iridescence_thickness", values.IridescenceThickness);
+      structure
+        .setU64("clearcoat", values.Clearcoat)
+        .setU64("clearcoat_roughness", values.ClearcoatRoughness)
+        .setU64("clearcoat_normal", values.ClearcoatNormal)
+        .setU64("sheen_color", values.SheenColor)
+        .setU64("sheen_roughness", values.SheenRoughness)
+        .setU64("transmission", values.Transmission)
+        .setU64("thickness", values.Thickness)
+        .setU64("iridescence", values.Iridescence)
+        .setU64("iridescence_thickness", values.IridescenceThickness);
       return body(structure.pointer);
     } finally {
       scope.dispose();
@@ -1984,31 +1880,6 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     };
   }
 
-  /**
-   * Writes one, after CNA's own initializer has filled it.
-   *
-   * The initializer runs first because these structures are growable: `struct_size` selects which
-   * fields CNA reads, and a zeroed one asks it to read a structure of no size.
-   */
-  #withIndirectDrawArguments<T>(
-    values: IndirectDrawArgumentsSnapshot,
-    body: (pointer: number) => T,
-  ): T {
-    const scope = this.routes.scope();
-    try {
-      const structure = allocateStruct(this.routes.module, scope, "CNA_IndirectDrawArguments");
-      this.routes.invoke("cna_indirect_draw_arguments_init", structure.pointer);
-    structure
-      .setU32("vertex_count", values.VertexCount)
-      .setU32("instance_count", values.InstanceCount)
-      .setU32("first_vertex", values.FirstVertex)
-      .setU32("base_instance", values.BaseInstance);
-      return body(structure.pointer);
-    } finally {
-      scope.dispose();
-    }
-  }
-
   /** Allocates one, initialised, for a route that fills it. */
   #allocIndirectDrawArguments(scope: WasmScope): WasmStruct {
     const structure = allocateStruct(this.routes.module, scope, "CNA_IndirectDrawArguments");
@@ -2027,34 +1898,6 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
     };
   }
 
-  /**
-   * Writes one, after CNA's own initializer has filled it.
-   *
-   * The initializer runs first because these structures are growable: `struct_size` selects which
-   * fields CNA reads, and a zeroed one asks it to read a structure of no size.
-   */
-  #withIndirectDrawIndexedArguments<T>(
-    values: IndirectDrawIndexedArgumentsSnapshot,
-    body: (pointer: number) => T,
-  ): T {
-    const scope = this.routes.scope();
-    try {
-      const structure = allocateStruct(
-        this.routes.module, scope, "CNA_IndirectDrawIndexedArguments",
-      );
-      this.routes.invoke("cna_indirect_draw_indexed_arguments_init", structure.pointer);
-    structure
-      .setU32("index_count", values.IndexCount)
-      .setU32("instance_count", values.InstanceCount)
-      .setU32("first_index", values.FirstIndex)
-      .setI32("base_vertex", Math.trunc(values.BaseVertex))
-      .setU32("base_instance", values.BaseInstance);
-      return body(structure.pointer);
-    } finally {
-      scope.dispose();
-    }
-  }
-
   /** Allocates one, initialised, for a route that fills it. */
   #allocIndirectDrawIndexedArguments(scope: WasmScope): WasmStruct {
     const structure = allocateStruct(this.routes.module, scope, "CNA_IndirectDrawIndexedArguments");
@@ -2068,28 +1911,6 @@ export abstract class WasmEngineStructures extends WasmGraphicsExtensionCore {
       World: structure.getF32Array("world"),
       Bounds: readBounds(structure, "bounds"),
     };
-  }
-
-  /**
-   * Writes one, after CNA's own initializer has filled it.
-   *
-   * The initializer runs first because these structures are growable: `struct_size` selects which
-   * fields CNA reads, and a zeroed one asks it to read a structure of no size.
-   */
-  #withGpuCullableInstance<T>(
-    values: GpuCullableInstanceSnapshot,
-    body: (pointer: number) => T,
-  ): T {
-    const scope = this.routes.scope();
-    try {
-      const structure = allocateStruct(this.routes.module, scope, "CNA_GpuCullableInstance");
-      this.routes.invoke("cna_gpu_cullable_instance_init", structure.pointer);
-    structure.setF32Array("world", values.World);
-    writeBounds(structure, "bounds", values.Bounds);
-      return body(structure.pointer);
-    } finally {
-      scope.dispose();
-    }
   }
 
   /** Allocates one, initialised, for a route that fills it. */
