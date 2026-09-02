@@ -15,6 +15,18 @@ import {
   ObjectDisposedException,
 } from "../../../../internal/exceptions.js";
 import { getBackend } from "../../../../internal/backend.js";
+import {
+  clearLiveGraphicsDeviceForInternalUse,
+  graphicsDeviceStateForInternalUse as stateOf,
+  graphicsDeviceStateOrNullForInternalUse,
+  registerGraphicsDeviceDispatchersForInternalUse,
+  registerGraphicsDeviceStateForInternalUse,
+  setLiveGraphicsDeviceForInternalUse,
+} from "../../../../internal/graphics-device-registry.js";
+import type {
+  GraphicsDeviceInternalState,
+  GraphicsDeviceState,
+} from "../../../../internal/graphics-device-registry.js";
 import { NativeUnavailableError } from "../../../../internal/native-error.js";
 import { NativeResourceLifetime } from "../../../../internal/ownership.js";
 import type { NativeHandle } from "../../../../internal/ownership.js";
@@ -85,51 +97,15 @@ import {
   bindRasterizerStateForInternalUse,
 } from "./RasterizerState.js";
 
-export type GraphicsDeviceInternalState = {
-  readonly Backend: CnaBackend;
-  readonly ResolveHandle: () => NativeHandle;
-  readonly ParentLifetime: NativeResourceLifetime;
-  readonly Adapter: GraphicsAdapter | null;
-  readonly GraphicsProfile: GraphicsProfile;
-  readonly PresentationParameters: PresentationParameters;
-  readonly DisplayMode: DisplayMode | null;
-};
-
-type DeviceState = GraphicsDeviceInternalState & {
-  Disposed: boolean;
-  BlendFactor: Color;
-  BlendState: BlendState;
-  DepthStencilState: DepthStencilState;
-  Indices: IndexBuffer | null;
-  MultiSampleMask: number;
-  RasterizerState: RasterizerState;
-  ReferenceStencil: number;
-  ScissorRectangle: Rectangle;
-  Viewport: Viewport;
-  readonly SamplerStates: SamplerStateCollection;
-  readonly Textures: TextureCollection;
-  readonly VertexSamplerStates: SamplerStateCollection;
-  readonly VertexTextures: TextureCollection;
-  RenderTargets: RenderTargetBinding[];
-  VertexBuffers: VertexBufferBinding[];
-};
-
-const states = new WeakMap<GraphicsDevice, DeviceState>();
-const resourceCreatedDispatchers = new WeakMap<
-GraphicsDevice,
-EventDispatcher<unknown, ResourceCreatedEventArgs>
->();
-const resourceDestroyedDispatchers = new WeakMap<
-GraphicsDevice,
-EventDispatcher<unknown, ResourceDestroyedEventArgs>
->();
-
-function stateOf(device: GraphicsDevice): DeviceState {
-  const state = states.get(device);
-  if (!state) throw new NativeUnavailableError("GraphicsDevice construction requires a CNA device route");
-  if (state.Disposed) throw new ObjectDisposedException("GraphicsDevice");
-  return state;
-}
+/**
+ * A device's state, its identity as the live device, and the accessors the rest of the graphics
+ * layer reaches for all live in `internal/graphics-device-registry.ts`. Keeping them here made
+ * every graphics resource module import this one as a value, which closed a module cycle that
+ * crashed two published subpaths when a consumer imported them first; that module's own header
+ * records the cycle and the rule that keeps it broken.
+ */
+export type { GraphicsDeviceInternalState } from "../../../../internal/graphics-device-registry.js";
+type DeviceState = GraphicsDeviceState;
 
 function unsupported(operation: string): never {
   throw new NativeUnavailableError(`${operation} is not in the loaded CNA-TS backend slice`);
@@ -286,7 +262,7 @@ export class GraphicsDevice implements IDisposable {
     const vertexTextures = createTextureCollectionForInternalUse(
       this, 4, (index, value) => this.#setTexture(1, index, value),
     );
-    states.set(this, {
+    registerGraphicsDeviceStateForInternalUse(this, {
       ...internalState,
       PresentationParameters: internalState.PresentationParameters.Clone(),
       Disposed: false,
@@ -306,8 +282,9 @@ export class GraphicsDevice implements IDisposable {
       RenderTargets: [],
       VertexBuffers: [],
     });
-    resourceCreatedDispatchers.set(this, this.#resourceCreated);
-    resourceDestroyedDispatchers.set(this, this.#resourceDestroyed);
+    registerGraphicsDeviceDispatchersForInternalUse(
+      this, this.#resourceCreated, this.#resourceDestroyed,
+    );
   }
 
   public get Adapter(): GraphicsAdapter {
@@ -383,7 +360,7 @@ export class GraphicsDevice implements IDisposable {
     );
     state.Indices = value ?? null;
   }
-  public get IsDisposed(): boolean { return states.get(this)?.Disposed ?? false; }
+  public get IsDisposed(): boolean { return graphicsDeviceStateOrNullForInternalUse(this)?.Disposed ?? false; }
   public get MultiSampleMask(): number { return stateOf(this).MultiSampleMask; }
   public set MultiSampleMask(value: number) {
     if (!Number.isInteger(value) || value < -0x8000_0000 || value > 0x7fff_ffff) {
@@ -487,7 +464,7 @@ export class GraphicsDevice implements IDisposable {
   }
 
   public Dispose(): void {
-    const state = states.get(this);
+    const state = graphicsDeviceStateOrNullForInternalUse(this);
     if (!state || state.Disposed) return;
     if (state.RenderTargets.length > 0) {
       graphicsBackend(state, "GraphicsDevice.Dispose render-target unbind")
@@ -496,7 +473,7 @@ export class GraphicsDevice implements IDisposable {
     }
     this.#disposing.Dispatch(this, EventArgs.Empty);
     state.Disposed = true;
-    if (liveGraphicsDevice === this) liveGraphicsDevice = null;
+    clearLiveGraphicsDeviceForInternalUse(this);
     // A device this object created is this object's to release, and releasing it releases every
     // resource made on it. A device a GraphicsDeviceManager made is not: that one belongs to the
     // manager, and disposing it here would free a handle the manager still holds.
@@ -837,15 +814,6 @@ export class GraphicsDevice implements IDisposable {
  */
 const ownedDeviceLifetimes = new WeakMap<GraphicsDevice, NativeResourceLifetime>();
 
-let liveGraphicsDevice: GraphicsDevice | null = null;
-
-/** The live device, or null when none has been created or the last one was disposed. */
-export function liveGraphicsDeviceForInternalUse(): GraphicsDevice | null {
-  if (liveGraphicsDevice == null) return null;
-  const state = states.get(liveGraphicsDevice);
-  return state != null && !state.Disposed ? liveGraphicsDevice : null;
-}
-
 export function createGraphicsDeviceForInternalUse(value: GraphicsDeviceInternalState): GraphicsDevice {
   const InternalGraphicsDevice = GraphicsDevice as unknown as new (
     adapter: GraphicsAdapter | null,
@@ -856,33 +824,13 @@ export function createGraphicsDeviceForInternalUse(value: GraphicsDeviceInternal
   const device = new InternalGraphicsDevice(
     value.Adapter, value.GraphicsProfile, value.PresentationParameters, value,
   );
-  liveGraphicsDevice = device;
+  setLiveGraphicsDeviceForInternalUse(device);
   return device;
 }
 
-export function resolveGraphicsDeviceHandleForInternalUse(device: GraphicsDevice): NativeHandle {
-  const state = stateOf(device);
-  return state.ResolveHandle();
-}
 
-export function graphicsDeviceParentLifetimeForInternalUse(
-  device: GraphicsDevice,
-): NativeResourceLifetime {
-  return stateOf(device).ParentLifetime;
-}
 
-export function graphicsDeviceBackendForInternalUse(device: GraphicsDevice): CnaBackend {
-  return stateOf(device).Backend;
-}
 
-export function isRenderTargetBoundForInternalUse(
-  device: GraphicsDevice,
-  target: RenderTarget2D | RenderTargetCube,
-): boolean {
-  const state = states.get(device);
-  return state != null && !state.Disposed &&
-    state.RenderTargets.some((binding) => binding.RenderTarget === target);
-}
 
 export function blendStateSnapshotForInternalUse(value: BlendState): BlendStateSnapshot {
   assertGraphicsResourceActiveForInternalUse(value);
@@ -953,37 +901,5 @@ export function samplerStateSnapshotForInternalUse(value: SamplerState): Sampler
   };
 }
 
-export function recordSpriteBatchStatesForInternalUse(
-  device: GraphicsDevice,
-  blend: BlendState,
-  depth: DepthStencilState,
-  rasterizer: RasterizerState,
-): void {
-  const state = stateOf(device);
-  state.BlendState = blend;
-  state.DepthStencilState = depth;
-  state.RasterizerState = rasterizer;
-}
 
-export function notifyGraphicsResourceCreatedForInternalUse(
-  device: GraphicsDevice,
-  resource: Texture | object,
-): void {
-  stateOf(device);
-  resourceCreatedDispatchers.get(device)?.Dispatch(
-    device,
-    createResourceCreatedEventArgsForInternalUse(resource),
-  );
-}
 
-export function notifyGraphicsResourceDestroyedForInternalUse(
-  device: GraphicsDevice,
-  name: string,
-  tag: unknown,
-): void {
-  if (device.IsDisposed) return;
-  resourceDestroyedDispatchers.get(device)?.Dispatch(
-    device,
-    createResourceDestroyedEventArgsForInternalUse(name, tag),
-  );
-}

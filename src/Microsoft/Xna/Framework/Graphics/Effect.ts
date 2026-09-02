@@ -23,11 +23,6 @@ import { Vector3 } from "../Vector3.js";
 import { Vector4 } from "../Vector4.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
 import {
-  graphicsDeviceBackendForInternalUse,
-  graphicsDeviceParentLifetimeForInternalUse,
-  resolveGraphicsDeviceHandleForInternalUse,
-} from "./GraphicsDevice.js";
-import {
   assertGraphicsResourceActiveForInternalUse,
   attachGraphicsResourceForInternalUse,
   GraphicsResource,
@@ -38,6 +33,11 @@ import { resolveTextureHandleForInternalUse, Texture } from "./Texture.js";
 import { Texture2D } from "./Texture2D.js";
 import { Texture3D } from "./Texture3D.js";
 import { TextureCube } from "./TextureCube.js";
+import {
+  graphicsDeviceBackendForInternalUse,
+  graphicsDeviceParentLifetimeForInternalUse,
+  resolveGraphicsDeviceHandleForInternalUse,
+} from "../../../../internal/graphics-device-registry.js";
 
 export enum EffectParameterClass {
   Scalar = 0,

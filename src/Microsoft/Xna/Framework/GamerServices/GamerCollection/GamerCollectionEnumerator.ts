@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MS-PL
 
-import { gamerCollectionItemsForInternalUse } from "../Gamer.js";
+import { gamerCollectionItemsForInternalUse } from
+  "../../../../../internal/gamer-collection-registry.js";
 import type { Gamer, GamerCollection } from "../Gamer.js";
 
 /**

@@ -27,7 +27,19 @@ function sourceFiles(directory) {
   return result;
 }
 
-const auditedFiles = sourceFiles(path.join(ROOT, source.sourceAudit.root));
+// The audited surface is a list rather than one directory. A refusal boundary belongs to the
+// framework operation family it guards, not to the directory the file happens to sit in: when
+// GraphicsDevice's state registry moved to `src/internal/` to break a module cycle, the device's
+// "requires a CNA device route" refusal moved with it, and a root-directory audit silently stopped
+// counting a site that had not changed. Naming the extracted modules keeps the census on the
+// boundaries rather than on the layout.
+const auditedFiles = (Array.isArray(source.sourceAudit.roots)
+  ? source.sourceAudit.roots
+  : [source.sourceAudit.root]
+).flatMap((entry) => {
+  const target = path.join(ROOT, entry);
+  return fs.statSync(target).isDirectory() ? sourceFiles(target) : [target];
+});
 const auditedSources = auditedFiles.map((file) => fs.readFileSync(file, "utf8"));
 const sourceAudit = {
   ...source.sourceAudit,

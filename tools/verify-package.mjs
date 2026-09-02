@@ -139,7 +139,12 @@ try {
       `assert.throws(() => CnaTextInput.Start(), NativeUnavailableError);\n` +
       `assert.throws(() => MouseCursor.GetStock(MouseCursorStock.Hand), NativeUnavailableError);\n` +
       `await assert.rejects(import("cna-ts/internal/backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n` +
-      `await assert.rejects(import("cna-ts/internal/wasm/wasm-backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n`,
+      `await assert.rejects(import("cna-ts/internal/wasm/wasm-backend"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n` +
+      // The two registries hold GraphicsDevice and gamer-collection state. They were extracted
+      // to break module cycles, not to be reached: a consumer holding one could read and
+      // write a device's state behind the public class that owns it.
+      `await assert.rejects(import("cna-ts/internal/graphics-device-registry"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n` +
+      `await assert.rejects(import("cna-ts/internal/gamer-collection-registry"), { code: "ERR_PACKAGE_PATH_NOT_EXPORTED" });\n`,
   );
   installTarball(javascript, tarball);
   run(process.execPath, ["main.mjs"], javascript);

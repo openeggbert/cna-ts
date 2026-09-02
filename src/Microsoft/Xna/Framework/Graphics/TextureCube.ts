@@ -13,19 +13,19 @@ import { Rectangle } from "../Rectangle.js";
 import { SurfaceFormat } from "./DeviceEnums.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
 import {
-  graphicsDeviceBackendForInternalUse,
-  graphicsDeviceParentLifetimeForInternalUse,
-  notifyGraphicsResourceCreatedForInternalUse,
-  notifyGraphicsResourceDestroyedForInternalUse,
-  resolveGraphicsDeviceHandleForInternalUse,
-} from "./GraphicsDevice.js";
-import {
   attachGraphicsResourceForInternalUse,
   assertGraphicsResourceActiveForInternalUse,
   setGraphicsResourceLifetimeForInternalUse,
 } from "./GraphicsResource.js";
 import { initializeTextureForInternalUse, Texture } from "./Texture.js";
 import { CubeMapFace } from "./TextureEnums.js";
+import {
+  graphicsDeviceBackendForInternalUse,
+  graphicsDeviceParentLifetimeForInternalUse,
+  notifyGraphicsResourceCreatedForInternalUse,
+  notifyGraphicsResourceDestroyedForInternalUse,
+  resolveGraphicsDeviceHandleForInternalUse,
+} from "../../../../internal/graphics-device-registry.js";
 
 export type AdoptedTextureCubeState = {
   readonly Handle: NativeHandle;

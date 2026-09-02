@@ -1,0 +1,51 @@
+{
+  "name": "the two internal registries: the cycles they broke, and the device lifetime they carry",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "node --test test/module-cycles.test.mjs test/module-registries.test.mjs test/package-entry-points.test.mjs",
+  "environment": "Needs nothing but Node -- no CNA library, no artifact, no browser. Every mutant below is either an architectural regression (a registry that starts importing the layer above it, or a resource module that reaches back into GraphicsDevice for state) or a device-lifetime defect in the extracted registry itself. The first kind is what made `cna-ts/extensions/devices` and `cna-ts/extensions/input` throw `ReferenceError: Cannot access 'Texture2D' before initialization` as a consumer's FIRST import while every gate in the package was green; the second is the half a cold import cannot see, because a registry that answers for a disposed device imports perfectly well. One mutant here -- `handle-lookup-stops-checking-disposal` -- SURVIVED its first run, because the test asserted the refusal with a loose `/GraphicsDevice/` and the released native lifetime raises an ObjectDisposedException carrying its own label, 'caller-created GraphicsDevice', which matched. The assertion now pins the exact message, which is the difference between measuring that the registry refused and measuring that something did.",
+  "mutants": [
+    {
+      "id": "registry-imports-an-extension",
+      "why": "the graphics device registry takes a runtime import from the extension layer it sits below. Nothing throws and every test passes -- the module graph is simply back in the shape where an initialisation order decides whether a consumer's first import works. This is the regression the source-level half of the gate exists for, and it fails at the source rather than after a build",
+      "file": "src/internal/graphics-device-registry.ts",
+      "find": "import { ObjectDisposedException } from \"./exceptions.js\";",
+      "replace": "import { CameraState } from \"../extensions/devices/index.js\";\nvoid CameraState;\nimport { ObjectDisposedException } from \"./exceptions.js\";"
+    },
+    {
+      "id": "registry-imports-the-facade-it-holds",
+      "why": "the registry imports GraphicsDevice as a value rather than as a type, which is the exact edge its extraction removed. The cycle closes again and takes 23 modules with it, the root barrel included -- so this one is caught twice over, by the rule and by the cold import",
+      "file": "src/internal/graphics-device-registry.ts",
+      "find": "import type { GraphicsDevice } from \"../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js\";",
+      "replace": "import { GraphicsDevice } from \"../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js\";\nvoid GraphicsDevice;"
+    },
+    {
+      "id": "texture2d-reaches-back-into-graphicsdevice",
+      "why": "the original defect reduced to the one edge that caused it: Texture2D reaches GraphicsDevice.js at runtime again. `RenderTargets` then reaches `class RenderTarget2D extends Texture2D` with the base class still in its temporal dead zone. Five published entry points stop importing -- three more than the two that failed before the refactor, because the side-effect imports that used to paper over those two are gone with the cycle",
+      "file": "src/Microsoft/Xna/Framework/Graphics/Texture2D.ts",
+      "find": "import { initializeTextureForInternalUse, Texture } from \"./Texture.js\";",
+      "replace": "import \"./GraphicsDevice.js\";\nimport { initializeTextureForInternalUse, Texture } from \"./Texture.js\";"
+    },
+    {
+      "id": "registry-entry-deleted-on-dispose",
+      "why": "disposal deletes the device's entry instead of marking it disposed. That looks like tidying up and is not: `GraphicsDevice.IsDisposed` is answered from the entry, so a disposed device begins reporting that it is not disposed, and every later lookup refuses with 'requires a CNA device route' -- the message for a device that was never constructed -- rather than by name",
+      "file": "src/internal/graphics-device-registry.ts",
+      "find": "  if (liveGraphicsDevice === device) liveGraphicsDevice = null;\n}",
+      "replace": "  if (liveGraphicsDevice === device) liveGraphicsDevice = null;\n  states.delete(device);\n}"
+    },
+    {
+      "id": "disposal-never-marks-the-state-disposed",
+      "why": "the mirror image: the entry survives disposal and is never marked, so the registry keeps answering for a device whose native handle has been released. Every accessor hands out a freed handle, and IsDisposed answers false forever",
+      "file": "src/Microsoft/Xna/Framework/Graphics/GraphicsDevice.ts",
+      "find": "    state.Disposed = true;\n",
+      "replace": ""
+    },
+    {
+      "id": "handle-lookup-stops-checking-disposal",
+      "why": "one accessor stops going through the disposal check and reads the map directly. This is the subtlest of the six, because a caller-created device's lifetime refuses on its own a moment later -- so the failure is not that nothing throws, it is that the WRONG thing throws, and a device whose lifetime is borrowed and still alive would not throw at all",
+      "file": "src/internal/graphics-device-registry.ts",
+      "find": "  const state = graphicsDeviceStateForInternalUse(device);\n  return state.ResolveHandle();",
+      "replace": "  const state = states.get(device);\n  if (!state) throw new NativeUnavailableError(\"GraphicsDevice construction requires a CNA device route\");\n  return state.ResolveHandle();"
+    }
+  ]
+}

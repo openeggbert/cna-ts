@@ -55,8 +55,6 @@ import { Rectangle } from "../../Microsoft/Xna/Framework/Rectangle.js";
 import { Vector3 } from "../../Microsoft/Xna/Framework/Vector3.js";
 import { Vector4 } from "../../Microsoft/Xna/Framework/Vector4.js";
 import type { GraphicsDevice } from "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
-import { resolveGraphicsDeviceHandleForInternalUse } from
-  "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
 import { SurfaceFormat } from "../../Microsoft/Xna/Framework/Graphics/DeviceEnums.js";
 import {
   setTexture2DLevelBytesForInternalUse,
@@ -67,6 +65,9 @@ import { SoundEffect } from "../../Microsoft/Xna/Framework/Audio/SoundEffect.js"
 import type { SpriteFont } from "../../Microsoft/Xna/Framework/Graphics/SpriteFont.js";
 import { createSpriteFontForInternalUse } from "../../Microsoft/Xna/Framework/Graphics/SpriteFont.js";
 import type { NativeHandle } from "../../internal/ownership.js";
+import {
+  resolveGraphicsDeviceHandleForInternalUse,
+} from "../../internal/graphics-device-registry.js";
 
 /**
  * The asset type a `.cnb` container declares.

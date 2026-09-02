@@ -7,18 +7,18 @@ import { NativeUnavailableError } from "../../../../internal/native-error.js";
 import { NativeResourceLifetime } from "../../../../internal/ownership.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
 import {
-  graphicsDeviceBackendForInternalUse,
-  graphicsDeviceParentLifetimeForInternalUse,
-  notifyGraphicsResourceCreatedForInternalUse,
-  notifyGraphicsResourceDestroyedForInternalUse,
-  resolveGraphicsDeviceHandleForInternalUse,
-} from "./GraphicsDevice.js";
-import {
   attachGraphicsResourceForInternalUse,
   assertGraphicsResourceActiveForInternalUse,
   GraphicsResource,
   setGraphicsResourceLifetimeForInternalUse,
 } from "./GraphicsResource.js";
+import {
+  graphicsDeviceBackendForInternalUse,
+  graphicsDeviceParentLifetimeForInternalUse,
+  notifyGraphicsResourceCreatedForInternalUse,
+  notifyGraphicsResourceDestroyedForInternalUse,
+  resolveGraphicsDeviceHandleForInternalUse,
+} from "../../../../internal/graphics-device-registry.js";
 
 type QueryState = {
   readonly Backend: CnaGraphicsBackend;

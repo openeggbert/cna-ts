@@ -63,10 +63,10 @@ import {
   trackMeshPartDependentForInternalUse,
 } from "../../internal/native-mesh-part.js";
 import type { GraphicsDevice } from "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
-import { resolveGraphicsDeviceHandleForInternalUse } from
-  "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
-import { graphicsDeviceBackendForInternalUse } from
-  "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
+import {
+  graphicsDeviceBackendForInternalUse,
+  resolveGraphicsDeviceHandleForInternalUse,
+} from "../../internal/graphics-device-registry.js";
 import { adoptNativeEffectForInternalUse, Effect } from
   "../../Microsoft/Xna/Framework/Graphics/Effect.js";
 import { resolveEffectHandleForInternalUse, markEffectTransferredForInternalUse } from

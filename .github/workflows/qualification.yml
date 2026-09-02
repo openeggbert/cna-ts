@@ -80,6 +80,11 @@ jobs:
         env:
           CNA_SOURCE_PATH: cna-headers
         run: npm run verify:wasm
+      - name: Every built module imports first
+        # Cold-imports every module in dist, one process each, with the native-library environment
+        # removed -- because two published subpaths once crashed as a consumer's FIRST import while
+        # every other gate was green. The barrel enters the graphics graph from the end that works.
+        run: node tools/verify-module-cycles.mjs
       - name: Reproducible clean dist
         run: node tools/verify-build-reproducibility.mjs
       - name: npm pack

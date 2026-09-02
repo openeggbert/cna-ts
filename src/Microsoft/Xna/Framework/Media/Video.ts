@@ -10,10 +10,12 @@ import { NativeUnavailableError } from "../../../../internal/native-error.js";
 import { NativeResourceLifetime, type NativeHandle } from "../../../../internal/ownership.js";
 import type { IDisposable } from "../Contracts.js";
 import { SurfaceFormat } from "../Graphics/DeviceEnums.js";
-import { liveGraphicsDeviceForInternalUse } from "../Graphics/GraphicsDevice.js";
 import { Texture2D } from "../Graphics/Texture2D.js";
 import { TimeSpan } from "../TimeSpan.js";
 import { MediaState, VideoSoundtrackType } from "./Enums.js";
+import {
+  liveGraphicsDeviceForInternalUse,
+} from "../../../../internal/graphics-device-registry.js";
 
 type VideoState = {
   readonly Handle: NativeHandle;

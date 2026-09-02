@@ -23,13 +23,7 @@ import type { GraphicsDevice } from "./GraphicsDevice.js";
 import {
   blendStateSnapshotForInternalUse,
   depthStencilStateSnapshotForInternalUse,
-  graphicsDeviceBackendForInternalUse,
-  graphicsDeviceParentLifetimeForInternalUse,
-  notifyGraphicsResourceCreatedForInternalUse,
-  notifyGraphicsResourceDestroyedForInternalUse,
   rasterizerStateSnapshotForInternalUse,
-  recordSpriteBatchStatesForInternalUse,
-  resolveGraphicsDeviceHandleForInternalUse,
   samplerStateSnapshotForInternalUse,
 } from "./GraphicsDevice.js";
 import {
@@ -48,6 +42,14 @@ import {
   spriteFontTextureForInternalUse,
 } from "./SpriteFont.js";
 import { resolveTexture2DHandleForInternalUse, type Texture2D } from "./Texture2D.js";
+import {
+  graphicsDeviceBackendForInternalUse,
+  graphicsDeviceParentLifetimeForInternalUse,
+  notifyGraphicsResourceCreatedForInternalUse,
+  notifyGraphicsResourceDestroyedForInternalUse,
+  recordSpriteBatchStatesForInternalUse,
+  resolveGraphicsDeviceHandleForInternalUse,
+} from "../../../../internal/graphics-device-registry.js";
 
 interface SpriteFontGlyphPlacement {
   readonly SourceRectangle: Rectangle;

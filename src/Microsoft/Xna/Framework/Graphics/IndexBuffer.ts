@@ -8,13 +8,6 @@ import { NativeUnavailableError } from "../../../../internal/native-error.js";
 import { bindContentLostForInternalUse } from "../../../../internal/content-lost.js";
 import { NativeResourceLifetime } from "../../../../internal/ownership.js";
 import type { XnaType } from "../Contracts.js";
-import {
-  graphicsDeviceBackendForInternalUse,
-  graphicsDeviceParentLifetimeForInternalUse,
-  notifyGraphicsResourceCreatedForInternalUse,
-  notifyGraphicsResourceDestroyedForInternalUse,
-  resolveGraphicsDeviceHandleForInternalUse,
-} from "./GraphicsDevice.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
 import {
   attachGraphicsResourceForInternalUse,
@@ -23,6 +16,13 @@ import {
   setGraphicsResourceLifetimeForInternalUse,
 } from "./GraphicsResource.js";
 import { BufferUsage, IndexElementSize, SetDataOptions } from "./VertexEnums.js";
+import {
+  graphicsDeviceBackendForInternalUse,
+  graphicsDeviceParentLifetimeForInternalUse,
+  notifyGraphicsResourceCreatedForInternalUse,
+  notifyGraphicsResourceDestroyedForInternalUse,
+  resolveGraphicsDeviceHandleForInternalUse,
+} from "../../../../internal/graphics-device-registry.js";
 
 type IndexBufferState = {
   readonly Backend: CnaBackend;

@@ -13,11 +13,6 @@ import { EventArgs } from "../EventArgs.js";
 import { DepthFormat, RenderTargetUsage, SurfaceFormat } from "./DeviceEnums.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
 import {
-  graphicsDeviceBackendForInternalUse,
-  resolveGraphicsDeviceHandleForInternalUse,
-  isRenderTargetBoundForInternalUse,
-} from "./GraphicsDevice.js";
-import {
   assertGraphicsResourceActiveForInternalUse,
   guardGraphicsResourceReleaseForInternalUse,
 } from "./GraphicsResource.js";
@@ -27,6 +22,11 @@ import {
   TextureCube,
   type AdoptedTextureCubeState,
 } from "./TextureCube.js";
+import {
+  graphicsDeviceBackendForInternalUse,
+  isRenderTargetBoundForInternalUse,
+  resolveGraphicsDeviceHandleForInternalUse,
+} from "../../../../internal/graphics-device-registry.js";
 
 type RenderTargetState = {
   readonly Backend: CnaGraphicsBackend;

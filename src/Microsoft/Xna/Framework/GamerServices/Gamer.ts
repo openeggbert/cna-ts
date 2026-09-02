@@ -14,6 +14,8 @@ import {
   GamerCollectionEnumerator as NestedGamerCollectionEnumerator,
   type GamerCollectionEnumerator,
 } from "./GamerCollection/GamerCollectionEnumerator.js";
+import { gamerCollectionItemsForInternalUse } from
+  "../../../../internal/gamer-collection-registry.js";
 
 /**
  * The gamer identities gamer services publishes, and the collections that hold them.
@@ -26,19 +28,6 @@ import {
 
 function requirePlatform(): never {
   throw new GamerServicesNotAvailableException();
-}
-
-/**
- * The backing arrays of the gamer collections, held outside the class so no public member exposes
- * them. XNA's collections are filled by the platform and never by a game.
- */
-const collectionItems = new WeakMap<GamerCollection<Gamer>, readonly Gamer[]>();
-
-/** Internal: the items one gamer collection holds. */
-export function gamerCollectionItemsForInternalUse<T extends Gamer>(
-  collection: GamerCollection<T>,
-): readonly T[] {
-  return (collectionItems.get(collection as GamerCollection<Gamer>) ?? []) as readonly T[];
 }
 
 /** One gamer the platform knows about. Games never construct these. */

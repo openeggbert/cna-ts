@@ -9,13 +9,6 @@ import { bindContentLostForInternalUse } from "../../../../internal/content-lost
 import { NativeResourceLifetime } from "../../../../internal/ownership.js";
 import { resolveVertexCodec } from "../../../../internal/vertex-transfer.js";
 import type { XnaType } from "../Contracts.js";
-import {
-  graphicsDeviceBackendForInternalUse,
-  graphicsDeviceParentLifetimeForInternalUse,
-  notifyGraphicsResourceCreatedForInternalUse,
-  notifyGraphicsResourceDestroyedForInternalUse,
-  resolveGraphicsDeviceHandleForInternalUse,
-} from "./GraphicsDevice.js";
 import type { GraphicsDevice } from "./GraphicsDevice.js";
 import {
   attachGraphicsResourceForInternalUse,
@@ -26,6 +19,13 @@ import {
 import { VertexDeclaration } from "./VertexDeclaration.js";
 import { BufferUsage, SetDataOptions } from "./VertexEnums.js";
 import { vertexDeclarationFromTypeForInternalUse } from "./VertexValues.js";
+import {
+  graphicsDeviceBackendForInternalUse,
+  graphicsDeviceParentLifetimeForInternalUse,
+  notifyGraphicsResourceCreatedForInternalUse,
+  notifyGraphicsResourceDestroyedForInternalUse,
+  resolveGraphicsDeviceHandleForInternalUse,
+} from "../../../../internal/graphics-device-registry.js";
 
 type VertexBufferState = {
   readonly Backend: CnaBackend;

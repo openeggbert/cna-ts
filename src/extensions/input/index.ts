@@ -40,22 +40,6 @@
  * at all is a different thing again and CNA says so through its own result codes.
  */
 
-// The graphics module graph contains a cycle that only resolves in one direction, and this subpath
-// is one of the two entry points that can enter it from the wrong end.
-//
-// `RenderTarget2D extends Texture2D`, `GraphicsDevice` needs both as values (`instanceof` in
-// `SetRenderTarget`), and `Texture2D` needs `GraphicsDevice`'s internal accessors -- so
-// `GraphicsDevice -> RenderTargets -> Texture2D -> GraphicsDevice` is a genuine cycle. It
-// evaluates cleanly entered at `GraphicsDevice`, because `Texture2D` only *calls* those accessors
-// and never runs them at module scope. Entered at `Texture2D` it does not: `RenderTargets` reaches
-// `class RenderTarget2D extends Texture2D` while `Texture2D` is still initialising, and throws
-// `ReferenceError: Cannot access 'Texture2D' before initialization`.
-//
-// A consumer whose FIRST import is this subpath entered at `Texture2D` and got exactly that, on a
-// published export, which `test/package-entry-points.test.mjs` now cold-imports every one of in a
-// process of its own so no future subpath can reintroduce it quietly. This import fixes the order
-// and is deliberately a bare side-effect one -- nothing here needs a binding from it.
-import "../../Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
 import { getBackend } from "../../internal/backend.js";
 import type { CnaExtendedInputBackend } from "../../internal/backend.js";
 import { NativeUnavailableError } from "../../internal/native-error.js";
