@@ -49,7 +49,7 @@ try {
     await import("/cna-ts/Microsoft/Xna/Framework/Graphics/SpriteFont.js");
   const { SpriteFontOracle } = await import("/cna-ts/internal/sprite-font-oracle.js");
   const { resolveGraphicsDeviceHandleForInternalUse } =
-    await import("/cna-ts/Microsoft/Xna/Framework/Graphics/GraphicsDevice.js");
+    await import("/cna-ts/internal/graphics-device-registry.js");
   const { SPRITE_FONT_FIXTURE, SPRITE_FONT_STRINGS } =
     await import("/fixture-modules/sprite-font.mjs");
   const xact = await import("/fixture-modules/xact.mjs");

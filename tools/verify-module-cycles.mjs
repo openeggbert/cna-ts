@@ -32,8 +32,16 @@
  * it is back in the cycle it was extracted to end. Type-only imports are exempt and expected: the
  * registry is typed in terms of the facade and erases to nothing.
  *
- * The first check is the one that cannot be fooled — it runs the code. The second fails at the
- * source, with the rule written out, before anyone spends a build finding out.
+ * **TEST DEEP IMPORTS** — every `dist/` module a test file or a browser page names by hand, and
+ * every binding it asks that module for. The suites and pages reach past the exports map into
+ * internal modules on purpose, and nothing typechecks them: they are `.mjs` and `.html`, and the
+ * browser ones resolve their specifiers at run time in Chromium. So moving one internal export
+ * broke `test/native-cna.integration.mjs` and `test/wasm/non-engine-page.html` while `npm test`,
+ * `npm run check`, `verify:leaks` and `verify:package` were all green -- because neither file is in
+ * the default battery, and the one that is not even a module was going to fail in a browser.
+ *
+ * The first check is the one that cannot be fooled — it runs the code. The second and third fail at
+ * the source, with the rule written out, before anyone spends a build finding out.
  *
  * ## What it deliberately does not check
  *
@@ -162,6 +170,91 @@ export function checkRegistries() {
   return failures;
 }
 
+/**
+ * Every `dist/` module a hand-written test or page names, with the bindings it asks for.
+ *
+ * Two specifier shapes reach the built package: `../dist/x.js` from a test file, and
+ * `/cna-ts/x.js` from a browser page the harness serves `dist` under. Both are matched with the
+ * name list that follows or precedes them, and a name that module does not export is the failure
+ * -- which is exactly what a moved internal export looks like from here.
+ */
+export async function checkTestDeepImports() {
+  const TEST = path.join(ROOT, "test");
+  if (!fs.existsSync(TEST)) return [];
+  return deepImportFailuresIn(
+    walk(TEST, (name) => name.endsWith(".mjs") || name.endsWith(".html"))
+      .map((file) => ({ file: path.relative(ROOT, file), text: fs.readFileSync(file, "utf8") }))
+      // The rule reads source text, so a file that QUOTES a broken import to prove the rule
+      // rejects it is indistinguishable from a file that contains one. Exactly one file does
+      // that -- the rule's own rejection cases -- and it is named rather than pattern-matched, so
+      // no other file can opt itself out by how it is written.
+      .filter(({ file }) => file !== path.join("test", "module-cycles.test.mjs")),
+  );
+}
+
+/**
+ * The rule itself, over sources given rather than read.
+ *
+ * Taking the text lets `test/module-cycles.test.mjs` hand it a page that asks for an export that
+ * moved and require it to say so -- a rejection case, which is the only option here: the mutation
+ * harness scores a plan by rebuilding `dist` and refuses a verdict when the artifact comes out
+ * byte-identical, and a defect in a test page changes no built file.
+ */
+export async function deepImportFailuresIn(sources) {
+  const failures = [];
+  if (!fs.existsSync(DIST)) return failures;
+  // `import { a, b } from "spec"` and `const { a, b } = await import("spec")`, which is how a page
+  // that must not load the module at parse time reaches one.
+  const statik = /import\s*(?:\{([^}]*)\}|(\w+))?\s*from\s*["']((?:\.\.\/)+dist\/[^"']+|\/cna-ts\/[^"']+)["']/g;
+  const dynamic = /(?:const|let|var)\s*\{([^}]*)\}\s*=\s*await\s+import\(\s*["']((?:\.\.\/)+dist\/[^"']+|\/cna-ts\/[^"']+)["']\s*\)/g;
+
+  const wanted = new Map();   // dist-relative module -> Map<name, Set<test file>>
+  for (const { file, text: source } of sources) {
+    for (const [pattern, nameGroup, specGroup] of [[statik, 1, 3], [dynamic, 1, 2]]) {
+      pattern.lastIndex = 0;
+      for (const match of source.matchAll(pattern)) {
+        const specifier = match[specGroup];
+        const relative = specifier.startsWith("/cna-ts/")
+          ? specifier.slice("/cna-ts/".length)
+          : specifier.replace(/^(?:\.\.\/)+dist\//, "");
+        // `{ a, b as c }` in an import and `{ a, b: c }` in a destructured dynamic one both name
+        // `b` in the module; the local alias is the half that is not the module's business.
+        const names = (match[nameGroup] ?? "").split(",")
+          .map((n) => n.trim().split(/\s+as\s+|:/)[0].trim())
+          .filter((n) => n.length > 0 && n !== "type");
+        const entry = wanted.get(relative) ?? new Map();
+        for (const name of names) {
+          entry.set(name, (entry.get(name) ?? new Set()).add(file));
+        }
+        if (!entry.has("\0module")) entry.set("\0module", new Set());
+        entry.get("\0module").add(file);
+        wanted.set(relative, entry);
+      }
+    }
+  }
+
+  for (const [relative, names] of [...wanted].sort()) {
+    const target = path.join(DIST, relative);
+    const users = [...(names.get("\0module") ?? [])].sort().join(", ");
+    if (!fs.existsSync(target)) {
+      failures.push(`dist/${relative} is imported by ${users} and was not built`);
+      continue;
+    }
+    let exported;
+    try {
+      exported = new Set(Object.keys(await import(pathToFileURL(target).href)));
+    } catch (error) {
+      failures.push(`dist/${relative}, imported by ${users}, does not load: ${String(error).split("\n")[0]}`);
+      continue;
+    }
+    for (const [name, from] of names) {
+      if (name === "\0module" || exported.has(name)) continue;
+      failures.push(`dist/${relative} has no export "${name}", asked for by ${[...from].sort().join(", ")}`);
+    }
+  }
+  return failures;
+}
+
 export async function checkColdImports() {
   if (!fs.existsSync(DIST)) {
     return { modules: 0, failures: [["dist", "dist/ does not exist -- run npm run build first"]] };
@@ -200,14 +293,17 @@ export async function checkColdImports() {
 // reads TAP counts and cannot see a tool's exit code.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const registryFailures = checkRegistries();
+  const deepImports = await checkTestDeepImports();
   const cold = await checkColdImports();
 
   console.log(`REGISTRY_MODULES=${REGISTRIES.length}  REGISTRY_VIOLATIONS=${registryFailures.length}`);
   for (const failure of registryFailures) console.log(`  VIOLATION ${failure}`);
+  console.log(`TEST_DEEP_IMPORTS_BROKEN=${deepImports.length}`);
+  for (const failure of deepImports) console.log(`  BROKEN ${failure}`);
   console.log(`BUILT_MODULES=${cold.modules}  COLD_IMPORT_FAILURES=${cold.failures.length}`);
   for (const [file, why] of cold.failures) console.log(`  FAIL ${file}\n       ${why}`);
 
-  if (registryFailures.length > 0 || cold.failures.length > 0) {
+  if (registryFailures.length > 0 || deepImports.length > 0 || cold.failures.length > 0) {
     console.error("\nmodule-cycle gate FAILED");
     process.exit(1);
   }

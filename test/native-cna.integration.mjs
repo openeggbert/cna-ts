@@ -45,7 +45,7 @@ import * as guideExtensions from "../dist/extensions/gamer-services/index.js";
 import { getBackend } from "../dist/internal/backend.js";
 import { CnaResult } from "../dist/internal/cna-results.js";
 import { resolveGraphicsDeviceHandleForInternalUse } from
-  "../dist/Microsoft/Xna/Framework/Graphics/GraphicsDevice.js";
+  "../dist/internal/graphics-device-registry.js";
 import {
   getVertexBufferRawForInternalUse,
   setVertexBufferRawForInternalUse,
