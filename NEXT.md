@@ -3010,3 +3010,174 @@ move past `89024e0d4`.
 
 And the habit that paid again: **ask CNA rather than remember it.** Five of this session's
 expectations were guesses where the source or a pure scalar was available, and all five were wrong.
+
+## 2026-09-02: the engine layer bound whole, and four things that were quietly not being tested
+
+### Where this started
+
+The previous session lifted the artifact limitation and left seven modern-graphics families
+qualified against a strong WebAssembly build. The brief for this one was to finish the engine layer
+on that artifact — same public API, private backend only — and to keep going until nothing engine-
+shaped remained locally actionable.
+
+`cna-ts` started clean at `01facb5`, `cna-ts-template` at `8a806d8`, read-only `cnanext` at
+`7712534d` and `sharp-runtimenext` at `9cc96cd5`. Both dependencies end with **zero modified tracked
+files**. Thirteen commits, none pushed.
+
+### 1. The layer, finished
+
+Eighteen backend interfaces, **1252 methods, every one bound, none partial**:
+
+```text
+GraphicsExtension 603   Content 126   Shadow 78   ClusteredLighting 54   WasmBackend 52
+Graphics 48   LightProbe 46   Atmosphere 41   Compute 37   Audio 30   DepthNormalPrepass 27
+Particle 24   Effect 21   RuntimeServices 15   InstancedRenderer 14   Lod 14   Decal 12
+NativeMeshPart 10
+```
+
+`WASM_BACKEND_ROUTES=1403`, `REACHABLE_WASM=1403`, `MISSING_WASM_BACKEND_EXPORTS=0`,
+`UNEXPLAINED=0`, `REACHABLE_BUT_DEFERRED=0`.
+
+### 2. Three structures that threw the first time anything touched them
+
+`GltfMaterialBridge.CreateSource()` answered *"the measured layout has no field
+`texture_coordinate_sets_ext`"*. The layout spec carried a **hand-maintained field list per
+structure**, and a field left off it was never measured, so `WasmStruct` threw on first use.
+`CNA_GltfMaterialSourceEXT`, `CNA_GltfMaterialTexturesEXT` and `CNA_ShadowCascadeStateEXT` had all
+shipped that way — five fields the backend reads and the probe never measured.
+
+No test could have caught them, and that is the interesting part: the browser census reads every
+zero-argument accessor on every public class, and none of these three is reachable that way.
+
+The repair is not three repairs. `tools/wasm/generate-layout.mjs` now **derives** the field list from
+CNA's own headers and the spec names only which structures to measure — **90 fields that were never
+measured now are**. A misparse cannot pass silently either: every name found becomes an `offsetof`
+in a probe compiled `-Werror`.
+
+### 3. What a census cannot see
+
+A census reads accessors, so a field dropped *inside* a structure round-trips perfectly through a
+getter that never reads it either — both halves are the binding's and both are wrong the same way.
+The question has to go to something that is not the binding.
+
+CNA compares two materials itself. `PbrMaterialExtOperations.Equals` is asked **nineteen times**,
+once per field, about CNA's defaults and a copy with exactly one field changed. Four more shapes
+that cross nested inside something else are proved by what CNA *does* with them:
+
+| shape | what sees it |
+| --- | --- |
+| `CNA_BoundingBox` written | `FrustumCuller.IsVisible` on a box 900 units out — outside the frustum with both corners, spanning the camera with one |
+| `CNA_Vector4` read | glTF's default base colour, which is opaque white, so `W` is 1 |
+| `CNA_Handle[7]` read | the seven glTF texture slots, which become thirteen at a pointer's stride |
+| `CNA_Matrix[4]` + `float[4]` | a cascade state round-tripped whole, split distances past `Count` included |
+| a two-output texture slot | the handle output **poisoned** first, so an empty slot answering with a value CNA cannot issue is the binding and not CNA |
+
+That last one turned an assumption into a measurement. Poisoning proved CNA writes
+`CNA_INVALID_HANDLE` into the output whether or not a texture is present, so ignoring the presence
+flag genuinely cannot be observed. The check stays — the header promises the flag, not the zero —
+and the mutant stays as the only thing that would notice if CNA stopped.
+
+### 4. Four things that were not being tested, and now are
+
+This is the session's real theme. Each was invisible, and each is now a gate that runs in CI.
+
+**`verify-struct-fields.mjs` — 1056 field accesses, 0 unmeasured.** Every field the backend names,
+checked against the measured layout, resolving the structure by scope: a method that allocates one
+names it; a helper that takes a `WasmStruct` from its caller names it in its doc comment, which was
+already the convention and is now load-bearing. It reads the *helpers* from their own signatures
+rather than guessing — a first version matched only `structure.getF32("field")` and missed the glTF
+coordinate sets, the very defect it exists for; a second, looser version read
+`#retainSceneCallback(pipeline, "shadow")` as a field access.
+
+**`check-anchors.mjs` — 114 mutants, 0 stale.** A mutation plan is evidence only while its anchors
+match. One refactor left **12 of 29 anchors stale in one plan and 5 more across two others**: 17
+mutants the plans still claimed to cover and that were testing nothing. The harness does report
+`ANCHOR x0`, but only to whoever runs the plan, and plans take an hour. All 17 repaired;
+compiled-effect went from 17 killed / 12 refused to **29 of 29**.
+
+**`test/oracles.test.mjs` — 18 cases.** Every browser claim is an oracle applied to evidence, and an
+oracle that accepts anything makes its suite green and meaningless. The mutation harness cannot
+catch that: an oracle lives in `test/support`, which `dist` does not contain, so mutating one leaves
+the artifact byte-identical and the harness rightly refuses to score it. So each oracle is now given
+evidence with exactly one thing wrong and required to say so.
+
+**`report-frontier.mjs`.** "Absent" was one word covering two opposite conditions.
+
+### 5. The frontier, asked rather than inferred
+
+Fifteen interfaces are absent, 267 methods, none engine-layer. Whether that is CNA refusing or
+merely nobody having bound them is not something a family name answers, so all 156 routes were
+called on the strong artifact with null handles — making `INVALID_HANDLE` the expected answer and
+`NOT_SUPPORTED` the one that means something.
+
+- **`Device` is CNA-blocked**: 27 of 29 routes answer `NOT_SUPPORTED`.
+- **`ExtendedInput` (41) and `GraphicsAdapter` (11) have no CNA routes at all** — the Node backend
+  implements them without reaching the C ABI.
+- **The other twelve are simply unbound**, and that is reported rather than acted on. The scope here
+  is the engine layer; binding a sensor to raise a count is what this package does not do.
+
+The tool guessed CNA's result codes on its first run and read `INVALID_HANDLE` as `OUT_OF_MEMORY`,
+which would have made fourteen healthy families look broken and the one genuinely blocked family
+look ordinary. `src/internal/cna-results.ts` holds the verified table.
+
+### 6. A false classification, caught by testing the claim
+
+A prepass survivor was written up as *"the windowed suite is where this one can be killed."* It
+cannot: the windowed suite exercises the **Node-API** backend and never loads the WebAssembly one,
+so no mutation of this backend can reach it. Planting the mutant and running that suite is what
+showed it — **25 of 25 passing with the defect in place**.
+
+Both prepass survivors are blocked by upstream finding 30, which stops the browser prepass drawing
+anything, and neither is killable anywhere today. Exchanging the depth and normal borrows is
+invisible through size, surface format, level count, clear value and object identity — the two
+accessors memoise separately, so they are two objects whichever handle each holds. The clear values
+are now measured and asserted (both white) rather than assumed.
+
+### 7. Mutation
+
+**114 mutants across 8 plans: 102 killed, 12 survivors, 0 unscored.** Every survivor carries
+`expect: "survives"` and a reason: three equivalent by measurement, four architecture- or
+upstream-blocked, five behaviourally identical to CNA's own clamp or floor.
+
+### 8. Qualification
+
+Every gate, after `npm ci`:
+
+```text
+test 360 pass 0 skipped        api:verify TOTAL_DIFFERENCES=0 ALLOWLIST_SIZE=0
+test:native 52                 api:verify:live TOTAL_DIFFERENCES=0 ALLOWLIST_SIZE=0
+test:extensions 10             verify:runtime RUNTIME_DIFFERENCES=0
+test:cnb 39                    verify:leaks INTERNAL_LEAK=0
+test:content:required 10       verify:cna-contract DIAGNOSTICS=0
+test:differential 182          audit:cna-abi 1889/1889, MISMATCHES=0, NEVER_LOADED=0
+windowed-renderer 25           MISSING_WASM_BACKEND_EXPORTS=0
+effect-reflection 10           coverage UNEXPLAINED=0 REACHABLE_BUT_DEFERRED=0
+                               verify:wasm — routes 1403/1403, calls 1186, fields 1056, anchors 114
+```
+
+Both browser suites on both artifacts, all with **0 skipped**: default 24 on each — recording
+`ABSENT` on the plain artifact and `PRESENT` on the strong one, so both branches are exercised —
+and strong 14 on the strong artifact. Against the plain artifact the strong suite skips all 14 with
+`STRONG_WASM_TESTS_SKIPPED=14` and the `:required` form fails, which is the point.
+
+The three pinned ABI reports regenerate byte-identically at `89024e0d4`. `dist` and the npm package
+are both byte-reproducible.
+
+Template: build, native smoke and browser smoke at **60 and 600 frames**, browser on **both**
+artifacts, extensions smoke, and both generated consumers — `GENERATED_TYPESCRIPT_BUILD=PASS`,
+`GENERATED_JAVASCRIPT_BUILD=PASS`, `LEGACY_OR_SIBLING_REFERENCES=0`.
+
+### Where the next session picks up
+
+`ACTIONABLE_LOCAL = 0` for engine work: every engine interface is bound whole, every mutant scores,
+every gate is green. What remains is not local:
+
+1. **Upstream finding 30** (WEBGL2 multiple-render-target draw reaches no target) is the largest
+   single unblocker. It gates the browser prepass entirely, and two mutants are waiting on it.
+   `tools/upstream-repro/webgl2-multiple-render-targets.mjs` exits 0 while it reproduces and 1 when
+   repaired, so the day it is fixed is detectable rather than guessable.
+2. **The other upstream findings** — 1, 12, 19, 20 and the rest — each hold a documented partial
+   binding in place.
+3. **The twelve unbound non-engine families**, if they are wanted. `report-frontier.mjs` says which
+   are possible; whether they are worth it is a product question, not a binding one. A route that
+   validates its arguments has not promised to work.
