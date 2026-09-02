@@ -37,11 +37,13 @@ native 52, extensions 10, CNB 39, model-part 9, content-survey 8, input-devices 
 avatars 8, sprite-font-oracle 5, compiled effects 10, browser 13 -- all passing, which for a
 detector means the behaviour it pins has not changed.
 
-**Re-checked on 2026-09-02.** `cnanext` HEAD is `9ca0d4188`, one commit past the `5347b52ea` the
-items below were measured against, and that commit is `fix(SAMPLE-148): accept const SpriteBatch
-states` — `SpriteBatch.hpp`, `SpriteBatch.cpp` and its tests, nothing else. No graphics-renderer,
-game-teardown, gamer-services or build-system file lies between the two, so items 29, 30 and 32 and
-the Emscripten video rule are unchanged by inspection rather than by re-running their reproducers.
+**Re-checked on 2026-09-02.** `cnanext` HEAD is `e3e72bcac`, two commits past the `5347b52ea`
+the items below were measured against, and the whole delta is
+`fix(SAMPLE-148): accept const SpriteBatch states` and `docs(XNB-45): refresh runtime support
+matrix` — `SpriteBatch.hpp`, `SpriteBatch.cpp`, its tests and one markdown file. No
+graphics-renderer, C-API, framework, gamer-services, camera, audio, media or build-system file lies
+between the two, so items 29, 30 and 32 and the Emscripten video rule are unchanged by inspection
+rather than by re-running their reproducers.
 The video rule was read rather than assumed: `modules/CMakeLists.txt:20` still puts `EMSCRIPTEN` in
 the set that makes `_cna_ffmpeg_platform_supported` false, and `CNA_ENABLE_VIDEO=ON` there is still
 a `FATAL_ERROR`. Finding 29 was re-checked by enumerating every `*_test_backend_ext` route CNA has —

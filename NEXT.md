@@ -3394,9 +3394,11 @@ action is not `element.click()` — so "needs a gesture" was an untested explana
 measured blocker.
 
 `cna-ts` started clean at `c77e5ed`, level with `origin/develop` rather than six ahead as the
-handoff said; `cna-ts-template` at `8a806d8`; `cnanext` at `9ca0d4188`, one commit past the
-`5347b52ea` baseline; `sharp-runtimenext` at `9cc96cd5`. Both dependencies end with **zero modified
-tracked files**.
+handoff said; `cna-ts-template` at `8a806d8`; `cnanext` at `9ca0d4188` and moving — another agent
+committed to it during this session and it ends at `e3e72bcac`; `sharp-runtimenext` at `9cc96cd5`.
+The whole `cnanext` delta from the `5347b52ea` baseline is a `SpriteBatch` const-correctness fix
+and one markdown file, which is why every upstream finding below is re-checked by inspection rather
+than by re-running its reproducer. Both dependencies end with **zero modified tracked files**.
 
 The sentence was hiding two different facts and one accident, and finding them cost four things
 this package did not know about itself.
@@ -3589,10 +3591,11 @@ branch is a claim rather than a possibility — and the mutant dies 5 of 5.
 1. **Finding 34** is new and cheap to fix — one `SDL_InitSubSystem` call — and it unblocks the
    camera on every platform, not just in a browser.
 2. **Finding 32**, **finding 30** and **finding 29** are unchanged, checked by inspection rather
-   than by belief: the only commit between the measured baseline and current `cnanext` HEAD is a
-   `SpriteBatch` const-correctness fix, and no graphics-renderer, game-teardown or gamer-services
-   file lies between them. Finding 29 was re-checked by enumerating every `*_test_backend_ext`
-   route CNA has — there is still none for a signed-in gamer.
+   than by belief: the whole delta between the measured baseline and current `cnanext` HEAD is a
+   `SpriteBatch` const-correctness fix and a markdown file, and no graphics-renderer, C-API,
+   framework, gamer-services or build-system file lies between them. Finding 29 was re-checked by
+   enumerating every `*_test_backend_ext` route CNA has — sensors, vibration, message box, file
+   dialog, system tray and camera — and there is still none for a signed-in gamer.
 3. **Emscripten video** is unchanged and was read rather than assumed:
    `modules/CMakeLists.txt:20` still puts `EMSCRIPTEN` in the set that makes FFmpeg unsupported,
    and `CNA_ENABLE_VIDEO=ON` there is still a `FATAL_ERROR`.
