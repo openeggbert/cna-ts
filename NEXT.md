@@ -2089,6 +2089,19 @@ npm test             332/332      native 41/41      windowed 16/16
 Item 18 is the one to read first: it multiplies every leak finding in the document, and it was found
 by noticing that a probe process died *after* printing everything it meant to print.
 
+### 9. One last sweep, which found dead code carrying a defect
+
+The generator emitted a `#with...` writer beside every `#read...` reader whether or not anything
+wrote that structure, and **seven were never called** — all output structures CNA fills. One of them
+was wrong: `#withRenderPipelineStatistics` wrote `passes_run` twice, once from `PassesRun` and once
+from `LastFramePassCount`, the second silently overwriting the first.
+`CNA_RenderPipelineFrameStatisticsEXT` has no last-frame-pass-count field at all; the live reader
+takes it from `cna_render_pipeline_get_last_frame_pass_count`, as the Node bridge does.
+
+That is the argument for deleting dead code rather than leaving it: **no test can catch a defect in
+code nothing calls**, so it passed every gate this package has. 214 lines removed, and 35 writer
+bodies reindented out of the `try` block they only looked like they had left.
+
 ### Where the next session picks up
 
 **`ACTIONABLE_LOCAL` is 0.** Every engine-layer route this package can honestly project is bound —
@@ -3022,7 +3035,7 @@ shaped remained locally actionable.
 
 `cna-ts` started clean at `01facb5`, `cna-ts-template` at `8a806d8`, read-only `cnanext` at
 `7712534d` and `sharp-runtimenext` at `9cc96cd5`. Both dependencies end with **zero modified tracked
-files**. Thirteen commits, none pushed.
+files**. Sixteen commits, none pushed.
 
 ### 1. The layer, finished
 
@@ -3166,6 +3179,19 @@ are both byte-reproducible.
 Template: build, native smoke and browser smoke at **60 and 600 frames**, browser on **both**
 artifacts, extensions smoke, and both generated consumers — `GENERATED_TYPESCRIPT_BUILD=PASS`,
 `GENERATED_JAVASCRIPT_BUILD=PASS`, `LEGACY_OR_SIBLING_REFERENCES=0`.
+
+### 9. One last sweep, which found dead code carrying a defect
+
+The generator emitted a `#with...` writer beside every `#read...` reader whether or not anything
+wrote that structure, and **seven were never called** — all output structures CNA fills. One of them
+was wrong: `#withRenderPipelineStatistics` wrote `passes_run` twice, once from `PassesRun` and once
+from `LastFramePassCount`, the second silently overwriting the first.
+`CNA_RenderPipelineFrameStatisticsEXT` has no last-frame-pass-count field at all; the live reader
+takes it from `cna_render_pipeline_get_last_frame_pass_count`, as the Node bridge does.
+
+That is the argument for deleting dead code rather than leaving it: **no test can catch a defect in
+code nothing calls**, so it passed every gate this package has. 214 lines removed, and 35 writer
+bodies reindented out of the `try` block they only looked like they had left.
 
 ### Where the next session picks up
 
