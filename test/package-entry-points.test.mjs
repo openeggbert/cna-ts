@@ -42,6 +42,11 @@ const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "ut
  * `import()`ing it is not what a consumer does with it -- so the filter is on what can be a module
  * rather than a name written here.
  */
+/** `process.env` with every variable this package reads to find a native library removed. */
+const CONSUMER_ENV = Object.fromEntries(Object.entries(process.env).filter(([name]) =>
+  !["CNA_NATIVE_LIBRARY", "CNA_WINDOWED_LIBRARY", "CNA_NODE_BRIDGE", "CNA_WASM_ARTIFACT_DIR"]
+    .includes(name)));
+
 const entryPoints = Object.entries(manifest.exports ?? {})
   .map(([subpath, target]) => [subpath, typeof target === "string" ? target : target?.import])
   .filter(([, file]) => typeof file === "string" && file.endsWith(".js"));
@@ -60,6 +65,11 @@ for (const [subpath, file] of entryPoints) {
     try {
       execFileSync(process.execPath, ["--input-type=module", "-e", source], {
         cwd: ROOT, stdio: ["ignore", "pipe", "pipe"], timeout: 60_000,
+        // A consumer who has installed the package and nothing else. Importing a public entry
+        // point must not need a native library, a bridge or a Wasm artifact -- only *using* native
+        // functionality may -- and a developer with one of these exported would otherwise be
+        // measuring their own shell rather than the package.
+        env: CONSUMER_ENV,
       });
     } catch (error) {
       const detail = String(error.stderr ?? error.message).split("\n")

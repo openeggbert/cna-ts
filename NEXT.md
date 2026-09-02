@@ -3603,3 +3603,202 @@ branch is a claim rather than a possibility — and the mutant dies 5 of 5.
    separates synthetic from physical, and no amount of local work substitutes for it. The
    microphone half is now as close as software can get: the path is proved end to end against
    authored samples, and only the transducer is untested.
+
+## 2026-09-02: the cycle at its source, and four modules that could never be imported first
+
+### Where this started
+
+The previous session found that `cna-ts/extensions/devices` and `cna-ts/extensions/input` threw
+`ReferenceError: Cannot access 'Texture2D' before initialization` when they were a consumer's
+*first* import, fixed the order with a bare side-effect import in each, and wrote in its commit
+message that the proper repair — moving `GraphicsDevice`'s state registry into a module of its own
+— was "recorded in `NEXT.md`". It was not: that commit touched three files and none of them was
+this one. The record existed only in the commit message that pointed at it. This session is that
+repair, and this is the record.
+
+`cna-ts` started clean at `c1848d0`, six commits ahead of `origin/develop` exactly as the handoff
+said; `cna-ts-template` at `8a806d8`; `cnanext` at `e3e72bcac`; `sharp-runtimenext` at `9cc96cd5`.
+Neither dependency moved during the session and both end with **zero modified tracked files**.
+
+### 1. The workaround was smaller than the defect
+
+Removing the two side-effect imports reproduced the failure exactly — those two entry points and no
+others. But the question that had not been asked is what happens at every *other* module, and the
+answer is that a cold import of all 239 built modules, one process each, costs **one second**:
+
+```text
+MODULES=237  COLD_IMPORT_FAILURES=5
+  Microsoft/Xna/Framework/Graphics/Texture2D.js            Cannot access 'Texture2D' before initialization
+  Microsoft/Xna/Framework/Graphics/TextureCube.js          Cannot access 'TextureCube' before initialization
+  Microsoft/Xna/Framework/Graphics/RenderTargetBinding.js  Cannot access 'TextureCube' before initialization
+  internal/sprite-font-oracle.js                           Cannot access 'Texture2D' before initialization
+  GamerServices/GamerCollection/GamerCollectionEnumerator.js
+                                       Cannot access 'NestedGamerCollectionEnumerator' before initialization
+```
+
+Five, with the workaround in place, and only two of them had ever been noticed — because only two
+of them were published. `TextureCube` was a second copy of the same defect nobody had written down,
+and `GamerCollectionEnumerator` was a third instance of it in a family nobody had connected to
+graphics at all. The others were unreachable subpaths waiting for someone to publish them.
+
+### 2. What the cycle actually was
+
+Seven modules in one strongly connected component, and the back-edges were all the same shape:
+
+```text
+GraphicsDevice -> RenderTargets       [RenderTarget2D, RenderTargetCube -- instanceof in SetRenderTarget]
+               -> RenderTargetBinding [RenderTargetBinding]
+               -> IndexBuffer, VertexBuffer  [handle resolvers]
+RenderTargets  -> Texture2D, TextureCube     [extends, at MODULE SCOPE]
+Texture2D, TextureCube, IndexBuffer, VertexBuffer, RenderTargets
+               -> GraphicsDevice      [5 accessors: handle, backend, parent lifetime, 2 notifiers]
+```
+
+A cycle is harmless until something reads a binding at module scope, and an `extends` clause is
+exactly that. Entered at `GraphicsDevice` the graph evaluates, because the resource modules only
+*call* the accessors from inside methods. Entered at a texture it does not.
+
+Every one of those back-edges was a read or a write of **device state** and none of them needed the
+`GraphicsDevice` class. So `internal/graphics-device-registry.ts` holds the state, the dispatchers,
+the live-device pointer and the seven accessors, and imports every graphics class as a *type*.
+`GamerServices/Gamer.ts` had the identical defect, with the module-scope read being XNA's nested
+`GamerCollection.GamerCollectionEnumerator` identity;
+`internal/gamer-collection-registry.ts` is its equivalent and imports nothing at runtime.
+
+`RUNTIME_CYCLE_COMPONENTS` went 4 → 2, `COLD_IMPORT_FAILURES` 5 → 0, and both workarounds are gone
+rather than kept beside the fix.
+
+### 3. The gate is a sweep, not a cycle detector
+
+The two cycles that remain are `Matrix`/`Vector2`/`Vector3`/`Vector4`/`Quaternion`/`Plane` and
+`BoundingBox`/`BoundingFrustum`/`BoundingSphere`/`Ray`. They are mutually recursive by arithmetic,
+none reads a binding at module scope, and every one cold-imports from every entry point. A gate that
+failed them would be a gate this package had to switch off, which is the brief's own warning about
+noisy dependency checkers made concrete. **A cycle is not a defect; an unreachable entry point is.**
+
+So `tools/verify-module-cycles.mjs` measures three things, and `test/module-cycles.test.mjs` asserts
+the same three so `npm test` carries them:
+
+```text
+REGISTRY_MODULES=2  REGISTRY_VIOLATIONS=0
+TEST_DEEP_IMPORTS_BROKEN=0
+BUILT_MODULES=239   COLD_IMPORT_FAILURES=0
+```
+
+The sweep runs with `CNA_NATIVE_LIBRARY`, `CNA_WINDOWED_LIBRARY`, `CNA_NODE_BRIDGE` and
+`CNA_WASM_ARTIFACT_DIR` removed from the child's environment, and
+`test/package-entry-points.test.mjs` now scrubs the same four — importing a public entry point must
+not need a native library, and a developer with one exported was otherwise measuring their shell.
+
+### 4. The third rule, which this session's own mistake paid for
+
+Moving the accessors broke `test/native-cna.integration.mjs` and `test/wasm/non-engine-page.html`,
+which reach past the exports map into internal modules on purpose. `npm test`, `npm run check`,
+`verify:leaks`, `verify:package`, the strict verifier and both reproducibility gates were **all
+green with both broken**: neither file is typechecked, neither is in the default battery, and one is
+an HTML page whose specifiers Chromium resolves at run time.
+
+So the gate also checks that every `dist/` module a suite or a page names by hand exists, and that
+every binding it asks for is exported. Checked against the defect: with both imports put back, the
+rule names the module, the missing export and both files that asked for it.
+
+### 5. Nothing public moved
+
+Four declaration files changed and every change is an `*ForInternalUse` symbol changing module or a
+removed side-effect import. No public XNA type or member moved.
+`GraphicsDeviceInternalState` is re-exported from `GraphicsDevice.js` by type, so its old import
+path still resolves. Both registries are named in `verify-package.mjs`'s internal-export block, which
+was checked by exporting one and watching the consumer fixture fail with
+`ERR_PACKAGE_PATH_NOT_EXPORTED` missing.
+
+One gate failed on file location rather than on semantics: the runtime-capability audit counts
+`NativeUnavailableError` sites under `src/Microsoft/Xna/Framework`, and one site moved out without
+changing. Its scope is now a list of audited paths instead of one root directory. The site count is
+unchanged at **64** because the boundary is unchanged; the file count is **25** rather than 24,
+because one boundary now lives in two files, which is what an extraction costs and is worth the gate
+saying.
+
+### 6. Mutation evidence, and the mutant that found a weak assertion
+
+`tools/mutation-plans/module-cycles.json`: **6 mutants, 6 killed, 0 survived, 0 unscored**, source
+and artifact both restored. Two of them are worth reading.
+
+`handle-lookup-stops-checking-disposal` **survived** its first run. The disposal test asserted the
+refusal with `/GraphicsDevice/`, and the device's released native lifetime raises
+`ObjectDisposedException` carrying *its own* label — "caller-created GraphicsDevice" — which matched.
+The test was passing for the wrong reason. It pins the exact message now, because "the registry
+refused" and "something refused" are different claims, and only the first protects a device whose
+lifetime is borrowed and still alive.
+
+`registry-imports-an-extension` survived a different way first: the plan's command was
+`node tools/verify-module-cycles.mjs && node --test ...`, so the gate exited before a single test
+ran and the harness — which scores from TAP counts and cannot see a tool's exit code — refused a
+verdict rather than inventing one. Making the rule a test as well as a tool is what makes it
+scoreable, and is why `test/module-cycles.test.mjs` exists at all.
+
+The deep-import rule is deliberately **not** planted: a defect in a test page changes no built file,
+so the harness rebuilds `dist` byte-identical and rightly refuses. It is watched by a rejection case
+instead — a page asking for an export that moved, a module that was never built, and a correct one
+it must accept. One file is excluded from the sweep by name, the rule's own rejection cases, because
+a file that quotes a broken import to prove the rule rejects it is otherwise indistinguishable from
+one that contains it.
+
+### 7. Finding 35, audited rather than assumed
+
+The brief asked whether CNA-TS already has a stable source of the exact native mixer rate before
+leaving the frequency axis on a stderr line. Every candidate was read:
+
+- Every `sample_rate` on the audio ABI is caller-*supplied* (`CNA_SoundEffectCreateInfo`,
+  `cna_dynamic_sound_effect_instance_create`), a parameter to a pure static computation
+  (`cna_sound_effect_get_sample_duration_ticks`, `..._get_sample_size_in_bytes`), a CNB asset's own
+  rate (`cnb.h:4094`), or a *capture* device's (`cna_microphone_get_sample_rate_at`).
+- `CNA_AudioCapabilities` carries `is_playback_available` and reserved bytes. Nothing else.
+- The XACT audio engine exposes renderer names, ids, text, hashes and global variables. No output
+  format.
+- No `cna_*` route mentions the mixer at all. `GetMixerSampleRate()` is declared in
+  `modules/audio/include/CNA/Internal/Audio/MixerEngine.hpp`, and its only three callers are inside
+  `SoundEffectInstance.cpp`, where it converts a filter's Hz into the mixer's normalized cutoff
+  domain and is never published.
+
+So there is no local fix, and none was invented. **Finding 35 stays `BLOCKED_UPSTREAM`**, the
+browser suite keeps taking the rate from CNA's own `[AudioMixer]` notice, and the test keeps saying
+in the assertion that this is why — including that the AudioContext's 48000 against the mixer's
+44100 is the trap a reasonable page would fall into.
+
+### 8. External delta
+
+`cnanext` did not move: it is still `e3e72bcac`, zero commits since the session started, and
+`sharp-runtimenext` is still `9cc96cd5`. `modules/c-api/` is untouched, so Stage A alone settles it
+and no reproducer was rerun. Findings **29**, **30**, **32**, **34**, **35** and the Emscripten video
+rule are all unchanged, and none of them is local work.
+
+### 9. Qualification
+
+```text
+503 unit tests, 0 skipped        182 differential      MODULE_CYCLE_GATE=PASS
+native 52   cnb 39   content 10   extensions 10   input-devices 3   model-part 9
+content-survey 8   media-library 6   avatars 9   sprite-font 6
+windowed 25   compiled effect 10
+browser 24   strong 14   non-engine 17 (device layer required)   input 7
+audio 8   synthetic capture 5
+TOTAL_DIFFERENCES=0  ALLOWLIST_SIZE=0  STRICT_BASELINE_ASSERTION=PASS
+RUNTIME_DIFFERENCES=0  INTERNAL_LEAK=0  ACTIONABLE_LOCAL=0
+UNCLASSIFIED_WASM_BACKEND_GAP=0  UNCLASSIFIED_PARTIAL_METHODS=0
+STALE_CLASSIFICATIONS=0  UNWIRED_WASM_FACADES=0
+ORACLES_EXPORTED=40  ORACLES_UNWATCHED=0
+MUTATION_PLANS=12  MUTATION_PLAN_MUTANTS=165  MUTATION_PLAN_STALE_ANCHORS=0
+DIST_BYTE_IDENTICAL=PASS  TAR_PAYLOAD_IDENTICAL=PASS  FILE_LIST_IDENTICAL=PASS
+template: native 60/600  browser 60/600  extensions  generated TS + JS   all PASS
+```
+
+All five checked-in ABI reports were verified against the pinned `.cna-headers-pin` revision rather
+than regenerated, and compared **identical**.
+
+### Where the next session picks up
+
+`ACTIONABLE_LOCAL = 0` and `LOCAL_IMPORT_CYCLE_ACTIONABLE = 0`. What remains is external and
+unchanged: finding 34 (`SDL_INIT_CAMERA`, still the cheapest unblocker and still not ours to fix),
+finding 32 (standalone `GraphicsDevice` teardown), finding 30 (WebGL2 MRT), finding 29 (no
+signed-in gamer test backend), finding 35 (the mixer rate, re-audited above), Emscripten video, and
+physical hardware. **No new local CNA-TS engineering session is warranted until an external
+condition changes.**
