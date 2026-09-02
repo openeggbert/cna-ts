@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CNA-TS browser microphone capture, from a synthetic device</title>
+</head>
+<body>
+<canvas id="canvas" width="320" height="240"></canvas>
+<button id="activate" type="button" style="width:220px;height:88px">start capture</button>
+<script type="module">
+// CNA's `Microphone` in a browser, recording a file this repository authored.
+//
+// The device is Chromium's own fake one and the samples are `test/fixtures/fake-audio.mjs`, put
+// there by `--use-file-for-fake-audio-capture`. Nothing here can reach the host's microphone:
+// with the fake-device flag every capture device Chromium offers is synthetic, and the harness
+// refuses to launch at all if the file is missing rather than falling back to a real one.
+//
+// What the page collects is raw PCM. Deciding whether it is the *authored* PCM is the oracle's
+// job, and it does it in the frequency domain against both authored tones and the amplitude ratio
+// between them -- a test that room noise, a silent buffer, or a different tone cannot pass.
+const result = { status: "running", frames: 0, errors: [] };
+globalThis.__cnaHarness = result;
+window.onerror = (message, source, line, column, error) => {
+  result.errors.push(`error: ${error && error.stack ? error.stack : `${message} @${source}:${line}:${column}`}`);
+  return false;
+};
+window.addEventListener("unhandledrejection", (event) => result.errors.push(
+  `rejection: ${event.reason && event.reason.stack ? event.reason.stack : String(event.reason)}`,
+));
+
+const report = (label, data) => fetch("/harness/report", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({ label, ...data }),
+});
+
+let onTrustedClick;
+const trustedClick = new Promise((resolve) => { onTrustedClick = resolve; });
+document.getElementById("activate").addEventListener("click", (event) => {
+  if (event.isTrusted) onTrustedClick();
+});
+
+/** Bytes to base64, because a few hundred thousand JSON numbers is not a transport. */
+const encode = (bytes) => {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+};
+
+try {
+  const { Game, GraphicsDeviceManager, LoadWasmBackend } = await import("/cna-ts/index.js");
+  const createCnaCApi = (await import("/wasm/cna_c_api.mjs")).default;
+  const canvas = document.getElementById("canvas");
+  const module = await createCnaCApi({ canvas });
+  const status = await LoadWasmBackend({ Module: module });
+  result.abiVersion = status.AbiVersion;
+  const { getBackend } = await import("/cna-ts/internal/backend.js");
+  const backend = getBackend();
+
+  const evidence = {};
+  result.evidence = evidence;
+
+  let drew = false;
+  class CaptureGame extends Game {
+    constructor() {
+      super();
+      this.graphics = new GraphicsDeviceManager(this);
+      this.IsFixedTimeStep = false;
+    }
+    Draw() { drew = true; }
+  }
+  const game = new CaptureGame();
+  const pump = (count) => new Promise((resolve, reject) => {
+    let done = 0;
+    const step = () => {
+      try {
+        game.RunOneFrame();
+        done += 1;
+        result.frames += 1;
+        if (done >= count) { resolve(); return; }
+        requestAnimationFrame(step);
+      } catch (error) { reject(error); }
+    };
+    requestAnimationFrame(step);
+  });
+  await pump(4);
+  result.drew = drew;
+
+  // SDL's recording path pushes captured buffers through a ScriptProcessorNode on its own
+  // AudioContext, and a suspended context runs no node -- so without a trusted gesture the whole
+  // capture would be the silence SDL substitutes, and would look exactly like a microphone that
+  // delivered nothing.
+  result.status = "waiting-for-user-activation";
+  await report("waiting-for-user-activation", {});
+  await trustedClick;
+  result.status = "running";
+  await pump(10);
+
+  // What the *browser* says it is about to record from. Every label here is Chromium's own fake
+  // device: this is the page's own check that no physical hardware is involved, made from the
+  // platform's answer rather than from the flags the harness passed.
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  evidence.browserAudioInputs = devices
+    .filter((device) => device.kind === "audioinput")
+    .map((device) => device.label);
+
+  const audio = backend.Audio;
+  evidence.microphones = audio.getMicrophones().map((microphone) => ({
+    Index: microphone.Index,
+    Name: microphone.Name,
+    IsHeadset: microphone.IsHeadset,
+    SampleRate: microphone.SampleRate,
+    State: microphone.State,
+    BufferDurationTicks: String(microphone.BufferDurationTicks),
+    IsDefault: microphone.IsDefault,
+  }));
+
+  if (evidence.microphones.length > 0) {
+    const requestedTicks = 3_000_000n;   // 0.3 s
+    audio.setMicrophoneBufferDurationTicks(0, requestedTicks);
+    const durationAfter = String(audio.getMicrophones()[0].BufferDurationTicks);
+
+    const stoppedBefore = audio.getMicrophones()[0].State;
+    audio.startMicrophone(0);
+    const started = audio.getMicrophones()[0].State;
+
+    // Deliberately more than any capture could hold, so a projection answering the *requested*
+    // length rather than the produced one shows up as a length no microphone could have made.
+    const requestedBytes = 65536;
+    const chunks = [];
+    let captured = 0;
+    let silentChunks = 0;
+    let firstSoundedAt = null;
+    // SDL writes silence until its own getUserMedia resolves, then swaps in the real stream, so
+    // the run waits for sound rather than assuming the first buffer has it. The loop is bounded:
+    // a device that never sounds ends the run with what it produced and the oracle fails on it.
+    for (let attempt = 0; attempt < 120 && captured < 40_000; attempt += 1) {
+      await pump(4);
+      const bytes = audio.getMicrophoneData(0, requestedBytes);
+      if (bytes.length === 0) continue;
+      const sounded = bytes.some((byte) => byte !== 0);
+      if (!sounded) { silentChunks += 1; continue; }
+      if (firstSoundedAt === null) firstSoundedAt = attempt;
+      chunks.push(bytes);
+      captured += bytes.length;
+    }
+    audio.stopMicrophone(0);
+    const stopped = audio.getMicrophones()[0].State;
+
+    const pcm = new Uint8Array(captured);
+    let at = 0;
+    for (const chunk of chunks) { pcm.set(chunk, at); at += chunk.length; }
+
+    evidence.capture = {
+      requestedTicks: String(requestedTicks), durationAfter,
+      stoppedBefore, started, stopped,
+      requestedBytes, capturedBytes: captured, chunks: chunks.length,
+      largestChunk: chunks.reduce((most, chunk) => Math.max(most, chunk.length), 0),
+      silentChunksBeforeSound: silentChunks, firstSoundedAt,
+      sampleRate: audio.getMicrophones()[0].SampleRate,
+      pcmBase64: encode(pcm),
+    };
+  }
+
+  game.Exit();
+  game.Dispose();
+  result.disposed = game.IsDisposed !== false;
+  result.status = "ok";
+} catch (error) {
+  result.status = "failed";
+  result.error = String(error && error.stack ? error.stack : error);
+  if (error && error.cause) result.error += `\ncaused by: ${error.cause.stack ?? error.cause}`;
+  await report("waiting-for-user-activation", { failed: result.error.slice(0, 400) });
+}
+</script>
+</body>
+</html>

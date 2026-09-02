@@ -118,6 +118,9 @@ function serve(page, reports) {
       });
       return;
     }
+    // Playwright's headless shell never asks for one; the full Chromium build a capture run needs
+    // does, and a 404 would arrive as a console error in a suite that requires none.
+    if (url.pathname === "/favicon.ico") { response.writeHead(204).end(); return; }
     if (url.pathname === "/" || url.pathname === "/index.html") file = page;
     // The fixture *generators*, served as modules so a page can build its own assets rather than
     // fetch bytes somebody else produced. `xact.mjs` is the reason: an XACT bank is three files
@@ -156,6 +159,31 @@ const playwright = blocked ? null : await importPlaywright();
 
 /** Why neither suite can run, or `false`. */
 export const browserBlocked = blocked ?? (playwright ? false : "playwright is not installed");
+
+/**
+ * The build a capture run needs, and it is not the default one.
+ *
+ * `chromium.launch()` runs Playwright's *headless shell*, which is a stripped Chromium with no
+ * media-capture stack at all: `getUserMedia({ audio: true })` there rejects with
+ * `NotSupportedError: Not supported`, before any permission or device question is reached. The
+ * full build, still headless, has it. So a capture run asks for the channel by name and skips with
+ * a reason where it is not installed, rather than degrading to something that cannot capture.
+ */
+const FAKE_MEDIA_CHANNEL = "chromium";
+
+/** Why a synthetic-capture run cannot happen here, or `false`. */
+export async function fakeCaptureBlocked() {
+  if (browserBlocked) return browserBlocked;
+  try {
+    const probe = await playwright.chromium.launch({ channel: FAKE_MEDIA_CHANNEL });
+    await probe.close();
+    return false;
+  } catch (error) {
+    return `a synthetic capture run needs Playwright's full "${FAKE_MEDIA_CHANNEL}" build, ` +
+      "because the bundled headless shell has no media-capture stack: " +
+      String(error?.message ?? error).split("\n")[0];
+  }
+}
 
 /**
  * Waits for a page to post `label` on the harness channel, polling the array the server fills.
@@ -199,15 +227,38 @@ function waitForReport(reports, label, timeoutMs = 180_000) {
  * channel count and sample rate CNA's own mixer notice announced, or `null` if no audio was opened.
  */
 export async function runFrames(frames, pageFile = "browser-page.html", options = {}) {
-  const { activate = false } = options;
+  const { activate = false, fakeAudioCapture = null } = options;
   const activationSelector = typeof activate === "string" ? activate : "#activate";
   const reports = [];
   const { server, port } = await serve(path.join(PAGE_DIRECTORY, pageFile), reports);
-  const browser = await playwright.chromium.launch({
+  const launch = {
     args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader", "--disable-gpu-sandbox"],
-  });
+  };
+  if (fakeAudioCapture) {
+    // The hard guarantee, and it is a refusal rather than a fallback. Without BOTH flags a page
+    // granted the microphone permission below would open whatever capture device this host has,
+    // and record the room. There is deliberately no path from here to "use the default device".
+    if (!fs.existsSync(fakeAudioCapture)) {
+      throw new Error(
+        `refusing to start a capture run: there is no synthetic audio source at ` +
+        `${fakeAudioCapture}, and without --use-file-for-fake-audio-capture the browser would ` +
+        "open this host's real microphone");
+    }
+    launch.channel = FAKE_MEDIA_CHANNEL;
+    launch.args.push(
+      "--use-fake-device-for-media-stream",
+      `--use-file-for-fake-audio-capture=${path.resolve(fakeAudioCapture)}`,
+    );
+  }
+  const browser = await playwright.chromium.launch(launch);
+  // A context of its own, so the microphone permission below is scoped to this run's origin and
+  // dies with it. Nothing persists: no profile directory, no stored permission.
+  const context = await browser.newContext();
   try {
-    const page = await browser.newPage();
+    if (fakeAudioCapture) {
+      await context.grantPermissions(["microphone"], { origin: `http://127.0.0.1:${port}` });
+    }
+    const page = await context.newPage();
     const consoleErrors = [];
     // CNA writes its own log to stderr, which Emscripten routes to console.error regardless of
     // level. An INFO banner is not a page error, so the runtime's own non-error levels are
@@ -269,8 +320,11 @@ export async function runFrames(frames, pageFile = "browser-page.html", options 
       { timeout: 180_000 },
     );
     const result = await page.evaluate(() => globalThis.__cnaHarness);
-    return { result, consoleErrors, reports, mixerFormat };
+    // `launchArgs` goes back so a capture suite can assert the fake-device flags were really
+    // present rather than trusting that this function passed them.
+    return { result, consoleErrors, reports, mixerFormat, launchArgs: launch.args };
   } finally {
+    await context.close();
     await browser.close();
     server.close();
   }

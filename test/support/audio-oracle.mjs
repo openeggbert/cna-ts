@@ -300,3 +300,128 @@ export function assertDynamicBufferEvidence(evidence, mixerFormat) {
     < MAGNITUDE_TOLERANCE,
     `and at its authored amplitude; measured ${playing.magnitude}`);
 }
+
+/**
+ * The magnitude of one frequency in a real signal, normalised so a pure sine of amplitude A
+ * reads A.
+ *
+ * A single-frequency transform rather than a whole FFT, because what is being asked is not "what
+ * is in this signal" but "is the authored tone in it, and is anything else": evaluating the two
+ * authored frequencies and then sweeping for a peak elsewhere answers both, at any sample rate,
+ * without needing the length to be a power of two.
+ */
+function magnitudeAt(samples, sampleRate, frequencyHz) {
+  let real = 0;
+  let imaginary = 0;
+  for (let index = 0; index < samples.length; index += 1) {
+    const angle = 2 * Math.PI * frequencyHz * index / sampleRate;
+    real += samples[index] * Math.cos(angle);
+    imaginary -= samples[index] * Math.sin(angle);
+  }
+  return 2 * Math.hypot(real, imaginary) / samples.length;
+}
+
+/** Signed 16-bit little-endian PCM as floats in [-1, 1). */
+function decodePcm16(bytes) {
+  const frames = Math.floor(bytes.length / 2);
+  const samples = new Float32Array(frames);
+  for (let index = 0; index < frames; index += 1) {
+    let value = bytes[index * 2] | (bytes[index * 2 + 1] << 8);
+    if (value > 32767) value -= 65536;
+    samples[index] = value / 32768;
+  }
+  return samples;
+}
+
+/**
+ * That CNA captured the file this repository authored, from a device that is not a microphone.
+ *
+ * The absolute level is deliberately not asserted. Chromium's capture pipeline applies automatic
+ * gain control, echo cancellation and noise suppression that SDL's own unconstrained
+ * `getUserMedia({ audio: true })` gives no way to switch off, and they cost about 20 dB. What
+ * survives them is the *shape*: both authored frequencies present, in the amplitude ratio they
+ * were authored at, with nothing else in the spectrum. A room cannot produce that, and neither
+ * can a buffer of zeros, a captured length that was never filled, or a different tone.
+ */
+export function assertSyntheticCaptureEvidence(evidence, { launchArgs, tones }) {
+  // The safety condition, asserted rather than assumed: these two flags are what make every
+  // capture device Chromium offers synthetic, and the second is what makes the samples ours.
+  assert.ok(launchArgs.includes("--use-fake-device-for-media-stream"),
+    "the browser was not launched with a fake media device, so this run may have opened real " +
+    `hardware; its arguments were ${JSON.stringify(launchArgs)}`);
+  assert.ok(launchArgs.some((argument) => argument.startsWith("--use-file-for-fake-audio-capture=")),
+    "the fake device had no file behind it, so it would have played Chromium's own beep rather " +
+    "than the authored fixture");
+
+  // And the browser's own account of what it is recording from, which is a different source of
+  // truth from the flags above.
+  assert.ok(evidence.browserAudioInputs.length > 0, "the browser enumerated no audio inputs");
+  for (const label of evidence.browserAudioInputs) {
+    assert.match(label, /^Fake /,
+      `the browser offered an audio input named ${JSON.stringify(label)}, which is not one of ` +
+      "Chromium's synthetic devices -- a real capture device was reachable from this run");
+  }
+
+  assert.ok(evidence.microphones.length > 0,
+    "CNA enumerated no microphones, so nothing below was measured");
+  for (const microphone of evidence.microphones) {
+    assert.equal(typeof microphone.Name, "string");
+    assert.ok(microphone.Name.length > 0, "an enumerated microphone has a name");
+    assert.ok(microphone.SampleRate > 0, "and a positive sample rate");
+  }
+  assert.equal(evidence.microphones.filter((microphone) => microphone.IsDefault).length, 1,
+    "exactly one enumerated microphone is the default one");
+
+  const capture = evidence.capture;
+  assert.ok(capture, "the microphone was enumerated and never captured");
+  assert.equal(capture.durationAfter, capture.requestedTicks,
+    "a buffer duration written is the duration read back, as a 64-bit tick count");
+  assert.notEqual(capture.started, capture.stoppedBefore,
+    "starting a microphone moves it out of the state it was in");
+  assert.equal(capture.stopped, capture.stoppedBefore,
+    "and stopping it puts it back");
+
+  assert.ok(capture.capturedBytes > 0, "the capture produced no bytes at all");
+  assert.equal(capture.capturedBytes % 2, 0,
+    "16-bit PCM arrives in whole samples");
+  assert.ok(capture.largestChunk < capture.requestedBytes,
+    `every read answered less than the ${capture.requestedBytes} bytes it asked for, because a ` +
+    `0.3 s buffer cannot hold that many; the largest was ${capture.largestChunk}, and a read ` +
+    "answering the requested length would be reporting the question rather than the audio");
+
+  const samples = decodePcm16(Uint8Array.from(Buffer.from(capture.pcmBase64, "base64")));
+  const rate = capture.sampleRate;
+  assert.ok(samples.length > rate / 8,
+    `only ${samples.length} samples were captured at ${rate} Hz, which is too little audio to ` +
+    "say anything about its spectrum");
+
+  const measured = tones.map((tone) => magnitudeAt(samples, rate, tone.frequencyHz));
+  for (const [index, tone] of tones.entries()) {
+    assert.ok(measured[index] > 0,
+      `nothing at all at the authored ${tone.frequencyHz} Hz`);
+  }
+
+  // Nothing else is in there. The sweep skips a guard band around each authored tone, so what it
+  // finds is the worst thing that is NOT the fixture.
+  const guardBandHz = 150;
+  let worstOther = 0;
+  let worstOtherHz = 0;
+  for (let hz = 100; hz < Math.min(8000, rate / 2); hz += 25) {
+    if (tones.some((tone) => Math.abs(hz - tone.frequencyHz) < guardBandHz)) continue;
+    const magnitude = magnitudeAt(samples, rate, hz);
+    if (magnitude > worstOther) { worstOther = magnitude; worstOtherHz = hz; }
+  }
+  const quietest = Math.min(...measured);
+  assert.ok(quietest / worstOther > 10,
+    `the authored tones stand only ${(quietest / worstOther).toFixed(1)}:1 above the loudest ` +
+    `other frequency (${worstOtherHz} Hz at ${worstOther.toFixed(6)}). A capture of a room, or ` +
+    "of anything but this fixture, looks like this");
+
+  // The ratio between the two, which is what a single hard-coded frequency cannot satisfy.
+  const authoredRatio = tones[0].amplitude / tones[1].amplitude;
+  const measuredRatio = measured[0] / measured[1];
+  assert.ok(Math.abs(measuredRatio - authoredRatio) / authoredRatio < 0.1,
+    `the two authored tones were written at a ${authoredRatio.toFixed(3)}:1 amplitude ratio and ` +
+    `arrived at ${measuredRatio.toFixed(3)}:1. Chromium's gain control moves the level and not ` +
+    "the ratio, so this is what says the captured signal is the authored waveform");
+}

@@ -24,9 +24,11 @@ import {
   assertActivationIndependentMixingEvidence,
   assertDynamicBufferEvidence,
   assertMixerSpectrumEvidence,
+  assertSyntheticCaptureEvidence,
   assertUserActivationEvidence,
   assertXactSpectrumEvidence,
 } from "./support/audio-oracle.mjs";
+import { FAKE_CAPTURE_TONES } from "./fixtures/fake-audio.mjs";
 
 const clone = (value) => structuredClone(value);
 
@@ -111,6 +113,52 @@ const WORKING = {
   },
 };
 
+/**
+ * A capture the way Chromium's fake device delivers one: the authored tones, resampled to CNA's
+ * rate and attenuated about 20 dB by the gain control nothing in the page can switch off.
+ *
+ * Built rather than pasted for the same reason the spectra above are -- what the oracle checks is
+ * the shape, so a case that flattens it, silences it or moves one tone is a case about the
+ * property being asserted.
+ */
+function capturedPcm({ tones = FAKE_CAPTURE_TONES, sampleRate = 44100, frames = 20000,
+                       gain = 0.105, noise = 0 } = {}) {
+  const bytes = new Uint8Array(frames * 2);
+  const view = new DataView(bytes.buffer);
+  // A fixed sequence rather than Math.random, so a failure is reproducible.
+  let seed = 12345;
+  const next = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff - 0.5; };
+  for (let index = 0; index < frames; index += 1) {
+    let value = noise * next();
+    for (const tone of tones) {
+      value += Math.sin(2 * Math.PI * tone.frequencyHz * index / sampleRate) * tone.amplitude * gain;
+    }
+    view.setInt16(index * 2, Math.max(-32768, Math.min(32767, Math.round(value * 32767))), true);
+  }
+  return Buffer.from(bytes).toString("base64");
+}
+
+const CAPTURE = {
+  launchArgs: ["--use-gl=swiftshader", "--use-fake-device-for-media-stream",
+    "--use-file-for-fake-audio-capture=/build/fake-media/fake-capture-tones.wav"],
+  evidence: {
+    browserAudioInputs: ["Fake Default Audio Input", "Fake Audio Input 1"],
+    microphones: [
+      { Index: 0, Name: "Default Device", SampleRate: 44100, State: 1, IsHeadset: false,
+        IsDefault: true, BufferDurationTicks: "3000000" },
+      { Index: 1, Name: "System audio recording device", SampleRate: 44100, State: 1,
+        IsHeadset: false, IsDefault: false, BufferDurationTicks: "10000000" },
+    ],
+    capture: {
+      requestedTicks: "3000000", durationAfter: "3000000",
+      stoppedBefore: 1, started: 0, stopped: 1,
+      requestedBytes: 65536, capturedBytes: 40000, chunks: 12, largestChunk: 7528,
+      silentChunksBeforeSound: 3, firstSoundedAt: 4, sampleRate: 44100,
+      pcmBase64: capturedPcm(),
+    },
+  },
+};
+
 // The shapes above have to pass before any of the rejections below mean anything: an oracle that
 // refuses everything would satisfy every case in the table and prove nothing.
 test("the working shapes are accepted", () => {
@@ -119,6 +167,8 @@ test("the working shapes are accepted", () => {
   assertXactSpectrumEvidence(WORKING.evidence, MIXER);
   assertMixerSpectrumEvidence(WORKING.evidence, MIXER);
   assertDynamicBufferEvidence(WORKING.evidence, MIXER);
+  assertSyntheticCaptureEvidence(CAPTURE.evidence,
+    { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
 });
 
 const CASES = [
@@ -277,6 +327,90 @@ const CASES = [
     const broken = clone(WORKING.evidence);
     broken.dynamicBuffers.whilePlaying = null;
     return () => assertDynamicBufferEvidence(broken, MIXER);
+  }],
+  ["a browser launched without a fake media device, where a real one is reachable", () => {
+    const args = CAPTURE.launchArgs.filter((a) => a !== "--use-fake-device-for-media-stream");
+    return () => assertSyntheticCaptureEvidence(CAPTURE.evidence,
+      { launchArgs: args, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["a fake device with no authored file behind it, playing Chromium's own beep", () => {
+    const args = CAPTURE.launchArgs.filter((a) => !a.startsWith("--use-file-for-fake-audio-capture="));
+    return () => assertSyntheticCaptureEvidence(CAPTURE.evidence,
+      { launchArgs: args, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["a real capture device the browser was still willing to enumerate", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.browserAudioInputs.push("HD-Audio Generic: ALC257 Analog");
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["a capture of silence, which is what a microphone nobody granted looks like", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.capture.pcmBase64 = capturedPcm({ gain: 0 });
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["a capture of a room rather than the fixture", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.capture.pcmBase64 = capturedPcm({ gain: 0, noise: 0.2 });
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["a capture carrying one authored tone and not the other", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.capture.pcmBase64 = capturedPcm({ tones: [FAKE_CAPTURE_TONES[0]] });
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["two tones that arrived in the wrong amplitude ratio", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.capture.pcmBase64 = capturedPcm({
+      tones: [FAKE_CAPTURE_TONES[0], { ...FAKE_CAPTURE_TONES[1], amplitude: 0.6 }],
+    });
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["a read that answered the byte count it was asked for rather than what it captured", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.capture.largestChunk = broken.capture.requestedBytes;
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["a buffer duration that did not survive the round trip", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.capture.durationAfter = "10000000";
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["a microphone that reports the same state started and stopped", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.capture.started = broken.capture.stoppedBefore;
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["a stop that left the microphone running", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.capture.stopped = broken.capture.started;
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["too little audio to say anything about its spectrum", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.capture.pcmBase64 = capturedPcm({ frames: 200 });
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["an odd byte count, which is not whole 16-bit samples", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.capture.capturedBytes = 40001;
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["a microphone enumerated and never captured from", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.capture = null;
+    return () => assertSyntheticCaptureEvidence(broken,
+      { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
   }],
 ];
 
