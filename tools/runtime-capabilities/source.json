@@ -2687,6 +2687,52 @@
       "proof": [
         "test:test/wasm-browser-non-engine.mjs"
       ]
+    },
+    {
+      "operation": "Browser microphones: enumeration, buffer duration and capture state",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "SDL3's Emscripten backend enumerates recording devices, and headless Chromium reports two -- a default device and a system audio recording device -- each with a name, a 44100 Hz sample rate, a state and a buffer duration, and exactly one of them marked default. A buffer duration written is the duration read back as a 64-bit tick count, starting and stopping move the state, and a capture asks for 65536 bytes and is answered with what CNA produced rather than with what was asked for. PHYSICAL_CAPTURE_NOT_VERIFIED: whether a browser delivers samples depends on the page having microphone permission, which this binding neither bypasses nor pretends about",
+      "proof": [
+        "wasmRoute:cna_microphone_get_count",
+        "wasmRoute:cna_microphone_get_default_index_ext",
+        "wasmRoute:cna_microphone_set_buffer_duration_ticks_at",
+        "wasmRoute:cna_microphone_get_data_at",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
+      "operation": "All five XNA stock effects over WebAssembly",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "BasicEffect, AlphaTestEffect, DualTextureEffect, EnvironmentMapEffect and SkinnedEffect are each created, synchronised from a managed snapshot and applied in a browser. Four of them were refused by name until a method-level route-parity check asked why the Node bridge reached thirty-two effect routes the WebAssembly backend never resolved: createStockEffect was a *bound* method covering one of its five inputs, which no count of bound methods can see. Each kind reaches its own routes -- an alpha-test comparison and reference value, two textures on one indexed route, an environment map with its amount and Fresnel factor, up to 72 bone transforms written as one array -- and lighting is applied to the three kinds that have it rather than to all five",
+      "proof": [
+        "wasmRoute:cna_alpha_test_effect_create",
+        "wasmRoute:cna_dual_texture_effect_set_texture",
+        "wasmRoute:cna_environment_map_effect_set_fresnel_factor",
+        "wasmRoute:cna_skinned_effect_set_bone_transforms",
+        "test:test/wasm-browser-non-engine.mjs"
+      ]
+    },
+    {
+      "operation": "Standalone GraphicsDevice construction in a browser",
+      "category": "UPSTREAM_CNA_BLOCKED",
+      "owner": "CNA-TS",
+      "evidence": "Withdrawn after being written and measured. The device is created successfully -- its viewport is the 64x48 its presentation parameters asked for rather than the game's 800x480 -- and destroying it succeeds; the *game* afterwards does not, with cna_game_destroy throwing an Emscripten ErrnoError (errno 44) instead of returning a CNA result and CNA's own last-error message empty. Reproduced in plain C calls with no binding involved. A public XNA constructor that silently makes Game.Dispose fail is worse than one that refuses by name, so the WebAssembly backend leaves the member to the refusing base and the browser suite asserts that refusal. Upstream finding 32; the Node-API backend is unaffected",
+      "proof": [
+        "test:test/wasm-browser-non-engine.mjs",
+        "source:docs/upstream-cna-findings.md"
+      ]
+    },
+    {
+      "operation": "The CNB content pipeline in a browser",
+      "category": "NOT_APPLICABLE_TO_SELECTED_ENVIRONMENT",
+      "owner": "CNA-TS",
+      "evidence": "Fifteen CNB routes are reachable from the Node backend and from no browser one, and that is architecture rather than a gap: cna_cnb_compile_cnj, the three cna_cnb_import_* routes and the eleven cna_cnb_cnj_result_* routes belong to content/, a build-time toolchain that takes filesystem *paths* and produces compiled assets. They are not members of any runtime backend interface, which is why tools/wasm/backend-gap.mjs does not list them: nothing in src/internal/backend.ts declares them. A browser consumes the compiled output through the same CNB API a Node consumer does, which is verified separately; compiling it is a thing a build does",
+      "proof": [
+        "source:content/src/index.ts",
+        "test:test/cnb-content.integration.mjs"
+      ]
     }
   ]
 }

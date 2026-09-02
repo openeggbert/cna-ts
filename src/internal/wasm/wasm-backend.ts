@@ -1954,6 +1954,55 @@ const ROUTES = [
   "cna_wave_bank_get_is_disposed",
   "cna_wave_bank_get_is_in_use",
   "cna_wave_bank_get_is_prepared",
+  "cna_alpha_test_effect_create",
+  "cna_alpha_test_effect_set_alpha",
+  "cna_alpha_test_effect_set_alpha_function",
+  "cna_alpha_test_effect_set_diffuse_color",
+  "cna_alpha_test_effect_set_reference_alpha",
+  "cna_alpha_test_effect_set_texture",
+  "cna_alpha_test_effect_set_vertex_color_enabled",
+  "cna_dual_texture_effect_create",
+  "cna_dual_texture_effect_set_alpha",
+  "cna_dual_texture_effect_set_diffuse_color",
+  "cna_dual_texture_effect_set_texture",
+  "cna_dual_texture_effect_set_vertex_color_enabled",
+  "cna_environment_map_effect_create",
+  "cna_environment_map_effect_set_alpha",
+  "cna_environment_map_effect_set_amount",
+  "cna_environment_map_effect_set_diffuse_color",
+  "cna_environment_map_effect_set_emissive_color",
+  "cna_environment_map_effect_set_environment_map",
+  "cna_environment_map_effect_set_fresnel_factor",
+  "cna_environment_map_effect_set_specular",
+  "cna_environment_map_effect_set_texture",
+  "cna_skinned_effect_create",
+  "cna_skinned_effect_set_alpha",
+  "cna_skinned_effect_set_bone_transforms",
+  "cna_skinned_effect_set_diffuse_color",
+  "cna_skinned_effect_set_emissive_color",
+  "cna_skinned_effect_set_prefer_per_pixel_lighting",
+  "cna_skinned_effect_set_specular_color",
+  "cna_skinned_effect_set_specular_power",
+  "cna_skinned_effect_set_texture",
+  "cna_skinned_effect_set_vertex_color_enabled",
+  "cna_skinned_effect_set_weights_per_vertex",
+  "cna_framework_dispatcher_update",
+  "cna_haptic_capabilities_init",
+  "cna_joystick_capabilities_init",
+  "cna_joystick_info_init",
+  "cna_mouse_get_window_handle",
+  "cna_microphone_copy_name_at",
+  "cna_microphone_get_buffer_duration_ticks_at",
+  "cna_microphone_get_count",
+  "cna_microphone_get_data_at",
+  "cna_microphone_get_default_index_ext",
+  "cna_microphone_get_is_headset_at",
+  "cna_microphone_get_name_size_at",
+  "cna_microphone_get_sample_rate_at",
+  "cna_microphone_get_state_at",
+  "cna_microphone_set_buffer_duration_ticks_at",
+  "cna_microphone_start_at",
+  "cna_microphone_stop_at",
 ] as const;
 
 type RouteName = (typeof ROUTES)[number];
@@ -2192,6 +2241,20 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
 
   public override initialize(): Promise<void> { return Promise.resolve(); }
 
+  // XNA's public `GraphicsDevice` constructor -- a device that belongs to no game -- is
+  // deliberately *not* offered here, and it was written and then withdrawn rather than never
+  // attempted. It works: the device is created, its viewport is the 64x48 its presentation
+  // parameters asked for rather than the game's 800x480, and destroying it succeeds. What does not
+  // work is the game afterwards. Measured in plain C calls with no binding involved --
+  // `cna_presentation_parameters_init`, `cna_graphics_device_create`,
+  // `cna_graphics_device_destroy`, `cna_game_destroy` -- the game's destroy throws an Emscripten
+  // `ErrnoError` with errno 44 rather than returning a CNA result at all, and CNA's own last-error
+  // message is empty, so the failure is below its exception barrier. See upstream finding 32.
+  //
+  // A public constructor that silently makes `Game.Dispose` fail is worse than one that refuses by
+  // name, so `CnaBackendBase` keeps refusing it and the browser suite asserts the blocker, which is
+  // what makes a repaired CNA fail here rather than pass unnoticed.
+
   public override getLastError(): string | null { return this.#routes.lastError(); }
 
   #gameTime(pointer: number): CnaGameTimeSnapshot {
@@ -2339,10 +2402,16 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
     this.#check("cna_game_destroy", result);
   }
 
+  /**
+   * `FrameworkDispatcher.Update`, which is what pumps CNA's asynchronous completions.
+   *
+   * This checked for an active game and then did nothing at all, so a browser consumer calling it
+   * every frame -- which is what XNA asks of a game that uses gamer services or storage -- pumped
+   * nothing. Found by asking why the Node bridge reached `cna_framework_dispatcher_update` and the
+   * WebAssembly backend never resolved it.
+   */
   public override updateFrameworkDispatcher(): void {
-    if (this.#activeGame == null) {
-      throw new NativeUnavailableError("FrameworkDispatcher.Update requires an active native Game");
-    }
+    this.#invoke("cna_framework_dispatcher_update", this.#requireGame());
   }
 
   public override createGraphicsDeviceManager(game: NativeHandle): NativeHandle {
@@ -3326,6 +3395,18 @@ export class WasmBackend extends CnaBackendBase implements CnaRuntimeServicesBac
    */
   public override setMousePosition(x: number, y: number): void {
     this.#invoke("cna_mouse_set_position", this.#requireGame(), Math.trunc(x), Math.trunc(y));
+  }
+
+  /**
+   * The window the mouse reports positions relative to.
+   *
+   * The setter was here and the getter was not, which left `Mouse.WindowHandle` reading through
+   * `CnaBackendBase`'s refusal in a browser while writing through CNA. An accessor is invisible to
+   * a member walk that filters on `typeof descriptor.value === "function"`, which is how it went
+   * unnoticed until `backend-gap.mjs` started counting getters.
+   */
+  public override get mouseWindowHandle(): bigint {
+    return this.#routes.outU64("cna_mouse_get_window_handle", this.#requireGame());
   }
 
   public override setMouseWindowHandle(value: bigint): void {

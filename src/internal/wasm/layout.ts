@@ -1951,4 +1951,23 @@ export const WASM_STRUCT_LAYOUTS = {
       reserved: { offset: 21, size: 3 },
     },
   },
+  CNA_PresentationParameters: {
+    size: 44,
+    align: 4,
+    fields: {
+      struct_size: { offset: 0, size: 4 },
+      struct_version: { offset: 4, size: 4 },
+      back_buffer_format: { offset: 8, size: 4 },
+      back_buffer_width: { offset: 12, size: 4 },
+      back_buffer_height: { offset: 16, size: 4 },
+      depth_stencil_format: { offset: 20, size: 4 },
+      multi_sample_count: { offset: 24, size: 4 },
+      presentation_interval: { offset: 28, size: 4 },
+      display_orientation: { offset: 32, size: 4 },
+      render_target_usage: { offset: 36, size: 4 },
+      is_full_screen: { offset: 40, size: 1 },
+      headless_ext: { offset: 41, size: 1 },
+      reserved: { offset: 42, size: 2 },
+    },
+  },
 } as const satisfies Readonly<Record<string, WasmStructLayout>>;

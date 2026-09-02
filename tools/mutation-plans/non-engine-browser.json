@@ -185,6 +185,49 @@
       "file": "src/internal/wasm/devices.ts",
       "find": "      const count = pixels === null ? 0 : Math.floor(pixels.byteLength / stride);",
       "replace": "      const count = pixels === null ? 0 : pixels.byteLength;"
+    },
+    {
+      "id": "stock-effect-kind-ignored",
+      "why": "every stock effect created as a BasicEffect. All five still create and apply, because CNA accepts the shared transform and fog routes on any of them -- what separates them is the per-kind routes, and a BasicEffect refuses an alpha-test comparison function it has no parameter for",
+      "file": "src/internal/wasm/effects.ts",
+      "find": "    const route = STOCK_EFFECT_CREATE[kind];\n    if (route === undefined) throw new RangeError(`unknown stock effect kind ${kind}`);\n    return this.#routes.outHandle(route, device);",
+      "replace": "    const route = STOCK_EFFECT_CREATE[kind];\n    if (route === undefined) throw new RangeError(`unknown stock effect kind ${kind}`);\n    void route;\n    return this.#routes.outHandle(STOCK_EFFECT_CREATE[0], device);"
+    },
+    {
+      "id": "stock-effect-lighting-applied-to-every-kind",
+      "why": "AlphaTestEffect and DualTextureEffect carry no lighting at all, so setting an ambient colour on one is a route it has no parameter for. The set of three that do have lighting is a fact about XNA, and getting it wrong is the shape a table-driven projection fails in",
+      "file": "src/internal/wasm/effects.ts",
+      "find": "      if (!STOCK_EFFECTS_WITH_LIGHTING.has(kind)) return;",
+      "replace": "      void STOCK_EFFECTS_WITH_LIGHTING;"
+    },
+    {
+      "id": "microphone-default-index-ignored",
+      "why": "the default microphone is the one CNA names, and a list where every entry claims to be the default -- or none does -- is what a projection that skipped the availability flag produces",
+      "file": "src/internal/wasm/audio.ts",
+      "find": "      IsDefault: index === defaultIndex,",
+      "replace": "      IsDefault: true,"
+    },
+    {
+      "id": "microphone-capture-length-from-the-request",
+      "why": "CNA writes how many bytes it produced and a caller asked for 256. Answering the request rather than the answer hands a game 256 bytes of whatever the buffer held, which for silence is silence and for a real capture is stale audio",
+      "file": "src/internal/wasm/audio.ts",
+      "find": "      const produced = Number(this.#routes.view().getBigUint64(written, true));\n      return new Uint8Array(this.#routes.module.HEAPU8.subarray(buffer, buffer + produced));",
+      "replace": "      return new Uint8Array(this.#routes.module.HEAPU8.subarray(buffer, buffer + requested));"
+    },
+    {
+      "id": "framework-dispatcher-does-nothing",
+      "why": "what this method used to do: check that a game is active and return. FrameworkDispatcher.Update is what pumps CNA's asynchronous completions, and a browser consumer calling it every frame pumped nothing at all. It survives because CNA completes every asynchronous operation this host can start *synchronously* -- the Guide's dialogs complete inside Begin, and storage selection completes before it returns -- so there is nothing left for a pump to deliver and no observable difference between pumping and not. Killable only alongside an operation that genuinely defers, which needs the platform services finding 29 blocks",
+      "file": "src/internal/wasm/wasm-backend.ts",
+      "find": "    this.#invoke(\"cna_framework_dispatcher_update\", this.#requireGame());",
+      "replace": "    this.#requireGame();",
+      "expect": "survives"
+    },
+    {
+      "id": "mouse-window-handle-from-the-touch-panel",
+      "why": "two window-handle getters on one backend, and reading the wrong one is a copy-paste away. Measured: they do not answer the same thing on this platform, so the suite tells them apart -- which is why the mouse getter is asserted for its own value rather than for being a number",
+      "file": "src/internal/wasm/wasm-backend.ts",
+      "find": "    return this.#routes.outU64(\"cna_mouse_get_window_handle\", this.#requireGame());",
+      "replace": "    return this.#routes.outU64(\"cna_touch_get_window_handle\", this.#requireGame());"
     }
   ]
 }

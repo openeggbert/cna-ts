@@ -39,6 +39,7 @@ import {
   assertGameWindowEvidence,
   assertGraphicsAdapterEvidence,
   assertInputDeviceEvidence,
+  assertLateMemberEvidence,
   assertMediaEvidence,
   assertMediaLibraryEvidence,
   assertSensorEvidence,
@@ -165,6 +166,14 @@ test("the graphics adapters a live device reports", { skip }, () => {
   assertGraphicsAdapterEvidence(evidence.graphicsAdapters);
   console.log(
     `CNA_TS_BROWSER_ADAPTER=${JSON.stringify(evidence.graphicsAdapters.adapters[0].DeviceName)}`,
+  );
+});
+
+test("the members a family-level frontier could not see", { skip }, () => {
+  assertLateMemberEvidence(evidence.lateMembers);
+  console.log(
+    `CNA_TS_BROWSER_MICROPHONES=${evidence.lateMembers.microphones.length} ` +
+    "PHYSICAL_CAPTURE_NOT_VERIFIED",
   );
 });
 

@@ -31,8 +31,36 @@ import { WASM_STRUCT_LAYOUTS } from "./layout.js";
 import { allocateStruct, WasmScope, WasmStruct, type WasmRouteTable } from "./module.js";
 import { WasmEngineMemory } from "./graphics-ext-core.js";
 
-/** The `CNA_StockEffectKind` this slice implements. */
+/**
+ * The `CNA_StockEffectKind` identities, which are XNA's five built-in effects.
+ *
+ * All five are bound. The slice covered `BasicEffect` alone until a method-level route-parity
+ * check asked why the Node bridge reached thirty-two effect routes this backend never resolved:
+ * `createStockEffect` was a bound method that threw by name for four of its five inputs, which no
+ * count of bound methods can see.
+ */
 const BASIC_EFFECT = 0;
+const ALPHA_TEST_EFFECT = 1;
+const DUAL_TEXTURE_EFFECT = 2;
+const ENVIRONMENT_MAP_EFFECT = 3;
+const SKINNED_EFFECT = 4;
+
+/** The creation route for each kind, in `CNA_StockEffectKind` order. */
+const STOCK_EFFECT_CREATE = [
+  "cna_basic_effect_create",
+  "cna_alpha_test_effect_create",
+  "cna_dual_texture_effect_create",
+  "cna_environment_map_effect_create",
+  "cna_skinned_effect_create",
+] as const;
+
+/** XNA's stock lighting applies to three of the five; the other two carry no lights at all. */
+const STOCK_EFFECTS_WITH_LIGHTING = new Set([
+  BASIC_EFFECT, ENVIRONMENT_MAP_EFFECT, SKINNED_EFFECT,
+]);
+
+/** `SkinnedEffect` accepts one through this many bone transforms, and CNA enforces it too. */
+const SKINNED_EFFECT_MAX_BONES = 72;
 
 /**
  * How deep a parameter's elements and members are followed.
@@ -130,13 +158,9 @@ export class WasmEffectBackend extends CnaEffectBackendBase {
   }
 
   public override createStockEffect(device: NativeHandle, kind: number): NativeHandle {
-    if (kind !== BASIC_EFFECT) {
-      throw new Error(
-        `the WebAssembly backend's effect slice covers BasicEffect only; stock effect kind ` +
-        `${kind} needs the Node-API backend`,
-      );
-    }
-    return this.#routes.outHandle("cna_basic_effect_create", device);
+    const route = STOCK_EFFECT_CREATE[kind];
+    if (route === undefined) throw new RangeError(`unknown stock effect kind ${kind}`);
+    return this.#routes.outHandle(route, device);
   }
 
   /**
@@ -198,14 +222,52 @@ export class WasmEffectBackend extends CnaEffectBackendBase {
     return this.#mem.writeVector3(scope, values);
   }
 
+  /**
+   * A `SkinnedEffect`'s bone transforms, written as one contiguous `CNA_Matrix` array.
+   *
+   * The count is bounded here as well as in CNA because the array is sized from it: XNA's shader
+   * has 72 bone slots and a snapshot claiming more would be a caller error that allocated first.
+   */
+  #writeBoneTransforms(
+    scope: WasmScope, effect: NativeHandle, transforms: readonly (readonly number[])[],
+  ): void {
+    if (transforms.length < 1 || transforms.length > SKINNED_EFFECT_MAX_BONES) {
+      throw new RangeError(
+        `a SkinnedEffect carries one through ${SKINNED_EFFECT_MAX_BONES} bone transforms, ` +
+        `not ${transforms.length}`,
+      );
+    }
+    const stride = WASM_STRUCT_LAYOUTS.CNA_Matrix.size;
+    const buffer = scope.allocate(stride * transforms.length);
+    const view = this.#routes.view();
+    transforms.forEach((matrix, index) => {
+      if (matrix.length !== 16) {
+        throw new RangeError(`a bone transform is sixteen floats, not ${matrix.length}`);
+      }
+      for (let element = 0; element < 16; element += 1) {
+        view.setFloat32(buffer + index * stride + element * 4, matrix[element], true);
+      }
+    });
+    this.#routes.invoke(
+      "cna_skinned_effect_set_bone_transforms", effect, buffer, BigInt(transforms.length),
+    );
+  }
+
+  /**
+   * Writes a managed stock effect's whole state into CNA's, for whichever of the five it is.
+   *
+   * The shared part is the transforms and the fog, which every stock effect has. Lighting belongs
+   * to three of the five, and each kind's own properties are its own routes -- `AlphaTestEffect`
+   * has a comparison function and a reference value and no lighting at all, `DualTextureEffect`
+   * has two textures on one indexed route, `SkinnedEffect` has up to 72 bone transforms written as
+   * one array. Following the Node bridge's shape exactly is deliberate: this is the same
+   * projection reaching the same routes, so the two backends draw a stock effect the same way.
+   */
   public override syncStockEffect(
     effect: NativeHandle, kind: number, snapshot: StockEffectSnapshot,
   ): void {
-    if (kind !== BASIC_EFFECT) {
-      throw new Error(
-        `the WebAssembly backend can only synchronise a BasicEffect; kind ${kind} needs the ` +
-        "Node-API backend",
-      );
+    if (STOCK_EFFECT_CREATE[kind] === undefined) {
+      throw new RangeError(`unknown stock effect kind ${kind}`);
     }
     const scope = this.#routes.scope();
     try {
@@ -218,18 +280,80 @@ export class WasmEffectBackend extends CnaEffectBackendBase {
       invoke("cna_effect_fog_set_enabled", snapshot.FogEnabled ? 1 : 0);
       invoke("cna_effect_fog_set_start", snapshot.FogStart);
       invoke("cna_effect_fog_set_end", snapshot.FogEnd);
-      invoke("cna_basic_effect_set_alpha", snapshot.Alpha);
-      invoke("cna_basic_effect_set_diffuse_color", this.#vector3(scope, snapshot.DiffuseColor));
-      invoke("cna_basic_effect_set_emissive_color", this.#vector3(scope, snapshot.EmissiveColor));
-      invoke("cna_basic_effect_set_specular_color", this.#vector3(scope, snapshot.SpecularColor));
-      invoke("cna_basic_effect_set_specular_power", snapshot.SpecularPower);
-      invoke(
-        "cna_basic_effect_set_prefer_per_pixel_lighting",
-        snapshot.PreferPerPixelLighting ? 1 : 0,
-      );
-      invoke("cna_basic_effect_set_vertex_color_enabled", snapshot.VertexColorEnabled ? 1 : 0);
-      invoke("cna_basic_effect_set_texture_enabled", snapshot.TextureEnabled ? 1 : 0);
-      invoke("cna_basic_effect_set_texture", snapshot.Texture);
+      if (kind === BASIC_EFFECT) {
+        invoke("cna_basic_effect_set_diffuse_color", this.#vector3(scope, snapshot.DiffuseColor));
+        invoke("cna_basic_effect_set_emissive_color", this.#vector3(scope, snapshot.EmissiveColor));
+        invoke("cna_basic_effect_set_specular_color", this.#vector3(scope, snapshot.SpecularColor));
+        invoke("cna_basic_effect_set_specular_power", snapshot.SpecularPower);
+        invoke("cna_basic_effect_set_alpha", snapshot.Alpha);
+        invoke("cna_basic_effect_set_vertex_color_enabled", snapshot.VertexColorEnabled ? 1 : 0);
+        invoke(
+          "cna_basic_effect_set_prefer_per_pixel_lighting",
+          snapshot.PreferPerPixelLighting ? 1 : 0,
+        );
+        invoke("cna_basic_effect_set_texture_enabled", snapshot.TextureEnabled ? 1 : 0);
+        invoke("cna_basic_effect_set_texture", snapshot.Texture);
+      } else if (kind === ALPHA_TEST_EFFECT) {
+        invoke(
+          "cna_alpha_test_effect_set_diffuse_color", this.#vector3(scope, snapshot.DiffuseColor),
+        );
+        invoke("cna_alpha_test_effect_set_alpha", snapshot.Alpha);
+        invoke("cna_alpha_test_effect_set_texture", snapshot.Texture);
+        invoke(
+          "cna_alpha_test_effect_set_vertex_color_enabled", snapshot.VertexColorEnabled ? 1 : 0,
+        );
+        invoke("cna_alpha_test_effect_set_alpha_function", Math.trunc(snapshot.AlphaFunction));
+        invoke("cna_alpha_test_effect_set_reference_alpha", Math.trunc(snapshot.ReferenceAlpha));
+      } else if (kind === DUAL_TEXTURE_EFFECT) {
+        invoke(
+          "cna_dual_texture_effect_set_diffuse_color", this.#vector3(scope, snapshot.DiffuseColor),
+        );
+        invoke("cna_dual_texture_effect_set_alpha", snapshot.Alpha);
+        // One indexed route for both layers, which is why the second texture has no route of its
+        // own to forget.
+        invoke("cna_dual_texture_effect_set_texture", 0, snapshot.Texture);
+        invoke("cna_dual_texture_effect_set_texture", 1, snapshot.Texture2);
+        invoke(
+          "cna_dual_texture_effect_set_vertex_color_enabled", snapshot.VertexColorEnabled ? 1 : 0,
+        );
+      } else if (kind === ENVIRONMENT_MAP_EFFECT) {
+        invoke(
+          "cna_environment_map_effect_set_diffuse_color",
+          this.#vector3(scope, snapshot.DiffuseColor),
+        );
+        invoke(
+          "cna_environment_map_effect_set_emissive_color",
+          this.#vector3(scope, snapshot.EmissiveColor),
+        );
+        invoke("cna_environment_map_effect_set_alpha", snapshot.Alpha);
+        invoke("cna_environment_map_effect_set_texture", snapshot.Texture);
+        invoke("cna_environment_map_effect_set_environment_map", snapshot.EnvironmentMap);
+        invoke("cna_environment_map_effect_set_amount", snapshot.EnvironmentMapAmount);
+        invoke(
+          "cna_environment_map_effect_set_specular",
+          this.#vector3(scope, snapshot.EnvironmentMapSpecular),
+        );
+        invoke("cna_environment_map_effect_set_fresnel_factor", snapshot.FresnelFactor);
+      } else {
+        invoke("cna_skinned_effect_set_diffuse_color", this.#vector3(scope, snapshot.DiffuseColor));
+        invoke(
+          "cna_skinned_effect_set_emissive_color", this.#vector3(scope, snapshot.EmissiveColor),
+        );
+        invoke(
+          "cna_skinned_effect_set_specular_color", this.#vector3(scope, snapshot.SpecularColor),
+        );
+        invoke("cna_skinned_effect_set_specular_power", snapshot.SpecularPower);
+        invoke("cna_skinned_effect_set_alpha", snapshot.Alpha);
+        invoke(
+          "cna_skinned_effect_set_prefer_per_pixel_lighting",
+          snapshot.PreferPerPixelLighting ? 1 : 0,
+        );
+        invoke("cna_skinned_effect_set_texture", snapshot.Texture);
+        invoke("cna_skinned_effect_set_weights_per_vertex", Math.trunc(snapshot.WeightsPerVertex));
+        this.#writeBoneTransforms(scope, effect, snapshot.BoneTransforms);
+        invoke("cna_skinned_effect_set_vertex_color_enabled", snapshot.VertexColorEnabled ? 1 : 0);
+      }
+      if (!STOCK_EFFECTS_WITH_LIGHTING.has(kind)) return;
       invoke(
         "cna_effect_lights_set_ambient_color", this.#vector3(scope, snapshot.AmbientLightColor),
       );

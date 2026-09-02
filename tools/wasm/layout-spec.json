@@ -1076,7 +1076,8 @@
     "CNA_VideoInfo": [],
     "CNA_CueInfo": [],
     "CNA_TextEditingEventInfo": [],
-    "CNA_TextEditingCandidatesEventInfo": []
+    "CNA_TextEditingCandidatesEventInfo": [],
+    "CNA_PresentationParameters": []
   },
   "callbacks": {
     "CNA_GameLifecycleCallback": "ijiii",

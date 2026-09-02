@@ -48,6 +48,8 @@ try {
   const { createSpriteFontForInternalUse } =
     await import("/cna-ts/Microsoft/Xna/Framework/Graphics/SpriteFont.js");
   const { SpriteFontOracle } = await import("/cna-ts/internal/sprite-font-oracle.js");
+  const { resolveGraphicsDeviceHandleForInternalUse } =
+    await import("/cna-ts/Microsoft/Xna/Framework/Graphics/GraphicsDevice.js");
   const { SPRITE_FONT_FIXTURE, SPRITE_FONT_STRINGS } =
     await import("/fixture-modules/sprite-font.mjs");
   const xact = await import("/fixture-modules/xact.mjs");
@@ -748,9 +750,110 @@ try {
         };
       });
 
+      // ---- the members a family-level frontier could not see ------------------------------------
+      //
+      // None of these is a family. They are single members that a report counting *interfaces* --
+      // or even one counting methods, before it counted getters, optional members and route parity
+      // -- reported as bound while they were refusing, doing nothing, or covering one of five
+      // inputs. They are grouped here because what they have in common is how they were found.
+      record(evidence, "lateMembers", () => {
+        const audio = backend.Audio;
+        const microphones = audio.getMicrophones().map((microphone) => ({
+          Index: microphone.Index,
+          Name: microphone.Name,
+          IsHeadset: microphone.IsHeadset,
+          SampleRate: microphone.SampleRate,
+          State: microphone.State,
+          BufferDurationTicks: big(microphone.BufferDurationTicks),
+          IsDefault: microphone.IsDefault,
+        }));
+        let microphoneCapture = null;
+        if (microphones.length > 0) {
+          audio.setMicrophoneBufferDurationTicks(0, 3000000n);
+          const durationAfter = audio.getMicrophones()[0].BufferDurationTicks;
+          audio.startMicrophone(0);
+          const started = audio.getMicrophones()[0].State;
+          // Deliberately more than any capture could hold: the buffer duration above is 0.3 s and
+          // a 44100 Hz mono 16-bit microphone fills about 26 kB of that, so a projection that
+          // answered the *requested* length rather than the produced one is visible as a length
+          // no microphone could have produced.
+          const requestedBytes = 65536;
+          const captured = audio.getMicrophoneData(0, requestedBytes).length;
+          audio.stopMicrophone(0);
+          const stopped = audio.getMicrophones()[0].State;
+          microphoneCapture = {
+            durationAfter: big(durationAfter), started, stopped, captured, requestedBytes,
+          };
+        }
+
+        // Every stock effect, created and synchronised. The four beyond BasicEffect were refused
+        // by name until a route-parity check asked why the Node bridge reached thirty-two effect
+        // routes this backend never resolved.
+        // The *handle*, not the managed device: this boundary takes CNA's own handle, and the
+        // public `GraphicsDevice` is what holds it.
+        const deviceHandle = resolveGraphicsDeviceHandleForInternalUse(device);
+        const stock = [0, 1, 2, 3, 4].map((kind) => {
+          const effect = backend.Effects.createStockEffect(deviceHandle, kind);
+          try {
+            backend.Effects.syncStockEffect(effect, kind, STOCK_EFFECT_SNAPSHOT);
+            backend.Effects.applyEffect(effect);
+            return { kind, created: true, applied: true };
+          } catch (error) {
+            return { kind, created: true, applied: false, error: `${error?.message}` };
+          } finally {
+            backend.Effects.destroyEffect(effect);
+          }
+        });
+        let unknownKind = "ACCEPTED";
+        try { backend.Effects.createStockEffect(deviceHandle, 99); }
+        catch (error) { unknownKind = error?.constructor?.name ?? "unknown"; }
+
+        // XNA's public `GraphicsDevice` constructor, which this backend deliberately does not
+        // offer: upstream finding 32 says a standalone device leaves the game undestroyable on
+        // this target. What is asserted is the refusal, so a repaired CNA fails here.
+        let standalone = "CONSTRUCTED";
+        try {
+          const parameters = new Graphics.PresentationParameters();
+          parameters.BackBufferWidth = 64;
+          parameters.BackBufferHeight = 48;
+          new Graphics.GraphicsDevice(
+            Graphics.GraphicsAdapter.DefaultAdapter, Graphics.GraphicsProfile.Reach, parameters,
+          );
+        } catch (error) { standalone = `${error?.constructor?.name}`; }
+
+        return {
+          microphones, microphoneCapture, stock, unknownKind, standalone,
+          // FrameworkDispatcher.Update pumped nothing at all in a browser until now.
+          dispatcherUpdated: (() => { backend.updateFrameworkDispatcher(); return true; })(),
+          mouseWindowHandle: big(backend.mouseWindowHandle),
+        };
+      });
+
       this.Exit();
     }
   }
+
+  /** One stock-effect snapshot, shaped so every kind finds the fields it reads. */
+  const STOCK_EFFECT_SNAPSHOT = {
+    World: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+    View: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+    Projection: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+    FogColor: [0.25, 0.5, 0.75], FogEnabled: true, FogStart: 1, FogEnd: 100,
+    Alpha: 0.5,
+    DiffuseColor: [1, 0.5, 0.25], EmissiveColor: [0, 0.1, 0.2], SpecularColor: [0.9, 0.8, 0.7],
+    SpecularPower: 16,
+    AmbientLightColor: [0.2, 0.2, 0.2], LightingEnabled: true, PreferPerPixelLighting: true,
+    VertexColorEnabled: true, TextureEnabled: true,
+    Texture: 0n, Texture2: 0n, EnvironmentMap: 0n,
+    EnvironmentMapAmount: 0.75, EnvironmentMapSpecular: [0.3, 0.3, 0.3], FresnelFactor: 1.5,
+    AlphaFunction: 4, ReferenceAlpha: 128,
+    WeightsPerVertex: 4,
+    BoneTransforms: [[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]],
+    Lights: [0, 1, 2].map((index) => ({
+      Direction: [0, -1, 0], DiffuseColor: [1, 1, 1], SpecularColor: [1, 1, 1],
+      Enabled: index === 0,
+    })),
+  };
 
   const game = new NonEngineGame();
   await new Promise((resolve, reject) => {

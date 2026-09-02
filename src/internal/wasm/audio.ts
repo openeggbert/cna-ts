@@ -14,19 +14,30 @@
  * having been interacted with. `SoundEffect.Play` returns whether the runtime accepted it, which is
  * the honest answer to give a caller who cannot be told more.
  *
+ * ## Microphones, which a browser does have
+ *
+ * SDL3's Emscripten backend enumerates recording devices, and headless Chromium reports two with a
+ * default among them -- measured, not assumed. So the microphone family is bound here rather than
+ * refused: names, headset flags, sample rates, states and buffer durations all answer, and
+ * `Microphone.Start` is accepted. Whether a browser will actually *deliver* samples depends on the
+ * page having been granted microphone permission, which is a browser rule this binding neither
+ * bypasses nor pretends about -- the same shape as the WebAudio gesture rule above.
+ *
  * ## What is not here
  *
- * XACT, microphones, 3D positioning and dynamic buffers are outside this slice. They refuse by
- * name through the generated `CnaAudioBackendBase` rather than pretending to work.
+ * XACT, 3D positioning and dynamic buffers are outside this slice. They refuse by name through
+ * the generated `CnaAudioBackendBase` rather than pretending to work. (XACT is bound, in its own
+ * facade: `src/internal/wasm/xact.ts`.)
  */
 
 import { CnaAudioBackendBase } from "../backend-base.js";
 import type {
-  AudioEmitterSnapshot, AudioListenerSnapshot, SoundEffectInstanceSnapshot,
+  AudioEmitterSnapshot, AudioListenerSnapshot, MicrophoneSnapshot, SoundEffectInstanceSnapshot,
 } from "../backend.js";
 import { CnaResult } from "../cna-results.js";
 import type { NativeHandle, NativeResourceLifetime } from "../ownership.js";
 import { WasmEngineMemory } from "./graphics-ext-core.js";
+import { outBool, outI32, outI64 } from "./marshal.js";
 import { WASM_STRUCT_LAYOUTS } from "./layout.js";
 import { allocateStruct, WasmCnaError, WasmStruct, type WasmRouteTable } from "./module.js";
 
@@ -57,6 +68,80 @@ export class WasmAudioBackend extends CnaAudioBackendBase {
       `${member} is not part of the CNA-TS WebAssembly backend's audio slice; ` +
       "the Node-API backend implements it",
     );
+  }
+
+  /**
+   * Every microphone the platform enumerates.
+   *
+   * The default index is asked once rather than per device: CNA answers it for the *platform*, and
+   * asking it inside the loop would be one route call per microphone for one answer.
+   */
+  public getMicrophones(): readonly MicrophoneSnapshot[] {
+    const game = this.#game();
+    const count = Number(this.#routes.outU64("cna_microphone_get_count", game));
+    const scope = this.#routes.scope();
+    let defaultIndex = -1;
+    try {
+      const index = scope.allocate(8);
+      const available = scope.allocate(4);
+      this.#routes.invoke("cna_microphone_get_default_index_ext", game, index, available);
+      if (this.#routes.view().getUint8(available) !== 0) {
+        defaultIndex = Number(this.#routes.view().getBigUint64(index, true));
+      }
+    } finally {
+      scope.dispose();
+    }
+    return Object.freeze(Array.from({ length: count }, (_, index) => Object.freeze({
+      Index: index,
+      Name: this.#routes.copyString(
+        "cna_microphone_get_name_size_at", "cna_microphone_copy_name_at", game, BigInt(index),
+      ),
+      IsHeadset: outBool(this.#routes, "cna_microphone_get_is_headset_at", game, BigInt(index)),
+      SampleRate: outI32(this.#routes, "cna_microphone_get_sample_rate_at", game, BigInt(index)),
+      State: this.#routes.outU32("cna_microphone_get_state_at", game, BigInt(index)),
+      BufferDurationTicks:
+        outI64(this.#routes, "cna_microphone_get_buffer_duration_ticks_at", game, BigInt(index)),
+      IsDefault: index === defaultIndex,
+    })));
+  }
+
+  public setMicrophoneBufferDurationTicks(index: number, ticks: bigint): void {
+    this.#routes.invoke(
+      "cna_microphone_set_buffer_duration_ticks_at", this.#game(), BigInt(Math.trunc(index)), ticks,
+    );
+  }
+
+  public startMicrophone(index: number): void {
+    this.#routes.invoke("cna_microphone_start_at", this.#game(), BigInt(Math.trunc(index)));
+  }
+
+  public stopMicrophone(index: number): void {
+    this.#routes.invoke("cna_microphone_stop_at", this.#game(), BigInt(Math.trunc(index)));
+  }
+
+  /**
+   * Captured bytes, up to `count`.
+   *
+   * CNA writes how many it produced, which is what is returned: a microphone that has captured
+   * less than a caller asked for is the ordinary case, and answering the requested length would
+   * hand a game silence it would mix.
+   */
+  public getMicrophoneData(index: number, count: number): Uint8Array {
+    const requested = Math.max(Math.trunc(count), 0);
+    if (requested === 0) return new Uint8Array();
+    const scope = this.#routes.scope();
+    try {
+      const buffer = scope.allocate(requested);
+      const written = scope.allocate(8);
+      this.#routes.invoke(
+        "cna_microphone_get_data_at",
+        this.#game(), BigInt(Math.trunc(index)), buffer, BigInt(requested), written,
+      );
+      const produced = Number(this.#routes.view().getBigUint64(written, true));
+      return new Uint8Array(this.#routes.module.HEAPU8.subarray(buffer, buffer + produced));
+    } finally {
+      scope.dispose();
+    }
   }
 
   public override createSoundEffect(

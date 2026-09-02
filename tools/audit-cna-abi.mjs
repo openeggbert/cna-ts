@@ -429,7 +429,13 @@ function main() {
       `verified ${verifiedSignatures.length} Node bridge signatures for ${nodeBridgeImportedSymbols.length} imports`,
     );
   }
-  const trackedFiles = runGit(args.cnaRoot, ["ls-files"]).split("\n").filter(Boolean);
+  // `--portable` deletes every git-derived field below before the report is written, so asking git
+  // for them is work whose answer is thrown away -- and it makes the *portable* report, the one
+  // whose whole point is not to depend on this machine's checkout, require a git checkout. It
+  // does: regenerating the pinned reports against an extracted header tree failed with
+  // "not a git repository" and left `wasmBackendRoutes` at a stale 1403. The output is unchanged
+  // either way, because these three fields are dropped.
+  const trackedFiles = args.portable ? [] : runGit(args.cnaRoot, ["ls-files"]).split("\n").filter(Boolean);
   const trackedWasmArtifacts = trackedFiles.filter((file) => file.endsWith(".wasm"));
   const trackedCApiEsmLoaders = trackedFiles.filter((file) => {
     const normalized = file.toLowerCase();
@@ -446,7 +452,7 @@ function main() {
     ? []
     : wasmBackendRoutes.filter((name) => !wasmArtifact.exports.has(`_${name}`));
   const report = {
-    cnaRevision: runGit(args.cnaRoot, ["rev-parse", "HEAD"]),
+    cnaRevision: args.portable ? null : runGit(args.cnaRoot, ["rev-parse", "HEAD"]),
     abiVersion: `${version.major}.${version.minor}.${version.patch}`,
     abiVersionComponents: version,
     targetedAbi,

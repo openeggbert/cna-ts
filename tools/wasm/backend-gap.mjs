@@ -190,10 +190,20 @@ for (const entry of fs.readdirSync(path.join(ROOT, "dist/internal/wasm"))) {
   if (entry.endsWith(".js")) wasmModules.push(await import(path.join(ROOT, "dist/internal/wasm", entry)));
 }
 
-/** Every member a class and its prototype chain declare, which is how an override is seen. */
-function members(constructor) {
+/**
+ * Every member a class declares *below* its refusing base, which is what "implemented" means.
+ *
+ * Walking the whole prototype chain is the obvious thing and it is wrong: the refusing base is on
+ * that chain, so every member it declares -- including the ones it declares in order to *refuse*
+ * them -- comes back as implemented. A family with any facade at all then looks complete, and a
+ * method left to the base is invisible to the report whose entire job is to find it. The walk
+ * therefore stops at the base's own prototype.
+ */
+function members(constructor, base) {
   const found = new Set();
-  for (let p = constructor?.prototype; p && p !== Object.prototype; p = Object.getPrototypeOf(p)) {
+  const stop = base?.prototype;
+  for (let p = constructor?.prototype; p && p !== Object.prototype && p !== stop;
+    p = Object.getPrototypeOf(p)) {
     for (const name of Object.getOwnPropertyNames(p)) found.add(name);
   }
   return found;
@@ -231,7 +241,6 @@ const implemented = new Map();
 for (const module of wasmModules) {
   for (const value of Object.values(module)) {
     if (typeof value !== "function" || !/^Wasm/.test(value.name)) continue;
-    const own = members(value);
     for (const [name, constructor] of Object.entries(base)) {
       if (typeof constructor !== "function" || !/BackendBase$/.test(name)) continue;
       if (!(value.prototype instanceof constructor)) continue;
@@ -239,6 +248,7 @@ for (const module of wasmModules) {
         if (!unwired.includes(value.name)) unwired.push(value.name);
         continue;
       }
+      const own = members(value, constructor);
       const previous = implemented.get(name);
       if (!previous || own.size > previous.size) implemented.set(name, own);
     }
@@ -246,13 +256,48 @@ for (const module of wasmModules) {
 }
 const backendMembers = members(
   wasmModules.flatMap((m) => Object.values(m)).find((v) => typeof v === "function" && v.name === "WasmBackend"),
+  base.CnaBackendBase,
 );
 
-/** The boundary's own methods, excluding the two every refusing base declares. */
+/**
+ * The boundary's own members, excluding the two every refusing base declares.
+ *
+ * Accessors count. `mouseWindowHandle` is a *getter* on `CnaBackendBase`, and a first version of
+ * this tool filtered on `typeof descriptor.value === "function"` -- which is false for a getter, so
+ * a member the WebAssembly backend genuinely did not implement was invisible to the report that
+ * exists to find exactly that.
+ */
 function boundaryMethods(constructor) {
   return Object.getOwnPropertyNames(constructor.prototype)
     .filter((name) => name !== "constructor" && name !== "unsupported")
-    .filter((name) => typeof Object.getOwnPropertyDescriptor(constructor.prototype, name)?.value === "function");
+    .filter((name) => {
+      const descriptor = Object.getOwnPropertyDescriptor(constructor.prototype, name);
+      return typeof descriptor?.value === "function" || typeof descriptor?.get === "function";
+    });
+}
+
+/**
+ * The `?(` members of the backend interfaces, which no refusing base declares.
+ *
+ * A boundary member declared optional is a member the Node backend may have and the WebAssembly
+ * one may not, and that is precisely the thing this report is for -- but it is invisible to a
+ * prototype walk, because an optional member has no refusing implementation to walk. Seven of the
+ * nine were missing from the WebAssembly backend when this check was added, including standalone
+ * `GraphicsDevice` construction and the whole microphone family.
+ */
+function optionalMembers() {
+  const source = fs.readFileSync(path.join(ROOT, "src/internal/backend.ts"), "utf8");
+  const found = [];
+  let current = null;
+  for (const line of source.split("\n")) {
+    const declaration = /^export interface (Cna[A-Za-z]*Backend)\b/.exec(line);
+    if (declaration) { current = declaration[1]; continue; }
+    if (/^\}/.test(line)) { current = null; continue; }
+    if (!current) continue;
+    const member = /^ {2}([A-Za-z0-9_]+)\?\s*\(/.exec(line);
+    if (member) found.push({ interfaceName: current, member: member[1] });
+  }
+  return found;
 }
 
 // ---- the running artifact ---------------------------------------------------------------------
@@ -275,7 +320,19 @@ function classify(family, method) {
   return classification[`${family}.${method}`] ?? classification[`${family}.*`] ?? null;
 }
 
+/**
+ * Every CNA route the WebAssembly backend resolves, which is what "reached" means for it.
+ *
+ * The route table is authoritative rather than the source text: `sync-routes.mjs` already proves
+ * the two agree, and a route in the list is a route resolved at construction.
+ */
+const wasmRoutes = new Set(
+  [...(/const ROUTES = \[([\s\S]*?)\] as const;/.exec(backendSource)?.[1] ?? "")
+    .matchAll(/"(cna_[a-z0-9_]+)"/g)].map((match) => match[1]),
+);
+
 const rows = [];
+const partial = [];
 const families = new Map();
 for (const [name, constructor] of Object.entries(base)) {
   if (typeof constructor !== "function" || !/BackendBase$/.test(name)) continue;
@@ -287,7 +344,6 @@ for (const [name, constructor] of Object.entries(base)) {
   const bound = all.filter((method) => own?.has(method) || backendMembers.has(method));
   families.set(family, { total: all.length, bound: bound.length, absent: all.length - bound.length });
   for (const method of all) {
-    if (own?.has(method) || backendMembers.has(method)) continue;
     const node = nodeMethods.get(method);
     const routes = new Set();
     for (const call of node?.calls ?? []) {
@@ -295,6 +351,21 @@ for (const [name, constructor] of Object.entries(base)) {
       if (fn) for (const route of routesReached(fn)) routes.add(route);
     }
     const sorted = [...routes].sort();
+    if (own?.has(method) || backendMembers.has(method)) {
+      // Implemented -- but implemented *how much*? A method can be bound and still refuse half its
+      // input: `createStockEffect` covered `BasicEffect` and threw by name for the other four, and
+      // no count of bound methods could see that. A route the Node backend reaches for this method
+      // and the WebAssembly backend never resolves is the machine-checkable shape of that gap.
+      const unreached = sorted.filter((route) => !wasmRoutes.has(route) && !/^cna_error_/.test(route));
+      if (unreached.length > 0) {
+        const entry = classification[`${family}.${method}`] ?? classification[`${family}.*`] ?? null;
+        partial.push({
+          Interface: family, Method: method, RoutesNotReached: unreached,
+          Status: entry?.status ?? "ACTIONABLE_LOCAL", Reason: entry?.reason ?? null,
+        });
+      }
+      continue;
+    }
     const missingExports = artifact
       ? sorted.filter((route) => typeof artifact[`_${route}`] !== "function")
       : [];
@@ -313,14 +384,48 @@ for (const [name, constructor] of Object.entries(base)) {
   }
 }
 
+// The optional members, checked against the same implementations. `CnaBackend`'s own optional
+// members belong to `WasmBackend`; a family interface's belong to that family's facade.
+const facadeMembers = new Map();
+for (const [name, own] of implemented) facadeMembers.set(name.replace(/^Cna|BackendBase$/g, "") || "Backend", own);
+for (const { interfaceName, member } of optionalMembers()) {
+  const family = interfaceName.replace(/^Cna|Backend$/g, "") || "Backend";
+  const own = family === "Backend" ? backendMembers : facadeMembers.get(family);
+  if (own?.has(member) || backendMembers.has(member)) continue;
+  const node = nodeMethods.get(member);
+  const routes = new Set();
+  for (const call of node?.calls ?? []) {
+    const fn = bridgeExports.get(call);
+    if (fn) for (const route of routesReached(fn)) routes.add(route);
+  }
+  const entry = classification[`${family}.${member}`] ?? classification[`${family}.*`] ?? null;
+  rows.push({
+    Interface: family,
+    Method: member,
+    Optional: true,
+    NodeImplementation: node ? `src/internal/node-native-backend.ts:${node.line}` : null,
+    BridgeExports: node?.calls ?? [],
+    CnaRoutes: [...routes].sort(),
+    RoutesNotExported: [],
+    Status: entry?.status ?? "ACTIONABLE_LOCAL",
+    Reason: entry?.reason ?? null,
+    Evidence: entry?.evidence ?? null,
+  });
+  const family_ = families.get(family);
+  if (family_) family_.absent += 1;
+}
+
 const unknownStatus = rows.filter((row) => row.Status !== "ACTIONABLE_LOCAL" && !BLOCKERS.has(row.Status));
 const actionable = rows.filter((row) => row.Status === "ACTIONABLE_LOCAL");
 // A classification that names no reason explains nothing, so it is not a classification.
 const unreasoned = rows.filter((row) => row.Status !== "ACTIONABLE_LOCAL" && !row.Reason);
 // An entry for a method this backend now implements is stale: it would keep a blocker alive after
 // the blocker was removed, which is the failure this whole file exists to make impossible.
-const present = new Set(rows.map((row) => `${row.Interface}.${row.Method}`));
-const wildcardFamilies = new Set(rows.map((row) => `${row.Interface}.*`));
+// A classification is stale only if it names neither an absent method nor a partial one -- the
+// partial rows are classified from the same file, and forgetting them here reported every one of
+// them as stale while it was in fact being used.
+const present = new Set([...rows, ...partial].map((row) => `${row.Interface}.${row.Method}`));
+const wildcardFamilies = new Set([...rows, ...partial].map((row) => `${row.Interface}.*`));
 const stale = Object.keys(classification)
   .filter((key) => !present.has(key) && !wildcardFamilies.has(key));
 
@@ -344,9 +449,14 @@ const report = {
     UNCLASSIFIED_WASM_BACKEND_GAP: actionable.length + unreasoned.length + unknownStatus.length,
     STALE_CLASSIFICATIONS: stale.length,
     UNWIRED_WASM_FACADES: unwired.length,
+    WASM_PARTIAL_METHODS: partial.length,
+    UNCLASSIFIED_PARTIAL_METHODS: partial.filter((row) => row.Status === "ACTIONABLE_LOCAL"
+      || (!BLOCKERS.has(row.Status) && row.Status !== "ACTIONABLE_LOCAL") || !row.Reason).length,
   },
   Interfaces: Object.fromEntries([...families].sort(([a], [b]) => a.localeCompare(b))),
   Methods: rows.sort((a, b) =>
+    a.Interface.localeCompare(b.Interface) || a.Method.localeCompare(b.Method)),
+  PartialMethods: partial.sort((a, b) =>
     a.Interface.localeCompare(b.Interface) || a.Method.localeCompare(b.Method)),
 };
 
@@ -366,6 +476,12 @@ for (const row of unreasoned) console.log(`NO_REASON  ${row.Interface}.${row.Met
 for (const row of unknownStatus) console.log(`BAD_STATUS ${row.Interface}.${row.Method} ${row.Status}`);
 for (const key of stale) console.log(`STALE      ${key}`);
 for (const name of unwired) console.log(`UNWIRED    ${name} is never constructed by WasmBackend`);
+for (const row of partial) {
+  const prefix = report.Totals.UNCLASSIFIED_PARTIAL_METHODS > 0 && row.Status === "ACTIONABLE_LOCAL"
+    ? "PARTIAL_ACTIONABLE" : "PARTIAL";
+  console.log(
+    `${prefix} ${row.Interface}.${row.Method} does not reach ${row.RoutesNotReached.join(" ")}`);
+}
 
 function argumentAfter(flag) {
   const at = process.argv.indexOf(flag);
@@ -407,7 +523,7 @@ function markdown(model) {
 }
 
 if (process.argv.includes("--check")) {
-  const failures =
-    actionable.length + unreasoned.length + unknownStatus.length + stale.length + unwired.length;
+  const failures = actionable.length + unreasoned.length + unknownStatus.length + stale.length
+    + unwired.length + report.Totals.UNCLASSIFIED_PARTIAL_METHODS;
   process.exit(failures === 0 ? 0 : 1);
 }

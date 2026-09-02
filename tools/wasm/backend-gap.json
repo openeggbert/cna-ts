@@ -1,1 +1,52 @@
-{}
+{
+  "Backend.borrowGraphicsDevice": {
+    "status": "DELIBERATE_NON_BINDING",
+    "reason": "the renderer name's byte length is a *field* of CNA_RendererInfo, which this backend reads in the same call that gets the rest of the renderer's description. The Node bridge asks the separate size route because it does not read the structure; both arrive at the same length",
+    "evidence": "test/wasm-browser.mjs asserts the renderer name the browser reports, which is read through that field"
+  },
+  "Backend.getRendererInfo": {
+    "status": "DELIBERATE_NON_BINDING",
+    "reason": "the same CNA_RendererInfo field as borrowGraphicsDevice above: the length is already in the structure this method reads, so the separate size route would be a second answer to a question already answered",
+    "evidence": "test/wasm-browser.mjs asserts the renderer name the browser reports"
+  },
+  "Backend.createGame": {
+    "status": "DELIBERATE_NON_BINDING",
+    "reason": "cna_game_run is CNA's blocking loop, and a browser cannot have one: a page that blocks never yields to the event loop that would drive it. The browser backend drives frames from requestAnimationFrame through cna_game_run_one_frame, which is the same contract the Node backend's runGame reaches for a fixed frame count. The route is attributed to createGame only because the two share a bridge helper",
+    "evidence": "test/wasm-browser.mjs runs 60 and 600 real frames through requestAnimationFrame"
+  },
+  "Content.cnbModelGetBoneName": {
+    "status": "DELIBERATE_NON_BINDING",
+    "reason": "the WebAssembly backend reads a CNB model's bone name through the copy route's own length probe, which reports the byte count when it is given a null destination -- so the separate size route has nothing left to answer. One route instead of two, the same string out, and one fewer place for the two to disagree about a length",
+    "evidence": "test/cnb-content.integration.mjs and test/wasm-browser.mjs load the same CNB model on both backends and compare every name"
+  },
+  "Content.cnbModelGetMeshName": {
+    "status": "DELIBERATE_NON_BINDING",
+    "reason": "the WebAssembly backend reads a CNB model's mesh name through the copy route's own length probe, which reports the byte count when it is given a null destination -- so the separate size route has nothing left to answer. One route instead of two, the same string out, and one fewer place for the two to disagree about a length",
+    "evidence": "test/cnb-content.integration.mjs and test/wasm-browser.mjs load the same CNB model on both backends and compare every name"
+  },
+  "Content.cnbModelGetPartName": {
+    "status": "DELIBERATE_NON_BINDING",
+    "reason": "the WebAssembly backend reads a CNB model's part name through the copy route's own length probe, which reports the byte count when it is given a null destination -- so the separate size route has nothing left to answer. One route instead of two, the same string out, and one fewer place for the two to disagree about a length",
+    "evidence": "test/cnb-content.integration.mjs and test/wasm-browser.mjs load the same CNB model on both backends and compare every name"
+  },
+  "Content.cnbModelGetMaterialTexture": {
+    "status": "DELIBERATE_NON_BINDING",
+    "reason": "the WebAssembly backend reads a CNB model's material texture name through the copy route's own length probe, which reports the byte count when it is given a null destination -- so the separate size route has nothing left to answer. One route instead of two, the same string out, and one fewer place for the two to disagree about a length",
+    "evidence": "test/cnb-content.integration.mjs and test/wasm-browser.mjs load the same CNB model on both backends and compare every name"
+  },
+  "Content.cnbModelGetPartExternalEffect": {
+    "status": "DELIBERATE_NON_BINDING",
+    "reason": "the WebAssembly backend reads a CNB model's external effect name through the copy route's own length probe, which reports the byte count when it is given a null destination -- so the separate size route has nothing left to answer. One route instead of two, the same string out, and one fewer place for the two to disagree about a length",
+    "evidence": "test/cnb-content.integration.mjs and test/wasm-browser.mjs load the same CNB model on both backends and compare every name"
+  },
+  "Backend.createStandaloneGraphicsDevice": {
+    "status": "BLOCKED_UPSTREAM",
+    "reason": "a standalone GraphicsDevice is created successfully on this target -- its viewport is the 64x48 its presentation parameters asked for rather than the game's 800x480 -- and destroying it succeeds. The *game* afterwards does not: cna_game_destroy throws an Emscripten ErrnoError with errno 44 instead of returning a CNA result, and CNA's own last-error message is empty, so the failure is below its exception barrier. Measured in plain C calls with no binding involved. The implementation was written, measured, and withdrawn: a public XNA constructor that silently makes Game.Dispose fail is worse than one that refuses by name. Upstream finding 32",
+    "evidence": "test/wasm-browser-non-engine.mjs asserts the refusal through assertLateMemberEvidence, so a repaired CNA fails that assertion rather than passing unnoticed"
+  },
+  "Backend.destroyStandaloneGraphicsDevice": {
+    "status": "BLOCKED_UPSTREAM",
+    "reason": "the release half of the constructor above, which has nothing to release while the constructor is withheld. Upstream finding 32",
+    "evidence": "test/wasm-browser-non-engine.mjs asserts the refusal through assertLateMemberEvidence, so a repaired CNA fails that assertion rather than passing unnoticed"
+  }
+}

@@ -22,10 +22,10 @@ UNEXPLAINED=0
 
 ```text
 REACHABLE_NODE=1889
-REACHABLE_WASM=1403
+REACHABLE_WASM=1864
 REACHABLE_BY_ANY_BACKEND=1889
-REACHABLE_BY_EVERY_BACKEND=1403
-REACHABLE_NODE_ONLY=486
+REACHABLE_BY_EVERY_BACKEND=1864
+REACHABLE_NODE_ONLY=25
 REACHABLE_WASM_ONLY=0
 REACHABLE_BUT_DEFERRED=0
 ```
@@ -34,30 +34,30 @@ What each backend reaches, by what the routes are for:
 
 | Purpose | Total | NODE reach | WASM reach |
 | --- | ---: | ---: | ---: |
-| `XNA_BACKING` | 1521 | 550 | 282 |
-| `CNA_EXTENSION_BACKING` | 1871 | 1319 | 1107 |
+| `XNA_BACKING` | 1521 | 550 | 546 |
+| `CNA_EXTENSION_BACKING` | 1871 | 1319 | 1298 |
 | `INTERNAL_RUNTIME_ONLY` | 1 | 1 | 1 |
 | `MANAGED_BY_DESIGN` | 626 | 13 | 13 |
-| `TOOLING_ONLY` | 35 | 6 | 0 |
+| `TOOLING_ONLY` | 35 | 6 | 6 |
 
 ## By header
 
 | Header | REACHABLE_NODE | REACHABLE_WASM | XNA_BACKING | CNA_EXTENSION_BACKING | INTERNAL_RUNTIME_ONLY | MANAGED_BY_DESIGN | TOOLING_ONLY | INTENTIONALLY_DEFERRED | UPSTREAM_RUNTIME_UNAVAILABLE | UNEXPLAINED |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `abi.h` | 1 | 1 | 0 | 0 | 1 | 0 | 0 | 0 | 0 | 0 |
-| `audio.h` | 43 | 31 | 63 | 11 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `audio.h` | 43 | 43 | 63 | 11 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `cnb.h` | 169 | 149 | 0 | 272 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `color.h` | 0 | 0 | 0 | 0 | 0 | 24 | 0 | 0 | 0 | 0 |
-| `content_readers.h` | 1 | 0 | 45 | 17 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `content.h` | 14 | 0 | 13 | 19 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `content_readers.h` | 1 | 1 | 45 | 17 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `content.h` | 14 | 14 | 13 | 19 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `core_ext.h` | 36 | 36 | 0 | 56 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `core.h` | 2 | 2 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `curve.h` | 13 | 13 | 0 | 0 | 0 | 45 | 0 | 0 | 0 | 0 |
-| `devices.h` | 29 | 0 | 0 | 61 | 0 | 0 | 1 | 0 | 0 | 0 |
-| `display.h` | 14 | 0 | 0 | 22 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `effects.h` | 186 | 154 | 185 | 35 | 0 | 70 | 0 | 0 | 0 | 0 |
+| `devices.h` | 29 | 29 | 0 | 61 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `display.h` | 14 | 13 | 0 | 22 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `effects.h` | 186 | 186 | 185 | 35 | 0 | 70 | 0 | 0 | 0 | 0 |
 | `engine_layer.h` | 857 | 857 | 0 | 857 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `gamer_services.h` | 36 | 0 | 249 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `gamer_services.h` | 36 | 36 | 249 | 1 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `geometry.h` | 0 | 0 | 0 | 0 | 0 | 94 | 0 | 0 | 0 | 0 |
 | `graphics_device.h` | 27 | 25 | 73 | 14 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `graphics_ext.h` | 28 | 28 | 0 | 28 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -65,21 +65,21 @@ What each backend reaches, by what the routes are for:
 | `graphics_state.h` | 8 | 8 | 14 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `graphics.h` | 12 | 11 | 21 | 7 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `index_resources.h` | 8 | 8 | 10 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `input_cursor.h` | 5 | 0 | 0 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `input_devices.h` | 17 | 0 | 0 | 32 | 0 | 4 | 1 | 0 | 0 | 0 |
+| `input_cursor.h` | 5 | 5 | 0 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `input_devices.h` | 17 | 17 | 0 | 32 | 0 | 4 | 1 | 0 | 0 | 0 |
 | `input_gamepad.h` | 2 | 2 | 40 | 23 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `input_haptics.h` | 18 | 0 | 0 | 36 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `input_joystick.h` | 21 | 0 | 0 | 29 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `input_haptics.h` | 18 | 18 | 0 | 36 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `input_joystick.h` | 21 | 21 | 0 | 29 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `input_keyboard.h` | 0 | 0 | 1 | 8 | 0 | 8 | 0 | 0 | 0 | 0 |
-| `input_mouse.h` | 3 | 2 | 10 | 9 | 0 | 0 | 1 | 0 | 0 | 0 |
-| `input_text.h` | 14 | 0 | 0 | 16 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `input_mouse.h` | 3 | 3 | 10 | 9 | 0 | 0 | 1 | 0 | 0 | 0 |
+| `input_text.h` | 14 | 14 | 0 | 16 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `input_touch.h` | 4 | 4 | 33 | 13 | 0 | 0 | 1 | 0 | 0 | 0 |
 | `input.h` | 5 | 5 | 15 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `math.h` | 0 | 0 | 0 | 0 | 0 | 52 | 0 | 0 | 0 | 0 |
 | `matrix.h` | 0 | 0 | 0 | 0 | 0 | 57 | 0 | 0 | 0 | 0 |
-| `media_library.h` | 56 | 0 | 108 | 2 | 0 | 38 | 0 | 0 | 0 | 0 |
-| `media_player.h` | 15 | 0 | 33 | 8 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `media.h` | 20 | 0 | 37 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `media_library.h` | 56 | 56 | 108 | 2 | 0 | 38 | 0 | 0 | 0 | 0 |
+| `media_player.h` | 15 | 15 | 33 | 8 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `media.h` | 20 | 20 | 37 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `models.h` | 10 | 10 | 82 | 134 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `net_gamers.h` | 0 | 0 | 33 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `net_sessions.h` | 0 | 0 | 103 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -89,15 +89,15 @@ What each backend reaches, by what the routes are for:
 | `render_target.h` | 7 | 7 | 12 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `runtime_components.h` | 0 | 0 | 37 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `runtime_graphics_manager.h` | 17 | 17 | 35 | 3 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `runtime_window.h` | 12 | 0 | 14 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `runtime.h` | 10 | 6 | 33 | 9 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `sensors.h` | 53 | 0 | 0 | 120 | 0 | 0 | 24 | 0 | 0 | 0 |
-| `sprite_font.h` | 4 | 0 | 5 | 0 | 0 | 0 | 4 | 0 | 0 | 0 |
-| `storage.h` | 27 | 0 | 46 | 3 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `runtime_window.h` | 12 | 12 | 14 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `runtime.h` | 10 | 9 | 33 | 9 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `sensors.h` | 53 | 53 | 0 | 120 | 0 | 0 | 24 | 0 | 0 | 0 |
+| `sprite_font.h` | 4 | 4 | 5 | 0 | 0 | 0 | 4 | 0 | 0 | 0 |
+| `storage.h` | 27 | 27 | 46 | 3 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `texture_volume.h` | 10 | 10 | 16 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `texture.h` | 5 | 5 | 21 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `vectors.h` | 0 | 0 | 0 | 0 | 0 | 137 | 0 | 0 | 0 | 0 |
 | `vertex_resources.h` | 12 | 12 | 24 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `vertex_values.h` | 0 | 0 | 0 | 0 | 0 | 13 | 0 | 0 | 0 | 0 |
-| `video.h` | 12 | 0 | 36 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `xact.h` | 46 | 0 | 58 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `video.h` | 12 | 12 | 36 | 6 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `xact.h` | 46 | 46 | 58 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |

@@ -34,6 +34,7 @@ import {
   assertGameWindowEvidence,
   assertGraphicsAdapterEvidence,
   assertInputDeviceEvidence,
+  assertLateMemberEvidence,
   assertMediaEvidence,
   assertMediaLibraryEvidence,
   assertSensorEvidence,
@@ -158,6 +159,26 @@ const WORKING = {
       stopped: cue({ IsStopped: true }),
     },
   },
+  lateMembers: {
+    microphones: [
+      {
+        Index: 0, Name: "Default Device", IsHeadset: false, SampleRate: 44100,
+        State: 1, BufferDurationTicks: "10000000", IsDefault: true,
+      },
+      {
+        Index: 1, Name: "System audio recording device", IsHeadset: false, SampleRate: 44100,
+        State: 1, BufferDurationTicks: "10000000", IsDefault: false,
+      },
+    ],
+    microphoneCapture: {
+      durationAfter: "3000000", started: 0, stopped: 1, captured: 0, requestedBytes: 65536,
+    },
+    stock: [0, 1, 2, 3, 4].map((kind) => ({ kind, created: true, applied: true })),
+    unknownKind: "RangeError",
+    standalone: "NativeUnavailableError",
+    dispatcherUpdated: true,
+    mouseWindowHandle: "0",
+  },
   video: {
     state: 0, positionTicks: "0",
     frame: {
@@ -259,6 +280,7 @@ test("the non-engine oracles accept the evidence a working backend produces", ()
   assertVideoEvidence(clone(WORKING.video));
   assertExtendedInputEvidence(clone(WORKING.extendedInput));
   assertGraphicsAdapterEvidence(clone(WORKING.graphicsAdapters));
+  assertLateMemberEvidence(clone(WORKING.lateMembers));
   assertDeviceLayerEvidence(clone(WORKING.devices), { expectAvailable: true });
   assertDeviceLayerEvidence({ available: false, refusal: "6" }, { expectAvailable: false });
 });
@@ -582,6 +604,36 @@ const CASES = [
     const broken = clone(WORKING.devices);
     broken.locales = [{ Language: "English", Country: "US" }];
     return () => assertDeviceLayerEvidence(broken, { expectAvailable: true });
+  }],
+  ["a microphone list with two defaults", () => {
+    const broken = clone(WORKING.lateMembers);
+    broken.microphones[1].IsDefault = true;
+    return () => assertLateMemberEvidence(broken);
+  }],
+  ["a buffer duration that never reached CNA", () => {
+    const broken = clone(WORKING.lateMembers);
+    broken.microphoneCapture.durationAfter = "10000000";
+    return () => assertLateMemberEvidence(broken);
+  }],
+  ["a capture length taken from the request rather than from CNA's answer", () => {
+    const broken = clone(WORKING.lateMembers);
+    broken.microphoneCapture.captured = broken.microphoneCapture.requestedBytes;
+    return () => assertLateMemberEvidence(broken);
+  }],
+  ["a stock effect kind that is created and cannot be synchronised", () => {
+    const broken = clone(WORKING.lateMembers);
+    broken.stock[3] = { kind: 3, created: true, applied: false, error: "kind 3 needs Node" };
+    return () => assertLateMemberEvidence(broken);
+  }],
+  ["a stock effect kind that is not attempted at all", () => {
+    const broken = clone(WORKING.lateMembers);
+    broken.stock = broken.stock.slice(0, 1);
+    return () => assertLateMemberEvidence(broken);
+  }],
+  ["upstream finding 32 repaired, which this suite must notice", () => {
+    const broken = clone(WORKING.lateMembers);
+    broken.standalone = "CONSTRUCTED";
+    return () => assertLateMemberEvidence(broken);
   }],
   ["upstream finding 11 repaired, which this suite must notice", () => {
     const broken = clone(WORKING.devices);

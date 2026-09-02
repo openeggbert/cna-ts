@@ -69,7 +69,11 @@ export class WasmExtendedInputBackend extends CnaExtendedInputBackendBase {
   public override getJoystickInfoAt(index: number): JoystickInfoSnapshot {
     const scope = this.#routes.scope();
     try {
-      const info = allocateStruct(this.#routes.module, scope, "CNA_JoystickInfo");
+      const info = allocateStruct(this.#routes.module, scope, "CNA_JoystickInfo", false);
+      // CNA's own initialiser rather than a header written here: it sets the structure's size and
+      // version *and* its canonical defaults, so a field CNA adds later starts at CNA's default
+      // rather than at zero.
+      this.#routes.invoke("cna_joystick_info_init", info.pointer);
       this.#routes.invoke("cna_joysticks_get_info_at", this.#game(), Math.trunc(index), info.pointer);
       return { Id: info.getU32("id"), Type: info.getU32("type") };
     } finally {
@@ -87,7 +91,8 @@ export class WasmExtendedInputBackend extends CnaExtendedInputBackendBase {
   public override getJoystickCapabilities(id: number): JoystickCapabilitiesSnapshot {
     const scope = this.#routes.scope();
     try {
-      const caps = allocateStruct(this.#routes.module, scope, "CNA_JoystickCapabilities");
+      const caps = allocateStruct(this.#routes.module, scope, "CNA_JoystickCapabilities", false);
+      this.#routes.invoke("cna_joystick_capabilities_init", caps.pointer);
       this.#routes.invoke(
         "cna_joysticks_get_capabilities", this.#game(), Math.trunc(id), caps.pointer,
       );
@@ -214,7 +219,8 @@ export class WasmExtendedInputBackend extends CnaExtendedInputBackendBase {
   public override getHapticCapabilities(device: NativeHandle): HapticCapabilitiesSnapshot {
     const scope = this.#routes.scope();
     try {
-      const caps = allocateStruct(this.#routes.module, scope, "CNA_HapticCapabilities");
+      const caps = allocateStruct(this.#routes.module, scope, "CNA_HapticCapabilities", false);
+      this.#routes.invoke("cna_haptic_capabilities_init", caps.pointer);
       this.#routes.invoke("cna_haptic_device_get_capabilities", device, caps.pointer);
       return {
         Features: caps.getU32("features"),

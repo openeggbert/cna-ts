@@ -588,6 +588,69 @@ export function assertDeviceLayerEvidence(evidence, { expectAvailable }) {
     "which is the point of asserting it");
 }
 
+/**
+ * The members a family-level frontier could not see.
+ *
+ * None of these is a family, and that is why they were missed: a report that counts interfaces
+ * cannot see a member, one that counts methods cannot see a *getter* or an optional member, and
+ * one that counts members cannot see a bound method that covers one of its five inputs. Each was
+ * found by a different widening of `tools/wasm/backend-gap.mjs`, and each is asserted here so the
+ * widening stays paid for.
+ */
+export function assertLateMemberEvidence(evidence) {
+  present(evidence, "lateMembers");
+
+  // Microphones: the platform's, enumerated. How many there are is the host's business; that the
+  // list is consistent and that a written buffer duration comes back is the binding's.
+  for (const microphone of evidence.microphones) {
+    assert.equal(typeof microphone.Name, "string");
+    assert.ok(microphone.Name.length > 0, "an enumerated microphone has a name");
+    assert.ok(microphone.SampleRate > 0, "and a positive sample rate");
+    assert.match(microphone.BufferDurationTicks, /^\d+$/);
+  }
+  assert.equal(evidence.microphones.filter((microphone) => microphone.IsDefault).length,
+    evidence.microphones.length === 0 ? 0 : 1,
+    "exactly one enumerated microphone is the default one, or there are none at all");
+  assert.deepEqual(evidence.microphones.map((microphone) => microphone.Index),
+    evidence.microphones.map((_, index) => index),
+    "and the indices are the positions rather than something CNA was asked for");
+  if (evidence.microphoneCapture) {
+    assert.equal(evidence.microphoneCapture.durationAfter, "3000000",
+      "a buffer duration written is the duration read back, as a 64-bit tick count");
+    assert.notEqual(evidence.microphoneCapture.started, evidence.microphoneCapture.stopped,
+      "starting and stopping a microphone are two different states");
+    assert.equal(typeof evidence.microphoneCapture.captured, "number");
+    assert.ok(evidence.microphoneCapture.captured < evidence.microphoneCapture.requestedBytes,
+      "captured bytes are counted from what CNA produced rather than from what was asked for: " +
+      `${evidence.microphoneCapture.captured} of ${evidence.microphoneCapture.requestedBytes} ` +
+      "requested, which is more than a 0.3-second buffer at 44100 Hz could ever hold");
+  }
+
+  // All five stock effects, not one.
+  assert.deepEqual(evidence.stock.map((entry) => entry.kind), [0, 1, 2, 3, 4],
+    "every CNA_StockEffectKind was attempted");
+  for (const entry of evidence.stock) {
+    assert.equal(entry.created, true, `stock effect kind ${entry.kind} was created`);
+    assert.equal(entry.applied, true,
+      `stock effect kind ${entry.kind} synchronised and applied: ${entry.error ?? ""}`);
+  }
+  assert.equal(evidence.unknownKind, "RangeError",
+    "and a kind that is not one is refused by range rather than created");
+
+  // A device that belongs to no game, which this backend refuses on purpose. Upstream finding 32:
+  // the device itself works -- 64x48 viewport, destroys cleanly -- and the *game* afterwards does
+  // not, throwing an Emscripten ErrnoError out of `cna_game_destroy` with no CNA result at all. A
+  // repaired CNA makes this assertion fail, which is the point of making it.
+  assert.notEqual(evidence.standalone, "CONSTRUCTED",
+    "a standalone GraphicsDevice is refused by name on this backend rather than silently making " +
+    "Game.Dispose fail");
+
+  assert.equal(evidence.dispatcherUpdated, true,
+    "FrameworkDispatcher.Update reaches CNA rather than checking a handle and returning");
+  assert.match(evidence.mouseWindowHandle, /^\d+$/,
+    "and the mouse's window handle is CNA's answer, read through a getter that used to refuse");
+}
+
 /** Every family's oracle, by the key its evidence is recorded under. */
 export const NON_ENGINE_ORACLES = Object.freeze({
   avatar: assertAvatarEvidence,
@@ -604,4 +667,5 @@ export const NON_ENGINE_ORACLES = Object.freeze({
   video: assertVideoEvidence,
   extendedInput: assertExtendedInputEvidence,
   graphicsAdapters: assertGraphicsAdapterEvidence,
+  lateMembers: assertLateMemberEvidence,
 });

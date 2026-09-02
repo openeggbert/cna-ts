@@ -37,7 +37,7 @@ native 52, extensions 10, CNB 39, model-part 9, content-survey 8, input-devices 
 avatars 8, sprite-font-oracle 5, compiled effects 10, browser 13 -- all passing, which for a
 detector means the behaviour it pins has not changed.
 
-Item 31 is new. Items 2 and 11 gained WebAssembly measurements: four more of CNA's own notices
+Items 31 and 32 are new. Items 2 and 11 gained WebAssembly measurements: four more of CNA's own notices
 arrive on `stderr` with no level and one of them fires on a clean sine tone, and the dangling
 camera provider of item 11 turns out to be reachable through `cna_camera_get_count_ext` as well as
 through `cna_camera_create` — which under WebAssembly traps by name rather than taking a signal.
@@ -1724,3 +1724,50 @@ already carries the explanation; the example is the copy people read.
 `SpeedOfSound` at `0x01` and `Ceiling` at `0x03` — so a write that lands and a write that is
 ignored are two separate assertions instead of one ambiguous result. `test/support/non-engine-oracle.mjs`
 asserts both, and would fail if CNA started honouring a write to a READONLY variable.
+
+## 32. On the WebAssembly target, creating a standalone `GraphicsDevice` makes the game undestroyable
+
+**Measured:** CNA ABI 0.21.0, revision 5347b52e, `cmake-build-tswasm-fx` (SDL3 / WEBGL2 /
+`CNA_CNAEXT=ON` / `CNA_DEVICES=ON`), headless Chromium. In **plain C calls with no binding
+involved**: a game is created and run through one frame, then
+
+```text
+cna_presentation_parameters_init   0
+cna_graphics_device_create(0, 0, parameters, &device)   0        (a 64x48 device)
+cna_graphics_device_destroy(device)                     0
+cna_game_destroy(game)             *** ErrnoError, errno 44 ***
+```
+
+The last line is not a CNA result. It is an Emscripten `FS.ErrnoError` with `errno` 44 — `ENOENT`
+in that build's errno table — escaping from inside `cna_game_destroy`, and
+`cna_error_get_last_message_size` answers **zero bytes afterwards**, so nothing reached CNA's own
+exception barrier. Something under the destroy makes a JavaScript-side filesystem call on a path
+that does not exist, and the error propagates out of the export rather than being converted.
+
+**What works, which is most of it.** The device itself is fine: `cna_graphics_device_create`
+succeeds, the device's viewport is the 64×48 its presentation parameters asked for rather than the
+game's 800×480 — so it is genuinely its own device and not a second view of the manager's — and
+`cna_graphics_device_destroy` returns success. Only the *game's* teardown afterwards fails, and it
+fails whether or not the standalone device was destroyed first. Without the standalone device the
+same game disposes cleanly, in the same page, on the same frame count.
+
+**Why it matters.** `GraphicsDevice`'s public constructor is XNA API, not an extension: a game that
+constructs one is doing an ordinary thing. On this target it silently costs the consumer their
+`Game.Dispose`, and the diagnostic they get is an Emscripten errno with no stack and no CNA
+message — which points at their filesystem rather than at their device.
+
+**Proposed fix:** find the filesystem call under `cna_game_destroy` that a standalone device's
+existence makes reachable — the likely candidates are a preference-path or persistent-storage probe
+in the SDL3 Emscripten platform layer, and a device-scoped resource whose cleanup path differs when
+more than one device has existed — and either make the path optional or let the exception barrier
+convert it. Whichever it is, an Emscripten `ErrnoError` should not be able to leave a `CNA_C_API`
+function: every one of them documents a `CNA_Result`.
+
+**Consequence here:** `WasmBackend` deliberately does **not** implement
+`createStandaloneGraphicsDevice`. The implementation was written, measured and withdrawn — a public
+constructor that silently makes `Game.Dispose` fail is worse than one that refuses by name — so the
+member falls through `CnaBackendBase` and `GraphicsDevice`'s constructor refuses in a browser.
+`test/wasm-browser-non-engine.mjs` asserts that refusal through
+`test/support/non-engine-oracle.mjs`, so a repaired CNA fails that assertion and asks for the
+implementation back. The Node-API backend is unaffected and `test/standalone-device.test.mjs`
+continues to prove the whole family there.
