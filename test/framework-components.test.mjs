@@ -18,6 +18,7 @@ import {
   getBackend,
   setBackendForInternalUse,
 } from "../dist/internal/backend.js";
+import { registerFrameworkPumpCallback } from "../dist/internal/framework-pump.js";
 
 class TestEvent {
   #handlers = [];
@@ -288,18 +289,25 @@ test("internal backend lifecycle routes are owned and released without exposing 
   game.Dispose();
 
   assert.equal(exitingSender, null);
+  // No "dispatcher": the native `FrameworkDispatcher::Update` is CNA's to run, at the end of its
+  // own `Game::Update` base pass, and this backend's `updateFrameworkDispatcher` records a call so
+  // a second pump from the managed side would show up here as a duplicate.
   assert.deepEqual(calls, [
-    "initialize", "create:41", "exit:41", "run:41", "begin", "update:0", "dispatcher", "end",
+    "initialize", "create:41", "exit:41", "run:41", "begin", "update:0", "end",
     "frame:41", "destroy:41",
   ]);
   assert.throws(() => game.RunOneFrame(), /already disposed/);
   assert.equal(TimeSpan.FromTicks(game.TargetElapsedTime.Ticks).Ticks, 166_667n);
 });
 
-test("Game pumps framework services once after Update and skips the pump when Update throws", async (t) => {
+test("Game pumps managed services once after Update, leaves the native dispatcher to CNA, and skips the pump when Update throws", async (t) => {
   const previous = getBackend();
   t.after(() => setBackendForInternalUse(previous));
   const calls = [];
+  // The managed half of the pump, recorded through the same registration a
+  // DynamicSoundEffectInstance uses -- so this asserts the thing games observe rather than a
+  // private call order.
+  t.after(registerFrameworkPumpCallback(() => calls.push("pump")));
   let next = 70n;
   const backend = {
     Kind: "node-native", IsAvailable: true, AbiVersion: "0.7.0-test", Detail: "pump test backend",
@@ -319,7 +327,11 @@ test("Game pumps framework services once after Update and skips the pump when Up
   const successful = new SuccessfulGame();
   await successful.Run();
   successful.Dispose();
-  assert.deepEqual(calls, ["update", "dispatcher"]);
+  // "dispatcher" must not appear. CNA's `Game::Update` runs `FrameworkDispatcher::Update()` at the
+  // end of the base pass the C API shim invokes as soon as this callback returns; pumping it here
+  // as well aged the touch state machine twice a frame, and `TryGetPreviousLocation` then reported
+  // `Moved` where XNA reports `Pressed`. Measured in a browser -- see test/wasm-browser-input.mjs.
+  assert.deepEqual(calls, ["update", "pump"]);
 
   calls.length = 0;
   class ThrowingGame extends Game {

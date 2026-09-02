@@ -37,7 +37,7 @@ native 52, extensions 10, CNB 39, model-part 9, content-survey 8, input-devices 
 avatars 8, sprite-font-oracle 5, compiled effects 10, browser 13 -- all passing, which for a
 detector means the behaviour it pins has not changed.
 
-Items 31 and 32 are new. Items 2 and 11 gained WebAssembly measurements: four more of CNA's own notices
+Items 31, 32 and 33 are new. Items 2 and 11 gained WebAssembly measurements: four more of CNA's own notices
 arrive on `stderr` with no level and one of them fires on a clean sine tone, and the dangling
 camera provider of item 11 turns out to be reachable through `cna_camera_get_count_ext` as well as
 through `cna_camera_create` — which under WebAssembly traps by name rather than taking a signal.
@@ -1771,3 +1771,51 @@ member falls through `CnaBackendBase` and `GraphicsDevice`'s constructor refuses
 `test/support/non-engine-oracle.mjs`, so a repaired CNA fails that assertion and asks for the
 implementation back. The Node-API backend is unaffected and `test/standalone-device.test.mjs`
 continues to prove the whole family there.
+
+## 33. `FrameworkDispatcher::Update` ages the touch state machine, so calling it twice in one frame costs `TouchLocation`'s previous state
+
+**Where.** `modules/audio/src/Xna/FrameworkDispatcher.cpp:67` — the dispatcher ends by calling
+`Input::Touch::TouchPanel::Update()` whenever a touch device exists, and that is what runs
+`advanceEventTouches()`: `previousState = state`, `previousPosition = position`, and `Pressed`
+becomes `Moved`. `TouchPanel::GetState()` deliberately does not age; its own comment explains why
+(CNA's input bridge is event-driven rather than poll-driven, so the panel's event snapshot is the
+source of truth and `SetFinger`/`touches_` stay empty in production).
+
+**What XNA does, from the pinned reference assemblies rather than from memory.**
+`Microsoft.Xna.Framework.Input.Touch.TouchPanel::GetState()` calls
+`TouchCollection::Update(...)` — the aging is tied to the *read*.
+`Microsoft.Xna.Framework.FrameworkDispatcher::Update()` sets `UpdateCalledAtLeastOnce`, calls
+`PollForEvents()` and drains a list of pending managed calls; it does not mention `TouchPanel` at
+all. So in XNA the dispatcher is idempotent within a frame, and a game may call it as often as it
+likes — which is exactly what the documentation asks of a game that does not derive from `Game`.
+
+**Measured**, in headless Chromium against the WebAssembly artifact, one finger pressed at (40,50)
+through `Input.dispatchTouchEvent` and then two frames run with no further events. Each frame reads
+`TouchPanel.GetState()` once, inside `Game.Update`:
+
+| dispatcher pumps per frame | frame 1 | frame 2 |
+| --- | --- | --- |
+| one | `Pressed`, no previous location | `Moved`, previous `Pressed` |
+| two | `Pressed`, no previous location | `Moved`, previous **`Moved`** |
+
+The second row is XNA-wrong: after a press, `TouchLocation.TryGetPreviousLocation()` must report
+`Pressed`, and a game that distinguishes a tap from a drag by that transition cannot. Nothing else
+degrades — identifiers, positions, the previous *position*, the `Released` frame and the erase
+afterwards are all identical between the two rows — which is why it survives casual testing.
+
+**Why it matters.** The dispatcher is public API that games call directly, and XNA's contract makes
+that safe. Under CNA a second call in the same frame is not a redundant call, it is a state
+transition, and the damage lands in a family the caller was not touching.
+
+**Proposed fix:** age the panel from the game tick rather than from the dispatcher — CNA's own
+`Game::Update` already calls `FrameworkDispatcher::Update()` at the end of the base pass, so the
+call site is available — or make `advanceEventTouches()` idempotent within a tick by keying it on
+the frame counter and letting extra dispatcher calls be the no-ops XNA promises they are.
+
+**Consequence here:** `cna-ts`'s `Game` no longer pumps the dispatcher itself. It used to, from the
+managed `update` callback, and that was a duplicate from the start: the C API's game shim runs
+`Game::Update`'s base pass — dispatcher included — as soon as the callback returns. The duplicate
+was invisible while the WebAssembly backend's `updateFrameworkDispatcher` did nothing, and became
+visible the moment it was implemented. `test/wasm-browser-input.mjs` asserts the one-pump row above,
+so a repaired CNA (or a returning duplicate) fails it, and `test/framework-components.test.mjs`
+asserts that the managed `update` callback pumps managed services only.

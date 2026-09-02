@@ -350,7 +350,18 @@ export class Game implements IDisposable {
           TimeSpan.FromTicks(time.ElapsedGameTimeTicks),
           time.IsRunningSlowly,
         ));
-        backend.updateFrameworkDispatcher();
+        // The native dispatcher is deliberately NOT pumped here. CNA's own `Game::Update` ends
+        // with `FrameworkDispatcher::Update()` and the C API's game shim runs that base pass as
+        // soon as this callback returns, so calling it here pumped it twice per frame. That is
+        // observable, not merely wasteful: CNA ages the touch state machine inside the dispatcher
+        // (an explicit deviation from FNA, whose panel is poll-driven), so a second pump advanced
+        // `Pressed` to `Moved` again and `TouchLocation.TryGetPreviousLocation` could never report
+        // `Pressed`. Measured in a browser: two pumps give a second frame whose previous state is
+        // `Moved`, one pump gives XNA's `Pressed`.
+        //
+        // The managed pump stays: it delivers `BufferNeeded` from the buffer counts the *previous*
+        // native pump left behind, which is one frame of latency on a queue that is hundreds of
+        // milliseconds deep, and the alternative is the wrong touch semantics for every game.
         pumpFrameworkServicesForInternalUse();
       },
       beginDraw: () => this.BeginDraw(),

@@ -36,7 +36,9 @@ phase is complete. API completeness can only be claimed from a reproducible stri
   `48ab0de7f`, and the assertion failing is how this package found out. Opt-in through
   `CNA_WINDOWED_LIBRARY`; skips with a reason where no windowed library or display exists.
 - [x] A WebAssembly backend runs the same public XNA API for 60 and 600 real frames in headless
-  Chromium on a WebGL2 context.
+  Chromium on a WebGL2 context, and it is no longer a slice: **33 backend interfaces, 1525 members,
+  1864 CNA routes**, with `ACTIONABLE_LOCAL=0` and every remaining difference from the Node adapter
+  carrying a measured blocker.
 - [x] The XNA structural difference count is zero on both profiles, with no missing members and an
   empty allowlist.
 - [x] The CNA enum boundary is proved member by member against the canonical headers by generated
@@ -259,6 +261,11 @@ Electron, or mobile support.
 - [x] Verify `GamePad` and `TouchPanel` in a browser with real events reaching the public XNA API,
   including button/stick/trigger values, the packet number, and XNA's `Pressed`/`Moved`/`Released`
   touch transitions with identity preserved across frames.
+- [x] Pump CNA's `FrameworkDispatcher` exactly once per frame. `Game` used to pump it from the
+  managed `update` callback as well, which was a duplicate of the base pass CNA's own `Game::Update`
+  runs the moment that callback returns -- invisible until the WebAssembly backend implemented the
+  route, because CNA ages the touch state machine inside the dispatcher and the second pump cost
+  `TouchLocation.TryGetPreviousLocation` its `Pressed` state. Upstream finding 33.
 
 ## Content and models
 
@@ -823,13 +830,31 @@ Electron, or mobile support.
   binding gives CNA's own truthful refusal for it rather than a message about this package.
   `test:wasm-browser` asserts the consequences of either answer; `test:wasm-browser:strong:required`
   makes the claim and fails by name without such an artifact.
-- [ ] It is still a slice: members outside it refuse by name through the generated `CnaBackendBase`,
-  `CnaGraphicsBackendBase`, `CnaGraphicsExtensionBackendBase`, `CnaShadowBackendBase` or
-  `CnaComputeBackendBase` instead of returning a plausible value. Of CNA's engine layer, the
-  compute/indirect-draw families are renderer-blocked on WebGL 2.0 (measured), anything needing a
-  `ModelMeshPart` is architecturally out of reach, and the remainder -- PBR, the render pipeline,
-  particles, light probes, atmosphere, decals, the prepass, clustered lighting, the cascaded/spot/
-  cube shadow maps -- is unbound rather than blocked.
+- [x] **It is no longer a slice.** The engine layer was bound whole first; the fifteen non-engine
+  interfaces followed, and the browser backend now reaches **1864 routes** against the Node
+  adapter's 1889. `tools/wasm/backend-gap.mjs` reports it per *method* rather than per family:
+  33 interfaces, 1525 members bound, `ACTIONABLE_LOCAL=0` and `UNCLASSIFIED_WASM_BACKEND_GAP=0`,
+  with every remaining difference carrying a measured blocker rather than a silence.
+- [x] Avatars, the sprite-font oracle, the game window, storage, the input-device inventory, four
+  sensors, the content survey, the media player, the media library, gamer services, XACT, the video
+  player's control surface, extended input, graphics adapters and CNA's device layer are each driven
+  through the public API in a real browser and checked by the **same oracle the Node backend's
+  evidence is checked by**, so a browser and a desktop disagreeing is a failure rather than two
+  green suites.
+- [x] XACT is not fixture-blocked. `test/fixtures/xact.mjs` writes a settings file, a wave bank and
+  a sound bank from scratch -- real XACT bytes, authored here rather than downloaded -- so a cue
+  runs prepared, playing, paused, playing, stopped in a browser.
+- [x] The two artifacts now differ in **two** identities rather than one: compiled effects and
+  extended graphics, and CNA's device layer (`CNA_DEVICES=ON`). Both branches are asserted, and
+  `CNA_REQUIRE_WASM_DEVICE_LAYER=1` is what turns the second into a claim.
+- [ ] What a browser still does not get, each with a measurement rather than a name: **video
+  decoding**, because `CNA_ENABLE_VIDEO=ON` is a configure-time fatal error on Emscripten in CNA's
+  own CMake; **standalone `GraphicsDevice` construction**, because it leaves the game undestroyable
+  (upstream finding 32); **physical sensors, joysticks, haptics, cameras and microphone capture**,
+  because headless Chromium has none and the marshalling is verified through CNA's synthetic
+  backends instead; the **signed-in gamer** (finding 29); and the **depth/normal prepass and its
+  consumers** (finding 30). The CNB *content pipeline* is Node-only by architecture: it takes
+  filesystem paths and runs in a build.
 
 ## Node, desktop, and mobile
 
