@@ -256,7 +256,11 @@ export async function runFrames(frames, pageFile = "browser-page.html", options 
   const context = await browser.newContext();
   try {
     if (fakeAudioCapture) {
-      await context.grantPermissions(["microphone"], { origin: `http://127.0.0.1:${port}` });
+      // Both, and only to this run's origin. `--use-fake-device-for-media-stream` replaces the
+      // camera as well as the microphone, so a page can ask what CNA makes of a synthetic camera
+      // in the same run and still have no way to reach a real one.
+      await context.grantPermissions(["microphone", "camera"],
+        { origin: `http://127.0.0.1:${port}` });
     }
     const page = await context.newPage();
     const consoleErrors = [];

@@ -142,10 +142,21 @@ position as the previous one fails the touch test. Each fails exactly one test a
 
 A game without sound is not much of a game, so `SoundEffect` and `SoundEffectInstance` are the same
 public classes here that a Node consumer uses. What a browser adds is one rule this backend does not
-pretend away: a page will not start a WebAudio context until it has had a user gesture. So building
-a sound, reading its duration, making instances and driving their state all work regardless, and
-whether a sample is *audible* is the page's business. `SoundEffect.Play` reports whether the runtime
-accepted it, which is the most a caller can truthfully be told from here.
+pretend away: a page will not start a WebAudio context until it has had a user gesture. Building a
+sound, reading its duration, making instances and driving their state all work regardless.
+
+That rule used to be the reason this package claimed nothing about the samples themselves, and it
+was doing two jobs it should not have. It is real — a fresh `AudioContext` is `suspended` at load,
+and a page-initiated `element.click()` is `isTrusted: false` and does not change that — but it
+gates **output**, not mixing. SDL3's Emscripten backend, finding the context suspended, pumps the
+audio callback from a timer and discards the buffer, so CNA's mixer runs either way. Measured
+through the media player's post-mix visualization tap, the pre-gesture and post-gesture spectra of
+the same cue are identical to every digit. See `test/wasm-browser-audio.mjs`, which supplies a
+real Playwright activation and asserts both halves separately.
+
+So sample consumption is provable and audibility is not, and the second is not a browser limitation
+this package could lift: a headless browser has no speaker. `SoundEffect.Play` reports whether the
+runtime accepted the sample, which is still the most a caller can truthfully be told from here.
 
 ```text
 DURATION=250 ms exactly, from a quarter second of 8 kHz mono PCM
@@ -154,8 +165,8 @@ VOLUME/PITCH/PAN/LOOPED=round-trip at float precision
 ```
 
 Duration is arithmetic on the sample count, so it is exact evidence that does not depend on anything
-being heard. XACT, microphones, 3D positioning and dynamic buffers are outside the slice and refuse
-by name.
+being heard. XACT, microphones, 3D positioning and dynamic buffers were outside the original slice
+and are now bound and driven; what each of them proves is in the table at the end of this document.
 
 That arithmetic is also why the **compiled** sound effect is measured here rather than on Node. This
 artifact is built with SDL3 audio; the Node one is built with `CNA_AUDIO_PLATFORM=NULL`, and CNA's
@@ -1121,10 +1132,10 @@ family below is driven with real arguments through the public API and checked by
 | `InputDeviceInventory` | clipboard round trip in UTF-8 bytes, one mouse and one keyboard enumerated, an index past the end refused | a host with an unknown battery: this one answers 0 rather than -1 |
 | `Sensor` | all four unsupported *and refusing to read*, then all four driven through CNA's synthetic backends with axes, signs, 64-bit timestamps and nested attitude intact | physical sensors — `PHYSICAL_HARDWARE_NOT_VERIFIED` |
 | `ContentSurvey` | three assets across a nested root, compiled and loose told apart, CNA's reader registry answering both ways | — |
-| `Media` | mute, repeat, shuffle, volume, visualisation flags, the local media source, and 256+256 visualisation floats that are zero | a spectrum: silence is recorded as silence |
+| `Media` | mute, repeat, shuffle, volume, visualisation flags, the local media source, and 256+256 visualisation floats that are zero with nothing playing — and, with a tone playing, a spectrum whose peak lands in the bin `round(f x 512 / 44100)` predicts, at the amplitude the transform's own scaling implies | the frequency axis, which CNA does not publish: finding 35 |
 | `MediaLibrary` | the library opens, reports zero of all seven collections, and refuses an index | album or picture payloads: there is no music folder to index |
 | `GamerServices` | dispatcher, Guide state, and both dialogs — pending, exactly-once completion, the simulated click, a cancelled entry answering null, a token refused twice | the signed-in gamer, which is finding 29 |
-| `Xact` | an engine, two categories, two global variables (one writable, one READONLY), two banks and a cue through five states | audibility: a browser will not start WebAudio without a user gesture |
+| `Xact` | an engine, two categories, two global variables (one writable, one READONLY), two banks, a cue through five states, and two authored cues whose samples reach CNA's mixer at their predicted bins | audibility — a headless browser has no speaker. The *gesture* is no longer the reason: a real one is supplied and the context reaches `running` |
 | `Video` | the whole control surface, and a frame that reports itself unavailable | decoding — `CNA_ENABLE_VIDEO=ON` is a **fatal error** on Emscripten in CNA's own CMake |
 | `ExtendedInput` | a committed code unit, a composition update, a candidate list, and an unsubscribed handler that stops being called | joysticks and haptics: this host has none |
 | `GraphicsAdapter` | the adapter list, its display mode, and every flag checked against the mode rather than its neighbour | a second adapter, which is what would separate two flags that are both true here |

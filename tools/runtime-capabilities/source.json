@@ -809,7 +809,7 @@
       "operation": "Browser sound effects: PCM construction, exact duration and the instance state machine",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "CNA-TS",
-      "evidence": "a quarter second of 16-bit mono PCM built in the page reports exactly 250 ms and 2,500,000 ticks, volume, pitch, pan and looping round-trip through CNA at float precision, and an instance walks stopped -> playing -> paused -> playing -> stopped. Audibility is deliberately not claimed: a browser will not start a WebAudio context without a user gesture, and SoundEffect.Play reports whether the runtime accepted the sample rather than whether anyone heard it",
+      "evidence": "a quarter second of 16-bit mono PCM built in the page reports exactly 250 ms and 2,500,000 ticks, volume, pitch, pan and looping round-trip through CNA at float precision, and an instance walks stopped -> playing -> paused -> playing -> stopped. Audibility is deliberately not claimed, and the reason has been corrected. A browser really will not start a WebAudio context without a user gesture -- measured: a fresh AudioContext is suspended at load and a page-initiated element.click() is isTrusted false and leaves it suspended -- but that gates output rather than mixing, and this suite had been getting an activation by accident anyway, because Playwright issues CDP Runtime.evaluate with userGesture true so page.evaluate and page.waitForFunction grant one. test/wasm-browser-audio.mjs supplies a deliberate one instead and measures both halves apart. SoundEffect.Play reports whether the runtime accepted the sample; whether anyone heard it is not something a headless browser can answer",
       "proof": [
         "wasmRoute:cna_sound_effect_create_pcm16_range_ext",
         "wasmRoute:cna_sound_effect_get_duration_ticks",
@@ -1302,13 +1302,14 @@
       "operation": "Camera frame capture",
       "category": "VERIFIED_NATIVE",
       "owner": "CNA-TS",
-      "evidence": "opening the platform camera succeeds on a host that has none -- CNA documented contract -- and the state is what reports the absence: NotSupported with a 0x0 frame format. CNA own test backend then supplies what the hardware cannot: four distinct pixels published through it arrive in a caller-owned Texture2D with their channels the right way round, a second frame of sixteen different bytes replaces the first, a texture whose size does not match the frame is refused rather than resized, and the frame stays available until it is replaced. Every injectable state round-trips, and CNA refuses Closed and NotSupported for a device it opened. The injection hooks refuse a camera that is not the test backend, so a test cannot fabricate a reading for a real device. Three planted defects -- zeroed pixels, an acquisition that always claims success, and hooks that accept a real camera -- all fail. This is injection evidence, not hardware evidence: a physical camera stays hardware-pending",
+      "evidence": "opening the platform camera succeeds on a host that has none -- CNA documented contract -- and the state is what reports the absence: NotSupported with a 0x0 frame format. CNA own test backend then supplies what the hardware cannot: four distinct pixels published through it arrive in a caller-owned Texture2D with their channels the right way round, a second frame of sixteen different bytes replaces the first, a texture whose size does not match the frame is refused rather than resized, and the frame stays available until it is replaced. Every injectable state round-trips, and CNA refuses Closed and NotSupported for a device it opened. The injection hooks refuse a camera that is not the test backend, so a test cannot fabricate a reading for a real device. Three planted defects -- zeroed pixels, an acquisition that always claims success, and hooks that accept a real camera -- all fail. This is injection evidence, not hardware evidence. What changed is WHY the real path has nothing to say: it is not this host. Asked in headless Chromium launched with --use-fake-device-for-media-stream, with the camera permission granted and the browser enumerating one videoinput, CNA answers IsSupported true and enumerates zero cameras, and opening the platform camera answers NotSupported with a 0x0 frame. Sdl3CameraProvider::GetCameras calls SDL_GetCameras without anything ever having called SDL_InitSubSystem(SDL_INIT_CAMERA) -- the constant does not appear in CNA sources -- and SDL returns null with Camera subsystem is not initialized until it has. IsSupported answers true because SDL_GetNumCameraDrivers reads a compiled-in table and needs no initialisation, so a caller is told the platform supports cameras and handed an empty list. The Emscripten camera driver is compiled into the artifact, so the browser half is present and unreachable. That is upstream finding 34, it is not browser-specific -- the same provider serves every SDL3 platform -- and the refusal is asserted so a repaired CNA fails rather than going unnoticed. A physical camera remains unverified, but BLOCKED_UPSTREAM rather than hardware-pending",
       "proof": [
         "route:cna_camera_create",
         "route:cna_camera_create_with_test_backend_ext",
         "route:cna_camera_try_acquire_frame_ext",
         "route:cna_camera_set_test_frame_ext",
-        "test:test/native-cna.integration.mjs"
+        "test:test/native-cna.integration.mjs",
+        "test:test/wasm-browser-audio-capture.mjs"
       ]
     },
     {
@@ -2585,13 +2586,14 @@
       "operation": "Browser media player state and an empty media library",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "CNA-TS",
-      "evidence": "The media player mute, repeat, shuffle, volume and visualisation flags all reach CNA, the platform reports its local media source by name, and the game has control. The visualisation buffers are read at their measured length -- 256 floats each -- and are zero, which is recorded as silence rather than dressed up as a spectrum. The media library opens and reports zero of all seven collections, which on a host with no music or pictures folder is the correct answer; an index into an empty collection is refused, which is what separates a library that is empty from one that could not be read",
+      "evidence": "The media player mute, repeat, shuffle, volume and visualisation flags all reach CNA, the platform reports its local media source by name, and the game has control. The visualisation buffers are read at their measured length -- 256 floats each -- and with nothing playing they are zero, which is recorded as silence rather than dressed up as a spectrum. What used to end there now continues: the visualisation is a post-mix tap on CNA whole mixer rather than on the media player own track, so an XACT cue, a SoundEffect and a DynamicSoundEffectInstance all reach it, and four authored tones each land in the bin round(f * 512 / rate) predicts from their own frequency and the rate CNA mixer announced. The magnitude is predicted too, from the transform own documented scaling -- 2/N with the Hann window 0.5 coherent gain left uncompensated, so amplitude/2 -- and the two page-authored tones sit exactly on a bin centre where the window response is textbook: half the peak in each adjacent bin, essentially nothing two bins out. The frequency axis itself is upstream finding 35: CNA does not publish the mixer negotiated rate on the C ABI, and the browser own AudioContext runs at a different rate (48000 against 44100), so the suite takes it from CNA stderr notice and asserts the two really do differ. The media library opens and reports zero of all seven collections, which on a host with no music or pictures folder is the correct answer; an index into an empty collection is refused",
       "proof": [
         "wasmRoute:cna_media_player_set_is_muted",
         "wasmRoute:cna_media_player_get_visualization_data",
         "wasmRoute:cna_media_library_create",
         "wasmRoute:cna_media_library_get_songs",
-        "test:test/wasm-browser-non-engine.mjs"
+        "test:test/wasm-browser-non-engine.mjs",
+        "test:test/wasm-browser-audio.mjs"
       ]
     },
     {
@@ -2611,13 +2613,26 @@
       "operation": "XACT in a browser over repository-authored banks",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "CNA-TS",
-      "evidence": "The settings file, wave bank and sound bank are written from scratch by test/fixtures/xact.mjs rather than downloaded, so the family is not fixture-blocked: CNA parses real XACT bytes. An engine loads two categories and two global variables, the writable one takes a new value and the READONLY one does not, the renderer list answers, two fetches of one category are two handles that CNA own comparison and hash agree are equal, and a cue runs prepared then playing then paused-while-playing then playing then stopped. A cue name that is not in the bank is refused. Audibility is not claimed: a browser will not start WebAudio without a user gesture",
+      "evidence": "The settings file, wave bank and sound bank are written from scratch by test/fixtures/xact.mjs rather than downloaded, so the family is not fixture-blocked: CNA parses real XACT bytes. An engine loads two categories and two global variables, the writable one takes a new value and the READONLY one does not, the renderer list answers, two fetches of one category are two handles that CNA own comparison and hash agree are equal, and a cue runs prepared then playing then paused-while-playing then playing then stopped. A cue name that is not in the bank is refused. Two authored cues are then run into CNA mixer and measured: 261.6 Hz answers bin 3 and 523.3 Hz answers bin 6, each predicted by round(f * 512 / 44100) rather than recorded, at the amplitude the visualisation transform own scaling implies, with silence before the cue and silence after it. That measurement is what found the fixture own defect: it wrote nChannels = 0 into the wave bank MINIWAVEFORMAT on the belief that the field holds the count minus one, and CNA reads it as (channels == 1) ? Mono : Stereo, so every mono wave here had been decoding as interleaved stereo and playing at exactly double its authored frequency. Nothing had ever measured the pitch. Audibility is still not claimed, but the user gesture is no longer the reason: a browser-trusted Playwright click is supplied, the AudioContext leaves suspended for running, and the pre-gesture and post-gesture spectra are identical -- SDL3 Emscripten backend pumps the mixer from a timer while the context is suspended and discards the output, so the gesture gates output and not mixing. What remains unproved is that a speaker moved, and a headless browser has none",
       "proof": [
         "wasmRoute:cna_audio_engine_create",
         "wasmRoute:cna_sound_bank_create",
         "wasmRoute:cna_wave_bank_create",
         "wasmRoute:cna_cue_get_info",
-        "test:test/wasm-browser-non-engine.mjs"
+        "test:test/wasm-browser-non-engine.mjs",
+        "test:test/wasm-browser-audio.mjs"
+      ]
+    },
+    {
+      "operation": "Browser WebAudio rendering behind a browser-trusted user activation",
+      "category": "VERIFIED_WEBASSEMBLY",
+      "owner": "CNA-TS",
+      "evidence": "The gesture rule is real and it was being satisfied by accident. Measured with no CDP call having touched the page: a fresh AudioContext is suspended at load, a page-initiated element.click() is isTrusted false and grants neither sticky nor transient activation and leaves it suspended, and a Playwright locator.click() is isTrusted true, grants both, and moves SDL own context from suspended to running. The accident is that Playwright issues CDP Runtime.evaluate with userGesture true, so page.evaluate and page.waitForFunction GRANT an activation -- every other browser suite here has been handing its page a gesture it never asked for, and a pre-gesture measurement read that way would have been measuring the question. So the harness gained an HTTP page-to-harness channel and runFrames(frames, page, { activate: true }), which waits on that channel and then sends a real click; the pre-gesture facts come back over HTTP before Playwright has run a line of script in the page. What the gesture does NOT gate is mixing: SDL3 Emscripten backend, finding the context suspended, pumps the audio callback from a timer and discards the buffer, so CNA mixer runs either way and the pre-gesture and post-gesture spectra of the same cue are identical to every digit. A second observable owes nothing to this package arithmetic -- DynamicSoundEffectInstance.PendingBufferCount drains 6 to 0 as CNA mixer finishes with the buffers, which is CNA counting its own consumption. WEB_AUDIO_RENDERING_VERIFIED and XACT_SAMPLE_CONSUMPTION_VERIFIED; AUDIBLE_OUTPUT_VERIFIED = 0, because a headless browser has no speaker and no amount of local work changes that",
+      "proof": [
+        "wasmRoute:cna_media_player_get_visualization_data",
+        "wasmRoute:cna_dynamic_sound_effect_instance_get_pending_buffer_count",
+        "wasmRoute:cna_cue_play",
+        "test:test/wasm-browser-audio.mjs"
       ]
     },
     {
@@ -2692,13 +2707,14 @@
       "operation": "Browser microphones: enumeration, buffer duration and capture state",
       "category": "VERIFIED_WEBASSEMBLY",
       "owner": "CNA-TS",
-      "evidence": "SDL3's Emscripten backend enumerates recording devices, and headless Chromium reports two -- a default device and a system audio recording device -- each with a name, a 44100 Hz sample rate, a state and a buffer duration, and exactly one of them marked default. A buffer duration written is the duration read back as a 64-bit tick count, starting and stopping move the state, and a capture asks for 65536 bytes and is answered with what CNA produced rather than with what was asked for. PHYSICAL_CAPTURE_NOT_VERIFIED: whether a browser delivers samples depends on the page having microphone permission, which this binding neither bypasses nor pretends about",
+      "evidence": "SDL3 Emscripten backend enumerates recording devices, and headless Chromium reports two -- a default device and a system audio recording device -- each with a name, a 44100 Hz sample rate, a state and a buffer duration, and exactly one of them marked default. A buffer duration written is the duration read back as a 64-bit tick count, starting and stopping move the state, and a capture asks for 65536 bytes and is answered with what CNA produced rather than with what was asked for. The old row stopped there, at PHYSICAL_CAPTURE_NOT_VERIFIED, because a page needs microphone permission. It does -- and Chromium can supply a capture device that is not hardware at all. Launched with --use-fake-device-for-media-stream and --use-file-for-fake-audio-capture pointing at a file this repository authored, every capture device Chromium offers is synthetic, and what CNA records is that file: two tones at 1500 Hz and 3187.5 Hz, present at the 2:1 amplitude ratio they were written at, at least ten times above anything else in the spectrum (measured 50:1). Chromium own gain control costs about 20 dB of absolute level and leaves the ratio alone, so the assertions are on the shape, which room noise, a buffer of zeroes and a single hard-coded frequency all fail. SYNTHETIC_BROWSER_CAPTURE_VERIFIED. PHYSICAL_MICROPHONE_ACCESSED = 0 and PHYSICAL_CAPTURE_VERIFIED = 0: the harness refuses to launch without the file flag rather than falling back to a real device, and a synthetic device passing is not evidence that a physical one would. Two things had to be found on the way: Playwright bundled headless shell has no media-capture stack at all, so the run asks for the full chromium channel by name, and SDL3 recording backend writes zeroes on a timer until its own getUserMedia resolves, so a capture that stopped at the first buffer would read that silence as a microphone that delivered nothing. BufferDuration is upstream finding 28",
       "proof": [
         "wasmRoute:cna_microphone_get_count",
         "wasmRoute:cna_microphone_get_default_index_ext",
         "wasmRoute:cna_microphone_set_buffer_duration_ticks_at",
         "wasmRoute:cna_microphone_get_data_at",
-        "test:test/wasm-browser-non-engine.mjs"
+        "test:test/wasm-browser-non-engine.mjs",
+        "test:test/wasm-browser-audio-capture.mjs"
       ]
     },
     {

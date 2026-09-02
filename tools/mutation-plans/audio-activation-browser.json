@@ -1,0 +1,65 @@
+{
+  "name": "browser WebAudio behind a trusted user activation: the spectrum, the amplitude and the drain counter",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "CNA_REQUIRE_AUDIO_WASM_TESTS=1 node --test test/wasm-browser-audio.mjs",
+  "environment": "Needs a CNA wasm artifact (CNA_WASM_ARTIFACT_DIR, or the default cmake-build-tswasm) and Playwright. Every mutant below is a marshalling or routing defect that the browser audio suite is the FIRST thing in this package able to see. The visualization arrays were previously read as two lengths of zeroes -- silence, correctly recorded as silence -- so a defect that swapped them, duplicated one over the other, or left the tap uninstalled produced exactly the evidence a working backend produced. What changed is that a known tone is now going through the mixer, so the arrays have shapes rather than lengths, and the shapes are predicted from arithmetic rather than recorded.",
+  "mutants": [
+    {
+      "id": "swap-visualization-arrays",
+      "why": "the two 256-float arrays are read from each other's field. Both are 256 floats at adjacent offsets and both are zero while nothing plays, so this is invisible to any evidence taken in silence -- and with a tone playing the 'spectrum' becomes a sine wave and the peak lands nowhere near the predicted bin",
+      "file": "src/internal/wasm/media.ts",
+      "find": "        Frequencies: data.getF32Array(\"frequencies\"),\n        Samples: data.getF32Array(\"samples\"),",
+      "replace": "        Frequencies: data.getF32Array(\"samples\"),\n        Samples: data.getF32Array(\"frequencies\"),"
+    },
+    {
+      "id": "samples-read-from-the-spectrum",
+      "why": "one field read twice, which is the shape a copy-paste in a two-array projection takes. The frequency half stays perfectly correct, so every bin assertion passes and only the time-domain peak and RMS say otherwise",
+      "file": "src/internal/wasm/media.ts",
+      "find": "        Samples: data.getF32Array(\"samples\"),",
+      "replace": "        Samples: data.getF32Array(\"frequencies\"),"
+    },
+    {
+      "id": "visualization-enable-never-reaches-cna",
+      "why": "the flag is accepted and never written, so CNA never installs the post-mix tap and every read answers the zeroes of a disabled visualization -- which is exactly what this package used to record as evidence",
+      "file": "src/internal/wasm/media.ts",
+      "find": "  public override setVisualizationEnabled(value: boolean): void {\n    this.#routes.invoke(\n      \"cna_media_player_set_is_visualization_enabled\", this.#game(), value ? 1 : 0,\n    );\n  }",
+      "replace": "  public override setVisualizationEnabled(value: boolean): void {\n    void value;\n  }"
+    },
+    {
+      "id": "cue-play-does-nothing",
+      "why": "the cue is fetched, reported and destroyed and never started, so the mixer has nothing to mix and the spectrum stays at the silence the run measured before it",
+      "file": "src/internal/wasm/xact.ts",
+      "find": "  public override playCueHandle(cue: NativeHandle): void {\n    this.#routes.invoke(\"cna_cue_play\", cue);\n  }",
+      "replace": "  public override playCueHandle(cue: NativeHandle): void {\n    void cue;\n  }"
+    },
+    {
+      "id": "cue-stop-does-nothing",
+      "why": "a cue is never stopped, so the next measurement's 'silence before' is the previous tone still sounding -- the defect that would let one loud cue supply every peak in the run",
+      "file": "src/internal/wasm/xact.ts",
+      "find": "  public override stopCue(cue: NativeHandle, options: number): void {\n    this.#routes.invoke(\"cna_cue_stop\", cue, Math.trunc(options));\n  }",
+      "replace": "  public override stopCue(cue: NativeHandle, options: number): void {\n    void cue; void options;\n  }"
+    },
+    {
+      "id": "sound-effect-created-at-twice-its-rate",
+      "why": "the sample rate written into CNA_SoundEffectCreateInfo is doubled, so the PCM plays back an octave high. The bytes are all there, the instance runs, and only a spectrum measured against the authored frequency notices -- which is the same class of defect the XACT fixture's own nChannels byte turned out to be",
+      "file": "src/internal/wasm/audio.ts",
+      "find": "      info.setU32(\"sample_rate\", sampleRate).setU32(\"channels\", channels);",
+      "replace": "      info.setU32(\"sample_rate\", sampleRate * 2).setU32(\"channels\", channels);"
+    },
+    {
+      "id": "dynamic-pending-count-frozen",
+      "why": "the pending-buffer count is read once and never advances, so CNA's own account of what its mixer has drained becomes a constant. Nothing about the audio changes, which is what makes the second observable worth having",
+      "file": "src/internal/wasm/audio.ts",
+      "find": "  public override getDynamicPendingBufferCount(instance: NativeHandle): number {\n    return this.#mem.int(\n      \"cna_dynamic_sound_effect_instance_get_pending_buffer_count\", instance);\n  }",
+      "replace": "  public override getDynamicPendingBufferCount(instance: NativeHandle): number {\n    void instance;\n    return 6;\n  }"
+    },
+    {
+      "id": "dynamic-buffer-submitted-empty",
+      "why": "the buffer's byte count is sent as zero, so every SubmitBuffer queues silence: the count still rises and drains, and only the audio during the drain says the queue was empty",
+      "file": "src/internal/wasm/audio.ts",
+      "find": "        \"cna_dynamic_sound_effect_instance_submit_buffer\", instance,\n        scope.allocateBytes(buffer), BigInt(buffer.byteLength),\n        Math.trunc(offset), Math.trunc(count),",
+      "replace": "        \"cna_dynamic_sound_effect_instance_submit_buffer\", instance,\n        scope.allocateBytes(buffer), BigInt(buffer.byteLength),\n        Math.trunc(offset), 0,"
+    }
+  ]
+}

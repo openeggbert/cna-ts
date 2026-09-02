@@ -302,9 +302,18 @@ Electron, or mobile support.
   answers with the button that was pressed, and a cancelled keyboard input returns null rather than
   an empty string. CNA draws those screens itself and answers them deterministically —
   `cna-ts/extensions/gamer-services` exposes that, and nothing in it fabricates a gamer or a peer.
-- [ ] Authored XACT playback is asset-pending; microphone capture has no HEADLESS device; video
-  *decode progression* remains fixture-blocked — no redistributable video is available on this
-  host, so nothing beyond the no-frame control path is claimed.
+- [x] Authored XACT playback and microphone capture are both done, and neither by the route this
+  line expected. XACT was never asset-pending: `test/fixtures/xact.mjs` writes the settings file,
+  wave bank and sound bank in CNA's own formats, and `test/wasm-browser-audio.mjs` runs two authored
+  cues into CNA's mixer in a browser and finds each one in the FFT bin its frequency predicts.
+  Capture has no HEADLESS device and does not need one: Chromium's fake media device plays a file
+  this repository wrote, and `test/wasm-browser-audio-capture.mjs` proves the samples CNA produced
+  are that file — two tones, at their authored 2:1 amplitude ratio, 50:1 above anything else.
+  Neither claims audibility or physical hardware, and the reasons are now precise rather than
+  general: a headless browser has no speaker, and a synthetic device passing says nothing about a
+  physical one. Video *decode progression* is no longer fixture-blocked either — it is
+  `BLOCKED_PLATFORM`, because `CNA_ENABLE_VIDEO=ON` is a configure-time `FATAL_ERROR` on Emscripten
+  and the no-video backend is what an AUTO build gets.
 - [x] Inventory non-selected GamerServices/Net profiles separately; both are now a projected
   strict profile of their own, refusing at runtime with `GamerServicesNotAvailableException`
   where the platform is absent rather than fabricating a signed-in gamer.

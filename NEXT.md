@@ -3379,3 +3379,216 @@ DIST_BYTE_IDENTICAL=PASS  TAR_PAYLOAD_IDENTICAL=PASS
 4. **Physical hardware** — sensors, joysticks, haptics, cameras, a microphone — is the only thing
    separating `SYNTHETIC_BACKEND_VERIFIED` from a physical claim, and no amount of local work
    substitutes for it.
+
+## 2026-09-02: a real user gesture, a fixture an octave high, and a microphone that is not one
+
+### Where this started
+
+The previous session closed the WebAssembly backend and left one sentence in the blocked table:
+
+> XACT audibility / Media spectrum: blocked because WebAudio needs a user gesture.
+
+The brief for this one was to challenge exactly that sentence before accepting it, on the grounds
+that the harness had never given a page a **browser-trusted** activation — a Playwright input
+action is not `element.click()` — so "needs a gesture" was an untested explanation rather than a
+measured blocker.
+
+`cna-ts` started clean at `c77e5ed`, level with `origin/develop` rather than six ahead as the
+handoff said; `cna-ts-template` at `8a806d8`; `cnanext` at `9ca0d4188`, one commit past the
+`5347b52ea` baseline; `sharp-runtimenext` at `9cc96cd5`. Both dependencies end with **zero modified
+tracked files**.
+
+The sentence was hiding two different facts and one accident, and finding them cost four things
+this package did not know about itself.
+
+### 1. The gesture is real, and the harness had been supplying one by accident
+
+Measured with nothing having touched the page through CDP:
+
+| | `isTrusted` | `hasBeenActive` | `isActive` | a fresh `AudioContext` |
+| --- | --- | --- | --- | --- |
+| at page parse | — | false | false | **suspended** |
+| page-initiated `element.click()` | **false** | **false** | **false** | **suspended** |
+| Playwright `locator.click()` | **true** | **true** | **true** | **running** |
+| inside `page.evaluate` | — | **true** | **true** | — |
+
+The last row is the accident. **Playwright issues CDP `Runtime.evaluate` with `userGesture: true`**,
+so `page.evaluate`, `page.waitForFunction` and `page.title()` all *grant* an activation as a side
+effect. `runFrames` waits for completion with `waitForFunction`, so every browser suite in this
+package has been handing its page a gesture it never asked for — and any pre-gesture measurement
+read back that way would have been measuring the question.
+
+So the harness gained an HTTP **page-to-harness channel**, and `runFrames(frames, page,
+{ activate: true })` waits on *that* for the page's own "I am ready" and then sends a real
+`locator.click()`. The pre-gesture facts come back over HTTP before Playwright has run a line of
+script in the page. It is opt-in, because most pages have nothing to say about gestures and a click
+before their first frame would be a different run.
+
+### 2. What the gesture does not gate
+
+CNA mixes either way, and the numbers are identical to every digit:
+
+```text
+                        peak bin   magnitude   sample peak   AudioContext
+before any activation       3       0.42607     0.854462      suspended
+after a trusted click       3       0.42607     0.854462      running
+```
+
+`third_party/SDL/src/audio/emscripten/SDL_emscriptenaudio.c:276` is why: finding the context
+suspended, SDL installs a `setInterval` that calls the audio thread's iterate function with a
+buffer it *discards*, and resumes the context the moment `navigator.userActivation.hasBeenActive`
+turns true. The mixer runs the whole time; only the output is thrown away.
+
+That is the precise statement the old sentence should have been. The gesture gates **output**, not
+mixing — so every sample-consuming path was provable without one, and audibility is not provable
+with one, because a headless browser has no speaker. The claim is
+`WEB_AUDIO_RENDERING_VERIFIED`, never `AUDIBLE_OUTPUT_VERIFIED`.
+
+### 3. The fixture had been playing every tone an octave high
+
+The first thing anyone had ever done was ask *which bin* a known tone lands in, and the answer was
+wrong by exactly a factor of two — 261.6 Hz answered bin 6, and bin 6 is 523 Hz.
+
+`test/fixtures/xact.mjs` wrote `nChannels = 0` into the wave bank's `FACTWaveBankMiniWaveFormat`,
+with a comment saying "channels-1 = 0 (mono)". The field holds the count itself: FAudio's `FACT.h`
+declares `nChannels : 3` and multiplies by it directly, and CNA reads it as
+`(entry.channels == 1) ? Mono : Stereo` — so a zero made every mono wave in this repository decode
+as interleaved stereo, through in half the time, at double its authored frequency.
+
+Nothing had noticed, and nothing could have: the states were right, the names were right, the
+lengths were right, and the Node suite passes 52/52 either way. **No test in this package had ever
+measured pitch or duration of audio.** That is the argument for a semantic oracle rather than a
+structural one, made by the defect rather than about it.
+
+### 4. Four tones, and a spectrum predicted rather than recorded
+
+With that fixed, every tone lands where arithmetic says:
+
+| source | Hz | `round(f x 512 / 44100)` | measured bin | magnitude | predicted |
+| --- | --- | --- | --- | --- | --- |
+| XACT `Tone261` | 261.6 | 3.04 → 3 | **3** | 0.42607 | 0.42725 |
+| XACT `Tone523` | 523.3 | 6.08 → 6 | **6** | 0.42486 | 0.42725 |
+| SoundEffect | 1378.125 | 16.00 → 16 | **16** | 0.39921 | 0.4 |
+| SoundEffect | 2756.25 | 32.00 → 32 | **32** | 0.39921 | 0.4 |
+
+The magnitude is predicted too, from the transform's own documented scaling: `2/N` with the Hann
+window's 0.5 coherent gain left uncompensated, so amplitude/2. The two page-authored tones sit
+exactly on a bin centre, where the window's response is textbook — `s[k±1]` measured 0.20019 beside
+a peak of 0.39921, which is 0.5013 of it, and `s[k±2]` measured 0.00026. That shape is what a
+fabricated peak cannot produce, and it is asserted.
+
+Two things make the spectrum reachable at all. `MediaPlayer.GetVisualizationData` is fed by a
+post-mix callback on **the whole mixer** rather than on the media player's own track
+(`MediaPlayer.cpp:224`), so an XACT cue, a `SoundEffect` and a `DynamicSoundEffectInstance` all
+reach it — the brief said not to assume XACT contributes to it, and it does. And the rate the bins
+are worth is **44100**, not the browser's 48000: SDL resamples between them, and reading the axis
+at the AudioContext's rate would put 1378.125 Hz in bin 15 instead of 16 and still look healthy.
+That is upstream finding 35 — CNA has the number and does not publish it.
+
+A second observable owes nothing to this arithmetic:
+`DynamicSoundEffectInstance.PendingBufferCount` drains 6 → 0 as CNA's mixer finishes with the
+buffers, which is CNA counting its own consumption.
+
+### 5. A microphone that is not one
+
+The capture row said `PHYSICAL_CAPTURE_NOT_VERIFIED` because a page needs microphone permission.
+It does — and Chromium can supply a capture device that is not hardware at all. Launched with
+`--use-fake-device-for-media-stream` and `--use-file-for-fake-audio-capture`, every capture device
+Chromium offers is synthetic and plays a file this repository wrote.
+
+The safety rule is enforced in three places rather than promised in one: the harness **refuses to
+launch** when the fixture is missing, because a run granted the permission without the file flag
+would open this host's real device; the permission is granted to the run's origin in a context of
+its own that dies with it; and the oracle asserts both flags were present *and* that every audio
+input the **browser** enumerated is one of Chromium's fake ones, so flags and platform have to
+agree.
+
+What is asserted is the shape, not the level. Chromium's gain control and noise suppression — which
+SDL's unconstrained `getUserMedia({ audio: true })` gives no way to switch off — cost about 20 dB
+and leave the ratio alone:
+
+```text
+authored   1500.0 Hz at 0.6   and   3187.5 Hz at 0.3      ratio 2.000
+measured   scan peak at 1500 Hz exactly                   ratio 2.007
+           worst off-tone magnitude 0.000621              50.7 : 1
+```
+
+Room audio, a buffer of zeroes and a single hard-coded frequency all fail that.
+`SYNTHETIC_BROWSER_CAPTURE_VERIFIED`, and `PHYSICAL_MICROPHONE_ACCESSED = 0`,
+`PHYSICAL_CAPTURE_VERIFIED = 0` — a synthetic device passing says nothing about a physical one.
+
+Two things had to be found on the way. **Playwright's bundled headless shell has no media-capture
+stack at all** — `getUserMedia({ audio: true })` rejects with `NotSupportedError: Not supported`
+before any permission question is reached — so the run asks for the full `chromium` channel by name
+and skips with a reason where it is absent, rather than degrading to something that cannot capture.
+And SDL3's Emscripten recording backend **writes zeroes on a timer** until its own `getUserMedia`
+resolves, so a capture that stopped at the first buffer would collect that silence and read it as a
+microphone that delivered nothing; the page waits for sound and the suite asserts the wait was real.
+
+### 6. The camera, which was never hardware-pending
+
+The same launch makes the camera synthetic too, so it cost one page to ask. The browser enumerates
+one `videoinput`. CNA reports `IsSupported: true` and enumerates **zero**, and opening the platform
+camera answers `NotSupported` with a 0×0 frame.
+
+`Sdl3CameraProvider::GetCameras` calls `SDL_GetCameras` and **nothing in CNA has ever called
+`SDL_InitSubSystem(SDL_INIT_CAMERA)`** — the constant does not appear in `modules/` at all — and
+SDL returns null with "Camera subsystem is not initialized" until it has. `IsSupported` answers
+true because `SDL_GetNumCameraDrivers` reads a compiled-in table and needs no initialisation, so a
+caller is told the platform supports cameras and handed an empty list. The Emscripten camera driver
+*is* compiled into the artifact.
+
+That is upstream finding 34, it is not browser-specific — the same provider serves every SDL3
+platform, which is very likely why the only camera evidence this package has ever had comes from
+CNA's test backend — and the camera row moves from hardware-pending to `BLOCKED_UPSTREAM`. The
+refusal is asserted, so a repaired CNA fails and asks for the frames.
+
+### 7. Gates, and what they measure
+
+```text
+WASM_BACKEND_ROUTES=1864 (unchanged -- no route was added or needed)
+ACTIONABLE_LOCAL=0  UNCLASSIFIED_WASM_BACKEND_GAP=0  STALE_CLASSIFICATIONS=0
+UNWIRED_WASM_FACADES=0  UNCLASSIFIED_PARTIAL_METHODS=0
+ORACLES_EXPORTED=40  ORACLES_UNWATCHED=0  ORACLE_REJECTION_CASES=139
+MUTATION_PLANS=11  MUTATION_PLAN_MUTANTS=159  MUTATION_PLAN_STALE_ANCHORS=0
+RUNTIME_CAPABILITY_ENTRIES=201  CONSISTENCY_GATE=PASS
+```
+
+### 8. Mutation evidence, and the mutant that scored itself wrong
+
+Fourteen mutants across two new plans: **14 killed, 0 survived, 0 unscored**, source and artifact
+both restored. What is interesting about them is what they would have survived a day earlier. The
+visualisation arrays used to be read as two lengths of zeroes, correctly recorded as silence — so a
+defect that **swapped** them, or read one over the other, or left the tap uninstalled, produced
+exactly the evidence a working backend produced. A capture assertion that counted bytes would have
+passed an endianness split, a one-byte-late read, and a buffer answered at its requested length.
+
+One of them survived first time round, and the reason was the plan rather than the mutant.
+`cameras-enumerated-from-the-supported-flag` fabricates a camera out of the driver-count flag —
+finding 34's own confusion, planted — and the suite passed 5 of 5 because the plan's command did
+not name an artifact, so it ran against the default one, which has no device layer, so the
+assertion that would have refused it was **never reached**.
+
+That is worth writing down because a skipped branch and a passing branch are the same verdict to a
+mutation harness. The plan now sets `CNA_REQUIRE_WASM_DEVICE_LAYER=1` in its own command and says
+in its `environment` that `CNA_WASM_ARTIFACT_DIR` must point at a `-DCNA_DEVICES=ON` build, so the
+branch is a claim rather than a possibility — and the mutant dies 5 of 5.
+
+### Where the next session picks up
+
+`ACTIONABLE_LOCAL = 0`. What remains is external, and one item left the list:
+
+1. **Finding 34** is new and cheap to fix — one `SDL_InitSubSystem` call — and it unblocks the
+   camera on every platform, not just in a browser.
+2. **Finding 32**, **finding 30** and **finding 29** are unchanged, checked by inspection rather
+   than by belief: the only commit between the measured baseline and current `cnanext` HEAD is a
+   `SpriteBatch` const-correctness fix, and no graphics-renderer, game-teardown or gamer-services
+   file lies between them. Finding 29 was re-checked by enumerating every `*_test_backend_ext`
+   route CNA has — there is still none for a signed-in gamer.
+3. **Emscripten video** is unchanged and was read rather than assumed:
+   `modules/CMakeLists.txt:20` still puts `EMSCRIPTEN` in the set that makes FFmpeg unsupported,
+   and `CNA_ENABLE_VIDEO=ON` there is still a `FATAL_ERROR`.
+4. **Physical hardware** — sensors, joysticks, haptics, a real camera, a real microphone — is what
+   separates synthetic from physical, and no amount of local work substitutes for it. The
+   microphone half is now as close as software can get: the path is proved end to end against
+   authored samples, and only the transducer is untested.

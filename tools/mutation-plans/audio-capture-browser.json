@@ -1,0 +1,51 @@
+{
+  "name": "synthetic browser microphone capture, and the camera CNA cannot see",
+  "artifact": "dist",
+  "build": "npm run build",
+  "command": "CNA_REQUIRE_AUDIO_CAPTURE_TESTS=1 CNA_REQUIRE_WASM_DEVICE_LAYER=1 node --test test/wasm-browser-audio-capture.mjs",
+  "environment": "Needs a CNA wasm artifact and Playwright's FULL chromium channel -- the bundled headless shell has no media-capture stack and the suite skips by name without it, which the harness would score as REFUSED rather than as a verdict. CNA_WASM_ARTIFACT_DIR must point at an artifact built with -DCNA_DEVICES=ON, and the command sets CNA_REQUIRE_WASM_DEVICE_LAYER=1 so it fails by name rather than skipping without one: the camera mutant SURVIVED the first time this plan ran, and the reason was that the default artifact has no device layer, so the assertion that would have refused it was never reached. A skipped branch and a passing one are the same verdict to a mutation harness, which is exactly the trap the require-flags exist for. Every capture device is Chromium's fake one and the samples are test/fixtures/fake-audio.mjs, so no mutant here can reach real hardware. The point of the plan is that a capture assertion which only counted bytes would pass most of these: the byte count survives an endianness split, an off-by-one read and a buffer answered at its requested length, and only comparing the SIGNAL to the authored file fails them.",
+  "mutants": [
+    {
+      "id": "microphone-data-answers-the-requested-length",
+      "why": "the projection returns the length the caller asked for rather than the length CNA produced, so 65536 bytes of mostly untouched heap come back as a capture. A test counting bytes sees more audio, not less",
+      "file": "src/internal/wasm/audio.ts",
+      "find": "      return new Uint8Array(this.#routes.module.HEAPU8.subarray(buffer, buffer + produced));",
+      "replace": "      void produced;\n      return new Uint8Array(this.#routes.module.HEAPU8.subarray(buffer, buffer + requested));"
+    },
+    {
+      "id": "microphone-data-read-one-byte-late",
+      "why": "the capture is read from one byte into the buffer, which splits every 16-bit sample across two frames. The byte count is right, the data is non-zero, the buffer is real -- and the waveform is destroyed, so only a frequency-domain comparison against the authored file notices",
+      "file": "src/internal/wasm/audio.ts",
+      "find": "      return new Uint8Array(this.#routes.module.HEAPU8.subarray(buffer, buffer + produced));",
+      "replace": "      return new Uint8Array(this.#routes.module.HEAPU8.subarray(buffer + 1, buffer + produced));"
+    },
+    {
+      "id": "microphone-buffer-duration-never-written",
+      "why": "the duration is accepted and dropped, so the microphone keeps whatever CNA defaulted it to and the round trip reads back the old value -- upstream finding 28's whole subject, going unmeasured",
+      "file": "src/internal/wasm/audio.ts",
+      "find": "  public setMicrophoneBufferDurationTicks(index: number, ticks: bigint): void {\n    this.#routes.invoke(\n      \"cna_microphone_set_buffer_duration_ticks_at\", this.#game(), BigInt(Math.trunc(index)), ticks,\n    );\n  }",
+      "replace": "  public setMicrophoneBufferDurationTicks(index: number, ticks: bigint): void {\n    void index; void ticks;\n  }"
+    },
+    {
+      "id": "microphone-never-started",
+      "why": "start is a no-op, so the device stays stopped and every read answers the silence SDL substitutes -- which is precisely what an ungranted microphone also looks like, and why the suite asserts the signal rather than its presence",
+      "file": "src/internal/wasm/audio.ts",
+      "find": "  public startMicrophone(index: number): void {\n    this.#routes.invoke(\"cna_microphone_start_at\", this.#game(), BigInt(Math.trunc(index)));\n  }",
+      "replace": "  public startMicrophone(index: number): void {\n    void index;\n  }"
+    },
+    {
+      "id": "microphone-never-stopped",
+      "why": "stop is a no-op, so the state after stopping is the state while running and a capture that never ends looks exactly like one that did",
+      "file": "src/internal/wasm/audio.ts",
+      "find": "  public stopMicrophone(index: number): void {\n    this.#routes.invoke(\"cna_microphone_stop_at\", this.#game(), BigInt(Math.trunc(index)));\n  }",
+      "replace": "  public stopMicrophone(index: number): void {\n    void index;\n  }"
+    },
+    {
+      "id": "cameras-enumerated-from-the-supported-flag",
+      "why": "the count is taken from whether the platform has drivers rather than from how many devices it found -- the exact confusion upstream finding 34 is about, and here it would fabricate a camera CNA cannot open. The finding's own assertion is what refuses it",
+      "file": "src/internal/wasm/devices.ts",
+      "find": "    const count = Number(this.#routes.outU64(\"cna_camera_get_count_ext\", this.#game()));",
+      "replace": "    const count = supported ? 1 : 0;"
+    }
+  ]
+}

@@ -37,6 +37,20 @@ native 52, extensions 10, CNB 39, model-part 9, content-survey 8, input-devices 
 avatars 8, sprite-font-oracle 5, compiled effects 10, browser 13 -- all passing, which for a
 detector means the behaviour it pins has not changed.
 
+**Re-checked on 2026-09-02.** `cnanext` HEAD is `9ca0d4188`, one commit past the `5347b52ea` the
+items below were measured against, and that commit is `fix(SAMPLE-148): accept const SpriteBatch
+states` — `SpriteBatch.hpp`, `SpriteBatch.cpp` and its tests, nothing else. No graphics-renderer,
+game-teardown, gamer-services or build-system file lies between the two, so items 29, 30 and 32 and
+the Emscripten video rule are unchanged by inspection rather than by re-running their reproducers.
+The video rule was read rather than assumed: `modules/CMakeLists.txt:20` still puts `EMSCRIPTEN` in
+the set that makes `_cna_ffmpeg_platform_supported` false, and `CNA_ENABLE_VIDEO=ON` there is still
+a `FATAL_ERROR`. Finding 29 was re-checked by enumerating every `*_test_backend_ext` route CNA has —
+sensors, vibration, message box, file dialog, system tray and camera — and there is still none for a
+signed-in gamer.
+
+Items 34 and 35 are new, and both came out of the same session: the first browser run that put a
+tone of a known frequency through CNA's mixer and asked where it landed.
+
 Items 31, 32 and 33 are new. Items 2 and 11 gained WebAssembly measurements: four more of CNA's own notices
 arrive on `stderr` with no level and one of them fires on a clean sine tone, and the dangling
 camera provider of item 11 turns out to be reachable through `cna_camera_get_count_ext` as well as
@@ -1819,3 +1833,100 @@ was invisible while the WebAssembly backend's `updateFrameworkDispatcher` did no
 visible the moment it was implemented. `test/wasm-browser-input.mjs` asserts the one-pump row above,
 so a repaired CNA (or a returning duplicate) fails it, and `test/framework-components.test.mjs`
 asserts that the managed `update` callback pumps managed services only.
+
+## 34. `SDL_GetCameras` is called without `SDL_INIT_CAMERA`, so CNA enumerates no camera anywhere while `IsSupported` says it has drivers
+
+**Where.** `modules/platform/src/Sdl3/Sdl3Camera.cpp:198` — `Sdl3CameraProvider::GetCameras()`
+calls `SDL_GetCameras(&count)` and returns `{}` when it answers null. `SDL_INIT_CAMERA` does not
+appear anywhere in `modules/`, and neither does any other route into SDL's camera subsystem:
+
+```console
+$ grep -rn "SDL_INIT_CAMERA" modules/ --include=*.cpp --include=*.hpp
+$
+```
+
+SDL3 requires it. `third_party/SDL/src/camera/SDL_camera.c:739` is the first thing `SDL_GetCameras`
+does:
+
+```c
+SDL_SetError("Camera subsystem is not initialized");
+return NULL;
+```
+
+**Measured:** CNA ABI 0.21.0, revision 5347b52e, `cmake-build-tswasm-fx` (SDL3 / WEBGL2 /
+`CNA_CNAEXT=ON` / `CNA_DEVICES=ON`), headless Chromium 151 launched with
+`--use-fake-device-for-media-stream`, camera permission granted to the page's origin:
+
+| asked | answer |
+| --- | --- |
+| `navigator.mediaDevices.enumerateDevices()` | one `videoinput`, `fake_device_0` |
+| `cna_camera_get_is_supported_ext` | `true` |
+| `cna_camera_get_count_ext` | **0** |
+| `cna_camera_create` → `cna_camera_get_state_ext` | `NotSupported` |
+| frame size | 0 × 0 |
+
+The browser has a camera. CNA does not see it.
+
+**The inconsistency is the tell.** `IsSupported()` is `SDL_GetNumCameraDrivers() > 0`, which reads
+a compiled-in table and needs no initialisation, so it answers `true`. `GetCameras()` needs the
+subsystem and gets nothing. A caller is therefore told the platform supports cameras and handed an
+empty list, which reads as "this host has no camera attached" — the one thing it does not mean.
+
+**It is not the browser half that is missing.** `SDL_CAMERA_DRIVER_EMSCRIPTEN` is wired up in
+SDL's own `CMakeLists.txt:1731`, and the built artifact contains both the `emscripten` and `dummy`
+camera driver names alongside the `Camera subsystem is not initialized` string. The driver is
+compiled in and unreachable.
+
+**Why it matters, and it is not browser-specific.** Nothing in the path above is Emscripten's: the
+same `Sdl3CameraProvider` serves every SDL3 platform, so `CnaCamera` enumerates zero devices on a
+desktop with a webcam for exactly the same reason. That is very likely why the only camera evidence
+this package has ever had comes from `cna_camera_create_with_test_backend_ext` — the real path has
+never enumerated anything on any host, and "this host has no camera" was an available explanation
+every time.
+
+**Proposed fix:** `SDL_InitSubSystem(SDL_INIT_CAMERA)` before the first enumeration, paired with a
+`SDL_QuitSubSystem` on teardown, the way `Sdl3AudioDevice::Open` already brackets
+`SDL_INIT_AUDIO`. If initialising lazily is unwanted, `IsSupported()` should stop answering `true`
+for a subsystem that will then enumerate nothing, because the pair as it stands is worse than
+either answer alone.
+
+**Consequence here:** `test/wasm-browser-audio-capture.mjs` asserts the refusal — the browser
+offering a camera and CNA enumerating none — through
+`assertBrowserCameraEvidence` in `test/support/audio-oracle.mjs`, in the same shape finding 32 is
+held in: **a repaired CNA fails that assertion** and asks the suite to acquire frames instead. The
+camera row in `docs/runtime-capabilities.md` is `BLOCKED_UPSTREAM` rather than hardware-pending,
+because a camera was present and the failure was CNA's.
+
+## 35. The mixer's negotiated sample rate is not on the C ABI, so `VisualizationData.Frequencies` has no frequency axis
+
+**Measured:** CNA ABI 0.21.0, revision 5347b52e, `cmake-build-tswasm`, headless Chromium.
+`MediaPlayer.GetVisualizationData` publishes 256 magnitudes from a 512-point transform, so bin *i*
+is `i * sampleRate / 512` Hz — and a consumer has no supported way to learn `sampleRate`.
+
+- `GetMixerSampleRate()` exists (`modules/audio/src/Backend/Sdl3Mixer/MixerEngine.cpp`) and is
+  internal. No `cna_*` route exposes it; the only sample rate anywhere on the audio ABI is
+  `cna_microphone_get_sample_rate_at`, which is a capture device's.
+- The browser's own `AudioContext.sampleRate` is a *different number*. Measured here: the
+  AudioContext runs at **48000** and CNA's mixer at **44100**, with SDL resampling between them.
+  A page that reasonably assumed they were the same would put a 1378.125 Hz tone in bin 15 instead
+  of bin 16, and every other tone with it — a wrong frequency axis that still looks like a working
+  spectrum, because the shape is right and only the labels are wrong.
+- The one place CNA states it is a stderr line with no log level, from the same unconditional
+  `printf` recorded as finding 2:
+  `[AudioMixer] Requested format=0x0 channels=2 freq=44100; application format=0x8010 channels=2 freq=44100`.
+
+**Why it matters.** A spectrum analyser is the obvious thing to build with this API, and it is the
+one thing the API cannot support: the caller can draw 256 bars and cannot label the axis. XNA has
+the same gap, which is an explanation rather than a defence — CNA already has the number and
+already exposes far more than XNA did through `*_ext` routes.
+
+**Proposed fix:** `cna_media_player_get_visualization_sample_rate_ext`, or more generally
+`cna_audio_get_mixer_format_ext` answering the rate and channel count `MIX_GetMixerFormat` already
+returns. Either makes the frequency axis derivable rather than guessable.
+
+**Consequence here:** `test/wasm-browser-audio.mjs` takes the rate from that stderr notice, which
+`test/support/browser-harness.mjs` parses out of the console stream it was already classifying as
+a non-error. That is a workaround on a log line and it is recorded as one: it will break the day
+the line changes, which is a better failure than a spectrum silently measured against the wrong
+axis. The suite asserts that the mixer's rate and the AudioContext's really do differ, so the trap
+is pinned rather than described.

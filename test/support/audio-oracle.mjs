@@ -28,6 +28,12 @@
 
 import assert from "node:assert/strict";
 
+// The camera-state constant comes from the package's own public enum rather than from a number
+// written here. A `0` in an assertion is a value this file would have to keep in step by hand, and
+// this repository has already paid once for a constant remembered instead of asked for -- the XACT
+// fixture's channel-count byte.
+import { CameraState } from "../../dist/extensions/devices/index.js";
+
 /**
  * The bin a tone must land in.
  *
@@ -424,4 +430,60 @@ export function assertSyntheticCaptureEvidence(evidence, { launchArgs, tones }) 
     `the two authored tones were written at a ${authoredRatio.toFixed(3)}:1 amplitude ratio and ` +
     `arrived at ${measuredRatio.toFixed(3)}:1. Chromium's gain control moves the level and not ` +
     "the ratio, so this is what says the captured signal is the authored waveform");
+}
+
+/**
+ * What CNA makes of a camera the browser is offering, which is nothing -- and why.
+ *
+ * This is a refusal asserted so that its repair is detectable, the same shape upstream finding 32
+ * is held in. Chromium's fake device offers a camera; the browser enumerates it; CNA reports
+ * `IsSupported` true and then enumerates none, and opening the platform camera answers
+ * `NotSupported` with a 0x0 frame.
+ *
+ * The cause is not this host. `Sdl3CameraProvider::IsSupported` calls `SDL_GetNumCameraDrivers`,
+ * which needs no initialisation, and `GetCameras` calls `SDL_GetCameras`, which returns nothing
+ * and sets "Camera subsystem is not initialized" until something has called
+ * `SDL_InitSubSystem(SDL_INIT_CAMERA)`. Nothing in CNA ever does -- the constant does not appear
+ * in its sources -- and the Emscripten camera driver is compiled into the artifact, so the browser
+ * half is present and unreachable. Upstream finding 34.
+ *
+ * When that is fixed this assertion fails, which is the point: the day CNA can see a camera, this
+ * suite asks for the frames rather than going on recording that it cannot.
+ */
+export function assertBrowserCameraEvidence(evidence, { expectDeviceLayer }) {
+  assert.equal(evidence.deviceLayerAvailable, expectDeviceLayer,
+    `the artifact's device layer is ${evidence.deviceLayerAvailable ? "present" : "absent"} and ` +
+    `this run expected it ${expectDeviceLayer ? "present" : "absent"}`);
+
+  assert.ok(evidence.browserVideoInputs.length > 0,
+    "the browser offered no camera at all, so nothing here is a statement about CNA");
+  for (const label of evidence.browserVideoInputs) {
+    assert.match(label, /^fake_device/,
+      `the browser offered a camera named ${JSON.stringify(label)}, which is not one of ` +
+      "Chromium's synthetic devices -- real hardware was reachable from this run");
+  }
+
+  if (!expectDeviceLayer) {
+    assert.equal(evidence.camera, undefined,
+      "an artifact built without CNA's device layer has no camera surface to measure");
+    return;
+  }
+
+  const camera = evidence.camera;
+  assert.ok(camera, "the device layer was present and the camera was never asked");
+  assert.equal(camera.isSupported, true,
+    "CNA reports the platform supports cameras, because SDL_GetNumCameraDrivers needs no " +
+    "initialisation to answer");
+  assert.equal(camera.deviceCount, 0,
+    `and then enumerates ${camera.deviceCount} of them beside a browser offering ` +
+    `${evidence.browserVideoInputs.length}. If this now finds the camera, upstream finding 34 is ` +
+    "fixed: initialise the camera subsystem, and this suite should acquire frames rather than " +
+    "record that it cannot");
+  assert.equal(camera.state, CameraState.NotSupported,
+    "opening the platform camera answers NotSupported -- CNA's documented behaviour for a host " +
+    `with no camera, reached here on a host that has one; measured state ${camera.state}`);
+  assert.equal(camera.width, 0);
+  assert.equal(camera.height, 0);
+  assert.equal(camera.acquired, null,
+    "there was no frame to attempt, which is the consequence being recorded");
 }

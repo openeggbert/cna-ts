@@ -33,9 +33,11 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { fakeCaptureBlocked, runFrames } from "./support/browser-harness.mjs";
+import { fakeCaptureBlocked, runFrames, WASM_DIR } from "./support/browser-harness.mjs";
 import { requiredSuite } from "./support/required-suite.mjs";
-import { assertSyntheticCaptureEvidence } from "./support/audio-oracle.mjs";
+import {
+  assertBrowserCameraEvidence, assertSyntheticCaptureEvidence,
+} from "./support/audio-oracle.mjs";
 import { FAKE_CAPTURE_TONES, writeFakeCaptureWav } from "./fixtures/fake-audio.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -91,6 +93,19 @@ test("SDL's silence stands in until the capture stream is live, and is not mista
     "one buffer is not a capture stream");
 });
 
+test("the same fake device offers a camera, and CNA enumerates none of it", () => {
+  // Not a camera test that happens to fail: a refusal asserted so that its repair is detectable.
+  // The device layer is only in an artifact built with `-DCNA_DEVICES=ON`, so which branch this
+  // run takes comes from what the artifact says about itself, and `CNA_REQUIRE_WASM_DEVICE_LAYER=1`
+  // turns the present branch into a claim the way the non-engine suite does.
+  const available = evidence.deviceLayerAvailable;
+  if (process.env.CNA_REQUIRE_WASM_DEVICE_LAYER === "1") {
+    assert.equal(available, true,
+      `CNA_REQUIRE_WASM_DEVICE_LAYER=1 but the artifact at ${WASM_DIR} has no device layer`);
+  }
+  assertBrowserCameraEvidence(evidence, { expectDeviceLayer: available });
+});
+
 test("what this run does and does not claim", () => {
   console.log(`SYNTHETIC_CAPTURE_SOURCE=${fixture}`);
   console.log(`SYNTHETIC_CAPTURE_BYTES=${evidence.capture.capturedBytes}`);
@@ -98,4 +113,7 @@ test("what this run does and does not claim", () => {
   console.log("SYNTHETIC_BROWSER_CAPTURE_VERIFIED=1");
   console.log("PHYSICAL_MICROPHONE_ACCESSED=0");
   console.log("PHYSICAL_CAPTURE_VERIFIED=0");
+  console.log(`SYNTHETIC_BROWSER_CAMERA_VERIFIED=0  # upstream finding 34: ` +
+    `browser cameras=${evidence.browserVideoInputs.length}, CNA cameras=` +
+    `${evidence.camera ? evidence.camera.deviceCount : "device layer absent"}`);
 });

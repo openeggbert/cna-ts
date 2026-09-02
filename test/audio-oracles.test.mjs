@@ -23,12 +23,14 @@ import test from "node:test";
 import {
   assertActivationIndependentMixingEvidence,
   assertDynamicBufferEvidence,
+  assertBrowserCameraEvidence,
   assertMixerSpectrumEvidence,
   assertSyntheticCaptureEvidence,
   assertUserActivationEvidence,
   assertXactSpectrumEvidence,
 } from "./support/audio-oracle.mjs";
 import { FAKE_CAPTURE_TONES } from "./fixtures/fake-audio.mjs";
+import { CameraState } from "../dist/extensions/devices/index.js";
 
 const clone = (value) => structuredClone(value);
 
@@ -156,6 +158,10 @@ const CAPTURE = {
       silentChunksBeforeSound: 3, firstSoundedAt: 4, sampleRate: 44100,
       pcmBase64: capturedPcm(),
     },
+    browserVideoInputs: ["fake_device_0"],
+    deviceLayerAvailable: true,
+    camera: { isSupported: true, deviceCount: 0, deviceNames: [],
+              state: CameraState.NotSupported, width: 0, height: 0, acquired: null },
   },
 };
 
@@ -169,6 +175,7 @@ test("the working shapes are accepted", () => {
   assertDynamicBufferEvidence(WORKING.evidence, MIXER);
   assertSyntheticCaptureEvidence(CAPTURE.evidence,
     { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  assertBrowserCameraEvidence(CAPTURE.evidence, { expectDeviceLayer: true });
 });
 
 const CASES = [
@@ -405,6 +412,41 @@ const CASES = [
     broken.capture.capturedBytes = 40001;
     return () => assertSyntheticCaptureEvidence(broken,
       { launchArgs: CAPTURE.launchArgs, tones: FAKE_CAPTURE_TONES });
+  }],
+  ["a browser with no camera at all, which says nothing about CNA", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.browserVideoInputs = [];
+    return () => assertBrowserCameraEvidence(broken, { expectDeviceLayer: true });
+  }],
+  ["a real camera the browser was still willing to offer", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.browserVideoInputs = ["Integrated Webcam (0bda:5657)"];
+    return () => assertBrowserCameraEvidence(broken, { expectDeviceLayer: true });
+  }],
+  ["upstream finding 34 repaired, which this suite must notice", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.camera.deviceCount = 1;
+    broken.camera.deviceNames = ["fake_device_0"];
+    return () => assertBrowserCameraEvidence(broken, { expectDeviceLayer: true });
+  }],
+  ["a camera that opened rather than answering NotSupported", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.camera.state = CameraState.Ready;
+    return () => assertBrowserCameraEvidence(broken, { expectDeviceLayer: true });
+  }],
+  ["a frame size where finding 34 says there is no frame", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.camera.width = 640;
+    broken.camera.height = 480;
+    return () => assertBrowserCameraEvidence(broken, { expectDeviceLayer: true });
+  }],
+  ["a device layer that answered present where the artifact has none", () => {
+    return () => assertBrowserCameraEvidence(CAPTURE.evidence, { expectDeviceLayer: false });
+  }],
+  ["a camera measured through a device layer that is not there", () => {
+    const broken = clone(CAPTURE.evidence);
+    broken.deviceLayerAvailable = false;
+    return () => assertBrowserCameraEvidence(broken, { expectDeviceLayer: false });
   }],
   ["a microphone enumerated and never captured from", () => {
     const broken = clone(CAPTURE.evidence);

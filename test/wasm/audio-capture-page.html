@@ -104,6 +104,38 @@ try {
     .filter((device) => device.kind === "audioinput")
     .map((device) => device.label);
 
+  // ---- and the camera the same fake device is offering, which CNA cannot see -----------------
+  //
+  // The same launch that made the microphone synthetic makes the camera synthetic too, so the
+  // question costs one page and answers something the sensor/camera row had been carrying as
+  // "physical hardware, not verified". It is not physical hardware: the browser has a camera here,
+  // CNA still enumerates none, and the reason is in CNA rather than in this host.
+  evidence.browserVideoInputs = devices
+    .filter((device) => device.kind === "videoinput")
+    .map((device) => device.label);
+  evidence.deviceLayerAvailable = backend.Devices.isDeviceExtensionLayerAvailable();
+  if (evidence.deviceLayerAvailable) {
+    const inventory = backend.Devices.getCameras();
+    const camera = backend.Devices.createCamera();
+    let acquired = null;
+    try {
+      const state = backend.Devices.getCameraState(camera);
+      const width = backend.Devices.getCameraFrameWidth(camera);
+      const height = backend.Devices.getCameraFrameHeight(camera);
+      // Only attempted where CNA says there is a frame to have; a 0x0 frame has no texture that
+      // could hold it, and asking anyway would be testing the argument check rather than the camera.
+      if (width > 0 && height > 0) acquired = "ATTEMPTABLE";
+      evidence.camera = {
+        isSupported: inventory.IsSupported,
+        deviceCount: inventory.Devices.length,
+        deviceNames: inventory.Devices.map((device) => device.Name),
+        state, width, height, acquired,
+      };
+    } finally {
+      backend.Devices.destroyCamera(camera);
+    }
+  }
+
   const audio = backend.Audio;
   evidence.microphones = audio.getMicrophones().map((microphone) => ({
     Index: microphone.Index,
